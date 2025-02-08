@@ -1,0 +1,3 @@
+[submodule "flecs"]
+	path = flecs
+	url = git@github.com:SanderMertens/flecs.git
