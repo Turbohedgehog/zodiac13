@@ -22,8 +22,6 @@ int main(int argc, char *argv[]) {
       // Create the world
     flecs::world ecs;
 
-    ecs.get_stage
-
     // Register system
     ecs.system<Position, Velocity>()
         .each([](Position& p, Velocity& v) {
