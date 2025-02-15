@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from enum import Enum
+import multiprocessing
 
 class BuildType(Enum):
   RELEASE = "Release"
@@ -11,8 +12,10 @@ class BuildType(Enum):
 BUILD_DIR_NAME = "build"
 
 def generate_build_command(build_type: BuildType = BuildType.DEBUG) -> str:
-  return f"cd {BUILD_DIR_NAME} && cmake -DCMAKE_BUILD_TYPE={build_type.value} .. && cmake --build . --target install --config {build_type.value}"
-  # return f"cd {BUILD_DIR_NAME} && cmake -DCMAKE_BUILD_TYPE={build_type.value} .."
+  return (
+    f"cd {BUILD_DIR_NAME} && cmake -DCMAKE_BUILD_TYPE={build_type.value} .. && "
+    f"cmake --build . -j {multiprocessing.cpu_count()} --config {build_type.value} && "
+    f"cmake --install . --config {build_type.value} --prefix ../install")
 
 def main():
   path = Path(BUILD_DIR_NAME)

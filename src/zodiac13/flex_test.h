@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 
 #include "flecs.h"
@@ -16,10 +18,8 @@ struct Velocity {
 struct Eats { };
 struct Apples { };
 
-int main(int argc, char *argv[]) {
-  std::cout << "Hello world!!!\n";
-
-      // Create the world
+void test_flex(int argc, char *argv[]) {
+    // Create the world
     flecs::world ecs;
 
     // Register system
@@ -49,6 +49,4 @@ int main(int argc, char *argv[]) {
     // Output
     //  Bob's got [Position, Velocity, (Identifier,Name), (Eats,Apples)]
     //  Bob's position is {2, 4}
-
-  return 0;
 }
