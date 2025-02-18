@@ -1,19 +1,13 @@
-cmake_minimum_required(VERSION 3.13)
+# cmake_minimum_required(VERSION 3.13)
 
 project(Zodiac13)
 
-# set(CMAKE_CXX_STANDARD 20)
-# set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 
 option(FLECS_SHARED "Build shared flecs lib" OFF)
-
 add_subdirectory(flecs)
-
-
 add_subdirectory(ogre-next-deps)
-
 set(OGRE_BUILD_SAMPLES2 FALSE CACHE BOOL "Build Ogre new demos (2.1)" FORCE)
-
 add_subdirectory(ogre-next)
 
 # Scan and append project files
@@ -31,7 +25,5 @@ include_directories(
 
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 target_link_libraries(${PROJECT_NAME} flecs::flecs_static ${OGRE_LIBRARIES})
-
-
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${PROJECT_SOURCE_DIR}/bin)
