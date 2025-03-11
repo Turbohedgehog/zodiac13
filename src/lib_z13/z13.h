@@ -4,8 +4,7 @@ namespace z13 {
 
 class Zodiac13 {
  public:
-  Zodiac13(int argc, char *argv[]);
-  int Run();
+  int Run(int argc, char *argv[]);
 };
 
 }  // namespace z13

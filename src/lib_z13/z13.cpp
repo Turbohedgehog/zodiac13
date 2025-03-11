@@ -7,14 +7,10 @@
 
 namespace z13 {
 
-Zodiac13::Zodiac13(int /*argc*/, char* /*argv*/ []) {
-
-}
-
-int Zodiac13::Run() {
+int Zodiac13::Run(int argc, char *argv[]) {
   std::cout << "Hello from Zodiac 13!!!\n";
 
-  the::Core core;
+  the::Core core(argc, argv);
 
   core.CreateModule<Z13Module>();
 
