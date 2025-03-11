@@ -1,11 +1,20 @@
 #include "core.h"
 
 #include <vector>
+#include <iostream>
 
 #include "module_base.h"
 #include "world.h"
 
 namespace the {
+
+Core::Core(int argc, char *argv[]) {
+  config_.ParseCommandLineArguments(argc, argv);
+}
+
+const Config& Core::GetConfig() const {
+  return config_;
+}
 
 bool Core::AddModule(ModulePtr module) {
   return modules_.try_emplace(module->GetName(), module).second;
@@ -54,7 +63,11 @@ void Core::CleanupWorlds() {
 }
 
 int Core::Run() {
+  if (config_.NeedShowHelp()) {
+    std::cout << config_ << "\n";
 
+    return 0;
+  }
   return 0;
 }
 

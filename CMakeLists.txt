@@ -11,6 +11,15 @@ set(ZODIAC_13_ROOT_DIR "${PROJECT_SOURCE_DIR}" CACHE PATH "Binary directory" FOR
 # set(OGRE_BUILD_SAMPLES2 FALSE CACHE BOOL "Build Ogre new demos (2.1)" FORCE)
 # add_subdirectory(ogre-next)
 
+# set (Boost_ROOT "C:/Projects/boost")
+# set (BOOST_ROOT ${PROJECT_SOURCE_DIR}/../../../boost)
+# set (BOOST_INCLUDE_DIR ${BOOST_ROOT})
+# set (Boost_NO_SYSTEM_PATHS ON)
+# set (Boost_USE_MULTITHREADED ON)
+# set (Boost_USE_STATIC_LIBS ON)
+# set (Boost_USE_STATIC_RUNTIME OFF)
+# set (BOOST_ALL_DYN_LINK OFF)
+
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/zodiac13)

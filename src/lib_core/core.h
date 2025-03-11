@@ -6,11 +6,14 @@
 #include <vector>
 
 #include "common_types.h"
+#include "config.h"
 
 namespace the {
 
 class Core {
  public:
+  Core(int argc, char *argv[]);
+  const Config& GetConfig() const;
   bool AddModule(ModulePtr module);
   void InitModules();
   WorldWeakPtr CreateWorld();
@@ -26,6 +29,7 @@ class Core {
   void CleanupWorlds();
 
  private:
+  Config config_;
   std::map<WorldId, WorldPtr> worlds_;
   WorldId new_world_id_ = 0;
   std::map<std::string, ModulePtr> modules_;

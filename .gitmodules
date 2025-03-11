@@ -7,3 +7,6 @@
 [submodule "ogre-next-deps"]
 	path = ogre-next-deps
 	url = git@github.com:OGRECave/ogre-next-deps.git
+[submodule "yaml-cpp"]
+	path = yaml-cpp
+	url = git@github.com:jbeder/yaml-cpp.git
