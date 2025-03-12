@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <iostream>
+#include <chrono>
+#include <limits>
 
 #include "module_base.h"
 #include "world.h"
@@ -42,7 +44,7 @@ WorldWeakPtr Core::GetWorld(WorldId world_id) const {
   return world_it != worlds_.end() ? world_it->second : WorldWeakPtr();
 }
 
-void Core::Update(float delta_time) {
+void Core::Update(double delta_time) {
   for (auto& [_, world_ptr] : worlds_) {
     world_ptr->Update(delta_time);
   }
@@ -52,7 +54,7 @@ void Core::CleanupWorlds() {
   worlds_to_remove_.clear();
 
   for (auto& [_, world_ptr] : worlds_) {
-    if (world_ptr->IsPendindDestrys()) {
+    if (world_ptr->IsPendindDestroy() || world_ptr->Empty()) {
       worlds_to_remove_.push_back(world_ptr->GetId());
     }
   }
@@ -62,12 +64,40 @@ void Core::CleanupWorlds() {
   }
 }
 
+bool Core::IsPendingShutDown() const {
+  return pending_shutdown_;
+}
+
 int Core::Run() {
   if (config_.NeedShowHelp()) {
     std::cout << config_ << "\n";
 
     return 0;
   }
+
+  if (config_.GetFPS() <= std::numeric_limits<double>::epsilon()) {
+    return 1;
+  }
+
+  const auto update_time = 1. / config_.GetFPS();
+  std::chrono::duration<double> sleep_time(update_time), frame_delta(update_time);
+  auto accumulated_frame_time = std::chrono::duration<double>::zero();
+  auto sleep_duration = sleep_time;
+  auto prev = std::chrono::high_resolution_clock::now();
+  while (!worlds_.empty() && !IsPendingShutDown()) {
+    if (sleep_duration > std::chrono::duration<double>::zero()) {
+      std::this_thread::sleep_for(sleep_duration);
+    }
+
+    Update(update_time);
+    CleanupWorlds();
+    auto now = std::chrono::high_resolution_clock::now();
+    accumulated_frame_time += now - prev - sleep_duration;
+    sleep_duration = std::max(frame_delta - accumulated_frame_time, std::chrono::duration<double>::zero());
+    accumulated_frame_time = std::min(frame_delta - sleep_duration, std::chrono::duration<double>::zero());
+    prev = now;
+  }
+
   return 0;
 }
 

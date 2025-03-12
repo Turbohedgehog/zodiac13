@@ -24,9 +24,10 @@ class Core {
     return AddModule(std::make_shared<T>(std::forward<Ts>(params)...));
   }
 
-  void Update(float delta_time);
+  void Update(double delta_time);
   int Run();
   void CleanupWorlds();
+  bool IsPendingShutDown() const;
 
  private:
   Config config_;
@@ -34,6 +35,7 @@ class Core {
   WorldId new_world_id_ = 0;
   std::map<std::string, ModulePtr> modules_;
   std::vector<WorldId> worlds_to_remove_;
+  bool pending_shutdown_ = false;
 };
 
 }  // namespace the

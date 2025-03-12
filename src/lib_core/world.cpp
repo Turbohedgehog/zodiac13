@@ -15,13 +15,13 @@ const ECS& World::GetECS() const {
   return ecs_;
 }
 
-void World::Update(float delta_time) {}
+void World::Update(double delta_time) {}
 
 void World::AddSystem(SystemPtr system) {
   systems_.emplace_back(std::move(system));
 }
 
-bool World::IsPendindDestrys() const {
+bool World::IsPendindDestroy() const {
   return is_pending_destroy_;
 }
 
@@ -31,6 +31,10 @@ void World::MarkToDestroy() {
 
 WorldId World::GetId() const {
   return id_;
+}
+
+bool World::Empty() const {
+  return systems_.empty();
 }
 
 }  // namespace the

@@ -13,13 +13,14 @@ namespace the {
 class World {
  public:
   World(WorldId id);
-  void Update(float delta_time);
+  void Update(double delta_time);
   ECS& GetECS();
   const ECS& GetECS() const;
   void AddSystem(SystemPtr system);
-  bool IsPendindDestrys() const;
+  bool IsPendindDestroy() const;
   void MarkToDestroy();
   WorldId GetId() const;
+  bool Empty() const;
   
  private:
   WorldId id_ = 0;

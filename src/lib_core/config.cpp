@@ -25,6 +25,10 @@ bool Config::NeedShowHelp() const {
   return variables_map_.count("help") > 0;
 }
 
+double Config::GetFPS() const {
+  return fps_;
+}
+
 std::ostream& operator<<(std::ostream& os, const Config& person) {
   return os << person.options_description_;
 }
