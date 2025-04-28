@@ -4,7 +4,7 @@
 
 #include "common_types.h"
 
-namespace the {
+namespace z13 {
 
 class ModuleBase {
  public:
@@ -13,4 +13,4 @@ class ModuleBase {
   virtual void OnWorldCreated(WorldWeakPtr world) {}
 };
 
-} // namespace the
+} // namespace z13

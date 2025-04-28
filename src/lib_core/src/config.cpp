@@ -1,5 +1,6 @@
-#include "config.h"
-namespace the {
+#include <lib_core/config.h>
+
+namespace z13 {
 
 namespace po = boost::program_options;
 
@@ -33,4 +34,4 @@ std::ostream& operator<<(std::ostream& os, const Config& person) {
   return os << person.options_description_;
 }
 
-}  // namespace the
+}  // namespace z13

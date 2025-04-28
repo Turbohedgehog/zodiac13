@@ -1,19 +1,24 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.21)
 
-project(core)
+project(z13_launcher)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(spdlog)
-find_package(Boost REQUIRED COMPONENTS program_options)
+# find_package(z13::core REQUIRED)
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/../../flecs ${CMAKE_CURRENT_BINARY_DIR}/flecs)
+# set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
+
+# file(
+#   GLOB_RECURSE
+#   PROJECT_HEADER_FILES
+#   ${PROJECT_SOURCE_DIR}/*.h
+# )
 
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
   ${PROJECT_SOURCE_DIR}/src/*.h
+  ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
@@ -24,22 +29,25 @@ target_include_directories(
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
-  $<BUILD_INTERFACE:${ZODIAC_13_ROOT_DIR}/flecs/include>
-  $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
+  # ${Z13_CORE_INCLUDE_DIR}
 )
 
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
-  Boost::program_options
+  zodiac13::core
+  zodiac13::z13_module
+  zodiac13::ogre_module
+  # ${Z13_CORE_LIB}
 )
 
-target_link_libraries(
-  ${PROJECT_NAME}
-  PUBLIC
-  flecs::flecs_static
-  spdlog::spdlog
-)
+# include_directories(
+#   ${PROJECT_SOURCE_DIR}
+#   ${ZODIAC_13_ROOT_DIR}/flecs/include
+# )
+
+# set(Z13_INCLUDE_DIR ${PROJECT_SOURCE_DIR} CACHE PATH "z13 lib include dirs" FORCE)
+# set(Z13_LIB ${PROJECT_NAME} CACHE PATH "z13 lib" FORCE)
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
@@ -56,8 +64,3 @@ install(EXPORT ${PROJECT_NAME}Targets
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
 
-# install(IMPORTED_RUNTIME_ARTIFACTS
-#         spdlog::spdlog
-#         Boost::program_options
-#         DESTINATION ${ZODIAC_13_ROOT_DIR}/bin
-# )

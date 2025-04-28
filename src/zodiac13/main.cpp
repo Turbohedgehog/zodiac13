@@ -1,9 +1,9 @@
 #include <iostream>
 
-#include "z13.h"
+#include <z13_launcher/z13_launcher.h>
 
 int main(int argc, char *argv[]) {
-  z13::Zodiac13 zodiac13;
+  z13::Zodiac13Launcher zodiac13_launcher;
 
-  return zodiac13.Run(argc, argv);
+  return zodiac13_launcher.Run(argc, argv);
 }

@@ -1,12 +1,6 @@
 [submodule "flecs"]
 	path = flecs
 	url = git@github.com:SanderMertens/flecs.git
-[submodule "ogre-next"]
-	path = ogre-next
-	url = git@github.com:OGRECave/ogre-next.git
-[submodule "ogre-next-deps"]
-	path = ogre-next-deps
-	url = git@github.com:OGRECave/ogre-next-deps.git
 [submodule "yaml-cpp"]
 	path = yaml-cpp
 	url = git@github.com:jbeder/yaml-cpp.git
