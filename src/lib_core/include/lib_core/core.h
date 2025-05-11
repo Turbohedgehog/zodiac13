@@ -8,7 +8,7 @@
 #include "common_types.h"
 #include "config.h"
 
-namespace the {
+namespace z13 {
 
 class Core {
  public:
@@ -27,6 +27,7 @@ class Core {
   void Update(double delta_time);
   int Run();
   void CleanupWorlds();
+  void Shutdown();
   bool IsPendingShutDown() const;
 
  private:
@@ -38,4 +39,4 @@ class Core {
   bool pending_shutdown_ = false;
 };
 
-}  // namespace the
+}  // namespace z13

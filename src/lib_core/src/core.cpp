@@ -1,14 +1,14 @@
-#include "core.h"
+#include <lib_core/core.h>
 
 #include <vector>
 #include <iostream>
 #include <chrono>
 #include <limits>
 
-#include "module_base.h"
-#include "world.h"
+#include <lib_core/module_base.h>
+#include <lib_core/world.h>
 
-namespace the {
+namespace z13 {
 
 Core::Core(int argc, char *argv[]) {
   config_.ParseCommandLineArguments(argc, argv);
@@ -29,7 +29,7 @@ void Core::InitModules() {
 }
 
 WorldWeakPtr Core::CreateWorld() {
-  auto world = std::make_shared<World>(new_world_id_);
+  auto world = std::make_shared<World>(*this, new_world_id_);
   for (auto& [_, module_ptr] : modules_) {
     module_ptr->OnWorldCreated(world);
   }
@@ -62,6 +62,10 @@ void Core::CleanupWorlds() {
   for (auto world_id : worlds_to_remove_) {
     worlds_.erase(world_id);
   }
+}
+
+void Core::Shutdown() {
+  pending_shutdown_ = true;
 }
 
 bool Core::IsPendingShutDown() const {
@@ -101,4 +105,4 @@ int Core::Run() {
   return 0;
 }
 
-}  // namespace the
+}  // namespace z13

@@ -8,7 +8,7 @@ struct world;
 
 }  // namespace flecs
 
-namespace the {
+namespace z13 {
 
 class Core;
 
@@ -26,4 +26,4 @@ using WorldWeakPtr = std::weak_ptr<World>;
 
 using ECS = flecs::world;
 
-}  // namespace the
+}  // namespace z13

@@ -3,7 +3,7 @@
 #include <ostream>
 #include <boost/program_options.hpp>
 
-namespace the {
+namespace z13 {
 
 class Config {
  public:
@@ -22,4 +22,4 @@ class Config {
   double fps_ = 60.f;
 };
 
-}  // namespace the
+}  // namespace z13

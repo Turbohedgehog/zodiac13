@@ -15,12 +15,13 @@ def generate_build_command(build_type: BuildType = BuildType.DEBUG) -> str:
   return (
     f"cd {BUILD_DIR_NAME} && cmake -DCMAKE_BUILD_TYPE={build_type.value} .. && "
     f"cmake --build . -j {multiprocessing.cpu_count()} --config {build_type.value} && "
-    f"cmake --install . --config {build_type.value} --prefix ../install")
+    # f"cmake --install . --config {build_type.value} --prefix ../install")
+    f"cmake --install . --config {build_type.value}")
 
 def main():
   path = Path(BUILD_DIR_NAME)
   path.mkdir(exist_ok=True)
-  cmd = generate_build_command()
+  cmd = generate_build_command(BuildType.RELEASE)
   print(f"command = {cmd}")
   os.system(cmd)
 
