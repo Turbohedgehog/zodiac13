@@ -4,10 +4,11 @@ project(core)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(spdlog)
+find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(flecs CONFIG REQUIRED)
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/../../flecs ${CMAKE_CURRENT_BINARY_DIR}/flecs)
+# add_subdirectory(${PROJECT_SOURCE_DIR}/../../flecs ${CMAKE_CURRENT_BINARY_DIR}/flecs)
 
 file(
   GLOB_RECURSE
@@ -24,7 +25,7 @@ target_include_directories(
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
-  $<BUILD_INTERFACE:${ZODIAC_13_ROOT_DIR}/flecs/include>
+  # $<BUILD_INTERFACE:${ZODIAC_13_ROOT_DIR}/flecs/include>
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
 )
 
