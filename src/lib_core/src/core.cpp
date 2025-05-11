@@ -4,6 +4,7 @@
 #include <iostream>
 #include <chrono>
 #include <limits>
+#include <thread>
 
 #include <lib_core/module_base.h>
 #include <lib_core/world.h>

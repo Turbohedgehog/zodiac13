@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 SET(OGRE_STATIC ON)
 
 find_package(SDL2 CONFIG REQUIRED)
-find_package(ogre CONFIG REQUIRED)
+find_package(OGRE CONFIG REQUIRED)
 
 file(TO_CMAKE_PATH ${OGRE_PLUGIN_DIR} OGRE_PLUGIN_DIR_VAR)
 message("~~~ OGRE_PLUGIN_DIR_VAR = ${OGRE_PLUGIN_DIR_VAR}")
@@ -44,7 +44,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   SDL2::SDL2
-  ${OGRE_LIBRARIES}
+  OgreMain
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
