@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 message("~~~ CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
+# message("~~~ ENV{VCPKG_ROOT} = $ENV{VCPKG_ROOT}")
 
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
 # set(VCPKG_ROOT $ENV{VCPKG_ROOT})
