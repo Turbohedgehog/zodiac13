@@ -12,8 +12,7 @@
 #include <OgreSceneManager.h>
 #include <OgreEntity.h>
 
-// #include <RenderSystems/GL3Plus/OgreGL3PlusPlugin.h>
-// #include <OgreGL3PlusPlugin.h>
+#include <RenderSystems/GL3Plus/OgreGL3PlusPlugin.h>
 
 #include "ogre_datatypes.h"
 
@@ -40,13 +39,7 @@ void OgreTools::CreateSDLOgreRoot(OgreData& ogre_data) {
   }
 
   auto ogre_root = std::make_shared<Ogre::Root>("", "", "Ogre.log");
-
-  // ToDo: fix it!!!
-#ifdef NDEBUG
-  ogre_root->loadPlugin("C:/Projects/vcpkg/buildtrees/ogre/x64-windows-rel/bin/RenderSystem_GL3Plus");
-#else
-  ogre_root->loadPlugin("C:/Projects/vcpkg/buildtrees/ogre/x64-windows-dbg/bin/RenderSystem_GL3Plus");
-#endif
+  ogre_root->installPlugin(OGRE_NEW Ogre::GL3PlusPlugin);
 
   if (!ogre_root->restoreConfig() && !ogre_root->showConfigDialog(nullptr)) {
     LOG_CRITICAL("Ogre configuration canceled!");
@@ -61,6 +54,7 @@ void OgreTools::CreateSDLOgreRoot(OgreData& ogre_data) {
 #elif defined(__linux__)
   misc_params["parentWindowHandle"] = Ogre::StringConverter::toString((size_t)wm_info.info.x11.window);
 #endif
+
 
   auto& render_systems = ogre_root->getAvailableRenderers();
   LOG_WARN("~~~~ render_systems = {}", render_systems.size());

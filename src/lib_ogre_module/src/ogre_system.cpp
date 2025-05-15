@@ -13,6 +13,7 @@ void OgreSystem::OnAddedToWorld(WorldPtr world) {
   LOG_INFO("~~~~ OgreSystem::OnAddedToWorld");
   SystemBase::OnAddedToWorld(world);
 
+  // return;
   OgreData ogre_data;
   OgreTools::CreateSDLOgreRoot(ogre_data);
 

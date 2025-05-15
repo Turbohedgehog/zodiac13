@@ -1,6 +1,6 @@
 #include <z13_launcher/z13_launcher.h>
 
-// #include <spdlog/spdlog.h>
+#include <spdlog/spdlog.h>
 
 #include <iostream>
 
@@ -12,11 +12,12 @@
 namespace z13 {
 
 int Zodiac13Launcher::Run(int argc, char *argv[]) {
-  // std::cout << "Hello from Zodiac 13!!!\n";
+  std::cout << "std::cout: Hello from Zodiac 13!!!\n";
 
+  spdlog::flush_on(spdlog::level::debug);
   spdlog::set_level(spdlog::level::debug);
 
-  LOG_INFO("Hello from Zodiac 13!!!");
+  LOG_INFO("spdlog: Hello from Zodiac 13!!!");
 
   Core core(argc, argv);
 

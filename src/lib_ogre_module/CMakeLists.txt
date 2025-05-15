@@ -4,14 +4,8 @@ project(ogre_module)
 
 set(CMAKE_CXX_STANDARD 20)
 
-SET(OGRE_STATIC ON)
-
-find_package(SDL2 CONFIG REQUIRED)
+find_package(SDL2 REQUIRED)
 find_package(OGRE CONFIG REQUIRED)
-
-file(TO_CMAKE_PATH ${OGRE_PLUGIN_DIR} OGRE_PLUGIN_DIR_VAR)
-message("~~~ OGRE_PLUGIN_DIR_VAR = ${OGRE_PLUGIN_DIR_VAR}")
-add_compile_definitions(OGRE_PLUGIN_DIR=\"${OGRE_PLUGIN_DIR_VAR}\")
 
 file(
   GLOB_RECURSE
@@ -36,15 +30,38 @@ target_include_directories(
 #     message(STATUS "=== ${_variableName}=${${_variableName}}")
 # endforeach()
 
-message("~~~ OGRE_PLUGINS = ${OGRE_PLUGINS}")
-
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
   zodiac13::components
-  SDL2::SDL2
+  ${SDL2_STATIC_LIBRARIES}
+  OgreBites
+  OgreMeshLodGenerator
+  OgreOverlay
+  OgrePaging
+  OgreProperty
+  OgreRTShaderSystem
+  OgreTerrain
+  OgreVolume
+  Plugin_BSPSceneManager
+  Plugin_OctreeSceneManager
+  Plugin_PCZSceneManager
+  Plugin_ParticleFX
+  RenderSystem_GL
+  RenderSystem_GL3Plus
+  # RenderSystem_Direct3D11
+  Codec_STBI
+  Codec_FreeImage
+  # OgreGLSupportStatic
   OgreMain
+  
+  ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
+)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY ${ZODIAC_13_ROOT_DIR}/bin
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

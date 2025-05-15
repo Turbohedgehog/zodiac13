@@ -1,20 +1,21 @@
 cmake_minimum_required(VERSION 3.21)
 
-message("~~~ CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
-# message("~~~ ENV{VCPKG_ROOT} = $ENV{VCPKG_ROOT}")
-
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
-# set(VCPKG_ROOT $ENV{VCPKG_ROOT})
-message("~~~~ VCPKG_ROOT = ${VCPKG_ROOT}")
-message("~~~~ USERNAME = ${USERNAME}")
+
+set(BUILD_SHARED_LIBS OFF)
 
 set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-# set(BUILD_SHARED_LIBS OFF)
-# include(${CMAKE_TOOLCHAIN_FILE})
+
+if(DEFINED VCPKG_TARGET_TRIPLET)
+  string(FIND "${VCPKG_TARGET_TRIPLET}" "-static" STATIC_POS)
+  if(STATIC_POS EQUAL -1)
+      set(VCPKG_TARGET_TRIPLET "${VCPKG_TARGET_TRIPLET}-static")
+  endif()
+endif()
 
 project(zodiac13)
 
-message("~~~ CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
+# message("~~~ CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 set(ZODIAC_13_ROOT_DIR "${PROJECT_SOURCE_DIR}" CACHE PATH "Binary directory" FORCE)

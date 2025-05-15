@@ -27,10 +27,9 @@ target_link_libraries(
   zodiac13::core
 )
 
-# include_directories(
-#   ${PROJECT_SOURCE_DIR}
-#   ${ZODIAC_13_ROOT_DIR}/flecs/include
-# )
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
