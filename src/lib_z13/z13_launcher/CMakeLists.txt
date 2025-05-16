@@ -4,15 +4,6 @@ project(z13_launcher)
 
 set(CMAKE_CXX_STANDARD 20)
 
-# find_package(z13::core REQUIRED)
-
-# set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
-
-# file(
-#   GLOB_RECURSE
-#   PROJECT_HEADER_FILES
-#   ${PROJECT_SOURCE_DIR}/*.h
-# )
 
 file(
   GLOB_RECURSE
@@ -29,7 +20,6 @@ target_include_directories(
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
-  # ${Z13_CORE_INCLUDE_DIR}
 )
 
 target_link_libraries(
@@ -38,16 +28,11 @@ target_link_libraries(
   zodiac13::core
   zodiac13::z13_module
   zodiac13::ogre_module
-  # ${Z13_CORE_LIB}
 )
 
-# include_directories(
-#   ${PROJECT_SOURCE_DIR}
-#   ${ZODIAC_13_ROOT_DIR}/flecs/include
-# )
-
-# set(Z13_INCLUDE_DIR ${PROJECT_SOURCE_DIR} CACHE PATH "z13 lib include dirs" FORCE)
-# set(Z13_LIB ${PROJECT_NAME} CACHE PATH "z13 lib" FORCE)
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 

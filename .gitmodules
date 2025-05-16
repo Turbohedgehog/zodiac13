@@ -1,6 +1,0 @@
-[submodule "flecs"]
-	path = flecs
-	url = git@github.com:SanderMertens/flecs.git
-[submodule "yaml-cpp"]
-	path = yaml-cpp
-	url = git@github.com:jbeder/yaml-cpp.git

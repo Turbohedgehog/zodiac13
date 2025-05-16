@@ -8,8 +8,6 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(flecs CONFIG REQUIRED)
 
-# add_subdirectory(${PROJECT_SOURCE_DIR}/../../flecs ${CMAKE_CURRENT_BINARY_DIR}/flecs)
-
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
@@ -25,7 +23,6 @@ target_include_directories(
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
-  # $<BUILD_INTERFACE:${ZODIAC_13_ROOT_DIR}/flecs/include>
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
 )
 
@@ -39,7 +36,11 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   flecs::flecs_static
-  spdlog::spdlog
+  spdlog::spdlog_header_only
+)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
@@ -56,9 +57,3 @@ install(EXPORT ${PROJECT_NAME}Targets
         NAMESPACE ${PROJECT_NAMESPACE}::
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
-
-# install(IMPORTED_RUNTIME_ARTIFACTS
-#         spdlog::spdlog
-#         Boost::program_options
-#         DESTINATION ${ZODIAC_13_ROOT_DIR}/bin
-# )
