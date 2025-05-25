@@ -38,3 +38,6 @@
 build/
 install/
 bin/
+
+# vcpkg
+vcpkg_installed/
