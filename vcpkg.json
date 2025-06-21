@@ -1,16 +1,36 @@
 {
   "dependencies": [
-    "spdlog",
-    "flecs",
     "boost-program-options",
+    "flecs",
+    "imgui",
+    {
+      "name": "ogre",
+      "features": ["overlay"]
+    },
+    "spdlog",
     "yaml-cpp",
-    "ogre"
+    "sdl2"
   ],
   "overrides": [
-    {"name": "spdlog", "version": "1.15.3"},
-    {"name": "flecs", "version": "3.2.12"},
-    {"name": "boost-program-options", "version": "1.88.0"},
-    {"name": "yaml-cpp", "version": "0.8.0"},
-    {"name": "ogre", "version": "14.3.2"}
+    {
+      "name": "spdlog",
+      "version": "1.15.3"
+    },
+    {
+      "name": "flecs",
+      "version": "3.2.12"
+    },
+    {
+      "name": "boost-program-options",
+      "version": "1.88.0"
+    },
+    {
+      "name": "yaml-cpp",
+      "version": "0.8.0"
+    },
+    {
+      "name": "ogre",
+      "version": "14.3.2"
+    }
   ]
 }

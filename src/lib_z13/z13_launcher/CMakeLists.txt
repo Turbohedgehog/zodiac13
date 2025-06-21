@@ -30,9 +30,9 @@ target_link_libraries(
   zodiac13::ogre_module
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES 
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-)
+# set_target_properties(${PROJECT_NAME} PROPERTIES 
+#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+# )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
