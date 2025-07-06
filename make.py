@@ -40,15 +40,11 @@ def main():
   parser.add_argument("-b", "--build", action="store_true", help="debug build zodiac 13")
   parser.add_argument("-br", "--build-release", action="store_true", help="release build zodiac 13")
   options = parser.parse_args()
-  has_some_action = False
   if options.build:
     build(BuildType.DEBUG)
-    has_some_action = True
-  if options.build_release:
+  elif options.build_release:
     build(BuildType.RELEASE)
-    has_some_action = True
-
-  if not has_some_action:
+  else:
     build(BuildType.RELEASE)
 
 if __name__ == "__main__":
