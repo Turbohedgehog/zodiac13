@@ -5,9 +5,13 @@
 #include <chrono>
 #include <limits>
 #include <thread>
+#include <typeinfo>
+
+#include <boost/core/demangle.hpp>
 
 #include <lib_core/module_base.h>
-#include <lib_core/world.h>
+#include <lib_core/components.h>
+#include <lib_core/module_factory_base.h>
 
 namespace z13 {
 
@@ -19,49 +23,28 @@ const Config& Core::GetConfig() const {
   return config_;
 }
 
-bool Core::AddModule(ModulePtr module) {
-  return modules_.try_emplace(module->GetName(), module).second;
+bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
+  return module_factories_.insert({module_factory->GetName(), module_factory}).second;
 }
 
-void Core::InitModules() {
-  for (auto& [_, module_ptr] : modules_) {
-    module_ptr->Init(*this);
-  }
-}
-
-WorldWeakPtr Core::CreateWorld() {
-  auto world = std::make_shared<World>(*this, new_world_id_);
-  for (auto& [_, module_ptr] : modules_) {
-    module_ptr->OnWorldCreated(world);
-  }
-  worlds_[new_world_id_] = world;
+WorldRef Core::CreateWorld() {
+  auto it = worlds_.insert({new_world_id_, flecs::world()});
   ++new_world_id_;
 
-  return world;
-}
-
-WorldWeakPtr Core::GetWorld(WorldId world_id) const {
-  auto world_it = worlds_.find(world_id);
-  return world_it != worlds_.end() ? world_it->second : WorldWeakPtr();
-}
-
-void Core::Update(double delta_time) {
-  for (auto& [_, world_ptr] : worlds_) {
-    world_ptr->Update(delta_time);
-  }
-}
-
-void Core::CleanupWorlds() {
-  worlds_to_remove_.clear();
-
-  for (auto& [_, world_ptr] : worlds_) {
-    if (world_ptr->IsPendindDestroy() || world_ptr->Empty()) {
-      worlds_to_remove_.push_back(world_ptr->GetId());
-    }
+  auto world_ref = WorldRef(it.first->second);
+  world_ref.get().component<CoreComponent>();
+  CoreComponent core_component {.core = *this};
+  world_ref.get().set(core_component);
+  for (auto [_, module_factory_ptr] : module_factories_) {
+    module_factory_ptr->RegisterModules(world_ref);
   }
 
-  for (auto world_id : worlds_to_remove_) {
-    worlds_.erase(world_id);
+  return world_ref;
+}
+
+void Core::Update(float delta_time) {
+  for (auto& [_, world] : worlds_) {
+    world.progress(delta_time);
   }
 }
 
@@ -95,7 +78,7 @@ int Core::Run() {
     }
 
     Update(update_time);
-    CleanupWorlds();
+    // CleanupWorlds();
     auto now = std::chrono::high_resolution_clock::now();
     accumulated_frame_time += now - prev - sleep_duration;
     sleep_duration = std::max(frame_delta - accumulated_frame_time, std::chrono::duration<double>::zero());

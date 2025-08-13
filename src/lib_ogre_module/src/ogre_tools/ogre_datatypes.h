@@ -12,6 +12,7 @@ using InputListenerPtr = std::shared_ptr<OgreBites::z13::ImGuiInputListener>;
 
 struct OgreData {
   OgreRootPtr ogre_root;
+  Ogre::RenderWindow* ogre_window = nullptr;
   InputListenerPtr input_listener;
   bool is_window_closed = false;
 };

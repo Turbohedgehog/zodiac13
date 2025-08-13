@@ -8,6 +8,7 @@ int main(int argc, char *argv[]) {
   z13::Zodiac13Launcher zodiac13_launcher;
 
   test_flex2(argc, argv);
+  // TestVariant();
 
   return zodiac13_launcher.Run(argc, argv);
 }

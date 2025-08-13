@@ -2,8 +2,30 @@
 
 #include <iostream>
 
+// #include <print>
 #include <flecs.h>
 #include <vector>
+
+#include <variant>
+
+template<class... Ts>
+struct overloads : Ts... { using Ts::operator()...; };
+ 
+// the variant to visit
+using var_t = std::variant<int, double, float>;
+void TestVariant() {
+    const auto visitor = overloads
+    {
+        [](int i) { std::cout << "int = " << i << "\n"; },
+        [](double d) { std::cout << "double = " << d << "\n"; },
+        [](float f) { std::cout << "float = " << f << "\n"; },
+    };
+
+    var_t v1 = 42, v2 = 1.0, v3 = 3.f;
+    std::visit(visitor, v1);
+    std::visit(visitor, v2);
+    std::visit(visitor, v3);
+}
 
 struct Position {
     double x;
@@ -51,8 +73,8 @@ void test_flex(int argc, char *argv[]) {
 
     // Show us what you got
     std::cout << Bob.name() << "'s got [" << Bob.type().str() << "]\n";
-    const Position *old_p = Bob.get<Position>();
-    std::cout << "~~~~ Old: " << Bob.name() << "'s position is {" << old_p->x << ", " << old_p->y << "}\n";
+    const Position& old_p = Bob.get<Position>();
+    std::cout << "~~~~ Old: " << Bob.name() << "'s position is {" << old_p.x << ", " << old_p.y << "}\n";
 
     ecs_world_to_json_desc_t desc = {
         .serialize_builtin = false,
@@ -74,8 +96,8 @@ void test_flex(int argc, char *argv[]) {
 
 
     // See if Bob has moved (he has)
-    const Position *p = Bob.get<Position>();
-    std::cout << "~~~~ New: " << Bob.name() << "'s position is {" << p->x << ", " << p->y << "}\n";
+    const Position& p = Bob.get<Position>();
+    std::cout << "~~~~ New: " << Bob.name() << "'s position is {" << p.x << ", " << p.y << "}\n";
 
     bob2.set(Position{100, 100});
 
@@ -92,8 +114,8 @@ void test_flex(int argc, char *argv[]) {
     };
     ecs.from_json(json, &decs);
     auto restored_bob = ecs.lookup("Bob");
-    const Position *restored_p = restored_bob.get<Position>();
-    std::cout << "~~~~ Restored: " << restored_bob.name() << "'s position is {" << restored_p->x << ", " << restored_p->y << "}\n";
+    const Position& restored_p = restored_bob.get<Position>();
+    std::cout << "~~~~ Restored: " << restored_bob.name() << "'s position is {" << restored_p.x << ", " << restored_p.y << "}\n";
 
     auto bob_new = ecs.lookup("Bob2");
     std::cout << "~~~~ [ECS] New Bob 2: " << bob_new.is_valid() << "\n";

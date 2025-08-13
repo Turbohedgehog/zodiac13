@@ -1,15 +1,18 @@
 {
+  "name": "zodiac13",
+  "version": "0.0.1",
   "dependencies": [
     "boost-program-options",
     "flecs",
     "imgui",
     {
       "name": "ogre",
-      "features": ["overlay"]
+      "features": [ "bullet" ]
     },
+    "sdl2",
     "spdlog",
     "yaml-cpp",
-    "sdl2"
+    "protobuf"
   ],
   "overrides": [
     {
@@ -18,7 +21,7 @@
     },
     {
       "name": "flecs",
-      "version": "3.2.12"
+      "version": "4.1.0#0"
     },
     {
       "name": "boost-program-options",
@@ -31,6 +34,10 @@
     {
       "name": "ogre",
       "version": "14.3.2"
+    },
+    {
+      "name": "protobuf",
+      "version": "5.29.3#1"
     }
   ]
 }

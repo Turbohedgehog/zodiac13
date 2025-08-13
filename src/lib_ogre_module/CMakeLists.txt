@@ -12,7 +12,7 @@ find_package(imgui CONFIG REQUIRED)
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
+  # ${PROJECT_SOURCE_DIR}/src/*.h
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
@@ -34,7 +34,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
-  zodiac13::components
+  zodiac13::z13_module
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main> $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   ${OGRE_LIBRARIES}
   imgui::imgui
@@ -50,6 +50,8 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         # $<TARGET_FILE:Plugin_DotScene>
         $<TARGET_FILE:RenderSystem_GL3Plus>
         $<TARGET_FILE:Plugin_ParticleFX>
+        $<TARGET_FILE:Codec_Assimp>
+        $<TARGET_FILE:Codec_FreeImage>
         $<TARGET_FILE_DIR:zodiac13>
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${OGRE_MEDIA_DIR}
