@@ -22,11 +22,6 @@
 #include <OgreShaderGenerator.h>
 #include <OgreSGTechniqueResolverListener.h>
 
-// #include <imgui/backends/imgui_impl_sdl2.h>
-// #include <imgui.h>
-// #include <imgui/backends/imgui_impl_sdl2.h>
-// #include <imgui/backends/imgui_impl_opengl3.h>
-
 #include <RenderSystems/GL3Plus/OgreGL3PlusPlugin.h>
 
 #include "ogre_datatypes.h"
@@ -38,7 +33,6 @@ Ogre::z13::ImGuiOverlay* InitImguiOverlay() {
     return static_cast<Ogre::z13::ImGuiOverlay*>(overlay);
 
   auto imguiOverlay = new Ogre::z13::ImGuiOverlay();
-  // LOG_INFO("~~~ InitImguiOverlay = {}; {}", imguiOverlay->getName(), reinterpret_cast<int>(ImGui::GetCurrentContext()));
   Ogre::OverlayManager::getSingleton().addOverlay(imguiOverlay); // now owned by overlaymgr
 
   // handle DPI scaling
@@ -106,21 +100,11 @@ void OgreTools::CreateSDLOgreRoot(OgreData& ogre_data) {
   misc_params["parentWindowHandle"] = Ogre::StringConverter::toString((size_t)wm_info.info.x11.window);
 #endif
 
-
   auto& render_systems = ogre_root->getAvailableRenderers();
-  LOG_WARN("~~~~ render_systems = {}", render_systems.size());
   if (render_systems.empty()) {
     LOG_CRITICAL("NO RENDER SYSTEMS AVALIABLE");
   }
   Ogre::RenderSystem* renderSystem = ogre_root->getAvailableRenderers()[0];
-  try {
-    // auto* rsc = renderSystem->getMutableCapabilities();
-    // rsc->setCapability(Ogre::RSC_FIXED_FUNCTION);
-  // renderSystem->setConfigOption("Fixed Pipeline Enabled", "Yes");
-  } catch (std::exception& ex) {
-    LOG_CRITICAL("--- ex = {}", ex.what());
-    throw;
-  }
   ogre_root->setRenderSystem(renderSystem);
 
   ogre_root->initialise(false);
@@ -148,13 +132,12 @@ void OgreTools::CreateSDLOgreRoot(OgreData& ogre_data) {
 
   auto& rgm = Ogre::ResourceGroupManager::getSingleton();
   auto media_path = (std::filesystem::path(OGRE_MEDIA_DIR));
-  LOG_INFO("!!!!! media_path = {}", media_path.string());
   rgm.addResourceLocation((media_path / "Main").string(), "FileSystem", Ogre::RGN_INTERNAL);
   rgm.addResourceLocation((media_path / "RTShaderLib").string(), "FileSystem", Ogre::RGN_INTERNAL);
 
   Ogre::SceneNode* camera_node = scene_manager->getRootSceneNode()->createChildSceneNode();
   camera_node->attachObject(camera);
-  camera_node->setPosition(0,0,500);
+  camera_node->setPosition(0, 0, 500);
   camera_node->lookAt(Ogre::Vector3(0, 0, 0), Ogre::Node::TS_PARENT);
   Ogre::Viewport* viewport = ogre_window->addViewport(camera);
   viewport->setBackgroundColour(Ogre::ColourValue(0.2f, 0.3f, 0.4f));
@@ -163,6 +146,7 @@ void OgreTools::CreateSDLOgreRoot(OgreData& ogre_data) {
   SDL_ShowWindow(sld_window);
 
   ogre_data.ogre_root = ogre_root;
+  ogre_data.ogre_window = ogre_window;
   ogre_data.input_listener = std::make_shared<OgreBites::z13::ImGuiInputListener>();
 }
 
@@ -170,9 +154,19 @@ void OgreTools::UpdateSDLOgreWindow(OgreData& ogre_data) {
   SDL_Event event;
 
   while (SDL_PollEvent(&event)) {
-    if (event.type == SDL_QUIT) {
-      ogre_data.is_window_closed = true;
+    switch (event.type) {
+      case SDL_QUIT:
+        ogre_data.is_window_closed = true;
+        ogre_data.ogre_root->queueEndRendering();
+        break;
+
+      case SDL_WINDOWEVENT:
+        if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
+          ogre_data.ogre_window->resize(event.window.data1, event.window.data2);
+        }
+        break;
     }
+    
 
     auto ogre_event = Ogre::z13::convert(event);
     Ogre::z13::ProcessEventToListener(ogre_event, ogre_data.input_listener.get());
