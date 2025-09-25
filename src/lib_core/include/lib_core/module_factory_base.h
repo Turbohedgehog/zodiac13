@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "core_types.h"
 
 namespace z13 {

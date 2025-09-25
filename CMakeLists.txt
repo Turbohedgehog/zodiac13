@@ -7,7 +7,7 @@ file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
 # set(VCPKG_MANIFEST_MODE ON)
 # set(VCPKG_LIBRARY_LINKAGE "static")
 # set(VCPKG_CRT_LINKAGE "static")
-# set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/../zodiac13_vcpkg_installed")
+set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/../zodiac13_vcpkg_installed")
 
 # set(BUILD_SHARED_LIBS OFF)
 
@@ -33,8 +33,20 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 #     message(STATUS "=== ${_variableName}=${${_variableName}}")
 # endforeach()
 
+set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
+
+set(CPACK_GENERATOR "DEB;TGZ")
+
+set(CPACK_PACKAGE_VERSION_MAJOR "0")
+set(CPACK_PACKAGE_VERSION_MINOR "1")
+set(CPACK_PACKAGE_VERSION_PATCH "0")
+
+set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
+
+include(CPack)
 

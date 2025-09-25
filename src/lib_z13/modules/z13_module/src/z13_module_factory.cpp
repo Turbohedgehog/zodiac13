@@ -4,10 +4,9 @@
 
 #include "z13_module.h"
 
-namespace z13 {
 
 void Z13ModuleFactory::RegisterModules(flecs::world& world) {
-  world.import<Z13Module>();
+  world.import<z13::Z13Module>();
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
@@ -16,4 +15,3 @@ const std::string& Z13ModuleFactory::GetName() const {
   return name;
 }
 
-}  // namespace z13

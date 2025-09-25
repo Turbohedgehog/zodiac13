@@ -7,9 +7,6 @@
 #include <thread>
 #include <typeinfo>
 
-#include <boost/core/demangle.hpp>
-
-#include <lib_core/module_base.h>
 #include <lib_core/components.h>
 #include <lib_core/module_factory_base.h>
 

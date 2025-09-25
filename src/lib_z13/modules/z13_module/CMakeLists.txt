@@ -4,10 +4,11 @@ project(z13_module)
 
 set(CMAKE_CXX_STANDARD 20)
 
+find_package(Eigen3 REQUIRED NO_MODULE)
+
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
@@ -25,6 +26,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
+  Eigen3::Eigen
 )
 
 # set_target_properties(${PROJECT_NAME} PROPERTIES 

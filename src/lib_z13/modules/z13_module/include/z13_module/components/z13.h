@@ -2,18 +2,14 @@
 
 #include <string>
 
-#include <flecs.h>
+// #include <eigen3/Eigen/Dense>
+
+// #include <flecs.h>
 
 namespace z13 {
 
 struct Z13State {
   bool shutdown = false;
-};
-
-struct MainMenuPipelineComponent {
-  flecs::entity pipeline;
-  flecs::entity update_data_phase;
-  flecs::entity draw_phase;
 };
 
 struct PlayerInfoComponent {

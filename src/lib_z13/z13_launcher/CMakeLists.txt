@@ -28,6 +28,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::z13_module
   zodiac13::ogre_module
+  # zodiac13::bullet_module
 )
 
 # set_target_properties(${PROJECT_NAME} PROPERTIES 
