@@ -95,20 +95,22 @@ OgreBites::Event convert(const SDL_Event& in)
 
 void ProcessEventToListener (const OgreBites::Event& event, OgreBites::InputListener* input_listener) {
     OgreBites::Event scaled = event;
+#if 0 // todo: fix getRenderWindow
 #if OGRE_PLATFORM == OGRE_PLATFORM_APPLE
-    if (event.type == MOUSEMOTION)
+    if (event.type == OgreBites::MOUSEMOTION)
     {
         // assumes all windows have the same scale
         float viewScale = getRenderWindow()->getViewPointToPixelScale();
         scaled.motion.x *= viewScale;
         scaled.motion.y *= viewScale;
     }
-    else if(event.type == MOUSEBUTTONDOWN || event.type == MOUSEBUTTONUP)
+    else if(event.type == OgreBites::MOUSEBUTTONDOWN || event.type == OgreBites::MOUSEBUTTONUP)
     {
         float viewScale = getRenderWindow()->getViewPointToPixelScale();
         scaled.button.x *= viewScale;
         scaled.button.y *= viewScale;
     }
+#endif
 #endif
 
     switch (event.type)

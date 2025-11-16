@@ -6,14 +6,16 @@ set(CMAKE_CXX_STANDARD 20)
 # set(COPY_OGRE_FILES)
 
 find_package(SDL2 REQUIRED)
-find_package(OGRE REQUIRED COMPONENTS Bites RTShaderSystem)
+# find_package(OGRE REQUIRED COMPONENTS Bites RTShaderSystem)
+find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+# find_package(assimp CONFIG REQUIRED)
+find_package(assimp REQUIRED)
 
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  # ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
@@ -27,8 +29,12 @@ target_include_directories(
 )
 
 set(OGRE_MEDIA_LOCATION "Media")
+set(ASSETS_LOCATION "assets")
 add_definitions(-DOGRE_MEDIA_DIR="${OGRE_MEDIA_LOCATION}")
+add_definitions(-DASSETS_DIR="${ASSETS_LOCATION}")
 
+
+# MESSAGE("~~~~ ${OGRE_LIBRARIES}")
 
 target_link_libraries(
   ${PROJECT_NAME}
@@ -38,6 +44,11 @@ target_link_libraries(
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main> $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   ${OGRE_LIBRARIES}
   imgui::imgui
+  # assimp::assimp
+  Codec_Assimp
+  Codec_STBI
+  Codec_FreeImage
+  # fix::assimp
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
 
@@ -49,13 +60,22 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         # $<TARGET_FILE:Plugin_DotScene>
         $<TARGET_FILE:RenderSystem_GL3Plus>
+        # $<TARGET_FILE:RenderSystem_Direct3D11>
         $<TARGET_FILE:Plugin_ParticleFX>
+        $<TARGET_FILE:Plugin_PCZSceneManager>
+        $<TARGET_FILE:Codec_STBI>
         $<TARGET_FILE:Codec_Assimp>
         $<TARGET_FILE:Codec_FreeImage>
         $<TARGET_FILE_DIR:zodiac13>
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${OGRE_MEDIA_DIR}
         $<TARGET_FILE_DIR:zodiac13>/${OGRE_MEDIA_LOCATION}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}
+        $<TARGET_FILE_DIR:zodiac13>/${ASSETS_LOCATION}
+    COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}/"plugins.cfg"
+        $<TARGET_FILE_DIR:zodiac13>/"plugins.cfg"
 )
 
 

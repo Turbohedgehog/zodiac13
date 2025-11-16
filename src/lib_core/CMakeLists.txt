@@ -42,6 +42,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   flecs::flecs_static
+  # spdlog::spdlog
   spdlog::spdlog_header_only
 )
 

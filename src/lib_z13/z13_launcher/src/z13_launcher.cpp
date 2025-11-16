@@ -8,6 +8,7 @@
 #include <lib_core/log.h>
 #include <z13_module/z13_module_factory.h>
 #include <ogre_module/ogre_module_factory.h>
+// #include <bullet_module/bullet_module_factory.h>
 
 namespace z13 {
 
@@ -22,7 +23,8 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   Core core(argc, argv);
 
   core.RegisterModuleFactory<Z13ModuleFactory>();
-  core.RegisterModuleFactory<z13::ogre::OgreModuleFactory>();
+  core.RegisterModuleFactory<OgreModuleFactory>();
+  // core.RegisterModuleFactory<BulletModuleFactory>();
 
   core.CreateWorld();
 

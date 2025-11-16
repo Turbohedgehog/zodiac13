@@ -3,11 +3,22 @@
   "version": "0.0.1",
   "dependencies": [
     "boost-program-options",
+    "eigen3",
     "flecs",
-    "imgui",
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "freetype",
+        "freetype-svg"
+      ]
+    },
     {
       "name": "ogre",
-      "features": [ "bullet" ]
+      "features": [
+        "assimp",
+        "overlay"
+      ]
     },
     "sdl2",
     "spdlog",
@@ -21,7 +32,7 @@
     },
     {
       "name": "flecs",
-      "version": "4.1.0#0"
+      "version": "4.1.0"
     },
     {
       "name": "boost-program-options",
@@ -36,8 +47,12 @@
       "version": "14.3.2"
     },
     {
+      "name": "eigen3",
+      "version": "3.4.1-250818#1"
+    },
+    {
       "name": "protobuf",
-      "version": "5.29.3#1"
+      "version": "5.29.5#2"
     }
   ]
 }
