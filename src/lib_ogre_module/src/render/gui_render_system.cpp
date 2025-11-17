@@ -10,6 +10,9 @@
 #include <lib_core/log.h>
 
 #include "../ogre_tools/ogre_import/OgreImGuiOverlay.h"
+// #include "Components/Overlay/include/OgreImGuiOverlay.h"
+
+// #include "OgreImGuiOverlay.h"
 
 namespace z13::ogre {
 
@@ -26,8 +29,8 @@ void BeginGui() {
   // LOG_INFO("~~~~ BeginGui");
 }
 
-void DrawGameplayMenu(flecs::entity e, OgreData& ogre_data) {
-  if (!e.world().has<gameplay::Pause>()) {
+void DrawGameplayMenu(flecs::world world, OgreData& ogre_data) {
+  if (!world.has<gameplay::Pause>()) {
     return;
   }
 
@@ -47,12 +50,12 @@ void DrawGameplayMenu(flecs::entity e, OgreData& ogre_data) {
       // Добавляем кнопку OK для закрытия диалога
       if (ImGui::Button("Back", ImVec2(120, 0)))
       {
-        e.world().remove_all<gameplay::Pause>();
+        world.remove_all<gameplay::Pause>();
       }
 
       if (ImGui::Button("Exit", ImVec2(120, 0)))
       {
-        e.world().add<OgreWindowClosed>();
+        world.add<OgreWindowClosed>();
       }
 
       ImGui::End();
@@ -65,21 +68,21 @@ void EndGui() {
   ImGui::EndFrame();
 }
 
-void RendegGuiSystem::Register(flecs::world& world) {
+void RenderGuiSystem::Register(flecs::world& world) {
   world.component<PreRenderGui>().add(flecs::Phase).depends_on<Render>();
   world.component<RenderGui>().add(flecs::Phase).depends_on<PreRenderGui>();
   world.component<PostRenderGui>().add(flecs::Phase).depends_on<RenderGui>();
   world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRenderGui>();
 
-  world.system()
+  world.system("BeginGuiSystem")
     .kind<PreRenderGui>()
     .each(BeginGui);
 
-  world.system<OgreData>()
+  world.system<OgreData>("RenderGuiSystem")
     .kind<RenderGui>()
-    .each(DrawGameplayMenu);
+    .each([world](OgreData& ogre_data) { DrawGameplayMenu(world, ogre_data); });
 
-  world.system()
+  world.system("EndGuiSystem")
     .kind<PostRenderGui>()
     .each(EndGui);
 }

@@ -2,11 +2,22 @@
 
 namespace z13::geometry {
 
+constexpr double kPi = 3.14159265358979323846;
+
+template <typename T>
+constexpr T ToRadians(T deg_angle) {
+  return deg_angle * static_cast<T>(kPi) / static_cast<T>(180.0);
+}
+
+template <typename T>
+constexpr T ToDegrees(T rad_angle) {
+  return rad_angle * static_cast<T>(180.0) / static_cast<T>(kPi);
+}
+
 struct Vector3 {
   float x;
   float y;
   float z;
-
 
   static constinit Vector3 kZero;
   static constinit Vector3 kOne;
@@ -27,9 +38,17 @@ struct Quaternion {
 inline constinit Quaternion Quaternion::kIdentity = {0.f, 0.f, 0.f, 1.f};
 
 struct Transform {
-  Vector3 position = Vector3::kZero;
-  Quaternion rotation = Quaternion::kIdentity;
-  Vector3 scale = Vector3::kOne;
+  Vector3 position;
+  Quaternion rotation;
+  Vector3 scale;
+
+  static const Transform kIdentity;
+};
+
+inline const Transform Transform::kIdentity = {
+  .position = Vector3::kZero,
+  .rotation = Quaternion::kIdentity,
+  .scale = Vector3::kOne,
 };
 
 }  // namespace z13::geometry

@@ -6,10 +6,6 @@
 
 namespace z13::ogre {
 
-struct OgreInfo {
-
-};
-
 struct OgreData {
   OgreRootPtr ogre_root;
   Ogre::RenderWindow* ogre_window = nullptr;
@@ -19,6 +15,7 @@ struct OgreData {
 
 struct OgreWindowClosed {};
 
+#if 0
 struct SdlInput {
   int mouse_pos_x = 0;
   int mouse_pos_y = 0;
@@ -27,6 +24,7 @@ struct SdlInput {
   bool is_mouse_captured = false;
   const Uint8* keyboadr_scancodes = nullptr;
 };
+#endif
 
 struct ReadEvents { };
 struct PreRender { };

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <z13_module/components/geometry.h>
+#include <string>
 
 namespace z13::gameplay {
 
@@ -10,8 +10,10 @@ struct Gameplay {
 struct Pause {};
 
 struct Camera {
-  z13::geometry::Vector3 position = z13::geometry::Vector3::kZero;
-  z13::geometry::Quaternion orientation = z13::geometry::Quaternion::kIdentity;
+  float fov = 90.f;
+  std::string name;
+  float h_rotation_deg = 0.f;
+  float v_rotation_deg = 0.f;
 };
 
 }  // namespace z13::gameplay

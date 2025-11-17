@@ -34,7 +34,8 @@ class Core {
 
   std::map<WorldId, flecs::world> worlds_;
   WorldId new_world_id_ = 0;
-  std::map<std::string, ModuleFactoryPtr> module_factories_;
+  // std::map<std::string, ModuleFactoryPtr> module_factories_;
+  std::vector<ModuleFactoryPtr> module_factories_;
   bool pending_shutdown_ = false;
 };
 
