@@ -21,7 +21,9 @@ const Config& Core::GetConfig() const {
 }
 
 bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
-  return module_factories_.insert({module_factory->GetName(), module_factory}).second;
+  module_factories_.emplace_back(module_factory);
+  return true;
+  // return module_factories_.insert({module_factory->GetName(), module_factory}).second;
 }
 
 WorldRef Core::CreateWorld() {
@@ -32,7 +34,8 @@ WorldRef Core::CreateWorld() {
   world_ref.get().component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world_ref.get().set(core_component);
-  for (auto [_, module_factory_ptr] : module_factories_) {
+  // for (auto [_, module_factory_ptr] : module_factories_) {
+  for (auto& module_factory_ptr : module_factories_) {
     module_factory_ptr->RegisterModules(world_ref);
   }
 

@@ -9,7 +9,7 @@ namespace z13::ogre {
 
 GameplayRenderModule::GameplayRenderModule(flecs::world& world) {
   EnvironmentRenderSystem::Register(world);
-  RendegGuiSystem::Register(world);
+  RenderGuiSystem::Register(world);
 }
 
 }  // namespace z13::ogre

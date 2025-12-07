@@ -126,6 +126,55 @@ void test_flex(int argc, char *argv[]) {
     std::cout << ecs.to_json() << std::endl;
 }
 
+void test_emit() {
+    flecs::world world;
+    struct MyEvent { float value; };
+
+    auto e1 = world.entity();
+    auto e2 = world.entity();
+
+    std::cout << "test_emit" << std::endl;
+
+    e1.observe<MyEvent>([&](MyEvent& evt) {
+        std::cout << "e1.observe = " << evt.value << std::endl;
+    });
+
+    std::cout << "e1.emit 1" << std::endl;
+    e1.emit<MyEvent>({ 10 });
+    std::cout << "e1.emit 2" << std::endl;
+}
+
+void test_emit_2() {
+    flecs::world world;
+    
+    struct EventListener {};
+    struct MyEvent { float value; };
+
+    auto e1 = world.entity().add<EventListener>();
+    auto e2 = world.entity();
+
+    // world.each
+
+    world.system<EventListener>().each(
+      [](flecs::entity e, EventListener){
+        std::cout << "+++ system emit 1" << std::endl;
+        e.emit<MyEvent>({ 10 });
+        std::cout << "+++ system emit 2" << std::endl;
+      }
+    );
+
+    std::cout << "+++ test_emit" << std::endl;
+
+    e1.observe<MyEvent>([&](MyEvent& evt) {
+        std::cout << "+++ e1.observe = " << evt.value << std::endl;
+    });
+
+    std::cout << "+++ e1.emit 1" << std::endl;
+    world.progress(0.1f);
+    // e1.emit<MyEvent>({ 10 });
+    std::cout << "+++ e1.emit 2" << std::endl;
+}
+
 void test_flex2(int argc, char *argv[]) {
     flecs::world world;
 

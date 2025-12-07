@@ -1,6 +1,8 @@
 #include "gameplay_system.h"
 
 #include <z13_module/components/gameplay.h>
+#include <z13_module/components/input.h>
+#include <z13_module/components/geometry.h>
 
 #include <flecs.h>
 
@@ -27,14 +29,20 @@ void ValidateGameplay() {
   // LOG_INFO("ValidateGameplay()");
 }
 
-// void OnInit(flecs::iter& iter, size_t i, const gameplay::Gameplay&) {
-void OnInit(flecs::iter& iter, size_t i, const gameplay::Gameplay&) {
+void CreateCameraActor(flecs::world world) {
+  auto camera_entity = world.entity("CameraEntity");
   Camera camera {
-    .position = geometry::Vector3::kZero,
-    .orientation = geometry::Quaternion::kIdentity,
+    .fov = 90,
+    .name = "MainCamera",
   };
+  geometry::Transform camera_transform = geometry::Transform::kIdentity;
+  camera_entity.set(camera).set(camera_transform);
+  // camera_entity.add<input::SystemInputEvent>();
+}
 
-  iter.world().entity("GameplayCamera").set(camera);
+void OnInit(flecs::world world, const gameplay::Gameplay&) {
+  CreateCameraActor(world);
+  // world.entity().add<input::SystemInputEvent>();
 
   // e.world().entity().set(camera);
   LOG_INFO("~~~~ gameplay::OnInit");
@@ -43,20 +51,21 @@ void OnInit(flecs::iter& iter, size_t i, const gameplay::Gameplay&) {
 void GameplaySystem::Register(flecs::world& world) {
   RegisterPipeline(world);
 
-  world.observer<const gameplay::Gameplay>()
-    .term_at(0).singleton()
+  world.observer<const gameplay::Gameplay>("GameplaySystem::OnInit")
+    // .term_at(0).singleton()
     .event(flecs::OnAdd)
-    .each(OnInit);
+    .yield_existing()
+    .each([world](const auto& gameplay) { OnInit(world, gameplay); });
 
-  world.system()
+  world.system("UpdateGameplaySystem")
     .kind<Update>()
     .each(UpdateGameplay);
 
-  world.system()
+  world.system("OnGameplaySystem")
     .kind<Update>()
     .each(OnGameplay);
 
-  world.system()
+  world.system("ValidateGameplaySystem")
     .kind(flecs::OnValidate)
     .each(ValidateGameplay);
 }
