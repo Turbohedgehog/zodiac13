@@ -8,17 +8,10 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
 find_package(flecs CONFIG REQUIRED)
 
-# file(
-#   GLOB_RECURSE
-#   PROJECT_SOURCE_FILES
-#   ${PROJECT_SOURCE_DIR}/src/*.cpp
-#   # ${PROJECT_SOURCE_DIR}/src/*.h
-# )
-
-set(
+file(
+  GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  "src/config.cpp"
-  "src/core.cpp"
+  ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})

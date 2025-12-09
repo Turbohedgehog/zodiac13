@@ -16,6 +16,18 @@
 
 namespace z13::ogre {
 
+void RegisterPipelines(flecs::world& world) {
+  world.component<ReadEvents>().add(flecs::Phase).depends_on(flecs::PreFrame);
+  world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ReadEvents>();
+
+  world.component<PreRender>().add(flecs::Phase).depends_on(flecs::OnStore);
+  world.component<Render>().add(flecs::Phase).depends_on<PreRender>();
+  world.component<PostRender>().add(flecs::Phase).depends_on<Render>();
+  world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRender>();
+  world.get_alive(flecs::PostFrame).add(flecs::Phase).depends_on<FinalizeRender>();
+  // world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRender>();
+}
+
 void OnInit(flecs::world world, gameplay::Gameplay) {
   OgreData ogre_data;
 
@@ -25,57 +37,48 @@ void OnInit(flecs::world world, gameplay::Gameplay) {
   world.set(ogre_data);
 }
 
-void Shutdown(flecs::entity e, OgreWindowClosed) {
+void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
+  OgreTools::DestroySdlOgreWindow(ogre_data);
   e.world().get<CoreComponent>().core->get().Shutdown();
 }
 
 void OnAddCamera(flecs::entity, const gameplay::Camera& camera, OgreData& ogre_data) {
   OgreTools::CreateCamera(camera, ogre_data);
-  // LOG_INFO("~~~~ OnAddCamera");
 }
 
-// void OnSetCamera(flecs::entity e, const gameplay::Camera& camera) {
-//   // LOG_INFO("~~~~ OnSetCamera");
-// }
-
 void OgreSystem::Register(flecs::world& world) {
+  RegisterPipelines(world);
+
   world.component<OgreData>().add(flecs::Singleton);
 
   world.system<OgreData>("ReadEventsSystem")
     .kind<ReadEvents>()
-    // .term_at(0).singleton()
     .immediate()
     .each([world](auto& ogre_data) { OgreTools::ReadSdlEvents(world, ogre_data); });
 
-  // world.system<>("PreRenderSystem")
-  //   .kind<PreRender>()
-  //   .each([]() {
-  //     LOG_INFO("~~~~ PreRender");
-  //   });
-
   world.system<OgreData>("FinalizeRenderSystem")
     .kind<FinalizeRender>()
-    // .term_at(0).singleton()
     .each([world](auto& ogre_data) { OgreTools::RenderSdlOgreWindow(world, ogre_data); });
 
   world.system<gameplay::Camera, geometry::Transform, OgreData>("UpdateCamera")
     .kind<PreRender>()
     .each(OgreTools::UpdateCamera);
 
-  world.observer<OgreWindowClosed>("ShutdownObserver")
+  world.observer<OgreWindowClosed, OgreData>("ShutdownObserver")
     .event(flecs::OnAdd)
     .each(Shutdown);
 
-  world.observer<gameplay::Pause*>("OgreTools::DisableRelativeMouseMode")
+  world.observer<OgreData, gameplay::Pause>("OgreTools::DisableRelativeMouseMode")
     .event(flecs::OnAdd)
+    .yield_existing()
     .each(OgreTools::DisableRelativeMouseMode);
 
   world.observer<gameplay::Pause*>("OgreTools::EnableRelativeMouseMode")
     .event(flecs::OnRemove)
+    .yield_existing()
     .each(OgreTools::EnableRelativeMouseMode);
 
   world.observer<const gameplay::Gameplay>("OgreSystem::OnInit")
-    // .term_at(0).singleton()
     .event(flecs::OnAdd)
     .yield_existing()
     .each([world](const auto& gameplay) { OnInit(world, gameplay); });
@@ -84,10 +87,6 @@ void OgreSystem::Register(flecs::world& world) {
     .event(flecs::OnAdd)
     .yield_existing()
     .each(OnAddCamera);
-
-  // world.observer<const gameplay::Camera>("OnSetCameraObserver")
-  //   .event(flecs::OnSet)
-  //   .each(OnSetCamera);
 }
 
 }  // namespace z13::ogre

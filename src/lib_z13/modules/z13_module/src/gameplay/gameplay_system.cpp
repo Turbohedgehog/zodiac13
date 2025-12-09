@@ -29,22 +29,25 @@ void ValidateGameplay() {
   // LOG_INFO("ValidateGameplay()");
 }
 
-void CreateCameraActor(flecs::world world) {
-  auto camera_entity = world.entity("CameraEntity");
+void CreateTestActor(flecs::world world) {
+  auto test_actor_entity = world.entity("TestEntity");
   Camera camera {
     .fov = 90,
-    .name = "MainCamera",
+    .name = "TestActorCamera",
   };
   geometry::Transform camera_transform = geometry::Transform::kIdentity;
-  camera_entity.set(camera).set(camera_transform);
+  test_actor_entity
+      .set(camera)
+      .set(camera_transform)
+      .add<z13::input::InputListener>()
+      .add<z13::input::ActionListener>()
+      .add<z13::input::CurrentActionListenerTag>();
   // camera_entity.add<input::SystemInputEvent>();
 }
 
 void OnInit(flecs::world world, const gameplay::Gameplay&) {
-  CreateCameraActor(world);
-  // world.entity().add<input::SystemInputEvent>();
+  CreateTestActor(world);
 
-  // e.world().entity().set(camera);
   LOG_INFO("~~~~ gameplay::OnInit");
 }
 
@@ -52,10 +55,18 @@ void GameplaySystem::Register(flecs::world& world) {
   RegisterPipeline(world);
 
   world.observer<const gameplay::Gameplay>("GameplaySystem::OnInit")
-    // .term_at(0).singleton()
     .event(flecs::OnAdd)
     .yield_existing()
     .each([world](const auto& gameplay) { OnInit(world, gameplay); });
+
+  world.observer<const WindowFocusEvent>("WindowFocusEvent::OnSet")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each([world](const auto& window_focus_event) {
+      if (!window_focus_event.has_focus) {
+        world.add<Pause>();
+      }
+    });
 
   world.system("UpdateGameplaySystem")
     .kind<Update>()

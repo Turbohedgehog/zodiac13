@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "dependencies": [
     "boost-program-options",
+    "boost-bimap",
     "eigen3",
     "flecs",
     {
@@ -23,7 +24,8 @@
     "sdl2",
     "spdlog",
     "yaml-cpp",
-    "protobuf"
+    "protobuf",
+    "platform-folders"
   ],
   "overrides": [
     {
@@ -36,7 +38,11 @@
     },
     {
       "name": "boost-program-options",
-      "version": "1.88.0"
+      "version": "1.89.0"
+    },
+    {
+      "name": "boost-bimap",
+      "version": "1.89.0"
     },
     {
       "name": "yaml-cpp",
@@ -52,7 +58,11 @@
     },
     {
       "name": "protobuf",
-      "version": "5.29.5#2"
+      "version": "5.29.5#3"
+    },
+    {
+      "name": "platform-folders",
+      "version": "4.3.0#0"
     }
   ]
 }
