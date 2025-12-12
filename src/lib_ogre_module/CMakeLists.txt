@@ -34,7 +34,7 @@ add_definitions(-DOGRE_MEDIA_DIR="${OGRE_MEDIA_LOCATION}")
 add_definitions(-DASSETS_DIR="${ASSETS_LOCATION}")
 
 
-# MESSAGE("~~~~ ${OGRE_LIBRARIES}")
+list(REMOVE_ITEM OGRE_LIBRARIES "OgreGLSupportStatic")
 
 target_link_libraries(
   ${PROJECT_NAME}

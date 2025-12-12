@@ -34,7 +34,7 @@ void OnMouseMove(
     camera.h_rotation_deg += -static_cast<float>(mouse_move.delta.x) * delta_time * 2.f;
     camera.v_rotation_deg += static_cast<float>(mouse_move.delta.y) * delta_time * 2.f;
 
-    camera.h_rotation_deg = std::fmodf(camera.h_rotation_deg, 360.f);
+    camera.h_rotation_deg = std::fmod(camera.h_rotation_deg, 360.f);
     camera.v_rotation_deg = std::clamp(camera.v_rotation_deg, -90.f, 90.f);
 
     // LOG_INFO("~~~ OnMouseMove = {}, {}", camera.h_rotation_deg, camera.v_rotation_deg);
