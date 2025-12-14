@@ -177,6 +177,7 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   auto ogre_root = std::make_shared<Ogre::Root>("plugins.cfg", "", "Ogre.log");
   ogre_root->installPlugin(OGRE_NEW Ogre::GL3PlusPlugin);
   ogre_root->installPlugin(OGRE_NEW Ogre::AssimpPlugin);
+
   // ogre_root->installPlugin(OGRE_NEW Ogre::Codec_STBI);
   // ogre_root->installPlugin(OGRE_NEW Ogre::FreeImageCodec);
 
