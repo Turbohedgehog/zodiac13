@@ -2,11 +2,11 @@
 
 #include <lib_core/core_types.h>
 
-namespace z13::ogre {
+namespace z13::gameplay::input {
 
-class RenderGuiSystem {
+class GameplayInputSystem {
  public:
   static void Register(flecs::world& world);
 };
 
-}  // namespace z13::ogre
+}  // z13::gameplay::input

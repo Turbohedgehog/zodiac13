@@ -154,7 +154,8 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
       "Zodiac 13",
       SDL_WINDOWPOS_UNDEFINED,
       SDL_WINDOWPOS_UNDEFINED,
-      1280, 720,
+      // 1280, 720,
+      640, 480,
       SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN
   );
 
@@ -170,7 +171,7 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
     return;
   }
 
-  auto plugin_file_path = std::filesystem::path(ASSETS_DIR) / "plugins.cfg";
+  // auto plugin_file_path = std::filesystem::path(ASSETS_DIR) / "plugins.cfg";
 
   // auto ogre_root = std::make_shared<Ogre::Root>(plugin_file_path.string(), "", "Ogre.log");
   // auto ogre_root = std::make_shared<Ogre::Root>("plugins.cfg", "", "Ogre.log");
@@ -211,7 +212,8 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
         
   Ogre::RenderWindow* ogre_window = ogre_root->createRenderWindow(
       "OGRE RenderWindow",
-      1280, 720,
+      // 1280, 720,
+      640, 480,
       false,
       &misc_params
   );
@@ -229,21 +231,6 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
 
   auto* overlay_system = OGRE_NEW Ogre::OverlaySystem();
   scene_manager->addRenderQueueListener(overlay_system);
-
-#if 0
-  auto* camera = scene_manager->createCamera("MainCamera");
-  camera->setNearClipDistance(0.1);
-  camera->setFarClipDistance(10000);
-  // auto* overlay_system = OGRE_NEW Ogre::OverlaySystem();
-  // scene_manager->addRenderQueueListener(overlay_system);
-
-  auto* camera_node = scene_manager->getRootSceneNode()->createChildSceneNode();
-  camera_node->attachObject(camera);
-  camera_node->setPosition(0, 0, 0);
-  camera_node->lookAt(Ogre::Vector3(0, 0, 500), Ogre::Node::TS_PARENT);
-  auto* viewport = ogre_window->addViewport(camera);
-  viewport->setBackgroundColour(Ogre::ColourValue(0.4f, 0.5f, 0.7f));
-#endif
 
   auto assets_path = std::filesystem::path(ASSETS_DIR);
   rgm.addResourceLocation((assets_path).string(), "FileSystem", kAssetsResourceGroup, true);
@@ -264,26 +251,12 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
 
   ogre_data.ogre_root = ogre_root;
   ogre_data.ogre_window = ogre_window;
+  ogre_data.sdl_window = sld_window;
   ogre_data.input_listener = std::make_shared<OgreBites::z13::ImGuiInputListener>();
 
   if (!world.has<gameplay::Pause>()) {
     OgreTools::EnableRelativeMouseMode(nullptr);
   }
-
-#if 0
-  auto* camera = scene_manager->createCamera("MainCamera");
-  camera->setNearClipDistance(0.1);
-  camera->setFarClipDistance(10000);
-  // auto* overlay_system = OGRE_NEW Ogre::OverlaySystem();
-  // scene_manager->addRenderQueueListener(overlay_system);
-
-  auto* camera_node = scene_manager->getRootSceneNode()->createChildSceneNode();
-  camera_node->attachObject(camera);
-  camera_node->setPosition(0, 0, 0);
-  camera_node->lookAt(Ogre::Vector3(0, 0, 500), Ogre::Node::TS_PARENT);
-  auto* viewport = ogre_window->addViewport(camera);
-  viewport->setBackgroundColour(Ogre::ColourValue(0.4f, 0.5f, 0.7f));
-#endif
 }
 
 void OgreTools::CreateCamera(const gameplay::Camera& camera, OgreData& ogre_data) {
@@ -304,8 +277,6 @@ void OgreTools::CreateCamera(const gameplay::Camera& camera, OgreData& ogre_data
 void OgreTools::ReadSdlEvents(flecs::world world, OgreData& ogre_data) {
   SDL_Event event;
 
-  // sdl_input.keyboadr_scancodes = SDL_GetKeyboardState(nullptr);
-
   while (SDL_PollEvent(&event)) {
     switch (event.type) {
       case SDL_QUIT:
@@ -313,15 +284,15 @@ void OgreTools::ReadSdlEvents(flecs::world world, OgreData& ogre_data) {
         ogre_data.ogre_root->queueEndRendering();
         break;
 
-      case SDL_KEYDOWN:
-        if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-          if (world.has<gameplay::Pause>()) {
-            world.remove_all<gameplay::Pause>();
-          } else {
-            world.add<gameplay::Pause>();
-          }
-        }
-        break;
+      // case SDL_KEYDOWN:
+      //   if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+      //     if (world.has<gameplay::Pause>()) {
+      //       world.remove_all<gameplay::Pause>();
+      //     } else {
+      //       world.add<gameplay::Pause>();
+      //     }
+      //   }
+      //   break;
 
       case SDL_WINDOWEVENT:
         switch (event.window.event) {
@@ -330,10 +301,12 @@ void OgreTools::ReadSdlEvents(flecs::world world, OgreData& ogre_data) {
             break;
 
           case SDL_WINDOWEVENT_FOCUS_GAINED:
+            world.set(gameplay::WindowFocusEvent{.has_focus = true});
             break;
 
           case SDL_WINDOWEVENT_FOCUS_LOST:
-            world.add<gameplay::Pause>();
+            world.set(gameplay::WindowFocusEvent{.has_focus = false});
+            // world.add<gameplay::Pause>();
             break;
         }
 
@@ -346,11 +319,18 @@ void OgreTools::ReadSdlEvents(flecs::world world, OgreData& ogre_data) {
   }
 }
 
-void OgreTools::EnableRelativeMouseMode(const gameplay::Pause*) {
+void OgreTools::EnableRelativeMouseMode(const gameplay::Pause* pause) {
+  // LOG_INFO("==== OgreTools::EnableRelativeMouseMode = {}", reinterpret_cast<uint64_t>(pause));
+
   SDL_SetRelativeMouseMode(SDL_TRUE);
 }
 
-void OgreTools::DisableRelativeMouseMode(const gameplay::Pause*) {
+void OgreTools::DisableRelativeMouseMode(const OgreData& ogre_data, const gameplay::Pause&) {
+  // LOG_INFO("==== OgreTools::DisableRelativeMouseMode");
+
+  int width, height;
+  SDL_GetWindowSize(ogre_data.sdl_window, &width, &height);
+  SDL_WarpMouseInWindow(ogre_data.sdl_window, width / 2, height / 2);
   SDL_SetRelativeMouseMode(SDL_FALSE);
 }
 
@@ -365,7 +345,16 @@ void OgreTools::RenderSdlOgreWindow(flecs::world world, OgreData& ogre_data) {
   }
 }
 
-void OgreTools::DestroySdlOgreWindow(OgreData& ogre_data) {}
+void OgreTools::DestroySdlOgreWindow(OgreData& ogre_data) {
+  if (!ogre_data.ogre_root) {
+    return;
+  }
+
+  SDL_DestroyWindow(ogre_data.sdl_window);
+  SDL_Quit();
+
+  ogre_data = OgreData();
+}
 
 void OgreTools::UpdateCamera(const gameplay::Camera& camera, const geometry::Transform& transform, OgreData& ogre_data) {
   auto* scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;

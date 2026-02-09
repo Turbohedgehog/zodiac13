@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 # set(COPY_OGRE_FILES)
 
 find_package(SDL2 REQUIRED)
-# find_package(OGRE REQUIRED COMPONENTS Bites RTShaderSystem)
 find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 # find_package(assimp CONFIG REQUIRED)
@@ -44,11 +43,10 @@ target_link_libraries(
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main> $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   ${OGRE_LIBRARIES}
   imgui::imgui
-  # assimp::assimp
   Codec_Assimp
   Codec_STBI
   Codec_FreeImage
-  # fix::assimp
+  # Boost::bimap
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
 

@@ -33,7 +33,7 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 #     message(STATUS "=== ${_variableName}=${${_variableName}}")
 # endforeach()
 
-# set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)

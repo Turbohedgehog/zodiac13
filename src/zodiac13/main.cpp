@@ -7,7 +7,7 @@
 int main(int argc, char *argv[]) {
   z13::Zodiac13Launcher zodiac13_launcher;
 
-  test_emit_2();
+  // test_emit_2();
   // test_flex2(argc, argv);
   // TestVariant();
 
