@@ -9,7 +9,8 @@ find_package(SDL2 REQUIRED)
 find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 # find_package(assimp CONFIG REQUIRED)
-find_package(assimp REQUIRED)
+# find_package(assimp REQUIRED)
+# find_package(assimp REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -35,6 +36,8 @@ add_definitions(-DASSETS_DIR="${ASSETS_LOCATION}")
 
 list(REMOVE_ITEM OGRE_LIBRARIES "OgreGLSupportStatic")
 
+# message("~~~~ Codec_Assimp = ${Codec_Assimp}")
+
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
@@ -45,7 +48,9 @@ target_link_libraries(
   imgui::imgui
   Codec_Assimp
   Codec_STBI
-  Codec_FreeImage
+  # Codec_FreeImage
+  Plugin_OctreeZone
+  Plugin_PCZSceneManager
   # Boost::bimap
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
@@ -61,6 +66,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         # $<TARGET_FILE:RenderSystem_Direct3D11>
         $<TARGET_FILE:Plugin_ParticleFX>
         $<TARGET_FILE:Plugin_PCZSceneManager>
+        $<TARGET_FILE:Plugin_OctreeZone>
         $<TARGET_FILE:Codec_STBI>
         $<TARGET_FILE:Codec_Assimp>
         $<TARGET_FILE:Codec_FreeImage>

@@ -114,21 +114,24 @@ void ApplyActionListener(
   };
 
   auto new_rotation_matrix = rotation.toRotationMatrix();
-  auto forward_axis = new_rotation_matrix.col(0);
-  auto side_axis = new_rotation_matrix.col(1);
+  // Оси собраны методом подбора. Разобраться почему порядок не 0 и 1!
+  auto forward_axis = -new_rotation_matrix.col(2);
+  auto side_axis = new_rotation_matrix.col(0);
   // auto forward_axis = new_rotation_matrix.row(0);
   // auto side_axis = new_rotation_matrix.row(1);
 
+  static constexpr float kCamVel = 5.f;
+
   auto forward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)];
   auto backward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_BACKWARD)];
-  auto x_delta = (forward_v - backward_v) * delta_time;
+  auto x_delta = (forward_v - backward_v) * delta_time * kCamVel;
 
   // LOG_INFO("===== {}", action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)]);
   // LOG_INFO("==== x_delta = {}, {}, {}", x_delta.x(), x_delta.y(), x_delta.z());
 
   auto right_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_RIGHT)];
   auto left_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_LEFT)];
-  auto y_delta = (right_v - left_v) * delta_time;
+  auto y_delta = (right_v - left_v) * delta_time * kCamVel;
 
   auto position = Eigen::Vector3f {
     transform.position.x,

@@ -26,11 +26,15 @@
 
 #include <RenderSystems/GL3Plus/OgreGL3PlusPlugin.h>
 #include <Plugins/Assimp/OgreAssimpLoader.h>
+// #include <Plugins/PCZSceneManager/OgrePCZPlugin.h>
+#include <Plugins/PCZSceneManager/OgrePCZSceneManager.h>
 // #include <Plugins/FreeImageCodec/OgreFreeImageCodec.h>
 #include <Plugins/STBICodec/OgreSTBICodec.h>
 #include "input_publisher/input_publisher.h"
 
 namespace z13::ogre {
+
+constexpr auto kPCZSceneManagerName = "PCZSceneManager"; 
 
 Ogre::z13::ImGuiOverlay* InitImguiOverlay() {
   if(auto overlay = Ogre::OverlayManager::getSingleton().getByName("ImGuiOverlay"))
@@ -58,86 +62,19 @@ void InitImgui() {
   overlay->show();
 }
 
-void CreateSkyboxMaterial() {
-  Ogre::MaterialManager& matMgr = Ogre::MaterialManager::getSingleton();
+void LoadDemoMesh(OgreData& ogre_data) {
+  const auto& scene_managers = ogre_data.ogre_root->getSceneManagers();
+  for (const auto& [n, sm] : scene_managers) {
+    LOG_INFO("SM name = {}", n);
+  }
+  auto* scene_manager = static_cast<Ogre::PCZSceneManager*>(ogre_data.ogre_root->getSceneManager(kPCZSceneManagerName));
+  // scene_manager->addPCZSceneNode()
+  auto* root_node = scene_manager->getRootSceneNode();
+  auto* spaceship_scene_node = root_node->createChildSceneNode();
+  auto* spaceship_entity = scene_manager->createEntity("Spaceship", "models/spaceship/spaceship.fbx");
+  spaceship_scene_node->attachObject(spaceship_entity);
 
-  // Создаем материал для скайбокса
-  Ogre::MaterialPtr skyboxMaterial = matMgr.create("MySkybox",
-      kAssetsResourceGroup);
-      // Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
-
-  // Получаем технику и проход
-  Ogre::Technique* tech = skyboxMaterial->createTechnique();
-  Ogre::Pass* pass = tech->createPass();
-
-  // Настраиваем проход для скайбокса
-  pass->setDepthCheckEnabled(false);      // Отключаем проверку глубины
-  pass->setDepthWriteEnabled(false);      // Отключаем запись глубины
-  pass->setLightingEnabled(false);        // Отключаем освещение
-  pass->setCullingMode(Ogre::CULL_NONE);  // Отключаем отсечение граней
-
-  // Создаем текстурный юнит
-  Ogre::TextureUnitState* texUnit = pass->createTextureUnitState();
-
-  std::array<std::string, 6> cm = {"textures/skybox/skybox1.jpg", "textures/skybox/skybox1.jpg", 
-                              "textures/skybox/skybox1.jpg", "textures/skybox/skybox1.jpg",
-                              "textures/skybox/skybox1.jpg", "textures/skybox/skybox1.jpg"};
-
-  // Вариант 1: Кубическая текстура из 6 отдельных файлов
-  // texUnit->setCubicTextureName(cm.data(), true);
-
-  // ИЛИ Вариант 2: Готовый DDS файл с кубической картой
-  texUnit->setTextureName("textures/skybox/vz_techno_cubemap_ue.dds", Ogre::TEX_TYPE_CUBE_MAP);
-
-  // Настраиваем фильтрацию
-  texUnit->setTextureFiltering(Ogre::TFO_ANISOTROPIC);
-  texUnit->setTextureAnisotropy(8);
-
-  // Устанавливаем адресацию текстуры - зажимаем к краям
-  texUnit->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
-
-  // Включаем скайбокс в сцене
-  // mSceneMgr->setSkyBox(true, "MySkyBoxMaterial");
-}
-
-void CreateSkyboxMaterial2() {
-  Ogre::MaterialManager& matMgr = Ogre::MaterialManager::getSingleton();
-  Ogre::MaterialPtr skyboxMaterial = matMgr.create("MySkybox", kAssetsResourceGroup);
-
-  Ogre::Technique* tech = skyboxMaterial->createTechnique();
-  Ogre::Pass* pass = tech->createPass();
-  
-  skyboxMaterial->load();
-  bool valid = skyboxMaterial->getBestTechnique() && skyboxMaterial->getBestTechnique()->getNumPasses();
-  LOG_INFO("~~~~ CreateSkyboxMaterial2: valid = {}", valid);
-
-  auto* p = skyboxMaterial->getBestTechnique()->getPass(0);
-  LOG_INFO("~~~~ getNumTextureUnitStates: p->getNumTextureUnitStates() = {}", p->getNumTextureUnitStates());
-        valid = p->getNumTextureUnitStates() &&
-                p->getTextureUnitState(0)->getTextureType() == Ogre::TEX_TYPE_CUBE_MAP;
-  LOG_INFO("~~~~ CreateSkyboxMaterial2: valid2 = {}", valid);
-
-  // Настраиваем проход для скайбокса
-  pass->setDepthCheckEnabled(false);
-  pass->setDepthWriteEnabled(false);
-  pass->setLightingEnabled(false);
-  pass->setCullingMode(Ogre::CULL_NONE);
-
-  // Создаем текстурный юнит
-  Ogre::TextureUnitState* texUnit = pass->createTextureUnitState();
-
-  // Указываем единую текстуру
-  texUnit->setTextureName("textures/skybox/vz_techno_cubemap_ue.dds", Ogre::TEX_TYPE_CUBE_MAP);
-  // texUnit->setTextureName("textures/skybox/skybox1.jpg", Ogre::TEX_TYPE_2D); // Ваша текстура со всеми сторонами
-
-  // Настраиваем фильтрацию
-  texUnit->setTextureFiltering(Ogre::TFO_TRILINEAR);
-  texUnit->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);
-
-  skyboxMaterial->load();
-  // skyboxMaterial->setLightingEnabled(false);
-  skyboxMaterial->setDepthCheckEnabled(false);
-  skyboxMaterial->setReceiveShadows(false);
+  spaceship_scene_node->setPosition(30.f, 0.f, 0.f);
 }
 
 void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
@@ -178,6 +115,11 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   auto ogre_root = std::make_shared<Ogre::Root>("plugins.cfg", "", "Ogre.log");
   ogre_root->installPlugin(OGRE_NEW Ogre::GL3PlusPlugin);
   ogre_root->installPlugin(OGRE_NEW Ogre::AssimpPlugin);
+  // ogre_root->installPlugin(OGRE_NEW Ogre::PCZPlugin);
+  const auto& plugins = ogre_root->getInstalledPlugins();
+  // for (const auto& p : plugins) {
+  //   LOG_INFO("==== p = {}", p->getName());
+  // }
 
   // ogre_root->installPlugin(OGRE_NEW Ogre::Codec_STBI);
   // ogre_root->installPlugin(OGRE_NEW Ogre::FreeImageCodec);
@@ -218,7 +160,11 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
       &misc_params
   );
 
-  auto* scene_manager = ogre_root->createSceneManager("DefaultSceneManager");
+  // auto* scene_manager = ogre_root->createSceneManager(Ogre::PCZSceneManagerFactory::FACTORY_TYPE_NAME);
+  auto* scene_manager = static_cast<Ogre::PCZSceneManager*>(ogre_root->createSceneManager(kPCZSceneManagerName, kPCZSceneManagerName));
+  scene_manager->init("ZoneType_Default");
+  scene_manager->setAmbientLight(Ogre::ColourValue::White);
+  // auto* scene_manager = ogre_root->createSceneManager("DefaultSceneManager");
   auto* mesh_manager = ogre_root->getMeshManager();
   if (Ogre::RTShader::ShaderGenerator::initialize()) {
     auto* shader_generator = Ogre::RTShader::ShaderGenerator::getSingletonPtr();
@@ -244,7 +190,7 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   }
 
   scene_manager->setSkyBox(true, "skybox/skybox"); // ,5000, true, Ogre::Quaternion::IDENTITY, kAssetsResourceGroup);
-
+  scene_manager->setSkyZone(0);
   InitImgui();
   
   SDL_ShowWindow(sld_window);
@@ -257,6 +203,8 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   if (!world.has<gameplay::Pause>()) {
     OgreTools::EnableRelativeMouseMode(nullptr);
   }
+
+  LoadDemoMesh(ogre_data);
 }
 
 void OgreTools::CreateCamera(const gameplay::Camera& camera, OgreData& ogre_data) {
