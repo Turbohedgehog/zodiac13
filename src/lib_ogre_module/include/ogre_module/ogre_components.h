@@ -17,24 +17,10 @@ struct OgreData {
 
 struct OgreWindowClosed {};
 
-#if 0
-struct SdlInput {
-  int mouse_pos_x = 0;
-  int mouse_pos_y = 0;
-  int relative_mouse_pos_x = 0;
-  int relative_mouse_pos_y = 0;
-  bool is_mouse_captured = false;
-  const Uint8* keyboadr_scancodes = nullptr;
-};
-#endif
-
 struct ReadEvents { };
 struct PreRender { };
 struct Render { };
 struct PostRender { };
-// struct PreRenderGui { };
-// struct RenderGui { };
-// struct PostRenderGui { };
 struct FinalizeRender { };
 
 }  // namespace z13::ogre
