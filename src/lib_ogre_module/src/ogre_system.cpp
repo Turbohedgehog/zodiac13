@@ -42,8 +42,8 @@ void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
   e.world().get<CoreComponent>().core->get().Shutdown();
 }
 
-void OnAddCamera(flecs::entity, const gameplay::Camera& camera, OgreData& ogre_data) {
-  OgreTools::CreateCamera(camera, ogre_data);
+void OnAddCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {
+  OgreTools::CreateCamera(e, camera, ogre_data);
 }
 
 void OgreSystem::Register(flecs::world& world) {
@@ -60,9 +60,20 @@ void OgreSystem::Register(flecs::world& world) {
     .kind<FinalizeRender>()
     .each([world](auto& ogre_data) { OgreTools::RenderSdlOgreWindow(world, ogre_data); });
 
+#if 1
+  world.system<gameplay::Camera, geometry::Transform, OgreSceneNode>("UpdateCamera")
+    .kind<PreRender>()
+    .each(OgreTools::UpdateCamera);
+#else
   world.system<gameplay::Camera, geometry::Transform, OgreData>("UpdateCamera")
     .kind<PreRender>()
     .each(OgreTools::UpdateCamera);
+#endif
+
+  // world.system<gameplay::Camera, OgreData>("CreateOgreCamera")
+  //   .kind(flecs::PreFrame)
+  //   .with<OgreSceneNode>().not_()
+  //   .each(OgreTools::CreateOgreCamera);
 
   world.observer<OgreWindowClosed, OgreData>("ShutdownObserver")
     .event(flecs::OnAdd)
