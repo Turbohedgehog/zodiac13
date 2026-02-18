@@ -79,7 +79,7 @@ void ApplyActionListener(
   };
 
   auto rotation_matrix = current_eigen_rotation.toRotationMatrix();
-  auto current_euler_angles = rotation_matrix.eulerAngles(1, 0, 2);
+  auto current_euler_angles = rotation_matrix.eulerAngles(2, 1, 0);
   auto v_rotation_rad = current_euler_angles[1];
   auto h_rotation_rad = current_euler_angles[0];
   auto roll = current_euler_angles[2];
@@ -96,14 +96,14 @@ void ApplyActionListener(
   auto h_delta_deg = action_values[ActionToArrayIndex(z13::proto::input::Action::HORIZONTAL_LOOK)];
 
   h_rotation_deg += h_delta_deg;
-  v_rotation_deg += v_delta_deg;
+  v_rotation_deg -= v_delta_deg;
   h_rotation_deg = std::clamp(h_rotation_deg, -180.f, 180.f);
   v_rotation_deg = std::clamp(v_rotation_deg, -89.f, 89.f); // 89 degs - euler bug workaround
 
   auto rotation = Eigen::Quaternionf::Identity()
-      * Eigen::AngleAxisf(z13::math::ToRadians(h_rotation_deg), Eigen::Vector3f::UnitY())
-      * Eigen::AngleAxisf(z13::math::ToRadians(v_rotation_deg), Eigen::Vector3f::UnitX())
-      * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitZ())
+    * Eigen::AngleAxisf(z13::math::ToRadians(h_rotation_deg), Eigen::Vector3f::UnitZ())
+    * Eigen::AngleAxisf(z13::math::ToRadians(v_rotation_deg), Eigen::Vector3f::UnitY())
+    * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX())
   ;
 
   transform.rotation = {
@@ -114,11 +114,8 @@ void ApplyActionListener(
   };
 
   auto new_rotation_matrix = rotation.toRotationMatrix();
-  // Оси собраны методом подбора. Разобраться почему порядок не 0 и 1!
-  auto forward_axis = -new_rotation_matrix.col(2);
-  auto side_axis = new_rotation_matrix.col(0);
-  // auto forward_axis = new_rotation_matrix.row(0);
-  // auto side_axis = new_rotation_matrix.row(1);
+  auto forward_axis = new_rotation_matrix.col(0);
+  auto side_axis = new_rotation_matrix.col(1);
 
   static constexpr float kCamVel = 5.f;
 
@@ -131,7 +128,7 @@ void ApplyActionListener(
 
   auto right_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_RIGHT)];
   auto left_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_LEFT)];
-  auto y_delta = (right_v - left_v) * delta_time * kCamVel;
+  auto y_delta = (left_v - right_v) * delta_time * kCamVel;
 
   auto position = Eigen::Vector3f {
     transform.position.x,
@@ -140,11 +137,13 @@ void ApplyActionListener(
   };
 
   position += x_delta + y_delta;
+
   // if (x_delta.squaredNorm() >= 0.000001f || y_delta.squaredNorm() >= 0.000001f) {
   //   LOG_INFO("==== position = {}, {}, {}", position.x(), position.y(), position.z());
   //   LOG_INFO("==== forward_axis = {}, {}, {}", forward_axis.x(), forward_axis.y(), forward_axis.z());
   //   LOG_INFO("==== side_axis = {}, {}, {}", side_axis.x(), side_axis.y(), side_axis.z());
   // }
+
   transform.position = {
     position.x(),
     position.y(),

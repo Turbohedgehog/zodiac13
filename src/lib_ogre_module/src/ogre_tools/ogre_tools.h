@@ -35,8 +35,13 @@ class OgreTools {
   static void DestroySdlOgreWindow(OgreData& ogre_data);
   static void EnableRelativeMouseMode(const gameplay::Pause*);
   static void DisableRelativeMouseMode(const OgreData& ogre_data, const gameplay::Pause&);
-  static void CreateCamera(const gameplay::Camera& camera, OgreData& ogre_data);
+  static void CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data);
+  // static void CreateOgreCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data);
+#if 1
+  static void UpdateCamera(const gameplay::Camera&, const geometry::Transform& transform, const struct OgreSceneNode& ogre_scene_node);
+#else
   static void UpdateCamera(const gameplay::Camera& camera, const geometry::Transform& transform, OgreData& ogre_data);
+#endif
 };
 
 }  // namespace z13::ogre

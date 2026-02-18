@@ -7,12 +7,15 @@
 struct SDL_Window;
 
 namespace z13::ogre {
-
 struct OgreData {
   OgreRootPtr ogre_root;
   Ogre::RenderWindow* ogre_window = nullptr;
   InputListenerPtr input_listener;
   SDL_Window* sdl_window = nullptr;
+};
+
+struct OgreSceneNode {
+  SceneNodeHolderWeakPtr scene_node;
 };
 
 struct OgreWindowClosed {};

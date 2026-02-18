@@ -2,6 +2,9 @@
 
 #include <filesystem>
 
+#include <Eigen/Dense>
+
+#include <lib_core/math.h>
 #include <lib_core/log.h>
 
 #include <SDL2/SDL.h>
@@ -31,6 +34,8 @@
 // #include <Plugins/FreeImageCodec/OgreFreeImageCodec.h>
 #include <Plugins/STBICodec/OgreSTBICodec.h>
 #include "input_publisher/input_publisher.h"
+
+#include "scene_node_holder/scene_node_holder.h"
 
 namespace z13::ogre {
 
@@ -62,7 +67,7 @@ void InitImgui() {
   overlay->show();
 }
 
-void LoadDemoMesh(OgreData& ogre_data) {
+Ogre::SceneNode* LoadDemoMesh(OgreData& ogre_data) {
   const auto& scene_managers = ogre_data.ogre_root->getSceneManagers();
   for (const auto& [n, sm] : scene_managers) {
     LOG_INFO("SM name = {}", n);
@@ -74,7 +79,12 @@ void LoadDemoMesh(OgreData& ogre_data) {
   auto* spaceship_entity = scene_manager->createEntity("Spaceship", "models/spaceship/spaceship.fbx");
   spaceship_scene_node->attachObject(spaceship_entity);
 
-  spaceship_scene_node->setPosition(30.f, 0.f, 0.f);
+  spaceship_scene_node->setPosition(30.f, 10.f, 10.f);
+  auto rotation = Eigen::Quaternionf::Identity() * Eigen::AngleAxisf(z13::math::ToRadians(-180.), Eigen::Vector3f::UnitX());
+  // Eigen::Quaternionf rotation = Eigen::AngleAxisf(z13::math::ToRadians(-180.), Eigen::Vector3f::UnitX());
+  spaceship_scene_node->setOrientation(rotation.w(), rotation.x(), rotation.y(), rotation.z());
+
+  return spaceship_scene_node;
 }
 
 void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
@@ -205,21 +215,40 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   }
 
   LoadDemoMesh(ogre_data);
+
+  auto* test_scene_node = scene_manager->createSceneNode("TestNode");
+  auto snh_ptr = SceneNodeHolder::CreateSceneNodeHolder(test_scene_node);
+  LOG_INFO("==== OgreTools 1 = {}, {}", !snh_ptr.expired(), snh_ptr.use_count());
+  LOG_INFO("==== OgreTools 2 = {}", snh_ptr.lock()->Get()->getName());
+  scene_manager->destroySceneNode(test_scene_node);
+  LOG_INFO("==== OgreTools 3 = {}, {}", !snh_ptr.expired(), snh_ptr.use_count());
+  // LOG_INFO("==== OgreTools 4 = {}", test_scene_node->getName());
 }
 
-void OgreTools::CreateCamera(const gameplay::Camera& camera, OgreData& ogre_data) {
+void OgreTools::CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {
   // LOG_INFO("~~~~ CreateCamera");
   auto* scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;
   auto* ogre_camera = scene_manager->createCamera(camera.name);
   ogre_camera->setNearClipDistance(0.1);
   ogre_camera->setFarClipDistance(10000);
 
-  auto* camera_node = scene_manager->getRootSceneNode()->createChildSceneNode();
+  auto* camera_parent_node = scene_manager->getRootSceneNode()->createChildSceneNode();
+  // camera_parent_node->lookAt(Ogre::Vector3(1, 0, 0), Ogre::Node::TS_WORLD);
+  auto* camera_node = camera_parent_node->createChildSceneNode();
   camera_node->attachObject(ogre_camera);
   camera_node->setPosition(0, 0, 0);
-  camera_node->lookAt(Ogre::Vector3(0, 0, 500), Ogre::Node::TS_PARENT);
+  // camera_node->lookAt(Ogre::Vector3(0, 0, 500), Ogre::Node::TS_PARENT);
+  // camera_node->lookAt(Ogre::Vector3(1, 0, 0), Ogre::Node::TS_WORLD);
+  camera_node->setFixedYawAxis(true, Ogre::Vector3::UNIT_Z);
+  camera_node->setDirection(Ogre::Vector3::UNIT_X);
   auto* viewport = ogre_data.ogre_window->addViewport(ogre_camera);
   viewport->setBackgroundColour(Ogre::ColourValue(0.4f, 0.5f, 0.7f));
+
+  OgreSceneNode ogre_scene_node {
+    .scene_node = SceneNodeHolder::CreateSceneNodeHolder(camera_parent_node),
+  };
+
+  e.set(ogre_scene_node);  
 }
 
 void OgreTools::ReadSdlEvents(flecs::world world, OgreData& ogre_data) {
@@ -304,6 +333,22 @@ void OgreTools::DestroySdlOgreWindow(OgreData& ogre_data) {
   ogre_data = OgreData();
 }
 
+// void OgreTools::CreateOgreCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {}
+
+#if 1
+void OgreTools::UpdateCamera(const gameplay::Camera&, const geometry::Transform& transform, const OgreSceneNode& ogre_scene_node) {
+  if (ogre_scene_node.scene_node.expired()) {
+    return;
+  }
+
+  const auto& position = transform.position;
+  const auto& rotation = transform.rotation;
+
+  auto* camera_scene_node = ogre_scene_node.scene_node.lock()->Get();
+  camera_scene_node->setPosition(position.x, position.y, position.z);
+  camera_scene_node->setOrientation(rotation.w, rotation.x, rotation.y, rotation.z);
+}
+#else
 void OgreTools::UpdateCamera(const gameplay::Camera& camera, const geometry::Transform& transform, OgreData& ogre_data) {
   auto* scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;
   auto* ogre_camera = scene_manager->getCamera(camera.name);
@@ -313,5 +358,6 @@ void OgreTools::UpdateCamera(const gameplay::Camera& camera, const geometry::Tra
   camera_scene_node->setPosition(position.x, position.y, position.z);
   camera_scene_node->setOrientation(rotation.w, rotation.x, rotation.y, rotation.z);
 }
+#endif
 
 }  // namespace z13::ogre
