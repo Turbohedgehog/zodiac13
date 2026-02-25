@@ -94,7 +94,7 @@ bool InputConfigLoader::SaveConfig(const z13::input::InputConfig& input_config) 
   mouse_config->set_invert_y(input_config.invert_y);
 
   std::string json_output;
-  google::protobuf::util::JsonOptions options {
+  google::protobuf::util::JsonPrintOptions options {
     .add_whitespace = true,
     .always_print_fields_with_no_presence = true,
   };

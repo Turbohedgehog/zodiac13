@@ -51,7 +51,7 @@ void KeyBindingWindow::DrawImpl() {
   static const std::string kNoneKey = "..."; 
   // Todo: ОПТИМИЗИРОВАТЬ!!!!
   for (const auto& [action, action_str] : action_to_name_) {
-    ImGui::Text(action_str.c_str());
+    ImGui::Text("%s", action_str.c_str());
 
     auto it = current_bindings_.find(action);
     if (it == current_bindings_.end()) {

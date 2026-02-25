@@ -28,7 +28,7 @@ void WindowBase::Draw() {
                            ImGuiWindowFlags_NoSavedSettings;
                            
   if (ImGui::Begin(window_name_.c_str(), nullptr, flags)) {
-    ImGui::Text(window_name_.c_str());
+    ImGui::Text("%s", window_name_.c_str());
     ImGui::Separator();
 
     DrawImpl();

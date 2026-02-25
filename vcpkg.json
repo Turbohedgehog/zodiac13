@@ -18,7 +18,8 @@
       "name": "ogre",
       "features": [
         "assimp",
-        "overlay"
+        "overlay",
+        "tools"
       ]
     },
     "sdl2",
@@ -30,19 +31,19 @@
   "overrides": [
     {
       "name": "spdlog",
-      "version": "1.15.3"
+      "version": "1.17.0"
     },
     {
       "name": "flecs",
-      "version": "4.1.2"
+      "version": "4.1.4#0"
     },
     {
       "name": "boost-program-options",
-      "version": "1.89.0"
+      "version": "1.90.0#1"
     },
     {
       "name": "boost-bimap",
-      "version": "1.89.0"
+      "version": "1.90.0#1"
     },
     {
       "name": "yaml-cpp",
@@ -50,7 +51,7 @@
     },
     {
       "name": "ogre",
-      "version": "14.3.2"
+      "version": "14.5.0"
     },
     {
       "name": "eigen3",
@@ -58,7 +59,7 @@
     },
     {
       "name": "protobuf",
-      "version": "5.29.5#3"
+      "version": "6.33.4#1"
     },
     {
       "name": "platform-folders",

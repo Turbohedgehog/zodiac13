@@ -60,20 +60,9 @@ void OgreSystem::Register(flecs::world& world) {
     .kind<FinalizeRender>()
     .each([world](auto& ogre_data) { OgreTools::RenderSdlOgreWindow(world, ogre_data); });
 
-#if 1
   world.system<gameplay::Camera, geometry::Transform, OgreSceneNode>("UpdateCamera")
     .kind<PreRender>()
     .each(OgreTools::UpdateCamera);
-#else
-  world.system<gameplay::Camera, geometry::Transform, OgreData>("UpdateCamera")
-    .kind<PreRender>()
-    .each(OgreTools::UpdateCamera);
-#endif
-
-  // world.system<gameplay::Camera, OgreData>("CreateOgreCamera")
-  //   .kind(flecs::PreFrame)
-  //   .with<OgreSceneNode>().not_()
-  //   .each(OgreTools::CreateOgreCamera);
 
   world.observer<OgreWindowClosed, OgreData>("ShutdownObserver")
     .event(flecs::OnAdd)

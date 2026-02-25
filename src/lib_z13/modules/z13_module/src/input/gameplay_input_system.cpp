@@ -117,7 +117,7 @@ void ApplyActionListener(
   auto forward_axis = new_rotation_matrix.col(0);
   auto side_axis = new_rotation_matrix.col(1);
 
-  static constexpr float kCamVel = 5.f;
+  static constexpr float kCamVel = 30.f;
 
   auto forward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)];
   auto backward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_BACKWARD)];
