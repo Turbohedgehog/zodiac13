@@ -48,7 +48,7 @@ target_link_libraries(
   imgui::imgui
   Codec_Assimp
   Codec_STBI
-  # Codec_FreeImage
+  Codec_FreeImage
   Plugin_OctreeZone
   Plugin_PCZSceneManager
   # Boost::bimap

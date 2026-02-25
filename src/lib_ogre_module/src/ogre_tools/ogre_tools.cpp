@@ -31,8 +31,8 @@
 #include <Plugins/Assimp/OgreAssimpLoader.h>
 // #include <Plugins/PCZSceneManager/OgrePCZPlugin.h>
 #include <Plugins/PCZSceneManager/OgrePCZSceneManager.h>
-// #include <Plugins/FreeImageCodec/OgreFreeImageCodec.h>
-#include <Plugins/STBICodec/OgreSTBICodec.h>
+#include <Plugins/FreeImageCodec/OgreFreeImageCodec.h>
+// #include <Plugins/STBICodec/OgreSTBICodec.h>
 #include "input_publisher/input_publisher.h"
 
 #include "scene_node_holder/scene_node_holder.h"
@@ -77,9 +77,11 @@ Ogre::SceneNode* LoadDemoMesh(OgreData& ogre_data) {
   auto* root_node = scene_manager->getRootSceneNode();
   auto* spaceship_scene_node = root_node->createChildSceneNode();
   auto* spaceship_entity = scene_manager->createEntity("Spaceship", "models/spaceship/spaceship.fbx");
+  // auto* spaceship_entity = scene_manager->createEntity("Spaceship", "models/spaceship/intergalactic_spaceship.glb");
+  // auto* spaceship_entity = scene_manager->createEntity("Spaceship", "models/spaceship/intergalactic_spaceship.fbx");
   spaceship_scene_node->attachObject(spaceship_entity);
 
-  spaceship_scene_node->setPosition(30.f, 10.f, 10.f);
+  spaceship_scene_node->setPosition(530.f, 10.f, 10.f);
   auto rotation = Eigen::Quaternionf::Identity() * Eigen::AngleAxisf(z13::math::ToRadians(-180.), Eigen::Vector3f::UnitX());
   // Eigen::Quaternionf rotation = Eigen::AngleAxisf(z13::math::ToRadians(-180.), Eigen::Vector3f::UnitX());
   spaceship_scene_node->setOrientation(rotation.w(), rotation.x(), rotation.y(), rotation.z());
@@ -126,12 +128,12 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
   ogre_root->installPlugin(OGRE_NEW Ogre::GL3PlusPlugin);
   ogre_root->installPlugin(OGRE_NEW Ogre::AssimpPlugin);
   // ogre_root->installPlugin(OGRE_NEW Ogre::PCZPlugin);
-  const auto& plugins = ogre_root->getInstalledPlugins();
+  // const auto& plugins = ogre_root->getInstalledPlugins();
   // for (const auto& p : plugins) {
   //   LOG_INFO("==== p = {}", p->getName());
   // }
 
-  // ogre_root->installPlugin(OGRE_NEW Ogre::Codec_STBI);
+  // ogre_root->installPlugin(OGRE_NEW Ogre::STBIImageCodec);
   // ogre_root->installPlugin(OGRE_NEW Ogre::FreeImageCodec);
 
   auto& rgm = Ogre::ResourceGroupManager::getSingleton();
