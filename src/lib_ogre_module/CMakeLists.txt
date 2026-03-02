@@ -55,6 +55,8 @@ target_link_libraries(
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
 
+set(OGRE_TOOLS_PATH "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/ogre")
+
 # ToDo: перевести проект на динамическую библиотеку и копировать плагины Ogre в ${PROJECT_NAME} вместо zodiac13
 # Сейчас происходит полная завязка на проекте zodiac13, хотя он является дочерним в последовательности
 # Идея взята здесь https://github.com/NearEDGE/Ogre-vcpkg-Example-Project/blob/master/Ogre%20vcpkg%20example%20project/CMakeLists.txt#L34
@@ -80,6 +82,9 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}/"plugins.cfg"
         $<TARGET_FILE_DIR:zodiac13>/"plugins.cfg"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${OGRE_TOOLS_PATH}
+        $<TARGET_FILE_DIR:zodiac13>/tools
 )
 
 
