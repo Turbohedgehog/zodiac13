@@ -144,24 +144,6 @@ message Keyboard {
   }
 }
 
-// message Mouse {
-//   enum Button {
-//     BUTTON_UNKNOWN = 0;
-//     BUTTON_LEFT = 1;
-//     BUTTON_MIDDLE = 2;
-//     BUTTON_RIGHT = 3;
-//     BUTTON_X1 = 4;
-//     BUTTON_X2 = 5;
-//   }
-// }
-
-// message KeyUnion {
-//   oneof Key {
-//     Keyboard.Code key_code = 1001;
-//     Mouse.Button mouse_button = 1002;
-//   }
-// }
-
 message Action {
   enum ActionType {
     MOVE_FORWARD = 0 [(details).display_text = "Move forward"];
@@ -169,8 +151,9 @@ message Action {
     MOVE_LEFT = 2 [(details).display_text = "Move left"];
     MOVE_RIGHT = 3 [(details).display_text = "Move right"];
     JUMP = 4 [(details).display_text = "Jump"];
-    VERTICAL_LOOK = 5;
-    HORIZONTAL_LOOK = 6;
+    CROUCH = 5 [(details).display_text = "Crouch"];
+    VERTICAL_LOOK = 100;
+    HORIZONTAL_LOOK = 101;
   }
 }
 
@@ -179,29 +162,13 @@ message ActionBinding {
   repeated Keyboard.Code key_codes = 2;  
 }
 
-// message KeyBinding {
-//   Keyboard.Code key_code = 1;
-//   Action.ActionType action = 2; 
-// }
-
-// message MouseBinding {
-//   Mouse.Button mouse_button = 1;
-//   Action.ActionType action = 2;
-// }
-
 message MouseConfig {
-  // repeated MouseBinding button_bindings = 1;
   float mouse_sensitivity = 2;
   bool invert_x = 3;
   bool invert_y = 4;
 }
 
-// message KeyboardConfig {
-//   repeated KeyBinding key_bindings = 1;
-// }
-
 message InputConfig {
   repeated ActionBinding action_bindings = 1;
-  // KeyboardConfig keyboard_config = 1;
   MouseConfig mouse_config = 2;
 }
