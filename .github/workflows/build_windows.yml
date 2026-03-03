@@ -1,0 +1,83 @@
+name: Windows Build & Release
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    env:
+      VCPKG_ROOT: ""
+      VCPKG_BUILD_TYPE: release # Выключает Debug
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read version from file
+        shell: pwsh
+        id: get_ver
+        run: |
+          $verBase = Get-Content version.txt -Raw
+          $verBase = $verBase.Trim()
+          echo "BASE_VER=$verBase" >> $env:GITHUB_ENV
+          echo "FULL_VER=$verBase.${{ github.run_number }}" >> $env:GITHUB_ENV
+
+      # Кешируем только результат работы vcpkg внутри build
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/vcpkg_installed
+            vcpkg_installed
+          # Убираем hashFiles из основного ключа
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          # Позволяет подтягивать любой существующий кеш от этой ОС
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      # Только готовим vcpkg.exe (без установки пакетов)
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: 'vcpkg.json'
+          runVcpkgInstall: false 
+
+      # Сборка: vcpkg сам скачает и соберет всё ПРЯМО ТУТ (один раз)
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DVCPKG_BUILD_TYPE=release `
+            -DZ13_VERSION_PATCH=${{ github.run_number }}
+          
+          cmake --build build --config Release
+
+      # Простая архивация вашей папки bin
+      - name: Archive and Release
+        shell: pwsh
+        run: |
+          $ZIP_NAME = "zodiac13-v${{ env.FULL_VER }}-windows.zip"
+          if (Test-Path bin) {
+            Compress-Archive -Path bin\* -DestinationPath $ZIP_NAME
+            echo "RELEASE_ZIP=$ZIP_NAME" >> $env:GITHUB_ENV
+          } else {
+            Write-Error "Папка bin не найдена! Проверьте пути в CMakeLists.txt"
+            exit 1
+          }
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.RELEASE_ZIP }}
+          # tag_name: v${{ env.FULL_VER }}
+          name: "Release v${{ env.FULL_VER }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

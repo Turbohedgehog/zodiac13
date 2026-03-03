@@ -18,8 +18,7 @@
       "name": "ogre",
       "features": [
         "assimp",
-        "overlay",
-        "tools"
+        "overlay"
       ]
     },
     "sdl2",
