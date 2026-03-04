@@ -3,14 +3,10 @@ cmake_minimum_required(VERSION 3.21)
 project(ogre_module)
 
 set(CMAKE_CXX_STANDARD 20)
-# set(COPY_OGRE_FILES)
 
 find_package(SDL2 REQUIRED)
 find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
-# find_package(assimp CONFIG REQUIRED)
-# find_package(assimp REQUIRED)
-# find_package(assimp REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -36,8 +32,6 @@ add_definitions(-DASSETS_DIR="${ASSETS_LOCATION}")
 
 list(REMOVE_ITEM OGRE_LIBRARIES "OgreGLSupportStatic")
 
-# message("~~~~ Codec_Assimp = ${Codec_Assimp}")
-
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
@@ -55,7 +49,7 @@ target_link_libraries(
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
 
-set(OGRE_TOOLS_PATH "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/ogre")
+# set(OGRE_TOOLS_PATH "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/ogre")
 
 # ToDo: перевести проект на динамическую библиотеку и копировать плагины Ogre в ${PROJECT_NAME} вместо zodiac13
 # Сейчас происходит полная завязка на проекте zodiac13, хотя он является дочерним в последовательности
@@ -82,9 +76,9 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}/"plugins.cfg"
         $<TARGET_FILE_DIR:zodiac13>/"plugins.cfg"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${OGRE_TOOLS_PATH}
-        $<TARGET_FILE_DIR:zodiac13>/tools
+    # COMMAND ${CMAKE_COMMAND} -E copy_directory
+    #     ${OGRE_TOOLS_PATH}
+    #     $<TARGET_FILE_DIR:zodiac13>/tools
 )
 
 
@@ -97,12 +91,6 @@ install(TARGETS ${PROJECT_NAME}
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
 )
-
-
-# Копирует зависимости, но с избытком
-# install(IMPORTED_RUNTIME_ARTIFACTS SDL2::SDL2 ${OGRE_LIBRARIES}
-#         DESTINATION ${ZODIAC_13_ROOT_DIR}/bin
-# )
 
 install(EXPORT ${PROJECT_NAME}Targets
         FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake

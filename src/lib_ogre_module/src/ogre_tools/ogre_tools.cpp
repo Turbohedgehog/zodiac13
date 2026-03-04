@@ -66,7 +66,7 @@ void InitImgui() {
 void CreateLight(Ogre::SceneNode* parent_node) {
   auto* scene_manager = parent_node->getCreator();
   scene_manager->setAmbientLight(Ogre::ColourValue::White);
-  scene_manager->setAmbientLight(Ogre::ColourValue::Green);
+  // scene_manager->setAmbientLight(Ogre::ColourValue::Green);
 
   auto* light_node = parent_node->createChildSceneNode("DirectionalLight");
   auto* light = scene_manager->createLight("DirectionalLight");
@@ -233,8 +233,8 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
     OgreTools::EnableRelativeMouseMode(nullptr);
   }
 
-  LoadRooms(ogre_data);
-  // LoadDemoMesh(ogre_data);
+  // LoadRooms(ogre_data);
+  LoadDemoMesh(ogre_data);
 
   // auto* test_scene_node = scene_manager->createSceneNode("TestNode");
   // auto snh_ptr = SceneNodeHolder::CreateSceneNodeHolder(test_scene_node);

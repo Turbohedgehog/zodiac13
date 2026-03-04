@@ -1,15 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
-# unset(VCPKG_MANIFEST_MODE)
-# unset(VCPKG_LIBRARY_LINKAGE)
-# unset(VCPKG_CRT_LINKAGE)
-# set(VCPKG_MANIFEST_MODE ON)
-# set(VCPKG_LIBRARY_LINKAGE "static")
-# set(VCPKG_CRT_LINKAGE "static")
-set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/../zodiac13_vcpkg_installed")
-
-# set(BUILD_SHARED_LIBS OFF)
+set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
 
 set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
@@ -20,7 +12,16 @@ set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 #   endif()
 # endif()
 
-project(zodiac13)
+file(READ "${CMAKE_SOURCE_DIR}/version.txt" VER_BASE)
+string(STRIP "${VER_BASE}" VER_BASE) # Убираем лишние пробелы/переносы
+string(REPLACE "." ";" VER_LIST ${VER_BASE})
+list(GET VER_LIST 0 Z13_VERSION_MAJOR)
+list(GET VER_LIST 1 Z13_VERSION_MINOR)
+set(Z13_VERSION_PATCH 0 CACHE STRING "Patch version from CI")
+
+set(Z13_FULL_VERSION "${Z13_VERSION_MAJOR}.${Z13_VERSION_MINOR}.${Z13_VERSION_PATCH}")
+
+project(zodiac13 VERSION ${Z13_FULL_VERSION})
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 set(PROJECT_NAMESPACE ${PROJECT_NAME} CACHE PATH "Project namespace" FORCE)
@@ -39,14 +40,13 @@ add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
-add_subdirectory(tools/xml_converter)
 
 set(CPACK_GENERATOR "DEB;TGZ")
 
-set(CPACK_PACKAGE_VERSION_MAJOR "0")
-set(CPACK_PACKAGE_VERSION_MINOR "1")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
-
+set(CPACK_PACKAGE_VERSION_MAJOR ${Z13_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${Z13_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${Z13_VERSION_PATCH})
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}")
 set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
 
 include(CPack)
