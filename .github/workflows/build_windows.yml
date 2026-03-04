@@ -77,7 +77,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.RELEASE_ZIP }}
-          # tag_name: v${{ env.FULL_VER }}
+          tag_name: v${{ env.FULL_VER }}
           name: "Release v${{ env.FULL_VER }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
