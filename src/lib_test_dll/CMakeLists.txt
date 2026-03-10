@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_launcher)
+project(test_dll_module)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -13,13 +13,14 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${Bullet_INCLUDE_DIRS}>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
 )
 
@@ -27,15 +28,8 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
-  zodiac13::z13_module
-  zodiac13::ogre_module
   Boost::dll
-  # zodiac13::bullet_module
 )
-
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
-#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-# )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
@@ -50,5 +44,14 @@ install(EXPORT ${PROJECT_NAME}Targets
         FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
         NAMESPACE ${PROJECT_NAMESPACE}::
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
+)
+
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
+
+set_target_properties(${PROJECT_NAME} PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
 )
 

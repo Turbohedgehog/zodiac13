@@ -5,7 +5,7 @@ project(core)
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(spdlog CONFIG REQUIRED)
-find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(Boost REQUIRED COMPONENTS program_options dll)
 find_package(flecs CONFIG REQUIRED)
 
 file(
@@ -29,6 +29,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   Boost::program_options
+  Boost::dll
 )
 
 target_link_libraries(
