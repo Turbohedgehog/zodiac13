@@ -40,6 +40,7 @@ add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
+add_subdirectory(src/lib_test_dll)
 
 set(CPACK_GENERATOR "DEB;TGZ")
 

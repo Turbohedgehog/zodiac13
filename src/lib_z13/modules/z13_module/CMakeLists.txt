@@ -23,14 +23,6 @@ file(
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
 
-# if(MSVC)
-#   set_source_files_properties(${PROTO_SRCS} PROPERTIES COMPILE_OPTIONS "/W0")
-#   set_source_files_properties(${PROTO_HDRS} PROPERTIES COMPILE_OPTIONS "/W0")
-# elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-#   set_source_files_properties(${PROTO_SRCS} PROPERTIES COMPILE_OPTIONS "-w")
-#   set_source_files_properties(${PROTO_HDRS} PROPERTIES COMPILE_OPTIONS "-w")
-# endif()
-
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 

@@ -20,4 +20,6 @@ using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
 using WorldId = uint32_t;
 using WorldRef = std::reference_wrapper<flecs::world>;
 
+class ModuleLibHolder;
+
 }  // namespace z13

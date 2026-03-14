@@ -10,20 +10,35 @@
 #include <lib_core/components.h>
 #include <lib_core/module_factory_base.h>
 
+#include "module_lib_holder.h"
+
 namespace z13 {
 
-Core::Core(int argc, char *argv[]) {
+Core::Core(int argc, char *argv[])
+  : module_lib_holder_(std::make_unique<ModuleLibHolder>()) {
+  // : module_lib_holder_(std::make_shared<ModuleLibHolder>()) {
   config_.ParseCommandLineArguments(argc, argv);
 }
+
+Core::~Core() = default;
 
 const Config& Core::GetConfig() const {
   return config_;
 }
 
 bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
-  module_factories_.emplace_back(module_factory);
-  return true;
+  return !!module_factories_.emplace_back(module_factory);
+  // return true;
   // return module_factories_.insert({module_factory->GetName(), module_factory}).second;
+}
+
+bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension) {
+  auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
+  if (!module_factory) {
+    return false;
+  }
+
+  return RegisterModuleFactory(module_factory);
 }
 
 WorldRef Core::CreateWorld() {

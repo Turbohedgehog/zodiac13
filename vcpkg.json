@@ -4,6 +4,7 @@
   "dependencies": [
     "boost-program-options",
     "boost-bimap",
+    "boost-dll",
     "eigen3",
     "flecs",
     {
@@ -42,6 +43,10 @@
     },
     {
       "name": "boost-bimap",
+      "version": "1.90.0#1"
+    },
+    {
+      "name": "boost-dll",
       "version": "1.90.0#1"
     },
     {
