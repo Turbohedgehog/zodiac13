@@ -131,6 +131,8 @@ void InputConfigLoader::SetDefaults(z13::input::InputConfig& input_config) {
   input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_BACKWARD, {z13::proto::input::Keyboard::KEY_S}});
   input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_LEFT, {z13::proto::input::Keyboard::KEY_A}});
   input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_RIGHT, {z13::proto::input::Keyboard::KEY_D}});
+  input_config.action_bindings.push_back({z13::proto::input::Action::JUMP, {z13::proto::input::Keyboard::KEY_SPACE}});
+  input_config.action_bindings.push_back({z13::proto::input::Action::CROUCH, {z13::proto::input::Keyboard::KEY_LCTRL}});
 }
 
 }  // namespace z13::gameplay

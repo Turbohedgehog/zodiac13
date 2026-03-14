@@ -116,6 +116,7 @@ void ApplyActionListener(
   auto new_rotation_matrix = rotation.toRotationMatrix();
   auto forward_axis = new_rotation_matrix.col(0);
   auto side_axis = new_rotation_matrix.col(1);
+  auto up_axis = new_rotation_matrix.col(2);
 
   static constexpr float kCamVel = 30.f;
 
@@ -130,13 +131,17 @@ void ApplyActionListener(
   auto left_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_LEFT)];
   auto y_delta = (left_v - right_v) * delta_time * kCamVel;
 
+  auto up_v = up_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::JUMP)];
+  auto down_v = up_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::CROUCH)];
+  auto z_delta = (up_v - down_v) * delta_time * kCamVel;
+
   auto position = Eigen::Vector3f {
     transform.position.x,
     transform.position.y,
     transform.position.z,
   };
 
-  position += x_delta + y_delta;
+  position += x_delta + y_delta + z_delta;
 
   // if (x_delta.squaredNorm() >= 0.000001f || y_delta.squaredNorm() >= 0.000001f) {
   //   LOG_INFO("==== position = {}, {}, {}", position.x(), position.y(), position.z());
