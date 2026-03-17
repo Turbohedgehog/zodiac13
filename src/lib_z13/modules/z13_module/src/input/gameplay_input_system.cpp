@@ -230,39 +230,28 @@ void OnKeyboardUp(
 //   // LOG_INFO("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
 // }
 
-void OnInputSystemStartupGameEvent(flecs::entity e, status::OnStartupGameEvent) {
-  LoadingInputSystemState loading_input_state = {
-    .input_state = std::make_shared<LoadingInputSystemStateRaw>(),
-  };
-  loading_input_state.input_state->load_config_thread = std::thread(
-    [](std::atomic<std::weak_ptr<LoadingInputSystemStateRaw>> load_system_state) {
-      z13::input::InputConfig input_config;
-      if (!InputConfigLoader::LoadConfig(input_config)) {
-        InputConfigLoader::SetDefaults(input_config);
-        InputConfigLoader::SaveConfig(input_config);
-      }
-
-      auto load_system_state_wptr = load_system_state.load();
-      if (load_system_state_wptr.expired()) {
-        return;
-      }
-
-      auto load_system_state_ptr = load_system_state_wptr.lock();
-      load_system_state_ptr->input_config = std::move(input_config);
-      load_system_state_ptr->is_complete.store(true, std::memory_order_release);
-  }, std::weak_ptr<LoadingInputSystemStateRaw>(loading_input_state.input_state));
-
-  e.world().entity()
-    .set(loading_input_state)
-    .set(status::Loading {});
+void OnSaveConfig(flecs::entity e, z13::input::SaveConfigEvent) {
+  const auto& input_config = e.world().ensure<z13::input::InputConfig>();
+  InputConfigLoader::SaveConfig(input_config);
 }
 
-void LoadingInput(flecs::entity e, LoadingInputSystemState& loading_input_system_state, status::Loading& loading) {
-  if (loading_input_system_state.input_state->is_complete.load(std::memory_order_acquire)) {
-    loading_input_system_state.input_state->load_config_thread.join();
-    e.world().set(std::move(loading_input_system_state.input_state->input_config));
-    e.destruct();
+void OnLoadConfig(flecs::entity e, z13::input::LoadConfigEvent) {
+  auto& input_config = e.world().ensure<z13::input::InputConfig>();
+  InputConfigLoader::LoadConfig(input_config);
+}
+
+void OnSetDefaultConfig(flecs::entity e, z13::input::SetDefaultConfigEvent) {
+  auto& input_config = e.world().ensure<z13::input::InputConfig>();
+  InputConfigLoader::SetDefaults(input_config);
+}
+
+void OnInputSystemStartupGameEvent(flecs::entity e, status::OnStartupGameEvent) {
+  z13::input::InputConfig input_config;
+  if (!InputConfigLoader::LoadConfig(input_config)) {
+    InputConfigLoader::SetDefaults(input_config);
+    InputConfigLoader::SaveConfig(input_config);
   }
+  e.world().set(std::move(input_config));
 }
 
 void ClearActionListener(flecs::entity, z13::input::ActionListener& action_listener) {
@@ -375,9 +364,6 @@ void GameplayInputSystem::Register(flecs::world& world) {
   };
   world.set(input_listener_query_component);
 
-  world.system<LoadingInputSystemState, status::Loading>("gameplay_input_system::LoadingInput")
-    .each(LoadingInput);
-
   world.system<z13::input::ActionListener>("gameplay_input_system::ClearActionListener")
     .kind<ClearActionFramePhase>()
     .each(ClearActionListener);
@@ -391,6 +377,18 @@ void GameplayInputSystem::Register(flecs::world& world) {
     .kind<ApplyActionFramePhase>()
     .with<z13::gameplay::Pause>().not_()
     .each(ApplyActionListener);
+
+  world.observer<z13::input::SaveConfigEvent>("gameplay_input_system::OnSaveConfigObserver")
+    .event<z13::input::SystemInputEvent>()
+    .each(OnSaveConfig);
+
+  world.observer<z13::input::LoadConfigEvent>("gameplay_input_system::LoadConfigObserver")
+    .event<z13::input::SystemInputEvent>()
+    .each(OnLoadConfig);
+
+  world.observer<z13::input::SetDefaultConfigEvent>("gameplay_input_system::OnSetDefaultConfigObserver")
+    .event<z13::input::SystemInputEvent>()
+    .each(OnSetDefaultConfig);
 }
 
 }  // namespace z13::gameplay::input
