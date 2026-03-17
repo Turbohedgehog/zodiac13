@@ -1,9 +1,9 @@
 #include "z13_module.h"
 
-#include <z13_module/components/z13.h>
-#include <z13_module/components/status.h>
-#include <z13_module/components/gameplay.h>
-#include <z13_module/components/input.h>
+#include <z13/components/z13.h>
+#include <z13/components/status.h>
+#include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <lib_core/log.h>
 

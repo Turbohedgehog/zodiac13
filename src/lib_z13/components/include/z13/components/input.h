@@ -4,7 +4,7 @@
 #include <vector>
 #include <map>
 
-#include <input_config.pb.h>
+#include <input_config_generated.h>
 
 namespace z13::input {
 
@@ -25,7 +25,7 @@ struct MouseMoveEvent {
 
 struct MouseButtonEvent {
   MousePos pos;
-  z13::proto::input::Keyboard::Code button;
+  z13::fbs::input::Keycode button;
   uint8_t clicks;
 };
 
@@ -35,15 +35,15 @@ struct MouseButtonDownEvent : public MouseButtonEvent {
 struct MouseButtonUpEvent : MouseButtonEvent {
 };
 
-struct Key {
-  z13::proto::input::Keyboard::Code code;
+struct Keycode {
+  z13::fbs::input::Keycode code;
   int32_t raw_code;
   int8_t mod;
   uint8_t repeat;
 };
 
 struct KeyboardEvent {
-  Key key;
+  Keycode keycode;
 };
 
 struct KeyboardDownEvent : KeyboardEvent {
@@ -53,20 +53,20 @@ struct KeyboardUpEvent : KeyboardEvent {
 };
 
 struct ActionBinding {
-  z13::proto::input::Action::ActionType action;
-  std::vector<z13::proto::input::Keyboard::Code> keys;
+  z13::fbs::input::Action action;
+  std::vector<z13::fbs::input::Keycode> keys;
 };
 
 struct InputConfig {
   std::vector<ActionBinding> action_bindings;
-  std::map<z13::proto::input::Keyboard::Code, z13::proto::input::Action::ActionType> code_to_action;
+  std::map<z13::fbs::input::Keycode, z13::fbs::input::Action> code_to_action;
   float mouse_sensitivity = 5.f;
   bool invert_x = false;
   bool invert_y = false;
 };
 
 struct InputState {
-  std::array<float, z13::proto::input::Keyboard_Code_Code_ARRAYSIZE> input_state = {0.f};
+  std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {0.f};
 };
 
 struct InputListener {};
@@ -74,7 +74,7 @@ struct InputListener {};
 struct CurrentActionListenerTag {};
 
 struct ActionListener {
-  std::array<float, z13::proto::input::Action_ActionType_ActionType_ARRAYSIZE> action_values = {0.f};
+  std::array<float, static_cast<size_t>(z13::fbs::input::Action::MAX) + 1> action_values = {0.f};
 };
 
 }  // namespace z13::input

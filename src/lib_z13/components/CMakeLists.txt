@@ -1,38 +1,23 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_launcher)
+project(components)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(Boost REQUIRED COMPONENTS dll)
-
-file(
-  GLOB_RECURSE
-  PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
-)
-
-add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-target_include_directories(
-  ${PROJECT_NAME}
-  PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
+
+target_include_directories(${PROJECT_NAME} INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(
-  ${PROJECT_NAME}
-  PRIVATE
-  zodiac13::core
-  Boost::dll
+    ${PROJECT_NAME}
+    INTERFACE
+    zodiac13::schemas
 )
-
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
-#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-# )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
@@ -48,4 +33,3 @@ install(EXPORT ${PROJECT_NAME}Targets
         NAMESPACE ${PROJECT_NAMESPACE}::
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
-

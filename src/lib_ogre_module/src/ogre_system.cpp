@@ -9,10 +9,10 @@
 #include <ogre_module/ogre_datatypes.h>
 #include <lib_core/components.h>
 #include <ogre_module/ogre_components.h>
-#include <z13_module/components/z13.h>
-#include <z13_module/components/gameplay.h>
-#include <z13_module/components/input.h>
-#include <z13_module/components/geometry.h>
+#include <z13/components/z13.h>
+#include <z13/components/gameplay.h>
+#include <z13/components/input.h>
+#include <z13/components/geometry.h>
 
 namespace z13::ogre {
 

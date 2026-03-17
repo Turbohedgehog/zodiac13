@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(SDL2 REQUIRED)
 find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
-find_package(Protobuf CONFIG REQUIRED)
+find_package(Boost REQUIRED COMPONENTS dll)
 
 file(
   GLOB_RECURSE
@@ -15,7 +15,7 @@ file(
   ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
 
-add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
@@ -37,7 +37,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
-  zodiac13::z13_module
+  zodiac13::components
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main> $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   ${OGRE_LIBRARIES}
   imgui::imgui
@@ -46,13 +46,11 @@ target_link_libraries(
   Codec_FreeImage
   Plugin_OctreeZone
   Plugin_PCZSceneManager
-  # Boost::bimap
+  Boost::dll
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
-  protobuf::libprotobuf
 )
 
-# set(MODULE_TARGET_PATH "/modules/ogre")
-set(MODULE_TARGET_PATH "")
+set(MODULE_TARGET_PATH "modules/ogre")
 
 # set(OGRE_TOOLS_PATH "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/ogre")
 
@@ -79,8 +77,8 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}
         $<TARGET_FILE_DIR:zodiac13>/${ASSETS_LOCATION}
     COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}/"plugins.cfg"
-        $<TARGET_FILE_DIR:zodiac13>/"plugins.cfg"
+        ${CMAKE_SOURCE_DIR}/${ASSETS_LOCATION}/"ogre_plugins.cfg"
+        $<TARGET_FILE_DIR:zodiac13>/"ogre_plugins.cfg"
     # COMMAND ${CMAKE_COMMAND} -E copy_directory
     #     ${OGRE_TOOLS_PATH}
     #     $<TARGET_FILE_DIR:zodiac13>/tools

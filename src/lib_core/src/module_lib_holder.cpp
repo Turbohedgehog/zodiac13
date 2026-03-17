@@ -10,27 +10,28 @@
 namespace z13 {
 
 ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
+  auto full_path = std::filesystem::absolute(lib_path);
   if (append_platform_extension) {
-    lib_path.replace_extension(boost::dll::shared_library::suffix().native());
+    full_path.replace_extension(boost::dll::shared_library::suffix().native());
   }
 
-  if (lib_holders_.contains(lib_path)) {
-    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", lib_path.string());
+  if (lib_holders_.contains(full_path)) {
+    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", full_path.string());
     return ModuleFactoryPtr();
   }
 
-  if (!std::filesystem::exists(lib_path)) {
-    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: path '{}' does not exist!", lib_path.string());
+  if (!std::filesystem::exists(full_path)) {
+    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: path '{}' does not exist!", full_path.string());
     return ModuleFactoryPtr();
   }
 
-  boost::dll::fs::path boost_lib_path = lib_path.string();
-  boost::dll::shared_library lib(boost_lib_path);
+  boost::dll::fs::path boost_lib_path = full_path.string();
+  boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path);
 
   auto module_factory = lib.get_alias<ModuleFactoryPtr()>("create_module_factory")();
 
   lib_holders_.emplace(
-    lib_path,
+    full_path,
     LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
   );
 

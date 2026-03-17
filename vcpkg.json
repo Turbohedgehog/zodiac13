@@ -25,10 +25,14 @@
     "sdl2",
     "spdlog",
     "yaml-cpp",
-    "protobuf",
-    "platform-folders"
+    "platform-folders",
+    "flatbuffers"
   ],
   "overrides": [
+    {
+      "name": "sdl2",
+      "version": "2.32.10#0"
+    },
     {
       "name": "spdlog",
       "version": "1.17.0"
@@ -62,12 +66,12 @@
       "version": "3.4.1-250818#1"
     },
     {
-      "name": "protobuf",
-      "version": "6.33.4#1"
-    },
-    {
       "name": "platform-folders",
       "version": "4.3.0#0"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19"
     }
   ]
 }

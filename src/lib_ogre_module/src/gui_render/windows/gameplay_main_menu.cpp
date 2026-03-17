@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-#include <z13_module/components/gameplay.h>
+#include <z13/components/gameplay.h>
 #include <ogre_module/ogre_components.h>
 
 #include "window_component.h"
