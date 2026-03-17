@@ -52,6 +52,10 @@ struct KeyboardDownEvent : KeyboardEvent {
 struct KeyboardUpEvent : KeyboardEvent {
 };
 
+struct SaveConfigEvent {};
+struct LoadConfigEvent {};
+struct SetDefaultConfigEvent {};
+
 struct ActionBinding {
   z13::fbs::input::Action action;
   std::vector<z13::fbs::input::Keycode> keys;

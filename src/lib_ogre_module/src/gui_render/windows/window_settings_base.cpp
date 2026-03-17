@@ -13,7 +13,13 @@ void InputSettingsWindowBase::SaveIfDirty() {
     return;
   }
 
-  GetWorld().set(input_config_);
+  auto world = GetWorld();
+
+  world.set(input_config_);
+  world.event<input::SystemInputEvent>()
+    .id<z13::input::SaveConfigEvent>()
+    .entity(world.entity().add<z13::input::SaveConfigEvent>())
+    .enqueue();
   // z13::gameplay::input::InputConfigLoader::SaveConfig(input_config_);
 }
 
