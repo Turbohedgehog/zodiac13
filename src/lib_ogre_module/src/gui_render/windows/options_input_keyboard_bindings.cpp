@@ -1,8 +1,11 @@
 #include "options_input_keyboard_bindings.h"
 
 #include <algorithm>
+#include <iterator>
 
 #include <imgui.h>
+
+#include "flatbuffers/reflection.h"
 
 #include <lib_core/log.h>
 
@@ -17,22 +20,29 @@ class MouseButton : public ButtonBase {};
 auto ExtractKeycodeToText() {
   KeycodeToTextType res;
 
-  const auto* keyboard_code_descriptor = z13::proto::input::Keyboard_Code_descriptor();
-  for (
-    auto i = z13::proto::input::Keyboard_Code_Code_MIN;
-    i <= z13::proto::input::Keyboard_Code_Code_MAX;
-    i = static_cast<z13::proto::input::Keyboard_Code>(static_cast<uint32_t>(i) + 1)) {
-    auto idx = static_cast<int>(i);
-    const auto* value_descriptor = keyboard_code_descriptor->value(i);
-    const auto& value_options = value_descriptor->options();
-    std::string display_text;
-    if (value_options.HasExtension(z13::proto::input::details)) {
-      display_text = value_options.GetExtension(z13::proto::input::details).display_text();
+  const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
+  const auto* enums = input_config_schema->enums();
+  // к сожалению здесь приходится пользоваться магическими константами, так как я не нашёл способа
+  // получить имя enum из сгенерированного кода, а нейронные сети водят меня по кругу, давая неверные результаты
+  const auto key_reflection = enums->LookupByKey("z13.fbs.input.Keycode");
+
+  const auto& keys = z13::fbs::input::EnumValuesKeycode();
+  for (size_t i = 0; i < std::size(keys); ++i) {
+    const auto key = keys[i];
+    const auto* val_reflection = key_reflection->values()->LookupByKey(static_cast<int64_t>(key));
+    const auto* attributes = val_reflection->attributes();
+    std::string display_text_str;
+    if (attributes) {
+      const auto* display_text = attributes->LookupByKey("display_text");
+      if (display_text) {
+        display_text_str = display_text->value()->str();
+      }
     }
 
-    res[i] = std::make_tuple(
-      z13::proto::input::Keyboard_Code_Name(i),
-      value_options.GetExtension(z13::proto::input::details).display_text()
+    const static auto* enum_names_key = z13::fbs::input::EnumNamesKeycode();
+    res[key] = std::make_tuple(
+      enum_names_key[i],
+      display_text_str
     );
   }
 
@@ -94,20 +104,23 @@ void KeyBindingWindow::OnBackEvent() {
 
 void KeyBindingWindow::FillActionToNameList() {
   action_to_name_.clear();
-  action_to_name_.reserve(z13::proto::input::Action_ActionType_ActionType_ARRAYSIZE);
-  const auto* action_type_descriptor = z13::proto::input::Action_ActionType_descriptor();
-  for (
-      auto i = z13::proto::input::Action_ActionType_ActionType_MIN;
-      i <= z13::proto::input::Action_ActionType_ActionType_MAX;
-      i = static_cast<z13::proto::input::Action::ActionType>(static_cast<uint32_t>(i) + 1)) {
-    const auto* value_descriptor = action_type_descriptor->value(i);
-    const auto& value_options = value_descriptor->options();
-    std::string display_text;
-    if (value_options.HasExtension(z13::proto::input::details)) {
-      display_text = value_options.GetExtension(z13::proto::input::details).display_text();
+  const auto& kActions = z13::fbs::input::EnumValuesAction();
+  action_to_name_.reserve(std::size(kActions));
+  const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
+  const auto* enums = input_config_schema->enums();
+  const auto action_reflection = enums->LookupByKey("z13.fbs.input.Keycode");
+  const auto* action_values = action_reflection->values();
+  for (size_t i = 0; i < std::size(kActions); ++i) {
+    const auto action = kActions[i];
+    const auto val_reflection = action_values->LookupByKey(static_cast<int64_t>(action));
+    const auto* attributes = val_reflection->attributes();
+    if (attributes) {
+      const auto* display_text = attributes->LookupByKey("display_text");
+      if (display_text) {
+        std::string display_text_str = display_text->value()->str();
+        action_to_name_.push_back(std::make_tuple(action, display_text_str));
+      }
     }
-    // action_to_name_.push_back({i, z13::proto::input::Action_ActionType_Name(i)});
-    action_to_name_.push_back({i, display_text});
   }
 }
 
@@ -118,24 +131,23 @@ void KeyBindingWindow::FillActionBindings() {
     return;
   }
 
-  for (
-      auto a = z13::proto::input::Action_ActionType_ActionType_MIN;
-      a <= z13::proto::input::Action_ActionType_ActionType_MAX;
-      a = static_cast<z13::proto::input::Action::ActionType>(static_cast<uint32_t>(a) + 1)) {
-    current_bindings_.insert({a, {z13::proto::input::Keyboard::Code::Keyboard_Code_KEY_UNKNOWN}});
+  const auto& kActions = z13::fbs::input::EnumValuesAction();
+  for (size_t a = 0; a < std::size(kActions); ++a) {
+    auto action = kActions[a];
+    current_bindings_.insert({action, {z13::fbs::input::Keycode::KEY_UNKNOWN}});
   }
 
   const auto& input_config = GetInputConfig();
   for (const auto& action_binding : input_config.action_bindings) {
     auto it = current_bindings_.find(action_binding.action);
     if (it == current_bindings_.end()) {
-      it = current_bindings_.insert({action_binding.action, {z13::proto::input::Keyboard::Code::Keyboard_Code_KEY_UNKNOWN}}).first;
+      it = current_bindings_.insert({action_binding.action, {z13::fbs::input::Keycode::KEY_UNKNOWN}}).first;
     }
 
     auto& key_array = it->second;
     for (const auto& key : action_binding.keys) {
       key_bindings_[key] = action_binding.action;
-      if (*key_array.begin() != z13::proto::input::Keyboard::Code::Keyboard_Code_KEY_UNKNOWN) {
+      if (*key_array.begin() != z13::fbs::input::Keycode::KEY_UNKNOWN) {
         std::shift_right(key_array.begin(), key_array.end(), 1);  
       }
 

@@ -2,10 +2,6 @@
 
 #include <string>
 
-// #include <eigen3/Eigen/Dense>
-
-// #include <flecs.h>
-
 namespace z13 {
 
 struct PlayerInfoComponent {

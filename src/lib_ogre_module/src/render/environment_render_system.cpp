@@ -3,7 +3,7 @@
 #include <flecs.h>
 
 #include <lib_core/log.h>
-#include <z13_module/components/z13.h>
+#include <z13/components/z13.h>
 
 #include <ogre_module/ogre_components.h>
 

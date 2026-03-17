@@ -4,11 +4,13 @@
 #include <fstream>
 #include <filesystem>
 
-#include <google/protobuf/util/json_util.h>
+#include <flatbuffers/idl.h>
 
 #include <lib_core/log.h>
 #include <z13_module/tools/z13_environment.h>
-#include <z13_module/components/input.h>
+#include <z13/components/input.h>
+
+#include <input_config_generated.h>
 
 namespace z13::gameplay::input {
 
@@ -27,21 +29,28 @@ bool InputConfigLoader::LoadConfig(z13::input::InputConfig& input_config) {
       (std::istreambuf_iterator<char>(json_file)),
       std::istreambuf_iterator<char>());
   json_file.close();
-  google::protobuf::util::JsonParseOptions options {
-    .ignore_unknown_fields = true,
-  };
 
-  z13::proto::input::InputConfig input_config_msg;
-  auto status = google::protobuf::json::JsonStringToMessage(json_input, &input_config_msg, options);
-  if (!status.ok()) {
-    LOG_ERROR("InputConfigLoader::LoadConfig: cannot load file '{}' by reason: {}", config_file_path.string(), status.message());
+  flatbuffers::Parser parser;
+
+  const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
+  if (!parser.Deserialize(input_config_schema)) {
+    LOG_ERROR("InputConfigLoader::LoadConfig: Failed to deserialize binary schema");
     return false;
   }
- 
+
+  if (!parser.Parse(json_input.c_str())) {
+    LOG_ERROR("InputConfigLoader::LoadConfig: Cannot parse json: ", parser.error_);
+    return false;
+  }
+
+  uint8_t* buf = parser.builder_.GetBufferPointer();
+  z13::fbs::input::InputConfigT input_config_msg;
+  z13::fbs::input::GetInputConfig(buf)->UnPackTo(&input_config_msg);
+
   Clear(input_config);
 
-  for (const auto& action_binding : input_config_msg.action_bindings()) {
-    auto action = action_binding.action();
+  for (const auto& action_binding : input_config_msg.action_bindings) {
+    auto action = action_binding->action;
     auto it = std::find_if(
         input_config.action_bindings.begin(),
         input_config.action_bindings.end(),
@@ -57,16 +66,16 @@ bool InputConfigLoader::LoadConfig(z13::input::InputConfig& input_config) {
 
     auto& keys = it->keys;
     std::transform(
-      action_binding.key_codes().begin(),
-      action_binding.key_codes().end(),
+      action_binding->key_codes.begin(),
+      action_binding->key_codes.end(),
       std::back_inserter(keys),
-      [] (const auto& key) { return static_cast<z13::proto::input::Keyboard::Code>(key); }
+      [] (const auto& key) { return static_cast<z13::fbs::input::Keycode>(key); }
     );
   }
 
-  input_config.mouse_sensitivity = input_config_msg.mouse_config().mouse_sensitivity();
-  input_config.invert_x = input_config_msg.mouse_config().invert_x();
-  input_config.invert_y = input_config_msg.mouse_config().invert_y();
+  input_config.mouse_sensitivity = input_config_msg.mouse_config->mouse_sensitivity;
+  input_config.invert_x = input_config_msg.mouse_config->invert_x;
+  input_config.invert_y = input_config_msg.mouse_config->invert_y;
 
   input_config.code_to_action.clear();
   for (const auto& action_binding : input_config.action_bindings) {
@@ -79,29 +88,51 @@ bool InputConfigLoader::LoadConfig(z13::input::InputConfig& input_config) {
 }
 
 bool InputConfigLoader::SaveConfig(const z13::input::InputConfig& input_config) {
-  z13::proto::input::InputConfig input_config_msg;
-  for (const auto& key_binding: input_config.action_bindings) {
-    auto* action_binding = input_config_msg.add_action_bindings();
-    action_binding->set_action(key_binding.action);
-    for (auto key : key_binding.keys) {
-      action_binding->add_key_codes(key);
-    }  
+  z13::fbs::input::InputConfigT input_config_msg;
+  std::transform(
+    input_config.action_bindings.begin(),
+    input_config.action_bindings.end(),
+    std::back_inserter(input_config_msg.action_bindings),
+    [](const auto& action_binding) {
+      auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
+      ab->action = action_binding.action;
+      std::transform(
+        action_binding.keys.begin(),
+        action_binding.keys.end(),
+        std::back_inserter(ab->key_codes),
+        [](auto key) { return key; }
+      );
+      return ab;
+    }
+  );
+
+  auto mouse_config = std::make_unique<z13::fbs::input::MouseConfigT>();
+  mouse_config->mouse_sensitivity = input_config.mouse_sensitivity;
+  mouse_config->invert_x = input_config.invert_x;
+  mouse_config->invert_y = input_config.invert_y;
+
+  input_config_msg.mouse_config = std::move(mouse_config);
+
+  flatbuffers::Parser parser;
+  const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
+  if (!parser.Deserialize(input_config_schema)) {
+    LOG_ERROR("InputConfigLoader::SaveConfig: Failed to deserialize binary schema");
+    return false;
   }
 
-  auto* mouse_config = input_config_msg.mutable_mouse_config();
-  mouse_config->set_mouse_sensitivity(input_config.mouse_sensitivity);
-  mouse_config->set_invert_x(input_config.invert_x);
-  mouse_config->set_invert_y(input_config.invert_y);
+  flatbuffers::FlatBufferBuilder builder;
+  auto offset = z13::fbs::input::InputConfig::Pack(builder, &input_config_msg);
+  builder.Finish(offset);
+
+  uint8_t* buf = builder.GetBufferPointer();
+  size_t size = builder.GetSize();
 
   std::string json_output;
-  google::protobuf::util::JsonPrintOptions options {
-    .add_whitespace = true,
-    .always_print_fields_with_no_presence = true,
-  };
-  
-  auto status = google::protobuf::json::MessageToJsonString(input_config_msg, &json_output, options);
-  if (!status.ok()) {
-    LOG_ERROR("InputConfigLoader::SaveConfig: cannot dump proto to json by reason: {}", status.message());
+  parser.opts.indent_step = 2;
+  parser.opts.output_default_scalars_in_json = true;
+  parser.opts.strict_json = true;
+  if (const auto* res = flatbuffers::GenerateText(parser, builder.GetBufferPointer(), &json_output); res) {
+    LOG_ERROR("InputConfigLoader::SaveConfig: Failed to serialize data: {}", res);
     return false;
   }
 
@@ -127,12 +158,12 @@ void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
 void InputConfigLoader::SetDefaults(z13::input::InputConfig& input_config) {
   Clear(input_config);
 
-  input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_FORWARD, {z13::proto::input::Keyboard::KEY_W}});
-  input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_BACKWARD, {z13::proto::input::Keyboard::KEY_S}});
-  input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_LEFT, {z13::proto::input::Keyboard::KEY_A}});
-  input_config.action_bindings.push_back({z13::proto::input::Action::MOVE_RIGHT, {z13::proto::input::Keyboard::KEY_D}});
-  input_config.action_bindings.push_back({z13::proto::input::Action::JUMP, {z13::proto::input::Keyboard::KEY_SPACE}});
-  input_config.action_bindings.push_back({z13::proto::input::Action::CROUCH, {z13::proto::input::Keyboard::KEY_LCTRL}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_FORWARD, {z13::fbs::input::Keycode::KEY_W}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_BACKWARD, {z13::fbs::input::Keycode::KEY_S}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_LEFT, {z13::fbs::input::Keycode::KEY_A}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_RIGHT, {z13::fbs::input::Keycode::KEY_D}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::JUMP, {z13::fbs::input::Keycode::KEY_SPACE}});
+  input_config.action_bindings.push_back({z13::fbs::input::Action::CROUCH, {z13::fbs::input::Keycode::KEY_LCTRL}});
 }
 
 }  // namespace z13::gameplay

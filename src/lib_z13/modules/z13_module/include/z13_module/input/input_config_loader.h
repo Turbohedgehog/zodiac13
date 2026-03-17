@@ -2,8 +2,6 @@
 
 #include <map>
 
-#include <input_config.pb.h>
-
 namespace z13::input {
 
 struct InputConfig;

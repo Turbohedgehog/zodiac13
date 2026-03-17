@@ -1,8 +1,8 @@
 #include "gameplay_system.h"
 
-#include <z13_module/components/gameplay.h>
-#include <z13_module/components/input.h>
-#include <z13_module/components/geometry.h>
+#include <z13/components/gameplay.h>
+#include <z13/components/input.h>
+#include <z13/components/geometry.h>
 
 #include <flecs.h>
 

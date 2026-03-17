@@ -12,8 +12,8 @@
 
 #include <ogre_module/ogre_datatypes.h>
 #include <ogre_module/ogre_components.h>
-#include <z13_module/components/gameplay.h>
-#include <z13_module/components/geometry.h>
+#include <z13/components/gameplay.h>
+#include <z13/components/geometry.h>
 
 #include <Ogre.h>
 
@@ -147,7 +147,7 @@ void OgreTools::CreateSdlOgreRoot(flecs::world world, OgreData& ogre_data) {
     return;
   }
 
-  auto ogre_root = std::make_shared<Ogre::Root>("plugins.cfg", "", "Ogre.log");
+  auto ogre_root = std::make_shared<Ogre::Root>("ogre_plugins.cfg", "", "Ogre.log");
   ogre_root->installPlugin(OGRE_NEW Ogre::GL3PlusPlugin);
   ogre_root->installPlugin(OGRE_NEW Ogre::AssimpPlugin);
   // ogre_root->installPlugin(OGRE_NEW Ogre::PCZPlugin);

@@ -1,7 +1,5 @@
 #include "window_settings_base.h"
 
-#include <z13_module/input/input_config_loader.h>
-
 namespace z13::ogre::gui {
 
 InputSettingsWindowBase::InputSettingsWindowBase(flecs::world world, std::string window_name)
@@ -16,7 +14,7 @@ void InputSettingsWindowBase::SaveIfDirty() {
   }
 
   GetWorld().set(input_config_);
-  z13::gameplay::input::InputConfigLoader::SaveConfig(input_config_);
+  // z13::gameplay::input::InputConfigLoader::SaveConfig(input_config_);
 }
 
 void InputSettingsWindowBase::OnBackEvent() {

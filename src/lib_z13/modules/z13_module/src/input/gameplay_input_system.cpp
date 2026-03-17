@@ -7,14 +7,14 @@
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 
-#include <z13_module/components/status.h>
-#include <z13_module/components/gameplay.h>
-#include <z13_module/components/input.h>
-#include <z13_module/components/geometry.h>
+#include <z13/components/status.h>
+#include <z13/components/gameplay.h>
+#include <z13/components/input.h>
+#include <z13/components/geometry.h>
 #include <z13_module/tools/z13_environment.h>
 #include <z13_module/input/input_config_loader.h>
 
-#include <input_config.pb.h>
+#include <input_config_generated.h>
 
 #include "../private_components/input_system_components.h"
 
@@ -30,26 +30,26 @@ struct InputListenerQueryComponent {
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
-size_t ActionToArrayIndex(z13::proto::input::Action_ActionType action_type) {
-  auto min = static_cast<int>(z13::proto::input::Action_ActionType_ActionType_MIN);
+size_t ActionToArrayIndex(z13::fbs::input::Action action_type) {
+  auto min = static_cast<int>(z13::fbs::input::Action::MIN);
   auto val = static_cast<int>(action_type);
   auto cur = val - min;
   return static_cast<size_t>(cur);
 }
 
 // todo: remove code duplicate
-size_t KeyCodeToArrayIndex(z13::proto::input::Keyboard_Code keyboard_code) {
-  auto min = static_cast<int>(z13::proto::input::Keyboard_Code_Code_MIN);
+size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
+  auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
   auto val = static_cast<int>(keyboard_code);
   auto cur = val - min;
   return static_cast<size_t>(cur);
 }
 
-z13::proto::input::Keyboard::Code ArrayIndexToKeyCode(size_t idx) {
+z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx) {
   auto index = static_cast<int>(idx);
-  auto min = static_cast<int>(z13::proto::input::Keyboard_Code_Code_MIN);
+  auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
   auto code_idx = index + min;
-  return static_cast<z13::proto::input::Keyboard::Code>(code_idx);
+  return static_cast<z13::fbs::input::Keycode>(code_idx);
 }
 
 void OnMousePos(
@@ -92,8 +92,8 @@ void ApplyActionListener(
 
   auto v_rotation_deg = z13::math::ToDegrees(v_rotation_rad);
   auto h_rotation_deg = z13::math::ToDegrees(h_rotation_rad);
-  auto v_delta_deg = action_values[ActionToArrayIndex(z13::proto::input::Action::VERTICAL_LOOK)];
-  auto h_delta_deg = action_values[ActionToArrayIndex(z13::proto::input::Action::HORIZONTAL_LOOK)];
+  auto v_delta_deg = action_values[ActionToArrayIndex(z13::fbs::input::Action::VERTICAL_LOOK)];
+  auto h_delta_deg = action_values[ActionToArrayIndex(z13::fbs::input::Action::HORIZONTAL_LOOK)];
 
   h_rotation_deg += h_delta_deg;
   v_rotation_deg -= v_delta_deg;
@@ -120,19 +120,19 @@ void ApplyActionListener(
 
   static constexpr float kCamVel = 30.f;
 
-  auto forward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)];
-  auto backward_v = forward_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_BACKWARD)];
+  auto forward_v = forward_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_FORWARD)];
+  auto backward_v = forward_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_BACKWARD)];
   auto x_delta = (forward_v - backward_v) * delta_time * kCamVel;
 
   // LOG_INFO("===== {}", action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)]);
   // LOG_INFO("==== x_delta = {}, {}, {}", x_delta.x(), x_delta.y(), x_delta.z());
 
-  auto right_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_RIGHT)];
-  auto left_v = side_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_LEFT)];
+  auto right_v = side_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_RIGHT)];
+  auto left_v = side_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_LEFT)];
   auto y_delta = (left_v - right_v) * delta_time * kCamVel;
 
-  auto up_v = up_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::JUMP)];
-  auto down_v = up_axis * action_values[ActionToArrayIndex(z13::proto::input::Action::CROUCH)];
+  auto up_v = up_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::JUMP)];
+  auto down_v = up_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::CROUCH)];
   auto z_delta = (up_v - down_v) * delta_time * kCamVel;
 
   auto position = Eigen::Vector3f {
@@ -177,8 +177,8 @@ void OnMouseMove(
       }
 
       auto& action_values = action_listener.action_values;
-      action_values[ActionToArrayIndex(z13::proto::input::Action::VERTICAL_LOOK)] += delta_v_deg;
-      action_values[ActionToArrayIndex(z13::proto::input::Action::HORIZONTAL_LOOK)] += delta_h_deg;
+      action_values[ActionToArrayIndex(z13::fbs::input::Action::VERTICAL_LOOK)] += delta_v_deg;
+      action_values[ActionToArrayIndex(z13::fbs::input::Action::HORIZONTAL_LOOK)] += delta_h_deg;
     });
 }
 
@@ -204,7 +204,7 @@ void OnKeyboardDown(
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
-  if (key_down.key.code == z13::proto::input::Keyboard::KEY_ESCAPE) {
+  if (key_down.keycode.code == z13::fbs::input::Keycode::KEY_ESCAPE) {
     if (world.has<z13::gameplay::Pause>()) {
       world.event<z13::input::SystemInputEvent>()
         .id<WindowBackEvent>()
@@ -214,8 +214,8 @@ void OnKeyboardDown(
       world.add<z13::gameplay::Pause>();
     }    
   }
-  input_state.input_state[KeyCodeToArrayIndex(key_down.key.code)] = 1.f;
-  // LOG_INFO("==== OnKeyboardDown = {}", Keyboard_Code_Name(key_down.key.code));
+  input_state.input_state[KeyCodeToArrayIndex(key_down.keycode.code)] = 1.f;
+  // LOG_INFO("==== OnKeyboardDown = {}", z13::fbs::input::EnumNameKeycode(key_down.keycode.code));
 }
 
 void OnKeyboardUp(
@@ -223,7 +223,7 @@ void OnKeyboardUp(
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
-  input_state.input_state[KeyCodeToArrayIndex(key_up.key.code)] = 0.f;
+  input_state.input_state[KeyCodeToArrayIndex(key_up.keycode.code)] = 0.f;
 }
 
 // void OnMousePosEvent(flecs::entity e, z13::input::MousePos& mp) {
