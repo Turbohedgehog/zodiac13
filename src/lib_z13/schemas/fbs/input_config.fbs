@@ -1,6 +1,7 @@
-namespace z13.fbs.input;
+include "common.fbs";
+include "actions.fbs";
 
-attribute "display_text";
+namespace z13.fbs.input;
 
 enum Keycode : int16 {
   KEY_UNKNOWN = 0 (display_text: "Unknown"),
@@ -132,19 +133,10 @@ enum Keycode : int16 {
   MOUSE_BUTTON_UNKNOWN (display_text: "MUnknown"),
 }
 
-enum Action : int16 {
-  MOVE_FORWARD (display_text: "Move forward"),
-  MOVE_BACKWARD (display_text: "Move backward"),
-  MOVE_LEFT (display_text: "Move left"),
-  MOVE_RIGHT (display_text: "Move right"),
-  JUMP (display_text: "Move Jump"),
-  CROUCH (display_text: "Move Crouch"),
-  VERTICAL_LOOK,
-  HORIZONTAL_LOOK,
-}
-
 table ActionBinding {
-  action: Action;
+  action_name: string;
+  action: actions.Action = null;
+  key_code: Keycode;
   key_codes: [Keycode]; 
 }
 

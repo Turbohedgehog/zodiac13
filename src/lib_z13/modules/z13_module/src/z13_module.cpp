@@ -25,7 +25,10 @@ void RegisterComponents(flecs::world& world) {
   world.component<gameplay::Gameplay>().add(flecs::Singleton);
   world.component<gameplay::Pause>().add(flecs::Singleton);
   world.component<input::SystemInputEvent>();
+  world.component<input::ActionMap>().add(flecs::Singleton);
+  world.add<input::ActionMap>();
   world.component<input::InputConfig>().add(flecs::Singleton);
+  world.add<input::InputConfig>();
 
   world.component<PlayerInfoComponent>()
     .member<uint32_t>("id")

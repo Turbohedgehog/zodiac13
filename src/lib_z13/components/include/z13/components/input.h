@@ -2,11 +2,23 @@
 
 #include <array>
 #include <vector>
+#include <span>
 #include <map>
+
+#include <boost/bimap.hpp>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/container/flat_map.hpp>
 
 #include <input_config_generated.h>
 
 namespace z13::input {
+
+namespace bmi = boost::multi_index;
 
 struct SystemInputEvent {};
 
@@ -55,15 +67,124 @@ struct KeyboardUpEvent : KeyboardEvent {
 struct SaveConfigEvent {};
 struct LoadConfigEvent {};
 struct SetDefaultConfigEvent {};
+struct OnConfigUpdatedEvent {};
 
 struct ActionBinding {
-  z13::fbs::input::Action action;
+  z13::fbs::actions::Action action;
+  // std::string action;
   std::vector<z13::fbs::input::Keycode> keys;
 };
 
+struct LookupForFlatbufActionEnumsEvent {
+  std::span<const uint8_t> binary_schema;
+};
+
+struct ActionInfo {
+  using IdType = size_t;
+  using ValueType = int64_t;
+  const std::string_view enum_name;
+  const std::string_view value_name;
+  const std::string_view group_name;
+  const std::string_view display_text;
+  const ValueType value = 0;
+  const IdType id = 0;
+};
+
+struct ActionMap {
+  struct ActionNameTag;
+  struct EnumNameTag;
+  struct EnumActionNameTag;
+  struct GroupNameTag;
+  struct IdTag;
+  struct ValueTag;
+  struct EnumValueTag;
+
+  using ActionMapContainer = bmi::multi_index_container<
+    ActionInfo,
+    bmi::indexed_by<
+      bmi::sequenced<>,
+      bmi::ordered_unique<
+        bmi::tag<EnumActionNameTag>,
+        bmi::composite_key<
+          ActionInfo,
+          bmi::member<ActionInfo, decltype(ActionInfo::enum_name), &ActionInfo::enum_name>,
+          bmi::member<ActionInfo, decltype(ActionInfo::value_name), &ActionInfo::value_name>
+        >
+      >,
+      bmi::ordered_non_unique<
+        bmi::tag<ActionNameTag>,
+        bmi::member<ActionInfo, decltype(ActionInfo::value_name), &ActionInfo::value_name>
+      >,
+      bmi::ordered_non_unique<
+        bmi::tag<EnumNameTag>,
+        bmi::member<ActionInfo, decltype(ActionInfo::enum_name), &ActionInfo::enum_name>
+      >,
+      bmi::ordered_non_unique<
+        bmi::tag<GroupNameTag>,
+        bmi::member<ActionInfo, decltype(ActionInfo::group_name), &ActionInfo::group_name>
+      >,
+      bmi::ordered_unique<
+        bmi::tag<IdTag>,
+        bmi::member<ActionInfo, decltype(ActionInfo::id), &ActionInfo::id>
+      >,
+      bmi::ordered_non_unique<
+        bmi::tag<ValueTag>,
+        bmi::member<ActionInfo, decltype(ActionInfo::value), &ActionInfo::value>
+      >,
+      bmi::ordered_unique<
+        bmi::tag<EnumValueTag>,
+        bmi::composite_key<
+          ActionInfo,
+          bmi::member<ActionInfo, decltype(ActionInfo::enum_name), &ActionInfo::enum_name>,
+          bmi::member<ActionInfo, decltype(ActionInfo::value), &ActionInfo::value>
+        >
+      >
+    >
+  >;
+
+  ActionMapContainer action_map;
+};
+
+struct KeyCodeAction {
+  const z13::fbs::input::Keycode keycode = z13::fbs::input::Keycode::KEY_UNKNOWN;
+  const std::string_view action_group;
+
+  const std::string_view display_text;
+  const ActionInfo::IdType action_id = 0;
+};
+
 struct InputConfig {
+  struct KeycodeIdTag;
+  struct ActionGroupKeycodeIdTag;
+  struct ActionIdTag;
+
+  using KeyBindingType = bmi::multi_index_container<
+    KeyCodeAction,
+    bmi::indexed_by<
+      // bmi::sequenced<>,
+      bmi::ordered_non_unique<
+        bmi::tag<KeycodeIdTag>,
+        bmi::member<KeyCodeAction, decltype(KeyCodeAction::keycode), &KeyCodeAction::keycode>
+      >,
+      bmi::ordered_unique<
+        bmi::tag<ActionGroupKeycodeIdTag>,
+        bmi::composite_key<
+          KeyCodeAction,
+          bmi::member<KeyCodeAction, decltype(KeyCodeAction::action_group), &KeyCodeAction::action_group>,
+          bmi::member<KeyCodeAction, decltype(KeyCodeAction::keycode), &KeyCodeAction::keycode>
+        >
+      >,
+      bmi::ordered_unique<
+        bmi::tag<ActionIdTag>,
+        bmi::member<KeyCodeAction, decltype(KeyCodeAction::action_id), &KeyCodeAction::action_id>
+      >
+    >
+  >;
+  KeyBindingType keycode_binding;
+
   std::vector<ActionBinding> action_bindings;
-  std::map<z13::fbs::input::Keycode, z13::fbs::input::Action> code_to_action;
+  std::map<z13::fbs::input::Keycode, z13::fbs::actions::Action> code_to_action;
+  std::map<z13::fbs::input::Keycode, ActionInfo::IdType> code_to_action_id;
   float mouse_sensitivity = 5.f;
   bool invert_x = false;
   bool invert_y = false;
@@ -78,7 +199,8 @@ struct InputListener {};
 struct CurrentActionListenerTag {};
 
 struct ActionListener {
-  std::array<float, static_cast<size_t>(z13::fbs::input::Action::MAX) + 1> action_values = {0.f};
+  std::vector<std::string_view> action_group_priority;
+  boost::container::flat_map<ActionInfo::IdType, float> new_action_values;
 };
 
 }  // namespace z13::input

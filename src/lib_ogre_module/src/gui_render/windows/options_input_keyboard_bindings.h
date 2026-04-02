@@ -28,9 +28,9 @@ class KeyBindingWindow : public InputSettingsWindowBase {
  private:
   void FillActionBindings();
   void FillActionToNameList();
-  std::map<z13::fbs::input::Keycode, z13::fbs::input::Action> key_bindings_;
-  std::map<z13::fbs::input::Action, std::array<z13::fbs::input::Keycode, kMaxKeysPerAction>> current_bindings_;
-  std::vector<std::tuple<z13::fbs::input::Action, std::string>> action_to_name_;
+  std::map<z13::fbs::input::Keycode, z13::fbs::actions::Action> key_bindings_;
+  std::map<z13::fbs::actions::Action, std::array<z13::fbs::input::Keycode, kMaxKeysPerAction>> current_bindings_;
+  std::vector<std::tuple<z13::fbs::actions::Action, std::string>> action_to_name_;
 };
 
 }  // namespace z13::ogre::gui

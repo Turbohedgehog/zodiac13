@@ -5,6 +5,9 @@
     "boost-program-options",
     "boost-bimap",
     "boost-dll",
+    "boost-multi-index",
+    "boost-algorithm",
+    "boost-container",
     "eigen3",
     "flecs",
     {
@@ -51,6 +54,18 @@
     },
     {
       "name": "boost-dll",
+      "version": "1.90.0#1"
+    },
+    {
+      "name": "boost-multi-index",
+      "version": "1.90.0#1"
+    },
+    {
+      "name": "boost-algorithm",
+      "version": "1.90.0#1"
+    },
+    {
+      "name": "boost-container",
       "version": "1.90.0#1"
     },
     {

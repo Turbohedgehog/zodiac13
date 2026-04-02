@@ -21,11 +21,11 @@ struct PreRenderGui { };
 struct RenderGui { };
 struct PostRenderGui { };
 
-void BeginGui() {
+void BeginGui(const z13::ogre::OgreData&) {
   Ogre::z13::ImGuiOverlay::NewFrame();
 }
 
-void EndGui() {
+void EndGui(const z13::ogre::OgreData&) {
   ImGui::EndFrame();
 }
 
@@ -43,13 +43,13 @@ void GuiSystem::Register(flecs::world& world) {
   // world.component<PauseMenu>().add(flecs::Singleton);
   // world.add<PauseMenu>();
 
-  world.system("BeginGuiSystem")
+  world.system<z13::ogre::OgreData>("BeginGuiSystem")
     .kind<PreRenderGui>()
     .each(BeginGui);
 
-  world.system<z13::ogre::gui::WindowComponent>("GuiSystem::DrawModalWindow")
+  world.system<z13::ogre::gui::WindowComponent, z13::ogre::OgreData>("GuiSystem::DrawModalWindow")
     .kind<RenderGui>()
-    .each([](z13::ogre::gui::WindowComponent& window_component) {
+    .each([](z13::ogre::gui::WindowComponent& window_component, const z13::ogre::OgreData&) {
       if (!window_component.modal_window_stack.empty()) {
         window_component.modal_window_stack.top()->Draw();
       }
@@ -70,7 +70,7 @@ void GuiSystem::Register(flecs::world& world) {
       }
     });
 
-  world.system("EndGuiSystem")
+  world.system<z13::ogre::OgreData>("EndGuiSystem")
     .kind<PostRenderGui>()
     .each(EndGui);
 }

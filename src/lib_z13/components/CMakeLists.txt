@@ -4,6 +4,8 @@ project(components)
 
 set(CMAKE_CXX_STANDARD 20)
 
+find_package(Boost REQUIRED COMPONENTS bimap container)
+
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
@@ -17,6 +19,8 @@ target_link_libraries(
     ${PROJECT_NAME}
     INTERFACE
     zodiac13::schemas
+    Boost::bimap
+    Boost::container
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

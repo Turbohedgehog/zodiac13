@@ -10,21 +10,34 @@ find_path(FLATBUFFERS_CMAKE_DIR BuildFlatBuffers.cmake
           HINTS ${flatbuffers_DIR} "${flatbuffers_DIR}/../../../share/flatbuffers")
 include(${FLATBUFFERS_CMAKE_DIR}/BuildFlatBuffers.cmake)
 
+set(FBS_DIR ${PROJECT_SOURCE_DIR}/fbs/)
+
 file(
     GLOB_RECURSE
     FBS_SCHEMAS
-    ${PROJECT_SOURCE_DIR}/fbs/*.fbs
+    ${FBS_DIR}/*.fbs
 )
 
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-set(MY_FLAT_FLAGS "--bfbs-gen-embed" "--scoped-enums" "--reflect-names" "--gen-name-strings" "--gen-object-api")
+set(
+    GEN_FLAT_FLAGS
+    "--bfbs-gen-embed"
+    "--scoped-enums"
+    "--reflect-names"
+    "--gen-name-strings"
+    "--gen-object-api"
+    "--cpp-std" "c++17"
+    # "--cpp-str-type" "std::string_view"
+)
+
 flatbuffers_generate_headers(
     TARGET FBS_SCHEMAS_HEADERS
     SCHEMAS ${FBS_SCHEMAS}
     BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}/bfbs"
-    FLAGS ${MY_FLAT_FLAGS}
+    INCLUDE_DIR ${FBS_DIR}
+    FLAGS ${GEN_FLAT_FLAGS}
 )
 
 add_dependencies(${PROJECT_NAME} FBS_SCHEMAS_HEADERS)

@@ -104,7 +104,7 @@ void KeyBindingWindow::OnBackEvent() {
 
 void KeyBindingWindow::FillActionToNameList() {
   action_to_name_.clear();
-  const auto& kActions = z13::fbs::input::EnumValuesAction();
+  const auto& kActions = z13::fbs::actions::EnumValuesAction();
   action_to_name_.reserve(std::size(kActions));
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   const auto* enums = input_config_schema->enums();
@@ -131,7 +131,7 @@ void KeyBindingWindow::FillActionBindings() {
     return;
   }
 
-  const auto& kActions = z13::fbs::input::EnumValuesAction();
+  const auto& kActions = z13::fbs::actions::EnumValuesAction();
   for (size_t a = 0; a < std::size(kActions); ++a) {
     auto action = kActions[a];
     current_bindings_.insert({action, {z13::fbs::input::Keycode::KEY_UNKNOWN}});
