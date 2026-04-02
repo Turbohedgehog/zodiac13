@@ -13,39 +13,65 @@
 #include <z13/components/geometry.h>
 #include <z13_module/tools/z13_environment.h>
 #include <z13_module/input/input_config_loader.h>
+#include <z13_module/input/input_config_loader_2.h>
 
 #include <input_config_generated.h>
+
+#include <actions_generated.h> // test
 
 #include "../private_components/input_system_components.h"
 
 #include "input_converter.h"
 
-namespace z13::gameplay::input {
+namespace z13::gameplay::input
+{
 
-struct ClearActionFramePhase {};
-struct CalculateActionFramePhase {};
-struct ApplyActionFramePhase {};
+struct ClearActionFramePhase
+{
+};
+struct CalculateActionFramePhase
+{
+};
+struct ApplyActionFramePhase
+{
+};
 
-struct InputListenerQueryComponent {
+struct MoveActionIds
+{
+  z13::input::ActionInfo::IdType move_forward_id = 0;
+  z13::input::ActionInfo::IdType move_backward_id = 0;
+  z13::input::ActionInfo::IdType move_right_id = 0;
+  z13::input::ActionInfo::IdType move_left_id = 0;
+  z13::input::ActionInfo::IdType move_up_id = 0;
+  z13::input::ActionInfo::IdType move_down_id = 0;
+  z13::input::ActionInfo::IdType vertical_look_id = 0;
+  z13::input::ActionInfo::IdType horizontal_look_id = 0;
+};
+
+struct InputListenerQueryComponent
+{
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
-size_t ActionToArrayIndex(z13::fbs::input::Action action_type) {
-  auto min = static_cast<int>(z13::fbs::input::Action::MIN);
+size_t ActionToArrayIndex(z13::fbs::actions::Action action_type)
+{
+  auto min = static_cast<int>(z13::fbs::actions::Action::MIN);
   auto val = static_cast<int>(action_type);
   auto cur = val - min;
   return static_cast<size_t>(cur);
 }
 
 // todo: remove code duplicate
-size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
+size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code)
+{
   auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
   auto val = static_cast<int>(keyboard_code);
   auto cur = val - min;
   return static_cast<size_t>(cur);
 }
 
-z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx) {
+z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx)
+{
   auto index = static_cast<int>(idx);
   auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
   auto code_idx = index + min;
@@ -53,9 +79,10 @@ z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx) {
 }
 
 void OnMousePos(
-    const z13::input::MousePos& mouse_pos,
-    const InputListenerQueryComponent& listener_query_component,
-    const z13::input::InputConfig& input_config) {
+    const z13::input::MousePos &mouse_pos,
+    const InputListenerQueryComponent &listener_query_component,
+    const z13::input::InputConfig &input_config)
+{
   // listener_query_component.listener_query.each([&mouse_pos](
   //     flecs::entity e,
   //     const z13::input::InputListener&,
@@ -66,17 +93,17 @@ void OnMousePos(
 
 void ApplyActionListener(
     flecs::entity e,
-    const z13::input::ActionListener& action_listener,
-    geometry::Transform& transform) {
+    const z13::input::ActionListener &action_listener,
+    const MoveActionIds &move_action_ids,
+    geometry::Transform &transform) {
   auto delta_time = e.world().delta_time();
-  const auto& action_values = action_listener.action_values;
+  const auto &new_action_values = action_listener.new_action_values;
   auto current_rotation = transform.rotation;
   Eigen::Quaternionf current_eigen_rotation = {
-    current_rotation.w,
-    current_rotation.x,
-    current_rotation.y,
-    current_rotation.z
-  };
+      current_rotation.w,
+      current_rotation.x,
+      current_rotation.y,
+      current_rotation.z};
 
   auto rotation_matrix = current_eigen_rotation.toRotationMatrix();
   auto current_euler_angles = rotation_matrix.eulerAngles(2, 1, 0);
@@ -92,25 +119,25 @@ void ApplyActionListener(
 
   auto v_rotation_deg = z13::math::ToDegrees(v_rotation_rad);
   auto h_rotation_deg = z13::math::ToDegrees(h_rotation_rad);
-  auto v_delta_deg = action_values[ActionToArrayIndex(z13::fbs::input::Action::VERTICAL_LOOK)];
-  auto h_delta_deg = action_values[ActionToArrayIndex(z13::fbs::input::Action::HORIZONTAL_LOOK)];
+  auto v_delta_deg = new_action_values.at(move_action_ids.vertical_look_id);
+  auto h_delta_deg = new_action_values.at(move_action_ids.horizontal_look_id);
 
   h_rotation_deg += h_delta_deg;
   v_rotation_deg -= v_delta_deg;
   h_rotation_deg = std::clamp(h_rotation_deg, -180.f, 180.f);
   v_rotation_deg = std::clamp(v_rotation_deg, -89.f, 89.f); // 89 degs - euler bug workaround
 
-  auto rotation = Eigen::Quaternionf::Identity()
-    * Eigen::AngleAxisf(z13::math::ToRadians(h_rotation_deg), Eigen::Vector3f::UnitZ())
-    * Eigen::AngleAxisf(z13::math::ToRadians(v_rotation_deg), Eigen::Vector3f::UnitY())
-    * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX())
-  ;
+  auto rotation =
+      Eigen::Quaternionf::Identity() *
+      Eigen::AngleAxisf(z13::math::ToRadians(h_rotation_deg), Eigen::Vector3f::UnitZ()) *
+      Eigen::AngleAxisf(z13::math::ToRadians(v_rotation_deg), Eigen::Vector3f::UnitY()) *
+      Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX());
 
   transform.rotation = {
-    .x = rotation.x(),
-    .y = rotation.y(),
-    .z = rotation.z(),
-    .w = rotation.w(),
+      .x = rotation.x(),
+      .y = rotation.y(),
+      .z = rotation.z(),
+      .w = rotation.w(),
   };
 
   auto new_rotation_matrix = rotation.toRotationMatrix();
@@ -120,25 +147,23 @@ void ApplyActionListener(
 
   static constexpr float kCamVel = 30.f;
 
-  auto forward_v = forward_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_FORWARD)];
-  auto backward_v = forward_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_BACKWARD)];
+
+  auto forward_v = forward_axis * new_action_values.at(move_action_ids.move_forward_id);
+  auto backward_v = forward_axis * new_action_values.at(move_action_ids.move_backward_id);
   auto x_delta = (forward_v - backward_v) * delta_time * kCamVel;
 
-  // LOG_INFO("===== {}", action_values[ActionToArrayIndex(z13::proto::input::Action::MOVE_FORWARD)]);
-  // LOG_INFO("==== x_delta = {}, {}, {}", x_delta.x(), x_delta.y(), x_delta.z());
-
-  auto right_v = side_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_RIGHT)];
-  auto left_v = side_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::MOVE_LEFT)];
+  auto right_v = side_axis * new_action_values.at(move_action_ids.move_right_id);
+  auto left_v = side_axis * new_action_values.at(move_action_ids.move_left_id);
   auto y_delta = (left_v - right_v) * delta_time * kCamVel;
 
-  auto up_v = up_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::JUMP)];
-  auto down_v = up_axis * action_values[ActionToArrayIndex(z13::fbs::input::Action::CROUCH)];
+  auto up_v = up_axis * new_action_values.at(move_action_ids.move_up_id);
+  auto down_v = up_axis * new_action_values.at(move_action_ids.move_down_id);
   auto z_delta = (up_v - down_v) * delta_time * kCamVel;
 
-  auto position = Eigen::Vector3f {
-    transform.position.x,
-    transform.position.y,
-    transform.position.z,
+  auto position = Eigen::Vector3f{
+      transform.position.x,
+      transform.position.y,
+      transform.position.z,
   };
 
   position += x_delta + y_delta + z_delta;
@@ -150,43 +175,45 @@ void ApplyActionListener(
   // }
 
   transform.position = {
-    position.x(),
-    position.y(),
-    position.z(),
+      position.x(),
+      position.y(),
+      position.z(),
   };
 }
 
 void OnMouseMove(
-    const z13::input::MouseMoveEvent& mouse_move,
-    const InputListenerQueryComponent& listener_query_component,
-    const z13::input::InputConfig& input_config) {
-  listener_query_component.listener_query.each([&mouse_move, &input_config](
-    flecs::entity e,
-    z13::input::CurrentActionListenerTag,
-    z13::input::ActionListener& action_listener) {
-      auto delta_time = e.world().delta_time();
-      auto factor = delta_time * input_config.mouse_sensitivity;
-      auto delta_h_deg = -static_cast<float>(mouse_move.delta.x) * factor;
-      auto delta_v_deg = -static_cast<float>(mouse_move.delta.y) * factor;
-      if (input_config.invert_x) {
-        delta_h_deg = -delta_h_deg;
-      }
+    const z13::input::MouseMoveEvent &mouse_move,
+    const InputListenerQueryComponent &listener_query_component,
+    const z13::input::InputConfig &input_config,
+    const MoveActionIds &move_action_ids) {
+  listener_query_component.listener_query.each(
+      [&mouse_move, &input_config, &move_action_ids](
+          flecs::entity e,
+          z13::input::CurrentActionListenerTag,
+          z13::input::ActionListener &action_listener) {
+        auto delta_time = e.world().delta_time();
+        auto factor = delta_time * input_config.mouse_sensitivity;
+        auto delta_h_deg = -static_cast<float>(mouse_move.delta.x) * factor;
+        auto delta_v_deg = -static_cast<float>(mouse_move.delta.y) * factor;
+        if (input_config.invert_x) {
+          delta_h_deg = -delta_h_deg;
+        }
 
-      if (input_config.invert_y) {
-        delta_v_deg = -delta_v_deg;
-      }
+        if (input_config.invert_y) {
+          delta_v_deg = -delta_v_deg;
+        }
 
-      auto& action_values = action_listener.action_values;
-      action_values[ActionToArrayIndex(z13::fbs::input::Action::VERTICAL_LOOK)] += delta_v_deg;
-      action_values[ActionToArrayIndex(z13::fbs::input::Action::HORIZONTAL_LOOK)] += delta_h_deg;
-    });
+        auto &new_action_values = action_listener.new_action_values;
+        new_action_values[move_action_ids.vertical_look_id] += delta_v_deg;
+        new_action_values[move_action_ids.horizontal_look_id] += delta_h_deg;
+      });
 }
 
 void OnMouseDown(
-    const z13::input::MouseButtonDownEvent& mouse_down,
-    const InputListenerQueryComponent& input_listener_query,
-    const z13::input::InputConfig& input_config,
-    z13::input::InputState& input_state) {
+    const z13::input::MouseButtonDownEvent &mouse_down,
+    const InputListenerQueryComponent &input_listener_query,
+    const z13::input::InputConfig &input_config,
+    z13::input::InputState &input_state) {
   input_state.input_state[KeyCodeToArrayIndex(mouse_down.button)] = 1.f;
 }
 
@@ -207,22 +234,22 @@ void OnKeyboardDown(
   if (key_down.keycode.code == z13::fbs::input::Keycode::KEY_ESCAPE) {
     if (world.has<z13::gameplay::Pause>()) {
       world.event<z13::input::SystemInputEvent>()
-        .id<WindowBackEvent>()
-        .entity(world.entity().add<WindowBackEvent>())
-        .enqueue();
+          .id<WindowBackEvent>()
+          .entity(world.entity().add<WindowBackEvent>())
+          .enqueue();
     } else {
       world.add<z13::gameplay::Pause>();
-    }    
+    }
   }
   input_state.input_state[KeyCodeToArrayIndex(key_down.keycode.code)] = 1.f;
-  // LOG_INFO("==== OnKeyboardDown = {}", z13::fbs::input::EnumNameKeycode(key_down.keycode.code));
 }
 
 void OnKeyboardUp(
-    const z13::input::KeyboardUpEvent& key_up,
-    const InputListenerQueryComponent& input_listener_query,
-    const z13::input::InputConfig& input_config,
-    z13::input::InputState& input_state) {
+    const z13::input::KeyboardUpEvent &key_up,
+    const InputListenerQueryComponent &input_listener_query,
+    const z13::input::InputConfig &input_config,
+    z13::input::InputState &input_state)
+{
   input_state.input_state[KeyCodeToArrayIndex(key_up.keycode.code)] = 0.f;
 }
 
@@ -230,54 +257,131 @@ void OnKeyboardUp(
 //   // LOG_INFO("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
 // }
 
-void OnSaveConfig(flecs::entity e, z13::input::SaveConfigEvent) {
-  const auto& input_config = e.world().ensure<z13::input::InputConfig>();
-  InputConfigLoader::SaveConfig(input_config);
+void OnSaveConfig(
+    z13::input::InputConfig &input_config,
+    const z13::input::ActionMap &action_map,
+    z13::input::SaveConfigEvent)
+{
+  InputConfigLoader2::SaveConfig(input_config, action_map);
 }
 
-void OnLoadConfig(flecs::entity e, z13::input::LoadConfigEvent) {
-  auto& input_config = e.world().ensure<z13::input::InputConfig>();
-  InputConfigLoader::LoadConfig(input_config);
+void CallConfigUpdatedEvent(flecs::world w)
+{
+  w.event<z13::input::SystemInputEvent>()
+      .id<z13::input::OnConfigUpdatedEvent>()
+      .entity(w.entity().add<z13::input::OnConfigUpdatedEvent>())
+      .enqueue();
 }
 
-void OnSetDefaultConfig(flecs::entity e, z13::input::SetDefaultConfigEvent) {
-  auto& input_config = e.world().ensure<z13::input::InputConfig>();
-  InputConfigLoader::SetDefaults(input_config);
+void OnLoadConfig(
+    flecs::entity e,
+    z13::input::InputConfig &input_config,
+    const z13::input::ActionMap &action_map,
+    z13::input::LoadConfigEvent)
+{
+  InputConfigLoader2::LoadConfig(input_config, action_map);
+  CallConfigUpdatedEvent(e.world());
 }
 
-void OnInputSystemStartupGameEvent(flecs::entity e, status::OnStartupGameEvent) {
-  z13::input::InputConfig input_config;
-  if (!InputConfigLoader::LoadConfig(input_config)) {
-    InputConfigLoader::SetDefaults(input_config);
-    InputConfigLoader::SaveConfig(input_config);
+void OnSetDefaultConfig(
+    flecs::entity e,
+    z13::input::InputConfig &input_config,
+    const z13::input::ActionMap &action_map,
+    z13::input::SetDefaultConfigEvent)
+{
+  InputConfigLoader2::SetDefaults(input_config, action_map);
+  CallConfigUpdatedEvent(e.world());
+}
+
+void OnLookupForFlatbufActionEnums(
+    const z13::input::LookupForFlatbufActionEnumsEvent &lookup_actions,
+    z13::input::ActionMap &action_map) {
+  InputConfigLoader::OnLookupForFlatbufActionEnums(lookup_actions, action_map);
+}
+
+void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z13::input::ActionMap &action_map) {
+  using ValueType = z13::input::ActionInfo::ValueType;
+  auto &move_action_ids = e.world().ensure<MoveActionIds>();
+  move_action_ids = MoveActionIds();
+  const auto &enum_value = action_map.action_map.get<z13::input::ActionMap::EnumValueTag>();
+  auto apply_action_id = [&](const auto action, auto &action_id_holder) {
+    auto it = enum_value.find(std::make_tuple("z13.fbs.actions.Action", static_cast<ValueType>(action)));
+    if (it == enum_value.end()) {
+      LOG_ERROR("OnConfigUpdated: Cannot find action id '{}' for enum 'z13.fbs.actions.Action'", static_cast<ValueType>(action));
+      return;
+    }
+    action_id_holder = it->id;
+  };
+
+  apply_action_id(z13::fbs::actions::Action::MOVE_FORWARD, move_action_ids.move_forward_id);
+  apply_action_id(z13::fbs::actions::Action::MOVE_BACKWARD, move_action_ids.move_backward_id);
+  apply_action_id(z13::fbs::actions::Action::MOVE_LEFT, move_action_ids.move_left_id);
+  apply_action_id(z13::fbs::actions::Action::MOVE_RIGHT, move_action_ids.move_right_id);
+  apply_action_id(z13::fbs::actions::Action::JUMP, move_action_ids.move_up_id);
+  apply_action_id(z13::fbs::actions::Action::CROUCH, move_action_ids.move_down_id);
+  apply_action_id(z13::fbs::actions::Action::VERTICAL_LOOK, move_action_ids.vertical_look_id);
+  apply_action_id(z13::fbs::actions::Action::HORIZONTAL_LOOK, move_action_ids.horizontal_look_id);
+}
+
+void OnInputSystemStartupGameEvent(
+    flecs::entity e,
+    z13::input::InputConfig& input_config,
+    z13::input::ActionMap& action_map,
+    status::OnStartupGameEvent) {
+  z13::input::LookupForFlatbufActionEnumsEvent ev{
+      .binary_schema = std::span{
+          z13::fbs::actions::ActionsTableBinarySchema::data(),
+          z13::fbs::actions::ActionsTableBinarySchema::size()},
+  };
+  InputConfigLoader::OnLookupForFlatbufActionEnums(ev, action_map);
+  if (!InputConfigLoader2::LoadConfig(input_config, action_map)) {
+    InputConfigLoader2::SetDefaults(input_config, action_map);
+    InputConfigLoader2::SaveConfig(input_config, action_map);
   }
-  e.world().set(std::move(input_config));
+
+  CallConfigUpdatedEvent(e.world());
 }
 
-void ClearActionListener(flecs::entity, z13::input::ActionListener& action_listener) {
-  for (auto& value : action_listener.action_values) {
-    value = 0.f;
+void ClearActionListener(
+    z13::input::ActionListener& action_listener,
+    const z13::input::ActionMap& action_map) {
+  const auto &action_id_map = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  for (const auto& action_info : action_id_map) {
+    action_listener.new_action_values[action_info.id] = 0.f;
   }
 }
 
-void CalculateInputValues(
+void CalculateInputValues2(
     const z13::input::InputState& input_state,
     const z13::input::InputConfig& input_config,
     z13::input::ActionListener& action_listener) {
-  for (size_t i = 0; i < input_state.input_state.size(); ++i) {
-    auto value = input_state.input_state[i];
-    if (value < std::numeric_limits<float>::epsilon()) {
+  const auto &action_group_key_codes = input_config.keycode_binding.get<z13::input::InputConfig::ActionGroupKeycodeIdTag>();
+  const auto &key_codes = input_config.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();
+  for (size_t key_idx = 0; key_idx < input_state.input_state.size(); ++key_idx) {
+    auto key_code = static_cast<z13::fbs::input::Keycode>(key_idx);
+    auto key_value = input_state.input_state[key_idx];
+    if (std::abs(key_value) <= std::numeric_limits<float>::epsilon()) {
       continue;
     }
 
-    auto key_code = ArrayIndexToKeyCode(i);
-    auto key_code_to_action = input_config.code_to_action.find(key_code);
-    if (key_code_to_action == input_config.code_to_action.end()) {
-      continue;
+    if (action_listener.action_group_priority.empty()) {
+      auto ag_it = key_codes.find(key_code);
+      if (ag_it != key_codes.end()) {
+        action_listener.new_action_values[ag_it->action_id] += key_value;
+      }
+    } else {
+      for (
+          auto action_group_it = action_listener.action_group_priority.rbegin();
+          action_group_it != action_listener.action_group_priority.rend() && action_group_it->empty();
+          ++action_group_it) {
+        auto agkc_it = action_group_key_codes.find(std::make_tuple(*action_group_it, key_code));
+        if (agkc_it != action_group_key_codes.end()) {
+          // LOG_INFO("=== agkc_it = {}", agkc_it->display_text);
+          action_listener.new_action_values[agkc_it->action_id] += key_value;
+          break;
+        }
+      }
     }
-
-    auto action_idx = ActionToArrayIndex(key_code_to_action->second);
-    action_listener.action_values[action_idx] += value;
   }
 }
 
@@ -290,105 +394,120 @@ void RegisterPhases(flecs::world& world) {
   world.get_alive(flecs::PostUpdate).add(flecs::Phase).depends_on<ApplyActionFramePhase>();
 }
 
-void GameplayInputSystem::Register(flecs::world& world) {
+void GameplayInputSystem::Register(flecs::world &world) {
   LOG_INFO("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
   RegisterPhases(world);
   world.component<InputListenerQueryComponent>().add(flecs::Singleton);
   world.component<z13::input::InputState>().add(flecs::Singleton);
   world.add<z13::input::InputState>();
+  world.component<z13::gameplay::input::MoveActionIds>().add(flecs::Singleton);
+  world.add<z13::gameplay::input::MoveActionIds>();
 
   world.observer<
-      z13::input::MousePos,
-      InputListenerQueryComponent,
-      z13::input::InputConfig>("gameplay_input_system::OnMousePosObserver")
-    .event<z13::input::SystemInputEvent>()
-    .with<z13::gameplay::Pause>().not_()
-    .each(OnMousePos);
+            z13::input::MousePos,
+            InputListenerQueryComponent,
+            z13::input::InputConfig>("gameplay_input_system::OnMousePosObserver")
+      .event<z13::input::SystemInputEvent>()
+      .with<z13::gameplay::Pause>()
+      .not_()
+      .each(OnMousePos);
 
   world.observer<
-      z13::input::MouseMoveEvent,
-      InputListenerQueryComponent,
-      z13::input::InputConfig>("gameplay_input_system::OnMouseMoveObserver")
-    .event<z13::input::SystemInputEvent>()
-    // .with<z13::gameplay::Pause>().not_()
-    .each(OnMouseMove);
+            z13::input::MouseMoveEvent,
+            InputListenerQueryComponent,
+            z13::input::InputConfig,
+            MoveActionIds>("gameplay_input_system::OnMouseMoveObserver")
+      .event<z13::input::SystemInputEvent>()
+      // .with<z13::gameplay::Pause>().not_()
+      .each(OnMouseMove);
 
   world.observer<
-      z13::input::MouseButtonDownEvent,
-      InputListenerQueryComponent,
-      z13::input::InputConfig,
-      z13::input::InputState>("gameplay_input_system::OnMouseDownObserver")
-    .event<z13::input::SystemInputEvent>()
-    // .with<z13::gameplay::Pause>().not_()
-    .each(OnMouseDown);
+            z13::input::MouseButtonDownEvent,
+            InputListenerQueryComponent,
+            z13::input::InputConfig,
+            z13::input::InputState>("gameplay_input_system::OnMouseDownObserver")
+      .event<z13::input::SystemInputEvent>()
+      // .with<z13::gameplay::Pause>().not_()
+      .each(OnMouseDown);
 
   world.observer<
-      z13::input::MouseButtonUpEvent,
-      InputListenerQueryComponent,
-      z13::input::InputConfig,
-      z13::input::InputState>("gameplay_input_system::OnMouseUpObserver")
-    .event<z13::input::SystemInputEvent>()
-    // .with<z13::gameplay::Pause>().not_()
-    .each(OnMouseUp);
+            z13::input::MouseButtonUpEvent,
+            InputListenerQueryComponent,
+            z13::input::InputConfig,
+            z13::input::InputState>("gameplay_input_system::OnMouseUpObserver")
+      .event<z13::input::SystemInputEvent>()
+      // .with<z13::gameplay::Pause>().not_()
+      .each(OnMouseUp);
 
   world.observer<
-      z13::input::KeyboardDownEvent,
-      InputListenerQueryComponent,
-      z13::input::InputConfig,
-      z13::input::InputState>("gameplay_input_system::OnKeyboardDownObserver")
-    .event<z13::input::SystemInputEvent>()
-    // .with<z13::gameplay::Pause>().not_()
-    .each(
-      [world](const auto& key_down, const auto& input_listener_query, const auto& input_config, z13::input::InputState& input_state) {
-        OnKeyboardDown(world, key_down, input_listener_query, input_config, input_state);
-      });
+            z13::input::KeyboardDownEvent,
+            InputListenerQueryComponent,
+            z13::input::InputConfig,
+            z13::input::InputState>("gameplay_input_system::OnKeyboardDownObserver")
+      .event<z13::input::SystemInputEvent>()
+      // .with<z13::gameplay::Pause>().not_()
+      .each(
+          [world](const auto &key_down, const auto &input_listener_query, const auto &input_config, z13::input::InputState &input_state)
+          {
+            OnKeyboardDown(world, key_down, input_listener_query, input_config, input_state);
+          });
 
   world.observer<
-      z13::input::KeyboardUpEvent,
-      InputListenerQueryComponent,
-      z13::input::InputConfig,
-      z13::input::InputState>("gameplay_input_system::OnKeyboardUpObserver")
-    .event<z13::input::SystemInputEvent>()
-    // .with<z13::gameplay::Pause>().not_()
-    .each(OnKeyboardUp);
+            z13::input::KeyboardUpEvent,
+            InputListenerQueryComponent,
+            z13::input::InputConfig,
+            z13::input::InputState>("gameplay_input_system::OnKeyboardUpObserver")
+      .event<z13::input::SystemInputEvent>()
+      // .with<z13::gameplay::Pause>().not_()
+      .each(OnKeyboardUp);
 
-  world.observer<z13::status::OnStartupGameEvent>("gameplay_input_system::OnStartupGameEvent")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each(OnInputSystemStartupGameEvent);
+  world.observer<z13::input::InputConfig, z13::input::ActionMap, z13::status::OnStartupGameEvent>("gameplay_input_system::OnStartupGameEvent")
+      .event(flecs::OnAdd)
+      .yield_existing()
+      .each(OnInputSystemStartupGameEvent);
 
   InputListenerQueryComponent input_listener_query_component = {
-    .listener_query = world
-      .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
-      .build(),
+      .listener_query = world
+                            .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
+                            .build(),
   };
   world.set(input_listener_query_component);
 
-  world.system<z13::input::ActionListener>("gameplay_input_system::ClearActionListener")
-    .kind<ClearActionFramePhase>()
-    .each(ClearActionListener);
+  world.system<z13::input::ActionListener, z13::input::ActionMap>("gameplay_input_system::ClearActionListener")
+      .kind<ClearActionFramePhase>()
+      .each(ClearActionListener);
 
-  world.system<z13::input::InputState, z13::input::InputConfig, z13::input::ActionListener>("gameplay_input_system::CalculateInputValues")
-    .kind<CalculateActionFramePhase>()
-    .with<z13::gameplay::Pause>().not_()
-    .each(CalculateInputValues);
+  world.system<z13::input::InputState, z13::input::InputConfig, z13::input::ActionListener>("gameplay_input_system::CalculateInputValues2")
+      .kind<CalculateActionFramePhase>()
+      .with<z13::gameplay::Pause>()
+      .not_()
+      .each(CalculateInputValues2);
 
-  world.system<z13::input::ActionListener, geometry::Transform>("gameplay_input_system::ApplyActionListener")
-    .kind<ApplyActionFramePhase>()
-    .with<z13::gameplay::Pause>().not_()
-    .each(ApplyActionListener);
+  world.system<z13::input::ActionListener, MoveActionIds, geometry::Transform>("gameplay_input_system::ApplyActionListener")
+      .kind<ApplyActionFramePhase>()
+      .with<z13::gameplay::Pause>()
+      .not_()
+      .each(ApplyActionListener);
 
-  world.observer<z13::input::SaveConfigEvent>("gameplay_input_system::OnSaveConfigObserver")
-    .event<z13::input::SystemInputEvent>()
-    .each(OnSaveConfig);
+  world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::SaveConfigEvent>("gameplay_input_system::OnSaveConfigObserver")
+      .event<z13::input::SystemInputEvent>()
+      .each(OnSaveConfig);
 
-  world.observer<z13::input::LoadConfigEvent>("gameplay_input_system::LoadConfigObserver")
-    .event<z13::input::SystemInputEvent>()
-    .each(OnLoadConfig);
+  world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::LoadConfigEvent>("gameplay_input_system::LoadConfigObserver")
+      .event<z13::input::SystemInputEvent>()
+      .each(OnLoadConfig);
 
-  world.observer<z13::input::SetDefaultConfigEvent>("gameplay_input_system::OnSetDefaultConfigObserver")
-    .event<z13::input::SystemInputEvent>()
-    .each(OnSetDefaultConfig);
+  world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::SetDefaultConfigEvent>("gameplay_input_system::OnSetDefaultConfigObserver")
+      .event<z13::input::SystemInputEvent>()
+      .each(OnSetDefaultConfig);
+
+  world.observer<const z13::input::LookupForFlatbufActionEnumsEvent, z13::input::ActionMap>("gameplay_input_system::OnLookupForFlatbufActionEnumsObserver")
+      .event<z13::input::SystemInputEvent>()
+      .each(OnLookupForFlatbufActionEnums);
+
+  world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
+      .event<z13::input::SystemInputEvent>()
+      .each(OnConfigUpdated);
 }
 
-}  // namespace z13::gameplay::input
+} // namespace z13::gameplay::input

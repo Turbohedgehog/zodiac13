@@ -39,6 +39,7 @@ void OnInit(flecs::world world, gameplay::Gameplay) {
 
 void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
   OgreTools::DestroySdlOgreWindow(ogre_data);
+  e.world().remove<OgreData>();
   e.world().get<CoreComponent>().core->get().Shutdown();
 }
 

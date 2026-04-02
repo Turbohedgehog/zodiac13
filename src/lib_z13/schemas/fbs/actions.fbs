@@ -1,0 +1,20 @@
+include "common.fbs";
+
+namespace z13.fbs.actions;
+
+enum Action : int16 (action, action_group: "Control") {
+  MOVE_FORWARD (display_text: "Move forward"),
+  MOVE_BACKWARD (display_text: "Move backward"),
+  MOVE_LEFT (display_text: "Move left"),
+  MOVE_RIGHT (display_text: "Move right"),
+  JUMP (display_text: "Move Jump"),
+  CROUCH (display_text: "Move Crouch"),
+  ACTION_1 (display_text: "Action 1"),
+  VERTICAL_LOOK,
+  HORIZONTAL_LOOK,
+}
+
+table ActionsTable {
+}
+
+root_type ActionsTable;

@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include <flatbuffers/idl.h>
+#include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/log.h>
 #include <z13_module/tools/z13_environment.h>
@@ -51,6 +52,9 @@ bool InputConfigLoader::LoadConfig(z13::input::InputConfig& input_config) {
 
   for (const auto& action_binding : input_config_msg.action_bindings) {
     auto action = action_binding->action;
+    if (!action) {
+      continue;
+    }
     auto it = std::find_if(
         input_config.action_bindings.begin(),
         input_config.action_bindings.end(),
@@ -60,7 +64,7 @@ bool InputConfigLoader::LoadConfig(z13::input::InputConfig& input_config) {
     );
 
     if (it == input_config.action_bindings.end()) {
-      input_config.action_bindings.emplace_back(z13::input::ActionBinding{.action = action});
+      input_config.action_bindings.emplace_back(z13::input::ActionBinding{.action = *action});
       it = input_config.action_bindings.end() - 1;
     }
 
@@ -148,7 +152,7 @@ bool InputConfigLoader::SaveConfig(const z13::input::InputConfig& input_config) 
   output_file << json_output;
   output_file.close();
 
-  return false;
+  return true;
 }
 
 void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
@@ -158,12 +162,80 @@ void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
 void InputConfigLoader::SetDefaults(z13::input::InputConfig& input_config) {
   Clear(input_config);
 
-  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_FORWARD, {z13::fbs::input::Keycode::KEY_W}});
-  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_BACKWARD, {z13::fbs::input::Keycode::KEY_S}});
-  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_LEFT, {z13::fbs::input::Keycode::KEY_A}});
-  input_config.action_bindings.push_back({z13::fbs::input::Action::MOVE_RIGHT, {z13::fbs::input::Keycode::KEY_D}});
-  input_config.action_bindings.push_back({z13::fbs::input::Action::JUMP, {z13::fbs::input::Keycode::KEY_SPACE}});
-  input_config.action_bindings.push_back({z13::fbs::input::Action::CROUCH, {z13::fbs::input::Keycode::KEY_LCTRL}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::MOVE_FORWARD, {z13::fbs::input::Keycode::KEY_W}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::MOVE_BACKWARD, {z13::fbs::input::Keycode::KEY_S}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::MOVE_LEFT, {z13::fbs::input::Keycode::KEY_A}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::MOVE_RIGHT, {z13::fbs::input::Keycode::KEY_D}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::JUMP, {z13::fbs::input::Keycode::KEY_SPACE}});
+  input_config.action_bindings.push_back({z13::fbs::actions::Action::CROUCH, {z13::fbs::input::Keycode::KEY_LCTRL}});
+}
+
+static constexpr std::string_view kActionAttributeName = "action";
+static constexpr std::string_view kActionGroupAttributeName = "action_group";
+static constexpr std::string_view kDefaultActionGroupName = "DefaultGroup";
+static constexpr std::string_view kEmptyDisplayTextName = "display_text";
+static constexpr std::string_view kEmptyDisplayText = "";
+
+void InputConfigLoader::OnLookupForFlatbufActionEnums(
+    const z13::input::LookupForFlatbufActionEnumsEvent& lookup_actions,
+    z13::input::ActionMap& action_map) {
+  action_map.action_map.clear();
+
+  const auto* input_config_schema = reflection::GetSchema(lookup_actions.binary_schema.data());
+  const auto* enums = input_config_schema->enums();
+  if (!enums) {
+    LOG_ERROR("InputConfigLoader::OnLookupForFlatbufActionEnums: no enums in schema");
+    return;
+  }
+
+  for (const auto* en : *enums) {
+    const auto* attributes = en->attributes();
+    if (!attributes) {
+      continue;
+    }
+
+    if (!attributes->LookupByKey(kActionAttributeName)) {
+      continue;
+    }
+
+    const auto* values = en->values();
+    if (!values) {
+      continue;
+    }
+
+    auto enum_name = en->name()->string_view();
+    std::string_view group_name = kDefaultActionGroupName;
+
+    const auto* action_group_name = attributes->LookupByKey(kActionGroupAttributeName);
+    if (action_group_name) {
+      group_name = action_group_name->value()->string_view();
+    }
+
+    for (const auto* value : *values) {
+      auto value_group = group_name;
+      auto display_text = kEmptyDisplayText;
+      if (const auto* value_attributes = value->attributes()) {
+        if (const auto* value_group_name = value_attributes->LookupByKey(kActionGroupAttributeName)) {
+          value_group = value_group_name->value()->string_view();
+        }
+
+        if (const auto* display_text_attribute = value_attributes->LookupByKey(kEmptyDisplayTextName)) {
+          display_text = display_text_attribute->value()->string_view();
+        }
+      }
+
+      action_map.action_map.emplace_back(
+        z13::input::ActionInfo {
+          .enum_name = enum_name,
+          .value_name = value->name()->string_view(),
+          .group_name = value_group,
+          .display_text = display_text,
+          .value = value->value(),
+          .id = action_map.action_map.size(),
+        }
+      );
+    }
+  }
 }
 
 }  // namespace z13::gameplay

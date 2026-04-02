@@ -14,4 +14,8 @@ std::filesystem::path GetGameInputConfigJsonPath() {
   return GetGameDataDirectory() / "input_config.json";
 }
 
+std::filesystem::path GetGameInputConfigJsonPath2() {
+  return GetGameDataDirectory() / "input_config_2.json";
+}
+
 }  // namespace z13::tools::environment
