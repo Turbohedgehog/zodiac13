@@ -10,7 +10,7 @@ struct InputConfig;
 }  // namespace z13::input
 
 namespace z13::gameplay::input {
-  
+
 class InputConverter {
  public:
   static void EmitInputEvent(flecs::world world, const z13::input::InputConfig& input_config);

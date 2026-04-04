@@ -6,6 +6,8 @@
 
 #include <lib_core/module_factory_base.h>
 
+extern "C" {
+
 namespace z13::dll {
 
 class BOOST_SYMBOL_VISIBLE TestDllModuleFactory : public z13::ModuleFactoryBase {
@@ -22,3 +24,5 @@ BOOST_DLL_ALIAS(
     z13::dll::TestDllModuleFactory::CreateFactory,
     create_module_factory
 )
+
+}  // extern "C"

@@ -3,13 +3,13 @@ include "common.fbs";
 namespace z13.fbs.actions;
 
 enum Action : int16 (action, action_group: "Control") {
-  MOVE_FORWARD (display_text: "Move forward"),
-  MOVE_BACKWARD (display_text: "Move backward"),
-  MOVE_LEFT (display_text: "Move left"),
-  MOVE_RIGHT (display_text: "Move right"),
-  JUMP (display_text: "Move Jump"),
-  CROUCH (display_text: "Move Crouch"),
-  ACTION_1 (display_text: "Action 1"),
+  MOVE_FORWARD (display_text: "Move forward", default_keycodes: "KEY_W"),
+  MOVE_BACKWARD (display_text: "Move backward", default_keycodes: "KEY_S"),
+  MOVE_LEFT (display_text: "Move left", default_keycodes: "KEY_A"),
+  MOVE_RIGHT (display_text: "Move right", default_keycodes: "KEY_D"),
+  JUMP (display_text: "Move Jump", default_keycodes: "KEY_SPACE"),
+  CROUCH (display_text: "Move Crouch", default_keycodes: "KEY_LCTRL"),
+  ACTION_1 (display_text: "Action 1", default_keycodes: "MOUSE_BUTTON_LEFT"),
   VERTICAL_LOOK,
   HORIZONTAL_LOOK,
 }

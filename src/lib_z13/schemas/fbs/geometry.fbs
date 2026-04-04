@@ -1,0 +1,21 @@
+namespace z13.fbs.geometry;
+
+table Vector3 {
+  x: float;
+  y: float;
+  z: float;
+}
+
+table Quaternion {
+  x: float;
+  y: float;
+  z: float;
+  w: float;
+}
+
+table Transform {
+  translation: Vector3;
+  rotation: Quaternion;
+}
+
+root_type Transform;

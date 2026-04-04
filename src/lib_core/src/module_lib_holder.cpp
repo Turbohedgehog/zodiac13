@@ -26,18 +26,14 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
     return ModuleFactoryPtr();
   }
 
-
   boost::dll::fs::path boost_lib_path = full_path.string();
   boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path);
 
-
   auto module_factory = lib.get_alias<ModuleFactoryPtr()>("create_module_factory")();
-
   lib_holders_.emplace(
     full_path,
     LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
   );
-
 
   LOG_INFO("ModuleLibHolder::AppendModuleLib: Module factory '{}' has been loaded", module_factory->GetName());
 

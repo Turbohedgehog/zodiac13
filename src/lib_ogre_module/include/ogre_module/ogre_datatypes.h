@@ -13,6 +13,7 @@ struct ImGuiInputListener;
 namespace Ogre {
 
 class SceneNode;
+// class SceneManager;
 
 };  // namespace Ogre
 

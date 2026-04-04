@@ -4,7 +4,7 @@ include "actions.fbs";
 namespace z13.fbs.input;
 
 enum Keycode : int16 {
-  KEY_UNKNOWN = 0 (display_text: "Unknown"),
+  KEY_UNKNOWN (display_text: "Unknown"),
   KEY_RETURN (display_text: "Enter"),
   KEY_ESCAPE (display_text: "Escape"),
   KEY_BACKSPACE (display_text: "Backspace"),
@@ -135,7 +135,6 @@ enum Keycode : int16 {
 
 table ActionBinding {
   action_name: string;
-  action: actions.Action = null;
   key_code: Keycode;
   key_codes: [Keycode]; 
 }

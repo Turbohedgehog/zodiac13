@@ -1,6 +1,9 @@
 #pragma once
 
 #include <flecs.h>
+#include <Eigen/Dense>
+
+#include <ogre_module/ogre_datatypes.h>
 
 namespace z13::gameplay {
 
@@ -18,7 +21,7 @@ struct Transform;
 
 namespace z13::input {
 
-struct SystemInputEvent;
+struct SystemInputEventType;
 
 }  // namespace z13::input
 
@@ -35,7 +38,8 @@ class OgreTools {
   static void EnableRelativeMouseMode(const gameplay::Pause*);
   static void DisableRelativeMouseMode(const OgreData& ogre_data, const gameplay::Pause&);
   static void CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data);
-  static void UpdateCamera(const gameplay::Camera&, const geometry::Transform& transform, const struct OgreSceneNode& ogre_scene_node);
+  static void UpdateSceneNodeTransform(struct SceneNodeComponent& scene_node_component, const Eigen::Matrix4f& transform);
+  static Ogre::SceneManager* GetSceneManager(Ogre::Root& ogre_root);
 };
 
 }  // namespace z13::ogre

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 
 // #include <print>
 #include <flecs.h>
@@ -218,4 +219,71 @@ void test_flex2(int argc, char *argv[]) {
     // world.from_json(&deserialized_parent, serializable_parent_json_2);
     // std::cout << world.to_json() << std::endl;
     // std::cout << "5 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+}
+
+void test_component_lifetime() {
+  class A {
+   public:
+    A() {
+      std::cout << "A::A()\n";
+    }
+
+    A(const A& a) {
+      std::cout << "A::A(const A&)\n";
+    }
+
+    A(A&& a) {
+      std::cout << "A::A(A&&)\n";
+    }
+
+    ~A() {
+      std::cout << "A::~A()\n";
+    }
+  };
+
+  class B {
+   public:
+    B() {
+      a_ = std::make_shared<A>();
+      std::cout << "B::B()\n";
+    }
+
+    B(const B& b) {
+      a_ = b.a_;
+      std::cout << "B::B(const B&)\n";
+    }
+
+    B(B&& b) {
+      a_ = std::move(b.a_);
+      std::cout << "B::B(B&&)\n";
+    }
+
+    ~B() {
+      std::cout << "B::~B()\n";
+    }
+   private:
+    std::shared_ptr<A> a_;
+  };
+
+  struct TTT {
+    int temp = 0;
+  };
+
+  flecs::world world;
+  auto e = world.entity();
+//   e.add<B>();
+  e.add<TTT>();
+
+  auto s = world.system<TTT>()
+    .immediate()
+    .each([&world](auto ent, auto& ttt) {
+    //   world.defer_suspend();
+      std::cout << std::boolalpha << "world.is_deferred() = " << world.is_deferred() << "\n";
+      //   world.defer_begin();
+      ent.add<B>();
+    //   world.defer_begin();
+    });
+  s.run();
+//   world.progress();
+//   world.progress();
 }
