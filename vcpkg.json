@@ -2,6 +2,8 @@
   "name": "zodiac13",
   "version": "0.0.1",
   "dependencies": [
+    "flatbuffers",
+    "bullet3",
     "boost-program-options",
     "boost-bimap",
     "boost-dll",
@@ -28,8 +30,7 @@
     "sdl2",
     "spdlog",
     "yaml-cpp",
-    "platform-folders",
-    "flatbuffers"
+    "platform-folders"
   ],
   "overrides": [
     {
@@ -87,6 +88,10 @@
     {
       "name": "flatbuffers",
       "version": "25.12.19"
+    },
+    {
+      "name": "bullet3",
+      "version": "3.25#3"
     }
   ]
 }
