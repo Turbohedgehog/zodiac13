@@ -8,6 +8,11 @@ find_package(SDL2 REQUIRED)
 find_package(OGRE REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS dll)
+find_package(assimp CONFIG REQUIRED)
+find_package(pugixml CONFIG REQUIRED)
+find_package(zip CONFIG REQUIRED)
+find_package(minizip CONFIG REQUIRED)
+find_package(poly2tri CONFIG REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -39,8 +44,14 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main> $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-  ${OGRE_LIBRARIES}
   imgui::imgui
+  assimp::assimp
+  zip::zip
+  minizip::minizip
+  poly2tri::poly2tri
+  pugixml
+  OgreMain
+  OgreBites
   Codec_Assimp
   Codec_STBI
   Codec_FreeImage
@@ -57,6 +68,12 @@ set(MODULE_TARGET_PATH "modules/ogre")
 # ToDo: перевести проект на динамическую библиотеку и копировать плагины Ogre в ${PROJECT_NAME} вместо zodiac13
 # Сейчас происходит полная завязка на проекте zodiac13, хотя он является дочерним в последовательности
 # Идея взята здесь https://github.com/NearEDGE/Ogre-vcpkg-Example-Project/blob/master/Ogre%20vcpkg%20example%20project/CMakeLists.txt#L34
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+    COMMAND_EXPAND_LISTS
+)
+
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:zodiac13>/${MODULE_TARGET_PATH}
     COMMAND ${CMAKE_COMMAND} -E copy
