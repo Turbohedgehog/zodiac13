@@ -9,6 +9,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/module_factory_base.h>
+#include <lib_core/log.h>
 
 #include "module_lib_holder.h"
 
@@ -33,12 +34,18 @@ bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
 }
 
 bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension) {
-  auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
-  if (!module_factory) {
-    return false;
-  }
+  try {
+    auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
+    if (!module_factory) {
+      return false;
+    }
 
-  return RegisterModuleFactory(module_factory);
+    return RegisterModuleFactory(module_factory);
+  } catch (std::runtime_error ex) {
+    LOG_CRITICAL("Core::RegisterModuleFactory error: {}", ex.what());
+    throw;
+  }
+  return false;
 }
 
 WorldRef Core::CreateWorld() {

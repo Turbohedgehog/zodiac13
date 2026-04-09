@@ -5,7 +5,6 @@
 #include <span>
 #include <map>
 
-#include <boost/bimap.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/ordered_index.hpp>

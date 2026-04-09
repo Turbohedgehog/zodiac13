@@ -10,7 +10,8 @@
 namespace z13 {
 
 ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
-  auto full_path = std::filesystem::absolute(lib_path);
+  std::filesystem::path abs_path = boost::dll::program_location().parent_path().string();
+  auto full_path = std::filesystem::absolute(abs_path / lib_path);
   if (append_platform_extension) {
     full_path.replace_extension(boost::dll::shared_library::suffix().native());
   }
@@ -25,8 +26,10 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
     return ModuleFactoryPtr();
   }
 
+
   boost::dll::fs::path boost_lib_path = full_path.string();
   boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path);
+
 
   auto module_factory = lib.get_alias<ModuleFactoryPtr()>("create_module_factory")();
 
@@ -34,6 +37,7 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
     full_path,
     LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
   );
+
 
   LOG_INFO("ModuleLibHolder::AppendModuleLib: Module factory '{}' has been loaded", module_factory->GetName());
 
