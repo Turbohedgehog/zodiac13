@@ -16,7 +16,7 @@ void InputSettingsWindowBase::SaveIfDirty() {
   auto world = GetWorld();
 
   world.set(input_config_);
-  world.event<input::SystemInputEvent>()
+  world.event<input::SystemInputEventType>()
     .id<z13::input::SaveConfigEvent>()
     .entity(world.entity().add<z13::input::SaveConfigEvent>())
     .enqueue();

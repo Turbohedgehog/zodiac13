@@ -1,7 +1,11 @@
 #include "ogre_system.h"
 
+#include <Eigen/Dense>
+#include <Ogre.h>
+
 #include <lib_core/core.h>
 #include <lib_core/log.h>
+#include <lib_core/math.h>
 
 #include <ogre_module/ogre_components.h>
 
@@ -12,7 +16,8 @@
 #include <z13/components/z13.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
-#include <z13/components/geometry.h>
+
+#include "private_ogre_components.h"
 
 namespace z13::ogre {
 
@@ -47,6 +52,20 @@ void OnAddCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre
   OgreTools::CreateCamera(e, camera, ogre_data);
 }
 
+void OnUpdateOgreSceneNode(SceneNodeComponent& scene_node_component, const Eigen::Matrix4f& transform) {
+  OgreTools::UpdateSceneNodeTransform(scene_node_component, transform);
+}
+
+void OnRemoveOgreSceneNode(SceneNodeComponent& scene_node_component) {
+  auto* scene_manager = scene_node_component.scene_node->getCreator();
+  scene_manager->destroySceneNode(scene_node_component.scene_node);
+}
+
+void OnRemoveOgreEntity(EntityComponent& entity_component) {
+  auto* scene_manager = entity_component.entity->_getManager();
+  scene_manager->destroyEntity(entity_component.entity);
+}
+
 void OgreSystem::Register(flecs::world& world) {
   RegisterPipelines(world);
 
@@ -60,10 +79,6 @@ void OgreSystem::Register(flecs::world& world) {
   world.system<OgreData>("FinalizeRenderSystem")
     .kind<FinalizeRender>()
     .each([world](auto& ogre_data) { OgreTools::RenderSdlOgreWindow(world, ogre_data); });
-
-  world.system<gameplay::Camera, geometry::Transform, OgreSceneNode>("UpdateCamera")
-    .kind<PreRender>()
-    .each(OgreTools::UpdateCamera);
 
   world.observer<OgreWindowClosed, OgreData>("ShutdownObserver")
     .event(flecs::OnAdd)
@@ -84,10 +99,25 @@ void OgreSystem::Register(flecs::world& world) {
     .yield_existing()
     .each([world](const auto& gameplay) { OnInit(world, gameplay); });
 
-  world.observer<const gameplay::Camera, OgreData>("OnAddCameraObserver")
+  world.observer<const gameplay::Camera, OgreData>("OgreSystem::OnAddCameraObserver")
     .event(flecs::OnAdd)
     .yield_existing()
     .each(OnAddCamera);
+
+  world.observer<SceneNodeComponent, Eigen::Matrix4f>("OgreSystem::OnUpdateOgreSceneNode")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each(OnUpdateOgreSceneNode);
+
+  world.observer<SceneNodeComponent>("OgreSystem::OnRemoveOgreSceneNode")
+    .event(flecs::OnRemove)
+    .yield_existing()
+    .each(OnRemoveOgreSceneNode);
+
+  world.observer<EntityComponent>("OgreSystem::OnRemoveOgreEntity")
+    .event(flecs::OnRemove)
+    .yield_existing()
+    .each(OnRemoveOgreEntity);
 }
 
 }  // namespace z13::ogre

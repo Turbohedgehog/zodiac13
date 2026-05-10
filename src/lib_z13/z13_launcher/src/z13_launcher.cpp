@@ -26,10 +26,9 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
 
   core.RegisterModuleFactory("modules/z13_module/z13_module");
   core.RegisterModuleFactory("modules/ogre/ogre_module");
-  
   core.RegisterModuleFactory("modules/test_dll/test_dll_module");
-  core.CreateWorld();
 
+  core.CreateWorld();
 
   return core.Run();
 }

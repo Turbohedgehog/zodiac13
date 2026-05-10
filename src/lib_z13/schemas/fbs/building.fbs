@@ -1,0 +1,23 @@
+include "common.fbs";
+include "geometry.fbs";
+
+namespace z13.fbs.building;
+
+table Wall {}
+
+union BlockContent {
+  Wall
+}
+
+table Block {
+  transform: z13.fbs.geometry.Transform;
+  content: BlockContent;
+}
+
+enum Action : int16 (action, action_group: "Building") {
+  TOGGLE_BUILDING_MODE (display_text: "Toggle building mode", default_keycodes: "KEY_TAB", action_group: "Control"),
+  BUILD_BLOCK (display_text: "Test block build", default_keycodes: "MOUSE_BUTTON_LEFT"),
+  DESTROY_BLOK (display_text: "Test bFlock destroy", default_keycodes: "MOUSE_BUTTON_RIGHT"),
+}
+
+root_type Block;

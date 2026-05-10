@@ -2,8 +2,6 @@
 
 #include <filesystem>
 
-#include <Eigen/Dense>
-
 #include <lib_core/math.h>
 #include <lib_core/log.h>
 
@@ -13,7 +11,6 @@
 #include <ogre_module/ogre_datatypes.h>
 #include <ogre_module/ogre_components.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/geometry.h>
 
 #include <Ogre.h>
 
@@ -36,6 +33,8 @@
 #include "input_publisher/input_publisher.h"
 
 #include "scene_node_holder/scene_node_holder.h"
+
+#include "../private_ogre_components.h"
 
 namespace z13::ogre {
 
@@ -83,8 +82,12 @@ namespace z13::ogre {
     light_node->attachObject(light);
   }
 
-  void LoadRooms(OgreData &ogre_data) {
-    auto *scene_manager = static_cast<Ogre::PCZSceneManager *>(ogre_data.ogre_root->getSceneManager(kPCZSceneManagerName));
+  Ogre::SceneManager* OgreTools::GetSceneManager(Ogre::Root& ogre_root) {
+    return ogre_root.getSceneManager(kPCZSceneManagerName);
+  }
+
+  void LoadRooms(OgreData& ogre_data) {
+    auto *scene_manager = static_cast<Ogre::PCZSceneManager*>(ogre_data.ogre_root->getSceneManager(kPCZSceneManagerName));
     auto *root_node = scene_manager->getRootSceneNode();
     auto *room_scene_node = root_node->createChildSceneNode();
     auto *room_entity = scene_manager->createEntity("Spaceship", "models/rooms/rooms.fbx");
@@ -94,7 +97,7 @@ namespace z13::ogre {
     room_scene_node->setDirection(Ogre::Vector3::UNIT_X);
   }
 
-  Ogre::SceneNode *LoadDemoMesh(OgreData &ogre_data) {
+  Ogre::SceneNode* LoadDemoMesh(OgreData& ogre_data) {
     // const auto& scene_managers = ogre_data.ogre_root->getSceneManagers();
     // for (const auto& [n, sm] : scene_managers) {
     //   LOG_INFO("SM name = {}", n);
@@ -207,15 +210,18 @@ namespace z13::ogre {
     auto assets_path = std::filesystem::path(ASSETS_DIR);
     rgm.addResourceLocation((assets_path).string(), "FileSystem", kAssetsResourceGroup, true);
     rgm.initialiseAllResourceGroups();
-    Ogre::MaterialManager &matMgr = Ogre::MaterialManager::getSingleton();
-    auto mat = matMgr.load("materials/skybox/skybox1.material", kAssetsResourceGroup);
-    auto sky_mat = matMgr.getByName("skybox/skybox");
-    if (sky_mat->getNumTechniques() > 0) {
-      if (sky_mat->getTechnique(0)->getNumPasses() > 0) {
-      }
-    }
+    // Ogre::MaterialManager& matMgr = Ogre::MaterialManager::getSingleton();
+    // auto mat = matMgr.load("materials/skybox/skybox1.material", kAssetsResourceGroup);
+    // auto sky_mat = matMgr.getByName("skybox/skybox");
+    // if (sky_mat->getNumTechniques() > 0) {
+    //   if (sky_mat->getTechnique(0)->getNumPasses() > 0) {
+    //   }
+    // }
 
-    scene_manager->setSkyBox(true, "skybox/skybox"); // ,5000, true, Ogre::Quaternion::IDENTITY, kAssetsResourceGroup);
+    // scene_manager->setSkyBox(true, "skybox/skybox"); // ,5000, true, Ogre::Quaternion::IDENTITY, kAssetsResourceGroup);
+    Ogre::Quaternion q;
+    q.FromAngleAxis(Ogre::Degree(90), Ogre::Vector3::UNIT_X);
+    scene_manager->setSkyBox(true, "skybox/skybox_2", 5000, true, q);
     scene_manager->setSkyZone(0);
     InitImgui();
 
@@ -242,27 +248,26 @@ namespace z13::ogre {
     // // LOG_INFO("==== OgreTools 4 = {}", test_scene_node->getName());
   }
 
-  void OgreTools::CreateCamera(flecs::entity e, const gameplay::Camera &camera, OgreData &ogre_data) {
+  void OgreTools::CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {
     // LOG_INFO("~~~~ CreateCamera");
-    auto *scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;
-    auto *ogre_camera = scene_manager->createCamera(camera.name);
+    auto* scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;
+    auto* ogre_camera = scene_manager->createCamera(camera.name);
     ogre_camera->setNearClipDistance(0.1);
     ogre_camera->setFarClipDistance(10000);
 
-    auto *camera_parent_node = scene_manager->getRootSceneNode()->createChildSceneNode("MainCamera");
-    auto *camera_node = camera_parent_node->createChildSceneNode();
+    auto* camera_parent_node = scene_manager->getRootSceneNode()->createChildSceneNode("MainCamera");
+    auto* camera_node = camera_parent_node->createChildSceneNode();
     camera_node->attachObject(ogre_camera);
     camera_node->setPosition(0, 0, 0);
     camera_node->setFixedYawAxis(true, Ogre::Vector3::UNIT_Z);
     camera_node->setDirection(Ogre::Vector3::UNIT_X);
-    auto *viewport = ogre_data.ogre_window->addViewport(ogre_camera);
+    auto* viewport = ogre_data.ogre_window->addViewport(ogre_camera);
     viewport->setBackgroundColour(Ogre::ColourValue(0.4f, 0.5f, 0.7f));
 
-    OgreSceneNode ogre_scene_node{
-        .scene_node = SceneNodeHolder::CreateSceneNodeHolder(camera_parent_node),
-    };
-
-    e.set(ogre_scene_node);
+    e.set<SceneNodeComponent>({ .scene_node = camera_parent_node });
+    e.world().entity()
+      .child_of(e)
+      .set<SceneNodeComponent>({ .scene_node = camera_node });
 
     CreateLight(camera_parent_node);
   }
@@ -343,25 +348,11 @@ namespace z13::ogre {
     ogre_data = OgreData();
   }
 
-  void OgreTools::UpdateCamera(const gameplay::Camera &, const geometry::Transform &transform, const OgreSceneNode &ogre_scene_node) {
-    if (ogre_scene_node.scene_node.expired()) {
-      return;
-    }
-
-    const auto &position = transform.position;
-    const auto &rotation = transform.rotation;
-
-    auto *camera_scene_node = ogre_scene_node.scene_node.lock()->Get();
-    camera_scene_node->setPosition(position.x, position.y, position.z);
-    camera_scene_node->setOrientation(rotation.w, rotation.x, rotation.y, rotation.z);
-
-    // auto* scene_manager = static_cast<Ogre::PCZSceneManager*>(camera_scene_node->getCreator());
-    // auto* scene_manager = camera_scene_node->getCreator();
-    // auto* directional_light = scene_manager->getSceneNode("DirectionalLight", false);
-    // if (directional_light) {
-    //   directional_light->setPosition(position.x, position.y, position.z);
-    //   directional_light->setOrientation(rotation.w, rotation.x, rotation.y, rotation.z);
-    // }
+  void OgreTools::UpdateSceneNodeTransform(SceneNodeComponent& scene_node_component, const Eigen::Matrix4f& transform) {
+    auto position = z13::math::ExtractTranslation(transform);
+    auto quat = z13::math::ExtractQuat(transform);
+    scene_node_component.scene_node->setPosition(position.x(), position.y(), position.z());
+    scene_node_component.scene_node->setOrientation(quat.w(), quat.x(), quat.y(), quat.z());
   }
 
 } // namespace z13::ogre

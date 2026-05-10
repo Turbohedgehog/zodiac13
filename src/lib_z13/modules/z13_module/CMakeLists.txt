@@ -37,7 +37,7 @@ target_link_libraries(
   zodiac13::components
   Eigen3::Eigen
   sago::platform_folders
-  Boost::bimap
+  # Boost::bimap
   Boost::dll
 )
 

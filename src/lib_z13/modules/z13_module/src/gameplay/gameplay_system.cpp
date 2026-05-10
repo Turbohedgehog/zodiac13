@@ -1,20 +1,25 @@
 #include "gameplay_system.h"
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <z13/components/geometry.h>
+#include <string>
 
 #include <flecs.h>
+#include <Eigen/Dense>
+
+#include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <lib_core/log.h>
 
 namespace z13::gameplay {
 
-struct Update {};
+// todo: убрать константу и брать из z13.fbs.actions.Action.action_group
+static const std::string kBuildingActionGroup = "Control";
 
 void RegisterPipeline(flecs::world& world) {
-  auto update_phase = world.component<Update>().add(flecs::Phase).depends_on(flecs::OnUpdate);
-  world.get_alive(flecs::OnValidate).add(flecs::Phase).depends_on(update_phase);
+  world.component<PreUpdatePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
+  world.component<UpdatePhase>().add(flecs::Phase).depends_on<PreUpdatePhase>();
+  world.component<PostUpdatePhase>().add(flecs::Phase).depends_on<UpdatePhase>();
+  world.get_alive(flecs::OnValidate).add(flecs::Phase).depends_on<PostUpdatePhase>();
 }
 
 void UpdateGameplay() {
@@ -29,24 +34,34 @@ void ValidateGameplay() {
   // LOG_INFO("ValidateGameplay()");
 }
 
-void CreateTestActor(flecs::world world) {
-  auto test_actor_entity = world.entity("TestEntity");
+void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
+  auto test_actor_entity = world.entity("TestPlayer");
   Camera camera {
     .fov = 90,
     .name = "TestActorCamera",
   };
-  geometry::Transform camera_transform = geometry::Transform::kIdentity;
+
+  Player player {
+    .id = gameplay.last_registered_player_id++,
+  };
+
+  Eigen::Matrix4f camera_transform = Eigen::Matrix4f::Identity();
+  z13::input::ActionListener action_listener {
+    .action_group_priority = { kBuildingActionGroup },
+  };
+
   test_actor_entity
-      .set(camera)
-      .set(camera_transform)
+      .set(std::move(camera))
+      .set(std::move(camera_transform))
+      .set(std::move(player))
+      // todo: перенести добавление компонент в input_system
       .add<z13::input::InputListener>()
-      .add<z13::input::ActionListener>()
+      .set(std::move(action_listener))
       .add<z13::input::CurrentActionListenerTag>();
-  // camera_entity.add<input::SystemInputEvent>();
 }
 
-void OnInit(flecs::world world, const gameplay::Gameplay&) {
-  CreateTestActor(world);
+void OnInit(flecs::iter it, size_t /*i*/, gameplay::Gameplay& gameplay) {
+  CreateTestPlayer(it.world(), gameplay);
 
   LOG_INFO("~~~~ gameplay::OnInit");
 }
@@ -54,10 +69,11 @@ void OnInit(flecs::world world, const gameplay::Gameplay&) {
 void GameplaySystem::Register(flecs::world& world) {
   RegisterPipeline(world);
 
-  world.observer<const gameplay::Gameplay>("GameplaySystem::OnInit")
+  world.observer<gameplay::Gameplay>("GameplaySystem::OnInit")
     .event(flecs::OnAdd)
     .yield_existing()
-    .each([world](const auto& gameplay) { OnInit(world, gameplay); });
+    // .each([world](const auto& gameplay) { OnInit(world, gameplay); });
+    .each(OnInit);
 
   world.observer<const WindowFocusEvent>("WindowFocusEvent::OnSet")
     .event(flecs::OnSet)
@@ -69,11 +85,11 @@ void GameplaySystem::Register(flecs::world& world) {
     });
 
   world.system("UpdateGameplaySystem")
-    .kind<Update>()
+    .kind<UpdatePhase>()
     .each(UpdateGameplay);
 
   world.system("OnGameplaySystem")
-    .kind<Update>()
+    .kind<UpdatePhase>()
     .each(OnGameplay);
 
   world.system("ValidateGameplaySystem")

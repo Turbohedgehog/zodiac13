@@ -7,6 +7,8 @@
 
 #include "core_types.h"
 
+extern "C" {
+
 namespace z13 {
 
 // using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
@@ -19,3 +21,5 @@ class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
 };
 
 }  // namespace z13
+
+}  // extern "C"

@@ -11,5 +11,7 @@ int main(int argc, char *argv[]) {
   // test_flex2(argc, argv);
   // TestVariant();
 
+  // test_component_lifetime();
+
   return zodiac13_launcher.Run(argc, argv);
 }

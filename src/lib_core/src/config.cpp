@@ -19,7 +19,7 @@ boost::program_options::options_description& Config::GetOptionsDescription() {
 
 void Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
-  // po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
+  po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
 }
 
 bool Config::NeedShowHelp() const {

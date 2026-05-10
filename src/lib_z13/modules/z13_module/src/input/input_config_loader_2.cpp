@@ -18,7 +18,42 @@
 
 namespace z13::gameplay::input {
 
-static constexpr auto kActionNameSeparator = ":";
+static constexpr std::string_view kActionNameSeparator = ":";
+static constexpr std::string_view kActionAttributeName = "action";
+static constexpr std::string_view kActionGroupAttributeName = "action_group";
+static constexpr std::string_view kDefaultActionGroupName = "DefaultGroup";
+static constexpr std::string_view kEmptyDisplayTextName = "display_text";
+static constexpr std::string_view kEmptyDisplayText = "";
+static constexpr std::string_view kDefaultKeycodes = "default_keycodes";
+static constexpr std::string_view kDefaultKeycodesSeparators = " ,;";
+
+std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
+    std::string_view keycodes_value) {
+  std::vector<std::string_view> key_tokens;
+  boost::split(key_tokens, keycodes_value, boost::is_any_of(kDefaultKeycodesSeparators));
+  if (key_tokens.empty()) {
+    return {};
+  }
+  
+  const char** keycode_names = const_cast<const char**>(z13::fbs::input::EnumNamesKeycode());
+  std::vector<z13::fbs::input::Keycode> keycodes;
+  std::transform(
+    key_tokens.begin(),
+    key_tokens.end(),
+    std::back_inserter(keycodes),
+    [&keycode_names](auto key_token) {
+      auto keycode_enum_idx = flatbuffers::LookupEnum(keycode_names, key_token.data());
+      if (keycode_enum_idx < 0) {
+        LOG_CRITICAL("ExtractDefaultKeycodes: Cannot find key binding for token {}", key_token);
+        keycode_enum_idx = 0;
+      }
+
+      return z13::fbs::input::EnumValuesKeycode()[keycode_enum_idx];
+    }
+  );
+
+  return keycodes;
+}
 
 bool InputConfigLoader2::LoadConfig(
     z13::input::InputConfig& input_config,
@@ -38,7 +73,9 @@ bool InputConfigLoader2::LoadConfig(
       std::istreambuf_iterator<char>());
   json_file.close();
 
-  flatbuffers::Parser parser;
+  flatbuffers::IDLOptions idl_options;
+  idl_options.skip_unexpected_fields_in_json = true;
+  flatbuffers::Parser parser(idl_options);
 
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   if (!parser.Deserialize(input_config_schema)) {
@@ -51,7 +88,7 @@ bool InputConfigLoader2::LoadConfig(
     return false;
   }
 
-  uint8_t* buf = parser.builder_.GetBufferPointer();
+  auto* buf = parser.builder_.GetBufferPointer();
   z13::fbs::input::InputConfigT input_config_msg;
   z13::fbs::input::GetInputConfig(buf)->UnPackTo(&input_config_msg);
 
@@ -172,44 +209,102 @@ void InputConfigLoader2::SetDefaults(
     const z13::input::ActionMap& action_map) {
   input_config.keycode_binding.clear();
 
-  static constexpr std::string_view kDefaultActionName = "z13.fbs.actions.Action";
-  auto add_binding = [&](auto action, auto key_code) {
-    auto action_id = static_cast<z13::input::ActionInfo::ValueType>(action);
-    const auto& action_values = action_map.action_map.get<z13::input::ActionMap::EnumValueTag>(); {
-      auto it = action_values.find(std::make_tuple(
-        kDefaultActionName,
-        action_id
-      ));
-      if (it == action_values.end()) {
-        LOG_CRITICAL(
-          "InputConfigLoader2::SetDefaults: Cannot get id for action enum = '{}', action id = {}",
-          kDefaultActionName,
-          action_id
-        );
-      }
-
-      input_config.keycode_binding.emplace(
-        z13::input::KeyCodeAction {
+  for (const auto& action_info : action_map.action_map) {
+    std::transform(
+      action_info.default_keycodes.begin(),
+      action_info.default_keycodes.end(),
+      std::inserter(input_config.keycode_binding, input_config.keycode_binding.end()),
+      [&action_info](auto key_code) {
+        return z13::input::KeyCodeAction {
           .keycode = key_code,
-          .action_group = it->group_name,
-          .display_text = it->display_text,
-          .action_id = it->id,
-        }
-      );
-    }
-  };
-
-  add_binding(z13::fbs::actions::Action::MOVE_FORWARD, z13::fbs::input::Keycode::KEY_W);
-  add_binding(z13::fbs::actions::Action::MOVE_BACKWARD, z13::fbs::input::Keycode::KEY_S);
-  add_binding(z13::fbs::actions::Action::MOVE_LEFT, z13::fbs::input::Keycode::KEY_A);
-  add_binding(z13::fbs::actions::Action::MOVE_RIGHT, z13::fbs::input::Keycode::KEY_D);
-  add_binding(z13::fbs::actions::Action::JUMP, z13::fbs::input::Keycode::KEY_SPACE);
-  add_binding(z13::fbs::actions::Action::CROUCH, z13::fbs::input::Keycode::KEY_LCTRL);
-  add_binding(z13::fbs::actions::Action::ACTION_1, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
+          .action_group = action_info.group_name,
+          .display_text = action_info.display_text,
+          .action_id = action_info.id,
+        };
+      }
+    );
+  }
 }
 
 void InputConfigLoader2::Clear(z13::input::InputConfig& input_config) {
   input_config = z13::input::InputConfig();
+}
+
+void InputConfigLoader2::AppendFlatbufActionsFromBinarySchema(
+    const z13::input::FlatbufferBinarySchema& lookup_actions,
+    z13::input::ActionMap& action_map) {
+
+  const auto* input_config_schema = reflection::GetSchema(lookup_actions.binary_schema.data());
+  const auto* enums = input_config_schema->enums();
+  if (!enums) {
+    LOG_ERROR("InputConfigLoader::AppendFlatbufActionsFromBinarySchema: no enums in schema");
+    return;
+  }
+
+  for (const auto* en : *enums) {
+    const auto* attributes = en->attributes();
+    if (!attributes) {
+      continue;
+    }
+
+    if (!attributes->LookupByKey(kActionAttributeName)) {
+      continue;
+    }
+
+    const auto* values = en->values();
+    if (!values) {
+      continue;
+    }
+
+    auto enum_name = en->name()->string_view();
+    std::string_view group_name = kDefaultActionGroupName;
+
+    const auto* action_group_name = attributes->LookupByKey(kActionGroupAttributeName);
+    if (action_group_name) {
+      group_name = action_group_name->value()->string_view();
+    }
+
+    for (const auto* value : *values) {
+      auto value_group = group_name;
+      auto display_text = kEmptyDisplayText;
+      std::vector<z13::fbs::input::Keycode> default_keycodes;
+      if (const auto* value_attributes = value->attributes()) {
+        if (const auto* value_group_name = value_attributes->LookupByKey(kActionGroupAttributeName)) {
+          value_group = value_group_name->value()->string_view();
+        }
+
+        if (const auto* display_text_attribute = value_attributes->LookupByKey(kEmptyDisplayTextName)) {
+          display_text = display_text_attribute->value()->string_view();
+        }
+
+        if (const auto* default_keycodes_attribute = value_attributes->LookupByKey(kDefaultKeycodes)) {
+          default_keycodes = ExtractDefaultKeycodes(default_keycodes_attribute->value()->string_view());
+        }
+      }
+
+      action_map.action_map.emplace_back(
+        z13::input::ActionInfo {
+          .enum_name = enum_name,
+          .value_name = value->name()->string_view(),
+          .group_name = value_group,
+          .display_text = display_text,
+          .default_keycodes = default_keycodes,
+          .enum_value = value->value(),
+          .id = action_map.action_map.size(),
+        }
+      );
+    }
+  }
+}
+
+std::optional<z13::input::ActionInfo::IdType> InputConfigLoader2::FindActionId(
+  const z13::input::ActionMap::ActionMapContainer& action_map_container,
+  std::string_view action_enum_name,
+  z13::input::ActionInfo::EnumValueType action_enum_value
+) {
+  const auto& enum_to_value_map = action_map_container.get<z13::input::ActionMap::EnumNameEnumValueTag>();
+  auto it = enum_to_value_map.find(std::make_tuple(action_enum_name, action_enum_value));
+  return it != enum_to_value_map.end() ? std::optional<z13::input::ActionInfo::IdType>(it->id) : std::nullopt;
 }
 
 }  // namespace z13::gameplay::input

@@ -167,7 +167,7 @@ bool TryPublishMouseButtonEvent(flecs::world world, const OgreBites::Event& ogre
   auto mouse_button = SdlMouseCodeToZ13Proto(button.button);
 
   WorldNoDeferGuard no_defer(world);
-  world.event<input::SystemInputEvent>()
+  world.event<input::SystemInputEventType>()
     .id<MouseEvent>()
     .entity(world.entity().set(
       MouseEvent ({
@@ -191,7 +191,7 @@ bool TryPublishMouseMoveEvent(flecs::world world, const OgreBites::Event& ogre_e
   // LOG_INFO("~~~ TryPublishMouseMoveEvent 1");
 
   WorldNoDeferGuard no_defer(world);
-  world.event<input::SystemInputEvent>()
+  world.event<input::SystemInputEventType>()
     .id<input::MousePos>()
     .entity(world.entity().set(
       input::MousePos {
@@ -201,7 +201,7 @@ bool TryPublishMouseMoveEvent(flecs::world world, const OgreBites::Event& ogre_e
     ))
     .emit();
 
-  world.event<input::SystemInputEvent>()
+  world.event<input::SystemInputEventType>()
     .id<input::MouseMoveEvent>()
     .entity(world.entity().set(
       input::MouseMoveEvent {
@@ -235,7 +235,7 @@ bool TryPublishKeyboardEvent(flecs::world world, const OgreBites::Event& ogre_ev
   keyboard_event.keycode.mod = static_cast<decltype(input::Keycode::mod)>(key.keysym.mod);
   keyboard_event.keycode.repeat = static_cast<decltype(input::Keycode::repeat)>(key.repeat);
 
-  world.event<input::SystemInputEvent>()
+  world.event<input::SystemInputEventType>()
     .id<KeyboardEvent>()
     .entity(world.entity().set(keyboard_event))
     .emit();

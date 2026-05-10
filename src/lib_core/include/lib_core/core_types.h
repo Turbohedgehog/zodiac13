@@ -6,6 +6,7 @@
 namespace flecs {
 
 struct world;
+struct entity;
 
 }  // namespace flecs
 

@@ -1,0 +1,28 @@
+material skybox/skybox_2
+{
+    technique
+    {
+        pass
+        {
+            lighting off
+            depth_write off
+
+            //cull_hardware none
+            //cull_software none
+
+            // Текстурный юнит
+            texture_unit
+            {
+                // Указываем префикс имен файлов и расширение
+                // Ogre сам подставит _rt, _lf, _up, _dn, _fr, _bk
+                texture textures/skybox/vz_sunshine/vz_sunshine.png cubic
+                tex_address_mode clamp
+                
+                // Фильтрация текстур
+                // filtering anisotropic
+                // max_anisotropy 8
+                // tex_address_mode clamp
+            }
+        }
+    }
+}

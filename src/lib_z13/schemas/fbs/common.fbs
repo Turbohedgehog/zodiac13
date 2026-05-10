@@ -3,6 +3,7 @@ namespace z13.fbs.common;
 attribute "display_text";
 attribute "action_group";
 attribute "action";
+attribute "default_keycodes";
 
 table CommonTable {
 }
