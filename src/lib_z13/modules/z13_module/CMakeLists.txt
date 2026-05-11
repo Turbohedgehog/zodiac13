@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(platform_folders REQUIRED)
-find_package(Boost REQUIRED COMPONENTS bimap dll)
+find_package(Boost REQUIRED COMPONENTS dll)
 
 file(
   GLOB_RECURSE
@@ -37,7 +37,6 @@ target_link_libraries(
   zodiac13::components
   Eigen3::Eigen
   sago::platform_folders
-  # Boost::bimap
   Boost::dll
 )
 

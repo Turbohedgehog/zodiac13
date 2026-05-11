@@ -1,11 +1,12 @@
 name: Windows Build & Release
 on:
-  push:
-    branches: [ "main" ]
+  # push:
+  #  branches: [ "main" ]
+  workflow_dispatch: # Позволяет запустить обновление вручную
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       contents: write
 
