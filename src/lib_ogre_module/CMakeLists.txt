@@ -13,6 +13,7 @@ find_package(pugixml CONFIG REQUIRED)
 find_package(zip CONFIG REQUIRED)
 find_package(minizip CONFIG REQUIRED)
 find_package(poly2tri CONFIG REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 file(
   GLOB_RECURSE
@@ -58,6 +59,7 @@ target_link_libraries(
   Plugin_OctreeZone
   Plugin_PCZSceneManager
   Boost::dll
+  Eigen3::Eigen
   ${OGRE_RenderSystem_GL3Plus_LIBRARIES}
 )
 
