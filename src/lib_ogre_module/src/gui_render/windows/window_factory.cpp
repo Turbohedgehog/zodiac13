@@ -17,7 +17,6 @@
 #include "window_factory.h"
 
 #include "gameplay_main_menu.h"
-// #include "options_input_keyboard_bindings.h"
 #include "options_input_keyboard_bindings_2.h"
 #include "options_input_settings.h"
 

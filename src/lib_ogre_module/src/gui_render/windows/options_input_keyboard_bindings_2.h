@@ -25,12 +25,6 @@ namespace z13::ogre::gui {
 
 class KeyBindingWindow2 : public InputSettingsWindowBase {
   struct CurrentKeyBindingInfo {
-    // CurrentKeyBindingInfo() {
-    //   volatile int zzz = 0;
-    // }
-    ~CurrentKeyBindingInfo() {
-      volatile int zzz = 0;
-    } 
     std::string_view group_name;
     std::string_view action_name;
     z13::input::ActionInfo::IdType action_id {};
