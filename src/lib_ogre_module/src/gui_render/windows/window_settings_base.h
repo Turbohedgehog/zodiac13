@@ -35,7 +35,7 @@ class InputSettingsWindowBase : public WindowBase {
   void SaveIfDirty();
 
   z13::input::InputConfig input_config_;
-  bool is_dirty_ = false;
+  bool is_dirty_ {};
 };
 
 }  // namespace z13::ogre::gui

@@ -317,8 +317,8 @@ namespace z13::ogre {
       }
 
       auto ogre_event = Ogre::z13::convert(event);
-      InputPublisher::PublishInput(world, ogre_event);
       Ogre::z13::ProcessEventToListener(ogre_event, ogre_data.input_listener.get());
+      InputPublisher::PublishInput(world, ogre_event);
     }
 
     if (quit) {

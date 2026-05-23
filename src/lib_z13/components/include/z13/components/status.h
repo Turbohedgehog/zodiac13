@@ -25,7 +25,7 @@ struct Z13State {
 };
 
 struct Loading {
-  float percent = 0.f;
+  float percent {};
 };
 
 }  // namespace z13::status

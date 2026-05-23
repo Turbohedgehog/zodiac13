@@ -17,6 +17,7 @@
 #include "building_input_system.h"
 
 #include <algorithm>
+#include <optional>
 
 #include <flecs.h>
 
@@ -26,7 +27,11 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/building.h>
-#include <z13_module/input/input_config_loader_2.h>
+#include <z13_module/input/input_config_loader.h>
+
+#include <z13_module/input/input_config_loader.h>
+
+#include <building_generated.h>
 
 namespace z13::building {
 
@@ -34,10 +39,25 @@ namespace z13::building {
 static const std::string kBuildingActionGroup = "Building";
 
 struct BuildActionIds {
-  z13::input::ActionInfo::IdType toggle_building_mode = 0;
-  z13::input::ActionInfo::IdType build_block = 0;
-  z13::input::ActionInfo::IdType destroy_block = 0;
+  using IdType = z13::input::ActionInfo::IdType;
+  std::optional<IdType> toggle_building_mode;
+  std::optional<IdType> build_block;
+  std::optional<IdType> destroy_block;
 };
+
+void OnAppendInputSchema(
+    flecs::iter it,
+    size_t,
+    const z13::input::AppendInputSchema,
+    z13::input::ActionMap& action_map) {
+  z13::input::FlatbufferBinarySchema ev {
+      .binary_schema = std::span {
+        z13::fbs::building::BlockBinarySchema::data(),
+        z13::fbs::building::BlockBinarySchema::size()
+      },
+  };
+  z13::gameplay::input::InputConfigLoader::AppendFlatbufActionsFromBinarySchema(ev, action_map);
+}
 
 void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z13::input::ActionMap& action_map) {
   using EnumValueType = z13::input::ActionInfo::EnumValueType;
@@ -45,25 +65,24 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids = BuildActionIds();
   const auto& enum_value = action_map.action_map.get<z13::input::ActionMap::EnumNameEnumValueTag>();
 
-  auto apply_action_id = [&](const auto action_value, auto& action_id_holder) {
-    auto action_id = z13::gameplay::input::InputConfigLoader2::FindActionId(action_map.action_map, "z13.fbs.building.Action", action_value);
-    if (action_id) {
-      action_id_holder = *action_id;
-    } else {
+  auto find_action_id = [&](const auto action_value) {
+    auto action_id_holder = z13::gameplay::input::InputConfigLoader::FindActionId(
+        action_map.action_map,
+        "z13.fbs.building.Action",
+        action_value);
+    if (!action_id_holder) {
       LOG_ERROR(
         "OnConfigUpdated: Cannot find action id '{}' for enum 'z13.fbs.building'",
         static_cast<EnumValueType>(action_value)
       );
     }
+
+    return action_id_holder;
   };
 
-  apply_action_id(z13::fbs::building::Action::TOGGLE_BUILDING_MODE, build_action_ids.toggle_building_mode);
-  apply_action_id(z13::fbs::building::Action::BUILD_BLOCK, build_action_ids.build_block);
-  apply_action_id(z13::fbs::building::Action::DESTROY_BLOK, build_action_ids.destroy_block);
-
-  // LOG_INFO("~~~ build_action_ids.toggle_building_mode = {}", build_action_ids.toggle_building_mode);
-  // LOG_INFO("~~~ build_action_ids.build_block = {}", build_action_ids.build_block);
-  // LOG_INFO("~~~ build_action_ids.destroy_block = {}", build_action_ids.destroy_block);
+  build_action_ids.toggle_building_mode = find_action_id(z13::fbs::building::Action::TOGGLE_BUILDING_MODE);
+  build_action_ids.build_block = find_action_id(z13::fbs::building::Action::BUILD_BLOCK);
+  build_action_ids.destroy_block = find_action_id(z13::fbs::building::Action::DESTROY_BLOK);
 }
 
 void ToggleBuildingMode(
@@ -94,17 +113,23 @@ void ApplyBuildActionListener(
     z13::input::ActionListener& action_listener,
     const BuildActionIds& build_action_ids,
     BuildingTool* building_tool) {
-  const auto& toggle_building_mode = action_listener.action_values.at(build_action_ids.toggle_building_mode);
-  ToggleBuildingMode(e, action_listener, toggle_building_mode, building_tool);
-
-  const auto& build_block = action_listener.action_values.at(build_action_ids.build_block);
-  if (build_block.IsSwitchedOn()) {
-    LOG_INFO("~~~~ Build block");
+  if (build_action_ids.toggle_building_mode) {
+    const auto& toggle_building_mode = action_listener.action_values.at(*build_action_ids.toggle_building_mode);
+    ToggleBuildingMode(e, action_listener, toggle_building_mode, building_tool);
   }
 
-  const auto& destroy_block = action_listener.action_values.at(build_action_ids.destroy_block);
-  if (destroy_block.IsSwitchedOn()) {
-    LOG_INFO("~~~~ Destroy block");
+  if (build_action_ids.build_block) {
+    const auto& build_block = action_listener.action_values.at(*build_action_ids.build_block);
+    if (build_block.IsSwitchedOn()) {
+      LOG_INFO("~~~~ Build block");
+    }
+  }
+
+  if (build_action_ids.destroy_block) {
+    const auto& destroy_block = action_listener.action_values.at(*build_action_ids.destroy_block);
+    if (destroy_block.IsSwitchedOn()) {
+      LOG_INFO("~~~~ Destroy block");
+    }
   }
 }
 
@@ -119,6 +144,10 @@ void BuildingInputSystem::Register(flecs::world& world) {
       .kind<z13::input::ApplyActionFramePhase>()
       .without<z13::gameplay::Pause>()
       .each(ApplyBuildActionListener);
+
+  world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
+      .event<z13::input::AppendInputSchema>()
+      .each(OnAppendInputSchema);
 }
 
 }  // namespace z13::building
