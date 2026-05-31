@@ -23,7 +23,7 @@ struct BuildingTool {
 };
 
 struct Brush {
-  float distance = 0.f;
+  float distance {};
 };
 
 struct BasicBlock {

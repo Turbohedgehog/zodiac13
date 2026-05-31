@@ -17,7 +17,8 @@
 #include "window_factory.h"
 
 #include "gameplay_main_menu.h"
-#include "options_input_keyboard_bindings.h"
+// #include "options_input_keyboard_bindings.h"
+#include "options_input_keyboard_bindings_2.h"
 #include "options_input_settings.h"
 
 namespace z13::ogre::gui {
@@ -31,7 +32,7 @@ WindowPtr WindowFactory::CreateInputSettingsMenu(flecs::world world) {
 }
 
 WindowPtr WindowFactory::CreateKeyboardBindingsMenu(flecs::world world) {
-  return std::make_shared<KeyBindingWindow>(world);
+  return std::make_shared<KeyBindingWindow2>(world);
 }
 
 }  // namespace z13::ogre::gui

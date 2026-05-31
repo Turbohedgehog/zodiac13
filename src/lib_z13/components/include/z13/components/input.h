@@ -86,11 +86,11 @@ struct KeyboardUpEvent : KeyboardEvent {
 struct SaveConfigEvent {};
 struct LoadConfigEvent {};
 struct SetDefaultConfigEvent {};
+struct AppendInputSchema {};
 struct OnConfigUpdatedEvent {};
 
 struct ActionBinding {
   z13::fbs::actions::Action action;
-  // std::string action;
   std::vector<z13::fbs::input::Keycode> keys;
 };
 
@@ -101,13 +101,14 @@ struct FlatbufferBinarySchema {
 struct ActionInfo {
   using IdType = size_t;
   using EnumValueType = int64_t;
+
   const std::string_view enum_name;
   const std::string_view value_name;
   const std::string_view group_name;
   const std::string_view display_text;
   const std::vector<z13::fbs::input::Keycode> default_keycodes;
-  const EnumValueType enum_value = 0;
-  const IdType id = 0;
+  const EnumValueType enum_value {};
+  const IdType id {};
 };
 
 struct ActionMap {
@@ -168,8 +169,7 @@ struct ActionMap {
 struct KeyCodeAction {
   const z13::fbs::input::Keycode keycode = z13::fbs::input::Keycode::KEY_UNKNOWN;
   const std::string_view action_group;
-  const std::string_view display_text;
-  const ActionInfo::IdType action_id = 0;
+  const ActionInfo::IdType action_id {};
 };
 
 struct InputConfig {
@@ -193,7 +193,7 @@ struct InputConfig {
           bmi::member<KeyCodeAction, decltype(KeyCodeAction::keycode), &KeyCodeAction::keycode>
         >
       >,
-      bmi::ordered_unique<
+      bmi::ordered_non_unique<
         bmi::tag<ActionIdTag>,
         bmi::member<KeyCodeAction, decltype(KeyCodeAction::action_id), &KeyCodeAction::action_id>
       >
@@ -202,15 +202,13 @@ struct InputConfig {
   KeyBindingType keycode_binding;
 
   std::vector<ActionBinding> action_bindings;
-  std::map<z13::fbs::input::Keycode, z13::fbs::actions::Action> code_to_action;
-  std::map<z13::fbs::input::Keycode, ActionInfo::IdType> code_to_action_id;
   float mouse_sensitivity = 5.f;
-  bool invert_x = false;
-  bool invert_y = false;
+  bool invert_x {};
+  bool invert_y {};
 };
 
 struct InputState {
-  std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {0.f};
+  std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {};
 };
 
 struct InputListener {};
@@ -229,9 +227,9 @@ struct ActionValueHolder {
     return current_value - prev_value <= kInputValueEps - kSwithValue;
   }
 
-  void Next() {
+  void IterateToNextState() {
     prev_value = current_value;
-    current_value = 0.f;
+    current_value = {};
   }
 
   ActionValueHolder& operator+= (float value) {
@@ -256,13 +254,19 @@ struct ActionValueHolder {
     return std::abs(current_value - prev_value) >= kInputValueEps;
   }
 
-  float current_value = 0.f;
-  float prev_value = 0.f;
+  float current_value {};
+  float prev_value {};
 };
 
 struct ActionListener {
   std::vector<std::string> action_group_priority;
   boost::container::flat_map<ActionInfo::IdType, ActionValueHolder> action_values;
+};
+
+struct WindowBackEvent {};
+
+struct WindowKeyDownEvent {
+  z13::fbs::input::Keycode key_code = z13::fbs::input::Keycode::KEY_UNKNOWN;
 };
 
 }  // namespace z13::input

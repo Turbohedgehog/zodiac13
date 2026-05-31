@@ -61,4 +61,6 @@ void WindowBase::OnBackEvent() {
   GetWorld().ensure<z13::ogre::gui::WindowComponent>().modal_window_stack.pop();
 }
 
+void WindowBase::OnKeyDownEvent(const z13::input::WindowKeyDownEvent& event) {}
+
 }  // namespace z13::ogre::gui

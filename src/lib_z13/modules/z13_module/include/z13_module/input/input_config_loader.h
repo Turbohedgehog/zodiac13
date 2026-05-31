@@ -20,17 +20,9 @@
 
 #include <z13/components/input.h>
 
-// namespace z13::input {
-
-// struct ActionMap;
-// struct InputConfig;
-// struct FlatbufferBinarySchema;
-
-// }  // namespace z13::input
-
 namespace z13::gameplay::input {
 
-class InputConfigLoader2 {
+class InputConfigLoader {
  public:
   static bool LoadConfig(z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static bool SaveConfig(const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);

@@ -25,7 +25,7 @@ struct UpdatePhase {};
 struct PostUpdatePhase {};
 
 struct Gameplay {
-  uint32_t last_registered_player_id = 0;
+  uint32_t last_registered_player_id {};
 };
 
 struct Pause {};
@@ -34,10 +34,8 @@ struct WindowFocusEvent {
   bool has_focus = false;
 };
 
-struct WindowBackEvent {};
-
 struct Player {
-  uint32_t id = 0;
+  uint32_t id {};
 };
 
 struct Camera {

@@ -22,17 +22,18 @@
 #include <flecs.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
+#include <lib_core/flecs_utils.h>
 
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13_module/tools/z13_environment.h>
-#include <z13_module/input/input_config_loader_2.h>
+#include <z13_module/input/input_config_loader.h>
 
 #include <input_config_generated.h>
 
 #include <actions_generated.h>
-#include <building_generated.h>
+
 
 #include "../private_components/input_system_components.h"
 
@@ -183,11 +184,21 @@ void OnMouseMove(
 }
 
 void OnMouseDown(
+    flecs::iter it,
+    size_t,
     const z13::input::MouseButtonDownEvent& mouse_down,
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
   input_state.input_state[KeyCodeToArrayIndex(mouse_down.button)] = 1.f;
+  
+  auto world = it.world();
+  if (world.has<z13::gameplay::Pause>()) {
+    world.event<z13::input::SystemInputEventType>()
+        .id<z13::input::WindowKeyDownEvent>()
+        .entity(world.entity().set<z13::input::WindowKeyDownEvent>({.key_code = mouse_down.button,}))
+        .enqueue();
+  }
 }
 
 void OnMouseUp(
@@ -199,20 +210,27 @@ void OnMouseUp(
 }
 
 void OnKeyboardDown(
-    flecs::world world,
+    flecs::iter it,
+    size_t,
     const z13::input::KeyboardDownEvent& key_down,
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
+  auto world = it.world();
   if (key_down.keycode.code == z13::fbs::input::Keycode::KEY_ESCAPE) {
     if (world.has<z13::gameplay::Pause>()) {
       world.event<z13::input::SystemInputEventType>()
-          .id<WindowBackEvent>()
-          .entity(world.entity().add<WindowBackEvent>())
+          .id<z13::input::WindowBackEvent>()
+          .entity(world.entity().add<z13::input::WindowBackEvent>())
           .enqueue();
     } else {
       world.add<z13::gameplay::Pause>();
     }
+  } else if (world.has<z13::gameplay::Pause>()) {
+    world.event<z13::input::SystemInputEventType>()
+        .id<z13::input::WindowKeyDownEvent>()
+        .entity(world.entity().set<z13::input::WindowKeyDownEvent>({.key_code = key_down.keycode.code,}))
+        .enqueue();
   }
   input_state.input_state[KeyCodeToArrayIndex(key_down.keycode.code)] = 1.f;
 }
@@ -233,7 +251,7 @@ void OnSaveConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
     z13::input::SaveConfigEvent) {
-  InputConfigLoader2::SaveConfig(input_config, action_map);
+  InputConfigLoader::SaveConfig(input_config, action_map);
 }
 
 void CallConfigUpdatedEvent(flecs::world w) {
@@ -248,7 +266,7 @@ void OnLoadConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
     z13::input::LoadConfigEvent) {
-  InputConfigLoader2::LoadConfig(input_config, action_map);
+  InputConfigLoader::LoadConfig(input_config, action_map);
   CallConfigUpdatedEvent(e.world());
 }
 
@@ -257,14 +275,14 @@ void OnSetDefaultConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
     z13::input::SetDefaultConfigEvent) {
-  InputConfigLoader2::SetDefaults(input_config, action_map);
+  InputConfigLoader::SetDefaults(input_config, action_map);
   CallConfigUpdatedEvent(e.world());
 }
 
 void AppendFlatbufActionsFromBinarySchema(
     const z13::input::FlatbufferBinarySchema& binary_schema,
     z13::input::ActionMap& action_map) {
-  InputConfigLoader2::AppendFlatbufActionsFromBinarySchema(binary_schema, action_map);
+  InputConfigLoader::AppendFlatbufActionsFromBinarySchema(binary_schema, action_map);
 }
 
 void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z13::input::ActionMap& action_map) {
@@ -274,7 +292,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   const auto& enum_value = action_map.action_map.get<z13::input::ActionMap::EnumNameEnumValueTag>();
 
   auto apply_action_id = [&](const auto action_value, auto& action_id_holder) {
-    auto action_id = InputConfigLoader2::FindActionId(action_map.action_map, "z13.fbs.actions.Action", action_value);
+    auto action_id = InputConfigLoader::FindActionId(action_map.action_map, "z13.fbs.actions.Action", action_value);
     if (action_id) {
       action_id_holder = *action_id;
     } else {
@@ -295,6 +313,20 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   apply_action_id(z13::fbs::actions::Action::HORIZONTAL_LOOK, move_action_ids.horizontal_look_id);
 }
 
+void OnAppendInputSchema(
+    flecs::iter it,
+    size_t,
+    const z13::input::AppendInputSchema,
+    z13::input::ActionMap& action_map) {
+  z13::input::FlatbufferBinarySchema ev {
+      .binary_schema = std::span {
+        z13::fbs::actions::ActionsTableBinarySchema::data(),
+        z13::fbs::actions::ActionsTableBinarySchema::size()
+      },
+  };
+  InputConfigLoader::AppendFlatbufActionsFromBinarySchema(ev, action_map);
+}
+
 void OnInputSystemStartupGameEvent(
     flecs::iter it,
     size_t,
@@ -303,28 +335,19 @@ void OnInputSystemStartupGameEvent(
     status::OnStartupGameEvent) {
   action_map.action_map.clear();
 
-  // todo: разделить загрузку событий на системы и увязать их на системе bootstrap_system
-  z13::input::FlatbufferBinarySchema ev {
-      .binary_schema = std::span {
-        z13::fbs::actions::ActionsTableBinarySchema::data(),
-        z13::fbs::actions::ActionsTableBinarySchema::size()
-      },
-  };
-  InputConfigLoader2::AppendFlatbufActionsFromBinarySchema(ev, action_map);
-
-  z13::input::FlatbufferBinarySchema building_ev {
-      .binary_schema = std::span {
-        z13::fbs::building::BlockBinarySchema::data(),
-        z13::fbs::building::BlockBinarySchema::size()
-      },
-  };
-  InputConfigLoader2::AppendFlatbufActionsFromBinarySchema(building_ev, action_map);
+  {
+    WorldNoDeferGuard no_defer(it.world());
+    it.world().event<z13::input::AppendInputSchema>()
+      .id<z13::input::AppendInputSchema>()
+      .entity(it.world().entity().add<z13::input::AppendInputSchema>())
+      .emit();
+  }
 
   LOG_INFO("~~~~ OnInputSystemStartupGameEvent");
 
-  if (!InputConfigLoader2::LoadConfig(input_config, action_map)) {
-    InputConfigLoader2::SetDefaults(input_config, action_map);
-    InputConfigLoader2::SaveConfig(input_config, action_map);
+  if (!InputConfigLoader::LoadConfig(input_config, action_map)) {
+    InputConfigLoader::SetDefaults(input_config, action_map);
+    InputConfigLoader::SaveConfig(input_config, action_map);
   }
 
   CallConfigUpdatedEvent(it.world());
@@ -335,7 +358,7 @@ void ClearActionListenerCurrentState(
     const z13::input::ActionMap& action_map) {
   const auto& action_id_map = action_map.action_map.get<z13::input::ActionMap::IdTag>();
   for (const auto& action_info : action_id_map) {
-    action_listener.action_values[action_info.id].Next();
+    action_listener.action_values[action_info.id].IterateToNextState();
   }
 }
 
@@ -353,8 +376,7 @@ void CalculateInputValues(
     }
 
     if (action_listener.action_group_priority.empty()) {
-      auto ag_it = key_codes.find(key_code);
-      if (ag_it != key_codes.end()) {
+      if (auto ag_it = key_codes.find(key_code); ag_it != key_codes.end()) {
         action_listener.action_values[ag_it->action_id] += key_value;
         // LOG_INFO("~~~~ 1 action_listener.action_values[{}] = {}", ag_it->action_id, action_listener.action_values[ag_it->action_id].current_value);
       }
@@ -394,58 +416,60 @@ void GameplayInputSystem::Register(flecs::world& world) {
   world.add<z13::gameplay::input::MoveActionIds>();
 
   world.observer<
-            z13::input::MousePos,
-            InputListenerQueryComponent,
-            z13::input::InputConfig>("gameplay_input_system::OnMousePosObserver")
+      z13::input::MousePos,
+      InputListenerQueryComponent,
+      z13::input::InputConfig>("gameplay_input_system::OnMousePosObserver")
       .event<z13::input::SystemInputEventType>()
       .without<z13::gameplay::Pause>()
       .each(OnMousePos);
 
   world.observer<
-            z13::input::MouseMoveEvent,
-            InputListenerQueryComponent,
-            z13::input::InputConfig,
-            MoveActionIds>("gameplay_input_system::OnMouseMoveObserver")
+      z13::input::MouseMoveEvent,
+      InputListenerQueryComponent,
+      z13::input::InputConfig,
+      MoveActionIds>("gameplay_input_system::OnMouseMoveObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(OnMouseMove);
 
   world.observer<
-            z13::input::MouseButtonDownEvent,
-            InputListenerQueryComponent,
-            z13::input::InputConfig,
-            z13::input::InputState>("gameplay_input_system::OnMouseDownObserver")
+      z13::input::MouseButtonDownEvent,
+      InputListenerQueryComponent,
+      z13::input::InputConfig,
+      z13::input::InputState>("gameplay_input_system::OnMouseDownObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(OnMouseDown);
 
   world.observer<
-            z13::input::MouseButtonUpEvent,
-            InputListenerQueryComponent,
-            z13::input::InputConfig,
-            z13::input::InputState>("gameplay_input_system::OnMouseUpObserver")
+      z13::input::MouseButtonUpEvent,
+      InputListenerQueryComponent,
+      z13::input::InputConfig,
+      z13::input::InputState>("gameplay_input_system::OnMouseUpObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(OnMouseUp);
 
   world.observer<
-            z13::input::KeyboardDownEvent,
-            InputListenerQueryComponent,
-            z13::input::InputConfig,
-            z13::input::InputState>("gameplay_input_system::OnKeyboardDownObserver")
+      z13::input::KeyboardDownEvent,
+      InputListenerQueryComponent,
+      z13::input::InputConfig,
+      z13::input::InputState>("gameplay_input_system::OnKeyboardDownObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(
-          [world](const auto& key_down, const auto& input_listener_query, const auto& input_config, z13::input::InputState& input_state)
-          {
-            OnKeyboardDown(world, key_down, input_listener_query, input_config, input_state);
-          });
+        OnKeyboardDown
+          // [world](const auto& key_down, const auto& input_listener_query, const auto& input_config, z13::input::InputState& input_state)
+          // {
+          //   OnKeyboardDown(world, key_down, input_listener_query, input_config, input_state);
+          // }
+        );
 
   world.observer<
-            z13::input::KeyboardUpEvent,
-            InputListenerQueryComponent,
-            z13::input::InputConfig,
-            z13::input::InputState>("gameplay_input_system::OnKeyboardUpObserver")
+      z13::input::KeyboardUpEvent,
+      InputListenerQueryComponent,
+      z13::input::InputConfig,
+      z13::input::InputState>("gameplay_input_system::OnKeyboardUpObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(OnKeyboardUp);
@@ -496,6 +520,10 @@ void GameplayInputSystem::Register(flecs::world& world) {
   world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
+
+  world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
+      .event<z13::input::AppendInputSchema>()
+      .each(OnAppendInputSchema);
 }
 
 } // namespace z13::gameplay::input

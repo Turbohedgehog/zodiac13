@@ -21,7 +21,7 @@
 namespace z13 {
 
 struct PlayerInfoComponent {
-  uint32_t id = 0;
+  uint32_t id {};
   std::string login;
   std::string name;
 };

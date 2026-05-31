@@ -19,6 +19,8 @@
 #include <string>
 #include <flecs.h>
 
+#include <z13/components/input.h>
+
 // #include "window_component.h"
 
 namespace z13::ogre::gui {
@@ -31,6 +33,7 @@ class WindowBase {
   const std::string& GetName() const;
   flecs::world GetWorld() const;
   virtual void OnBackEvent();
+  virtual void OnKeyDownEvent(const z13::input::WindowKeyDownEvent& event);
 
  protected:
   virtual void DrawImpl() = 0;

@@ -78,11 +78,19 @@ void GuiSystem::Register(flecs::world& world) {
       window_component.modal_window_stack.emplace(z13::ogre::gui::WindowFactory::CreateGameplayMainMenu(world));
     });
 
-  world.observer<z13::gameplay::WindowBackEvent, z13::ogre::gui::WindowComponent>()
+  world.observer<z13::input::WindowBackEvent, z13::ogre::gui::WindowComponent>()
     .event<z13::input::SystemInputEventType>()
     .each([world](const auto&, z13::ogre::gui::WindowComponent& window_component) {
       if (!window_component.modal_window_stack.empty()) {
         window_component.modal_window_stack.top()->OnBackEvent();
+      }
+    });
+
+  world.observer<z13::input::WindowKeyDownEvent, z13::ogre::gui::WindowComponent>()
+    .event<z13::input::SystemInputEventType>()
+    .each([world](const auto& key_down, z13::ogre::gui::WindowComponent& window_component) {
+      if (!window_component.modal_window_stack.empty()) {
+        window_component.modal_window_stack.top()->OnKeyDownEvent(key_down);
       }
     });
 
