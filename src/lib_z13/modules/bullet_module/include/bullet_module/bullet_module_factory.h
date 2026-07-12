@@ -16,10 +16,28 @@
 
 #pragma once
 
+#include <memory>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
 #include <lib_core/module_factory_base.h>
 
-class BulletModuleFactory : public z13::ModuleFactoryBase {
+extern "C" {
+
+namespace z13 {
+
+class BOOST_SYMBOL_VISIBLE BulletModuleFactory : public z13::ModuleFactoryBase {
  public:
+  static ModuleFactoryPtr CreateFactory();
+
   void RegisterModules(flecs::world& world) override;
   const std::string& GetName() const override;
 };
+
+}  // namespace z13
+
+BOOST_DLL_ALIAS(
+    z13::BulletModuleFactory::CreateFactory,
+    create_module_factory
+)
+
+}  // extern "C"
