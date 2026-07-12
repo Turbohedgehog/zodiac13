@@ -28,7 +28,6 @@
 #include <z13/components/input.h>
 #include <z13/components/building.h>
 #include <z13_module/input/input_config_loader.h>
-
 #include <z13_module/input/input_config_loader.h>
 
 #include <building_generated.h>

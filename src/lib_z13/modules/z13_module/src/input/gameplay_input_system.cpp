@@ -457,13 +457,7 @@ void GameplayInputSystem::Register(flecs::world& world) {
       z13::input::InputState>("gameplay_input_system::OnKeyboardDownObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
-      .each(
-        OnKeyboardDown
-          // [world](const auto& key_down, const auto& input_listener_query, const auto& input_config, z13::input::InputState& input_state)
-          // {
-          //   OnKeyboardDown(world, key_down, input_listener_query, input_config, input_state);
-          // }
-        );
+      .each(OnKeyboardDown);
 
   world.observer<
       z13::input::KeyboardUpEvent,
@@ -475,7 +469,6 @@ void GameplayInputSystem::Register(flecs::world& world) {
       .each(OnKeyboardUp);
 
   world.observer<z13::input::InputConfig, z13::input::ActionMap, z13::status::OnStartupGameEvent>("gameplay_input_system::OnStartupGameEvent")
-  // world.observer<z13::input::InputConfig, z13::input::ActionMap>("gameplay_input_system::OnStartupGameEvent")
       .event(flecs::OnAdd)
       .yield_existing()
       .each(OnInputSystemStartupGameEvent);

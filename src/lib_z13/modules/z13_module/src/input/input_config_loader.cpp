@@ -143,7 +143,6 @@ bool InputConfigLoader::LoadConfig(
       z13::input::KeyCodeAction {
         .keycode = key_code,
         .action_group = it->group_name,
-        // .display_text = it->display_text,
         .action_id = it->id,
       }
     );
@@ -234,7 +233,6 @@ void InputConfigLoader::SetDefaults(
         return z13::input::KeyCodeAction {
           .keycode = key_code,
           .action_group = action_info.group_name,
-          // .display_text = action_info.display_text,
           .action_id = action_info.id,
         };
       }

@@ -199,45 +199,20 @@ void KeyBindingWindow2::DrawShowState() {
 void KeyBindingWindow2::DrawBindingState() {
   ImGui::Text("Press a key to bind action '%s'...", current_binding_.value().action_name.data());
   ImGui::Text("Or press ESC to cancel");
-  // Gub: Событие нажатия кнопки срабатывает позже события OnKeyDownEvent
+  // Bug: Событие нажатия кнопки срабатывает позже события OnKeyDownEvent
   // Из-за этого удаление биндинга не срабатывает вообще и назначается левая кнопка мыши
   // Поэтому кнопка пока что отключена
-  #if 0
-  if (ImGui::Button("Or press button to delete key binding")) {
-    auto binding = current_binding_.value();
-    current_binding_.reset();
-
-    auto group_it = group_to_actions_.find(binding.group_name);
-    if (group_it == group_to_actions_.end()) {
-      return;
-    }
-
-    auto& actions = group_it->second;
-    for (auto& action : actions) {
-      if (binding.action_id == action.action.id) {
-        action.keycodes.erase(
-          std::remove(action.keycodes.begin(), action.keycodes.end(), binding.key_code),
-          action.keycodes.end());
-        
-        is_config_dirty_ = true;
-        FillUnknownKeycodesToAction(action);
-
-        break;
-      }
-    }
-  }
-  #endif
 
   if (current_binding_ && current_binding_->event_key_code) {
     auto binding = current_binding_.value();
     current_binding_.reset();
 
     auto group_it = group_to_actions_.find(binding.group_name);
-    if (group_it == group_to_actions_.end()) {
+    if (group_it != group_to_actions_.end()) {
       auto& actions = group_it->second;
       for (auto& action : actions) {
         action.keycodes.erase(
-          std::remove(action.keycodes.begin(), action.keycodes.end(), *current_binding_->event_key_code),
+          std::remove(action.keycodes.begin(), action.keycodes.end(), *binding.event_key_code),
           action.keycodes.end());
 
         if (binding.action_id == action.action.id) {
@@ -247,7 +222,7 @@ void KeyBindingWindow2::DrawBindingState() {
           if (action.keycodes.size() >= kMaxKeycodesPerAction) {
             action.keycodes.erase(action.keycodes.begin(), action.keycodes.begin() + action.keycodes.size() - kMaxKeycodesPerAction + 1);
           }
-          action.keycodes.push_back(*current_binding_->event_key_code);
+          action.keycodes.push_back(*binding.event_key_code);
           is_config_dirty_ = true;
         }
 
@@ -268,45 +243,9 @@ void KeyBindingWindow2::OnBackEvent() {
 void KeyBindingWindow2::OnKeyDownEvent(const z13::input::WindowKeyDownEvent& event) {
   InputSettingsWindowBase::OnKeyDownEvent(event);
 
-#if 1
   if (current_binding_) {
     current_binding_->event_key_code = event.key_code;
   }
-#else
-  if (!current_binding_) {
-    return;
-  }
-
-  LOG_INFO("KeyBindingWindow2::OnKeyDownEvent");
-
-  auto binding = current_binding_.value();
-  current_binding_.reset();
-
-  auto group_it = group_to_actions_.find(binding.group_name);
-  if (group_it == group_to_actions_.end()) {
-    return;
-  }
-
-  auto& actions = group_it->second;
-  for (auto& action : actions) {
-    action.keycodes.erase(
-      std::remove(action.keycodes.begin(), action.keycodes.end(), event.key_code),
-      action.keycodes.end());
-
-    if (binding.action_id == action.action.id) {
-      action.keycodes.erase(
-        std::remove(action.keycodes.begin(), action.keycodes.end(), kUnknownKeycode),
-        action.keycodes.end());
-      if (action.keycodes.size() >= kMaxKeycodesPerAction) {
-        action.keycodes.erase(action.keycodes.begin(), action.keycodes.begin() + action.keycodes.size() - kMaxKeycodesPerAction + 1);
-      }
-      action.keycodes.push_back(event.key_code);
-      is_config_dirty_ = true;
-    }
-
-    FillUnknownKeycodesToAction(action);
-  }
-#endif
 }
 
 }  // namespace z13::ogre::gui
