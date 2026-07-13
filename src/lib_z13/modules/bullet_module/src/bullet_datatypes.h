@@ -14,15 +14,22 @@
  * limitations under the License.
  */
 
-#include <bullet/btBulletDynamicsCommon.h>
+#pragma once
 
-#include "bullet_module.h"
-#include "bullet_system.h"
+#include <memory>
+
+class btDefaultCollisionConfiguration;
+class btCollisionDispatcher;
+class btBroadphaseInterface;
+class btSequentialImpulseConstraintSolver;
+class btDiscreteDynamicsWorld;
 
 namespace z13::bullet {
 
-BulletModule::BulletModule(flecs::world& world) {
-  BulletSystem::Register(world);
-}
+using CollisionConfigurationPtr = std::shared_ptr<btDefaultCollisionConfiguration>;
+using CollisionDispatcherPtr = std::shared_ptr<btCollisionDispatcher>;
+using BroadphaseInterfacePtr = std::shared_ptr<btBroadphaseInterface>;
+using SequentialImpulseConstraintSolverPtr = std::shared_ptr<btSequentialImpulseConstraintSolver>;
+using DiscreteDynamicsWorldPtr = std::shared_ptr<btDiscreteDynamicsWorld>;
 
 }  // namespace z13::bullet

@@ -4,7 +4,7 @@ project(bullet_module)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(Bullet REQUIRED)
+find_package(Bullet CONFIG REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -28,7 +28,11 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
-  ${Bullet_LIBRARIES}
+  zodiac13::components
+  BulletDynamics 
+  BulletCollision 
+  LinearMath
+  # ${Bullet_LIBRARIES}
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

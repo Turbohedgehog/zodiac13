@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include <bullet/btBulletDynamicsCommon.h>
+#pragma once
 
-#include "bullet_module.h"
-#include "bullet_system.h"
+#include <lib_core/core_types.h>
 
 namespace z13::bullet {
 
-BulletModule::BulletModule(flecs::world& world) {
-  BulletSystem::Register(world);
-}
-
+class BulletSystem {
+ public:
+  static void Register(flecs::world& world);
+};
+  
 }  // namespace z13::bullet

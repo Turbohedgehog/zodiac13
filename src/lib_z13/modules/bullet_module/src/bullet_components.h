@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-#include <bullet/btBulletDynamicsCommon.h>
+#pragma once
 
-#include "bullet_module.h"
-#include "bullet_system.h"
+#include "bullet_datatypes.h"
 
 namespace z13::bullet {
 
-BulletModule::BulletModule(flecs::world& world) {
-  BulletSystem::Register(world);
-}
+struct BulletData {
+  CollisionConfigurationPtr collision_configuration;
+  CollisionDispatcherPtr collision_dispatcher;
+  BroadphaseInterfacePtr broadphase_interface;
+  SequentialImpulseConstraintSolverPtr sequential_impulse_constraint_solver;
+  DiscreteDynamicsWorldPtr dynamics_world;
+};
 
 }  // namespace z13::bullet

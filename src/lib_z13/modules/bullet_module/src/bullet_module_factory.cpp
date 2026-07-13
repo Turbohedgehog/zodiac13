@@ -16,6 +16,10 @@
 
 #include <bullet_module/bullet_module_factory.h>
 
+#include <flecs.h>
+
+#include "bullet_module.h"
+
 namespace z13 {
 
 ModuleFactoryPtr BulletModuleFactory::CreateFactory() {
@@ -23,7 +27,7 @@ ModuleFactoryPtr BulletModuleFactory::CreateFactory() {
 }
 
 void BulletModuleFactory::RegisterModules(flecs::world& world) {
-
+  world.import<z13::bullet::BulletModule>();
 }
 
 const std::string& BulletModuleFactory::GetName() const {
