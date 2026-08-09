@@ -28,4 +28,9 @@ struct CoreComponent {
   std::optional<CoreRef> core;
 };
 
+struct RegisterComponentsEvent {};
+struct InitPhasesEvent {};
+struct InitSystemsEvent {};
+struct InitWorldDataEvent {};
+
 }  // namespace z13

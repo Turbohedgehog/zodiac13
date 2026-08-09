@@ -23,6 +23,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 
+#include <lib_core/components.h>
 #include <lib_core/math.h>
 #include <lib_core/log.h>
 
@@ -30,9 +31,11 @@
 
 namespace z13::building {
 
+namespace {
+
 struct UpdateBuildingToolPhase {};
 
-void RegisterPipeline(flecs::world& world) {
+void RegisterPipeline(flecs::world world) {
   world.component<UpdateBuildingToolPhase>().add(flecs::Phase).depends_on<z13::gameplay::UpdatePhase>();
   world.component<z13::gameplay::PostUpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
   // world.component<z13::gameplay::UpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
@@ -89,14 +92,7 @@ void AppendBuildingTool(flecs::entity e, const z13::gameplay::Player&) {
   e.add<BuildingTool>();
 }
 
-void BuildingSystem::Register(flecs::world& world) {
-  RegisterPipeline(world);
-
-  // world.observer<z13::gameplay::Player>("BuildingSystem::AppendBuildingTool")
-  //   .event(flecs::OnAdd)
-  //   .without<BuildingTool>()
-  //   .each(AppendBuildingTool);
-  
+void RegisterSystems(flecs::world world) {
   world.observer<BuildingTool, Eigen::Matrix4f>("BuildingSystem::OnDisableBuildingTool")
     .event(flecs::OnAdd)
     .yield_existing()
@@ -117,6 +113,20 @@ void BuildingSystem::Register(flecs::world& world) {
     .kind<UpdateBuildingToolPhase>()
     .without<z13::gameplay::Pause>()
     .each(UpdateBuildingTool);
+}
+
+}  // namespace
+
+void BuildingSystem::Register(flecs::world& world) {
+  world.observer<InitPhasesEvent>("BuildingSystem::RegisterPipeline")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterPipeline(world); });
+
+  world.observer<InitSystemsEvent>("BuildingSystem::RegisterSystems")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });  
 }
 
 }  // namespace z13::building

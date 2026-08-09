@@ -18,23 +18,27 @@
 
 #include <flecs.h>
 
+#include <lib_core/components.h>
 #include <lib_core/log.h>
+
 #include <z13/components/z13.h>
 
 #include <ogre_module/ogre_components.h>
 
 namespace z13::ogre {
 
-// void OnRootAdded(flecs::iter& it, size_t i, OgreData& ogre_data) {
-void OnRootAdded(flecs::entity e, OgreData& ogre_data) {
-  // LOG_INFO("~~~~ CreateScene");
+namespace {
+
+void RegisterSystems(flecs::world world) {
 }
 
+}  // namespace
+
 void EnvironmentRenderSystem::Register(flecs::world& world) {
-  // LOG_INFO("~~~~ EnvironmentRenderSystem::Register");
-  world.observer<OgreData>("OnRootAddedObserver")
-    .event(flecs::OnSet)
-    .each(OnRootAdded);
+  world.observer<InitSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });
 }
 
 }  // namespace z13::ogre

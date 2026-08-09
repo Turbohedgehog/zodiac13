@@ -23,16 +23,19 @@
 
 #include <building_generated.h>
 
+#include <lib_core/components.h>
 #include <lib_core/log.h>
+
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/building.h>
-#include <z13_module/input/input_config_loader.h>
 #include <z13_module/input/input_config_loader.h>
 
 #include <building_generated.h>
 
 namespace z13::building {
+
+namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 static const std::string kBuildingActionGroup = "Building";
@@ -132,9 +135,11 @@ void ApplyBuildActionListener(
   }
 }
 
-void BuildingInputSystem::Register(flecs::world& world) {
+void RegisterComponents(flecs::world world) {
   world.component<BuildActionIds>().add(flecs::Singleton);
+}
 
+void RegisterSystems(flecs::world world) {
   world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
@@ -147,6 +152,20 @@ void BuildingInputSystem::Register(flecs::world& world) {
   world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
       .event<z13::input::AppendInputSchema>()
       .each(OnAppendInputSchema);
+}
+
+}  // namespace
+
+void BuildingInputSystem::Register(flecs::world& world) {
+  world.observer<RegisterComponentsEvent>("BuildingInputSystem::RegisterComponents")
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterComponents(world); });
+
+  world.observer<InitSystemsEvent>("BuildingInputSystem::RegisterSystems")
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });
 }
 
 }  // namespace z13::building

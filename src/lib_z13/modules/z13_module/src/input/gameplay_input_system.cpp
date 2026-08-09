@@ -20,6 +20,8 @@
 
 #include <Eigen/Dense>
 #include <flecs.h>
+
+#include <lib_core/components.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 #include <lib_core/flecs_utils.h>
@@ -37,9 +39,9 @@
 
 #include "../private_components/input_system_components.h"
 
-#include "input_converter.h"
-
 namespace z13::gameplay::input {
+
+namespace {
 
 struct MoveActionIds {
   z13::input::ActionInfo::IdType move_forward_id = 0;
@@ -397,7 +399,7 @@ void CalculateInputValues(
   }
 }
 
-void RegisterPhases(flecs::world& world) {
+void RegisterPhases(flecs::world world) {
   world.component<z13::input::ClearActionFramePhase>().add(flecs::Phase).depends_on(flecs::PreFrame);
   world.get_alive(flecs::OnLoad).add(flecs::Phase).depends_on<z13::input::ClearActionFramePhase>();
 
@@ -406,15 +408,7 @@ void RegisterPhases(flecs::world& world) {
   world.get_alive(flecs::PostUpdate).add(flecs::Phase).depends_on<z13::input::ApplyActionFramePhase>();
 }
 
-void GameplayInputSystem::Register(flecs::world& world) {
-  LOG_INFO("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
-  RegisterPhases(world);
-  world.component<InputListenerQueryComponent>().add(flecs::Singleton);
-  world.component<z13::input::InputState>().add(flecs::Singleton);
-  world.add<z13::input::InputState>();
-  world.component<z13::gameplay::input::MoveActionIds>().add(flecs::Singleton);
-  world.add<z13::gameplay::input::MoveActionIds>();
-
+void RegisterSystems(flecs::world world) {
   world.observer<
       z13::input::MousePos,
       InputListenerQueryComponent,
@@ -473,13 +467,6 @@ void GameplayInputSystem::Register(flecs::world& world) {
       .yield_existing()
       .each(OnInputSystemStartupGameEvent);
 
-  InputListenerQueryComponent input_listener_query_component = {
-      .listener_query = world
-          .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
-          .build(),
-  };
-  world.set(input_listener_query_component);
-
   world.system<z13::input::ActionListener, z13::input::ActionMap>("gameplay_input_system::ClearActionListenerCurrentState")
       .kind<z13::input::ClearActionFramePhase>()
       .each(ClearActionListenerCurrentState);
@@ -517,6 +504,50 @@ void GameplayInputSystem::Register(flecs::world& world) {
   world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
       .event<z13::input::AppendInputSchema>()
       .each(OnAppendInputSchema);
+}
+
+}  // namespace
+
+void GameplayInputSystem::Register(flecs::world& world) {
+  world.observer<RegisterComponentsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      world.component<InputListenerQueryComponent>().add(flecs::Singleton);
+      world.component<z13::input::InputState>().add(flecs::Singleton);
+      world.component<z13::gameplay::input::MoveActionIds>().add(flecs::Singleton);
+    });
+
+  world.observer<InitSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      RegisterSystems(world);
+    });
+
+  world.observer<InitPhasesEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      RegisterPhases(world);
+    });
+
+  world.observer<InitWorldDataEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      world.add<z13::input::InputState>();
+      world.add<z13::gameplay::input::MoveActionIds>();
+
+      InputListenerQueryComponent input_listener_query_component = {
+          .listener_query = world
+              .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
+              .build(),
+      };
+      world.set(input_listener_query_component);
+    });
+
+  LOG_INFO("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
 }
 
 } // namespace z13::gameplay::input

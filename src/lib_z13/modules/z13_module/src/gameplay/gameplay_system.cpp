@@ -21,17 +21,21 @@
 #include <flecs.h>
 #include <Eigen/Dense>
 
+#include <lib_core/log.h>
+#include <lib_core/components.h>
+
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
-#include <lib_core/log.h>
 
 namespace z13::gameplay {
+
+namespace {
 
 // todo: убрать константу и брать из z13.fbs.actions.Action.action_group
 static const std::string kBuildingActionGroup = "Control";
 
-void RegisterPipeline(flecs::world& world) {
+void RegisterPipeline(flecs::world world) {
   world.component<PreUpdatePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
   world.component<UpdatePhase>().add(flecs::Phase).depends_on<PreUpdatePhase>();
   world.component<PostUpdatePhase>().add(flecs::Phase).depends_on<UpdatePhase>();
@@ -82,9 +86,7 @@ void OnInit(flecs::iter it, size_t /*i*/, gameplay::Gameplay& gameplay) {
   LOG_INFO("~~~~ gameplay::OnInit");
 }
 
-void GameplaySystem::Register(flecs::world& world) {
-  RegisterPipeline(world);
-
+void RegisterSystems(flecs::world world) {
   world.observer<gameplay::Gameplay>("GameplaySystem::OnInit")
     .event(flecs::OnAdd)
     .yield_existing()
@@ -111,6 +113,24 @@ void GameplaySystem::Register(flecs::world& world) {
   world.system("ValidateGameplaySystem")
     .kind(flecs::OnValidate)
     .each(ValidateGameplay);
+}
+
+}  // namespace
+
+void GameplaySystem::Register(flecs::world& world) {
+  world.observer<InitPhasesEvent>("GameplaySystem::RegisterPipeline")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      RegisterPipeline(world);
+    });
+
+  world.observer<InitSystemsEvent>("GameplaySystem::RegisterSystems")
+    .event(flecs::OnSet)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      RegisterSystems(world);
+    });
 }
 
 }  // namespace z13::gameplay

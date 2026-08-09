@@ -68,16 +68,20 @@ WorldRef Core::CreateWorld() {
   auto it = worlds_.insert({new_world_id_, flecs::world()});
   ++new_world_id_;
 
-  auto world_ref = WorldRef(it.first->second);
-  world_ref.get().component<CoreComponent>();
+  auto& world = it.first->second;
+  world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
-  world_ref.get().set(core_component);
-  // for (auto [_, module_factory_ptr] : module_factories_) {
+  world.set(core_component);
   for (auto& module_factory_ptr : module_factories_) {
-    module_factory_ptr->RegisterModules(world_ref);
+    module_factory_ptr->RegisterModules(world);
   }
 
-  return world_ref;
+  world.add<RegisterComponentsEvent>();
+  world.add<InitPhasesEvent>();
+  world.add<InitSystemsEvent>();
+  world.add<InitWorldDataEvent>();
+
+  return WorldRef(world);
 }
 
 void Core::Update(float delta_time) {
