@@ -20,15 +20,20 @@
 #include <Eigen/Dense>
 #include <Ogre.h>
 
+#include <lib_core/components.h>
+#include <lib_core/log.h>
+
 #include <z13/components/building.h>
 #include <ogre_module/ogre_components.h>
-#include <lib_core/log.h>
 
 #include "../ogre_tools/mesh_tools/mesh_tools.h"
 #include "../ogre_tools/ogre_tools.h"
 #include "../private_ogre_components.h"
 
 namespace z13::ogre {
+
+namespace {
+
 struct OgreBuildingBrush {
   int a = 0;
 };
@@ -48,7 +53,7 @@ void OnBuildingBrushRemoved(flecs::entity e, OgreData& ogre_data, const z13::bui
   });
 }
 
-void OgreBuildingSystem::Register(flecs::world& world) {
+void RegisterSystems(flecs::world world) {
   world.observer<OgreData, z13::building::Brush, Eigen::Matrix4f>("OgreBuildingSystem::OnBuildingBrushAdded")
     .event(flecs::OnAdd)
     .without<OgreBuildingBrush>()
@@ -62,6 +67,17 @@ void OgreBuildingSystem::Register(flecs::world& world) {
     .yield_existing()
     .write<OgreBuildingBrush>()
     .each(OnBuildingBrushRemoved);
+}
+
+}  // namespace
+
+void OgreBuildingSystem::Register(flecs::world& world) {
+  world.observer<InitSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) {
+      RegisterSystems(world);
+    });
 }
 
 }  // namespace z13::ogre

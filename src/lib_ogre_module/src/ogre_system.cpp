@@ -19,6 +19,7 @@
 #include <Eigen/Dense>
 #include <Ogre.h>
 
+#include <lib_core/components.h>
 #include <lib_core/core.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
@@ -37,7 +38,9 @@
 
 namespace z13::ogre {
 
-void RegisterPipelines(flecs::world& world) {
+namespace {
+
+void RegisterPipelines(flecs::world world) {
   world.component<ReadEvents>().add(flecs::Phase).depends_on(flecs::PreFrame);
   world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ReadEvents>();
 
@@ -49,13 +52,12 @@ void RegisterPipelines(flecs::world& world) {
   // world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRender>();
 }
 
-void OnInit(flecs::world world, gameplay::Gameplay) {
+void OnInit(flecs::world world) {
   OgreData ogre_data;
 
   OgreTools::CreateSdlOgreRoot(world, ogre_data);
 
-  auto init_entity = world.entity();
-  world.set(ogre_data);
+  world.set(std::move(ogre_data));
 }
 
 void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
@@ -64,7 +66,7 @@ void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
   e.world().get<CoreComponent>().core->get().Shutdown();
 }
 
-void OnAddCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {
+void OnAddCamera(flecs::entity e, OgreData& ogre_data, const gameplay::Camera& camera) {
   OgreTools::CreateCamera(e, camera, ogre_data);
 }
 
@@ -82,12 +84,16 @@ void OnRemoveOgreEntity(EntityComponent& entity_component) {
   scene_manager->destroyEntity(entity_component.entity);
 }
 
-void OgreSystem::Register(flecs::world& world) {
-  RegisterPipelines(world);
-
+void RegisterComponents(flecs::world world) {
   world.component<OgreData>().add(flecs::Singleton);
+}
 
-  world.system<OgreData>("ReadEventsSystem")
+void CreateDefaults(flecs::world world) {
+  OnInit(world);
+}
+
+void RegisterSystems(flecs::world world) {
+   world.system<OgreData>("ReadEventsSystem")
     .kind<ReadEvents>()
     .immediate()
     .each([world](auto& ogre_data) { OgreTools::ReadSdlEvents(world, ogre_data); });
@@ -110,12 +116,7 @@ void OgreSystem::Register(flecs::world& world) {
     .yield_existing()
     .each(OgreTools::EnableRelativeMouseMode);
 
-  world.observer<const gameplay::Gameplay>("OgreSystem::OnInit")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world](const auto& gameplay) { OnInit(world, gameplay); });
-
-  world.observer<const gameplay::Camera, OgreData>("OgreSystem::OnAddCameraObserver")
+  world.observer<OgreData, const gameplay::Camera>("OgreSystem::OnAddCameraObserver")
     .event(flecs::OnAdd)
     .yield_existing()
     .each(OnAddCamera);
@@ -134,6 +135,30 @@ void OgreSystem::Register(flecs::world& world) {
     .event(flecs::OnRemove)
     .yield_existing()
     .each(OnRemoveOgreEntity);
+}
+
+} // namespace
+
+void OgreSystem::Register(flecs::world& world) {
+  world.observer<RegisterComponentsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterComponents(world); });
+
+  world.observer<InitPhasesEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterPipelines(world); });
+
+  world.observer<InitSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });
+
+  world.observer<InitWorldDataEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { CreateDefaults(world); });
 }
 
 }  // namespace z13::ogre

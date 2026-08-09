@@ -29,13 +29,13 @@ void TestVariant() {
 }
 
 struct Position {
-    double x;
-    double y;
+    double x {};
+    double y {};
 };
 
 struct Velocity {
-    double x;
-    double y;
+    double x {};
+    double y {};
 };
 
 struct Serializable {};
@@ -44,6 +44,103 @@ struct Serializable {};
 // Tag types
 struct Eats { };
 struct Apples { };
+
+void TestObserverWithSingleton() {
+  struct SingletonComponent {
+    int a {};
+  };
+
+  struct EntityComponent {
+    int b {};
+  };
+
+  flecs::world world;
+  world.component<SingletonComponent>().add(flecs::Singleton);
+
+  world.observer<EntityComponent, SingletonComponent>()
+    .event(flecs::OnAdd)
+    // .yield_existing()
+    .each([](const EntityComponent&, const SingletonComponent&) {
+      std::cout << "Gotcha!" << std::endl;
+    });
+
+  world.set(SingletonComponent {
+    .a = 1,
+  });
+
+  world.entity().set(EntityComponent {
+    .b = 1,
+  });
+}
+
+void TestObservers() {
+  struct SingletonComponent {
+    int value {};
+  };
+
+  struct RegisterComponentsEvent {};
+  struct CreateTestEntityEvent {};
+  struct CreateSingletonEvent {};
+  struct RegisterSystemsEvent {};
+
+  flecs::world world;
+
+  auto en = world.entity();
+
+  world.observer<RegisterComponentsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world](const auto&) {
+      world.component<SingletonComponent>().add(flecs::Singleton);
+      // world.component<SingletonComponent>();
+      world.component<Position>();
+    });
+
+  world.observer<CreateTestEntityEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world, en](const auto&) {
+      Velocity velocity {
+        .x = 1.,
+        .y = 0.,
+      };
+      // world.entity().set(std::move(velocity));
+      en.set(std::move(velocity));
+    });
+
+  world.observer<CreateSingletonEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world, en](const auto&) {
+      SingletonComponent singleton_component {
+        .value = 111,
+      };
+      world.set(std::move(singleton_component));
+      // en.set(std::move(singleton_component));
+    });
+
+  world.observer<RegisterSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world](const auto&) {
+      world.observer<Velocity, SingletonComponent>()
+        .event(flecs::OnAdd)
+        .yield_existing()
+        .each([world](auto&, auto&) {
+          std::cout << "Test done!" << std::endl;
+        });
+    });
+
+  world.add<RegisterComponentsEvent>();
+  world.add<RegisterSystemsEvent>();
+  world.add<CreateTestEntityEvent>();
+  world.add<CreateSingletonEvent>();
+
+  // world.progress();
+  // world.progress();
+  // world.progress();
+  // world.progress();
+}
 
 void test_flex(int argc, char *argv[]) {
     // Create the world

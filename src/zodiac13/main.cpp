@@ -5,6 +5,9 @@
 #include "flex_test.h"
 
 int main(int argc, char *argv[]) {
+  // TestObservers();
+  // TestObserverWithSingleton();
+
   z13::Zodiac13Launcher zodiac13_launcher;
 
   // test_emit_2();

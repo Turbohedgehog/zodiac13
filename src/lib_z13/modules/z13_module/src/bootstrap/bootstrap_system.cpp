@@ -23,6 +23,8 @@
 
 namespace z13::bootstrap {
 
+namespace {
+
 struct BootstrapComponent {};
 struct BootstrapCompleteComponent {};
 
@@ -40,6 +42,8 @@ void InitBootstrap(flecs::entity e, const BootstrapComponent&) {
   e.world().add<BootstrapCompleteComponent>();
 }
 
+}  // namespace
+
 void BootstrapSystem::Register(flecs::world& world) {
   world.system<BootstrapComponent>("InitBootstrap")
     .kind<z13::gameplay::PreUpdatePhase>()
@@ -47,4 +51,4 @@ void BootstrapSystem::Register(flecs::world& world) {
     .each(InitBootstrap);
 }
 
-}
+}  // namespace z13::bootstrap

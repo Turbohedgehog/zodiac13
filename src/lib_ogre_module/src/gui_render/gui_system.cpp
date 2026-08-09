@@ -19,6 +19,8 @@
 #include <flecs.h>
 
 #include <lib_core/components.h>
+#include <lib_core/log.h>
+
 #include <z13/components/z13.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -27,11 +29,11 @@
 #include "windows/window_factory.h"
 #include "windows/window_base.h"
 
-#include <lib_core/log.h>
-
 #include "../ogre_tools/ogre_import/OgreImGuiOverlay.h"
 
 namespace z13::ogre::gui {
+
+namespace {
 
 struct PreRenderGui { };
 struct RenderGui { };
@@ -45,7 +47,7 @@ void EndGui(const z13::ogre::OgreData&) {
   ImGui::EndFrame();
 }
 
-void GuiSystem::Register(flecs::world& world) {
+void RegisterPhases(flecs::world world) {
   world.component<PreRenderGui>().add(flecs::Phase).depends_on<PreRender>();
   world.component<RenderGui>().add(flecs::Phase).depends_on<PreRenderGui>();
   world.component<PostRenderGui>().add(flecs::Phase).depends_on<RenderGui>();
@@ -53,12 +55,17 @@ void GuiSystem::Register(flecs::world& world) {
   
   // world.get_alive(flecs::OnValidate).add(flecs::Phase).depends_on(update_phase);
   world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRenderGui>();
+}
 
+void RegisterComponents(flecs::world world) {
   world.component<z13::ogre::gui::WindowComponent>().add(flecs::Singleton);
-  world.add<z13::ogre::gui::WindowComponent>();
-  // world.component<PauseMenu>().add(flecs::Singleton);
-  // world.add<PauseMenu>();
+}
 
+void SetDefaults(flecs::world world) {
+  world.add<z13::ogre::gui::WindowComponent>();
+}
+
+void RegisterSystems(flecs::world world) {
   world.system<z13::ogre::OgreData>("BeginGuiSystem")
     .kind<PreRenderGui>()
     .each(BeginGui);
@@ -97,6 +104,30 @@ void GuiSystem::Register(flecs::world& world) {
   world.system<z13::ogre::OgreData>("EndGuiSystem")
     .kind<PostRenderGui>()
     .each(EndGui);
+}
+
+}  // namespace
+
+void GuiSystem::Register(flecs::world& world) {
+  world.observer<InitPhasesEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterPhases(world); });
+
+  world.observer<RegisterComponentsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterComponents(world); });
+
+  world.observer<InitSystemsEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });
+
+  world.observer<InitWorldDataEvent>()
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { SetDefaults(world); });
 }
 
 }  // namespace z13::ogre::gui
