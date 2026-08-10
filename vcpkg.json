@@ -44,25 +44,25 @@
       "name": "flecs",
       "version": "4.1.6#0"
     },
-    {
+        {
       "name": "boost-program-options",
-      "version": "1.90.0#1"
+      "version": "1.91.0#0"
     },
     {
       "name": "boost-dll",
-      "version": "1.90.0#1"
+      "version": "1.91.0#0"
     },
     {
       "name": "boost-multi-index",
-      "version": "1.90.0#1"
+      "version": "1.91.0#0"
     },
     {
       "name": "boost-algorithm",
-      "version": "1.90.0#1"
+      "version": "1.91.0#0"
     },
     {
       "name": "boost-container",
-      "version": "1.90.0#1"
+      "version": "1.91.0#0"
     },
     {
       "name": "yaml-cpp",
@@ -87,6 +87,10 @@
     {
       "name": "bullet3",
       "version": "3.25#3"
+    },
+    {
+      "name": "imgui",
+      "version": "1.91.9#0"
     }
   ]
 }
