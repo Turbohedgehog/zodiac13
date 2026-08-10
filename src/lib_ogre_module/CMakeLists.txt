@@ -11,7 +11,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 find_package(assimp CONFIG REQUIRED)
 find_package(pugixml CONFIG REQUIRED)
 find_package(zip CONFIG REQUIRED)
-find_package(minizip CONFIG REQUIRED)
+# find_package(minizip CONFIG REQUIRED)
 find_package(poly2tri CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 
@@ -48,7 +48,8 @@ target_link_libraries(
   imgui::imgui
   assimp::assimp
   zip::zip
-  minizip::minizip
+#   minizip::minizip
+#   minizip
   poly2tri::poly2tri
   pugixml
   OgreMain
