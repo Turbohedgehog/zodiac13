@@ -29,7 +29,13 @@
     "sdl2",
     "spdlog",
     "yaml-cpp",
-    "platform-folders"
+    "platform-folders",
+    {
+      "name": "reflectcpp",
+      "features": [
+        "msgpack"
+      ]
+    }
   ],
   "overrides": [
     {
@@ -91,6 +97,11 @@
     {
       "name": "imgui",
       "version": "1.91.9#0"
+    },
+    {
+      "name": "reflectcpp",
+      "version": "0.25.0#0"
     }
+    
   ]
 }
