@@ -29,7 +29,13 @@
     "sdl2",
     "spdlog",
     "yaml-cpp",
-    "platform-folders"
+    "platform-folders",
+    {
+      "name": "reflectcpp",
+      "features": [
+        "msgpack"
+      ]
+    }
   ],
   "overrides": [
     {
