@@ -97,6 +97,11 @@
     {
       "name": "imgui",
       "version": "1.91.9#0"
+    },
+    {
+      "name": "reflectcpp",
+      "version": "0.25.0#0"
     }
+    
   ]
 }
