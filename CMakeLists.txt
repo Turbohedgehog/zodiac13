@@ -13,6 +13,12 @@ if(MSVC)
     string(REPLACE "/ZI" "/Zi" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 endif()
 
+# Отключаем /utf-8 из vcpkg toolchain: он задаётся через CMAKE_CXX_FLAGS и при
+# использовании C++20/23 модулей (FILE_SET CXX_MODULES) не попадает в отдельную
+# командную строку компиляции .cppm-файлов, из-за чего MSVC выдаёт C5050
+# (несовместимая среда при импорте модуля). Флаг задаём единообразно ниже
+# через add_compile_options, который применяется ко всем source-файлам цели.
+set(VCPKG_SET_CHARSET_FLAG OFF)
 set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
 # vcpkg + boost warning fix
@@ -42,6 +48,12 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation 
 set(PROJECT_NAMESPACE ${PROJECT_NAME} CACHE PATH "Project namespace" FORCE)
 set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 
+# Единообразная кодировка исходников UTF-8 для всех целей, включая цели с
+# C++20/23 модулями. add_compile_options применяется ко всем source-файлам цели
+# (в т.ч. .cppm из FILE_SET CXX_MODULES), что исключает MSVC C5050.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 
 # get_cmake_property(_variableNames VARIABLES)
 # list (SORT _variableNames)
@@ -53,9 +65,9 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
-add_subdirectory(src/lib_ogre_module)
+# add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
-add_subdirectory(src/lib_test_dll)
+# add_subdirectory(src/lib_test_dll)
 
 set(CPACK_GENERATOR "DEB;TGZ")
 

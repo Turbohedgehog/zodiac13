@@ -14,13 +14,25 @@
  * limitations under the License.
  */
 
-#include <z13_module/z13_module_factory.h>
+#include <memory>
+#include <string>
 
 #include <flecs.h>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
+
+#include <lib_core/module_factory_base.h>
 
 #include "z13_module.h"
 
 namespace z13 {
+
+class Z13ModuleFactory : public ModuleFactoryBase {
+ public:
+  static ModuleFactoryPtr CreateFactory();
+  void RegisterModules(flecs::world& world) override;
+  const std::string& GetName() const override;
+};
 
 ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
   return std::make_shared<Z13ModuleFactory>();
@@ -37,3 +49,8 @@ const std::string& Z13ModuleFactory::GetName() const {
 }
 
 }  // namespace z13
+
+BOOST_DLL_ALIAS(
+    z13::Z13ModuleFactory::CreateFactory,
+    create_module_factory
+)

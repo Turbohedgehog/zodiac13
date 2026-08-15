@@ -21,13 +21,13 @@
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
 
-#include "core_types.h"
+namespace flecs {
 
-extern "C" {
+struct world;
+
+}  // namespace flecs
 
 namespace z13 {
-
-// using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
 
 class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
  public:
@@ -36,6 +36,6 @@ class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
   virtual const std::string& GetName() const = 0;
 };
 
-}  // namespace z13
+using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
 
-}  // extern "C"
+}  // namespace z13

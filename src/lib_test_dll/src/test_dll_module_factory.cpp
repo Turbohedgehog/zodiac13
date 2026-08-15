@@ -14,15 +14,30 @@
  * limitations under the License.
  */
 
-#include <lib_test_dll/test_dll_module_factory.h>
+module;
+
+#include <memory>
+#include <string>
 
 #include <flecs.h>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
 
 #include <lib_core/log.h>
 
-#include "test_dll_module.h"
+module z13.test_dll;
+
+import z13.core;
 
 namespace z13::dll {
+
+class TestDllModuleFactory : public ModuleFactoryBase {
+ public:
+  static ModuleFactoryPtr CreateFactory();
+  ~TestDllModuleFactory();
+  void RegisterModules(flecs::world& world) override;
+  const std::string& GetName() const override;
+};
 
 ModuleFactoryPtr TestDllModuleFactory::CreateFactory() {
   return std::make_shared<TestDllModuleFactory>();
@@ -43,3 +58,8 @@ const std::string& TestDllModuleFactory::GetName() const {
 }
 
 }  // namespace z13::dll
+
+BOOST_DLL_ALIAS(
+    z13::dll::TestDllModuleFactory::CreateFactory,
+    create_module_factory
+)

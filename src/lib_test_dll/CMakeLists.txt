@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
 project(test_dll_module)
 
@@ -15,6 +15,15 @@ file(
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+# Внутренний именованный модуль DLL (план миграции, раздел 4.5).
+target_sources(
+  ${PROJECT_NAME}
+  PUBLIC
+  FILE_SET CXX_MODULES
+    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/z13.test_dll.cppm
+)
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -38,6 +47,8 @@ install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
+        FILE_SET CXX_MODULES
+          DESTINATION lib/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/modules
 )
 
 install(EXPORT ${PROJECT_NAME}Targets

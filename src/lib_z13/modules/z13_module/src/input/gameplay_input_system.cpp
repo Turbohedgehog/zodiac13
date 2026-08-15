@@ -14,22 +14,18 @@
  * limitations under the License.
  */
 
-#include "gameplay_input_system.h"
+module;
 
 #include <limits>
 
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
-#include <lib_core/math.h>
-#include <lib_core/flecs_utils.h>
 
-#include <z13/components/status.h>
-#include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13_module/tools/z13_environment.h>
+
 #include <z13_module/input/input_config_loader.h>
 
 #include <input_config_generated.h>
@@ -38,6 +34,11 @@
 
 
 #include "../private_components/input_system_components.h"
+
+module z13.module.gameplay_input;
+
+import z13.core;
+import z13.components;
 
 namespace z13::gameplay::input {
 

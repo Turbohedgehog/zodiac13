@@ -25,7 +25,8 @@
 #include <SDL2/SDL.h>
 
 #include <lib_core/log.h>
-#include <lib_core/flecs_utils.h>
+
+import z13.core;
 
 #include <input_config_generated.h>
 

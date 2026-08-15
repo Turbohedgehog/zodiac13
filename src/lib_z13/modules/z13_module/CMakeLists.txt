@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
 project(z13_module)
 
@@ -16,6 +16,20 @@ file(
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+# Внутренние именованные модули DLL (план миграции, раздел 4.5).
+target_sources(
+  ${PROJECT_NAME}
+  PUBLIC
+  FILE_SET CXX_MODULES
+    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
+    FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/bootstrap/z13.module.bootstrap.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/z13.module.gameplay.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/input/z13.module.gameplay_input.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/building/z13.module.building.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/building/z13.module.building_input.cppm
+)
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -52,6 +66,8 @@ install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
+        FILE_SET CXX_MODULES
+          DESTINATION lib/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/modules
 )
 
 install(EXPORT ${PROJECT_NAME}Targets

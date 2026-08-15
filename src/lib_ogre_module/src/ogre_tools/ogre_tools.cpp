@@ -18,15 +18,17 @@
 
 #include <filesystem>
 
-#include <lib_core/math.h>
 #include <lib_core/log.h>
+
+import z13.core;
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 
 #include <ogre_module/ogre_datatypes.h>
 #include <ogre_module/ogre_components.h>
-#include <z13/components/gameplay.h>
+
+import z13.components;
 
 #include <Ogre.h>
 
@@ -264,7 +266,7 @@ namespace z13::ogre {
     // // LOG_INFO("==== OgreTools 4 = {}", test_scene_node->getName());
   }
 
-  void OgreTools::CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data) {
+  void OgreTools::CreateCamera(flecs::entity e, const gameplay::Camera& camera, const OgreData& ogre_data) {
     // LOG_INFO("~~~~ CreateCamera");
     auto* scene_manager = ogre_data.ogre_root->getSceneManagers().begin()->second;
     auto* ogre_camera = scene_manager->createCamera(camera.name);

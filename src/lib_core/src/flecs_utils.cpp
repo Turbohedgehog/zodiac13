@@ -1,30 +1,31 @@
-/*
- * Copyright 2026 Ivan Kulenko / Zodiac13
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://apache.org
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// z13.core.flecs_utils module implementation unit.
+// Определяет WorldNoDeferGuardImpl, скрывающий flecs::world из
+// экспортируемого интерфейса модуля z13.core.flecs_utils.
 
-#include <lib_core/flecs_utils.h>
+module;
+
+#include <memory>
+
+#include <flecs.h>
+
+module z13.core.flecs_utils;
 
 namespace z13 {
 
-WorldNoDeferGuard::WorldNoDeferGuard(flecs::world world)
-  : world_(world) {
-  world_.defer_end();
+struct WorldNoDeferGuardImpl {
+  flecs::world world_;
+};
+
+WorldNoDeferGuard::WorldNoDeferGuard(::flecs::world_t* world)
+  : impl_(std::make_unique<WorldNoDeferGuardImpl>()) {
+  impl_->world_ = flecs::world(world);
+  impl_->world_.defer_end();
 }
 
 WorldNoDeferGuard::~WorldNoDeferGuard() {
-  world_.defer_begin();
+  if (impl_) {
+    impl_->world_.defer_begin();
+  }
 }
 
 }  // namespace z13

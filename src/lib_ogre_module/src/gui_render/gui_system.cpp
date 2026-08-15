@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-#include "gui_system.h"
+module;
 
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/z13.h>
-#include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <ogre_module/ogre_components.h>
 #include "windows/window_component.h"
@@ -30,6 +27,11 @@
 #include "windows/window_base.h"
 
 #include "../ogre_tools/ogre_import/OgreImGuiOverlay.h"
+
+module z13.ogre.gui;
+
+import z13.core;
+import z13.components;
 
 namespace z13::ogre::gui {
 

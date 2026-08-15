@@ -14,21 +14,24 @@
  * limitations under the License.
  */
 
-#include "ogre_building_system.h"
+module;
 
 #include <flecs.h>
 #include <Eigen/Dense>
 #include <Ogre.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/building.h>
 #include <ogre_module/ogre_components.h>
 
 #include "../ogre_tools/mesh_tools/mesh_tools.h"
 #include "../ogre_tools/ogre_tools.h"
 #include "../private_ogre_components.h"
+
+module z13.ogre.building;
+
+import z13.core;
+import z13.components;
 
 namespace z13::ogre {
 

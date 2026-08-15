@@ -53,7 +53,7 @@ class OgreTools {
   static void DestroySdlOgreWindow(OgreData& ogre_data);
   static void EnableRelativeMouseMode(const gameplay::Pause*);
   static void DisableRelativeMouseMode(const OgreData& ogre_data, const gameplay::Pause&);
-  static void CreateCamera(flecs::entity e, const gameplay::Camera& camera, OgreData& ogre_data);
+  static void CreateCamera(flecs::entity e, const gameplay::Camera& camera, const OgreData& ogre_data);
   static void UpdateSceneNodeTransform(struct SceneNodeComponent& scene_node_component, const Eigen::Matrix4f& transform);
   static Ogre::SceneManager* GetSceneManager(Ogre::Root& ogre_root);
 };

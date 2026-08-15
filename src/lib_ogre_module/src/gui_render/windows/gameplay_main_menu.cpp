@@ -18,7 +18,8 @@
 
 #include <imgui.h>
 
-#include <z13/components/gameplay.h>
+import z13.components;
+
 #include <ogre_module/ogre_components.h>
 
 #include "window_component.h"

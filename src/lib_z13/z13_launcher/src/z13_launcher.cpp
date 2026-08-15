@@ -10,9 +10,9 @@
 
 #include <iostream>
 
-#include <lib_core/core.h>
 #include <lib_core/log.h>
-#include <lib_core/module_factory_base.h>
+
+import z13.core;
 
 namespace z13 {
 

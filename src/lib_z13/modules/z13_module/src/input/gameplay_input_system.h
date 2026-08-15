@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <lib_core/core_types.h>
+#include <flecs.h>
 
 namespace z13::gameplay::input {
 

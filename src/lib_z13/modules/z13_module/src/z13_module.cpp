@@ -16,21 +16,21 @@
 
 #include "z13_module.h"
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/z13.h>
-#include <z13/components/status.h>
-#include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
 #include <flecs.h>
 
-#include "bootstrap/bootstrap_system.h"
-#include "gameplay/gameplay_system.h"
-#include "input/gameplay_input_system.h"
-#include "building/building_system.h"
-#include "building/building_input_system.h"
+import z13.core;
+
+import z13.components;
+
+import z13.module.bootstrap;
+import z13.module.gameplay;
+import z13.module.gameplay_input;
+import z13.module.building;
+import z13.module.building_input;
 
 namespace z13 {
 

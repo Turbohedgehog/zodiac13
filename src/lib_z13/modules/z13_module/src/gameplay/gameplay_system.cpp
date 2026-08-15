@@ -14,19 +14,22 @@
  * limitations under the License.
  */
 
-#include "gameplay_system.h"
+module;
 
 #include <string>
+#include <utility>
 
 #include <flecs.h>
 #include <Eigen/Dense>
 
 #include <lib_core/log.h>
-#include <lib_core/components.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
+module z13.module.gameplay;
+
+import z13.core;
+import z13.components;
 
 namespace z13::gameplay {
 

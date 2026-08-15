@@ -18,16 +18,19 @@
 
 #include <filesystem>
 #include <map>
+#include <memory>
 
 #include <boost/dll/shared_library.hpp>
 
-#include <lib_core/core_types.h>
+#include <lib_core/module_factory_base.h>
 
 namespace z13 {
 
+class ModuleFactoryBase;
+
 struct LibHolder {
   boost::dll::shared_library lib;
-  ModuleFactoryPtr module_factory;
+  std::shared_ptr<ModuleFactoryBase> module_factory;
 };
 
 class ModuleLibHolder {

@@ -14,20 +14,17 @@
  * limitations under the License.
  */
 
-#include "building_system.h"
+module;
 
 #include <flecs.h>
 #include <Eigen/Dense>
 
-
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-
-#include <lib_core/components.h>
-#include <lib_core/math.h>
 #include <lib_core/log.h>
 
+module z13.module.building;
 
+import z13.core;
+import z13.components;
 
 namespace z13::building {
 
@@ -63,7 +60,7 @@ void OnEnableBuildingTool(flecs::entity e, const BuildingTool& building_tool, co
   auto brush = Brush {
     .distance = 5.f,
   };
-  
+
   auto brush_entity = e.world().entity().child_of(e).set(brush);
   // LOG_INFO("~~~ OnEnableBuildingTool = {} -> {}", e.id(), brush_entity.id());
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
@@ -97,7 +94,7 @@ void RegisterSystems(flecs::world world) {
     .event(flecs::OnAdd)
     .yield_existing()
     .each(OnEnableBuildingTool);
-    
+
   world.observer<BuildingTool>("BuildingSystem::OnEnableBuildingTool")
     .event(flecs::OnRemove)
     .yield_existing()
@@ -126,7 +123,7 @@ void BuildingSystem::Register(flecs::world& world) {
   world.observer<InitSystemsEvent>("BuildingSystem::RegisterSystems")
     .event(flecs::OnSet)
     .yield_existing()
-    .each([world = world](const auto&) { RegisterSystems(world); });  
+    .each([world = world](const auto&) { RegisterSystems(world); });
 }
 
 }  // namespace z13::building
