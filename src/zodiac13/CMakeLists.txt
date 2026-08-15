@@ -6,7 +6,7 @@ set(ZODIAC_EXECUTABLE_PROJECT_NAME ${PROJECT_NAME})
 
 find_package(flecs CONFIG REQUIRED)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 add_executable(${PROJECT_NAME} main.cpp)
 
