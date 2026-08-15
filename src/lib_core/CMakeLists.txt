@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(core)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options dll)
