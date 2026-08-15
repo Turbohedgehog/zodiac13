@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
 project(z13_module)
 
@@ -11,16 +11,32 @@ find_package(Boost REQUIRED COMPONENTS dll)
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/**.cpp
+)
+
+file(
+  GLOB_RECURSE
+  PROJECT_MODULE_FILES
+  ${PROJECT_SOURCE_DIR}/**.cppm
 )
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# Внутренние именованные модули DLL (план миграции, раздел 4.5).
+target_sources(
+  ${PROJECT_NAME}
+  PUBLIC
+  FILE_SET CXX_MODULES
+    BASE_DIRS ${PROJECT_SOURCE_DIR}
+    FILES
+      ${PROJECT_MODULE_FILES}
+)
+
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  # $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
 )
@@ -52,6 +68,8 @@ install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
+        FILE_SET CXX_MODULES
+          DESTINATION lib/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/modules
 )
 
 install(EXPORT ${PROJECT_NAME}Targets

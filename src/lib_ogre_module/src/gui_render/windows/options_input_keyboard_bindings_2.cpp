@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
-#include "options_input_keyboard_bindings_2.h"
+module;
 
-#include <algorithm>
-#include <iterator>
-
+#include <flecs.h>
 #include <imgui.h>
-
+#include <lib_core/log.h>
 #include <input_config_generated.h>
-
 #include "flatbuffers/reflection.h"
 
-#include <lib_core/log.h>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/container/flat_map.hpp>
+
+module z13.ogre.gui.key_binding_window2;
+
 
 namespace z13::ogre::gui {
 

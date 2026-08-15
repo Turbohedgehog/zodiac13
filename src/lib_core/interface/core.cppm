@@ -1,0 +1,48 @@
+// z13.core.core module partition unit.
+// Перенесён из include/lib_core/core.h.
+//
+// Класс Core использует PIMPL (CoreImpl) для скрытия flecs::world и Config
+// из экспортируемого интерфейса модуля. Это необходимо, т.к. типы из flecs.h
+// и lib_core/config.h не могут экспортироваться через границы модулей
+// (шаблонные специализации flecs несовместимы с экспортом из модуля — C1116).
+
+export module z13.core.core;
+
+import std.compat;
+
+import z13.core.config;
+import z13.core.module_factory_base;
+
+export namespace z13 {
+
+class CoreImpl;
+
+using WorldId = std::uint32_t;
+
+class Core {
+ public:
+  Core(int argc, char* argv[]);
+  ~Core();  // for forward declared unique_ptr
+  const Config& GetConfig() const;
+  WorldId CreateWorld();
+  bool RegisterModuleFactory(ModuleFactoryPtr module_factory);
+
+  template <typename T, typename... Ts>
+  bool RegisterModuleFactory(Ts&&... params) {
+    return RegisterModuleFactory(std::make_shared<T>(std::forward<Ts>(params)...));
+  }
+
+  bool RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
+
+  void Update(float delta_time);
+  int Run();
+  void Shutdown();
+  bool IsPendingShutDown() const;
+
+ private:
+  std::unique_ptr<CoreImpl> impl_;
+};
+
+using CoreRef = std::reference_wrapper<Core>;
+
+}  // namespace z13

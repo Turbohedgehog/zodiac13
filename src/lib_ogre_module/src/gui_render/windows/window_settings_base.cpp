@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-#include "window_settings_base.h"
+module;
+
+#include <flecs.h>
+
+module z13.ogre.gui.window_settings_base;
 
 namespace z13::ogre::gui {
 
@@ -31,7 +35,12 @@ void InputSettingsWindowBase::SaveIfDirty() {
 
   auto world = GetWorld();
 
-  world.set(input_config_);
+  // InputConfig не assignable (boost::multi_index + const-члены), поэтому
+  // нельзя копировать его обратно через flecs::world::set. UI правит живой
+  // singleton-компонент по ссылке (см. GetInputConfig), а здесь лишь сообщаем
+  // ECS, что компонент изменился.
+  world.modified<z13::input::InputConfig>();
+
   world.event<input::SystemInputEventType>()
     .id<z13::input::SaveConfigEvent>()
     .entity(world.entity().add<z13::input::SaveConfigEvent>())

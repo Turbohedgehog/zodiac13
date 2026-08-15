@@ -14,20 +14,23 @@
  * limitations under the License.
  */
 
-#include "input_publisher.h"
+module;
 
-#include <array>
-#include <algorithm>
-#include <optional>
-#include <map>
-
-#include <z13/components/input.h>
 #include <SDL2/SDL.h>
 
+#include "OgreInput.h"
+#include "OgreBitesPrerequisites.h"
+
 #include <lib_core/log.h>
-#include <lib_core/flecs_utils.h>
 
 #include <input_config_generated.h>
+
+module z13.ogre.input_publisher;
+
+import std.compat;
+
+import z13.input;
+import z13.core.flecs_utils;
 
 namespace z13::ogre {
 

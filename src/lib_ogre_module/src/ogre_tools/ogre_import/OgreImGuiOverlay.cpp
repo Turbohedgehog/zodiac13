@@ -21,7 +21,7 @@
 #include <OgreRoot.h>
 #include <OgreTimer.h>
 
-namespace Ogre::z13
+namespace Ogre
 {
 
 static void DrawConfigOption(RenderSystem* rs, const ConfigOption& opt)

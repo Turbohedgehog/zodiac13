@@ -10,9 +10,9 @@
 
 #include <iostream>
 
-#include <lib_core/core.h>
 #include <lib_core/log.h>
-#include <lib_core/module_factory_base.h>
+
+import z13.core;
 
 namespace z13 {
 
@@ -26,7 +26,7 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
 
   core.RegisterModuleFactory("modules/z13_module/z13_module");
   core.RegisterModuleFactory("modules/ogre/ogre_module");
-  core.RegisterModuleFactory("modules/test_dll/test_dll_module");
+  // core.RegisterModuleFactory("modules/test_dll/test_dll_module");
 
   core.CreateWorld();
 

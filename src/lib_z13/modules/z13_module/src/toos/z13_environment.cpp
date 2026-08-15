@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include <z13_module/tools/z13_environment.h>
-
-#include <z13/constants/constants.h>
+module;
 
 #include <sago/platform_folders.h>
+
+module z13.tools.environment;
+
+// #include <z13_module/tools/z13_environment.h>
+
+import z13.constants;
+
+// #include <z13/constants/constants.h>
 
 namespace z13::tools::environment {
 

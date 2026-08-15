@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-#include "gameplay_main_menu.h"
+module;
+
+#include <flecs.h>
 
 #include <imgui.h>
 
-#include <z13/components/gameplay.h>
-#include <ogre_module/ogre_components.h>
+module z13.ogre.gui.gameplay_main_menu;
 
-#include "window_component.h"
-#include "window_factory.h"
+import z13.gameplay;
+import z13.ogre.gui.window_component;
+import z13.ogre.gui.window_factory;
+import z13.ogre.components;
 
 namespace z13::ogre::gui {
 
@@ -47,7 +50,7 @@ void GameplayMainMenuWindow::DrawImpl() {
 }
 
 void GameplayMainMenuWindow::OnBackEvent() {
-  GetWorld().remove_all<gameplay::Pause>();
+  GetWorld().remove_all<z13::gameplay::Pause>();
   WindowBase::OnBackEvent();
 }
 

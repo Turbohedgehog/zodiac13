@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#include "environment_render_system.h"
+module;
 
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/z13.h>
+module z13.ogre.environment_render_system;
 
-#include <ogre_module/ogre_components.h>
+import z13.core.components;
 
 namespace z13::ogre {
 

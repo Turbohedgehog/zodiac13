@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#include "options_input_settings.h"
+module;
 
+#include <flecs.h>
 #include <imgui.h>
 
-#include "window_component.h"
-#include "window_factory.h"
+module z13.ogre.gui.input_settings_window;
+
+import z13.ogre.gui.window_component;
+import z13.ogre.gui.window_factory;
 
 namespace z13::ogre::gui {
 

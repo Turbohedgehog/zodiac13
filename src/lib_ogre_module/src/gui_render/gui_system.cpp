@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#include "gui_system.h"
+module;
 
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/z13.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <ogre_module/ogre_components.h>
-#include "windows/window_component.h"
-#include "windows/window_factory.h"
-#include "windows/window_base.h"
-
 #include "../ogre_tools/ogre_import/OgreImGuiOverlay.h"
+
+module z13.ogre.gui.gui_system;
+
+import z13.core;
+import z13.input;
+import z13.gameplay;
+import z13.ogre.components;
+import z13.ogre.gui.window_factory;
+import z13.ogre.gui.window_base;
 
 namespace z13::ogre::gui {
 
@@ -40,7 +40,7 @@ struct RenderGui { };
 struct PostRenderGui { };
 
 void BeginGui(const z13::ogre::OgreData&) {
-  Ogre::z13::ImGuiOverlay::NewFrame();
+  Ogre::ImGuiOverlay::NewFrame();
 }
 
 void EndGui(const z13::ogre::OgreData&) {

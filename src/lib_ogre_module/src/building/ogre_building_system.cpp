@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-#include "ogre_building_system.h"
+module;
 
 #include <flecs.h>
 #include <Eigen/Dense>
 #include <Ogre.h>
 
-#include <lib_core/components.h>
-#include <lib_core/log.h>
+module z13.ogre.building;
 
-#include <z13/components/building.h>
-#include <ogre_module/ogre_components.h>
-
-#include "../ogre_tools/mesh_tools/mesh_tools.h"
-#include "../ogre_tools/ogre_tools.h"
-#include "../private_ogre_components.h"
+import z13.core;
+import z13.building;
+import z13.ogre.mesh_tools;
+import z13.ogre.tools;
+import z13.ogre.components;
 
 namespace z13::ogre {
 
-namespace {
+// namespace {
 
 struct OgreBuildingBrush {
   int a = 0;
@@ -40,7 +38,7 @@ struct OgreBuildingBrush {
 
 void OnBuildingBrushAdded(flecs::entity e, OgreData& ogre_data, const z13::building::Brush& brush, const Eigen::Matrix4f& matrix) {
   e.add<OgreBuildingBrush>();
-  CreateCubeMesh(e, *ogre_data.ogre_root, matrix);
+  CreateCubeMesh(e, *ogre_data.ogre_root);
 }
 
 void OnBuildingBrushRemoved(flecs::entity e, OgreData& ogre_data, const z13::building::Brush& brush) {
@@ -69,7 +67,7 @@ void RegisterSystems(flecs::world world) {
     .each(OnBuildingBrushRemoved);
 }
 
-}  // namespace
+// }  // namespace
 
 void OgreBuildingSystem::Register(flecs::world& world) {
   world.observer<InitSystemsEvent>()

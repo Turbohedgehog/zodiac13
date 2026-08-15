@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-#include <lib_core/config.h>
+module;
+
+#include <ostream>
+
+#include <boost/program_options.hpp>
+
+module z13.core.config;
 
 namespace z13 {
 

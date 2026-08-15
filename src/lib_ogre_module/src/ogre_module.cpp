@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include "ogre_module.h"
+module;
 
 #include <flecs.h>
 
-#include <ogre_module/ogre_components.h>
+module z13.ogre.ogre_module;
 
-#include "ogre_system.h"
-#include "building/ogre_building_system.h"
-#include "gui_render/gui_system.h"
+import z13.core;
+import z13.ogre.system;
+import z13.ogre.building;
 
 namespace z13::ogre {
 

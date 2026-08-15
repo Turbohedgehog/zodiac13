@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-#include "test_dll_system.h"
+module;
 
 #include <flecs.h>
 #include <lib_core/log.h>
+
+module z13.test_dll;
+
+import z13.core;
 
 namespace z13::dll {
 

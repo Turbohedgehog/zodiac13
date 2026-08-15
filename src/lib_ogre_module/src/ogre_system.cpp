@@ -14,27 +14,22 @@
  * limitations under the License.
  */
 
-#include "ogre_system.h"
+module;
 
 #include <Eigen/Dense>
 #include <Ogre.h>
 
-#include <lib_core/components.h>
-#include <lib_core/core.h>
+#include <flecs.h>
+
 #include <lib_core/log.h>
-#include <lib_core/math.h>
 
-#include <ogre_module/ogre_components.h>
+module z13.ogre.system;
 
-#include "ogre_tools/ogre_tools.h"
-#include <ogre_module/ogre_datatypes.h>
-#include <lib_core/components.h>
-#include <ogre_module/ogre_components.h>
-#include <z13/components/z13.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+import z13.core;
+import z13.input;
 
-#include "private_ogre_components.h"
+import z13.ogre.tools;
+import z13.ogre.components;
 
 namespace z13::ogre {
 
@@ -66,7 +61,8 @@ void Shutdown(flecs::entity e, OgreWindowClosed, OgreData& ogre_data) {
   e.world().get<CoreComponent>().core->get().Shutdown();
 }
 
-void OnAddCamera(flecs::entity e, OgreData& ogre_data, const gameplay::Camera& camera) {
+void OnAddCamera(flecs::entity e, const gameplay::Camera& camera) {
+  const auto& ogre_data = e.world().get<OgreData>();
   OgreTools::CreateCamera(e, camera, ogre_data);
 }
 
@@ -116,10 +112,14 @@ void RegisterSystems(flecs::world world) {
     .yield_existing()
     .each(OgreTools::EnableRelativeMouseMode);
 
-  world.observer<OgreData, const gameplay::Camera>("OgreSystem::OnAddCameraObserver")
+  world.observer<flecs::entity>("OgreSystem::OnAddCameraObserver")
     .event(flecs::OnAdd)
     .yield_existing()
-    .each(OnAddCamera);
+    .each([](flecs::entity e) {
+      if (e.has<gameplay::Camera>()) {
+        OnAddCamera(e, e.get<gameplay::Camera>());
+      }
+    });
 
   world.observer<SceneNodeComponent, Eigen::Matrix4f>("OgreSystem::OnUpdateOgreSceneNode")
     .event(flecs::OnSet)

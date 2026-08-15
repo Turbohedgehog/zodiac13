@@ -14,21 +14,28 @@
  * limitations under the License.
  */
 
-#include <ogre_module/ogre_module_factory.h>
+
+module;
 
 #include <flecs.h>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
 
-#include "ogre_module.h"
-#include "render/render_module.h"
+module z13.ogre.ogre_module_factory;
+
+import std.compat;
+
+import z13.ogre.ogre_module;
+import z13.ogre.render_module;
 
 namespace z13::ogre {
 
- void OgreModuleFactory::RegisterModules(flecs::world& world) {
+void OgreModuleFactory::RegisterModules(flecs::world& world) {
   world.import<z13::ogre::OgreRender>();
   world.import<z13::ogre::GameplayRenderModule>();
- }
+}
 
- const std::string& OgreModuleFactory::GetName() const {
+const std::string& OgreModuleFactory::GetName() const {
   static std::string name = "OgreModuleFactory";
 
   return name;
@@ -39,3 +46,8 @@ ModuleFactoryPtr OgreModuleFactory::CreateFactory() {
 }
 
 }  // namespace z13::ogre
+
+BOOST_DLL_ALIAS(
+    z13::ogre::OgreModuleFactory::CreateFactory,
+    create_module_factory
+)

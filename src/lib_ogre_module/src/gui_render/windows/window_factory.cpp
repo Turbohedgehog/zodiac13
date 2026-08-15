@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "window_factory.h"
+module z13.ogre.gui.window_factory;
 
-#include "gameplay_main_menu.h"
-#include "options_input_keyboard_bindings_2.h"
-#include "options_input_settings.h"
+import z13.ogre.gui.gameplay_main_menu;
+import z13.ogre.gui.input_settings_window;
+import z13.ogre.gui.key_binding_window2;
 
 namespace z13::ogre::gui {
 

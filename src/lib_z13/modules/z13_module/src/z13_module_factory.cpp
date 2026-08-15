@@ -14,11 +14,18 @@
  * limitations under the License.
  */
 
-#include <z13_module/z13_module_factory.h>
+module;
 
 #include <flecs.h>
 
-#include "z13_module.h"
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
+
+module z13.lib_z13.module_factory;
+
+import std.compat;
+
+import z13.lib_z13.module;
 
 namespace z13 {
 
@@ -37,3 +44,8 @@ const std::string& Z13ModuleFactory::GetName() const {
 }
 
 }  // namespace z13
+
+BOOST_DLL_ALIAS(
+    z13::Z13ModuleFactory::CreateFactory,
+    create_module_factory
+)

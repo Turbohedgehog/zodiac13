@@ -11,7 +11,7 @@
 
 #include <imgui.h>
 
-namespace Ogre::z13
+namespace Ogre
 {
 /** Draws a renderer configuration menu using ImGui
   *

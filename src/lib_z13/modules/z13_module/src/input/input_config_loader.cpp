@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-#include <z13_module/input/input_config_loader.h>
+// #include <z13_module/input/input_config_loader.h>
 
-#include <algorithm>
-#include <fstream>
-#include <filesystem>
+module;
+
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/container/flat_map.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -27,10 +33,15 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/log.h>
-#include <z13_module/tools/z13_environment.h>
-#include <z13/components/input.h>
 
 #include <input_config_generated.h>
+
+module z13.gameplay.input;
+
+import std.compat;
+
+import z13.tools.environment;
+import z13.input;
 
 namespace z13::gameplay::input {
 
@@ -241,7 +252,13 @@ void InputConfigLoader::SetDefaults(
 }
 
 void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
-  input_config = z13::input::InputConfig();
+  // Нельзя переприсвоить весь InputConfig: boost::multi_index_container с
+  // const-членами в KeyCodeAction не является assignable. Очищаем по частям.
+  input_config.keycode_binding.clear();
+  input_config.action_bindings.clear();
+  input_config.mouse_sensitivity = 5.f;
+  input_config.invert_x = {};
+  input_config.invert_y = {};
 }
 
 void InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
@@ -296,7 +313,7 @@ void InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
         }
       }
 
-      action_map.action_map.emplace_back(
+      action_map.action_map.insert(
         z13::input::ActionInfo {
           .enum_name = enum_name,
           .value_name = value->name()->string_view(),

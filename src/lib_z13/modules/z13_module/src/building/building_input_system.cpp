@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-#include "building_input_system.h"
-
-#include <algorithm>
-#include <optional>
+module;
 
 #include <flecs.h>
 
 #include <building_generated.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <z13/components/building.h>
-#include <z13_module/input/input_config_loader.h>
+module z13.module.building_input;
 
-#include <building_generated.h>
+import std.compat;
+
+import z13.input;
+import z13.gameplay.input;
+
+import z13.core;
+import z13.building;
+import z13.gameplay;
 
 namespace z13::building {
 

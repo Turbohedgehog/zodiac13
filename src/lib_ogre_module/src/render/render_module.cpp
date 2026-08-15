@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-#include "render_module.h"
+module z13.ogre.render_module;
 
-#include <ogre_module/ogre_components.h>
-
-#include "environment_render_system.h"
-#include "../gui_render/gui_system.h"
+import z13.ogre.environment_render_system;
+import z13.ogre.gui.gui_system;
 
 namespace z13::ogre {
 

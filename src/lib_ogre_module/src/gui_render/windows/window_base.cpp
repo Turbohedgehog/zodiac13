@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-#include "window_base.h"
+module;
+
+#include <new>
+#include <flecs.h>
 
 #include <imgui.h>
 
-#include "window_component.h"
+module z13.ogre.gui.window_base;
+
+import z13.ogre.gui.window_component;
 
 namespace z13::ogre::gui {
 
@@ -53,7 +58,7 @@ void WindowBase::Draw() {
   }
 }
 
-flecs::world WindowBase::GetWorld() const {
+flecs::world WindowBase::GetWorld() {
   return world_;
 }
 
