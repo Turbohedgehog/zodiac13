@@ -14,16 +14,26 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
+
+#include <memory>
+#include <string>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
 
 #include <flecs.h>
-#include "OgreInput.h"
 
-namespace z13::ogre {
+export module z13.core.module_factory_base;
 
-class InputPublisher {
+export namespace z13 {
+
+class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
  public:
-  static bool PublishInput(flecs::world world, const OgreBites::Event& ogre_event);
+  virtual ~ModuleFactoryBase() = default;
+  virtual void RegisterModules(flecs::world& world) = 0;
+  virtual const std::string& GetName() const = 0;
 };
 
-}  // namespace z13::ogre
+using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
+
+}  // namespace z13

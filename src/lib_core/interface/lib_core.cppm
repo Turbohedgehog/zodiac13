@@ -18,7 +18,6 @@
 
 export module z13.core;
 
-export import z13.core.core_types;
 export import z13.core.config;
 export import z13.core.math;
 export import z13.core.components;

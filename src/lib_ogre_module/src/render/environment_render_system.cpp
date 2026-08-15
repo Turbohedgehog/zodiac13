@@ -20,8 +20,6 @@ module;
 
 #include <lib_core/log.h>
 
-#include <ogre_module/ogre_components.h>
-
 module z13.ogre.render;
 
 import z13.core;

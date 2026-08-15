@@ -22,16 +22,13 @@ module;
 
 #include <lib_core/log.h>
 
-#include <ogre_module/ogre_components.h>
-
-#include "../ogre_tools/mesh_tools/mesh_tools.h"
-#include "../ogre_tools/ogre_tools.h"
-#include "../private_ogre_components.h"
-
 module z13.ogre.building;
 
 import z13.core;
 import z13.components;
+import z13.ogre.mesh_tools;
+import z13.ogre.tools;
+import z13.ogre.components;
 
 namespace z13::ogre {
 

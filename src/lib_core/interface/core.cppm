@@ -15,12 +15,14 @@ module;
 
 export module z13.core.core;
 
-import z13.core.core_types;
 import z13.core.config;
+import z13.core.module_factory_base;
 
 export namespace z13 {
 
 class CoreImpl;
+
+using WorldId = uint32_t;
 
 class Core {
  public:
@@ -45,5 +47,7 @@ class Core {
  private:
   std::unique_ptr<CoreImpl> impl_;
 };
+
+using CoreRef = std::reference_wrapper<Core>;
 
 }  // namespace z13

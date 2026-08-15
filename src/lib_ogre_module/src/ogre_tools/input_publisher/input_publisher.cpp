@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "input_publisher.h"
+module;
 
 #include <array>
 #include <algorithm>
@@ -24,11 +24,17 @@
 #include <z13/components/input.h>
 #include <SDL2/SDL.h>
 
+#include "OgreInput.h"
+#include "OgreBitesPrerequisites.h"
+
 #include <lib_core/log.h>
 
-import z13.core;
-
 #include <input_config_generated.h>
+
+module z13.ogre.input_publisher;
+
+import z13.core;
+import z13.components;
 
 namespace z13::ogre {
 

@@ -19,8 +19,7 @@
 #include <imgui.h>
 
 import z13.components;
-
-#include <ogre_module/ogre_components.h>
+import z13.ogre.components;
 
 #include "window_component.h"
 #include "window_factory.h"

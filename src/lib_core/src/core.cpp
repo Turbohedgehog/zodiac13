@@ -16,14 +16,16 @@ module;
 
 #include <flecs.h>
 #include <lib_core/log.h>
-#include <lib_core/module_factory_base.h>
+// #include <lib_core/module_factory_base.h>
 
-#include "module_lib_holder.h"
+// #include "module_lib_holder.h"
 
 module z13.core.core;
 
 import z13.core.config;
 import z13.core.components;
+import z13.core.module_factory_base;
+import z13.core.module_lib_holder;
 
 namespace z13 {
 

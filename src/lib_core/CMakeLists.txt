@@ -18,6 +18,18 @@ file(
   ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
 
+file(
+  GLOB_RECURSE
+  PROJECT_INTERFACE_MODULE_FILES
+  ${PROJECT_SOURCE_DIR}/interface/**.cppm
+)
+
+file(
+  GLOB_RECURSE
+  PROJECT_INTERNAL_MODULE_FILES
+  ${PROJECT_SOURCE_DIR}/src/**.cppm
+)
+
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
@@ -29,15 +41,12 @@ target_sources(
   ${PROJECT_NAME}
   PUBLIC
   FILE_SET CXX_MODULES
-    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/modules
+    BASE_DIRS
+      ${CMAKE_CURRENT_SOURCE_DIR}/interface
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
     FILES
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.core_types.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.config.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.math.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.components.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.flecs_utils.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.core.core.cppm
+    ${PROJECT_INTERFACE_MODULE_FILES}
+    ${PROJECT_INTERNAL_MODULE_FILES}
 )
 
 target_include_directories(

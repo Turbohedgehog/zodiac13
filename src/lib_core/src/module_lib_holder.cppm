@@ -14,15 +14,33 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <flecs.h>
+#include <filesystem>
+#include <map>
+#include <memory>
 
-namespace z13::ogre {
+#include <boost/dll/shared_library.hpp>
 
-class OgreSystem {
- public:
-  static void Register(flecs::world& world);
+// #include <lib_core/module_factory_base.h>
+
+export module z13.core.module_lib_holder;
+
+import z13.core.module_factory_base;
+
+export namespace z13 {
+
+struct LibHolder {
+  boost::dll::shared_library lib;
+  std::shared_ptr<ModuleFactoryBase> module_factory;
 };
 
-}  // namespace z13::ogre
+class ModuleLibHolder {
+ public:
+  ModuleFactoryPtr AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension = true);
+
+ private:
+  std::map<std::filesystem::path, LibHolder> lib_holders_;
+};
+
+}  // namespace z13

@@ -14,21 +14,16 @@
  * limitations under the License.
  */
 
-#include "ogre_tools.h"
+module;
 
 #include <filesystem>
 
 #include <lib_core/log.h>
 
-import z13.core;
-
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 
-#include <ogre_module/ogre_datatypes.h>
-#include <ogre_module/ogre_components.h>
-
-import z13.components;
+// #include <ogre_module/ogre_datatypes.h>
 
 #include <Ogre.h>
 
@@ -48,15 +43,19 @@ import z13.components;
 #include <Plugins/PCZSceneManager/OgrePCZSceneManager.h>
 #include <Plugins/FreeImageCodec/OgreFreeImageCodec.h>
 #include <Plugins/STBICodec/OgreSTBICodec.h>
-#include "input_publisher/input_publisher.h"
 
-#include "scene_node_holder/scene_node_holder.h"
+module z13.ogre.tools;
 
-#include "../private_ogre_components.h"
+import z13.core;
+import z13.components;
+import z13.ogre.components;
+import z13.ogre.input_publisher;
+import z13.ogre.scene_node_holder;
 
 namespace z13::ogre {
 
   constexpr auto kPCZSceneManagerName = "PCZSceneManager";
+  static constexpr auto kAssetsResourceGroup = "AssetsResourceGroup"
 
   Ogre::z13::ImGuiOverlay *InitImguiOverlay() {
     if (auto overlay = Ogre::OverlayManager::getSingleton().getByName("ImGuiOverlay")) {
@@ -239,8 +238,9 @@ namespace z13::ogre {
     // scene_manager->setSkyBox(true, "skybox/skybox"); // ,5000, true, Ogre::Quaternion::IDENTITY, kAssetsResourceGroup);
     Ogre::Quaternion q;
     q.FromAngleAxis(Ogre::Degree(90), Ogre::Vector3::UNIT_X);
-    scene_manager->setSkyBox(true, "skybox/skybox_2", 5000, true, q);
-    scene_manager->setSkyZone(0);
+    // scene_manager->setSkyBox(true, "skybox/skybox_2", 5000, true, q);
+    // scene_manager->setSkyBox(true, "materials/skybox/skybox_2", 5000, true, q);
+    // scene_manager->setSkyZone(0);
     InitImgui();
 
     SDL_ShowWindow(sld_window);

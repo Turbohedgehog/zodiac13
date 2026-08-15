@@ -33,10 +33,15 @@ target_sources(
     FILES
       ${CMAKE_CURRENT_SOURCE_DIR}/src/z13.ogre.system.cppm
       ${CMAKE_CURRENT_SOURCE_DIR}/src/z13.ogre.module.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/z13.ogre.components.cppm
       ${CMAKE_CURRENT_SOURCE_DIR}/src/render/z13.ogre.render.cppm
       ${CMAKE_CURRENT_SOURCE_DIR}/src/render/z13.ogre.render_module.cppm
       ${CMAKE_CURRENT_SOURCE_DIR}/src/gui_render/z13.ogre.gui.cppm
       ${CMAKE_CURRENT_SOURCE_DIR}/src/building/z13.ogre.building.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ogre_tools/z13.ogre.tools.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ogre_tools/scene_node_holder/z13.ogre.scene_node_holder.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ogre_tools/mesh_tools/z13.ogre.mesh_tools.cppm
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ogre_tools/input_publisher/z13.ogre.input_publisher.cppm
 )
 
 target_include_directories(

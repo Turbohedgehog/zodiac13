@@ -21,7 +21,6 @@ module;
 #include <lib_core/log.h>
 
 #include <z13/components/input.h>
-#include <ogre_module/ogre_components.h>
 #include "windows/window_component.h"
 #include "windows/window_factory.h"
 #include "windows/window_base.h"
@@ -32,6 +31,7 @@ module z13.ogre.gui;
 
 import z13.core;
 import z13.components;
+import z13.ogre.components;
 
 namespace z13::ogre::gui {
 

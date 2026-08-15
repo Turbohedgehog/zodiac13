@@ -14,14 +14,20 @@
  * limitations under the License.
  */
 
-#include "module_lib_holder.h"
+module;
+
+#include <filesystem>
 
 #include <boost/dll.hpp>
 #include <boost/dll/import.hpp>
 #include <boost/dll/shared_library.hpp>
 
 #include <lib_core/log.h>
-#include <lib_core/module_factory_base.h>
+// #include <lib_core/module_factory_base.h>
+
+module z13.core.module_lib_holder;
+
+import z13.core.module_factory_base;
 
 namespace z13 {
 

@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-#include "scene_node_holder.h"
+module;
 
 #include <Ogre.h>
+
+module z13.ogre.scene_node_holder;
+
+import z13.ogre.components;
 
 namespace z13::ogre {
 

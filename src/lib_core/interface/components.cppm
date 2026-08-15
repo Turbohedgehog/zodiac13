@@ -7,7 +7,7 @@ module;
 
 export module z13.core.components;
 
-import z13.core.core_types;
+import z13.core.core;
 
 export namespace z13 {
 

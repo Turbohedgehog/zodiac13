@@ -18,8 +18,6 @@ module;
 
 #include <flecs.h>
 
-#include <ogre_module/ogre_components.h>
-
 module z13.ogre.module;
 
 import z13.core;

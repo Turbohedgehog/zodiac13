@@ -16,8 +16,6 @@
 
 module;
 
-#include <ogre_module/ogre_components.h>
-
 module z13.ogre.render_module;
 
 import z13.core;

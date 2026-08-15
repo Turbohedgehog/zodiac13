@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "mesh_tools.h"
+module;
 
 #include <flecs.h>
 #include <Ogre.h>
@@ -22,8 +22,11 @@
 
 #include <lib_core/log.h>
 
-#include "../ogre_tools.h"
-#include "../../private_ogre_components.h"
+module z13.ogre.mesh_tools;
+
+import z13.core;
+import z13.ogre.tools;
+import z13.ogre.components;
 
 namespace z13::ogre {
 

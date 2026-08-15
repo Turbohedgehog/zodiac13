@@ -23,19 +23,15 @@ module;
 
 #include <lib_core/log.h>
 
-#include <ogre_module/ogre_components.h>
-
-#include "ogre_tools/ogre_tools.h"
-#include <ogre_module/ogre_datatypes.h>
-#include <ogre_module/ogre_components.h>
+// #include <ogre_module/ogre_datatypes.h>
 #include <z13/components/input.h>
-
-#include "private_ogre_components.h"
 
 module z13.ogre.system;
 
 import z13.core;
 import z13.components;
+import z13.ogre.tools;
+import z13.ogre.components;
 
 namespace z13::ogre {
 
