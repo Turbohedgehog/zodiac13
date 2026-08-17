@@ -13,6 +13,11 @@ find_package(Boost REQUIRED COMPONENTS container)
 # через FILE_SET CXX_MODULES требует компилируемой библиотеки.
 add_library(${PROJECT_NAME} STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/modules/dummy.cpp
+  # Implementation unit модуля z13.input (см. input.cppm). Содержит
+  # неинлайновое определение ActionMap::ActionMap(const ActionMap&), чтобы
+  # boost::multi_index копировался в этом TU (обход ограничения ADL в
+  # C++20 modules / MSVC, ошибка C2678 в boost/operators.hpp).
+  ${CMAKE_CURRENT_SOURCE_DIR}/interface/input.cpp
 )
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 

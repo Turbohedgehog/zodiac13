@@ -127,6 +127,18 @@ struct ActionMap {
   struct EnumValueTag;
   struct EnumNameEnumValueTag;
 
+  // Конструктор копирования определён неинлайново в implementation unit
+  // (input.cpp), чтобы boost::multi_index::copy_construct_from инстанцировался
+  // в том же TU, где подключены заголовки boost через global module fragment.
+  // Иначе из-за ограничений ADL C++20 modules в MSVC операторы ==/!= для
+  // bidir_node_iterator не находятся и возникает ошибка C2678 в boost/operators.hpp.
+  ActionMap() = default;
+  ActionMap(const ActionMap& other);
+  ActionMap(ActionMap&&) noexcept = default;
+  // Операторы присваивания оставлены неявно удалёнными: ActionInfo содержит
+  // const-члены, поэтому контейнер (и, как следствие, ActionMap) не является
+  // copy/move assignable.
+
   using ActionMapContainer = bmi::multi_index_container<
     ActionInfo,
     bmi::indexed_by<
@@ -182,6 +194,14 @@ struct InputConfig {
   struct KeycodeIdTag;
   struct ActionGroupKeycodeIdTag;
   struct ActionIdTag;
+
+  // Аналогично ActionMap: конструктор копирования определён неинлайново в
+  // input.cpp, чтобы boost::multi_index::copy_construct_from для keycode_binding
+  // инстанцировался в TU с видимыми boost-заголовками (обход ограничения ADL
+  // в C++20 modules / MSVC, ошибка C2678 в boost/operators.hpp).
+  InputConfig() = default;
+  InputConfig(const InputConfig& other);
+  InputConfig(InputConfig&&) noexcept = default;
 
   using KeyBindingType = bmi::multi_index_container<
     KeyCodeAction,

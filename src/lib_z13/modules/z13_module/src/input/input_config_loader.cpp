@@ -254,7 +254,13 @@ void InputConfigLoader::SetDefaults(
 }
 
 void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
-  input_config = z13::input::InputConfig();
+  // Нельзя переприсвоить весь InputConfig: boost::multi_index_container с
+  // const-членами в KeyCodeAction не является assignable. Очищаем по частям.
+  input_config.keycode_binding.clear();
+  input_config.action_bindings.clear();
+  input_config.mouse_sensitivity = 5.f;
+  input_config.invert_x = {};
+  input_config.invert_y = {};
 }
 
 void InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
