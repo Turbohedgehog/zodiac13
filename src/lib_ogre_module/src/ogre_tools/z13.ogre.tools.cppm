@@ -11,8 +11,6 @@ module;
 
 export module z13.ogre.tools;
 
-import z13.core;
-import z13.components;
 export import z13.ogre.components;
 
 export namespace z13::ogre {

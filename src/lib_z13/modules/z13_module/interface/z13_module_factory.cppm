@@ -14,15 +14,24 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <flecs.h>
+#include <boost/config.hpp>
 
-namespace z13::gameplay::input {
+export module z13.lib_z13.module_factory;
 
-class GameplayInputSystem {
+export import <memory>;
+
+import z13.core.module_factory_base;
+
+export namespace z13 {
+
+class BOOST_SYMBOL_VISIBLE Z13ModuleFactory : public z13::ModuleFactoryBase {
  public:
-  static void Register(flecs::world& world);
+  static ModuleFactoryPtr CreateFactory();
+
+  void RegisterModules(flecs::world& world) override;
+  const std::string& GetName() const override;
 };
 
-}  // z13::gameplay::input
+}  // namespace z13

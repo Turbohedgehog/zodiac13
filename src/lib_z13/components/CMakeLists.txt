@@ -16,6 +16,12 @@ add_library(${PROJECT_NAME} STATIC
 )
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+file(
+  GLOB_RECURSE
+  PROJECT_INTERFACE_MODULE_FILES
+  ${PROJECT_SOURCE_DIR}/interface/**.cppm
+)
+
 # Именованный модуль z13.components (типы без flatbuffers-зависимостей).
 # Типы из input.h, зависящие от сгенерированных flatbuffers-типов, остаются
 # в классических заголовках (см. план миграции, раздел 4.3, вариант в).
@@ -23,8 +29,10 @@ target_sources(
   ${PROJECT_NAME}
   PUBLIC
   FILE_SET CXX_MODULES
-    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/modules
-    FILES ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.components.cppm
+    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/interface
+    FILES
+      # ${CMAKE_CURRENT_SOURCE_DIR}/modules/z13.components.cppm
+      ${PROJECT_INTERFACE_MODULE_FILES}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

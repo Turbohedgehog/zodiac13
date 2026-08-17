@@ -16,20 +16,19 @@
 
 module;
 
-#include <string>
-#include <utility>
-
 #include <flecs.h>
 #include <Eigen/Dense>
 
 #include <lib_core/log.h>
 
-#include <z13/components/input.h>
-
 module z13.module.gameplay;
 
+import <string>;
+import <utility>;
+
 import z13.core;
-import z13.components;
+import z13.input;
+import z13.gameplay;
 
 namespace z13::gameplay {
 

@@ -5,9 +5,6 @@ module;
 
 export module z13.ogre.gui;
 
-import z13.core;
-import z13.components;
-
 export namespace z13::ogre::gui {
 
 class GuiSystem {

@@ -29,7 +29,7 @@ module;
 module z13.ogre.system;
 
 import z13.core;
-import z13.components;
+
 import z13.ogre.tools;
 import z13.ogre.components;
 

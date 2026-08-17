@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.gameplay.input;
 
-#include <optional>
+import <optional>;
+import <string_view>;
 
-#include <z13/components/input.h>
+// #include <z13/components/input.h>
+import z13.input;
 
-namespace z13::gameplay::input {
+export namespace z13::gameplay::input {
 
 class InputConfigLoader {
  public:

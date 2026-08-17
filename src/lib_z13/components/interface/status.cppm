@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.status;
 
-#include <flecs.h>
+export namespace z13::status {
 
-namespace z13::building {
+struct OnStartupGameEvent {};
 
-class BuildingSystem {
- public:
-  static void Register(flecs::world& world);
+struct Z13State {
+  bool shutdown = false;
 };
 
-}  // namespace z13::building
+struct Loading {
+  float percent {};
+};
+
+}  // namespace z13::status

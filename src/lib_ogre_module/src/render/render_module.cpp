@@ -14,14 +14,7 @@
  * limitations under the License.
  */
 
-module;
-
 module z13.ogre.render_module;
-
-import z13.core;
-import z13.components;
-import z13.ogre.render;
-import z13.ogre.gui;
 
 namespace z13::ogre {
 

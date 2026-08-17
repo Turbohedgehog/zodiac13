@@ -16,22 +16,23 @@
 
 module;
 
-#include <algorithm>
-#include <optional>
-
 #include <flecs.h>
 
 #include <building_generated.h>
 
 #include <lib_core/log.h>
 
-#include <z13/components/input.h>
-#include <z13_module/input/input_config_loader.h>
-
 module z13.module.building_input;
 
+import <algorithm>;
+import <optional>;
+
+import z13.input;
+import z13.gameplay.input;
+
 import z13.core;
-import z13.components;
+import z13.building;
+import z13.gameplay;
 
 namespace z13::building {
 

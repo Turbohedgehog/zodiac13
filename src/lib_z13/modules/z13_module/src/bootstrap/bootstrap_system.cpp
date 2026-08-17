@@ -20,8 +20,9 @@ module;
 
 module z13.module.bootstrap;
 
-import z13.core;
-import z13.components;
+import z13.input;
+import z13.bootstrap;
+import z13.gameplay;
 
 namespace z13::bootstrap {
 
@@ -38,7 +39,7 @@ void RegisterComponents(flecs::world& world) {
 void InitBootstrap(flecs::entity e, const BootstrapComponent&) {
   // todo: завязать все загрузки и инициализации систем на последовательности, указанной здесь.
   // Последовательность будет расширена.
-  e.add<LoadConfigEvent>();
+  e.add<z13::input::LoadConfigEvent>();
   e.add<CreatePlayerEvent>();
 
   e.world().add<BootstrapCompleteComponent>();

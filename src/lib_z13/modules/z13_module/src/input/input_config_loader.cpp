@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-#include <z13_module/input/input_config_loader.h>
+// #include <z13_module/input/input_config_loader.h>
 
-#include <algorithm>
-#include <fstream>
-#include <filesystem>
+module;
+
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/container/flat_map.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -27,10 +33,17 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/log.h>
-#include <z13_module/tools/z13_environment.h>
-#include <z13/components/input.h>
 
 #include <input_config_generated.h>
+
+module z13.gameplay.input;
+
+import <algorithm>;
+import <fstream>;
+import <filesystem>;
+
+import z13.tools.environment;
+import z13.input;
 
 namespace z13::gameplay::input {
 
@@ -296,7 +309,7 @@ void InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
         }
       }
 
-      action_map.action_map.emplace_back(
+      action_map.action_map.insert(
         z13::input::ActionInfo {
           .enum_name = enum_name,
           .value_name = value->name()->string_view(),

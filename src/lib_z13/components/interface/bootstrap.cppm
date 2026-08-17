@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.bootstrap;
 
-#include <string>
+export namespace z13::bootstrap {
 
-namespace z13::constants {
+// struct LoadConfigEvent {};
+struct CreatePlayerEvent {};
 
-inline static const std::string kGameName = "zodiac13";
-
-}  // namespace z13::constants
+}  // namespace z13::bootstrap

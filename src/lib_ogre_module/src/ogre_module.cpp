@@ -21,7 +21,6 @@ module;
 module z13.ogre.module;
 
 import z13.core;
-import z13.components;
 import z13.ogre.system;
 import z13.ogre.building;
 

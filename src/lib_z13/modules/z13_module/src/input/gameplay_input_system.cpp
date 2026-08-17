@@ -16,29 +16,32 @@
 
 module;
 
-#include <limits>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/composite_key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/container/flat_map.hpp>
 
 #include <Eigen/Dense>
 #include <flecs.h>
 
 #include <lib_core/log.h>
 
-#include <z13/components/input.h>
-#include <z13_module/tools/z13_environment.h>
-
-#include <z13_module/input/input_config_loader.h>
-
 #include <input_config_generated.h>
-
 #include <actions_generated.h>
-
-
-#include "../private_components/input_system_components.h"
 
 module z13.module.gameplay_input;
 
+import <limits>;
+
 import z13.core;
-import z13.components;
+import z13.gameplay;
+import z13.input;
+import z13.status;
+import z13.tools.environment;
+import z13.gameplay.input;
 
 namespace z13::gameplay::input {
 
@@ -335,7 +338,7 @@ void OnInputSystemStartupGameEvent(
     size_t,
     z13::input::InputConfig& input_config,
     z13::input::ActionMap& action_map,
-    status::OnStartupGameEvent) {
+    z13::status::OnStartupGameEvent) {
   action_map.action_map.clear();
 
   {

@@ -14,37 +14,40 @@
  * limitations under the License.
  */
 
-#include "z13_module.h"
-
-#include <lib_core/log.h>
-
-#include <z13/components/input.h>
+module;
 
 #include <flecs.h>
 
-import z13.core;
+#include <lib_core/log.h>
 
-import z13.components;
+module z13.lib_z13.module;
+
+import z13.input;
+import z13.core;
+import z13.status;
+import z13.gameplay;
 
 import z13.module.bootstrap;
 import z13.module.gameplay;
 import z13.module.gameplay_input;
 import z13.module.building;
 import z13.module.building_input;
+import z13.player_info;
 
 namespace z13 {
 
 namespace {
 
 void OnRegisterComponents(flecs::world world) {
-  world.component<status::Z13State>()
+  world.component<z13::status::Z13State>()
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
-  world.component<gameplay::Gameplay>().add(flecs::Singleton);
-  world.component<gameplay::Pause>().add(flecs::Singleton);
-  world.component<input::SystemInputEventType>();
-  world.component<input::ActionMap>().add(flecs::Singleton);
-  world.component<input::InputConfig>().add(flecs::Singleton);
-  world.component<PlayerInfoComponent>()
+  world.component<z13::gameplay::Gameplay>().add(flecs::Singleton);
+  world.component<z13::gameplay::Pause>().add(flecs::Singleton);
+  world.component<z13::gameplay::Pause>().add(flecs::Singleton);
+  world.component<z13::input::SystemInputEventType>();
+  world.component<z13::input::ActionMap>().add(flecs::Singleton);
+  world.component<z13::input::InputConfig>().add(flecs::Singleton);
+  world.component<z13::PlayerInfoComponent>()
     .member<uint32_t>("id")
     .member(flecs::String, "login")
     .member(flecs::String, "name");

@@ -11,7 +11,13 @@ find_package(Boost REQUIRED COMPONENTS dll)
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${PROJECT_SOURCE_DIR}/src/**.cpp
+)
+
+file(
+  GLOB_RECURSE
+  PROJECT_MODULE_FILES
+  ${PROJECT_SOURCE_DIR}/**.cppm
 )
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
@@ -22,19 +28,15 @@ target_sources(
   ${PROJECT_NAME}
   PUBLIC
   FILE_SET CXX_MODULES
-    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
+    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
     FILES
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/bootstrap/z13.module.bootstrap.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/gameplay/z13.module.gameplay.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/input/z13.module.gameplay_input.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/building/z13.module.building.cppm
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/building/z13.module.building_input.cppm
+      ${PROJECT_MODULE_FILES}
 )
 
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  # $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
 )

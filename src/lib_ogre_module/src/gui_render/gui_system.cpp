@@ -30,7 +30,6 @@ module;
 module z13.ogre.gui;
 
 import z13.core;
-import z13.components;
 import z13.ogre.components;
 
 namespace z13::ogre::gui {

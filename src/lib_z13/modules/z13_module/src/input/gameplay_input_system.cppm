@@ -3,10 +3,9 @@
 
 module;
 
-export module z13.module.gameplay_input;
+#include <flecs.h>
 
-import z13.core;
-import z13.components;
+export module z13.module.gameplay_input;
 
 export namespace z13::gameplay::input {
 

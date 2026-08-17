@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.constants;
 
-#include <flecs.h>
+export import <string_view>;
 
-namespace z13 {
+export namespace z13::constants {
 
-class Z13Module {
- public:
-  Z13Module(flecs::world& world);
-};
+constexpr std::string_view kGameName = "zodiac13";
 
-} // namespace z13
+}  // namespace z13::constants

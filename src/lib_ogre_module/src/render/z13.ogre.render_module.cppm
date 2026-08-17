@@ -3,12 +3,9 @@
 
 module;
 
-export module z13.ogre.render_module;
+#include <flecs.h>
 
-import z13.core;
-import z13.components;
-import z13.ogre.render;
-import z13.ogre.gui;
+export module z13.ogre.render_module;
 
 export namespace z13::ogre {
 

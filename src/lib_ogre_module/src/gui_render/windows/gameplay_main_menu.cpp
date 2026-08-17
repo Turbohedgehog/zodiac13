@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
+module;
+
 #include "gameplay_main_menu.h"
 
 #include <imgui.h>
 
-import z13.components;
-import z13.ogre.components;
-
 #include "window_component.h"
 #include "window_factory.h"
+
+module z13.ogre.gui;
+
+import z13.ogre.components;
 
 namespace z13::ogre::gui {
 

@@ -23,8 +23,10 @@ module;
 
 module z13.module.building;
 
-import z13.core;
-import z13.components;
+import z13.gameplay;
+import z13.building;
+import z13.core.math;
+import z13.core.components;
 
 namespace z13::building {
 

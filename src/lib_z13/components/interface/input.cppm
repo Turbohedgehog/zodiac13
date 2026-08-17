@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <array>
-#include <vector>
-#include <span>
-#include <map>
+module;
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/composite_key.hpp>
@@ -31,7 +26,14 @@
 
 #include <input_config_generated.h>
 
-namespace z13::input {
+export module z13.input;
+
+export import <array>;
+export import <vector>;
+export import <span>;
+export import <map>;
+
+export namespace z13::input {
 
 struct ClearActionFramePhase {};
 struct CalculateActionFramePhase {};
@@ -109,6 +111,11 @@ struct ActionInfo {
   const std::vector<z13::fbs::input::Keycode> default_keycodes;
   const EnumValueType enum_value {};
   const IdType id {};
+
+  // boost::multi_index требует, чтобы элемент был EqualityComparable (копирующий
+  // конструктор контейнера использует operator!= итераторов, построенный из operator==).
+  // Без него компиляция из другого модуля падает с C2678 на boost/operators.hpp.
+  bool operator==(const ActionInfo&) const = default;
 };
 
 struct ActionMap {
@@ -123,7 +130,6 @@ struct ActionMap {
   using ActionMapContainer = bmi::multi_index_container<
     ActionInfo,
     bmi::indexed_by<
-      bmi::sequenced<>,
       bmi::ordered_unique<
         bmi::tag<EnumActionNameTag>,
         bmi::composite_key<

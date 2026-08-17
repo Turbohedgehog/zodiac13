@@ -16,14 +16,15 @@
 
 module;
 
-#include <memory>
-#include <string>
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
 
 #include <flecs.h>
 
 export module z13.core.module_factory_base;
+
+export import <memory>;
+export import <string>;
 
 export namespace z13 {
 

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.player_info;
 
-#include <atomic>
-#include <thread>
-#include <memory>
+export import <string>;
 
-#include <z13/components/input.h>
+export namespace z13 {
 
-namespace z13::gameplay {
+struct PlayerInfoComponent {
+  uint32_t id {};
+  std::string login;
+  std::string name;
+};
 
-
-  
-}  // namespace z13::gameplay
+}  // namespace z13

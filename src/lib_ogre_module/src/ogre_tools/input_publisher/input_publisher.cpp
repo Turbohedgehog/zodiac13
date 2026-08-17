@@ -16,11 +16,6 @@
 
 module;
 
-#include <array>
-#include <algorithm>
-#include <optional>
-#include <map>
-
 #include <z13/components/input.h>
 #include <SDL2/SDL.h>
 
@@ -33,8 +28,10 @@ module;
 
 module z13.ogre.input_publisher;
 
-import z13.core;
-import z13.components;
+import <array>;
+import <algorithm>;
+import <optional>;
+import <map>;
 
 namespace z13::ogre {
 

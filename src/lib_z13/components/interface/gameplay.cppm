@@ -14,16 +14,33 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.gameplay;
 
-#include <string>
+export import <string>;
 
-namespace z13 {
+export namespace z13::gameplay {
 
-struct PlayerInfoComponent {
+struct PreUpdatePhase {};
+struct UpdatePhase {};
+struct PostUpdatePhase {};
+
+struct Gameplay {
+  uint32_t last_registered_player_id {};
+};
+
+struct Pause {};
+
+struct WindowFocusEvent {
+  bool has_focus = false;
+};
+
+struct Player {
   uint32_t id {};
-  std::string login;
+};
+
+struct Camera {
+  float fov = 90.f;
   std::string name;
 };
 
-}  // namespace z13
+}  // namespace z13::gameplay

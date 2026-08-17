@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.building;
 
-#include <flecs.h>
+export namespace z13::building {
 
-namespace z13::bootstrap {
-
-class BootstrapSystem {
- public:
-  static void Register(flecs::world& world);
+struct BuildingTool {
+  
 };
 
-}  // namespace z13::bootstrap
+struct Brush {
+  float distance {};
+};
+
+struct BasicBlock {
+  
+};
+
+}  // namespace z13::building

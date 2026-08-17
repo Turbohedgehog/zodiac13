@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
 #include <flecs.h>
 
-namespace z13::gameplay {
+export module z13.lib_z13.module;
 
-class GameplaySystem {
+export namespace z13 {
+
+class Z13Module {
  public:
-  static void Register(flecs::world& world);
+  Z13Module(flecs::world& world);
 };
 
-}  // z13::gameplay
+} // namespace z13

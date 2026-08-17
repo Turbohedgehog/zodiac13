@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-#pragma once
+export module z13.tools.environment;
 
-namespace z13 {
+export import <filesystem>;
 
-class Z13System {
-  
-};
+export namespace z13::tools::environment {
 
-}  // namespace z13
+std::filesystem::path GetGameDataDirectory();
+std::filesystem::path GetGameInputConfigJsonPath();
+std::filesystem::path GetGameInputConfigJsonPath2();
+
+} // namespace z13::environment
