@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "gameplay_system.h"
+module;
+
 
 #include <string>
 
@@ -22,10 +23,16 @@
 #include <Eigen/Dense>
 
 #include <lib_core/log.h>
-#include <lib_core/components.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+
+module zodiac13.z13_module;
+
+import :gameplay_system;
+import zodiac13.core;
+
+import zodiac13.core;
 
 
 namespace z13::gameplay {

@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-#include "module_lib_holder.h"
+module;
+
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <utility>
 
 #include <boost/dll.hpp>
 #include <boost/dll/import.hpp>
@@ -23,7 +28,24 @@
 #include <lib_core/log.h>
 #include <lib_core/module_factory_base.h>
 
+module zodiac13.core;
+
+import :module_lib_holder;
+
 namespace z13 {
+
+struct ModuleLibHolder::Impl {
+  struct LibHolder {
+    boost::dll::shared_library lib;
+    ModuleFactoryPtr module_factory;
+  };
+
+  std::map<std::filesystem::path, LibHolder> lib_holders;
+};
+
+ModuleLibHolder::ModuleLibHolder() : impl_(std::make_unique<Impl>()) {}
+
+ModuleLibHolder::~ModuleLibHolder() = default;
 
 ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
   std::filesystem::path abs_path = boost::dll::program_location().parent_path().string();
@@ -32,7 +54,7 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
     full_path.replace_extension(boost::dll::shared_library::suffix().native());
   }
 
-  if (lib_holders_.contains(full_path)) {
+  if (impl_->lib_holders.contains(full_path)) {
     LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", full_path.string());
     return ModuleFactoryPtr();
   }
@@ -46,9 +68,9 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
   boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path);
 
   auto module_factory = lib.get_alias<ModuleFactoryPtr()>("create_module_factory")();
-  lib_holders_.emplace(
+  impl_->lib_holders.emplace(
     full_path,
-    LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
+    Impl::LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
   );
 
   LOG_INFO("ModuleLibHolder::AppendModuleLib: Module factory '{}' has been loaded", module_factory->GetName());

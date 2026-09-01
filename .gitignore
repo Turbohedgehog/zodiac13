@@ -41,3 +41,6 @@ bin/
 
 # vcpkg
 vcpkg_installed/
+
+# claude
+.claude/

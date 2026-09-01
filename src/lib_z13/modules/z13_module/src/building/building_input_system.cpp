@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "building_input_system.h"
+module;
+
 
 #include <algorithm>
 #include <optional>
@@ -23,7 +24,6 @@
 
 #include <building_generated.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
 #include <z13/components/gameplay.h>
@@ -32,6 +32,13 @@
 #include <z13_module/input/input_config_loader.h>
 
 #include <building_generated.h>
+
+module zodiac13.z13_module;
+
+import :building_input_system;
+import zodiac13.core;
+
+import zodiac13.core;
 
 namespace z13::building {
 

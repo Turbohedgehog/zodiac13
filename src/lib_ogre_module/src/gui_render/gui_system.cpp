@@ -18,7 +18,6 @@
 
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
 #include <z13/components/z13.h>
@@ -30,6 +29,8 @@
 #include "windows/window_base.h"
 
 #include "../ogre_tools/ogre_import/OgreImGuiOverlay.h"
+
+import zodiac13.core;
 
 namespace z13::ogre::gui {
 

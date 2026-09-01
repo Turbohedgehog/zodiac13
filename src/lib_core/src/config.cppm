@@ -14,29 +14,32 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
+#include <iosfwd>
 #include <memory>
-#include <functional>
 
-namespace flecs {
+export module zodiac13.core:config;
 
-struct world;
-struct entity;
+export namespace z13 {
 
-}  // namespace flecs
+// boost::program_options is kept entirely inside the implementation (pimpl) so
+// this module's BMI never bakes that (large, threading-pulling) header in.
+class Config {
+ public:
+  Config();
+  ~Config();
 
-namespace z13 {
+  void Clear();
+  void ParseCommandLineArguments(int argc, char *argv[]);
+  bool NeedShowHelp() const;
+  friend std::ostream& operator<<(std::ostream& os, const Config& config);
+  double GetFPS() const;
 
-class Core;
-using CoreRef = std::reference_wrapper<Core>;
-
-class ModuleFactoryBase;
-using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
-
-using WorldId = uint32_t;
-using WorldRef = std::reference_wrapper<flecs::world>;
-
-class ModuleLibHolder;
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+  double fps_ = 60.f;
+};
 
 }  // namespace z13

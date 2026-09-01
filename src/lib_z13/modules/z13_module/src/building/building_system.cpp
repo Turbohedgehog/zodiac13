@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "building_system.h"
+module;
+
 
 #include <flecs.h>
 #include <Eigen/Dense>
@@ -23,9 +24,15 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 
-#include <lib_core/components.h>
 #include <lib_core/math.h>
 #include <lib_core/log.h>
+
+module zodiac13.z13_module;
+
+import :building_system;
+import zodiac13.core;
+
+import zodiac13.core;
 
 
 

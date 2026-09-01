@@ -18,12 +18,13 @@
 
 #include <flecs.h>
 
-#include <lib_core/components.h>
 #include <lib_core/log.h>
 
 #include <z13/components/z13.h>
 
 #include <ogre_module/ogre_components.h>
+
+import zodiac13.core;
 
 namespace z13::ogre {
 

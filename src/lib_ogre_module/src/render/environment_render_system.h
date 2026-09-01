@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <lib_core/core_types.h>
+#include <lib_core/flecs_fwd.h>
 
 namespace z13::ogre {
 

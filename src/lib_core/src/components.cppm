@@ -14,28 +14,25 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <ostream>
-#include <boost/program_options.hpp>
+#include <optional>
 
-namespace z13 {
+export module zodiac13.core:components;
 
-class Config {
- public:
-  Config();
-  void Clear();
+import :types;
 
-  void ParseCommandLineArguments(int argc, char *argv[]);
-  boost::program_options::options_description& GetOptionsDescription();
-  bool NeedShowHelp() const;
-  friend std::ostream& operator<<(std::ostream& os, const Config& person);
-  double GetFPS() const;
+export namespace z13 {
 
- private:
-  boost::program_options::options_description options_description_;
-  boost::program_options::variables_map variables_map_;
-  double fps_ = 60.f;
+struct PendingDestroy {};
+
+struct CoreComponent {
+  std::optional<CoreRef> core;
 };
+
+struct RegisterComponentsEvent {};
+struct InitPhasesEvent {};
+struct InitSystemsEvent {};
+struct InitWorldDataEvent {};
 
 }  // namespace z13

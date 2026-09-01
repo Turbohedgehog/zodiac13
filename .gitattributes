@@ -1,0 +1,52 @@
+# Normalize all text files to LF in the repository and in the working tree.
+# This makes line endings deterministic regardless of a developer's
+# core.autocrlf setting and silences "LF will be replaced by CRLF" warnings.
+* text=auto eol=lf
+
+# Explicit text types (belt and suspenders).
+*.h        text eol=lf
+*.hpp      text eol=lf
+*.cpp      text eol=lf
+*.cppm     text eol=lf
+*.ixx      text eol=lf
+*.c        text eol=lf
+*.cc       text eol=lf
+*.cmake    text eol=lf
+CMakeLists.txt text eol=lf
+*.txt      text eol=lf
+*.md       text eol=lf
+*.json     text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.fbs      text eol=lf
+*.material text eol=lf
+*.cfg      text eol=lf
+*.py       text eol=lf
+*.gitignore   text eol=lf
+*.gitattributes text eol=lf
+
+# Binary assets — never touch line endings, never diff.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.dds  binary
+*.tga  binary
+*.ktx  binary
+*.fbx  binary
+*.fbm  binary
+*.glb  binary
+*.gltf binary
+*.bin  binary
+*.ttf  binary
+*.otf  binary
+*.zip  binary
+*.7z   binary
+*.pak  binary
+*.lib  binary
+*.a    binary
+*.so   binary
+*.dll  binary
+*.dylib binary
+*.exe  binary
+*.pdb  binary
