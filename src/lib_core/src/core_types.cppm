@@ -14,15 +14,25 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <lib_core/core_types.h>
+#include <cstdint>
+#include <functional>
 
-namespace z13::building {
+// flecs::world forward declaration via a header (the GMF may only hold
+// preprocessor directives). Keeps <flecs.h> out of this BMI while `flecs::world`
+// stays one global-module entity shared with TUs that #include <flecs.h>.
+#include <lib_core/flecs_fwd.h>
 
-class BuildingInputSystem {
- public:
-  static void Register(flecs::world& world);
-};
+export module zodiac13.core:types;
 
-}  // namespace z13::building
+export namespace z13 {
+
+class Core;
+
+using CoreRef = std::reference_wrapper<Core>;
+
+using WorldId = uint32_t;
+using WorldRef = std::reference_wrapper<flecs::world>;
+
+}  // namespace z13

@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-#include "test_dll_module.h"
+module;
 
-#include "test_dll_system.h"
+#include <flecs.h>
+
+module zodiac13.test_dll;
+
+import :module;
+import :system;
 
 namespace z13::dll {
 

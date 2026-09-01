@@ -1,21 +1,40 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
-project(z13_module)
+project(z13_module CXX)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(platform_folders REQUIRED)
 find_package(Boost REQUIRED COMPONENTS dll)
 
-file(
-  GLOB_RECURSE
-  PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
-)
-
-add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+add_library(${PROJECT_NAME} SHARED)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    src/z13_module_factory.cpp
+    src/toos/z13_environment.cpp
+    src/input/input_config_loader.cpp
+    src/bootstrap/bootstrap_system.cpp
+    src/gameplay/gameplay_system.cpp
+    src/building/building_system.cpp
+    src/building/building_input_system.cpp
+    src/input/gameplay_input_system.cpp
+    src/z13_module.cpp
+  PRIVATE
+    FILE_SET z13_module_modules TYPE CXX_MODULES
+    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
+    FILES
+      src/bootstrap/bootstrap_system.cppm
+      src/gameplay/gameplay_system.cppm
+      src/building/building_system.cppm
+      src/building/building_input_system.cppm
+      src/input/gameplay_input_system.cppm
+      src/z13_module.cppm
+      src/z13_module_main.cppm
+)
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -48,16 +67,9 @@ target_link_libraries(
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
 install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
-)
-
-install(EXPORT ${PROJECT_NAME}Targets
-        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
-        NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
 
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")

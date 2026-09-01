@@ -20,7 +20,7 @@
 
 #include <lib_core/log.h>
 
-#include "test_dll_module.h"
+import zodiac13.test_dll;
 
 namespace z13::dll {
 

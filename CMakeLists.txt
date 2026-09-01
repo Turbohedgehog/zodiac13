@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.28)
 
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
 set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
@@ -48,6 +48,14 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 # endforeach()
 
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+
+# C++20 modules require a consistent preprocessor/command-line environment
+# between a BMI and its importers. The sources carry non-ASCII (Cyrillic)
+# comments, so pin /utf-8 everywhere to keep the _UTF8 macro state uniform
+# across every module and its consumers (avoids MSVC warning C5050).
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <lib_core/core_types.h>
+#include <lib_core/flecs_fwd.h>
 
-namespace z13::gameplay::input {
+export module zodiac13.z13_module:building_input_system;
 
-class GameplayInputSystem {
+export namespace z13::building {
+class BuildingInputSystem {
  public:
   static void Register(flecs::world& world);
 };
-
-}  // z13::gameplay::input
+}

@@ -14,26 +14,15 @@
  * limitations under the License.
  */
 
-#include <z13_module/z13_module_factory.h>
+module;
 
-#include <flecs.h>
+#include <lib_core/flecs_fwd.h>
 
-import zodiac13.z13_module;
+export module zodiac13.z13_module:gameplay_system;
 
-namespace z13 {
-
-ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
-  return std::make_shared<Z13ModuleFactory>();
+export namespace z13::gameplay {
+class GameplaySystem {
+ public:
+  static void Register(flecs::world& world);
+};
 }
-
-void Z13ModuleFactory::RegisterModules(flecs::world& world) {
-  world.import<Z13Module>();
-}
-
-const std::string& Z13ModuleFactory::GetName() const {
-  static std::string name = "Z13ModuleFactory";
-
-  return name;
-}
-
-}  // namespace z13

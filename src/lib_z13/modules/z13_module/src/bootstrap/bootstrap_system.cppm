@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#pragma once
+module;
 
-#include <lib_core/core_types.h>
+#include <lib_core/flecs_fwd.h>
 
-namespace z13 {
+export module zodiac13.z13_module:bootstrap_system;
 
-class Z13Module {
+export namespace z13::bootstrap {
+class BootstrapSystem {
  public:
-  Z13Module(flecs::world& world);
+  static void Register(flecs::world& world);
 };
-
-} // namespace z13
+}

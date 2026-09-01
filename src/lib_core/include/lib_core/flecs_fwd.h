@@ -16,10 +16,15 @@
 
 #pragma once
 
-namespace z13 {
+// Minimal forward declarations of the flecs types used only by-reference in
+// interfaces. Keeps the huge, non-modular <flecs.h> out of module BMIs and out
+// of classic headers, while letting these stay single global-module entities
+// shared with translation units that do include <flecs.h>. Safe in a module
+// global-module fragment (a plain `namespace flecs {}` there is not).
 
-class Z13System {
-  
-};
+namespace flecs {
 
-}  // namespace z13
+struct world;
+struct entity;
+
+}  // namespace flecs

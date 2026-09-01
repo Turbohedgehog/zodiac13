@@ -34,15 +34,8 @@ target_link_libraries(
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
 install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
-)
-
-install(EXPORT ${PROJECT_NAME}Targets
-        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
-        NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
 
