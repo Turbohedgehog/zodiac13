@@ -14,52 +14,40 @@
  * limitations under the License.
  */
 
-module;
-
-#include <memory>
-#include <ostream>
-
-#include <boost/program_options.hpp>
-
-module zodiac13.core;
+#include <lib_core/config.h>
 
 namespace z13 {
 
 namespace po = boost::program_options;
 
-struct Config::Impl {
-  po::options_description options_description;
-  po::variables_map variables_map;
-
-  Impl() {
-    options_description.add_options()
-        ("help,h", "Show help message");
-  }
-};
-
-Config::Config() : impl_(std::make_unique<Impl>()) {}
-
-Config::~Config() = default;
+Config::Config() {
+  options_description_.add_options()
+      ("help,h", "Show help message");
+}
 
 void Config::Clear() {
-  impl_->variables_map = po::variables_map();
+  variables_map_ = boost::program_options::variables_map();
+}
+
+boost::program_options::options_description& Config::GetOptionsDescription() {
+  return options_description_;
 }
 
 void Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
-  po::store(po::parse_command_line(argc, argv, impl_->options_description), impl_->variables_map);
+  po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
 }
 
 bool Config::NeedShowHelp() const {
-  return impl_->variables_map.count("help") > 0;
+  return variables_map_.count("help") > 0;
 }
 
 double Config::GetFPS() const {
   return fps_;
 }
 
-std::ostream& operator<<(std::ostream& os, const Config& config) {
-  return os << config.impl_->options_description;
+std::ostream& operator<<(std::ostream& os, const Config& person) {
+  return os << person.options_description_;
 }
 
 }  // namespace z13

@@ -18,7 +18,7 @@
 
 #include <flecs.h>
 
-import zodiac13.z13_module;
+#include "z13_module.h"
 
 namespace z13 {
 

@@ -18,7 +18,7 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/flecs_fwd.h>
+#include <lib_core/core_types.h>
 #include <ogre_module/ogre_datatypes.h>
 
 namespace z13::ogre {

@@ -1,9 +1,8 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.21)
 
-project(ogre_module CXX)
+project(ogre_module)
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SDL2 REQUIRED)
 find_package(OGRE REQUIRED)
@@ -109,10 +108,17 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
 install(TARGETS ${PROJECT_NAME}
+        EXPORT ${PROJECT_NAME}Targets
         RUNTIME_DEPENDENCY_SET runtime_deps
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
+)
+
+install(EXPORT ${PROJECT_NAME}Targets
+        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
+        NAMESPACE ${PROJECT_NAMESPACE}::
+        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
 
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")

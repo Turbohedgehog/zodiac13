@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-module;
-
+#include "gameplay_input_system.h"
 
 #include <limits>
 
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <lib_core/components.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 #include <lib_core/flecs_utils.h>
@@ -36,12 +36,8 @@ module;
 
 #include <actions_generated.h>
 
-module zodiac13.z13_module;
 
-import :gameplay_input_system;
-import zodiac13.core;
-
-import zodiac13.core;
+#include "../private_components/input_system_components.h"
 
 namespace z13::gameplay::input {
 

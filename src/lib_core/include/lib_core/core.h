@@ -14,30 +14,20 @@
  * limitations under the License.
  */
 
-module;
+#pragma once
 
-#include <filesystem>
+#include <map>
+#include <string>
 #include <memory>
 #include <vector>
+#include <filesystem>
 
-#include <lib_core/module_factory_base.h>
+#include "core_types.h"
+#include "config.h"
 
-export module zodiac13.core;
-
-export import :types;
-export import :components;
-export import :config;
-// NOTE: WorldNoDeferGuard stays in the classic header lib_core/flecs_utils.h
-// (it holds a flecs::world by value); keeping it out of the module means this
-// BMI never bakes <flecs.h>.
+#include <flecs.h>
 
 namespace z13 {
-
-class ModuleLibHolder;
-
-}  // namespace z13
-
-export namespace z13 {
 
 class Core {
  public:
@@ -60,16 +50,15 @@ class Core {
   bool IsPendingShutDown() const;
 
  private:
-  // Holds the flecs worlds. Kept behind a pimpl so this module's BMI never
-  // bakes in <flecs.h>: importers stay free to #include it textually.
-  struct Impl;
-
   Config config_;
 
+  std::map<WorldId, flecs::world> worlds_;
+  WorldId new_world_id_ = 0;
+  // std::map<std::string, ModuleFactoryPtr> module_factories_;
   std::vector<ModuleFactoryPtr> module_factories_;
   bool pending_shutdown_ = false;
   std::unique_ptr<ModuleLibHolder> module_lib_holder_;
-  std::unique_ptr<Impl> impl_;
+  // std::unique_ptr<ModuleLibHolder> module_lib_holder_;
 };
 
 }  // namespace z13

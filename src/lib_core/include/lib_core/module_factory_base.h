@@ -16,23 +16,18 @@
 
 #pragma once
 
-// Plugin ABI contract. Deliberately kept as a plain header (not a module):
-// the host executable and every plugin DLL compile this definition
-// independently, and boost::dll resolves `create_module_factory` across that
-// boundary by symbol name + vtable layout. It must not gain module linkage.
-
 #include <memory>
 #include <string>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
 
-#include <boost/config.hpp>  // BOOST_SYMBOL_VISIBLE (macro-only, safe in a module GMF)
+#include "core_types.h"
 
-namespace flecs {
-
-struct world;
-
-}  // namespace flecs
+extern "C" {
 
 namespace z13 {
+
+// using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
 
 class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
  public:
@@ -41,6 +36,6 @@ class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
   virtual const std::string& GetName() const = 0;
 };
 
-using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
-
 }  // namespace z13
+
+}  // extern "C"

@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
-export module zodiac13.z13_module;
+#pragma once
 
-export import :module;
+#include <lib_core/core_types.h>
+
+namespace z13::dll {
+
+class TestDllSystem {
+ public:
+  static void Register(flecs::world& world);
+};
+
+}  // namespace z13::dll

@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-module;
+#pragma once
 
-#include <lib_core/flecs_fwd.h>
+#include <lib_core/core_types.h>
 
-export module zodiac13.z13_module:module;
+namespace z13::building {
 
-export namespace z13 {
-
-class Z13Module {
+class BuildingSystem {
  public:
-  Z13Module(flecs::world& world);
+  static void Register(flecs::world& world);
 };
 
-}  // namespace z13
+}  // namespace z13::building

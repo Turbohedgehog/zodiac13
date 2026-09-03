@@ -14,31 +14,28 @@
  * limitations under the License.
  */
 
-module;
+#pragma once
 
 #include <filesystem>
-#include <memory>
+#include <map>
 
-#include <lib_core/module_factory_base.h>
+#include <boost/dll/shared_library.hpp>
 
-// Internal partition: exported names are visible to other units of this module
-// that import it, but the primary interface unit does NOT re-export it, so it
-// stays invisible to external `import zodiac13.core;` consumers. boost::dll is
-// kept in the implementation (pimpl) so this BMI stays light.
-export module zodiac13.core:module_lib_holder;
+#include <lib_core/core_types.h>
 
-export namespace z13 {
+namespace z13 {
+
+struct LibHolder {
+  boost::dll::shared_library lib;
+  ModuleFactoryPtr module_factory;
+};
 
 class ModuleLibHolder {
  public:
-  ModuleLibHolder();
-  ~ModuleLibHolder();
-
   ModuleFactoryPtr AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension = true);
 
  private:
-  struct Impl;
-  std::unique_ptr<Impl> impl_;
+  std::map<std::filesystem::path, LibHolder> lib_holders_;
 };
 
 }  // namespace z13

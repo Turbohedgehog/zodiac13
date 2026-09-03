@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-module;
+#include "z13_module.h"
 
+#include <lib_core/components.h>
 #include <lib_core/log.h>
 
 #include <z13/components/z13.h>
@@ -25,15 +26,11 @@ module;
 
 #include <flecs.h>
 
-module zodiac13.z13_module;
-
-import :module;
-import zodiac13.core;
-import :bootstrap_system;
-import :gameplay_system;
-import :gameplay_input_system;
-import :building_system;
-import :building_input_system;
+#include "bootstrap/bootstrap_system.h"
+#include "gameplay/gameplay_system.h"
+#include "input/gameplay_input_system.h"
+#include "building/building_system.h"
+#include "building/building_input_system.h"
 
 namespace z13 {
 

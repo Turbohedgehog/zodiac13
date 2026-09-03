@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-module;
+#pragma once
 
-#include <lib_core/flecs_fwd.h>
+#include <lib_core/core_types.h>
 
-export module zodiac13.test_dll:module;
+namespace z13::gameplay {
 
-export namespace z13::dll {
-
-class TestDllModule {
+class GameplaySystem {
  public:
-  TestDllModule(flecs::world& world);
+  static void Register(flecs::world& world);
 };
 
-}  // namespace z13::dll
+}  // z13::gameplay

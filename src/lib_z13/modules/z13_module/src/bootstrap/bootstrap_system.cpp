@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-module;
-
+#include "bootstrap_system.h"
 
 #include <flecs.h>
 
 #include <z13/components/bootstrap.h>
 #include <z13/components/gameplay.h>
-
-module zodiac13.z13_module;
-
-import :bootstrap_system;
 
 namespace z13::bootstrap {
 
