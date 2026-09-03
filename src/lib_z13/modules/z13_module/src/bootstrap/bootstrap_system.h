@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-export module zodiac13.launcher;
+#pragma once
 
-export namespace z13 {
+#include <lib_core/core_types.h>
 
-class Zodiac13Launcher {
+namespace z13::bootstrap {
+
+class BootstrapSystem {
  public:
-  int Run(int argc, char *argv[]);
+  static void Register(flecs::world& world);
 };
 
-}  // namespace z13
+}  // namespace z13::bootstrap

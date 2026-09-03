@@ -20,6 +20,7 @@
 #include <Eigen/Dense>
 #include <Ogre.h>
 
+#include <lib_core/components.h>
 #include <lib_core/log.h>
 
 #include <z13/components/building.h>
@@ -28,8 +29,6 @@
 #include "../ogre_tools/mesh_tools/mesh_tools.h"
 #include "../ogre_tools/ogre_tools.h"
 #include "../private_ogre_components.h"
-
-import zodiac13.core;
 
 namespace z13::ogre {
 

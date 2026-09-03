@@ -19,6 +19,8 @@
 #include <Eigen/Dense>
 #include <Ogre.h>
 
+#include <lib_core/components.h>
+#include <lib_core/core.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 
@@ -26,14 +28,13 @@
 
 #include "ogre_tools/ogre_tools.h"
 #include <ogre_module/ogre_datatypes.h>
+#include <lib_core/components.h>
 #include <ogre_module/ogre_components.h>
 #include <z13/components/z13.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
 #include "private_ogre_components.h"
-
-import zodiac13.core;
 
 namespace z13::ogre {
 

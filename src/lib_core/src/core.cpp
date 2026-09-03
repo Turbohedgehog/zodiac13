@@ -14,35 +14,26 @@
  * limitations under the License.
  */
 
-module;
+#include <lib_core/core.h>
 
-#include <algorithm>
-#include <chrono>
+#include <vector>
 #include <iostream>
+#include <chrono>
 #include <limits>
-#include <map>
-#include <memory>
 #include <thread>
+#include <typeinfo>
 
-#include <flecs.h>
-
-#include <lib_core/log.h>
+#include <lib_core/components.h>
 #include <lib_core/module_factory_base.h>
+#include <lib_core/log.h>
 
-module zodiac13.core;
-
-import :module_lib_holder;
+#include "module_lib_holder.h"
 
 namespace z13 {
 
-struct Core::Impl {
-  std::map<WorldId, flecs::world> worlds;
-  WorldId new_world_id = 0;
-};
-
 Core::Core(int argc, char *argv[])
-  : module_lib_holder_(std::make_unique<ModuleLibHolder>()),
-    impl_(std::make_unique<Impl>()) {
+  : module_lib_holder_(std::make_unique<ModuleLibHolder>()) {
+  // : module_lib_holder_(std::make_shared<ModuleLibHolder>()) {
   config_.ParseCommandLineArguments(argc, argv);
 }
 
@@ -54,6 +45,8 @@ const Config& Core::GetConfig() const {
 
 bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
   return !!module_factories_.emplace_back(module_factory);
+  // return true;
+  // return module_factories_.insert({module_factory->GetName(), module_factory}).second;
 }
 
 bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension) {
@@ -72,8 +65,8 @@ bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, b
 }
 
 WorldRef Core::CreateWorld() {
-  auto it = impl_->worlds.insert({impl_->new_world_id, flecs::world()});
-  ++impl_->new_world_id;
+  auto it = worlds_.insert({new_world_id_, flecs::world()});
+  ++new_world_id_;
 
   auto& world = it.first->second;
   world.component<CoreComponent>();
@@ -92,7 +85,7 @@ WorldRef Core::CreateWorld() {
 }
 
 void Core::Update(float delta_time) {
-  for (auto& [_, world] : impl_->worlds) {
+  for (auto& [_, world] : worlds_) {
     world.progress(delta_time);
   }
 }
@@ -121,12 +114,13 @@ int Core::Run() {
   auto accumulated_frame_time = std::chrono::duration<double>::zero();
   auto sleep_duration = sleep_time;
   auto prev = std::chrono::high_resolution_clock::now();
-  while (!impl_->worlds.empty() && !IsPendingShutDown()) {
+  while (!worlds_.empty() && !IsPendingShutDown()) {
     if (sleep_duration > std::chrono::duration<double>::zero()) {
       std::this_thread::sleep_for(sleep_duration);
     }
 
     Update(update_time);
+    // CleanupWorlds();
     auto now = std::chrono::high_resolution_clock::now();
     accumulated_frame_time += now - prev - sleep_duration;
     sleep_duration = std::max(frame_delta - accumulated_frame_time, std::chrono::duration<double>::zero());

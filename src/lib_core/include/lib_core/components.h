@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-module;
+#pragma once
 
-#include <lib_core/flecs_fwd.h>
+#include <optional>
 
-export module zodiac13.z13_module:gameplay_input_system;
+#include <lib_core/core_types.h>
 
-export namespace z13::gameplay::input {
-class GameplayInputSystem {
- public:
-  static void Register(flecs::world& world);
+namespace z13 {
+
+struct PendingDestroy {};
+
+struct CoreComponent {
+  std::optional<CoreRef> core;
 };
-}
+
+struct RegisterComponentsEvent {};
+struct InitPhasesEvent {};
+struct InitSystemsEvent {};
+struct InitWorldDataEvent {};
+
+}  // namespace z13

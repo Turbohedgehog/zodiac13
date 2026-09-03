@@ -1,33 +1,21 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.13)
 
-project(core CXX)
+project(core)
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options dll)
 find_package(flecs CONFIG REQUIRED)
 
-add_library(${PROJECT_NAME} STATIC)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
-target_sources(${PROJECT_NAME}
-  PRIVATE
-    src/core.cpp
-    src/config.cpp
-    src/module_lib_holder.cpp
-    src/flecs_utils.cpp
-  PUBLIC
-    FILE_SET core_modules TYPE CXX_MODULES
-    BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
-    FILES
-      src/core_types.cppm
-      src/components.cppm
-      src/config.cppm
-      src/module_lib_holder.cppm
-      src/core.cppm
+file(
+  GLOB_RECURSE
+  PROJECT_SOURCE_FILES
+  ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
+
+add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -48,12 +36,25 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   flecs::flecs_static
+  # spdlog::spdlog
   spdlog::spdlog_header_only
 )
 
+# set_target_properties(${PROJECT_NAME} PROPERTIES 
+#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+# )
+
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
-# NOTE: install(TARGETS/EXPORT) for module-providing targets is not supported by
-# the Visual Studio generator (no BMI/module-info install). This tree consumes
-# every target in-tree via add_subdirectory + ALIAS, and packaging ships bin/
-# through CPack, so the export rules are dropped rather than worked around.
+install(TARGETS ${PROJECT_NAME}
+        EXPORT ${PROJECT_NAME}Targets
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+)
+
+install(EXPORT ${PROJECT_NAME}Targets
+        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
+        NAMESPACE ${PROJECT_NAMESPACE}::
+        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
+)
