@@ -11,6 +11,7 @@
     "boost-container",
     "eigen3",
     "flecs",
+    "gtest",
     {
       "name": "imgui",
       "features": [
@@ -101,7 +102,11 @@
     {
       "name": "reflectcpp",
       "version": "0.25.0#0"
+    },
+    {
+      "name": "gtest",
+      "version": "1.17.0#3"
     }
-    
+
   ]
 }
