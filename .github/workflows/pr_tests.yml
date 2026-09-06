@@ -1,0 +1,59 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: pr-tests-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-2025
+    timeout-minutes: 90
+
+    env:
+      VCPKG_ROOT: ""
+      VCPKG_BUILD_TYPE: release # only build Release vcpkg deps (shares cache_update.yml cache)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Same key as build_windows.yml / cache_update.yml so the warm cache is reused.
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/vcpkg_installed
+            vcpkg_installed
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: 'vcpkg.json'
+          runVcpkgInstall: false
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DVCPKG_BUILD_TYPE=release
+
+      # Only the test runner and its deps (lib_core, gtest, reflectcpp) — not Ogre / the app.
+      - name: Build tests
+        run: cmake --build build --config Release --target z13_test_runner
+
+      - name: Run tests
+        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error
