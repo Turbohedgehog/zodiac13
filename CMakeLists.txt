@@ -55,6 +55,19 @@ add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
 add_subdirectory(src/lib_test_dll)
 
+enable_testing()
+add_subdirectory(src/tests)
+
+# config/ is copied next to the binaries on every build and read from there at startup.
+add_custom_target(z13_config ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/config
+            ${CMAKE_SOURCE_DIR}/bin/config
+    COMMENT "Copying config/ -> bin/config/"
+    VERBATIM
+)
+add_dependencies(zodiac13 z13_config)
+
 set(CPACK_GENERATOR "DEB;TGZ")
 
 set(CPACK_PACKAGE_VERSION_MAJOR ${Z13_VERSION_MAJOR})

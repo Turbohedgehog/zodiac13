@@ -5,6 +5,7 @@ project(z13_launcher)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(Boost REQUIRED COMPONENTS dll)
+find_package(yaml-cpp CONFIG REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -28,6 +29,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   Boost::dll
+  yaml-cpp::yaml-cpp
 )
 
 # set_target_properties(${PROJECT_NAME} PROPERTIES 

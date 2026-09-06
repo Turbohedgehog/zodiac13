@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"error C\" /tmp/build_log.txt | grep -E \"mesh_tools|ogre_tools\\\\.cpp|ogre_system\\\\.cpp\")",
+      "Read(//tmp/**)",
+      "Bash(cmake ..)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/dumpbin.exe\" /symbols \"src/lib_ogre_module/ogre_module.dir/Debug/src/gui_render/windows/window_factory.cpp.obj\")",
+      "Bash(cat /tmp/dump1.txt)",
+      "Bash(MSYS_NO_PATHCONV=1 \"/c/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/dumpbin.exe\" /symbols \"src/lib_ogre_module/ogre_module.dir/Debug/src/gui_render/windows/window_factory.cpp.obj\")",
+      "Bash(grep -i \"Create\\\\|WindowFactory\" /tmp/dump2.txt | head -30)",
+      "Bash(MSYS_NO_PATHCONV=1 \"/c/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/dumpbin.exe\" /symbols \"src/lib_ogre_module/ogre_module.dir/Debug/src/gui_render/gui_system.cpp.obj\")",
+      "Bash(MSYS_NO_PATHCONV=1 \"/c/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/dumpbin.exe\" /symbols \"src/lib_ogre_module/ogre_module.dir/Debug/src/gui_render/windows/gameplay_main_menu.cpp.obj\")"
+    ]
+  }
+}
