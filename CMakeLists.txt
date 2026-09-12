@@ -14,6 +14,15 @@ endif()
 
 set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
+# Speed up rebuilds when ccache is installed (no-op otherwise).
+if(NOT MSVC)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    endif()
+endif()
+
 # if(WIN32 AND DEFINED VCPKG_TARGET_TRIPLET)
 #   string(FIND "${VCPKG_TARGET_TRIPLET}" "-static" STATIC_POS)
 #   if(STATIC_POS EQUAL -1)
@@ -49,6 +58,7 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
