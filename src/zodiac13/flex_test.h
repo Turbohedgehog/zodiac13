@@ -377,7 +377,7 @@ void test_component_lifetime() {
     //   world.defer_suspend();
       std::cout << std::boolalpha << "world.is_deferred() = " << world.is_deferred() << "\n";
       //   world.defer_begin();
-      ent.add<B>();
+      ent.template add<B>();
     //   world.defer_begin();
     });
   s.run();

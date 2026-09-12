@@ -3,6 +3,11 @@
   "version": "0.0.1",
   "dependencies": [
     "flatbuffers",
+    "assimp",
+    {
+      "name": "raylib",
+      "default-features": false
+    },
     "bullet3",
     "boost-program-options",
     "boost-dll",
@@ -12,25 +17,18 @@
     "eigen3",
     "flecs",
     "gtest",
+    "spdlog",
+    "stb",
+    "yaml-cpp",
+    "platform-folders",
+    "sdl3",
     {
       "name": "imgui",
       "features": [
-        "docking-experimental",
-        "freetype",
-        "freetype-svg"
+        "sdl3-binding",
+        "opengl3-binding"
       ]
     },
-    {
-      "name": "ogre",
-      "features": [
-        "assimp",
-        "overlay"
-      ]
-    },
-    "sdl2",
-    "spdlog",
-    "yaml-cpp",
-    "platform-folders",
     {
       "name": "reflectcpp",
       "features": [
@@ -39,10 +37,6 @@
     }
   ],
   "overrides": [
-    {
-      "name": "sdl2",
-      "version": "2.32.10#0"
-    },
     {
       "name": "spdlog",
       "version": "1.17.0"
@@ -76,10 +70,6 @@
       "version": "0.8.0"
     },
     {
-      "name": "ogre",
-      "version": "14.5.0"
-    },
-    {
       "name": "eigen3",
       "version": "5.0.1#0"
     },
@@ -96,17 +86,20 @@
       "version": "3.25#3"
     },
     {
-      "name": "imgui",
-      "version": "1.91.9#0"
-    },
-    {
       "name": "reflectcpp",
       "version": "0.25.0#0"
     },
     {
       "name": "gtest",
       "version": "1.17.0#3"
+    },
+    {
+      "name": "raylib",
+      "version": "6.0"
+    },
+    {
+      "name": "imgui",
+      "version": "1.92.8#1"
     }
-
   ]
 }

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
 set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
 
-# MSVC2026 + Ogre Eternal building fix
+# MSVC2026 building fix
 set(VCPKG_INSTALL_OPTIONS "--clean-after-build")
 set(VCPKG_LINKER_FLAGS_DEBUG "/INCREMENTAL:NO")
 if(MSVC)
@@ -48,11 +48,12 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 # endforeach()
 
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
-add_subdirectory(src/lib_ogre_module)
 add_subdirectory(src/zodiac13)
+add_subdirectory(src/lib_raylib_module)
 add_subdirectory(src/lib_test_dll)
 
 enable_testing()
@@ -66,7 +67,9 @@ add_custom_target(z13_config ALL
     COMMENT "Copying config/ -> bin/config/"
     VERBATIM
 )
-add_dependencies(zodiac13 z13_config)
+# The exe loads these DLLs at runtime (not linked), so make building it also
+# build them — otherwise `--target zodiac13` / the IDE build produces a useless exe.
+add_dependencies(zodiac13 z13_config z13_module raylib_module test_dll_module)
 
 set(CPACK_GENERATOR "DEB;TGZ")
 
