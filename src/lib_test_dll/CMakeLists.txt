@@ -49,9 +49,18 @@ install(EXPORT ${PROJECT_NAME}Targets
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
 
-set_target_properties(${PROJECT_NAME} PROPERTIES 
+# RUNTIME_OUTPUT_DIRECTORY places the .dll on Windows; on Linux/macOS a SHARED
+# target's .so/.dylib is placed via LIBRARY_OUTPUT_DIRECTORY instead, and would
+# otherwise land in the default per-target build dir, not next to the exe where
+# ModuleLibHolder looks for it. PREFIX "" drops the "lib" CMake adds by default
+# on Unix, since the module path in z13_config.yaml has no such prefix.
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    PREFIX ""
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
 )
 

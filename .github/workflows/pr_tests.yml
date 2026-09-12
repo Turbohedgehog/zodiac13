@@ -51,7 +51,7 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DVCPKG_BUILD_TYPE=release
 
-      # Only the test runner and its deps (lib_core, gtest, reflectcpp) — not Ogre / the app.
+      # Only the test runner and its deps (lib_core, gtest, reflectcpp) — not raylib / the app.
       - name: Build tests
         run: cmake --build build --config Release --target z13_test_runner
 

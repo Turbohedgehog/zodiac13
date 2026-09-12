@@ -16,6 +16,7 @@
 
 #include "gameplay_input_system.h"
 
+#include <cmath>
 #include <limits>
 
 #include <Eigen/Dense>
@@ -95,32 +96,30 @@ void ApplyMoveActionListener(
     Eigen::Matrix4f& transform) {
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
-  auto current_euler_angles = transform.block<3,3>(0,0).eulerAngles(2, 1, 0);
-  auto v_rotation_rad = current_euler_angles[1];
-  auto h_rotation_rad = current_euler_angles[0];
-  auto roll = current_euler_angles[2];
 
-  if (std::fabs(v_rotation_rad) >= z13::math::kHalfPi) {
-    v_rotation_rad = std::copysign(1.0, v_rotation_rad) * (z13::math::kPi - std::fabs(v_rotation_rad));
-    h_rotation_rad -= z13::math::kPi;
-    roll -= z13::math::kPi;
-  }
+  // Yaw/pitch live here, not re-derived from the matrix each frame: extracting
+  // them via eulerAngles() every call is numerically ill-conditioned near +/-90
+  // deg pitch and was leaking float error into roll (visible as the scene/skybox
+  // tilting while looking up or down).
+  auto& look = e.ensure<LookAngles>();
 
-  auto v_rotation_deg = z13::math::ToDegrees(v_rotation_rad);
-  auto h_rotation_deg = z13::math::ToDegrees(h_rotation_rad);
   auto v_delta_deg = action_values.at(move_action_ids.vertical_look_id);
   auto h_delta_deg = action_values.at(move_action_ids.horizontal_look_id);
 
-  h_rotation_deg += *h_delta_deg;
-  v_rotation_deg -= *v_delta_deg;
-  h_rotation_deg = std::clamp(h_rotation_deg, -180.f, 180.f);
-  v_rotation_deg = std::clamp(v_rotation_deg, -89.f, 89.f); // 89 degs - euler bug workaround
+  look.yaw_deg += *h_delta_deg;
+  look.pitch_deg -= *v_delta_deg;
+  // Yaw is accumulated frame over frame (unlike the old matrix-derived value, which
+  // was always re-wrapped into (-180:180] for free), so it needs an explicit wrap
+  // here instead of a clamp -- a clamp would pin the camera at +-180 deg and block
+  // turning all the way around.
+  look.yaw_deg = std::fmod(look.yaw_deg + 180.f, 360.f);
+  if (look.yaw_deg < 0.f) look.yaw_deg += 360.f;
+  look.yaw_deg -= 180.f;
+  look.pitch_deg = std::clamp(look.pitch_deg, -89.f, 89.f);
 
   auto rotation =
-      Eigen::Quaternionf::Identity() *
-      Eigen::AngleAxisf(z13::math::ToRadians(h_rotation_deg), Eigen::Vector3f::UnitZ()) *
-      Eigen::AngleAxisf(z13::math::ToRadians(v_rotation_deg), Eigen::Vector3f::UnitY()) *
-      Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX());
+      Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
+      Eigen::AngleAxisf(z13::math::ToRadians(look.pitch_deg), Eigen::Vector3f::UnitY());
 
   auto new_rotation_matrix = rotation.toRotationMatrix();
   transform.block<3,3>(0,0) = new_rotation_matrix;
@@ -516,6 +515,7 @@ void GameplayInputSystem::Register(flecs::world& world) {
       world.component<InputListenerQueryComponent>().add(flecs::Singleton);
       world.component<z13::input::InputState>().add(flecs::Singleton);
       world.component<z13::gameplay::input::MoveActionIds>().add(flecs::Singleton);
+      world.component<z13::gameplay::LookAngles>();
     });
 
   world.observer<InitSystemsEvent>()

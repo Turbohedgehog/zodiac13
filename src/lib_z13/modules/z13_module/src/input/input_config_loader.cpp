@@ -17,6 +17,7 @@
 #include <z13_module/input/input_config_loader.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <fstream>
 #include <filesystem>
 
