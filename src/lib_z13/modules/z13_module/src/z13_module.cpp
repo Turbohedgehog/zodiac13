@@ -16,6 +16,8 @@
 
 #include "z13_module.h"
 
+#include <cstdint>
+
 #include <lib_core/components.h>
 #include <lib_core/log.h>
 

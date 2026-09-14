@@ -47,17 +47,17 @@ bool IsNear(const Vector3<T>& v1, const Vector3<T>& v2, T epsilon = static_cast<
 
 template <typename T>
 Vector3<T> ExtractTranslation(const Matrix4<T>& matrix) {
-  return matrix.col(3).head<3>();
+  return matrix.col(3).template head<3>();
 }
 
 template <typename T>
 Eigen::Quaternion<T> ExtractQuat(const Matrix4<T>& matrix) {
-  return Eigen::Quaternion<T>(matrix.block<3,3>(0,0));
+  return Eigen::Quaternion<T>(matrix.template block<3,3>(0,0));
 }
 
 template <typename T>
 void SetTranslation(const Vector3<T>& translation, Matrix4<T>& matrix) {
-  matrix.col(3).head<3>() = translation;
+  matrix.col(3).template head<3>() = translation;
 }
 
 }  // namespace z13::math

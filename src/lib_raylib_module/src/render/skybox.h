@@ -16,21 +16,14 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
-#include <memory>
+#include "render_components.h"
 
-#include <z13/components/input.h>
+namespace z13::raylib {
 
-namespace z13::gameplay {
+// Loads the vz_sunshine cubemap + skybox shader. Returns an empty Skybox on failure.
+Skybox LoadSkybox();
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
+// Draws the skybox around the currently active 3D camera (call inside BeginMode3D).
+void DrawSkybox(const SkyboxResources& skybox);
 
-}  // namespace z13::gameplay
+}  // namespace z13::raylib

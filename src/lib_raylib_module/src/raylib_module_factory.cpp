@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-#pragma once
+#include <raylib_module/raylib_module_factory.h>
 
-#include <atomic>
-#include <thread>
-#include <memory>
+#include <flecs.h>
 
-#include <z13/components/input.h>
+#include "raylib_module.h"
 
-namespace z13::gameplay {
+namespace z13::raylib {
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
+void RaylibModuleFactory::RegisterModules(flecs::world& world) {
+  world.import<z13::raylib::RaylibRender>();
+}
 
-}  // namespace z13::gameplay
+const std::string& RaylibModuleFactory::GetName() const {
+  static std::string name = "RaylibModuleFactory";
+  return name;
+}
+
+ModuleFactoryPtr RaylibModuleFactory::CreateFactory() {
+  return std::make_shared<RaylibModuleFactory>();
+}
+
+}  // namespace z13::raylib

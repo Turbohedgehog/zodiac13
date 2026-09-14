@@ -16,21 +16,14 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
-#include <memory>
+#include <filesystem>
+#include <string>
+#include <string_view>
 
-#include <z13/components/input.h>
+namespace z13::raylib {
 
-namespace z13::gameplay {
+// Absolute path to <exe dir>/assets/<relative>.
+std::string AssetPath(std::string_view relative);
+std::string AssetPath(const std::filesystem::path& relative);
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
-
-}  // namespace z13::gameplay
+}  // namespace z13::raylib

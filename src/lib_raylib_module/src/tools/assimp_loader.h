@@ -16,21 +16,17 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
-#include <memory>
+#include <string_view>
 
-#include <z13/components/input.h>
+#include <raylib.h>
 
-namespace z13::gameplay {
+namespace z13::raylib {
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
+// Loads an assimp-supported model from <assets>/<relative_path> into a raylib
+// Model with GPU buffers uploaded. Node transforms are baked into the vertices,
+// so Model.transform is left as identity. Returns an empty Model (meshCount == 0)
+// on failure. MVP: positions + normals + UV0 + a single diffuse texture per
+// material; tangents, PBR maps, skinning and animation are ignored.
+::Model LoadModelFromAsset(std::string_view relative_path);
 
-}  // namespace z13::gameplay
+}  // namespace z13::raylib
