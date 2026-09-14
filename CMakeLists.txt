@@ -48,6 +48,7 @@ set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
 # endforeach()
 
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
@@ -77,4 +78,3 @@ set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}")
 set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
 
 include(CPack)
-
