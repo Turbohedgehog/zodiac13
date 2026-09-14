@@ -161,6 +161,12 @@ void Emit(flecs::world world, flecs::entity source, const EventT& event) {
 }
 
 void ReadInput(flecs::world world, SdlPlatform& platform) {
+  // Pump and consume in the same system call, not two separate ones: same-phase
+  // system order isn't guaranteed by registration order alone once ReadInput's
+  // WorldNoDeferGuard (ends and restarts the world's defer scope mid-pipeline) is
+  // in the mix -- a separate RaylibSystem::PumpEvents system ended up running
+  // after this one instead of before it, so events landed one tick late.
+  platform.PumpEvents();
   z13::WorldNoDeferGuard no_defer(world);
   flecs::entity source = world.entity(kInputSourceName.data());
 
@@ -247,6 +253,9 @@ void RegisterComponents(flecs::world world) {
 void RegisterSystems(flecs::world world) {
   // .immediate(): ReadInput emits events synchronously (WorldNoDeferGuard), which
   // is only legal from a non-deferred system -- same as the Ogre ReadEventsSystem.
+  // Pumps SDL events itself (see ReadInput()) rather than relying on a separate
+  // PumpEvents system to have already run earlier in this phase: WorldNoDeferGuard's
+  // mid-pipeline defer_end/defer_begin made that same-phase ordering unreliable.
   world.system<const RaylibData, SdlPlatformData>("InputPublisher::ReadInput")
       .kind<ReadEvents>()
       .immediate()

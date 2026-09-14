@@ -35,6 +35,12 @@ struct RaylibWindowClosed {};
 
 // Frame phases, mirroring the Ogre module.
 struct ReadEvents {};
+// Separate from ReadEvents: system order within one phase isn't guaranteed by
+// registration order alone (an .immediate() system can run ahead of its
+// siblings), so anything reading PumpEvents' output -- InputPublisher::ReadInput,
+// GuiSystem::BeginFrame -- needs a real phase barrier after it, not a same-phase
+// ordering assumption.
+struct ConsumeEvents {};
 struct PreRender {};
 struct Render {};
 struct PostRender {};

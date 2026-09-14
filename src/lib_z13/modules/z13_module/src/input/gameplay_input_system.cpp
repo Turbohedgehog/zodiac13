@@ -59,7 +59,6 @@ struct InputListenerQueryComponent {
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
-
 // todo: remove code duplicate
 size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
   auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
@@ -168,31 +167,25 @@ void ApplyMoveActionListener(
 }
 
 void OnMouseMove(
+    flecs::iter it,
+    size_t,
     const z13::input::MouseMoveEvent& mouse_move,
-    const InputListenerQueryComponent& listener_query_component,
     const z13::input::InputConfig& input_config,
-    const MoveActionIds& move_action_ids) {
-  listener_query_component.listener_query.each(
-      [&mouse_move, &input_config, &move_action_ids](
-          flecs::entity e,
-          z13::input::CurrentActionListenerTag,
-          z13::input::ActionListener& action_listener) {
-        auto delta_time = e.world().delta_time();
-        auto factor = delta_time * input_config.mouse_sensitivity;
-        auto delta_h_deg = -static_cast<float>(mouse_move.delta.x) * factor;
-        auto delta_v_deg = -static_cast<float>(mouse_move.delta.y) * factor;
-        if (input_config.invert_x) {
-          delta_h_deg = -delta_h_deg;
-        }
+    z13::input::InputState& input_state) {
+  auto delta_time = it.world().delta_time();
+  auto factor = delta_time * input_config.mouse_sensitivity;
+  auto delta_h_deg = -static_cast<float>(mouse_move.delta.x) * factor;
+  auto delta_v_deg = -static_cast<float>(mouse_move.delta.y) * factor;
+  if (input_config.invert_x) {
+    delta_h_deg = -delta_h_deg;
+  }
 
-        if (input_config.invert_y) {
-          delta_v_deg = -delta_v_deg;
-        }
+  if (input_config.invert_y) {
+    delta_v_deg = -delta_v_deg;
+  }
 
-        auto& action_values = action_listener.action_values;
-        action_values[move_action_ids.vertical_look_id] += delta_v_deg;
-        action_values[move_action_ids.horizontal_look_id] += delta_h_deg;
-      });
+  input_state.mouse_yaw_delta_deg += delta_h_deg;
+  input_state.mouse_pitch_delta_deg += delta_v_deg;
 }
 
 void OnMouseDown(
@@ -375,9 +368,18 @@ void ClearActionListenerCurrentState(
 }
 
 void CalculateInputValues(
-    const z13::input::InputState& input_state,
+    z13::input::InputState& input_state,
     const z13::input::InputConfig& input_config,
+    const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener) {
+  // Mouse-look delta, not a per-key level like input_state.input_state below --
+  // fold it in and reset it here (rather than where it's written, during
+  // ReadEvents) since this phase is the one reliably scheduled after Clear.
+  action_listener.action_values[move_action_ids.horizontal_look_id] += input_state.mouse_yaw_delta_deg;
+  action_listener.action_values[move_action_ids.vertical_look_id] += input_state.mouse_pitch_delta_deg;
+  input_state.mouse_yaw_delta_deg = 0.f;
+  input_state.mouse_pitch_delta_deg = 0.f;
+
   const auto& action_group_key_codes = input_config.keycode_binding.get<z13::input::InputConfig::ActionGroupKeycodeIdTag>();
   const auto& key_codes = input_config.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();
   for (size_t key_idx = 0; key_idx < input_state.input_state.size(); ++key_idx) {
@@ -429,9 +431,8 @@ void RegisterSystems(flecs::world world) {
 
   world.observer<
       z13::input::MouseMoveEvent,
-      InputListenerQueryComponent,
       z13::input::InputConfig,
-      MoveActionIds>("gameplay_input_system::OnMouseMoveObserver")
+      z13::input::InputState>("gameplay_input_system::OnMouseMoveObserver")
       .event<z13::input::SystemInputEventType>()
       // .with<z13::gameplay::Pause>().not_()
       .each(OnMouseMove);
@@ -481,7 +482,8 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::input::ClearActionFramePhase>()
       .each(ClearActionListenerCurrentState);
 
-  world.system<z13::input::InputState, z13::input::InputConfig, z13::input::ActionListener>("gameplay_input_system::CalculateInputValues")
+  world.system<z13::input::InputState, z13::input::InputConfig, const MoveActionIds, z13::input::ActionListener>(
+      "gameplay_input_system::CalculateInputValues")
       .kind<z13::input::CalculateActionFramePhase>()
       .without<z13::gameplay::Pause>()
       .each(CalculateInputValues);

@@ -40,7 +40,13 @@ constexpr std::string_view kWindowTitle = "Zodiac 13";
 
 void RegisterPipelines(flecs::world world) {
   world.component<ReadEvents>().add(flecs::Phase).depends_on(flecs::PreFrame);
-  world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ReadEvents>();
+
+  // A real phase barrier for PumpEvents' consumers (GuiSystem::BeginFrame): same-
+  // phase system order isn't guaranteed by registration order alone, so anything
+  // that needs this frame's events already pumped depends on ReadEvents finishing
+  // instead of just being registered after it within the same phase.
+  world.component<ConsumeEvents>().add(flecs::Phase).depends_on<ReadEvents>();
+  world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ConsumeEvents>();
 
   world.component<PreRender>().add(flecs::Phase).depends_on(flecs::OnStore);
   world.component<Render>().add(flecs::Phase).depends_on<PreRender>();
@@ -91,13 +97,6 @@ void RegisterSystems(flecs::world world) {
   // Pre-add it so CreateDefaults's set() (same InitWorldDataEvent dispatch as
   // InputPublisher's) is a value update, not a deferred add InputPublisher could miss.
   world.ensure<SdlPlatformData>();
-
-  // Drain SDL events first so the UI and input layers consume the same batch.
-  world.system<const RaylibData, SdlPlatformData>("RaylibSystem::PumpEvents")
-      .kind<ReadEvents>()
-      .each([](const RaylibData&, SdlPlatformData& platform_data) {
-        platform_data.platform->PumpEvents();
-      });
 
   world.system<const RaylibData, WindowSize, SdlPlatformData>("RaylibSystem::FrameBegin")
       .kind<PreRender>()
