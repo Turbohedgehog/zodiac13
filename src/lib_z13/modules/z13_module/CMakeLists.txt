@@ -17,6 +17,11 @@ file(
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# Depend on the concrete flatc custom target, not the fbs_schemas INTERFACE lib:
+# add_dependencies() on an INTERFACE library produces no build-order edge under the
+# VS generator, so a fresh configure builds this before input_config_generated.h exists.
+add_dependencies(${PROJECT_NAME} GENERATE_FBS_SCHEMAS_HEADERS)
+
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
@@ -65,8 +70,17 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
 
 set(MODULE_TARGET_PATH "modules/z13_module")
 
-set_target_properties(${PROJECT_NAME} PROPERTIES 
+# RUNTIME_OUTPUT_DIRECTORY places the .dll on Windows; on Linux/macOS a SHARED
+# target's .so/.dylib is placed via LIBRARY_OUTPUT_DIRECTORY instead, and would
+# otherwise land in the default per-target build dir, not next to the exe where
+# ModuleLibHolder looks for it. PREFIX "" drops the "lib" CMake adds by default
+# on Unix, since the module path in z13_config.yaml has no such prefix.
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    PREFIX ""
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}
 )

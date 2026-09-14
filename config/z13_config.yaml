@@ -3,5 +3,5 @@
 # Loaded in order. Entry is a bare path or a map with a `path` key.
 modules:
   - modules/z13_module/z13_module
-  - modules/ogre/ogre_module
+  - modules/raylib/raylib_module
   - modules/test_dll/test_dll_module

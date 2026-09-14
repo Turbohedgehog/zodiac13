@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-#pragma once
+#include "asset_path.h"
 
-#include <atomic>
-#include <thread>
-#include <memory>
+#include <filesystem>
 
-#include <z13/components/input.h>
+#include <boost/dll/runtime_symbol_info.hpp>
 
-namespace z13::gameplay {
+#ifndef Z13_ASSETS_DIR
+#define Z13_ASSETS_DIR "assets"
+#endif
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
+namespace z13::raylib {
 
-}  // namespace z13::gameplay
+std::string AssetPath(std::string_view relative) {
+  return AssetPath(std::filesystem::path(relative));
+}
+
+std::string AssetPath(const std::filesystem::path& relative) {
+  const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
+  return (exe_dir / Z13_ASSETS_DIR / relative).string();
+}
+
+}  // namespace z13::raylib

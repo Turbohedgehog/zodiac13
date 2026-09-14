@@ -16,21 +16,28 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
 #include <memory>
+#include <boost/config.hpp>
+#include <boost/dll/alias.hpp>
+#include <lib_core/module_factory_base.h>
 
-#include <z13/components/input.h>
+extern "C" {
 
-namespace z13::gameplay {
+namespace z13::raylib {
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
+class BOOST_SYMBOL_VISIBLE RaylibModuleFactory : public z13::ModuleFactoryBase {
+ public:
+  static ModuleFactoryPtr CreateFactory();
+
+  void RegisterModules(flecs::world& world) override;
+  const std::string& GetName() const override;
 };
 
-}  // namespace z13::gameplay
+}  // namespace z13::raylib
+
+BOOST_DLL_ALIAS(
+    z13::raylib::RaylibModuleFactory::CreateFactory,
+    create_module_factory
+)
+
+}  // extern "C"
