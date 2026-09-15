@@ -55,7 +55,7 @@ void ValidateGameplay() {
 }
 
 void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
-  auto test_actor_entity = world.entity("TestPlayer");
+  auto test_actor_entity = world.entity(kTestPlayerEntityName.data());
   Camera camera {
     .fov = 90,
     .name = "TestActorCamera",

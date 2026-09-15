@@ -291,6 +291,7 @@ void OnInputSystemStartupGameEvent(
     size_t,
     z13::input::InputConfig& input_config,
     z13::input::ActionMap& action_map,
+    const z13::input::InputConfigPersistenceSettings& persistence,
     status::OnStartupGameEvent) {
   action_map.action_map.clear();
 
@@ -306,7 +307,9 @@ void OnInputSystemStartupGameEvent(
 
   if (!InputConfigLoader::LoadConfig(input_config, action_map)) {
     InputConfigLoader::SetDefaults(input_config, action_map);
-    InputConfigLoader::SaveConfig(input_config, action_map);
+    if (persistence.persist_defaults_to_disk) {
+      InputConfigLoader::SaveConfig(input_config, action_map);
+    }
   }
 
   CallConfigUpdatedEvent(it.world());
@@ -425,7 +428,9 @@ void RegisterSystems(flecs::world world) {
       // .with<z13::gameplay::Pause>().not_()
       .each(OnKeyboardUp);
 
-  world.observer<z13::input::InputConfig, z13::input::ActionMap, z13::status::OnStartupGameEvent>("gameplay_input_system::OnStartupGameEvent")
+  world.observer<z13::input::InputConfig, z13::input::ActionMap,
+      z13::input::InputConfigPersistenceSettings, z13::status::OnStartupGameEvent>(
+      "gameplay_input_system::OnStartupGameEvent")
       .event(flecs::OnAdd)
       .yield_existing()
       .each(OnInputSystemStartupGameEvent);

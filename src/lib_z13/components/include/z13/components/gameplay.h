@@ -18,8 +18,13 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace z13::gameplay {
+
+// Single source of truth for the well-known test-actor entity name, shared by
+// the production code that creates it and by tests that look it up.
+constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
 
 struct PreUpdatePhase {};
 struct UpdatePhase {};

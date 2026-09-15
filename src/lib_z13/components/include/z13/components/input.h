@@ -208,6 +208,13 @@ struct InputConfig {
   bool invert_y {};
 };
 
+// Lets a Z13ModuleFactory caller (e.g. a headless test) skip the on-disk
+// SaveConfig side effect that InputConfigLoader otherwise performs when no
+// config file exists yet, without Core knowing anything about input config.
+struct InputConfigPersistenceSettings {
+  bool persist_defaults_to_disk {true};
+};
+
 struct InputState {
   std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {};
 

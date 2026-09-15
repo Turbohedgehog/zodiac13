@@ -30,6 +30,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/input_event_emitter.h>
 
 #include <input_config_generated.h>
 
@@ -154,12 +155,6 @@ zkey::Keycode MouseButtonToKeycode(Uint8 sdl_button) {
   }
 }
 
-template <typename EventT>
-void Emit(flecs::world world, flecs::entity source, const EventT& event) {
-  source.set<EventT>(event);
-  world.event<z13::input::SystemInputEventType>().id<EventT>().entity(source).emit();
-}
-
 void ReadInput(flecs::world world, SdlPlatform& platform) {
   // Pump here rather than in a separate system: same-phase order isn't
   // guaranteed, and a separate PumpEvents could run after this, one tick late.
@@ -185,9 +180,9 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         keycode.mod = EncodeModifiers(event.key.mod);
         keycode.repeat = event.key.repeat ? 1 : 0;
         if (event.type == SDL_EVENT_KEY_DOWN) {
-          Emit(world, source, z13::input::KeyboardDownEvent{{keycode}});
+          z13::input::EmitInputEvent(world, source, z13::input::KeyboardDownEvent{{keycode}});
         } else {
-          Emit(world, source, z13::input::KeyboardUpEvent{{keycode}});
+          z13::input::EmitInputEvent(world, source, z13::input::KeyboardUpEvent{{keycode}});
         }
         break;
       }
@@ -202,19 +197,20 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         button.button = MouseButtonToKeycode(event.button.button);
         button.clicks = event.button.clicks;
         if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-          Emit(world, source, z13::input::MouseButtonDownEvent{button});
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonDownEvent{button});
         } else {
-          Emit(world, source, z13::input::MouseButtonUpEvent{button});
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonUpEvent{button});
         }
         break;
       }
       case SDL_EVENT_MOUSE_MOTION: {
-        Emit(world, source,
-             z13::input::MousePos{static_cast<int>(event.motion.x),
-                                  static_cast<int>(event.motion.y)});
+        z13::input::EmitInputEvent(
+            world, source,
+            z13::input::MousePos{static_cast<int>(event.motion.x),
+                                 static_cast<int>(event.motion.y)});
         z13::input::MouseMoveEvent move{};
         move.delta = {static_cast<int>(event.motion.xrel), static_cast<int>(event.motion.yrel)};
-        Emit(world, source, move);
+        z13::input::EmitInputEvent(world, source, move);
         break;
       }
       case SDL_EVENT_WINDOW_FOCUS_GAINED:

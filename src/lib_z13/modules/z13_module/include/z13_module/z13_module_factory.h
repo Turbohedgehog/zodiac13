@@ -31,6 +31,14 @@ class BOOST_SYMBOL_VISIBLE Z13ModuleFactory : public z13::ModuleFactoryBase {
 
   void RegisterModules(flecs::world& world) override;
   const std::string& GetName() const override;
+
+  // When false, skips the on-disk write InputConfigLoader::SaveConfig would
+  // otherwise perform the first time no input-config file exists yet. Must be
+  // called before RegisterModules() runs (i.e. before Core::CreateWorld()).
+  void SetPersistInputConfigDefaults(bool persist);
+
+ private:
+  bool persist_input_config_defaults_ {true};
 };
 
 }  // namespace z13

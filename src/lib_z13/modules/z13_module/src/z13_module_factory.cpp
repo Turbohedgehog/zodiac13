@@ -18,6 +18,8 @@
 
 #include <flecs.h>
 
+#include <z13/components/input.h>
+
 #include "z13_module.h"
 
 namespace z13 {
@@ -28,12 +30,18 @@ ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
 
 void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.import<Z13Module>();
+  world.set<z13::input::InputConfigPersistenceSettings>(
+      {.persist_defaults_to_disk = persist_input_config_defaults_});
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
   static std::string name = "Z13ModuleFactory";
 
   return name;
+}
+
+void Z13ModuleFactory::SetPersistInputConfigDefaults(bool persist) {
+  persist_input_config_defaults_ = persist;
 }
 
 }  // namespace z13
