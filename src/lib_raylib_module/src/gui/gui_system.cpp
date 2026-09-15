@@ -120,10 +120,8 @@ void RegisterSystems(flecs::world world) {
         InitImGui(*platform_data.platform, state);
       });
 
-  // ConsumeEvents: forward the frame's SDL events to ImGui and open a new UI frame.
-  // Must run after RaylibSystem::PumpEvents (kind<ReadEvents>) fills the batch --
-  // same-phase registration order doesn't guarantee that once an .immediate()
-  // sibling is in the phase, so this needs its own dependent phase, not ReadEvents.
+  // Forward this frame's SDL events to ImGui and open a new UI frame. Runs in
+  // ConsumeEvents, not ReadEvents, to guarantee it's after PumpEvents.
   world.system<const RaylibData, const SdlPlatformData, const GuiState>("GuiSystem::BeginFrame")
       .kind<ConsumeEvents>()
       .each([](const RaylibData&, const SdlPlatformData& platform_data, const GuiState& state) {

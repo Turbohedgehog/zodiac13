@@ -372,9 +372,7 @@ void CalculateInputValues(
     const z13::input::InputConfig& input_config,
     const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener) {
-  // Mouse-look delta, not a per-key level like input_state.input_state below --
-  // fold it in and reset it here (rather than where it's written, during
-  // ReadEvents) since this phase is the one reliably scheduled after Clear.
+  // Fold in and reset the mouse-look delta here, since this phase reliably runs after Clear.
   action_listener.action_values[move_action_ids.horizontal_look_id] += input_state.mouse_yaw_delta_deg;
   action_listener.action_values[move_action_ids.vertical_look_id] += input_state.mouse_pitch_delta_deg;
   input_state.mouse_yaw_delta_deg = 0.f;

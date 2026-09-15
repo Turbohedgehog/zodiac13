@@ -211,10 +211,8 @@ struct InputConfig {
 struct InputState {
   std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {};
 
-  // This frame's accumulated mouse-look delta (sensitivity/invert already
-  // applied), unlike input_state above which holds level/held state per key.
-  // Folded into action_values and reset to zero every frame, the same way
-  // input_state's per-key values are folded in -- see CalculateInputValues.
+  // This frame's accumulated mouse-look delta; folded into action_values and
+  // reset every frame in CalculateInputValues.
   float mouse_yaw_delta_deg {};
   float mouse_pitch_delta_deg {};
 };
