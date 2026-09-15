@@ -148,6 +148,15 @@ input-config — это забота модуля. Точка переопред
 Прод-поведение не меняется (дефолт `true` — и в самой фабрике, и в
 safety-net `OnCreateDefaults`).
 
+> **Обновление по итогам реализации (см. §11).** Флаг переименован в
+> `use_disk` (сеттер — `Z13ModuleFactory::SetUseDiskForInputConfig`) и теперь
+> гейтит не только `SaveConfig`, но и `LoadConfig`. Причина: `persist_defaults_to_disk`
+> предотвращал только запись, а `LoadConfig` всё равно первым делом пытался
+> прочитать реальный файл разработчика (`%APPDATA%/Zodiac13/input_config_2.json`)
+> — на машине, где в игру уже играли, тест тихо подхватывал чужой
+> `mouse_sensitivity` вместо дефолтного 5.0, что и всплыло как расхождение в
+> числах у `InputPipelineTest` (см. §11.3).
+
 ## 4. Общий тестовый фикстур (переиспользование между тестами)
 
 Вместо повторения п.2 в каждом `TEST`/`TEST_F` — headless-фикстур,
@@ -211,6 +220,38 @@ class Z13TestWorld {
 
 }  // namespace z13::testing
 ```
+
+> **Обновление по итогам реализации (см. §11).** Финальная версия НЕ
+> конструирует `Z13ModuleFactory` в процессе — она грузит `z13_module` тем же
+> способом, что и прод (`boost::dll` через `Core::RegisterModuleFactory(path)`,
+> тот же код, что использует `ModuleLibHolder`/`z13_launcher`), чтобы тест
+> реально бил по продовому пути загрузки модуля, а не по срезанному пути:
+> ```cpp
+> const std::filesystem::path kZ13ModulePath = "../modules/z13_module/z13_module";
+>
+> static z13::WorldRef CreateWorld(z13::Core& core) {
+>   auto factory = std::dynamic_pointer_cast<z13::Z13ModuleFactory>(
+>       core.RegisterModuleFactory(kZ13ModulePath));
+>   assert(factory);
+>   factory->SetUseDiskForInputConfig(false);
+>   return core.CreateWorld();
+> }
+> ```
+> Путь — относительно каталога самого запускаемого бинарника
+> (`boost::dll::program_location().parent_path()`, см. `ModuleLibHolder::AppendModuleLib`),
+> `bin/tests/`, отсюда `../modules/z13_module/...`. Потребовалось поменять
+> `Core::RegisterModuleFactory(path, ...)` — теперь возвращает `ModuleFactoryPtr`
+> вместо `bool` (единственный прод-вызов в `z13_launcher.cpp` результат уже
+> игнорировал, так что безопасно), чтобы тест мог достать конкретный
+> `Z13ModuleFactory` и настроить его до `CreateWorld()`.
+>
+> Для этого пути НЕ нужен `WINDOWS_EXPORT_ALL_SYMBOLS` — `boost::dll` ходит
+> через уже существующий `BOOST_DLL_ALIAS`-экспорт `Z13ModuleFactory::CreateFactory`.
+> `CameraLook`-тесты (чистая математика, `ApplyCameraMove` напрямую, без
+> `flecs::world`) по-прежнему используют отдельный STATIC-твин
+> `z13_module_static` (тот же список исходников, что и SHARED-таргет,
+> объявлен рядом в `z13_module/CMakeLists.txt`) — им незачем грузить DLL в
+> рантайме.
 
 Использование в конкретном тесте:
 ```cpp
@@ -448,35 +489,35 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
 1. ✅ `InputConfigPersistenceSettings` в `z13/components/input.h` (п.3).
 2. ✅ Регистрация синглтона в `z13_module.cpp` (`OnRegisterComponents` +
    safety-net в `OnCreateDefaults`, п.3).
-3. ✅ Сеттер `Z13ModuleFactory::SetPersistInputConfigDefaults` +
-   `world.set<...>()` в `RegisterModules` (п.3).
-4. ✅ Правка `OnInputSystemStartupGameEvent` и её регистрации (п.3).
+3. ✅ Сеттер (переименован в `SetUseDiskForInputConfig`) + `world.set<...>()`
+   в `RegisterModules` (п.3).
+4. ✅ Правка `OnInputSystemStartupGameEvent` и её регистрации (п.3, теперь
+   гейтит и `LoadConfig`, не только `SaveConfig`).
 5. ✅ `kTestPlayerEntityName` в `gameplay.h` + переключение `CreateTestPlayer`
    (п.5).
 6. ✅ flecs-зависимость в `components/CMakeLists.txt` +
    `input_event_emitter.h` (п.6).
-7. ✅ Рефактор `input_publisher.cpp` на общий `EmitInputEvent` (п.6) —
-   компилируется, `z13_module`/`z13_tests` собираются чисто; полную линковку
-   `raylib_module` проверить не удалось (см. п.10.2, не связано с этой веткой).
-8. ✅ `z13_test_world.h` (п.4).
-9. ✅ `input_pipeline_test.cpp` со сценариями из п.8 — код написан,
-   компилируется, но **падает в рантайме** — см. п.10.
-10. ⛔ Прогнать `ctest --test-dir build` — блокировано, см. п.10.
+7. ✅ Рефактор `input_publisher.cpp` на общий `EmitInputEvent` (п.6).
+8. ✅ `z13_test_world.h` (п.4, финальная версия грузит модуль через
+   `boost::dll`, не конструирует фабрику в процессе).
+9. ✅ `input_pipeline_test.cpp` со сценариями из п.8.
+10. ✅ `ctest`/`z13_test_runner` — **все 3 сценария `InputPipelineTest`
+    проходят** (см. §11).
 
-## 10. Блокер: `InputPipelineTest.*` падает в рантайме сегфолтом
+## 10. История: как был найден и исправлен блокер сегфолта
 
-Код тестов (п.8) компилируется и линкуется без ошибок, но при запуске
-`z13_test_runner --gtest_filter="InputPipelineTest.*"` падает сегфолтом
-внутри `Z13TestWorld`'s `Core::CreateWorld()` → `Z13ModuleFactory::RegisterModules()`
-→ `world.import<Z13Module>()`. Это **не регрессия от кода тестов** — структурная
-проблема сборки, которую эта ветка первой обнажила (до неё ничто в проекте не
-линковало `z13_module` напрямую в один бинарник и не вызывало его C++ API
-в процессе — прод грузит `z13_module.so` только через `boost::dll` в рантайме,
-`zodiac13` исполняемый файл его вообще не линкует на этапе сборки).
+П.10 изначально описывал блокер (`InputPipelineTest.*` падал сегфолтом при
+запуске). Диагностика и решение — в §11. Кратко: причина подтвердилась
+именно та, что описана ниже (дублирование состояния flecs между
+независимыми `.so`/`.dll`), но окончательный фикс оказался значительно проще
+предполагавшегося — обошлось без патчей vcpkg-порта flecs или изменения
+линковки `core`.
 
-### 10.1 Диагностика (gdb + nm)
+## 11. Диагностика и реальное решение (Windows-сессия)
 
-Бэктрейс (gdb, `bt`):
+### 11.1 Подтверждение корня проблемы
+
+Бэктрейс (Linux, gdb `bt`), полученный ещё до фикса:
 ```
 #0  0x0000000000000000 in ?? ()
 #1  ecs_cpp_get_symbol_name (symbol_name=0x0, type_name=... "z13::Z13Module", len=14)
@@ -484,82 +525,128 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
 #2  flecs::_::import<z13::Z13Module> (world=...)
 #3  flecs::world::import<z13::Z13Module> (this=...)
 #4  z13::Z13ModuleFactory::RegisterModules (this=..., world=...)
-    at z13_module_factory.cpp:32
-#5  z13::Core::CreateWorld (this=...) at core.cpp:76
-#6  z13::testing::Z13TestWorld::CreateWorld (core=...) at z13_test_world.h:61
-#7  z13::testing::Z13TestWorld::Z13TestWorld (this=...) at z13_test_world.h:39
+#5  z13::Core::CreateWorld (this=...)
 ```
-Исполнение прыгает на адрес `0x0` — вызов через нулевой указатель на функцию,
-не просто плохой указатель на данные.
+Корень (`nm`): `flecs` был подключён **статически** (`flecs::flecs_static`,
+`PUBLIC` в `zodiac13::core`). Каждый `.so`/`.dll`, линкующий `core`
+(`z13_module`, тестовый бинарник и т.д.), получал **свою независимую копию**
+внутреннего состояния flecs — включая `ecs_os_api` (таблица указателей на
+OS-функции), которая инициализируется лениво при первом использовании flecs
+**в этой конкретной копии кода**. Мир создаётся в одном бинарнике (где
+`ecs_os_api` нормально инициализирован), а `world.import<Z13Module>()`
+физически выполняется кодом внутри `z13_module`'s копии — с неинициализированным
+`ecs_os_api` → вызов через нулевой указатель → segfault.
 
-Корень, подтверждённый через `nm`:
+### 11.2 Реальный фикс: не нужен ни патч vcpkg-порта, ни правка линковки `core`
+
+Ключевое наблюдение на Windows: активный триплет `x64-windows`
+(`$VCPKG_ROOT/triplets/x64-windows.cmake`) уже собирает зависимости
+`VCPKG_LIBRARY_LINKAGE dynamic` **по умолчанию** — то есть штатный,
+непропатченный порт `flecs` из реестра vcpkg и так собирается как shared
+(`flecs.dll`) на этом триплете, без какого-либо overlay. Один общий экземпляр
+`flecs.dll` на процесс = одна копия `ecs_os_api` = проблема из §11.1 просто не
+возникает — независимо от того, статически слинкован `z13_module` в тест или
+загружен в рантайме через `boost::dll`.
+
+(Первая версия фикса добавляла overlay-порт для flecs, форсирующий shared
+безусловно — на Windows это оказалось избыточным дублированием того, что
+триплет и так делает по умолчанию; overlay-порт удалён. Открытый вопрос:
+верно ли то же самое для триплетов, которыми пользуется Linux-сборка
+(PRoot) — там, судя по исходной Linux-диагностике в §11.1, дефолтный триплет,
+видимо, статический. Если это так, для Linux понадобится аналогичный
+`VCPKG_LIBRARY_LINKAGE dynamic` для flecs — эквивалент overlay-триплета ниже,
+но под линуксовый триплет; не проверялось в рамках этой Windows-сессии.)
+
+Единственное реально нужное отклонение от триплета — **gtest**, и по
+противоположной причине: gtest's TEST()-регистрация крашится, если сам gtest
+собран как shared-библиотека, а код тестов линкуется в отдельный `.dll`
+(здесь — `z13_tests.dll`) с ним рядом — известная, задокументированная самим
+gtest проблема (см. §11.4). Для него нужно ПРИНУДИТЕЛЬНО static, вопреки
+дефолту триплета.
+
+Оба случая решены одним небольшим **overlay-триплетом**
+(`cmake/vcpkg-overlay-triplets/x64-windows.cmake`, подключён через
+`VCPKG_OVERLAY_TRIPLETS` в корневом `CMakeLists.txt`) — переопределяет
+`x64-windows` теми же настройками, что и штатный, плюс:
+```cmake
+if(PORT STREQUAL "gtest")
+  set(VCPKG_LIBRARY_LINKAGE static)
+endif()
 ```
-z13_module.so:  d ecs_os_api             (локальный символ, не в -D/динамической таблице)
-z13_module.so:  b ecs_os_api_initialized (тоже локальный)
-```
-`flecs` подключён как **статическая** библиотека (`flecs::flecs_static`,
-`PUBLIC` в `zodiac13::core`, сама `core` — статическая). Каждый `.so`, который
-линкует `core` (`z13_module.so`, тестовый `z13_tests.so` и т.д.), получает
-**свою независимую копию** внутреннего состояния flecs — включая таблицу
-`ecs_os_api` (указатели на OS-функции: malloc/strncpy/и т.д.), которая
-инициализируется лениво при первом использовании flecs **в этой конкретной
-копии кода**.
+Никаких скопированных/пропатченных портов (посимвольные копии портфайлов и
+патчей upstream flecs/gtest, которые заводились в первой версии фикса —
+`cmake/vcpkg-overlays/{flecs,gtest}/` — удалены как overhead: оба случая
+закрываются одним условием в одном триплет-файле, без дублирования исходников
+пакетов).
 
-`Z13TestWorld` создаёт `flecs::world` внутри `z13_tests.so` — там `ecs_os_api`
-инициализируется нормально. Но `Z13ModuleFactory::RegisterModules` — код,
-физически лежащий в `z13_module.so`, — вызывает `world.import<Z13Module>()`
-**через свою собственную, никогда не инициализированную копию** `ecs_os_api`.
-`ecs_cpp_get_symbol_name` внутри дёргает такой нулевой указатель — крэш.
+### 11.3 Побочные находки по пути (не про flecs, но блокировали прогон)
 
-### 10.2 Попытка фикса — не сработала, отменена
+- **Windows не экспортирует символы из SHARED-таргетов по умолчанию**
+  (в отличие от `.so` на Linux). Изначально это ловилось через
+  `WINDOWS_EXPORT_ALL_SYMBOLS ON` на `z13_module` — но после перехода
+  `Z13TestWorld` на `boost::dll`-загрузку (§4 обновление) это стало не нужно:
+  `boost::dll` ходит через уже существующий `BOOST_DLL_ALIAS`-экспорт.
+  Для `CameraLook`-тестов (прямой вызов `ApplyCameraMove`, без flecs) решение
+  — отдельный STATIC-твин `z13_module_static` (тот же список исходников, что
+  и SHARED-таргет), см. обновление §4.
+- **Реальная логическая ошибка**, впервые проявившаяся только теперь, когда
+  мир вообще стал доходить до `RegisterComponentsEvent`:
+  `Z13ModuleFactory::RegisterModules()` вызывал `world.set<InputConfigPersistenceSettings>(...)`
+  **до** того, как `OnRegisterComponents` успевал пометить этот компонент
+  `flecs::Singleton` — `world.set()` неявно регистрирует компонент и сразу
+  «запирает» его трейты, так что более поздний `.add(flecs::Singleton)` в
+  `OnRegisterComponents` падал с `component is already in use`. Фикс — сама
+  фабрика регистрирует компонент с трейтом `Singleton` **до** `set()`
+  (`world.component<...>().add(flecs::Singleton)`); повторная регистрация в
+  `OnRegisterComponents` становится no-op.
+- **`OnMouseMove` читает `it.world().delta_time()`** в предположении, что
+  эмит события мышью происходит **изнутри** системы, которая уже выполняется
+  в текущем `progress()` (это так в проде — `InputPublisher::ReadInput`
+  сама является `world.system<>()`). Тест эмитит события **до** первого
+  `progress()`, когда `delta_time()` ещё 0 → множитель мышиной дельты
+  обнулялся. Фикс — тестовый, не продовый: перед эмитом мышиного события
+  сначала «прогревающий» `world.progress(dt)` с тем же `dt`, что и
+  последующий.
+- **Изоляция от реального input-config разработчика** — см. обновление §3
+  (`use_disk` теперь гейтит и `LoadConfig`).
+- Попутно поменял `Core::RegisterModuleFactory(path, ...)` — теперь
+  возвращает `ModuleFactoryPtr` вместо `bool` (см. обновление §4).
 
-Гипотеза: если `core` сделать **SHARED**, а `flecs::flecs_static` останется
-`PUBLIC` — CMake всё равно транзитивно заставляет **каждого потребителя**
-`core` повторно линковать статический архив flecs поверх динамической связи с
-`core.so` (проверено через `nm`: адрес `ecs_os_api` в `z13_module.so` и в
-`core.so` различался даже после перевода `core` в SHARED).
+### 11.4 Почему gtest тоже нужно форсить в static
 
-Исправил это разделением: `core` линкует `flecs::flecs_static` `PRIVATE`
-(архив зашивается ровно один раз, только в `core.so`), а потребителям
-пробрасываются только заголовки через отдельный INTERFACE-таргет
-`flecs_headers` (только `INTERFACE_INCLUDE_DIRECTORIES`/`_COMPILE_DEFINITIONS`,
-без самого архива).
+gtest хранит внутреннее состояние регистрации тестов (`UnitTestImpl`,
+включая `std::vector<TestSuite*>` и т.п.) в синглтоне. Если gtest собран как
+DLL, а `TEST()`-макросы (создающие статические объекты-регистраторы) живут в
+**другом** DLL (`z13_tests.dll`), при populate этого синглтона через границу
+DLL происходит access violation внутри `UnitTestImpl::GetTestSuite` — эту
+проблему прямо называют в документации самого gtest ("shared libraries with
+gtest across DLL boundaries are not recommended"). Наблюдалось на Windows как
+access violation при `z13_test_runner.exe --gtest_list_tests`, ещё до запуска
+InputPipelineTest. Форс static для этого одного порта через
+overlay-триплет — стандартный, минимально инвазивный обход.
 
-Это тоже не сработало — уже по другой причине: пакет `flecs`, собранный
-vcpkg, компилирует свои внутренние C-функции/данные (`ecs_os_api`,
-`ecs_cpp_get_symbol_name` и т.д.) со **скрытой (hidden) видимостью**. Эта
-видимость — атрибут, зашитый в сами `.o`-файлы архива на этапе сборки
-vcpkg-пакетом, и переживает повторную линковку в другую библиотеку. Даже
-когда `core.so` — единственное место, куда flecs зашит статически, эти
-символы **не попадают в динамическую таблицу экспорта `core.so`** — линковка
-`z13_module.so`/`z13_tests.so` против `core.so` падает с `undefined reference
-to 'ecs_cpp_get_symbol_name'` и т.д. (проверено `nm -D`: нужных символов нет
-ни в одном `.so` в принципе).
+### 11.5 Итог
 
-**Правки `lib_core/CMakeLists.txt` и `components/CMakeLists.txt` из этой
-попытки отменены** (see git history) — оставлять проект в состоянии, где
-`raylib_module`/`z13_launcher`/основной `zodiac13` не собираются, ради
-эксперимента с непонятным исходом не стал. Полный обход этого блокера
-потребовал бы либо пересборки/патча самого vcpkg-порта `flecs` (флаги
-видимости), либо другой, более инвазивной схемы линковки — обе опции
-выходят за рамки задачи с тестами и требуют отдельного решения.
+Все 15 существующих + новых тестов, кроме `FlecsStateRoundTrip`/`FlecsStateSnapshot`,
+проходят на Windows:
+- `CameraLook.*` — 12/12 (через `z13_module_static`).
+- `InputPipelineTest.*` — 3/3 (через `boost::dll`-загрузку `z13_module`,
+  реальный продовый путь).
 
-### 10.3 Проверено, что не затронуто
+### 11.6 Отдельная находка: `FlecsStateRoundTrip.*` падает с heap corruption на Windows
 
-После отката: `z13_module`, `z13_tests`/`z13_test_runner` собираются чисто;
-все 20 ранее существовавших тестов (`CameraLook.*`, `FlecsStateRoundTrip.*`,
-`FlecsStateSnapshot.*`) проходят без изменений. `raylib_module` не линкуется
-из-за **отдельной, ранее существовавшей** проблемы — конфликт символов
-`stb_image` между `libraylib.a` и `assimp_loader.cpp` (не в этой ветке,
-подтверждено `git diff` — файл не тронут, последний коммит `5a88fee`).
+`FlecsStateRoundTrip.PreservesWorldJson` (и, видимо, соседние тесты в том же
+файле — `src/tests/src/lib_core/flecs_state/flecs_state_roundtrip_test.cpp`)
+падает с `_CrtIsValidHeapPointer`/`is_block_type_valid` (MSVC Debug CRT) —
+**воспроизводится в изоляции** (`--gtest_filter=FlecsStateRoundTrip.*`, без
+`CameraLook`/`InputPipelineTest` в том же процессе), то есть это не
+взаимодействие с кодом из этой ветки, а самостоятельный баг.
 
-### 10.4 Открытые вопросы / варианты продолжения
-
-- Бьёт ли эта же проблема по продовому `boost::dll`-пути загрузки
-  `z13_module.so`? По имеющимся данным должна бы (hidden-видимость не зависит
-  от способа загрузки), но это отдельная гипотеза, требующая отдельной
-  проверки на реальном запуске игры — не проверялось в рамках этой ветки.
-- Варианты для `InputPipelineTest.*`: пометить `DISABLED_` до решения
-  блокера; либо чинить сам vcpkg-порт flecs (сборка с
-  `-DCMAKE_C_VISIBILITY_PRESET=default`/аналог); либо искать способ запускать
-  этот конкретный тест как отдельный процесс/exe, слинкованный иначе.
+Судя по всему, это первый раз, когда `z13_test_runner` вообще запускался на
+Windows нативно (CLAUDE.md называет основной путь тестирования Linux/Ninja) —
+похоже, баг просто раньше никто не видел, а не регрессия от этой ветки.
+Гипотеза (непроверенная): `flecs::string` (RAII-обёртка над `char*`, которым
+владеет flecs) в `world_serializer.cpp:80-81` — возможный источник
+несостыковки владения памятью через границу `flecs.dll`, но требует
+Application Verifier / page heap для точной локализации, не расследовано в
+рамках этой ветки. Отслеживать отдельно от input-pipeline работы.
