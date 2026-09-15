@@ -10,11 +10,15 @@ find_package(reflectcpp CONFIG REQUIRED)
 include(GenerateExportHeader)
 include(GoogleTest)
 
+# Test code lives either here (for cross-module/serialization tests) or next to
+# the module it covers, under that module's own tests/ directory.
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/*.h
   ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.h
+  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.cpp
 )
 
 # Standalone DLL exercising lib_core and lib_z13.
@@ -41,6 +45,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp
