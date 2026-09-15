@@ -35,12 +35,15 @@ set_target_properties(
   PROTO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# PUBLIC: camera_look.h (a public header) uses Eigen::Matrix4f, so consumers
+# linking z13_module need Eigen's include paths too.
 target_link_libraries(
   ${PROJECT_NAME}
+  PUBLIC
+  Eigen3::Eigen
   PRIVATE
   zodiac13::core
   zodiac13::components
-  Eigen3::Eigen
   sago::platform_folders
   Boost::dll
 )
