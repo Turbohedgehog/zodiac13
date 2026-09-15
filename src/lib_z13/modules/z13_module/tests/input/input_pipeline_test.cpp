@@ -49,8 +49,10 @@ z13::input::KeyboardUpEvent KeyUp(z13::fbs::input::Keycode code) {
 }
 
 // A mouse-move event lands in InputState only for the frame it was emitted
-// in; dt=0.01 is chosen so -delta.x * dt * mouse_sensitivity comes out round
-// (100 * 0.01 * 5 = 5).
+// in; kMouseTestDeltaTime is chosen so -delta.x * dt * mouse_sensitivity
+// comes out round (100 * 0.01 * 5 = 5).
+constexpr float kMouseTestDeltaTime = 0.01f;
+
 TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
@@ -60,13 +62,13 @@ TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   // observer fires immediately, not deferred to the next progress()), and
   // delta_time() is only set by a progress() call -- so warm up with the
   // same dt first, or the mouse delta gets scaled by a stale 0.
-  test_world.World().progress(0.01f);
+  test_world.World().progress(kMouseTestDeltaTime);
 
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = 100, .y = 0};
   test_world.EmitInput(move_event);
 
-  test_world.World().progress(0.01f);
+  test_world.World().progress(kMouseTestDeltaTime);
 
   ASSERT_TRUE(player.has<z13::gameplay::LookAngles>());
   // invert_x=false, delta.x=100 > 0 (mouse moved right) -> yaw_deg negative.
@@ -98,23 +100,25 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
 
 // Analogous to camera_look_test.cpp's ForwardMoveFollowsCameraAfterTurning,
 // but driven through real events instead of calling ApplyCameraMove
-// directly. delta.x=-18, dt=1 -> -(-18) * 1 * 5 = 90 -- an exact 90 degree
-// turn in a single frame.
+// directly. delta.x=-18, dt=kTurnTestDeltaTime=1 -> -(-18) * 1 * 5 = 90 --
+// an exact 90 degree turn in a single frame.
+constexpr float kTurnTestDeltaTime = 1.f;
+
 TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
 
   // Warm-up progress(): see MouseLookRotatesCameraThroughPipeline above.
-  test_world.World().progress(1.f);
+  test_world.World().progress(kTurnTestDeltaTime);
 
   z13::input::MouseMoveEvent turn_event;
   turn_event.delta = {.x = -18, .y = 0};
   test_world.EmitInput(turn_event);
-  test_world.World().progress(1.f);
+  test_world.World().progress(kTurnTestDeltaTime);
   ASSERT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, 90.f, 1e-3f);
 
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  test_world.World().progress(1.f);
+  test_world.World().progress(kTurnTestDeltaTime);
 
   // A +90 deg yaw turn rotates the camera's forward axis from +X to +Y.
   EXPECT_TRUE(Position(player).isApprox(
