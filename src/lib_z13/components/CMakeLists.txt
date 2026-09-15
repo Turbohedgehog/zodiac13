@@ -5,6 +5,7 @@ project(components)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(Boost REQUIRED COMPONENTS container)
+find_package(flecs CONFIG REQUIRED)
 
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
@@ -20,6 +21,7 @@ target_link_libraries(
     INTERFACE
     zodiac13::fbs_schemas
     Boost::container
+    flecs::flecs_static
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

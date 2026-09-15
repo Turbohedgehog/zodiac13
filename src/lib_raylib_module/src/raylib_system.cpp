@@ -41,10 +41,7 @@ constexpr std::string_view kWindowTitle = "Zodiac 13";
 void RegisterPipelines(flecs::world world) {
   world.component<ReadEvents>().add(flecs::Phase).depends_on(flecs::PreFrame);
 
-  // A real phase barrier for PumpEvents' consumers (GuiSystem::BeginFrame): same-
-  // phase system order isn't guaranteed by registration order alone, so anything
-  // that needs this frame's events already pumped depends on ReadEvents finishing
-  // instead of just being registered after it within the same phase.
+  // Real phase barrier for ReadEvents' consumers, since same-phase order isn't guaranteed.
   world.component<ConsumeEvents>().add(flecs::Phase).depends_on<ReadEvents>();
   world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ConsumeEvents>();
 

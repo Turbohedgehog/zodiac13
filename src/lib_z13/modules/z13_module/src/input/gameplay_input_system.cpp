@@ -32,13 +32,11 @@
 #include <z13/components/input.h>
 #include <z13_module/tools/z13_environment.h>
 #include <z13_module/input/input_config_loader.h>
+#include <z13_module/gameplay/camera_look.h>
 
 #include <input_config_generated.h>
 
 #include <actions_generated.h>
-
-
-#include "../private_components/input_system_components.h"
 
 namespace z13::gameplay::input {
 
@@ -96,12 +94,8 @@ void ApplyMoveActionListener(
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
 
-  // Yaw/pitch live here, not re-derived from the matrix each frame: extracting
-  // them via eulerAngles() every call is numerically ill-conditioned near +/-90
-  // deg pitch and was leaking float error into roll (visible as the scene/skybox
-  // tilting while looking up or down). Still seeded from the matrix once, on the
-  // entity's first frame here, so a non-identity spawn rotation isn't discarded --
-  // a one-time extraction doesn't hit the per-frame accumulation issue above.
+  // Seed LookAngles from the transform once, on the entity's first frame here, so a
+  // non-identity spawn rotation isn't discarded by ApplyCameraMove's accumulation.
   if (!e.has<LookAngles>()) {
     const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
     LookAngles initial;
@@ -111,58 +105,18 @@ void ApplyMoveActionListener(
   }
   auto& look = e.ensure<LookAngles>();
 
-  auto v_delta_deg = action_values.at(move_action_ids.vertical_look_id);
-  auto h_delta_deg = action_values.at(move_action_ids.horizontal_look_id);
+  z13::gameplay::CameraMoveAxes axes {
+      .forward = *action_values.at(move_action_ids.move_forward_id),
+      .backward = *action_values.at(move_action_ids.move_backward_id),
+      .right = *action_values.at(move_action_ids.move_right_id),
+      .left = *action_values.at(move_action_ids.move_left_id),
+      .up = *action_values.at(move_action_ids.move_up_id),
+      .down = *action_values.at(move_action_ids.move_down_id),
+      .yaw_delta_deg = *action_values.at(move_action_ids.horizontal_look_id),
+      .pitch_delta_deg = *action_values.at(move_action_ids.vertical_look_id),
+  };
 
-  look.yaw_deg += *h_delta_deg;
-  look.pitch_deg -= *v_delta_deg;
-  // Yaw is accumulated frame over frame (unlike the old matrix-derived value, which
-  // was always re-wrapped into (-180:180] for free), so it needs an explicit wrap
-  // here instead of a clamp -- a clamp would pin the camera at +-180 deg and block
-  // turning all the way around.
-  look.yaw_deg = std::fmod(look.yaw_deg + 180.f, 360.f);
-  if (look.yaw_deg < 0.f) {
-    look.yaw_deg += 360.f;
-  }
-  look.yaw_deg -= 180.f;
-  look.pitch_deg = std::clamp(look.pitch_deg, -89.f, 89.f);
-
-  auto rotation =
-      Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
-      Eigen::AngleAxisf(z13::math::ToRadians(look.pitch_deg), Eigen::Vector3f::UnitY());
-
-  auto new_rotation_matrix = rotation.toRotationMatrix();
-  transform.block<3,3>(0,0) = new_rotation_matrix;
-
-  auto forward_axis = new_rotation_matrix.col(0);
-  auto side_axis = new_rotation_matrix.col(1);
-  auto up_axis = new_rotation_matrix.col(2);
-
-  static constexpr float kCamVel = 30.f;
-
-  auto forward_v = forward_axis * *action_values.at(move_action_ids.move_forward_id);
-  auto backward_v = forward_axis * *action_values.at(move_action_ids.move_backward_id);
-  auto x_delta = (forward_v - backward_v) * delta_time * kCamVel;
-
-  auto right_v = side_axis * *action_values.at(move_action_ids.move_right_id);
-  auto left_v = side_axis * *action_values.at(move_action_ids.move_left_id);
-  auto y_delta = (left_v - right_v) * delta_time * kCamVel;
-
-  auto up_v = up_axis * *action_values.at(move_action_ids.move_up_id);
-  auto down_v = up_axis * *action_values.at(move_action_ids.move_down_id);
-  auto z_delta = (up_v - down_v) * delta_time * kCamVel;
-
-  auto position = transform.col(3).head<3>();
-
-  position += x_delta + y_delta + z_delta;
-
-  // if (x_delta.squaredNorm() >= 0.000001f || y_delta.squaredNorm() >= 0.000001f) {
-  //   LOG_INFO("==== position = {}, {}, {}", position.x(), position.y(), position.z());
-  //   LOG_INFO("==== forward_axis = {}, {}, {}", forward_axis.x(), forward_axis.y(), forward_axis.z());
-  //   LOG_INFO("==== side_axis = {}, {}, {}", side_axis.x(), side_axis.y(), side_axis.z());
-  // }
-
-  transform.block<3,1>(0,3) = position;
+  z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
   e.set(transform);
 }
 
@@ -337,6 +291,7 @@ void OnInputSystemStartupGameEvent(
     size_t,
     z13::input::InputConfig& input_config,
     z13::input::ActionMap& action_map,
+    const z13::input::InputConfigPersistenceSettings& persistence,
     status::OnStartupGameEvent) {
   action_map.action_map.clear();
 
@@ -350,9 +305,11 @@ void OnInputSystemStartupGameEvent(
 
   LOG_INFO("~~~~ OnInputSystemStartupGameEvent");
 
-  if (!InputConfigLoader::LoadConfig(input_config, action_map)) {
+  if (!persistence.use_disk || !InputConfigLoader::LoadConfig(input_config, action_map)) {
     InputConfigLoader::SetDefaults(input_config, action_map);
-    InputConfigLoader::SaveConfig(input_config, action_map);
+    if (persistence.use_disk) {
+      InputConfigLoader::SaveConfig(input_config, action_map);
+    }
   }
 
   CallConfigUpdatedEvent(it.world());
@@ -372,9 +329,7 @@ void CalculateInputValues(
     const z13::input::InputConfig& input_config,
     const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener) {
-  // Mouse-look delta, not a per-key level like input_state.input_state below --
-  // fold it in and reset it here (rather than where it's written, during
-  // ReadEvents) since this phase is the one reliably scheduled after Clear.
+  // Fold in and reset the mouse-look delta here, since this phase reliably runs after Clear.
   action_listener.action_values[move_action_ids.horizontal_look_id] += input_state.mouse_yaw_delta_deg;
   action_listener.action_values[move_action_ids.vertical_look_id] += input_state.mouse_pitch_delta_deg;
   input_state.mouse_yaw_delta_deg = 0.f;
@@ -473,7 +428,9 @@ void RegisterSystems(flecs::world world) {
       // .with<z13::gameplay::Pause>().not_()
       .each(OnKeyboardUp);
 
-  world.observer<z13::input::InputConfig, z13::input::ActionMap, z13::status::OnStartupGameEvent>("gameplay_input_system::OnStartupGameEvent")
+  world.observer<z13::input::InputConfig, z13::input::ActionMap,
+      z13::input::InputConfigPersistenceSettings, z13::status::OnStartupGameEvent>(
+      "gameplay_input_system::OnStartupGameEvent")
       .event(flecs::OnAdd)
       .yield_existing()
       .each(OnInputSystemStartupGameEvent);

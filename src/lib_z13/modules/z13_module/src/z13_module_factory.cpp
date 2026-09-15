@@ -18,6 +18,8 @@
 
 #include <flecs.h>
 
+#include <z13/components/input.h>
+
 #include "z13_module.h"
 
 namespace z13 {
@@ -28,12 +30,24 @@ ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
 
 void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.import<Z13Module>();
+  // Register the Singleton trait before set(): set() implicitly registers
+  // the component and locks in its traits, so a later
+  // .add(flecs::Singleton) in OnRegisterComponents would fail with
+  // "component is already in use". The registration in OnRegisterComponents
+  // becomes a no-op once this has already run.
+  world.component<z13::input::InputConfigPersistenceSettings>().add(flecs::Singleton);
+  world.set<z13::input::InputConfigPersistenceSettings>(
+      {.use_disk = use_disk_for_input_config_});
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
   static std::string name = "Z13ModuleFactory";
 
   return name;
+}
+
+void Z13ModuleFactory::SetUseDiskForInputConfig(bool use_disk) {
+  use_disk_for_input_config_ = use_disk;
 }
 
 }  // namespace z13

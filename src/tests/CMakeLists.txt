@@ -10,11 +10,15 @@ find_package(reflectcpp CONFIG REQUIRED)
 include(GenerateExportHeader)
 include(GoogleTest)
 
+# Test code lives either here (for cross-module/serialization tests) or next to
+# the module it covers, under that module's own tests/ directory.
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/*.h
   ${PROJECT_SOURCE_DIR}/src/*.cpp
+  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.h
+  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.cpp
 )
 
 # Standalone DLL exercising lib_core and lib_z13.
@@ -41,6 +45,11 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  # The static twin, not the SHARED z13_module plugin .so: flecs (statically
+  # linked into zodiac13::core) keeps process-global state that isn't shared
+  # correctly across independently-linked shared objects, so module code
+  # that creates/imports into a flecs::world must live in this same binary.
+  zodiac13::z13_module_static
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

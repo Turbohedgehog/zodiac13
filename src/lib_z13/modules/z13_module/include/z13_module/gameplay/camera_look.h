@@ -16,11 +16,7 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
-#include <memory>
-
-#include <z13/components/input.h>
+#include <Eigen/Dense>
 
 namespace z13::gameplay {
 
@@ -32,5 +28,31 @@ struct LookAngles {
   float yaw_deg {};
   float pitch_deg {};
 };
+
+// Move-axis inputs for ApplyCameraMove, already resolved to plain floats from the
+// action system's per-frame values so this function has no ECS/InputConfig
+// dependency and is unit-testable on its own.
+struct CameraMoveAxes {
+  float forward {};
+  float backward {};
+  float right {};
+  float left {};
+  float up {};
+  float down {};
+  float yaw_delta_deg {};
+  float pitch_delta_deg {};
+};
+
+constexpr float kCameraVelocity = 30.f;
+constexpr float kMaxPitchDeg = 89.f;
+
+// Applies one frame's mouse-look delta and move axes to `look` and `transform`.
+// `transform`'s rotation block is fully overwritten from `look`; its translation
+// column is read as the current position and then updated in place.
+void ApplyCameraMove(
+    const CameraMoveAxes& axes,
+    float delta_time,
+    LookAngles& look,
+    Eigen::Matrix4f& transform);
 
 }  // namespace z13::gameplay

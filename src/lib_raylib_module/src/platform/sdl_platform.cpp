@@ -195,14 +195,12 @@ void SdlPlatform::SetRelativeMouse(bool enabled) {
     return;
   }
   if (!enabled) {
-    // Recentre before releasing the grab so the OS cursor doesn't reappear at a
-    // stale position from before relative mode was entered.
+    // Recentre before releasing the grab so the cursor doesn't reappear at a stale position.
     SDL_WarpMouseInWindow(window_, static_cast<float>(size_.x()) / 2.f,
                           static_cast<float>(size_.y()) / 2.f);
   }
-  // Read back the actual result rather than trusting the request: SDL can silently
-  // fail to grab relative mode right after window creation (focus not settled yet),
-  // and caching the requested value would then wedge the toggle forever.
+  // Read back the actual result: SDL can silently fail to grab relative mode
+  // right after window creation, so we shouldn't cache the requested value.
   SDL_SetWindowRelativeMouseMode(window_, enabled);
   relative_mouse_ = SDL_GetWindowRelativeMouseMode(window_);
   spdlog::info("[sdl] SetRelativeMouse(requested={}) -> actual={}", enabled, relative_mouse_);

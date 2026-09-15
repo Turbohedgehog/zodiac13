@@ -46,6 +46,7 @@ void OnRegisterComponents(flecs::world world) {
   world.component<input::SystemInputEventType>();
   world.component<input::ActionMap>().add(flecs::Singleton);
   world.component<input::InputConfig>().add(flecs::Singleton);
+  world.component<input::InputConfigPersistenceSettings>().add(flecs::Singleton);
   world.component<PlayerInfoComponent>()
     .member<uint32_t>("id")
     .member(flecs::String, "login")
@@ -57,6 +58,10 @@ void OnCreateDefaults(flecs::world world) {
   world.add<z13::gameplay::Gameplay>();
   world.add<input::ActionMap>();
   world.add<input::InputConfig>();
+  // Safety net for the default (true) in case Z13Module is ever imported
+  // without going through Z13ModuleFactory::RegisterModules; add<T>() is a
+  // no-op if the factory already set a value.
+  world.add<input::InputConfigPersistenceSettings>();
   world.add<z13::status::OnStartupGameEvent>();
 }
 
