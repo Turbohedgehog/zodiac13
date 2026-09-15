@@ -16,32 +16,13 @@
 
 #pragma once
 
-#include <cstdint>
-#include <string>
+#include <string_view>
 
 namespace z13::gameplay {
 
-struct PreUpdatePhase {};
-struct UpdatePhase {};
-struct PostUpdatePhase {};
-
-struct Gameplay {
-  uint32_t last_registered_player_id {};
-};
-
-struct Pause {};
-
-struct WindowFocusEvent {
-  bool has_focus = false;
-};
-
-struct Player {
-  uint32_t id {};
-};
-
-struct Camera {
-  float fov = 90.f;
-  std::string name;
-};
+// Name of the entity GameplaySystem::CreateTestPlayer creates on world
+// startup. Single source of truth shared by that creation code and by
+// anything (production or test) that needs to look the entity up by name.
+constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
 
 }  // namespace z13::gameplay

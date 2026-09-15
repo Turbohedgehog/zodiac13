@@ -27,6 +27,8 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
+#include <z13_module/gameplay/gameplay_entities.h>
+
 
 namespace z13::gameplay {
 

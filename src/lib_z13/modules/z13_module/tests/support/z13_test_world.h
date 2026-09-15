@@ -23,8 +23,8 @@
 
 #include <lib_core/core.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/input_event_emitter.h>
+#include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/z13_module_factory.h>
 
 namespace z13::testing {
