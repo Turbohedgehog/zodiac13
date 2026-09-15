@@ -48,8 +48,33 @@ target_link_libraries(
   Boost::dll
 )
 
+# Test-only static twin of the SHARED target above, same sources. Lets test
+# binaries link z13_module directly into their own process instead of across
+# a .so boundary -- needed because flecs (statically linked into zodiac13::core)
+# keeps process-global internal state that isn't shared correctly between
+# independently-linked shared objects. Never installed; not part of the
+# plugin API surface ModuleLibHolder loads at runtime.
+add_library(${PROJECT_NAME}_static STATIC ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
+add_dependencies(${PROJECT_NAME}_static GENERATE_FBS_SCHEMAS_HEADERS)
+target_include_directories(
+  ${PROJECT_NAME}_static
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+)
+target_link_libraries(
+  ${PROJECT_NAME}_static
+  PUBLIC
+  Eigen3::Eigen
+  PRIVATE
+  zodiac13::core
+  zodiac13::components
+  sago::platform_folders
+  Boost::dll
+)
 
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
+# set_target_properties(${PROJECT_NAME} PROPERTIES
 #     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 # )
 

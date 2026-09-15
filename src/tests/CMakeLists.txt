@@ -45,7 +45,11 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_module
+  # The static twin, not the SHARED z13_module plugin .so: flecs (statically
+  # linked into zodiac13::core) keeps process-global state that isn't shared
+  # correctly across independently-linked shared objects, so module code
+  # that creates/imports into a flecs::world must live in this same binary.
+  zodiac13::z13_module_static
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

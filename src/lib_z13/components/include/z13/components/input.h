@@ -208,11 +208,13 @@ struct InputConfig {
   bool invert_y {};
 };
 
-// Lets a Z13ModuleFactory caller (e.g. a headless test) skip the on-disk
-// SaveConfig side effect that InputConfigLoader otherwise performs when no
-// config file exists yet, without Core knowing anything about input config.
+// Lets a Z13ModuleFactory caller (e.g. a headless test) fully isolate a
+// world from the developer's real on-disk input config -- both the
+// SaveConfig side effect InputConfigLoader otherwise performs when no config
+// file exists yet, and LoadConfig picking up whatever config already exists
+// on the current machine -- without Core knowing anything about input config.
 struct InputConfigPersistenceSettings {
-  bool persist_defaults_to_disk {true};
+  bool use_disk {true};
 };
 
 struct InputState {

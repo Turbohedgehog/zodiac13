@@ -56,6 +56,12 @@ TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   auto player = test_world.Player();
   ASSERT_TRUE(player.is_alive());
 
+  // OnMouseMove reads world.delta_time() synchronously at emit time (the
+  // observer fires immediately, not deferred to the next progress()), and
+  // delta_time() is only set by a progress() call -- so warm up with the
+  // same dt first, or the mouse delta gets scaled by a stale 0.
+  test_world.World().progress(0.01f);
+
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = 100, .y = 0};
   test_world.EmitInput(move_event);
@@ -97,6 +103,9 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
 TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
+
+  // Warm-up progress(): see MouseLookRotatesCameraThroughPipeline above.
+  test_world.World().progress(1.f);
 
   z13::input::MouseMoveEvent turn_event;
   turn_event.delta = {.x = -18, .y = 0};

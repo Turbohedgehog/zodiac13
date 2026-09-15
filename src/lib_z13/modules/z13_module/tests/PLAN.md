@@ -650,3 +650,60 @@ Windows нативно (CLAUDE.md называет основной путь т�
 несостыковки владения памятью через границу `flecs.dll`, но требует
 Application Verifier / page heap для точной локализации, не расследовано в
 рамках этой ветки. Отслеживать отдельно от input-pipeline работы.
+
+## 12. Linux-фикс — без overlay-триплетов и без смены триплета
+
+Windows-фикс (§11.2) для Linux/PRoot не годится "как есть": проверено
+эмпирически (изолированный пробный `.so`, линкующий только
+`flecs::flecs_static`, вне остального проекта) — на текущем triplet'е
+(`arm64-linux`) `ecs_os_api`/`ecs_cpp_get_symbol_name` и т.д. **всегда**
+локальные/не экспортируемые символы (`nm -D` пусто), независимо от видимости
+на стороне потребителя. Это зашито в сам архив `libflecs_static.a` на этапе
+сборки vcpkg-портом — подтверждает мою раннюю (отменённую, §10.2) гипотезу.
+На Windows это не проблема только потому, что `x64-windows`-триплет по
+умолчанию уже собирает flecs как dynamic (`flecs.dll` с нормальным экспортом
+символов); эквивалентного дефолта на `arm64-linux` нет.
+
+Вместо overlay-триплета (`VCPKG_LIBRARY_LINKAGE dynamic` для flecs) или
+переключения на готовый `arm64-linux-dynamic` (community-триплет,
+существует в `$VCPKG_ROOT/triplets/community/`, но пересобрал бы **все**
+зависимости проекта как dynamic — SDL3, raylib, assimp, весь Boost и т.д.,
+несоразмерный blast radius) — применён приём, который Windows-сессия уже
+использовала для `CameraLook` (§11.3): **статический твин-таргет**.
+
+- `z13_module/CMakeLists.txt` — второй `add_library` из того же списка
+  исходников, рядом с существующим SHARED-таргетом:
+  ```cmake
+  add_library(${PROJECT_NAME}_static STATIC ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
+  add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
+  add_dependencies(${PROJECT_NAME}_static GENERATE_FBS_SCHEMAS_HEADERS)
+  target_include_directories(${PROJECT_NAME}_static PUBLIC ...)
+  target_link_libraries(${PROJECT_NAME}_static PUBLIC Eigen3::Eigen PRIVATE zodiac13::core zodiac13::components sago::platform_folders Boost::dll)
+  ```
+  Не устанавливается (`install()` не трогает), не часть публичного API модуля
+  — существует только ради тестов. `z13_module` (SHARED, реальный
+  прод-плагин под `boost::dll`) не меняется.
+- `src/tests/CMakeLists.txt` — линкует `zodiac13::z13_module_static` вместо
+  `zodiac13::z13_module`. Раз всё (тестовый код, `core`, `z13_module`, flecs)
+  собирается в **один** `.so` (`z13_tests.so`) одним link-шагом — копия flecs
+  ровно одна по построению, никакой границы `.so` для неё не существует.
+- `Z13TestWorld` (§4) остаётся на прямом конструировании `Z13ModuleFactory` в
+  процессе (не переключалась на `boost::dll`, как в Windows-версии §4 —
+  здесь это не нужно, т.к. нет отдельного `.so` для модуля).
+- Заодно перенесены остальные найденные Windows-сессией баги, не привязанные
+  к ОС: порядок регистрации `flecs::Singleton`-трейта до `world.set<>()`
+  (§11.3) и прогревающий `world.progress(dt)` перед первым эмитом мышиного
+  события в тестах (`OnMouseMove` читает `delta_time()` синхронно в момент
+  эмита, а до первого `progress()` он ещё 0). Флаг переименован в `use_disk`
+  и гейтит `LoadConfig` тоже — как в обновлении §3.
+
+**Компромисс:** `InputPipelineTest.*` на Linux не проверяет сам механизм
+`boost::dll`-загрузки модуля (в отличие от Windows-версии фикстуры) — только
+логику пайплайна ввода. Загрузку через `boost::dll` здесь по-прежнему
+покрывает факт, что прод (`zodiac13` + `z13_launcher`) её использует, просто
+не через этот конкретный тест.
+
+**Результат:** 23/23 теста проходят (`ctest --test-dir build`, `-j2` сборка,
+PRoot), включая все 3 `InputPipelineTest.*` и 12 `CameraLook.*`. Файл
+`~/.local/share/zodiac13/input_config.json` не создаётся — `use_disk=false`
+исправно гейтит оба пути (`LoadConfig`/`SaveConfig`).

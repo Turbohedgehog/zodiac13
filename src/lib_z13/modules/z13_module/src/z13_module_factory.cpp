@@ -30,8 +30,14 @@ ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
 
 void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.import<Z13Module>();
+  // Register the Singleton trait before set(): set() implicitly registers
+  // the component and locks in its traits, so a later
+  // .add(flecs::Singleton) in OnRegisterComponents would fail with
+  // "component is already in use". The registration in OnRegisterComponents
+  // becomes a no-op once this has already run.
+  world.component<z13::input::InputConfigPersistenceSettings>().add(flecs::Singleton);
   world.set<z13::input::InputConfigPersistenceSettings>(
-      {.persist_defaults_to_disk = persist_input_config_defaults_});
+      {.use_disk = use_disk_for_input_config_});
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
@@ -40,8 +46,8 @@ const std::string& Z13ModuleFactory::GetName() const {
   return name;
 }
 
-void Z13ModuleFactory::SetPersistInputConfigDefaults(bool persist) {
-  persist_input_config_defaults_ = persist;
+void Z13ModuleFactory::SetUseDiskForInputConfig(bool use_disk) {
+  use_disk_for_input_config_ = use_disk;
 }
 
 }  // namespace z13
