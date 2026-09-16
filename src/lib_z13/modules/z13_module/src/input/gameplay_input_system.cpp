@@ -305,9 +305,10 @@ void OnInputSystemStartupGameEvent(
 
   LOG_INFO("~~~~ OnInputSystemStartupGameEvent");
 
-  if (!persistence.use_disk || !InputConfigLoader::LoadConfig(input_config, action_map)) {
+  if (!persistence.load_config_from_file ||
+      !InputConfigLoader::LoadConfig(input_config, action_map)) {
     InputConfigLoader::SetDefaults(input_config, action_map);
-    if (persistence.use_disk) {
+    if (persistence.load_config_from_file) {
       InputConfigLoader::SaveConfig(input_config, action_map);
     }
   }

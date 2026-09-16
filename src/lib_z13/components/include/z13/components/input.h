@@ -211,7 +211,7 @@ struct InputConfig {
 // Lets a caller (e.g. a headless test) fully isolate a world from the
 // developer's real on-disk input config (both loading and saving it).
 struct InputConfigPersistenceSettings {
-  bool use_disk {true};
+  bool load_config_from_file {true};
 };
 
 struct InputState {

@@ -43,8 +43,8 @@ struct CameraMoveAxes {
 constexpr float kCameraVelocity = 30.f;
 constexpr float kMaxPitchDeg = 89.f;
 
-// Applies one frame's mouse-look delta and move axes to `look` and `transform`.
-// `transform`'s rotation block is fully overwritten from `look`.
+// Applies a mouse-look delta and move axes to `look` and `transform`, scaled by
+// `delta_time`. `transform`'s rotation block is fully overwritten from `look`.
 void ApplyCameraMove(
     const CameraMoveAxes& axes,
     float delta_time,

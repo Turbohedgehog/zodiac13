@@ -55,7 +55,7 @@ class Z13TestWorld {
  private:
   static z13::WorldRef CreateWorld(z13::Core& core) {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
-    factory->SetUseDiskForInputConfig(false);
+    factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
     return core.CreateWorld();
   }

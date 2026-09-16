@@ -71,9 +71,9 @@ class SdlPlatform {
   const std::vector<SDL_Event>& FrameEvents() const;
 
  private:
-  SDL_Window* window_ = nullptr;
-  SDL_GLContextState* gl_ = nullptr;
-  Eigen::Vector2i size_ = Eigen::Vector2i::Zero();
+  SDL_Window* window_ {};
+  SDL_GLContextState* gl_ {};
+  Eigen::Vector2i window_size_ = Eigen::Vector2i::Zero();
   bool quit_ {};
   bool relative_mouse_ {};
   Eigen::Vector2f mouse_delta_ = Eigen::Vector2f::Zero();

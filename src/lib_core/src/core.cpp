@@ -91,8 +91,6 @@ void Core::Update(float delta_time) {
 }
 
 void Core::Shutdown() {
-  // Only sets a flag Run() checks next iteration; other modules' lifecycle
-  // events still dispatching this frame still run.
   pending_shutdown_ = true;
 }
 
