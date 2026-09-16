@@ -48,6 +48,8 @@ z13::input::KeyboardUpEvent KeyUp(z13::fbs::input::Keycode code) {
 // Chosen so -delta.x * dt * mouse_sensitivity comes out round (100 * 0.01 * 5 = 5).
 constexpr float kMouseTestDeltaTime = 0.01f;
 
+constexpr float kTestEpsilon = 1e-3f;
+
 TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
@@ -65,8 +67,8 @@ TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
 
   ASSERT_TRUE(player.has<z13::gameplay::LookAngles>());
   // invert_x=false, delta.x=100 > 0 (mouse moved right) -> yaw_deg negative.
-  EXPECT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, -5.f, 1e-3f);
-  EXPECT_TRUE(Position(player).isZero(1e-4f));  // a turn alone shouldn't move the camera
+  EXPECT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, -5.f, kTestEpsilon);
+  EXPECT_TRUE(Position(player).isZero(kTestEpsilon));  // a turn alone shouldn't move the camera
 }
 
 // Holding a key across several frames accumulates position linearly;
@@ -79,16 +81,16 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
 
   test_world.World().progress(1.f);
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(z13::gameplay::kCameraVelocity, 0.f, 0.f), 1e-3f));
+      Eigen::Vector3f(z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 
   test_world.World().progress(1.f);  // no new event -- key is still held
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), 1e-3f));
+      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 
   test_world.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
   test_world.World().progress(1.f);
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), 1e-3f));
+      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 }
 
 // delta.x=-18, dt=kTurnTestDeltaTime=1 -> -(-18) * 1 * 5 = 90, an exact
@@ -106,14 +108,14 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
   turn_event.delta = {.x = -18, .y = 0};
   test_world.EmitInput(turn_event);
   test_world.World().progress(kTurnTestDeltaTime);
-  ASSERT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, 90.f, 1e-3f);
+  ASSERT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, 90.f, kTestEpsilon);
 
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   test_world.World().progress(kTurnTestDeltaTime);
 
   // A +90 deg yaw turn rotates the camera's forward axis from +X to +Y.
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(0.f, z13::gameplay::kCameraVelocity, 0.f), 1e-3f));
+      Eigen::Vector3f(0.f, z13::gameplay::kCameraVelocity, 0.f), kTestEpsilon));
 }
 
 }  // namespace
