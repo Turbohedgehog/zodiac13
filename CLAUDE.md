@@ -29,6 +29,7 @@
 
 ## Comments
 
+- Prefer writing clear, self-documenting code (good names, small functions) over explaining unclear code with comments.
 - Avoid long comments/comment blocks, unless the logic being described is genuinely complex — one or two sentences is usually enough.
 - In implementation code, add a comment mainly when a non-obvious or debatable decision was made, to explain the reasoning for future readers.
 - The same applies to commit messages: keep them short, a couple of sentences is enough.
