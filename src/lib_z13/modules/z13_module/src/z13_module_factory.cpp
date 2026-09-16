@@ -30,11 +30,8 @@ ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
 
 void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.import<Z13Module>();
-  // Register the Singleton trait before set(): set() implicitly registers
-  // the component and locks in its traits, so a later
-  // .add(flecs::Singleton) in OnRegisterComponents would fail with
-  // "component is already in use". The registration in OnRegisterComponents
-  // becomes a no-op once this has already run.
+  // Must run before set(), which implicitly registers the component and locks
+  // in its traits -- a later .add(flecs::Singleton) would then fail.
   world.component<z13::input::InputConfigPersistenceSettings>().add(flecs::Singleton);
   world.set<z13::input::InputConfigPersistenceSettings>(
       {.use_disk = use_disk_for_input_config_});

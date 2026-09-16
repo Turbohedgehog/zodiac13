@@ -20,9 +20,8 @@
 
 #include <z13_module/gameplay/camera_look.h>
 
-// Exercises ApplyCameraMove() directly: it's pure math (Eigen + LookAngles), with
-// no flecs/ECS, InputConfig, SDL or raylib dependency, so these tests need none
-// of that machinery either.
+// Exercises ApplyCameraMove() directly: it's pure math, with no flecs/ECS,
+// InputConfig, SDL or raylib dependency.
 namespace z13::gameplay {
 namespace {
 

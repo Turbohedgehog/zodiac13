@@ -43,9 +43,8 @@ struct Light {
   int color_loc = kLocNotFound;
 };
 
-// Loads assets/shaders/lighting.{vs,fs} and wires the standard raylib material
-// locs (MVP / model / normal / map-diffuse / colDiffuse) plus `viewPos` and a
-// low `ambient` term. Returns an empty Shader (id 0) on compile failure.
+// Loads assets/shaders/lighting.{vs,fs}. Returns an empty Shader (id 0) on
+// compile failure.
 ::Shader LoadLightingShader();
 
 // Binds `light` to slot `index` of `shader` (fills its uniform locs) and uploads

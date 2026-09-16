@@ -22,10 +22,8 @@
 
 namespace z13::input {
 
-// Sets EventT as source's payload component and emits it as a
-// SystemInputEventType event. Shared by the real input layer
-// (raylib_module's InputPublisher) and by tests emulating input without
-// SDL/raylib, so both go through the exact same emission code.
+// Sets EventT as source's payload and emits it as a SystemInputEventType event.
+// Shared by the real input layer and by tests emulating input without SDL/raylib.
 template <typename EventT>
 void EmitInputEvent(flecs::world world, flecs::entity source, const EventT& event) {
   source.set<EventT>(event);

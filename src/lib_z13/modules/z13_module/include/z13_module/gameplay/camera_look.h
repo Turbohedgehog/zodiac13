@@ -20,18 +20,15 @@
 
 namespace z13::gameplay {
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
+// Persistent yaw/pitch for mouse-look: re-deriving via eulerAngles() every frame
+// let float error near +/-90 deg pitch leak into an unintended roll.
 struct LookAngles {
   float yaw_deg {};
   float pitch_deg {};
 };
 
-// Move-axis inputs for ApplyCameraMove, already resolved to plain floats from the
-// action system's per-frame values so this function has no ECS/InputConfig
-// dependency and is unit-testable on its own.
+// Move-axis inputs for ApplyCameraMove, already resolved to plain floats so this
+// function has no ECS/InputConfig dependency and is unit-testable on its own.
 struct CameraMoveAxes {
   float forward {};
   float backward {};
@@ -47,8 +44,7 @@ constexpr float kCameraVelocity = 30.f;
 constexpr float kMaxPitchDeg = 89.f;
 
 // Applies one frame's mouse-look delta and move axes to `look` and `transform`.
-// `transform`'s rotation block is fully overwritten from `look`; its translation
-// column is read as the current position and then updated in place.
+// `transform`'s rotation block is fully overwritten from `look`.
 void ApplyCameraMove(
     const CameraMoveAxes& axes,
     float delta_time,

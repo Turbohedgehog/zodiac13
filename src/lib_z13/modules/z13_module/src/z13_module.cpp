@@ -58,9 +58,7 @@ void OnCreateDefaults(flecs::world world) {
   world.add<z13::gameplay::Gameplay>();
   world.add<input::ActionMap>();
   world.add<input::InputConfig>();
-  // Safety net for the default (true) in case Z13Module is ever imported
-  // without going through Z13ModuleFactory::RegisterModules; add<T>() is a
-  // no-op if the factory already set a value.
+  // Safety net default; add<T>() is a no-op if the factory already set a value.
   world.add<input::InputConfigPersistenceSettings>();
   world.add<z13::status::OnStartupGameEvent>();
 }

@@ -20,9 +20,8 @@
 
 namespace z13::gameplay {
 
-// Name of the entity GameplaySystem::CreateTestPlayer creates on world
-// startup. Single source of truth shared by that creation code and by
-// anything (production or test) that needs to look the entity up by name.
+// Single source of truth for the test player entity's name, shared by its
+// creation code and anything that looks it up by name.
 constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
 
 }  // namespace z13::gameplay

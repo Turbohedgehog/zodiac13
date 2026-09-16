@@ -75,10 +75,8 @@ void CreateDefaults(flecs::world world) {
 }
 
 void Shutdown(flecs::entity e, RaylibWindowClosed, RaylibData&, SdlPlatformData& platform_data) {
-  // Free GPU resources promptly, while the GL context is still alive. Not a
-  // correctness requirement any more (render_components.h's resource dtors no-op
-  // their GL calls once IsGlContextAlive() is false), just avoids holding GPU
-  // memory until the flecs world itself is torn down later.
+  // Frees GPU resources promptly rather than waiting for world teardown; not
+  // strictly required since their dtors no-op once IsGlContextAlive() is false.
   e.world().remove<RenderModel>();
   e.world().remove<Lighting>();
   e.world().remove<Skybox>();

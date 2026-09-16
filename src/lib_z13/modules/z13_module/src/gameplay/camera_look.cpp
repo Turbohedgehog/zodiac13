@@ -37,9 +37,8 @@ void ApplyCameraMove(
     Eigen::Matrix4f& transform) {
   look.yaw_deg += axes.yaw_delta_deg;
   look.pitch_deg -= axes.pitch_delta_deg;
-  // Yaw is accumulated frame over frame, so it needs an explicit wrap into
-  // (-180:180] here -- a clamp would pin the camera at +-180 deg and block
-  // turning all the way around.
+  // Wrap into (-180:180], not clamp -- a clamp would block turning all the
+  // way around at +-180 deg.
   look.yaw_deg = std::fmod(look.yaw_deg + kHalfTurnDeg, kFullTurnDeg);
   if (look.yaw_deg < 0.f) {
     look.yaw_deg += kFullTurnDeg;

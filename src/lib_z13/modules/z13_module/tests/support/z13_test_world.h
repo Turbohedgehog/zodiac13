@@ -32,8 +32,7 @@ namespace z13::testing {
 constexpr std::string_view kTestInputSourceName = "Z13TestWorld::InputSource";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
-// no on-disk input-config writes. Reused by every z13_module integration
-// test, not just the input pipeline one.
+// no on-disk input-config writes.
 class Z13TestWorld {
  public:
   Z13TestWorld() : world_(CreateWorld(core_)) {}

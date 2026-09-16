@@ -151,8 +151,7 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Esc while paused -> WindowBackEvent; other keys/mouse -> WindowKeyDownEvent
-  // (both emitted by z13_module's gameplay_input_system). WindowStack is a
-  // singleton so it is sourced from the singleton, not the event entity.
+  // (both emitted by z13_module's gameplay_input_system).
   world.observer<const z13::input::WindowBackEvent, gui::WindowStack>("GuiSystem::OnWindowBack")
       .event<z13::input::SystemInputEventType>()
       .each([world](const z13::input::WindowBackEvent&, gui::WindowStack& stack) {

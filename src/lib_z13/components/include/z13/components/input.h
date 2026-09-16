@@ -208,11 +208,8 @@ struct InputConfig {
   bool invert_y {};
 };
 
-// Lets a Z13ModuleFactory caller (e.g. a headless test) fully isolate a
-// world from the developer's real on-disk input config -- both the
-// SaveConfig side effect InputConfigLoader otherwise performs when no config
-// file exists yet, and LoadConfig picking up whatever config already exists
-// on the current machine -- without Core knowing anything about input config.
+// Lets a caller (e.g. a headless test) fully isolate a world from the
+// developer's real on-disk input config (both loading and saving it).
 struct InputConfigPersistenceSettings {
   bool use_disk {true};
 };

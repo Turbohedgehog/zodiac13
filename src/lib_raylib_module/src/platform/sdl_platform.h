@@ -22,8 +22,7 @@
 #include <Eigen/Dense>
 
 // Platform layer: SDL owns the window, GL context, event loop and timing; raylib
-// is used only as an rlgl render module on top of this context. See
-// plan-migracii-ogre-raylib-sdl-imgui.md.
+// is used only as an rlgl render module on top of this context.
 
 union SDL_Event;
 struct SDL_Window;
@@ -31,14 +30,12 @@ struct SDL_GLContextState;
 
 namespace z13::raylib {
 
-// One instance per world, held by the SdlPlatformData singleton component below --
-// not a static-method/global-state class, so nothing here is implicitly shared
-// across worlds or threads that happen to hold two instances.
+// One instance per world; not a static-method/global-state class, so nothing
+// here is implicitly shared across worlds.
 class SdlPlatform {
  public:
-  // Declared, not defaulted, here: events_ holds SDL_Event by value and this header
-  // only forward-declares it, so ctor/dtor must be defined in the .cpp where
-  // <SDL3/SDL.h> makes it a complete type.
+  // Declared, not defaulted: events_ holds SDL_Event by value, which this header
+  // only forward-declares, so ctor/dtor must live in the .cpp.
   SdlPlatform();
   ~SdlPlatform();
   SdlPlatform(const SdlPlatform&) = delete;
@@ -84,9 +81,8 @@ class SdlPlatform {
   std::vector<SDL_Event> events_;
 };
 
-// GPU-resource RAII wrappers (render_components.h) live in flecs components as
-// shared_ptr, so their destructors can run detached from any world/entity -- with
-// no SdlPlatform instance reachable, they can only ask this.
+// GPU-resource RAII wrappers can be destructed detached from any world/entity,
+// with no SdlPlatform instance reachable -- they ask this instead.
 bool IsGlContextAlive();
 
 // Singleton component owning the platform instance for a world. shared_ptr matches

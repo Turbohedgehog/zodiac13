@@ -30,11 +30,8 @@ namespace z13::raylib {
 
 namespace {
 
-// The one piece of state that must stay global: render_components.h's GPU-resource
-// RAII wrappers live in shared_ptrs inside flecs components and can be destructed
-// from anywhere, with no SdlPlatform instance reachable to ask. Plain bool: the
-// engine is single-threaded today (Core::Run() is one loop), so there's nothing to
-// race against yet -- revisit if that changes.
+// Must stay global: render_components.h's GPU-resource RAII wrappers can be
+// destructed from anywhere, with no SdlPlatform instance reachable to ask.
 bool gl_context_alive = false;
 
 void ForwardRaylibLog(int level, const char* text, va_list args) {

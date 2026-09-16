@@ -24,11 +24,8 @@
 
 #include "../support/z13_test_world.h"
 
-// Exercises the real input pipeline end to end: emitted flecs events ->
-// InputState -> CalculateInputValues -> ApplyMoveActionListener ->
-// ApplyCameraMove, through an actual flecs::world (no raylib/SDL). The pure
-// ApplyCameraMove math itself is already covered by camera_look_test.cpp;
-// these tests only check that events actually reach it correctly.
+// Exercises the real input pipeline end to end (flecs events -> InputState ->
+// ApplyMoveActionListener -> ApplyCameraMove) through an actual flecs::world.
 namespace z13::gameplay::input {
 namespace {
 
@@ -48,9 +45,7 @@ z13::input::KeyboardUpEvent KeyUp(z13::fbs::input::Keycode code) {
   return event;
 }
 
-// A mouse-move event lands in InputState only for the frame it was emitted
-// in; kMouseTestDeltaTime is chosen so -delta.x * dt * mouse_sensitivity
-// comes out round (100 * 0.01 * 5 = 5).
+// Chosen so -delta.x * dt * mouse_sensitivity comes out round (100 * 0.01 * 5 = 5).
 constexpr float kMouseTestDeltaTime = 0.01f;
 
 TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
@@ -58,10 +53,8 @@ TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   auto player = test_world.Player();
   ASSERT_TRUE(player.is_alive());
 
-  // OnMouseMove reads world.delta_time() synchronously at emit time (the
-  // observer fires immediately, not deferred to the next progress()), and
-  // delta_time() is only set by a progress() call -- so warm up with the
-  // same dt first, or the mouse delta gets scaled by a stale 0.
+  // OnMouseMove reads world.delta_time() synchronously at emit time, so warm
+  // up with the same dt first or the mouse delta gets scaled by a stale 0.
   test_world.World().progress(kMouseTestDeltaTime);
 
   z13::input::MouseMoveEvent move_event;
@@ -98,10 +91,8 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
       Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), 1e-3f));
 }
 
-// Analogous to camera_look_test.cpp's ForwardMoveFollowsCameraAfterTurning,
-// but driven through real events instead of calling ApplyCameraMove
-// directly. delta.x=-18, dt=kTurnTestDeltaTime=1 -> -(-18) * 1 * 5 = 90 --
-// an exact 90 degree turn in a single frame.
+// delta.x=-18, dt=kTurnTestDeltaTime=1 -> -(-18) * 1 * 5 = 90, an exact
+// 90 degree turn in a single frame.
 constexpr float kTurnTestDeltaTime = 1.f;
 
 TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {

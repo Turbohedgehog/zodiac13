@@ -118,9 +118,8 @@ const std::unordered_map<SDL_Keycode, zkey::Keycode>& KeyMap() {
   return map;
 }
 
-// Compact modifier bitmask (int8_t, so not the raw 16-bit SDL_Keymod): bit0 Shift,
-// bit1 Ctrl, bit2 Alt, bit3 GUI/Super, each true if either the left or right key of
-// that group is down.
+// Compact bitmask (bit0 Shift, bit1 Ctrl, bit2 Alt, bit3 GUI), not the raw
+// 16-bit SDL_Keymod.
 int8_t EncodeModifiers(SDL_Keymod mod) {
   int8_t result = 0;
   if ((mod & SDL_KMOD_SHIFT) != 0) {
@@ -190,9 +189,8 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         [[fallthrough]];
       case SDL_EVENT_MOUSE_BUTTON_UP: {
         z13::input::MouseButtonEvent button{};
-        // event.button.{x,y}, not the frame's aggregated `position`: a fast
-        // move-then-click coalesced into one poll would otherwise report the
-        // frame-end position instead of where the click actually happened.
+        // event.button.{x,y}, not the frame's aggregated `position`, which would
+        // report the frame-end position for a fast move-then-click.
         button.pos = {static_cast<int>(event.button.x), static_cast<int>(event.button.y)};
         button.button = MouseButtonToKeycode(event.button.button);
         button.clicks = event.button.clicks;
@@ -245,7 +243,7 @@ void RegisterComponents(flecs::world world) {
 
 void RegisterSystems(flecs::world world) {
   // .immediate(): ReadInput emits events synchronously (WorldNoDeferGuard), which
-  // is only legal from a non-deferred system -- same as the Ogre ReadEventsSystem.
+  // is only legal from a non-deferred system.
   world.system<const RaylibData, SdlPlatformData>("InputPublisher::ReadInput")
       .kind<ReadEvents>()
       .immediate()

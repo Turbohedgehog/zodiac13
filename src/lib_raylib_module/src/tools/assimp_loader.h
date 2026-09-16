@@ -22,11 +22,8 @@
 
 namespace z13::raylib {
 
-// Loads an assimp-supported model from <assets>/<relative_path> into a raylib
-// Model with GPU buffers uploaded. Node transforms are baked into the vertices,
-// so Model.transform is left as identity. Returns an empty Model (meshCount == 0)
-// on failure. MVP: positions + normals + UV0 + a single diffuse texture per
-// material; tangents, PBR maps, skinning and animation are ignored.
+// Loads an assimp-supported model from <assets>/<relative_path>, with node
+// transforms baked into vertices. Empty Model (meshCount == 0) on failure.
 ::Model LoadModelFromAsset(std::string_view relative_path);
 
 }  // namespace z13::raylib

@@ -131,8 +131,7 @@ Skybox LoadSkybox() {
   res->cubemap = MakeManagedTexture(cubemap);
 
   ::Model model = LoadModelFromMesh(GenMeshCube(1.f, 1.f, 1.f));
-  // vz_sunshine faces are Y-up; rotate into this engine's Z-up world (mirrors
-  // the +90deg X quaternion the old Ogre setSkyBox applied).
+  // vz_sunshine faces are Y-up; rotate into this engine's Z-up world.
   model.transform = MatrixRotateX(90.f * DEG2RAD);
   model.materials[0].shader = *res->shader;
   model.materials[0].maps[MATERIAL_MAP_CUBEMAP].texture = *res->cubemap;
