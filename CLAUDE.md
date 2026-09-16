@@ -5,7 +5,7 @@
 - Requires `VCPKG_ROOT` set (vcpkg manifest mode; deps come from `vcpkg.json`).
 - Configure + build (Linux, Ninja generator, already the default): `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)`.
 - Build a single target (faster iteration): `cmake --build build --target <target>` (e.g. `raylib_module`).
-- If running inside PRoot (check `uname -a` for `PRoot-Distro` in the kernel string), cap parallel build jobs at 2-3 (e.g. `-j2`) instead of `-j$(nproc)` — building with more cores hangs the session.
+- If running inside PRoot (check `uname -a` for `PRoot-Distro` in the kernel string), cap parallel build jobs at 2-3 (e.g. `-j3`) instead of `-j$(nproc)` — higher counts have hung the session before. `-j3` was verified safe (incremental and full clean rebuilds, no hang) on 2026-09-16.
 - `ccache` is auto-detected by `CMakeLists.txt` (`CMAKE_CXX_COMPILER_LAUNCHER`) when installed — install it (`apt install ccache`) to speed up rebuilds.
 - Run tests: `ctest --test-dir build` (or run `build/bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
 - `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration).
