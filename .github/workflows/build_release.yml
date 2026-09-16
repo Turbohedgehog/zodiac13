@@ -1,0 +1,85 @@
+name: Build & Release
+
+on:
+  workflow_dispatch: # Позволяет запустить сборку релиза вручную
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            triplet: x64-windows
+            package: zip
+          - os: ubuntu-24.04
+            triplet: x64-linux
+            package: cpack
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    env:
+      VCPKG_ROOT: ""
+      VCPKG_BUILD_TYPE: release # Выключает Debug
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read version from file
+        shell: bash
+        run: |
+          BASE_VER=$(tr -d '[:space:]' < version.txt)
+          echo "BASE_VER=$BASE_VER" >> "$GITHUB_ENV"
+          echo "FULL_VER=$BASE_VER.${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/setup-vcpkg-build
+        with:
+          triplet: ${{ matrix.triplet }}
+          extra-cmake-args: -DZ13_VERSION_PATCH=${{ github.run_number }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # Windows has no CPack packaging set up here, so this mirrors the
+      # original build_windows.yml: just zip the bin/ output directory.
+      - name: Archive bin/ (Windows)
+        if: matrix.package == 'zip'
+        shell: pwsh
+        run: |
+          $ZIP_NAME = "zodiac13-v${{ env.FULL_VER }}-windows.zip"
+          if (Test-Path bin) {
+            Compress-Archive -Path bin\* -DestinationPath $ZIP_NAME
+          } else {
+            Write-Error "bin/ not found — check CMakeLists.txt output paths"
+            exit 1
+          }
+
+      # CMakeLists.txt already configures CPack (DEB;TGZ) for Linux packages.
+      - name: Package with CPack (Linux)
+        if: matrix.package == 'cpack'
+        run: cmake --build build --target package
+
+      - name: Upload to Release (Windows)
+        if: matrix.package == 'zip'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zodiac13-v${{ env.FULL_VER }}-windows.zip
+          tag_name: v${{ env.FULL_VER }}
+          name: "Release v${{ env.FULL_VER }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Release (Linux)
+        if: matrix.package == 'cpack'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/zodiac13-*.deb
+            build/zodiac13-*.tar.gz
+          tag_name: v${{ env.FULL_VER }}
+          name: "Release v${{ env.FULL_VER }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

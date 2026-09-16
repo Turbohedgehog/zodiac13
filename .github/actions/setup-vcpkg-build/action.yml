@@ -1,0 +1,60 @@
+name: 'Setup vcpkg and configure CMake'
+description: >
+  Restores the vcpkg binary cache, prepares vcpkg (without installing packages
+  yet), and runs the CMake configure step. Shared by the PR test workflow and
+  the release workflow across Windows and Linux runners.
+
+inputs:
+  triplet:
+    description: 'vcpkg target triplet, e.g. x64-windows or x64-linux'
+    required: true
+  build-type:
+    description: 'CMake build type'
+    required: false
+    default: 'Release'
+  extra-cmake-args:
+    description: 'Extra arguments appended to the CMake configure command'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    # Some vcpkg ports (e.g. libxcrypt) build via autotools and need these
+    # from the system package manager — not present on a bare ubuntu runner.
+    - name: Install Linux build tools
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y autoconf autoconf-archive automake libtool libltdl-dev pkg-config libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev
+
+    # Same key across workflows/OSes (scoped by runner.os) so a warm cache from
+    # cache_update.yml or a previous run is reused instead of rebuilding vcpkg deps.
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          build/vcpkg_installed
+          vcpkg_installed
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-
+
+    # Only prepares vcpkg.exe/vcpkg — actual package installation happens as
+    # part of the CMake configure step below (manifest mode).
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: 'vcpkg.json'
+        runVcpkgInstall: false
+
+    # shell: bash works on both windows-* (Git Bash) and ubuntu-* runners, so
+    # this one step covers both OSes without duplicating pwsh/bash variants.
+    - name: Configure
+      shell: bash
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+          -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} \
+          -DVCPKG_TARGET_TRIPLET=${{ inputs.triplet }} \
+          -DVCPKG_BUILD_TYPE=release \
+          ${{ inputs.extra-cmake-args }}
