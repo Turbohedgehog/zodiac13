@@ -33,6 +33,7 @@
 - Avoid long comments/comment blocks, unless the logic being described is genuinely complex — one or two sentences is usually enough.
 - In implementation code, add a comment mainly when a non-obvious or debatable decision was made, to explain the reasoning for future readers.
 - The same applies to commit messages: keep them short, a couple of sentences is enough.
+- Never include Claude Code session/conversation IDs or other internal tooling metadata in commit messages.
 
 ## Branch size
 
