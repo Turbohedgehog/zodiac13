@@ -3,6 +3,11 @@
 Test subproject. All test code compiles into `bin/tests/z13_tests.dll`; a thin
 `z13_test_runner.exe` loads it and runs the suite (driven by CTest).
 
+Cross-module tests (e.g. `lib_core` serialization) live under `src/` here.
+Tests for a single module live in that module's own `tests/` directory (e.g.
+`src/lib_z13/modules/z13_module/tests/`) and are picked up by this project's
+CMakeLists glob.
+
 Here the world serializer in `lib_core` (`<lib_core/world_serializer.h>`,
 `<lib_core/component_meta.h>`) is exercised — flecs world-state round-trip plus an
 opt-in benchmark measuring binary (msgpack) vs JSON serialization.

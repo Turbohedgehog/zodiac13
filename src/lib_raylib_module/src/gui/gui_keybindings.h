@@ -28,7 +28,7 @@
 
 namespace z13::raylib::gui {
 
-inline constexpr int kKeyBindingSlots = 2;  // mirrors Ogre kMaxKeycodesPerAction
+inline constexpr int kKeyBindingSlots = 2;
 
 struct KeyBindingAction {
   std::string display_text;

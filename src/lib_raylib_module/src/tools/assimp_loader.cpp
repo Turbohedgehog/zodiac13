@@ -34,12 +34,11 @@
 #include <raylib.h>
 #include <raymath.h>
 
-// raylib's vcpkg build has JPEG decoding disabled (no SUPPORT_FILEFORMAT_JPG), so
-// this is the only place stb_image's JPEG decoder is compiled in; PNG is included
-// too since it's used as the DecodeImage fallback below. Must precede the include
-// (the first TU to include stb_image.h with this defined gets the implementation).
+// Only place stb_image's JPEG decoder is compiled in (raylib's vcpkg build lacks
+// it). STB_IMAGE_STATIC avoids clashing with libraylib.a's own stbi_* symbols.
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_PNG
+#define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 

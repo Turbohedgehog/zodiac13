@@ -33,22 +33,17 @@ struct WindowSize {
 // Added when the OS window requested close; drives Core shutdown.
 struct RaylibWindowClosed {};
 
-// Frame phases, mirroring the Ogre module.
 struct ReadEvents {};
-// Separate from ReadEvents: system order within one phase isn't guaranteed by
-// registration order alone (an .immediate() system can run ahead of its
-// siblings), so anything reading PumpEvents' output -- InputPublisher::ReadInput,
-// GuiSystem::BeginFrame -- needs a real phase barrier after it, not a same-phase
-// ordering assumption.
+// Phase barrier after ReadEvents: same-phase order isn't guaranteed, so
+// consumers of pumped events (e.g. GuiSystem::BeginFrame) run here instead.
 struct ConsumeEvents {};
 struct PreRender {};
 struct Render {};
 struct PostRender {};
 struct FinalizeRender {};
 
-// Raw raylib input for the current frame. Singleton, refreshed in ReadEvents.
-// Table-driven flecs events cover the bound keys; this is the escape hatch for
-// systems that need more (wheel, absolute position, arbitrary keys via IsKeyDown).
+// Raw raylib input for the current frame; escape hatch for what the table-driven
+// flecs events don't cover (wheel, absolute position, arbitrary keys).
 struct RaylibInputFrame {
   Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
   Eigen::Vector2f mouse_delta = Eigen::Vector2f::Zero();

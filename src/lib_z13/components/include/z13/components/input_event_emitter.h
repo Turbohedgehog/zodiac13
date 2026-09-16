@@ -16,14 +16,18 @@
 
 #pragma once
 
-#include <string_view>
+#include <flecs.h>
 
-#include <raylib.h>
+#include <z13/components/input.h>
 
-namespace z13::raylib {
+namespace z13::input {
 
-// Loads an assimp-supported model from <assets>/<relative_path>, with node
-// transforms baked into vertices. Empty Model (meshCount == 0) on failure.
-::Model LoadModelFromAsset(std::string_view relative_path);
+// Sets EventT as source's payload and emits it as a SystemInputEventType event.
+// Shared by the real input layer and by tests emulating input without SDL/raylib.
+template <typename EventT>
+void EmitInputEvent(flecs::world world, flecs::entity source, const EventT& event) {
+  source.set<EventT>(event);
+  world.event<SystemInputEventType>().id<EventT>().entity(source).emit();
+}
 
-}  // namespace z13::raylib
+}  // namespace z13::input

@@ -30,11 +30,8 @@ namespace z13::raylib {
 
 namespace {
 
-// The one piece of state that must stay global: render_components.h's GPU-resource
-// RAII wrappers live in shared_ptrs inside flecs components and can be destructed
-// from anywhere, with no SdlPlatform instance reachable to ask. Plain bool: the
-// engine is single-threaded today (Core::Run() is one loop), so there's nothing to
-// race against yet -- revisit if that changes.
+// Must stay global: render_components.h's GPU-resource RAII wrappers can be
+// destructed from anywhere, with no SdlPlatform instance reachable to ask.
 bool gl_context_alive = false;
 
 void ForwardRaylibLog(int level, const char* text, va_list args) {
@@ -105,7 +102,7 @@ bool SdlPlatform::Init(int width, int height, const char* title) {
   rlLoadExtensions(reinterpret_cast<void*>(SDL_GL_GetProcAddress));
   rlglInit(width, height);
 
-  size_ = {width, height};
+  window_size_ = {width, height};
   quit_ = false;
   events_.reserve(64);
   gl_context_alive = true;
@@ -154,7 +151,7 @@ void SdlPlatform::PumpEvents() {
       case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
         [[fallthrough]];
       case SDL_EVENT_WINDOW_RESIZED:
-        size_ = {event.window.data1, event.window.data2};
+        window_size_ = {event.window.data1, event.window.data2};
         break;
       case SDL_EVENT_MOUSE_MOTION:
         mouse_delta_ += Eigen::Vector2f{event.motion.xrel, event.motion.yrel};
@@ -169,7 +166,7 @@ void SdlPlatform::PumpEvents() {
 bool SdlPlatform::QuitRequested() const { return quit_; }
 
 void SdlPlatform::BeginFrame(unsigned char r, unsigned char g, unsigned char b) {
-  rlViewport(0, 0, size_.x(), size_.y());
+  rlViewport(0, 0, window_size_.x(), window_size_.y());
   rlClearColor(r, g, b, 255);
   rlClearScreenBuffers();
 }
@@ -184,25 +181,23 @@ void SdlPlatform::EndFrame() {
   rlDisableScissorTest();
   rlDisableWireMode();
   rlSetBlendMode(RL_BLEND_ALPHA);
-  rlViewport(0, 0, size_.x(), size_.y());
+  rlViewport(0, 0, window_size_.x(), window_size_.y());
   SDL_GL_SwapWindow(window_);
 }
 
-Eigen::Vector2i SdlPlatform::Size() const { return size_; }
+Eigen::Vector2i SdlPlatform::Size() const { return window_size_; }
 
 void SdlPlatform::SetRelativeMouse(bool enabled) {
   if (enabled == relative_mouse_) {
     return;
   }
   if (!enabled) {
-    // Recentre before releasing the grab so the OS cursor doesn't reappear at a
-    // stale position from before relative mode was entered.
-    SDL_WarpMouseInWindow(window_, static_cast<float>(size_.x()) / 2.f,
-                          static_cast<float>(size_.y()) / 2.f);
+    // Recentre before releasing the grab so the cursor doesn't reappear at a stale position.
+    SDL_WarpMouseInWindow(window_, static_cast<float>(window_size_.x()) / 2.f,
+                          static_cast<float>(window_size_.y()) / 2.f);
   }
-  // Read back the actual result rather than trusting the request: SDL can silently
-  // fail to grab relative mode right after window creation (focus not settled yet),
-  // and caching the requested value would then wedge the toggle forever.
+  // Read back the actual result: SDL can silently fail to grab relative mode
+  // right after window creation, so we shouldn't cache the requested value.
   SDL_SetWindowRelativeMouseMode(window_, enabled);
   relative_mouse_ = SDL_GetWindowRelativeMouseMode(window_);
   spdlog::info("[sdl] SetRelativeMouse(requested={}) -> actual={}", enabled, relative_mouse_);

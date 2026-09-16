@@ -46,7 +46,6 @@ namespace z13::raylib {
 
 namespace {
 
-// Demo spaceship placement, mirroring lib_ogre_module's LoadDemoMesh.
 constexpr std::string_view kSpaceshipAsset = "models/spaceship2/spaceship.fbx";
 constexpr float kSpaceshipScale = 0.1f;
 constexpr ::Vector3 kSpaceshipPosition{30.f, 0.f, 0.f};
@@ -57,7 +56,7 @@ constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientati
 constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
-constexpr float kBuildingBlockSize = 0.6f;  // Ogre used half-size 0.3
+constexpr float kBuildingBlockSize = 0.6f;
 
 void RegisterComponents(flecs::world world) {
   world.component<RaylibCamera>();

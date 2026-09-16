@@ -16,21 +16,12 @@
 
 #pragma once
 
-#include <atomic>
-#include <thread>
-#include <memory>
-
-#include <z13/components/input.h>
+#include <string_view>
 
 namespace z13::gameplay {
 
-// Persistent yaw/pitch for mouse-look, kept separate from the transform matrix.
-// Re-deriving these via eulerAngles() from the matrix every frame let float error
-// near +/-90 deg pitch (where the Z/X decomposition is ill-conditioned) leak into
-// an unintended roll, which showed up as the skybox/scene tilting on vertical look.
-struct LookAngles {
-  float yaw_deg {};
-  float pitch_deg {};
-};
+// Single source of truth for the test player entity's name, shared by its
+// creation code and anything that looks it up by name.
+constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
 
 }  // namespace z13::gameplay

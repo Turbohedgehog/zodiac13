@@ -120,10 +120,8 @@ void RegisterSystems(flecs::world world) {
         InitImGui(*platform_data.platform, state);
       });
 
-  // ConsumeEvents: forward the frame's SDL events to ImGui and open a new UI frame.
-  // Must run after RaylibSystem::PumpEvents (kind<ReadEvents>) fills the batch --
-  // same-phase registration order doesn't guarantee that once an .immediate()
-  // sibling is in the phase, so this needs its own dependent phase, not ReadEvents.
+  // Forward this frame's SDL events to ImGui and open a new UI frame. Runs in
+  // ConsumeEvents, not ReadEvents, to guarantee it's after PumpEvents.
   world.system<const RaylibData, const SdlPlatformData, const GuiState>("GuiSystem::BeginFrame")
       .kind<ConsumeEvents>()
       .each([](const RaylibData&, const SdlPlatformData& platform_data, const GuiState& state) {
@@ -153,8 +151,7 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Esc while paused -> WindowBackEvent; other keys/mouse -> WindowKeyDownEvent
-  // (both emitted by z13_module's gameplay_input_system). WindowStack is a
-  // singleton so it is sourced from the singleton, not the event entity.
+  // (both emitted by z13_module's gameplay_input_system).
   world.observer<const z13::input::WindowBackEvent, gui::WindowStack>("GuiSystem::OnWindowBack")
       .event<z13::input::SystemInputEventType>()
       .each([world](const z13::input::WindowBackEvent&, gui::WindowStack& stack) {

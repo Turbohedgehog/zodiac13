@@ -27,9 +27,8 @@ struct RaylibCamera {
   ::Camera3D camera{};
 };
 
-// GPU resources for the skybox. shader/cubemap/model are independently owned
-// (render_resources.h); the model's deleter clears its own references to them
-// before UnloadModel, so destruction order between the three doesn't matter.
+// GPU resources for the skybox, independently owned; the model's deleter clears
+// its own references to them before UnloadModel, so destruction order doesn't matter.
 struct SkyboxResources {
   std::shared_ptr<::Shader> shader;
   std::shared_ptr<::Texture2D> cubemap;

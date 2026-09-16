@@ -30,6 +30,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/input_event_emitter.h>
 
 #include <input_config_generated.h>
 
@@ -117,9 +118,8 @@ const std::unordered_map<SDL_Keycode, zkey::Keycode>& KeyMap() {
   return map;
 }
 
-// Compact modifier bitmask (int8_t, so not the raw 16-bit SDL_Keymod): bit0 Shift,
-// bit1 Ctrl, bit2 Alt, bit3 GUI/Super, each true if either the left or right key of
-// that group is down.
+// Compact bitmask (bit0 Shift, bit1 Ctrl, bit2 Alt, bit3 GUI), not the raw
+// 16-bit SDL_Keymod.
 int8_t EncodeModifiers(SDL_Keymod mod) {
   int8_t result = 0;
   if ((mod & SDL_KMOD_SHIFT) != 0) {
@@ -154,18 +154,9 @@ zkey::Keycode MouseButtonToKeycode(Uint8 sdl_button) {
   }
 }
 
-template <typename EventT>
-void Emit(flecs::world world, flecs::entity source, const EventT& event) {
-  source.set<EventT>(event);
-  world.event<z13::input::SystemInputEventType>().id<EventT>().entity(source).emit();
-}
-
 void ReadInput(flecs::world world, SdlPlatform& platform) {
-  // Pump and consume in the same system call, not two separate ones: same-phase
-  // system order isn't guaranteed by registration order alone once ReadInput's
-  // WorldNoDeferGuard (ends and restarts the world's defer scope mid-pipeline) is
-  // in the mix -- a separate RaylibSystem::PumpEvents system ended up running
-  // after this one instead of before it, so events landed one tick late.
+  // Pump here rather than in a separate system: same-phase order isn't
+  // guaranteed, and a separate PumpEvents could run after this, one tick late.
   platform.PumpEvents();
   z13::WorldNoDeferGuard no_defer(world);
   flecs::entity source = world.entity(kInputSourceName.data());
@@ -188,9 +179,9 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         keycode.mod = EncodeModifiers(event.key.mod);
         keycode.repeat = event.key.repeat ? 1 : 0;
         if (event.type == SDL_EVENT_KEY_DOWN) {
-          Emit(world, source, z13::input::KeyboardDownEvent{{keycode}});
+          z13::input::EmitInputEvent(world, source, z13::input::KeyboardDownEvent{{keycode}});
         } else {
-          Emit(world, source, z13::input::KeyboardUpEvent{{keycode}});
+          z13::input::EmitInputEvent(world, source, z13::input::KeyboardUpEvent{{keycode}});
         }
         break;
       }
@@ -198,26 +189,26 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         [[fallthrough]];
       case SDL_EVENT_MOUSE_BUTTON_UP: {
         z13::input::MouseButtonEvent button{};
-        // event.button.{x,y}, not the frame's aggregated `position`: a fast
-        // move-then-click coalesced into one poll would otherwise report the
-        // frame-end position instead of where the click actually happened.
+        // event.button.{x,y}, not the frame's aggregated `position`, which would
+        // report the frame-end position for a fast move-then-click.
         button.pos = {static_cast<int>(event.button.x), static_cast<int>(event.button.y)};
         button.button = MouseButtonToKeycode(event.button.button);
         button.clicks = event.button.clicks;
         if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-          Emit(world, source, z13::input::MouseButtonDownEvent{button});
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonDownEvent{button});
         } else {
-          Emit(world, source, z13::input::MouseButtonUpEvent{button});
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonUpEvent{button});
         }
         break;
       }
       case SDL_EVENT_MOUSE_MOTION: {
-        Emit(world, source,
-             z13::input::MousePos{static_cast<int>(event.motion.x),
-                                  static_cast<int>(event.motion.y)});
+        z13::input::EmitInputEvent(
+            world, source,
+            z13::input::MousePos{static_cast<int>(event.motion.x),
+                                 static_cast<int>(event.motion.y)});
         z13::input::MouseMoveEvent move{};
         move.delta = {static_cast<int>(event.motion.xrel), static_cast<int>(event.motion.yrel)};
-        Emit(world, source, move);
+        z13::input::EmitInputEvent(world, source, move);
         break;
       }
       case SDL_EVENT_WINDOW_FOCUS_GAINED:
@@ -252,10 +243,7 @@ void RegisterComponents(flecs::world world) {
 
 void RegisterSystems(flecs::world world) {
   // .immediate(): ReadInput emits events synchronously (WorldNoDeferGuard), which
-  // is only legal from a non-deferred system -- same as the Ogre ReadEventsSystem.
-  // Pumps SDL events itself (see ReadInput()) rather than relying on a separate
-  // PumpEvents system to have already run earlier in this phase: WorldNoDeferGuard's
-  // mid-pipeline defer_end/defer_begin made that same-phase ordering unreliable.
+  // is only legal from a non-deferred system.
   world.system<const RaylibData, SdlPlatformData>("InputPublisher::ReadInput")
       .kind<ReadEvents>()
       .immediate()

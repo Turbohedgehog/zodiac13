@@ -35,12 +35,19 @@ def build(build_type: BuildType = BuildType.RELEASE):
   # print(f"command = {cmd}")
   os.system(cmd)
 
+def run_tests(build_type: BuildType = BuildType.RELEASE):
+  cmd = f"ctest --test-dir {BUILD_DIR_NAME} -C {build_type.value} --output-on-failure"
+  os.system(cmd)
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("-b", "--build", action="store_true", help="debug build zodiac 13")
   parser.add_argument("-br", "--build-release", action="store_true", help="release build zodiac 13")
+  parser.add_argument("-t", "--tests", action="store_true", help="run all tests")
   options = parser.parse_args()
-  if options.build:
+  if options.tests:
+    run_tests(BuildType.DEBUG if options.build else BuildType.RELEASE)
+  elif options.build:
     build(BuildType.DEBUG)
   elif options.build_release:
     build(BuildType.RELEASE)

@@ -14,45 +14,86 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+# Compiled once, reused as object files by both the SHARED (real plugin) and
+# STATIC (test-only twin, see below) targets -- CMAKE_POSITION_INDEPENDENT_CODE
+# is ON globally (root CMakeLists.txt), so there's no PIC conflict between the
+# two consumers, and this avoids compiling every z13_module .cpp twice on
+# every build.
+add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 
 # Depend on the concrete flatc custom target, not the fbs_schemas INTERFACE lib:
 # add_dependencies() on an INTERFACE library produces no build-order edge under the
 # VS generator, so a fresh configure builds this before input_config_generated.h exists.
-add_dependencies(${PROJECT_NAME} GENERATE_FBS_SCHEMAS_HEADERS)
+add_dependencies(${PROJECT_NAME}_objects GENERATE_FBS_SCHEMAS_HEADERS)
 
 target_include_directories(
-  ${PROJECT_NAME}
+  ${PROJECT_NAME}_objects
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
 )
 
+target_link_libraries(
+  ${PROJECT_NAME}_objects
+  PUBLIC
+  Eigen3::Eigen
+  PRIVATE
+  zodiac13::core
+  zodiac13::components
+  sago::platform_folders
+  Boost::dll
+)
+
+add_library(${PROJECT_NAME} SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
 set_target_properties(
   ${PROJECT_NAME} PROPERTIES
   PROTO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# PUBLIC: camera_look.h (a public header) uses Eigen::Matrix4f, so consumers
+# linking z13_module need Eigen's include paths too.
 target_link_libraries(
   ${PROJECT_NAME}
+  PUBLIC
+  ${PROJECT_NAME}_objects
+  Eigen3::Eigen
   PRIVATE
   zodiac13::core
   zodiac13::components
-  Eigen3::Eigen
   sago::platform_folders
   Boost::dll
 )
 
+# Test-only static twin of the SHARED target above, same object files. Lets
+# test binaries link z13_module directly into their own process instead of
+# across a .so boundary -- needed because flecs (statically linked into
+# zodiac13::core) keeps process-global internal state that isn't shared
+# correctly between independently-linked shared objects. Never installed;
+# not part of the plugin API surface ModuleLibHolder loads at runtime.
+add_library(${PROJECT_NAME}_static STATIC $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
+target_link_libraries(
+  ${PROJECT_NAME}_static
+  PUBLIC
+  ${PROJECT_NAME}_objects
+  Eigen3::Eigen
+  PRIVATE
+  zodiac13::core
+  zodiac13::components
+  sago::platform_folders
+  Boost::dll
+)
 
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
+# set_target_properties(${PROJECT_NAME} PROPERTIES
 #     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 # )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_objects
         EXPORT ${PROJECT_NAME}Targets
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
