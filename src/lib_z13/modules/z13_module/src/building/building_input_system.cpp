@@ -73,7 +73,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
         "z13.fbs.building.Action",
         action_value);
     if (!action_id_holder) {
-      LOG_ERROR(
+      log_error(
         "OnConfigUpdated: Cannot find action id '{}' for enum 'z13.fbs.building'",
         static_cast<EnumValueType>(action_value)
       );
@@ -100,11 +100,11 @@ void ToggleBuildingMode(
   // building_tool не работает. Какой-то баг во флексе.
   if (!e.has<BuildingTool>()) {
     // TODO: Эта функция не работает! Разобраться!!!
-    LOG_INFO("~~~ ToggleBuildingMode add<BuildingTool>() = {}", building_tool == nullptr);
+    log_info("~~~ ToggleBuildingMode add<BuildingTool>() = {}", building_tool == nullptr);
     e.add<BuildingTool>();
     action_listener.action_group_priority.push_back(kBuildingActionGroup);
   } else {
-    LOG_INFO("~~~ ToggleBuildingMode remove<BuildingTool>() = {}", building_tool == nullptr);
+    log_info("~~~ ToggleBuildingMode remove<BuildingTool>() = {}", building_tool == nullptr);
     e.remove<BuildingTool>();
     std::erase(action_listener.action_group_priority, kBuildingActionGroup);
   }
@@ -120,17 +120,25 @@ void ApplyBuildActionListener(
     ToggleBuildingMode(e, action_listener, toggle_building_mode, building_tool);
   }
 
+  // Building/destroying only makes sense while the brush is out. Checked via
+  // e.has<>() rather than the building_tool pointer: it can be stale within
+  // the same frame BuildingTool was just added/removed above (see the
+  // "не работает" note on ToggleBuildingMode).
+  if (!e.has<BuildingTool>()) {
+    return;
+  }
+
   if (build_action_ids.build_block) {
     const auto& build_block = action_listener.action_values.at(*build_action_ids.build_block);
     if (build_block.IsSwitchedOn()) {
-      LOG_INFO("~~~~ Build block");
+      e.add<RequestBuildBlock>();
     }
   }
 
   if (build_action_ids.destroy_block) {
     const auto& destroy_block = action_listener.action_values.at(*build_action_ids.destroy_block);
     if (destroy_block.IsSwitchedOn()) {
-      LOG_INFO("~~~~ Destroy block");
+      e.add<RequestDestroyBlock>();
     }
   }
 }

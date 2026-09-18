@@ -107,7 +107,7 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
   // A real runtime check, not assert(): assert compiles out under NDEBUG, and
   // truncating indices into unsigned short would silently scramble the mesh.
   if (src.mNumVertices > kMaxIndexableVertices) {
-    LOG_ERROR("[raylib] assimp: mesh '{}' has {} vertices (> {}); 16-bit indices would wrap, skipping mesh",
+    log_error("[raylib] assimp: mesh '{}' has {} vertices (> {}); 16-bit indices would wrap, skipping mesh",
               src.mName.C_Str(), src.mNumVertices, kMaxIndexableVertices);
     return ::Mesh{};
   }
@@ -224,7 +224,7 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
     return result;
   }
 
-  LOG_WARN("[raylib] assimp: texture '{}' not found next to the model", ref);
+  log_warn("[raylib] assimp: texture '{}' not found next to the model", ref);
   return ::Texture2D{};
 }
 
@@ -240,14 +240,14 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
 
   if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 ||
       scene->mRootNode == nullptr) {
-    LOG_ERROR("[raylib] assimp: cannot load '{}': {}", path, importer.GetErrorString());
+    log_error("[raylib] assimp: cannot load '{}': {}", path, importer.GetErrorString());
     return ::Model{};
   }
 
   std::vector<TaggedMesh> tagged;
   CollectMeshes(*scene, *scene->mRootNode, aiMatrix4x4(), tagged);
   if (tagged.empty()) {
-    LOG_ERROR("[raylib] assimp: '{}' has no meshes", path);
+    log_error("[raylib] assimp: '{}' has no meshes", path);
     return ::Model{};
   }
 
@@ -287,7 +287,7 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
                                                                    : 0;
   }
 
-  LOG_INFO("[raylib] assimp: '{}' -> {} mesh(es), {} verts, {} material(s) ({} textured)",
+  log_info("[raylib] assimp: '{}' -> {} mesh(es), {} verts, {} material(s) ({} textured)",
            relative_path, model.meshCount, total_vertices, model.materialCount, textured_materials);
   return model;
 }

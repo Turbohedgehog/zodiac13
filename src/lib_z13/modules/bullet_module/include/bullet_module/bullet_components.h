@@ -14,28 +14,12 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
-namespace z13::building {
+namespace z13::bullet_module {
 
-// Edge length of a placed block's collision/visual cube, shared between the
-// building module (placement/removal overlap tests) and the render module
-// (brush preview + placed-block mesh) so they can't drift apart.
-inline constexpr float kBlockSize = 0.6f;
+// Marks that PhysicsSystem has a Bullet rigid body for this entity; the
+// actual state lives in PhysicsWorld's internal table (see physics_system.cpp).
+struct RigidBody {};
 
-struct BuildingTool {
-
-};
-
-struct Brush {
-  float distance {};
-};
-
-struct BasicBlock {
-
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
-
-}  // namespace z13::building
+}  // namespace z13::bullet_module

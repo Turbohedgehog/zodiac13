@@ -16,8 +16,20 @@
 
 #include <bullet_module/bullet_module_factory.h>
 
-void BulletModuleFactory::RegisterModules(flecs::world& world) {
+#include <flecs.h>
 
+#include <boost/dll/alias.hpp>
+
+#include "bullet_module.h"
+
+namespace z13::bullet_module {
+
+ModuleFactoryPtr BulletModuleFactory::CreateFactory() {
+  return std::make_shared<BulletModuleFactory>();
+}
+
+void BulletModuleFactory::RegisterModules(flecs::world& world) {
+  world.import<BulletModule>();
 }
 
 const std::string& BulletModuleFactory::GetName() const {
@@ -25,3 +37,14 @@ const std::string& BulletModuleFactory::GetName() const {
 
   return name;
 }
+
+}  // namespace z13::bullet_module
+
+extern "C" {
+
+BOOST_DLL_ALIAS(
+    z13::bullet_module::BulletModuleFactory::CreateFactory,
+    create_module_factory
+)
+
+}  // extern "C"

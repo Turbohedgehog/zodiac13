@@ -65,7 +65,7 @@ void CreateDefaults(flecs::world world) {
   auto platform = std::make_shared<SdlPlatform>();
   world.set(SdlPlatformData{.platform = platform});
   if (!platform->Init(kWindowSize.x(), kWindowSize.y(), kWindowTitle.data())) {
-    LOG_CRITICAL("[raylib] SDL platform init failed");
+    log_critical("[raylib] SDL platform init failed");
     platform->Shutdown();
     ShutdownCore(world);
     return;

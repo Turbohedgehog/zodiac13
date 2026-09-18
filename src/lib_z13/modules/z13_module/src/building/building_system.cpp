@@ -16,6 +16,9 @@
 
 #include "building_system.h"
 
+#include <format>
+#include <optional>
+
 #include <flecs.h>
 #include <Eigen/Dense>
 
@@ -51,9 +54,9 @@ void UpdateBrush(
   auto pos = Eigen::Vector3f((parent_transform * dir.homogeneous()).head<3>());
   auto prev_pos = z13::math::ExtractTranslation(brush_transform);
   if (!z13::math::IsNear(pos, prev_pos)) {
-    // LOG_INFO("UpdateBrush = {}, {}, {}", pos.x(), pos.y(), pos.z());
+    // log_info("UpdateBrush = {}, {}, {}", pos.x(), pos.y(), pos.z());
     z13::math::SetTranslation(pos, brush_transform);
-    // LOG_INFO("~~~ UpdateBrush");
+    // log_info("~~~ UpdateBrush");
     // notify all
     e.set(brush_transform);
   }
@@ -65,20 +68,46 @@ void OnEnableBuildingTool(flecs::entity e, const BuildingTool& building_tool, co
   };
   
   auto brush_entity = e.world().entity().child_of(e).set(brush);
-  // LOG_INFO("~~~ OnEnableBuildingTool = {} -> {}", e.id(), brush_entity.id());
+  // log_info("~~~ OnEnableBuildingTool = {} -> {}", e.id(), brush_entity.id());
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   UpdateBrush(brush_entity, parent_transform, brush, transform);
 }
 
 void OnDisableBuildingTool(flecs::entity e, const BuildingTool& building_tool) {
-  // LOG_INFO("~~~ OnDisableBuildingTool 1 = {}", e.id());
+  // log_info("~~~ OnDisableBuildingTool 1 = {}", e.id());
   e.children([](flecs::entity child) {
     // if (child.has<Brush>(flecs::System)) {
     if (child.has<Brush>()) {
-      // LOG_INFO("~~~ OnDisableBuildingTool 2 = {}", child.id());
+      // log_info("~~~ OnDisableBuildingTool 2 = {}", child.id());
       child.destruct();
     }
   });
+}
+
+std::optional<Eigen::Matrix4f> FindBrushTransform(flecs::entity player) {
+  std::optional<Eigen::Matrix4f> transform;
+  player.children([&transform](flecs::entity child) {
+    if (!transform && child.has<Brush>()) {
+      transform = child.get<Eigen::Matrix4f>();
+    }
+  });
+
+  return transform;
+}
+
+void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock) {
+  player.remove<RequestBuildBlock>();
+
+  const auto brush_transform = FindBrushTransform(player);
+  if (!brush_transform) {
+    return;
+  }
+
+  // Named so world save/load (CaptureWorld, world_serializer.cpp) picks it
+  // up -- only named entities are captured.
+  flecs::entity block = player.world().entity();
+  block.set_name(std::format("BasicBlock_{}", block.id()).c_str());
+  block.set(*brush_transform).add<BasicBlock>();
 }
 
 void UpdateBuildingTool(
@@ -113,6 +142,15 @@ void RegisterSystems(flecs::world world) {
     .kind<UpdateBuildingToolPhase>()
     .without<z13::gameplay::Pause>()
     .each(UpdateBuildingTool);
+
+  // Registered after UpdateBrush above (same phase, so runs after it): reads
+  // the brush position UpdateBrush just refreshed this frame.
+  world.system<RequestBuildBlock>("BuildingSystem::ProcessBuildBlockRequest")
+    .kind<UpdateBuildingToolPhase>()
+    .each(ProcessBuildBlockRequest);
+
+  // RequestDestroyBlock itself is handled in bullet_module (raycast against
+  // PhysicsWorld's block bodies), which owns the only class that can do it.
 }
 
 }  // namespace

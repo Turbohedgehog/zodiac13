@@ -16,8 +16,13 @@
 
 #pragma once
 
+#include <lib_core/core_types.h>
+
 namespace z13::bullet_module {
 
+class BulletModule {
+ public:
+  explicit BulletModule(flecs::world& world);
+};
 
-  
 }  // namespace z13::bullet_module

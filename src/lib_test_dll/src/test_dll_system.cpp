@@ -22,7 +22,7 @@
 namespace z13::dll {
 
 void TestDllSystem::Register(flecs::world& world) {
-  LOG_INFO("~~~~~ TestDllSystem::Register");
+  log_info("~~~~~ TestDllSystem::Register");
 }
 
 }  // namespace z13::dll

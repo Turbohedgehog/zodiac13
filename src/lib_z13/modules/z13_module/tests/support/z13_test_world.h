@@ -23,6 +23,7 @@
 
 #include <lib_core/core.h>
 
+#include <bullet_module/bullet_module_factory.h>
 #include <z13/components/input_event_emitter.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/z13_module_factory.h>
@@ -30,6 +31,7 @@
 namespace z13::testing {
 
 constexpr std::string_view kTestInputSourceName = "Z13TestWorld::InputSource";
+constexpr float kTestEpsilon = 1e-3f;
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
@@ -57,6 +59,7 @@ class Z13TestWorld {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
+    core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
     return core.CreateWorld();
   }
 

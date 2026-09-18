@@ -58,7 +58,7 @@ bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, b
 
     return RegisterModuleFactory(module_factory);
   } catch (std::runtime_error ex) {
-    LOG_CRITICAL("Core::RegisterModuleFactory error: {}", ex.what());
+    log_critical("Core::RegisterModuleFactory error: {}", ex.what());
     throw;
   }
   return false;
