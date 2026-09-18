@@ -14,4 +14,16 @@
  * limitations under the License.
  */
 
-#include <bullet/btBulletDynamicsCommon.h>
+#include "bullet_module.h"
+
+#include <flecs.h>
+
+#include "physics_system.h"
+
+namespace z13::bullet_module {
+
+BulletModule::BulletModule(flecs::world& world) {
+  PhysicsSystem::Register(world);
+}
+
+}  // namespace z13::bullet_module

@@ -17,7 +17,9 @@
 #include "environment_render_system.h"
 
 #include <array>
+#include <memory>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
 #include <Eigen/Dense>
@@ -52,11 +54,11 @@ constexpr ::Vector3 kSpaceshipPosition{30.f, 0.f, 0.f};
 constexpr float kSpaceshipPitchDegrees = 90.f;  // about world +X (FBX Y-up -> Z-up)
 constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientation)
 
+constexpr ::Color kPlacedBlockColor = GREEN;
+
 // One directional "sun", Z-up world.
 constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
-
-constexpr float kBuildingBlockSize = 0.6f;
 
 void RegisterComponents(flecs::world world) {
   world.component<RaylibCamera>();
@@ -66,12 +68,31 @@ void RegisterComponents(flecs::world world) {
   world.component<BuildingBlock>();
 }
 
-BuildingBlock MakeBuildingBlock(const Eigen::Matrix4f& transform) {
-  ::Model model = LoadModelFromMesh(GenMeshCube(kBuildingBlockSize, kBuildingBlockSize, kBuildingBlockSize));
+// Per-entity cube models backing placed blocks / the brush preview, keyed by
+// entity -- the model itself doesn't live on BuildingBlock (see render_components.h).
+using BlockModels = std::unordered_map<flecs::entity_t, ModelResources>;
+
+// Points every material of `model` at Lighting's shared shader, and returns
+// the id MakeManagedModel needs to skip unloading a shader it doesn't own.
+unsigned int ApplyLightingShader(::Model& model, const Lighting& lighting) {
+  if (!lighting.res) {
+    return 0;
+  }
+  for (int i = 0; i < model.materialCount; ++i) {
+    model.materials[i].shader = *lighting.res->shader;
+  }
+  return lighting.res->shader->id;
+}
+
+void AddBlockModel(
+    BlockModels& block_models, flecs::entity e, const Eigen::Matrix4f& transform, ::Color color,
+    const Lighting& lighting) {
+  ::Model model = LoadModelFromMesh(GenMeshCube(
+      z13::building::kBlockSize, z13::building::kBlockSize, z13::building::kBlockSize));
   model.transform = EigenToRaylibMatrix(transform);
-  auto res = std::make_shared<ModelResources>();
-  res->model = MakeManagedModel(model);
-  return BuildingBlock{.res = std::move(res)};
+  const unsigned int borrowed_shader_id = ApplyLightingShader(model, lighting);
+  block_models[e.id()] = ModelResources{.model = MakeManagedModel(model, borrowed_shader_id)};
+  e.set<BuildingBlock>({.color = color});
 }
 
 Lighting LoadLighting() {
@@ -99,13 +120,7 @@ RenderModel LoadSpaceship(const Lighting& lighting) {
     return RenderModel{};
   }
 
-  unsigned int borrowed_shader_id = 0;
-  if (lighting.res) {
-    borrowed_shader_id = lighting.res->shader->id;
-    for (int i = 0; i < model.materialCount; ++i) {
-      model.materials[i].shader = *lighting.res->shader;
-    }
-  }
+  const unsigned int borrowed_shader_id = ApplyLightingShader(model, lighting);
 
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
   transform.translate(
@@ -135,7 +150,7 @@ void OnAddCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& cam
   }
 
   e.set<RaylibCamera>({.camera = cam});
-  LOG_INFO("RaylibCamera created for '{}' (fov {})", e.name().c_str(), camera.fov);
+  log_info("RaylibCamera created for '{}' (fov {})", e.name().c_str(), camera.fov);
 }
 
 void OnCameraTransform(RaylibCamera& raylib_camera, const Eigen::Matrix4f& transform) {
@@ -161,6 +176,9 @@ void EndScene3D() {
 }
 
 void RegisterSystems(flecs::world world) {
+  // Shared by the closures below; lives as long as the world.
+  auto block_models = std::make_shared<BlockModels>();
+
   // RaylibData is set right after InitWindow, so a live GL context is guaranteed.
   world.observer<RaylibData>("EnvironmentRenderSystem::LoadEnvironment")
       .event(flecs::OnAdd)
@@ -183,22 +201,25 @@ void RegisterSystems(flecs::world world) {
       .each(OnCameraTransform);
 
   // z13_module spawns a Brush(+Eigen::Matrix4f) child of the player in build mode.
-  world.observer<const z13::building::Brush, const Eigen::Matrix4f>(
+  world.observer<const z13::building::Brush, const Eigen::Matrix4f, const Lighting>(
            "EnvironmentRenderSystem::OnBuildingBrushAdded")
       .event(flecs::OnAdd)
       .without<BuildingBlock>()
       .write<BuildingBlock>()
       .yield_existing()
-      .each([](flecs::entity e, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
-        e.set<BuildingBlock>(MakeBuildingBlock(transform));
+      .each([block_models](
+                flecs::entity e, const z13::building::Brush&, const Eigen::Matrix4f& transform,
+                const Lighting& lighting) {
+        AddBlockModel(*block_models, e, transform, WHITE, lighting);
       });
 
   world.observer<BuildingBlock, const Eigen::Matrix4f>("EnvironmentRenderSystem::OnBuildingBrushMoved")
       .event(flecs::OnSet)
       .yield_existing()
-      .each([](BuildingBlock& block, const Eigen::Matrix4f& transform) {
-        if (block.res) {
-          block.res->model->transform = EigenToRaylibMatrix(transform);
+      .each([block_models](flecs::entity e, const BuildingBlock&, const Eigen::Matrix4f& transform) {
+        const auto it = block_models->find(e.id());
+        if (it != block_models->end()) {
+          it->second.model->transform = EigenToRaylibMatrix(transform);
         }
       });
 
@@ -206,7 +227,33 @@ void RegisterSystems(flecs::world world) {
       .event(flecs::OnRemove)
       .with<BuildingBlock>()
       .write<BuildingBlock>()
-      .each([](flecs::entity e, const z13::building::Brush&) { e.remove<BuildingBlock>(); });
+      .each([block_models](flecs::entity e, const z13::building::Brush&) {
+        block_models->erase(e.id());
+        e.remove<BuildingBlock>();
+      });
+
+  // Placed blocks render like the brush preview; OnBuildingBrushMoved covers
+  // their transform since it matches any (BuildingBlock, Eigen::Matrix4f).
+  world.observer<const z13::building::BasicBlock, const Eigen::Matrix4f, const Lighting>(
+           "EnvironmentRenderSystem::OnBasicBlockAdded")
+      .event(flecs::OnAdd)
+      .without<BuildingBlock>()
+      .write<BuildingBlock>()
+      .yield_existing()
+      .each([block_models](
+                flecs::entity e, const z13::building::BasicBlock&, const Eigen::Matrix4f& transform,
+                const Lighting& lighting) {
+        AddBlockModel(*block_models, e, transform, kPlacedBlockColor, lighting);
+      });
+
+  world.observer<const z13::building::BasicBlock>("EnvironmentRenderSystem::OnBasicBlockRemoved")
+      .event(flecs::OnRemove)
+      .with<BuildingBlock>()
+      .write<BuildingBlock>()
+      .each([block_models](flecs::entity e, const z13::building::BasicBlock&) {
+        block_models->erase(e.id());
+        e.remove<BuildingBlock>();
+      });
 
   flecs::query<const BuildingBlock> block_query =
       world.query_builder<const BuildingBlock>("EnvironmentRenderSystem::BlockQuery").build();
@@ -214,7 +261,7 @@ void RegisterSystems(flecs::world world) {
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
-      .each([world, block_query](const RaylibCamera& raylib_camera, const WindowSize& size) {
+      .each([world, block_query, block_models](const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -242,9 +289,10 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        block_query.each([](const BuildingBlock& block) {
-          if (block.res && block.res->model->meshCount > 0) {
-            DrawModel(*block.res->model, Vector3Zero(), 1.f, WHITE);
+        block_query.each([block_models](flecs::entity e, const BuildingBlock& block) {
+          const auto it = block_models->find(e.id());
+          if (it != block_models->end() && it->second.model->meshCount > 0) {
+            DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
           }
         });
 

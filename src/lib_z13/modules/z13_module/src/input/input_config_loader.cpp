@@ -61,7 +61,7 @@ std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
     [&keycode_names](auto key_token) {
       auto keycode_enum_idx = flatbuffers::LookupEnum(keycode_names, key_token.data());
       if (keycode_enum_idx < 0) {
-        LOG_CRITICAL("ExtractDefaultKeycodes: Cannot find key binding for token {}", key_token);
+        log_critical("ExtractDefaultKeycodes: Cannot find key binding for token {}", key_token);
         keycode_enum_idx = 0;
       }
 
@@ -96,12 +96,12 @@ bool InputConfigLoader::LoadConfig(
 
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   if (!parser.Deserialize(input_config_schema)) {
-    LOG_ERROR("InputConfigLoader::LoadConfig: Failed to deserialize binary schema");
+    log_error("InputConfigLoader::LoadConfig: Failed to deserialize binary schema");
     return false;
   }
 
   if (!parser.Parse(json_input.c_str())) {
-    LOG_ERROR("InputConfigLoader::LoadConfig: Cannot parse json: ", parser.error_);
+    log_error("InputConfigLoader::LoadConfig: Cannot parse json: {}", parser.error_);
     return false;
   }
 
@@ -125,7 +125,7 @@ bool InputConfigLoader::LoadConfig(
     const auto& key_code = action_binding->key_code;
 
     if (action_tokens.size() != 2) {
-      LOG_ERROR(
+      log_error(
         "InputConfigLoader::LoadConfig: Wrong action name format. Value is '{}'",
         action_name
       );
@@ -133,7 +133,7 @@ bool InputConfigLoader::LoadConfig(
     }
     auto it = enum_action_names.find(std::make_tuple(action_tokens[0], action_tokens[1]));
     if (it == enum_action_names.end()) {
-      LOG_ERROR(
+      log_error(
         "InputConfigLoader::LoadConfig: Cannot find registered action '{}'",
         action_name
       );
@@ -185,7 +185,7 @@ bool InputConfigLoader::SaveConfig(
   flatbuffers::Parser parser;
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   if (!parser.Deserialize(input_config_schema)) {
-    LOG_ERROR("InputConfigLoader::SaveConfig: Failed to deserialize binary schema");
+    log_error("InputConfigLoader::SaveConfig: Failed to deserialize binary schema");
     return false;
   }
 
@@ -201,7 +201,7 @@ bool InputConfigLoader::SaveConfig(
   parser.opts.output_default_scalars_in_json = true;
   parser.opts.strict_json = true;
   if (const auto* res = flatbuffers::GenerateText(parser, builder.GetBufferPointer(), &json_output); res) {
-    LOG_ERROR("InputConfigLoader::SaveConfig: Failed to serialize data: {}", res);
+    log_error("InputConfigLoader::SaveConfig: Failed to serialize data: {}", res);
     return false;
   }
 
@@ -210,7 +210,7 @@ bool InputConfigLoader::SaveConfig(
   auto config_file_path = z13::tools::environment::GetGameInputConfigJsonPath2();
   std::ofstream output_file(config_file_path);
   if (!output_file.is_open()) {
-    LOG_ERROR("InputConfigLoader::SaveConfig: cannot open json file for write '{}'", config_file_path.string());
+    log_error("InputConfigLoader::SaveConfig: cannot open json file for write '{}'", config_file_path.string());
     return false;
   }
 
@@ -252,7 +252,7 @@ void InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
   const auto* input_config_schema = reflection::GetSchema(lookup_actions.binary_schema.data());
   const auto* enums = input_config_schema->enums();
   if (!enums) {
-    LOG_ERROR("InputConfigLoader::AppendFlatbufActionsFromBinarySchema: no enums in schema");
+    log_error("InputConfigLoader::AppendFlatbufActionsFromBinarySchema: no enums in schema");
     return;
   }
 

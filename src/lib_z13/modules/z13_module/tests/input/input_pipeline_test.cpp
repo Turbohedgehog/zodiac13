@@ -48,7 +48,7 @@ z13::input::KeyboardUpEvent KeyUp(z13::fbs::input::Keycode code) {
 // Chosen so -delta.x * dt * mouse_sensitivity comes out round (100 * 0.01 * 5 = 5).
 constexpr float kMouseTestDeltaTime = 0.01f;
 
-constexpr float kTestEpsilon = 1e-3f;
+using z13::testing::kTestEpsilon;
 
 TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
   z13::testing::Z13TestWorld test_world;

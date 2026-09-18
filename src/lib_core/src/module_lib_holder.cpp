@@ -33,12 +33,12 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
   }
 
   if (lib_holders_.contains(full_path)) {
-    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", full_path.string());
+    log_critical("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", full_path.string());
     return ModuleFactoryPtr();
   }
 
   if (!std::filesystem::exists(full_path)) {
-    LOG_CRITICAL("ModuleLibHolder::AppendModuleLib: path '{}' does not exist!", full_path.string());
+    log_critical("ModuleLibHolder::AppendModuleLib: path '{}' does not exist!", full_path.string());
     return ModuleFactoryPtr();
   }
 
@@ -51,7 +51,7 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
     LibHolder { .lib = std::move(lib), .module_factory = module_factory, }
   );
 
-  LOG_INFO("ModuleLibHolder::AppendModuleLib: Module factory '{}' has been loaded", module_factory->GetName());
+  log_info("ModuleLibHolder::AppendModuleLib: Module factory '{}' has been loaded", module_factory->GetName());
 
   auto module_factory_no_deleter = ModuleFactoryPtr(module_factory.get(), [](auto*){});
 

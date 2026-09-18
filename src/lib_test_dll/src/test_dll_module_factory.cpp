@@ -29,7 +29,7 @@ ModuleFactoryPtr TestDllModuleFactory::CreateFactory() {
 }
 
 TestDllModuleFactory::~TestDllModuleFactory() {
-  LOG_INFO("~~~~~ TestDllModuleFactory::~TestDllModuleFactory");
+  log_info("~~~~~ TestDllModuleFactory::~TestDllModuleFactory");
 }
 
 void TestDllModuleFactory::RegisterModules(flecs::world& world) {

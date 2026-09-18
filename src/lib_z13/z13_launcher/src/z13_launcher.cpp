@@ -28,7 +28,7 @@ std::vector<std::string> ReadModuleList(const std::filesystem::path& config_path
   std::vector<std::string> modules;
 
   if (!std::filesystem::exists(config_path)) {
-    LOG_CRITICAL("Zodiac13Launcher: config file '{}' does not exist!", config_path.string());
+    log_critical("Zodiac13Launcher: config file '{}' does not exist!", config_path.string());
     return modules;
   }
 
@@ -36,7 +36,7 @@ std::vector<std::string> ReadModuleList(const std::filesystem::path& config_path
     const auto root = YAML::LoadFile(config_path.string());
     const auto modules_node = root["modules"];
     if (!modules_node || !modules_node.IsSequence()) {
-      LOG_CRITICAL("Zodiac13Launcher: '{}' has no 'modules' sequence!", config_path.string());
+      log_critical("Zodiac13Launcher: '{}' has no 'modules' sequence!", config_path.string());
       return modules;
     }
 
@@ -46,11 +46,11 @@ std::vector<std::string> ReadModuleList(const std::filesystem::path& config_path
       } else if (entry.IsMap() && entry["path"]) {
         modules.push_back(entry["path"].as<std::string>());
       } else {
-        LOG_WARN("Zodiac13Launcher: skipping malformed module entry in '{}'", config_path.string());
+        log_warn("Zodiac13Launcher: skipping malformed module entry in '{}'", config_path.string());
       }
     }
   } catch (const YAML::Exception& ex) {
-    LOG_CRITICAL("Zodiac13Launcher: failed to parse '{}': {}", config_path.string(), ex.what());
+    log_critical("Zodiac13Launcher: failed to parse '{}': {}", config_path.string(), ex.what());
   }
 
   return modules;

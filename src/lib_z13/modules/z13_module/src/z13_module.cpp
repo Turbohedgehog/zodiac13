@@ -64,15 +64,15 @@ void OnCreateDefaults(flecs::world world) {
 }
 
 void CreateDefaults(flecs::world world) {
-  // LOG_INFO("~~~~ CreateDefaults 1");
+  // log_info("~~~~ CreateDefaults 1");
   // world.add<z13::input::SystemInputListener>();
-  // LOG_INFO("~~~~ CreateDefaults 2");
+  // log_info("~~~~ CreateDefaults 2");
   world.add<status::Z13State>();
-  // LOG_INFO("~~~~ CreateDefaults 3");
+  // log_info("~~~~ CreateDefaults 3");
   world.add<z13::gameplay::Gameplay>();
-  // LOG_INFO("~~~~ CreateDefaults 4");
+  // log_info("~~~~ CreateDefaults 4");
   world.add<z13::status::OnStartupGameEvent>();
-  // LOG_INFO("~~~~ CreateDefaults 5");
+  // log_info("~~~~ CreateDefaults 5");
 }
 
 }  // namespace

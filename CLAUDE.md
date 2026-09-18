@@ -10,6 +10,28 @@
 - Run tests: `ctest --test-dir build` (or run `build/bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
 - `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration).
 
+## Codebase map
+
+- `src/lib_core` — shared flecs/module plumbing used by every module: `core.h`/`core_types.h` (flecs world setup, lifecycle events like `RegisterComponentsEvent`/`InitPhasesEvent`/`InitSystemsEvent`), `module_factory_base.h` (plugin factory interface), plus `log.h`, `math.h`, `flecs_utils.h`, `world_serializer.h`.
+- `src/lib_z13/components/include/z13/components` — flecs component structs shared across modules (`building.h`, `gameplay.h`, `input.h`, `bootstrap.h`, `status.h`, `z13.h`) and `constants/constants.h`.
+- `src/lib_z13/modules/z13_module` — main gameplay module: `bootstrap/`, `building/` (`building_input_system`, `building_system`), `gameplay/`, `input/` (`gameplay_input_system`, input config loading). Factory in `z13_module_factory.cpp`. Its own tests live under `tests/`, with the `Z13TestWorld` harness in `tests/support/z13_test_world.h`.
+- `src/lib_z13/modules/bullet_module` — Bullet physics plugin. `bullet_components.h` exposes only `RigidBody` (component used outside the module); `PhysicsWorld` (the Bullet dynamics-world singleton) is declared in `physics_world.h`/`physics_world.cpp`, private to the module. Factory in `bullet_module_factory.cpp`.
+- `src/lib_raylib_module` — rendering/platform/GUI plugin: `render/` (environment, lights, skybox, render resources), `platform/` (SDL), `gui/` (ImGui windows/keybindings), `tools/` (asset loading, Assimp, input publishing, math conversion). Factory in `raylib_module_factory.cpp`.
+- `src/lib_z13/z13_launcher` — loads module factories (`.so` plugins) into one flecs world at startup.
+- `src/lib_z13/schemas/fbs` — FlatBuffers schemas for world (de)serialization (`world_serializer.h` in `lib_core`).
+- `src/tests` — the `z13_test_runner` gtest binary; links module factories directly (see `Z13TestWorld`) rather than loading them as plugins.
+- `src/zodiac13` — the actual game executable (`main.cpp`).
+
+Each gameplay/render module (`bullet_module`, `raylib_module`, `z13_module`) is a hot-loadable plugin: a `ModuleFactoryBase` subclass exported via `BOOST_DLL_ALIAS`, whose `RegisterModules` does `world.import<XModule>()`. Systems inside a module register through three `flecs::world` observers keyed on `RegisterComponentsEvent` → `InitPhasesEvent` → `InitSystemsEvent` (see `bullet_module/src/physics_system.cpp` for a compact example of the pattern, including why singleton values are set in the systems-event rather than next to their component registration).
+
+## Flecs components
+
+- Entity state is serialized through flecs meta reflection (reflect-cpp based, see `component_meta.h`), which only walks plain data — so a component must never hold a raw pointer, `unique_ptr`, or `shared_ptr` field.
+  - Exception: a singleton component that wraps non-serializable engine/runtime machinery and is always rebuilt rather than saved/loaded (`PhysicsWorld`, `Skybox`, `RenderModel`, `Lighting`) is exempt and may keep a `shared_ptr`-backed pImpl.
+- For per-entity state that wraps a native/engine object (a Bullet body, a GPU model, ...): make the component an empty tag, and own the actual object in a side table (`std::unordered_map<flecs::entity_t, T>`) kept by the owning singleton/system. `unordered_map` is node-based, so an element's address stays stable across insert/erase of other entries — no smart pointer needed even though the object itself can't move. See `bullet_module`'s `RigidBody` tag + `PhysicsWorld`'s internal `bodies` table, and `raylib_module`'s `BuildingBlock` tag + `EnvironmentRenderSystem`'s `BlockModels` table, for the pattern.
+- Where a stable-address pImpl is still needed (the singleton exemption above), name the backing struct `State` (not `Impl`) and its handle member `state_`; the handle itself must be `shared_ptr`, not `unique_ptr` — flecs can in principle duplicate a component, and `unique_ptr` wouldn't tolerate that.
+- Access a singleton component (`.add(flecs::Singleton)`) as a query/observer term directly — add it to the system's/observer's type list and take it as a parameter — rather than calling `world.ensure<T>()`/`get_mut<T>()` inside the callback body.
+
 ## Code style
 
 - C++ code must follow the Google C++ Style Guide (https://google.github.io/styleguide/cppguide.html).
@@ -30,8 +52,9 @@
 ## Comments
 
 - Prefer writing clear, self-documenting code (good names, small functions) over explaining unclear code with comments.
-- Avoid long comments/comment blocks, unless the logic being described is genuinely complex — one or two sentences is usually enough.
+- Avoid long comments/comment blocks, unless the logic being described is genuinely complex — one or two sentences is usually enough. This applies even to comments explaining a non-obvious design decision (e.g. why a type uses a pImpl, why a struct's field order matters) — state the reasoning tersely, don't write a paragraph.
 - In implementation code, add a comment mainly when a non-obvious or debatable decision was made, to explain the reasoning for future readers.
+- Don't restate reasoning that's already documented elsewhere in this file or the codebase (e.g. a project-wide convention) — reference it briefly instead of re-deriving it at every call site.
 - The same applies to commit messages: keep them short, a couple of sentences is enough.
 - Never include Claude Code session/conversation IDs or other internal tooling metadata in commit messages.
 

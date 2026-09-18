@@ -92,7 +92,7 @@ void InitImGui(const SdlPlatform& platform, GuiState& state) {
   ImGui_ImplSDL3_InitForOpenGL(platform.Window(), platform.GlContext());
   ImGui_ImplOpenGL3_Init(kGlslVersion.data());
   state.imgui_ready = true;
-  LOG_INFO("[gui] Dear ImGui {} initialised (SDL3 + OpenGL3)", IMGUI_VERSION);
+  log_info("[gui] Dear ImGui {} initialised (SDL3 + OpenGL3)", IMGUI_VERSION);
 }
 
 void BeginImGuiFrame(const SdlPlatform& platform) {

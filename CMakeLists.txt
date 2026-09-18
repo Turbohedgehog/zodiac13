@@ -70,7 +70,7 @@ add_custom_target(z13_config ALL
 )
 # The exe loads these DLLs at runtime (not linked), so make building it also
 # build them — otherwise `--target zodiac13` / the IDE build produces a useless exe.
-add_dependencies(zodiac13 z13_config z13_module raylib_module test_dll_module)
+add_dependencies(zodiac13 z13_config z13_module bullet_module raylib_module test_dll_module)
 
 set(CPACK_GENERATOR "DEB;TGZ")
 

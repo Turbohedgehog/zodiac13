@@ -82,7 +82,7 @@ void OnMousePos(
   //     flecs::entity e,
   //     const z13::input::InputListener&,
   //     geometry::Transform& transform) {
-  //       // LOG_INFO("~~~ {} OnMousePos = {}, {}", e.name().c_str(), mouse_pos.x, mouse_pos.y);
+  //       // log_info("~~~ {} OnMousePos = {}, {}", e.name().c_str(), mouse_pos.x, mouse_pos.y);
   // });
 }
 
@@ -203,7 +203,7 @@ void OnKeyboardUp(
 }
 
 // void OnMousePosEvent(flecs::entity e, z13::input::MousePos& mp) {
-//   // LOG_INFO("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
+//   // log_info("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
 // }
 
 void OnSaveConfig(
@@ -255,7 +255,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
     if (action_id) {
       action_id_holder = *action_id;
     } else {
-      LOG_ERROR(
+      log_error(
         "OnConfigUpdated: Cannot find action id '{}' for enum 'z13.fbs.actions.Action'",
         static_cast<EnumValueType>(action_value)
       );
@@ -303,7 +303,7 @@ void OnInputSystemStartupGameEvent(
       .emit();
   }
 
-  LOG_INFO("~~~~ OnInputSystemStartupGameEvent");
+  log_info("~~~~ OnInputSystemStartupGameEvent");
 
   if (!persistence.load_config_from_file ||
       !InputConfigLoader::LoadConfig(input_config, action_map)) {
@@ -348,7 +348,7 @@ void CalculateInputValues(
     if (action_listener.action_group_priority.empty()) {
       if (auto ag_it = key_codes.find(key_code); ag_it != key_codes.end()) {
         action_listener.action_values[ag_it->action_id] += key_value;
-        // LOG_INFO("~~~~ 1 action_listener.action_values[{}] = {}", ag_it->action_id, action_listener.action_values[ag_it->action_id].current_value);
+        // log_info("~~~~ 1 action_listener.action_values[{}] = {}", ag_it->action_id, action_listener.action_values[ag_it->action_id].current_value);
       }
     } else {
       for (
@@ -357,9 +357,9 @@ void CalculateInputValues(
           ++action_group_it) {
         auto agkc_it = action_group_key_codes.find(std::make_tuple(*action_group_it, key_code));
         if (agkc_it != action_group_key_codes.end()) {
-          // LOG_INFO("=== agkc_it = {}", agkc_it->display_text);
+          // log_info("=== agkc_it = {}", agkc_it->display_text);
           action_listener.action_values[agkc_it->action_id] += key_value;
-          // LOG_INFO("~~~~ 2 action_listener.action_values[{}] = {}", agkc_it->action_id, action_listener.action_values[agkc_it->action_id].current_value);
+          // log_info("~~~~ 2 action_listener.action_values[{}] = {}", agkc_it->action_id, action_listener.action_values[agkc_it->action_id].current_value);
           break;
         }
       }
@@ -518,7 +518,7 @@ void GameplayInputSystem::Register(flecs::world& world) {
       world.set(input_listener_query_component);
     });
 
-  LOG_INFO("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
+  log_info("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
 }
 
 } // namespace z13::gameplay::input

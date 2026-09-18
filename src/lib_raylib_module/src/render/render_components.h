@@ -52,10 +52,10 @@ struct RenderModel {
   std::shared_ptr<ModelResources> res;
 };
 
-// Per-entity cube for a z13::building::Brush preview. Follows the entity's
-// Eigen::Matrix4f transform.
+// Marks a block's cube model, which lives in EnvironmentRenderSystem's
+// BlockModels, plus its plain-data render state.
 struct BuildingBlock {
-  std::shared_ptr<ModelResources> res;
+  ::Color color{WHITE};
 };
 
 // GPU resources for scene lighting. Singleton (see MakeManagedShader, render_resources.h).

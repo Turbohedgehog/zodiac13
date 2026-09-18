@@ -16,11 +16,41 @@
 
 #pragma once
 
+#include <utility>
+
 #include <spdlog/spdlog.h>
 
-#define LOG_INFO(...) spdlog::info(__VA_ARGS__)
-#define LOG_WARN(...) spdlog::warn(__VA_ARGS__)
-#define LOG_ERROR(...) spdlog::error(__VA_ARGS__)
-#define LOG_DEBUG(...) spdlog::debug(__VA_ARGS__)
-#define LOG_TRACE(...) spdlog::trace(__VA_ARGS__)
-#define LOG_CRITICAL(...) spdlog::critical(__VA_ARGS__)
+namespace z13 {
+
+// format_string_t (not a plain forwarded pack) keeps fmt's compile-time format checking.
+template <typename... Args>
+void log_info(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::info(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_warn(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::warn(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_error(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::error(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_debug(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::debug(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_trace(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::trace(fmt, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
+void log_critical(spdlog::format_string_t<Args...> fmt, Args&&... args) {
+  spdlog::critical(fmt, std::forward<Args>(args)...);
+}
+
+}  // namespace z13

@@ -212,7 +212,7 @@ std::vector<char> SaveWorldState(const flecs::world& world) {
 bool LoadWorldState(flecs::world& world, const std::vector<char>& bytes) {
   auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
   if (!result) {
-    LOG_ERROR("z13::LoadWorldState: {}", result.error().what());
+    log_error("z13::LoadWorldState: {}", result.error().what());
     return false;
   }
 

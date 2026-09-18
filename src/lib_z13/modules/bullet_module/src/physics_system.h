@@ -14,28 +14,15 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
-namespace z13::building {
+#include <lib_core/core_types.h>
 
-// Edge length of a placed block's collision/visual cube, shared between the
-// building module (placement/removal overlap tests) and the render module
-// (brush preview + placed-block mesh) so they can't drift apart.
-inline constexpr float kBlockSize = 0.6f;
+namespace z13::bullet_module {
 
-struct BuildingTool {
-
+class PhysicsSystem {
+ public:
+  static void Register(flecs::world& world);
 };
 
-struct Brush {
-  float distance {};
-};
-
-struct BasicBlock {
-
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
-
-}  // namespace z13::building
+}  // namespace z13::bullet_module

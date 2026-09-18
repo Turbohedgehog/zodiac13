@@ -45,15 +45,15 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void UpdateGameplay() {
-  // LOG_INFO("UpdateGameplay()");
+  // log_info("UpdateGameplay()");
 }
 
 void OnGameplay() {
-  // LOG_INFO("Gameplay()");
+  // log_info("Gameplay()");
 }
 
 void ValidateGameplay() {
-  // LOG_INFO("ValidateGameplay()");
+  // log_info("ValidateGameplay()");
 }
 
 void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
@@ -76,6 +76,7 @@ void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
       .set(std::move(camera))
       .set(std::move(camera_transform))
       .set(std::move(player))
+      .set(PlayerCollider{.radius = kPlayerColliderRadius})
       // todo: перенести добавление компонент в input_system
       .add<z13::input::InputListener>()
       .set(std::move(action_listener))
@@ -85,7 +86,7 @@ void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
 void OnInit(flecs::iter it, size_t /*i*/, gameplay::Gameplay& gameplay) {
   CreateTestPlayer(it.world(), gameplay);
 
-  LOG_INFO("~~~~ gameplay::OnInit");
+  log_info("~~~~ gameplay::OnInit");
 }
 
 void RegisterSystems(flecs::world world) {

@@ -44,4 +44,10 @@ struct Camera {
   std::string name;
 };
 
+constexpr float kPlayerColliderRadius = 0.4f;
+
+struct PlayerCollider {
+  float radius {};
+};
+
 }  // namespace z13::gameplay
