@@ -16,9 +16,13 @@
 
 #include <z13_module/z13_module_factory.h>
 
+#include <utility>
+
 #include <flecs.h>
 
+#include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13_module/tools/z13_environment.h>
 
 #include "z13_module.h"
 
@@ -33,6 +37,10 @@ void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.component<z13::input::InputConfigPersistenceSettings>().add(flecs::Singleton);
   world.set<z13::input::InputConfigPersistenceSettings>(
       {.load_config_from_file = load_config_from_file_});
+
+  world.component<z13::gameplay::QuickSaveSettings>().add(flecs::Singleton);
+  world.set<z13::gameplay::QuickSaveSettings>(
+      {.path = quick_save_path_.value_or(z13::tools::environment::GetGameQuickSaveJsonPath())});
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
@@ -43,6 +51,10 @@ const std::string& Z13ModuleFactory::GetName() const {
 
 void Z13ModuleFactory::SetLoadConfigFromFile(bool load_config_from_file) {
   load_config_from_file_ = load_config_from_file;
+}
+
+void Z13ModuleFactory::SetQuickSavePath(std::filesystem::path path) {
+  quick_save_path_ = std::move(path);
 }
 
 }  // namespace z13

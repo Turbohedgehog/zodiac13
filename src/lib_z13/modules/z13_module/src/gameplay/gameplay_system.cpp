@@ -23,6 +23,7 @@
 
 #include <lib_core/log.h>
 #include <lib_core/components.h>
+#include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -56,7 +57,7 @@ void ValidateGameplay() {
   // log_info("ValidateGameplay()");
 }
 
-void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
+void CreateTestPlayer(flecs::world world, gameplay::IdCounters& counters) {
   auto test_actor_entity = world.entity(kTestPlayerEntityName.data());
   Camera camera {
     .fov = 90,
@@ -64,7 +65,7 @@ void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
   };
 
   Player player {
-    .id = gameplay.last_registered_player_id++,
+    .id = counters.last_player_id++,
   };
 
   Eigen::Matrix4f camera_transform = Eigen::Matrix4f::Identity();
@@ -73,6 +74,7 @@ void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
   };
 
   test_actor_entity
+      .add<z13::flecs_tools::StateEntity>()
       .set(std::move(camera))
       .set(std::move(camera_transform))
       .set(std::move(player))
@@ -83,8 +85,11 @@ void CreateTestPlayer(flecs::world world, gameplay::Gameplay& gameplay) {
       .add<z13::input::CurrentActionListenerTag>();
 }
 
-void OnInit(flecs::iter it, size_t /*i*/, gameplay::Gameplay& gameplay) {
-  CreateTestPlayer(it.world(), gameplay);
+void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
+  const flecs::world world = it.world();
+  gameplay::IdCounters counters;
+  CreateTestPlayer(world, counters);
+  world.set<gameplay::IdCounters>(counters);
 
   log_info("~~~~ gameplay::OnInit");
 }

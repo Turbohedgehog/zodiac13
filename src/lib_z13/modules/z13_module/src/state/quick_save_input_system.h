@@ -14,28 +14,17 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
-namespace z13::building {
+#include <lib_core/core_types.h>
 
-// Edge length of a placed block's collision/visual cube, shared between the
-// building module (placement/removal overlap tests) and the render module
-// (brush preview + placed-block mesh) so they can't drift apart.
-inline constexpr float kBlockSize = 0.6f;
+namespace z13::state {
 
-struct BuildingTool {
-  using State = void;
+// F5/F9 by default: writes the world state to / restores it from the quick save
+// file (see QuickSaveSettings) through the save/load request queue.
+class QuickSaveInputSystem {
+ public:
+  static void Register(flecs::world& world);
 };
 
-struct Brush {
-  float distance {};
-};
-
-struct BasicBlock {
-  using State = void;
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
-
-}  // namespace z13::building
+}  // namespace z13::state

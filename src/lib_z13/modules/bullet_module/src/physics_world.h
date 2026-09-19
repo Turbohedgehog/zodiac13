@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -36,8 +38,14 @@ class PhysicsWorld {
 
   btDiscreteDynamicsWorld& DynamicsWorld();
 
-  void AddBody(flecs::entity_t entity, const btTransform& transform, float size);
+  // Creates the entity's body, or recreates it if `transform` no longer matches.
+  void SyncBody(flecs::entity_t entity, const btTransform& transform, float size);
   void RemoveBody(flecs::entity_t entity);
+
+  // Removes every body whose entity `should_remove` accepts; no per-call allocation.
+  void RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove);
+
+  size_t BodyCount() const;
 
   // Pushes a sphere out of any placed block it penetrates. No persistent
   // body: the player is purely kinematic, so this is a one-off query.

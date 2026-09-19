@@ -89,7 +89,6 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
 
 void ToggleBuildingMode(
     flecs::entity e,
-    z13::input::ActionListener& action_listener,
     const z13::input::ActionValueHolder& action_value_holder,
     BuildingTool* building_tool) {
   // const auto& toggle_building_mode = action_listener.action_values.at(build_action_ids.toggle_building_mode);
@@ -102,11 +101,25 @@ void ToggleBuildingMode(
     // TODO: Эта функция не работает! Разобраться!!!
     log_info("~~~ ToggleBuildingMode add<BuildingTool>() = {}", building_tool == nullptr);
     e.add<BuildingTool>();
-    action_listener.action_group_priority.push_back(kBuildingActionGroup);
   } else {
     log_info("~~~ ToggleBuildingMode remove<BuildingTool>() = {}", building_tool == nullptr);
     e.remove<BuildingTool>();
-    std::erase(action_listener.action_group_priority, kBuildingActionGroup);
+  }
+}
+
+// The Building input group follows the BuildingTool tag, so it stays consistent
+// however the tag got there (toggle, restored state).
+void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action_listener) {
+  auto& groups = action_listener.action_group_priority;
+  const bool has_group = std::ranges::find(groups, kBuildingActionGroup) != groups.end();
+  if (e.has<BuildingTool>() == has_group) {
+    return;
+  }
+
+  if (has_group) {
+    std::erase(groups, kBuildingActionGroup);
+  } else {
+    groups.push_back(kBuildingActionGroup);
   }
 }
 
@@ -117,7 +130,7 @@ void ApplyBuildActionListener(
     BuildingTool* building_tool) {
   if (build_action_ids.toggle_building_mode) {
     const auto& toggle_building_mode = action_listener.action_values.at(*build_action_ids.toggle_building_mode);
-    ToggleBuildingMode(e, action_listener, toggle_building_mode, building_tool);
+    ToggleBuildingMode(e, toggle_building_mode, building_tool);
   }
 
   // Building/destroying only makes sense while the brush is out. Checked via
@@ -152,9 +165,15 @@ void RegisterSystems(flecs::world world) {
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
 
+  // First phase of the frame, before the input values are routed by group.
+  world.system<z13::input::ActionListener>("gameplay_input_system::SyncBuildingActionGroup")
+      .kind<z13::input::ClearActionFramePhase>()
+      .each(SyncBuildingActionGroup);
+
   world.system<z13::input::ActionListener, BuildActionIds, BuildingTool*>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .without<z13::gameplay::Pause>()
+      .write<BuildingTool>()
       .each(ApplyBuildActionListener);
 
   world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()

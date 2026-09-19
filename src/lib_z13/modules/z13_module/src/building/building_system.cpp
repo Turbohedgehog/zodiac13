@@ -17,6 +17,7 @@
 #include "building_system.h"
 
 #include <format>
+#include <string>
 #include <optional>
 
 #include <flecs.h>
@@ -28,6 +29,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/math.h>
+#include <lib_core/world_state.h>
 #include <lib_core/log.h>
 
 
@@ -62,26 +64,42 @@ void UpdateBrush(
   }
 }
 
-void OnEnableBuildingTool(flecs::entity e, const BuildingTool& building_tool, const Eigen::Matrix4f& parent_transform) {
+void CreateBrush(flecs::entity player, const Eigen::Matrix4f& parent_transform) {
   auto brush = Brush {
     .distance = 5.f,
   };
-  
-  auto brush_entity = e.world().entity().child_of(e).set(brush);
-  // log_info("~~~ OnEnableBuildingTool = {} -> {}", e.id(), brush_entity.id());
+
+  // Always give the brush a transform: UpdateBrush only sets one when the brush moved,
+  // and a brush created exactly at the world origin would otherwise have none.
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  auto brush_entity = player.world().entity().child_of(player).set(brush).set(transform);
   UpdateBrush(brush_entity, parent_transform, brush, transform);
 }
 
-void OnDisableBuildingTool(flecs::entity e, const BuildingTool& building_tool) {
-  // log_info("~~~ OnDisableBuildingTool 1 = {}", e.id());
-  e.children([](flecs::entity child) {
-    // if (child.has<Brush>(flecs::System)) {
-    if (child.has<Brush>()) {
-      // log_info("~~~ OnDisableBuildingTool 2 = {}", child.id());
+// The brush is derived from the BuildingTool tag each frame (exactly one while the
+// tool is on), so it stays consistent however the tag got there.
+void SyncBrush(flecs::entity player, const BuildingTool&, const Eigen::Matrix4f& parent_transform) {
+  bool has_brush = false;
+  player.children([&has_brush](flecs::entity child) {
+    if (!child.has<Brush>()) {
+      return;
+    }
+    if (has_brush) {
       child.destruct();
     }
+    has_brush = true;
   });
+
+  if (!has_brush) {
+    CreateBrush(player, parent_transform);
+  }
+}
+
+void ReleaseOrphanBrush(flecs::entity brush, const Brush&) {
+  const flecs::entity owner = brush.parent();
+  if (!owner || !owner.has<BuildingTool>()) {
+    brush.destruct();
+  }
 }
 
 std::optional<Eigen::Matrix4f> FindBrushTransform(flecs::entity player) {
@@ -95,7 +113,20 @@ std::optional<Eigen::Matrix4f> FindBrushTransform(flecs::entity player) {
   return transform;
 }
 
-void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock) {
+// Named after a state counter so names stay unique across save/load; a counter that
+// lags behind existing names (hand-edited or older save) skips the taken ones.
+flecs::entity SpawnBlock(
+    flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Matrix4f& transform) {
+  std::string name;
+  do {
+    name = std::format("Block_{}", ++counters.last_block_id);
+  } while (world.lookup(name.c_str()));
+
+  flecs::entity block = world.entity(name.c_str());
+  return block.add<z13::flecs_tools::StateEntity>().set(transform).add<BasicBlock>();
+}
+
+void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock, z13::gameplay::IdCounters& counters) {
   player.remove<RequestBuildBlock>();
 
   const auto brush_transform = FindBrushTransform(player);
@@ -103,11 +134,7 @@ void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock) {
     return;
   }
 
-  // Named so world save/load (CaptureWorld, world_serializer.cpp) picks it
-  // up -- only named entities are captured.
-  flecs::entity block = player.world().entity();
-  block.set_name(std::format("BasicBlock_{}", block.id()).c_str());
-  block.set(*brush_transform).add<BasicBlock>();
+  SpawnBlock(player.world(), counters, *brush_transform);
 }
 
 void UpdateBuildingTool(
@@ -122,15 +149,19 @@ void AppendBuildingTool(flecs::entity e, const z13::gameplay::Player&) {
 }
 
 void RegisterSystems(flecs::world world) {
-  world.observer<BuildingTool, Eigen::Matrix4f>("BuildingSystem::OnDisableBuildingTool")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each(OnEnableBuildingTool);
-    
-  world.observer<BuildingTool>("BuildingSystem::OnEnableBuildingTool")
-    .event(flecs::OnRemove)
-    .yield_existing()
-    .each(OnDisableBuildingTool);
+  // Registered before UpdateBrush (same phase, so runs before it); the write<>
+  // terms make flecs merge a new brush before UpdateBrush and the block request.
+  world.system<const Brush>("BuildingSystem::ReleaseOrphanBrush")
+    .kind<UpdateBuildingToolPhase>()
+    .read<BuildingTool>()
+    .write<Brush>()
+    .each(ReleaseOrphanBrush);
+
+  world.system<const BuildingTool, const Eigen::Matrix4f>("BuildingSystem::SyncBrush")
+    .kind<UpdateBuildingToolPhase>()
+    .write<Brush>()
+    .write<Eigen::Matrix4f>()
+    .each(SyncBrush);
 
   world.system<Eigen::Matrix4f, Brush, Eigen::Matrix4f>("BuildingSystem::UpdateBrush")
     .kind<UpdateBuildingToolPhase>()
@@ -145,8 +176,12 @@ void RegisterSystems(flecs::world world) {
 
   // Registered after UpdateBrush above (same phase, so runs after it): reads
   // the brush position UpdateBrush just refreshed this frame.
-  world.system<RequestBuildBlock>("BuildingSystem::ProcessBuildBlockRequest")
+  // The write<> terms make flecs merge the spawned block before systems that read
+  // it later in the frame (e.g. bullet's body sync).
+  world.system<RequestBuildBlock, z13::gameplay::IdCounters>("BuildingSystem::ProcessBuildBlockRequest")
     .kind<UpdateBuildingToolPhase>()
+    .write<BasicBlock>()
+    .write<Eigen::Matrix4f>()
     .each(ProcessBuildBlockRequest);
 
   // RequestDestroyBlock itself is handled in bullet_module (raycast against

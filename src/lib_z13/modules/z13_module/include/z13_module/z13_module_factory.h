@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
 #include <lib_core/module_factory_base.h>
@@ -34,8 +36,12 @@ class BOOST_SYMBOL_VISIBLE Z13ModuleFactory : public z13::ModuleFactoryBase {
 
   void SetLoadConfigFromFile(bool load_config_from_file);
 
+  // Overrides the default quick save file (GetGameQuickSaveJsonPath()).
+  void SetQuickSavePath(std::filesystem::path path);
+
  private:
   bool load_config_from_file_ {true};
+  std::optional<std::filesystem::path> quick_save_path_;
 };
 
 }  // namespace z13
