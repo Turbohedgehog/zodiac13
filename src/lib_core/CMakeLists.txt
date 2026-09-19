@@ -8,6 +8,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options dll)
 find_package(flecs CONFIG REQUIRED)
 find_package(reflectcpp CONFIG REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 file(
   GLOB_RECURSE
@@ -31,6 +32,7 @@ target_link_libraries(
   PRIVATE
   Boost::program_options
   Boost::dll
+  Eigen3::Eigen
 )
 
 target_link_libraries(

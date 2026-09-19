@@ -24,4 +24,5 @@ namespace z13::gameplay {
 // creation code and anything that looks it up by name.
 constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
 
+
 }  // namespace z13::gameplay

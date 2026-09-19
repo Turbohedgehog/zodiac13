@@ -36,6 +36,34 @@ namespace z13::flecs_tools {
 // Call once per world before registering components that have std::string members.
 void RegisterStdStringMeta(flecs::world& world);
 
+// Registers Eigen::Matrix4f as an opaque array of 16 floats (column-major), so
+// transforms serialize like any other component. Call once per world.
+void RegisterEigenMeta(flecs::world& world);
+
+// Runs flecs operations immediately, even inside an observer, where deferred
+// `.member()` calls overwrite each other (see CLAUDE.md).
+class ImmediateScope {
+ public:
+  explicit ImmediateScope(flecs::world& world) : world_(world), suspended_(world.is_deferred()) {
+    if (suspended_) {
+      world_.defer_suspend();
+    }
+  }
+
+  ~ImmediateScope() {
+    if (suspended_) {
+      world_.defer_resume();
+    }
+  }
+
+  ImmediateScope(const ImmediateScope&) = delete;
+  ImmediateScope& operator=(const ImmediateScope&) = delete;
+
+ private:
+  flecs::world& world_;
+  bool suspended_ {};
+};
+
 // Registers T as a flecs component and derives its meta members from reflect-cpp
 // compile-time reflection, instead of a hand-written .member() list.
 //
@@ -44,6 +72,7 @@ void RegisterStdStringMeta(flecs::world& world);
 // RegisterStdStringMeta). Empty structs are registered as plain tags.
 template <class T>
 flecs::untyped_component RegisterComponentMeta(flecs::world& world) {
+  const ImmediateScope immediate(world);
   auto component = world.component<T>();
 
   if constexpr ((rfl::num_fields<T>) > 0) {
