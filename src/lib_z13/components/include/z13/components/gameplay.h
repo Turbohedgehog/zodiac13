@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 
 namespace z13::gameplay {
@@ -25,28 +26,48 @@ struct PreUpdatePhase {};
 struct UpdatePhase {};
 struct PostUpdatePhase {};
 
+// Runtime singleton marking an initialized gameplay; holds no world state.
 struct Gameplay {
-  uint32_t last_registered_player_id {};
+  using Singleton = void;
 };
 
-struct Pause {};
+// Monotonic id counters; a singleton that is world state.
+struct IdCounters {
+  using State = void;
+  using Singleton = void;
+  uint32_t last_player_id {};
+  uint32_t last_block_id {};
+};
+
+struct Pause {
+  using Singleton = void;
+};
 
 struct WindowFocusEvent {
   bool has_focus = false;
 };
 
 struct Player {
+  using State = void;
   uint32_t id {};
 };
 
 struct Camera {
+  using State = void;
   float fov = 90.f;
   std::string name;
+};
+
+// Where the quick save/load actions read and write the scene; runtime settings, not state.
+struct QuickSaveSettings {
+  using Singleton = void;
+  std::filesystem::path path;
 };
 
 constexpr float kPlayerColliderRadius = 0.4f;
 
 struct PlayerCollider {
+  using State = void;
   float radius {};
 };
 

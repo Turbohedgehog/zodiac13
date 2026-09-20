@@ -26,6 +26,7 @@
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/world_state.h>
 
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
@@ -43,6 +44,7 @@ namespace z13::gameplay::input {
 namespace {
 
 struct MoveActionIds {
+  using Singleton = void;
   z13::input::ActionInfo::IdType move_forward_id = 0;
   z13::input::ActionInfo::IdType move_backward_id = 0;
   z13::input::ActionInfo::IdType move_right_id = 0;
@@ -54,6 +56,7 @@ struct MoveActionIds {
 };
 
 struct InputListenerQueryComponent {
+  using Singleton = void;
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
@@ -483,10 +486,10 @@ void GameplayInputSystem::Register(flecs::world& world) {
     .event(flecs::OnAdd)
     .yield_existing()
     .each([world = world](const auto&) {
-      world.component<InputListenerQueryComponent>().add(flecs::Singleton);
-      world.component<z13::input::InputState>().add(flecs::Singleton);
-      world.component<z13::gameplay::input::MoveActionIds>().add(flecs::Singleton);
-      world.component<z13::gameplay::LookAngles>();
+      flecs::world w = world;
+      z13::flecs_tools::RegisterComponents<
+          InputListenerQueryComponent, z13::input::InputState, MoveActionIds>(w);
+      w.component<z13::gameplay::LookAngles>();
     });
 
   world.observer<InitSystemsEvent>()

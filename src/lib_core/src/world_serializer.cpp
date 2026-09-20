@@ -17,13 +17,18 @@
 #include <lib_core/world_serializer.h>
 
 #include <algorithm>
+#include <format>
 #include <string>
+#include <unordered_set>
 #include <string_view>
 #include <tuple>
 #include <utility>
 
 #include <lib_core/log.h>
+#include <lib_core/world_state.h>
 
+// reflect-cpp's headers trigger warnings under /W4 that this project treats as
+// errors; suppress them for code this project doesn't own.
 #if defined(_MSC_VER)
 #pragma warning(push, 0)
 #endif
@@ -60,14 +65,16 @@ std::string PathOf(flecs::entity e) {
   return path;
 }
 
-void CaptureComponentsAndTags(const flecs::world& world, flecs::entity e, EntitySnapshot& s) {
+void CaptureComponentsAndTags(
+    const flecs::world& world, flecs::entity e, const ComponentFilter& accept_component,
+    EntitySnapshot& s) {
   e.each([&](flecs::id id) {
     if (!id.is_entity()) {
       return;  // pairs handled separately
     }
 
     std::string path = PathOf(id.entity());
-    if (IsUnderFlecs(path)) {
+    if (IsUnderFlecs(path) || (accept_component && !accept_component(id.entity()))) {
       return;
     }
 
@@ -88,7 +95,7 @@ void CaptureComponentsAndTags(const flecs::world& world, flecs::entity e, Entity
             [](const ComponentValue& a, const ComponentValue& b) { return a.type < b.type; });
 }
 
-void CaptureRelationships(flecs::entity e, EntitySnapshot& s) {
+void CaptureRelationships(flecs::entity e, const EntityFilter& accept_target, EntitySnapshot& s) {
   e.each([&](flecs::id id) {
     if (!id.is_pair()) {
       return;
@@ -96,7 +103,7 @@ void CaptureRelationships(flecs::entity e, EntitySnapshot& s) {
 
     const flecs::entity relation = id.first();
     const flecs::entity target = id.second();
-    if (!target || !target.is_alive()) {
+    if (!target || !target.is_alive() || (accept_target && !accept_target(target))) {
       return;
     }
 
@@ -132,7 +139,11 @@ bool DefaultEntityFilter(flecs::entity e) {
   return !e.has<flecs::Component>() && !e.has(flecs::Module);
 }
 
-WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept) {
+namespace {
+
+WorldSnapshot CaptureImpl(
+    const flecs::world& world, const EntityFilter& accept, const ComponentFilter& accept_component,
+    const EntityFilter& accept_target) {
   WorldSnapshot snapshot;
 
   flecs::world w = world;
@@ -146,8 +157,8 @@ WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept
 
         EntitySnapshot s;
         s.name = PathOf(e);
-        CaptureComponentsAndTags(w, e, s);
-        CaptureRelationships(e, s);
+        CaptureComponentsAndTags(w, e, accept_component, s);
+        CaptureRelationships(e, accept_target, s);
         snapshot.entities.push_back(std::move(s));
       });
 
@@ -155,6 +166,12 @@ WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept
             [](const EntitySnapshot& a, const EntitySnapshot& b) { return a.name < b.name; });
 
   return snapshot;
+}
+
+}  // namespace
+
+WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept) {
+  return CaptureImpl(world, accept, {}, {});
 }
 
 WorldSnapshot CaptureWorld(const flecs::world& world) {
@@ -199,6 +216,155 @@ void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
       }
     }
   }
+}
+
+// A singleton's value lives on its component entity, so those are state only for
+// state singletons that have a value; every other entity needs the StateEntity tag.
+bool StateEntityFilter(flecs::entity e) {
+  if (!e.is_alive()) {
+    return false;
+  }
+  return e.has<flecs::Component>() ? IsStateSingleton(e) && e.has(e) : e.has<StateEntity>();
+}
+
+bool StateComponentFilter(flecs::entity component) {
+  return component.has<StateComponent>();
+}
+
+WorldSnapshot CaptureState(const flecs::world& world) {
+  return CaptureImpl(world, StateEntityFilter, StateComponentFilter, StateEntityFilter);
+}
+
+namespace {
+
+using Error = std::unexpected<std::string>;
+
+// A value is valid if flecs can parse it into a fresh instance of its component.
+bool ParsesAs(flecs::world& world, flecs::entity component, const std::string& json) {
+  void* scratch = ecs_value_new(world.c_ptr(), component.id());
+  if (scratch == nullptr) {
+    return false;
+  }
+  const bool parsed = world.from_json(component, scratch, json.c_str()) != nullptr;
+  ecs_value_free(world.c_ptr(), component.id(), scratch);
+  return parsed;
+}
+
+std::expected<void, std::string> ValidateSnapshot(flecs::world& world, const WorldSnapshot& snapshot) {
+  std::unordered_set<std::string> names;
+  for (const auto& s : snapshot.entities) {
+    if (s.name.empty() || !names.insert(s.name).second) {
+      return Error(std::format("invalid or duplicate entity name '{}'", s.name));
+    }
+    if (const flecs::entity existing = world.lookup(s.name.c_str());
+        existing && existing.has<flecs::Component>() && !IsStateSingleton(existing)) {
+      return Error(std::format("'{}' is a component, not a state entity", s.name));
+    }
+  }
+
+  const auto state_component = [&world](const std::string& type) {
+    const flecs::entity component = world.lookup(type.c_str());
+    return component && StateComponentFilter(component) ? component : flecs::entity{};
+  };
+
+  for (const auto& s : snapshot.entities) {
+    for (const auto& tag : s.tags) {
+      if (!state_component(tag)) {
+        return Error(std::format("unknown state tag '{}' on '{}'", tag, s.name));
+      }
+    }
+
+    for (const auto& c : s.components) {
+      const flecs::entity component = state_component(c.type);
+      if (!component) {
+        return Error(std::format("unknown state component '{}' on '{}'", c.type, s.name));
+      }
+      if (!ParsesAs(world, component, c.value)) {
+        return Error(std::format("invalid value for '{}' on '{}'", c.type, s.name));
+      }
+    }
+
+    for (const auto& r : s.relationships) {
+      const bool known_relation =
+          r.relation == kChildOf || static_cast<bool>(world.lookup(r.relation.c_str()));
+      const bool known_target = names.contains(r.target) || static_cast<bool>(world.lookup(r.target.c_str()));
+      if (!known_relation || !known_target) {
+        return Error(std::format("unresolved relationship '{}' -> '{}' on '{}'", r.relation, r.target, s.name));
+      }
+    }
+  }
+  return {};
+}
+
+// Removes state components and relationships of `e` that the snapshot doesn't list.
+void PruneToSnapshot(flecs::entity e, const EntitySnapshot& s) {
+  std::unordered_set<std::string> kept_types(s.tags.begin(), s.tags.end());
+  for (const auto& c : s.components) {
+    kept_types.insert(c.type);
+  }
+
+  std::vector<flecs::id> stale_ids;
+  e.each([&](flecs::id id) {
+    if (id.is_entity() && StateComponentFilter(id.entity()) && !kept_types.contains(PathOf(id.entity()))) {
+      stale_ids.push_back(id);
+    }
+  });
+  for (const flecs::id id : stale_ids) {
+    e.remove(id);
+  }
+
+  EntitySnapshot current;
+  CaptureRelationships(e, StateEntityFilter, current);
+  for (const auto& r : current.relationships) {
+    const bool kept = std::ranges::any_of(s.relationships, [&r](const Relationship& kept_r) {
+      return kept_r.relation == r.relation && kept_r.target == r.target;
+    });
+    if (kept) {
+      continue;
+    }
+
+    const flecs::world world = e.world();
+    const flecs::entity target = world.lookup(r.target.c_str());
+    if (r.relation == kChildOf) {
+      e.remove(flecs::ChildOf, target);
+    } else {
+      e.remove(world.lookup(r.relation.c_str()), target);
+    }
+  }
+}
+
+}  // namespace
+
+std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
+  if (auto valid = ValidateSnapshot(world, snapshot); !valid) {
+    return valid;
+  }
+
+  std::unordered_set<std::string> names;
+  for (const auto& s : snapshot.entities) {
+    names.insert(s.name);
+  }
+
+  std::vector<flecs::entity> stale_entities;
+  world.query_builder().with<StateEntity>().build().each([&](flecs::entity e) {
+    if (StateEntityFilter(e) && e.name().length() > 0 && !names.contains(PathOf(e))) {
+      stale_entities.push_back(e);
+    }
+  });
+  for (const flecs::entity e : stale_entities) {
+    e.destruct();
+  }
+
+  ApplyWorld(world, snapshot);
+
+  for (const auto& s : snapshot.entities) {
+    const flecs::entity e = world.lookup(s.name.c_str());
+    if (!e.has<flecs::Component>()) {
+      e.add<StateEntity>();
+    }
+    PruneToSnapshot(e, s);
+  }
+  return {};
 }
 
 std::vector<char> SaveWorldState(const flecs::world& world, const EntityFilter& accept) {

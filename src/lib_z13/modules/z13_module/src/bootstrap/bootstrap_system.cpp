@@ -18,6 +18,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/world_state.h>
+
 #include <z13/components/bootstrap.h>
 #include <z13/components/gameplay.h>
 
@@ -26,11 +28,13 @@ namespace z13::bootstrap {
 namespace {
 
 struct BootstrapComponent {};
-struct BootstrapCompleteComponent {};
+struct BootstrapCompleteComponent {
+  using Singleton = void;
+};
 
 void RegisterComponents(flecs::world& world) {
   world.entity().add<BootstrapComponent>();
-  world.component<BootstrapCompleteComponent>().add(flecs::Singleton);
+  z13::flecs_tools::RegisterComponent<BootstrapCompleteComponent>(world);
 }
 
 void InitBootstrap(flecs::entity e, const BootstrapComponent&) {

@@ -14,30 +14,12 @@
  * limitations under the License.
  */
 
-#include <lib_core/flecs_utils.h>
+#pragma once
 
-namespace z13 {
+namespace z13::testing {
 
-WorldNoDeferGuard::WorldNoDeferGuard(flecs::world world)
-  : world_(world) {
-  world_.defer_end();
-}
+// Standard fixed-step tick for tests that just need world.progress() to advance
+// time by a deterministic amount; shared so test files don't each redeclare it.
+constexpr float kTestDeltaTime = 1.f;
 
-WorldNoDeferGuard::~WorldNoDeferGuard() {
-  world_.defer_begin();
-}
-
-ImmediateScope::ImmediateScope(flecs::world& world)
-    : world_(world), needs_resume_(world.is_deferred() && !world.is_defer_suspended()) {
-  if (needs_resume_) {
-    world_.defer_suspend();
-  }
-}
-
-ImmediateScope::~ImmediateScope() {
-  if (needs_resume_) {
-    world_.defer_resume();
-  }
-}
-
-}  // namespace z13
+}  // namespace z13::testing

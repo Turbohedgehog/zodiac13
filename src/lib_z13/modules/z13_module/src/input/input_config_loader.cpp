@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <optional>
 #include <filesystem>
+#include <unordered_set>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -72,6 +74,36 @@ std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
   return keycodes;
 }
 
+namespace {
+
+// A default whose (group, keycode) is already bound is skipped by the unique index.
+void AppendDefaultKeycodes(z13::input::InputConfig& input_config, const z13::input::ActionInfo& action_info) {
+  for (const auto key_code : action_info.default_keycodes) {
+    input_config.keycode_binding.emplace(
+        z13::input::KeyCodeAction {
+          .keycode = key_code,
+          .action_group = action_info.group_name,
+          .action_id = action_info.id,
+        });
+  }
+}
+
+// Actions added after the config file was written have no entry in it; give them their
+// defaults. An action saved as KEY_UNKNOWN was unbound on purpose and stays unbound.
+void AddDefaultsForUnboundActions(
+    z13::input::InputConfig& input_config,
+    const z13::input::ActionMap& action_map,
+    const std::unordered_set<z13::input::ActionInfo::IdType>& explicitly_unbound) {
+  const auto& bound_actions = input_config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
+  for (const auto& action_info : action_map.action_map) {
+    if (bound_actions.count(action_info.id) == 0 && !explicitly_unbound.contains(action_info.id)) {
+      AppendDefaultKeycodes(input_config, action_info);
+    }
+  }
+}
+
+}  // namespace
+
 bool InputConfigLoader::LoadConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
@@ -90,6 +122,13 @@ bool InputConfigLoader::LoadConfig(
       std::istreambuf_iterator<char>());
   json_file.close();
 
+  return LoadConfigFromJson(json_input, input_config, action_map);
+}
+
+bool InputConfigLoader::LoadConfigFromJson(
+    const std::string& json_input,
+    z13::input::InputConfig& input_config,
+    const z13::input::ActionMap& action_map) {
   flatbuffers::IDLOptions idl_options;
   idl_options.skip_unexpected_fields_in_json = true;
   flatbuffers::Parser parser(idl_options);
@@ -116,6 +155,7 @@ bool InputConfigLoader::LoadConfig(
   input_config.invert_y = input_config_msg.mouse_config->invert_y;
 
   std::vector<std::string> action_tokens;
+  std::unordered_set<z13::input::ActionInfo::IdType> explicitly_unbound;
 
   const auto& enum_action_names = action_map.action_map.get<z13::input::ActionMap::EnumActionNameTag>();
 
@@ -140,6 +180,11 @@ bool InputConfigLoader::LoadConfig(
       continue;
     }
 
+    if (key_code == z13::fbs::input::Keycode::KEY_UNKNOWN) {
+      explicitly_unbound.insert(it->id);
+      continue;
+    }
+
     input_config.keycode_binding.emplace(
       z13::input::KeyCodeAction {
         .keycode = key_code,
@@ -149,10 +194,12 @@ bool InputConfigLoader::LoadConfig(
     );
   }
 
+  AddDefaultsForUnboundActions(input_config, action_map, explicitly_unbound);
+
   return true;
 }
 
-bool InputConfigLoader::SaveConfig(
+std::optional<std::string> InputConfigLoader::SerializeConfig(
     const z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
   z13::fbs::input::InputConfigT input_config_msg;
@@ -175,6 +222,18 @@ bool InputConfigLoader::SaveConfig(
     }
   );
 
+  // An action without keys is written as KEY_UNKNOWN so LoadConfig can tell "unbound on
+  // purpose" from "not in the file" (which gets default keys).
+  const auto& bound_actions = input_config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
+  for (const auto& action_info : action_map.action_map) {
+    if (bound_actions.count(action_info.id) == 0) {
+      auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
+      ab->action_name = fmt::format("{}{}{}", action_info.enum_name, kActionNameSeparator, action_info.value_name);
+      ab->key_code = z13::fbs::input::Keycode::KEY_UNKNOWN;
+      input_config_msg.action_bindings.push_back(std::move(ab));
+    }
+  }
+
   auto mouse_config = std::make_unique<z13::fbs::input::MouseConfigT>();
   mouse_config->mouse_sensitivity = input_config.mouse_sensitivity;
   mouse_config->invert_x = input_config.invert_x;
@@ -186,7 +245,7 @@ bool InputConfigLoader::SaveConfig(
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   if (!parser.Deserialize(input_config_schema)) {
     log_error("InputConfigLoader::SaveConfig: Failed to deserialize binary schema");
-    return false;
+    return std::nullopt;
   }
 
   flatbuffers::FlatBufferBuilder builder;
@@ -202,6 +261,17 @@ bool InputConfigLoader::SaveConfig(
   parser.opts.strict_json = true;
   if (const auto* res = flatbuffers::GenerateText(parser, builder.GetBufferPointer(), &json_output); res) {
     log_error("InputConfigLoader::SaveConfig: Failed to serialize data: {}", res);
+    return std::nullopt;
+  }
+
+  return json_output;
+}
+
+bool InputConfigLoader::SaveConfig(
+    const z13::input::InputConfig& input_config,
+    const z13::input::ActionMap& action_map) {
+  const auto json_output = SerializeConfig(input_config, action_map);
+  if (!json_output) {
     return false;
   }
 
@@ -214,7 +284,7 @@ bool InputConfigLoader::SaveConfig(
     return false;
   }
 
-  output_file << json_output;
+  output_file << *json_output;
   output_file.close();
 
   return true;
@@ -226,18 +296,7 @@ void InputConfigLoader::SetDefaults(
   input_config.keycode_binding.clear();
 
   for (const auto& action_info : action_map.action_map) {
-    std::transform(
-      action_info.default_keycodes.begin(),
-      action_info.default_keycodes.end(),
-      std::inserter(input_config.keycode_binding, input_config.keycode_binding.end()),
-      [&action_info](auto key_code) {
-        return z13::input::KeyCodeAction {
-          .keycode = key_code,
-          .action_group = action_info.group_name,
-          .action_id = action_info.id,
-        };
-      }
-    );
+    AppendDefaultKeycodes(input_config, action_info);
   }
 }
 

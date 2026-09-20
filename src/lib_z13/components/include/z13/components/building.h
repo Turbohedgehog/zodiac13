@@ -24,7 +24,7 @@ namespace z13::building {
 inline constexpr float kBlockSize = 0.6f;
 
 struct BuildingTool {
-
+  using State = void;
 };
 
 struct Brush {
@@ -32,7 +32,7 @@ struct Brush {
 };
 
 struct BasicBlock {
-
+  using State = void;
 };
 
 struct RequestBuildBlock {};

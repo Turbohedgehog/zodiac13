@@ -28,6 +28,8 @@ enum Action : int16 (action, action_group: "Control") {
   ACTION_1 (display_text: "Action 1", default_keycodes: "MOUSE_BUTTON_LEFT"),
   VERTICAL_LOOK,
   HORIZONTAL_LOOK,
+  SAVE_SCENE (display_text: "Quick save", default_keycodes: "KEY_F5"),
+  LOAD_SCENE (display_text: "Quick load", default_keycodes: "KEY_F9"),
 }
 
 table ActionsTable {

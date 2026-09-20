@@ -14,30 +14,17 @@
  * limitations under the License.
  */
 
-#include <lib_core/flecs_utils.h>
+#pragma once
 
-namespace z13 {
+#include <lib_core/core_types.h>
 
-WorldNoDeferGuard::WorldNoDeferGuard(flecs::world world)
-  : world_(world) {
-  world_.defer_end();
-}
+namespace z13::state {
 
-WorldNoDeferGuard::~WorldNoDeferGuard() {
-  world_.defer_begin();
-}
+// F5/F9 by default: writes the world state to / restores it from the quick save
+// file (see QuickSaveSettings) through the save/load request queue.
+class QuickSaveInputSystem {
+ public:
+  static void Register(flecs::world& world);
+};
 
-ImmediateScope::ImmediateScope(flecs::world& world)
-    : world_(world), needs_resume_(world.is_deferred() && !world.is_defer_suspended()) {
-  if (needs_resume_) {
-    world_.defer_suspend();
-  }
-}
-
-ImmediateScope::~ImmediateScope() {
-  if (needs_resume_) {
-    world_.defer_resume();
-  }
-}
-
-}  // namespace z13
+}  // namespace z13::state

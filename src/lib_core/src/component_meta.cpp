@@ -16,7 +16,10 @@
 
 #include <lib_core/component_meta.h>
 
+#include <cstddef>
 #include <string>
+
+#include <Eigen/Dense>
 
 namespace z13::flecs_tools {
 
@@ -28,6 +31,28 @@ void RegisterStdStringMeta(flecs::world& world) {
         return s->value(flecs::String, &str);
       })
       .assign_string([](std::string* data, const char* value) { *data = value; });
+}
+
+namespace {
+
+constexpr int32_t kMatrix4fElementCount = 16;
+
+}  // namespace
+
+void RegisterEigenMeta(flecs::world& world) {
+  world.component<Eigen::Matrix4f>()
+      .opaque<float>(world.array<float>(kMatrix4fElementCount).id())
+      .serialize([](const flecs::serializer* s, const Eigen::Matrix4f* data) {
+        for (int32_t i = 0; i < kMatrix4fElementCount; ++i) {
+          s->value(flecs::F32, data->data() + i);
+        }
+        return 0;
+      })
+      .count([](const Eigen::Matrix4f*) { return static_cast<size_t>(kMatrix4fElementCount); })
+      .resize([](Eigen::Matrix4f*, size_t) {})
+      .ensure_element([](Eigen::Matrix4f* data, size_t element) -> float* {
+        return data->data() + element;
+      });
 }
 
 }  // namespace z13::flecs_tools
