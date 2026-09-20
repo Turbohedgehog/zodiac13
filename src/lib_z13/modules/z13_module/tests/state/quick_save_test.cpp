@@ -28,6 +28,7 @@
 #include <z13/components/building.h>
 
 #include "../support/building_test_helpers.h"
+#include "../support/world_json_test_helpers.h"
 #include "../support/z13_test_world.h"
 
 // F5 / F9 quick save and load, driven through the same input pipeline as the game.
@@ -82,7 +83,12 @@ TEST(QuickSaveTest, F5WritesTheSceneToTheQuickSaveFile) {
   Tap(test_world, Keycode::KEY_F5);
 
   ASSERT_TRUE(std::filesystem::exists(test_world.QuickSavePath()));
-  EXPECT_EQ(ReadFile(test_world.QuickSavePath()), ft::WorldJsonStore::Save(test_world.World()).value());
+  // Frames keep advancing (Tap's key-up frame, then the re-save below) after the quick
+  // save is written, so SimulationClock.tick has moved on by the time of the re-save --
+  // compare everything else byte-for-byte regardless.
+  EXPECT_EQ(
+      z13::testing::WithNormalizedSimulationTick(ReadFile(test_world.QuickSavePath())),
+      z13::testing::WithNormalizedSimulationTick(ft::WorldJsonStore::Save(test_world.World()).value()));
 }
 
 TEST(QuickSaveTest, F9RestoresTheSceneInBuildMode) {

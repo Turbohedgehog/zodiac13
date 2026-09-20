@@ -31,11 +31,15 @@ class Config {
   bool NeedShowHelp() const;
   friend std::ostream& operator<<(std::ostream& os, const Config& person);
   double GetFPS() const;
+  double GetSnapshotIntervalSeconds() const;
+  double GetSnapshotRetentionSeconds() const;
 
  private:
   boost::program_options::options_description options_description_;
   boost::program_options::variables_map variables_map_;
   double fps_ = 60.f;
+  double snapshot_interval_seconds_ = 1.0;
+  double snapshot_retention_seconds_ = 5.0;
 };
 
 }  // namespace z13

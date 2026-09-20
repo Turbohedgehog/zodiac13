@@ -31,6 +31,7 @@
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/player_action.h>
 #include <z13_module/tools/z13_environment.h>
 #include <z13_module/input/input_config_loader.h>
 #include <z13_module/gameplay/camera_look.h>
@@ -447,6 +448,11 @@ void RegisterSystems(flecs::world world) {
       "gameplay_input_system::CalculateInputValues")
       .kind<z13::input::CalculateActionFramePhase>()
       .without<z13::gameplay::Pause>()
+      // Replay::InjectRecordedActionValues (same phase) drives action_values instead -- see replay.cpp.
+      .without<z13::gameplay::ReplayInProgress>()
+      // InputState is one shared singleton (one local keyboard/mouse); a second player
+      // entity's ActionListener must not mirror it too.
+      .with<z13::input::CurrentActionListenerTag>()
       .each(CalculateInputValues);
 
   world.system<z13::input::ActionListener, MoveActionIds, Eigen::Matrix4f>("gameplay_input_system::ApplyMoveActionListener")

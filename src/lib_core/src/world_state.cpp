@@ -18,6 +18,8 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/simulation_clock.h>
+#include <lib_core/world_snapshot_history.h>
 #include <lib_core/world_state_requests.h>
 
 namespace z13::flecs_tools {
@@ -35,6 +37,8 @@ void RegisterStateMeta(flecs::world& world) {
   // Shared transform type; only state entities are captured, so this is safe module-wide.
   world.component<Eigen::Matrix4f>().add<StateComponent>();
   RegisterWorldStateRequests(world);
+  RegisterSimulationClock(world);
+  RegisterWorldSnapshotHistory(world);
 }
 
 }  // namespace z13::flecs_tools
