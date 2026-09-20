@@ -113,6 +113,7 @@ struct ActionInfo {
 };
 
 struct ActionMap {
+  using Singleton = void;
   struct ActionNameTag;
   struct EnumNameTag;
   struct EnumActionNameTag;
@@ -174,6 +175,7 @@ struct KeyCodeAction {
 };
 
 struct InputConfig {
+  using Singleton = void;
   struct KeycodeIdTag;
   struct ActionGroupKeycodeIdTag;
   struct ActionIdTag;
@@ -211,10 +213,12 @@ struct InputConfig {
 // Lets a caller (e.g. a headless test) fully isolate a world from the
 // developer's real on-disk input config (both loading and saving it).
 struct InputConfigPersistenceSettings {
+  using Singleton = void;
   bool load_config_from_file {true};
 };
 
 struct InputState {
+  using Singleton = void;
   std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {};
 
   // This frame's accumulated mouse-look delta; folded into action_values and

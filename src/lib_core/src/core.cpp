@@ -26,6 +26,7 @@
 #include <lib_core/components.h>
 #include <lib_core/module_factory_base.h>
 #include <lib_core/log.h>
+#include <lib_core/world_state.h>
 
 #include "module_lib_holder.h"
 
@@ -69,6 +70,7 @@ WorldRef Core::CreateWorld() {
   ++new_world_id_;
 
   auto& world = it.first->second;
+  z13::flecs_tools::RegisterStateMeta(world);
   world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world.set(core_component);

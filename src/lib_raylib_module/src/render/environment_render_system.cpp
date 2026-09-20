@@ -137,7 +137,9 @@ RenderModel LoadSpaceship(const Lighting& lighting) {
   return RenderModel{.res = std::move(res)};
 }
 
-void OnAddCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& camera) {
+// Cameras are derived from gameplay::Camera components each frame, not from add
+// events, so restored or edited state is picked up too.
+void EnsureRaylibCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& camera) {
   ::Camera3D cam{};
   cam.fovy = camera.fov;
   cam.projection = CAMERA_PERSPECTIVE;
@@ -153,8 +155,31 @@ void OnAddCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& cam
   log_info("RaylibCamera created for '{}' (fov {})", e.name().c_str(), camera.fov);
 }
 
-void OnCameraTransform(RaylibCamera& raylib_camera, const Eigen::Matrix4f& transform) {
+void SyncRaylibCamera(
+    RaylibCamera& raylib_camera, const gameplay::Camera& camera, const Eigen::Matrix4f& transform) {
+  raylib_camera.camera.fovy = camera.fov;
   UpdateCameraFromTransform(raylib_camera.camera, transform);
+}
+
+void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
+  e.remove<RaylibCamera>();
+}
+
+// Drops the model of every entity that is gone or is no longer a block/brush.
+void ReleaseOrphanModels(const flecs::world& world, BlockModels& block_models) {
+  std::erase_if(block_models, [&world](const auto& entry) {
+    const flecs::entity_t id = entry.first;
+    if (!world.is_alive(id)) {
+      return true;
+    }
+
+    const flecs::entity e = world.entity(id);
+    if (e.has<z13::building::BasicBlock>() || e.has<z13::building::Brush>()) {
+      return false;
+    }
+    e.remove<BuildingBlock>();
+    return true;
+  });
 }
 
 // Replacement for BeginMode3D/EndMode3D: those need CORE for the aspect ratio,
@@ -190,77 +215,67 @@ void RegisterSystems(flecs::world world) {
         world.set<Skybox>(LoadSkybox());
       });
 
-  world.observer<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::OnAddCamera")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each(OnAddCamera);
+  // Everything below runs in the Render phase, ahead of Draw (systems in one phase run
+  // in registration order), so the scene is synced with this frame's final state.
+  world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
+      .kind<Render>()
+      .without<RaylibCamera>()
+      .write<RaylibCamera>()
+      .each(EnsureRaylibCamera);
 
-  world.observer<RaylibCamera, const Eigen::Matrix4f>("EnvironmentRenderSystem::OnCameraTransform")
-      .event(flecs::OnSet)
-      .yield_existing()
-      .each(OnCameraTransform);
+  world.system<RaylibCamera, const gameplay::Camera, const Eigen::Matrix4f>(
+           "EnvironmentRenderSystem::SyncRaylibCamera")
+      .kind<Render>()
+      .each(SyncRaylibCamera);
 
-  // z13_module spawns a Brush(+Eigen::Matrix4f) child of the player in build mode.
-  world.observer<const z13::building::Brush, const Eigen::Matrix4f, const Lighting>(
-           "EnvironmentRenderSystem::OnBuildingBrushAdded")
-      .event(flecs::OnAdd)
+  world.system<const RaylibCamera>("EnvironmentRenderSystem::ReleaseOrphanRaylibCamera")
+      .kind<Render>()
+      .without<gameplay::Camera>()
+      .write<RaylibCamera>()
+      .each(ReleaseOrphanRaylibCamera);
+
+  // Singleton-only term, so $this is empty: use the iter/row overload.
+  world.system<const Lighting>("EnvironmentRenderSystem::ReleaseOrphanModels")
+      .kind<Render>()
+      .read<z13::building::BasicBlock>()
+      .read<z13::building::Brush>()
+      .write<BuildingBlock>()
+      .each([block_models](flecs::iter& it, size_t, const Lighting&) {
+        ReleaseOrphanModels(it.world(), *block_models);
+      });
+
+  // The brush preview and placed blocks share one cube model; the transform is
+  // refreshed at draw time from the entity's matrix.
+  world.system<const z13::building::Brush, const Eigen::Matrix4f, const Lighting>(
+           "EnvironmentRenderSystem::AddBrushModel")
+      .kind<Render>()
       .without<BuildingBlock>()
       .write<BuildingBlock>()
-      .yield_existing()
       .each([block_models](
                 flecs::entity e, const z13::building::Brush&, const Eigen::Matrix4f& transform,
                 const Lighting& lighting) {
         AddBlockModel(*block_models, e, transform, WHITE, lighting);
       });
 
-  world.observer<BuildingBlock, const Eigen::Matrix4f>("EnvironmentRenderSystem::OnBuildingBrushMoved")
-      .event(flecs::OnSet)
-      .yield_existing()
-      .each([block_models](flecs::entity e, const BuildingBlock&, const Eigen::Matrix4f& transform) {
-        const auto it = block_models->find(e.id());
-        if (it != block_models->end()) {
-          it->second.model->transform = EigenToRaylibMatrix(transform);
-        }
-      });
-
-  world.observer<const z13::building::Brush>("EnvironmentRenderSystem::OnBuildingBrushRemoved")
-      .event(flecs::OnRemove)
-      .with<BuildingBlock>()
-      .write<BuildingBlock>()
-      .each([block_models](flecs::entity e, const z13::building::Brush&) {
-        block_models->erase(e.id());
-        e.remove<BuildingBlock>();
-      });
-
-  // Placed blocks render like the brush preview; OnBuildingBrushMoved covers
-  // their transform since it matches any (BuildingBlock, Eigen::Matrix4f).
-  world.observer<const z13::building::BasicBlock, const Eigen::Matrix4f, const Lighting>(
-           "EnvironmentRenderSystem::OnBasicBlockAdded")
-      .event(flecs::OnAdd)
+  world.system<const z13::building::BasicBlock, const Eigen::Matrix4f, const Lighting>(
+           "EnvironmentRenderSystem::AddBlockModel")
+      .kind<Render>()
       .without<BuildingBlock>()
       .write<BuildingBlock>()
-      .yield_existing()
       .each([block_models](
                 flecs::entity e, const z13::building::BasicBlock&, const Eigen::Matrix4f& transform,
                 const Lighting& lighting) {
         AddBlockModel(*block_models, e, transform, kPlacedBlockColor, lighting);
       });
 
-  world.observer<const z13::building::BasicBlock>("EnvironmentRenderSystem::OnBasicBlockRemoved")
-      .event(flecs::OnRemove)
-      .with<BuildingBlock>()
-      .write<BuildingBlock>()
-      .each([block_models](flecs::entity e, const z13::building::BasicBlock&) {
-        block_models->erase(e.id());
-        e.remove<BuildingBlock>();
-      });
-
-  flecs::query<const BuildingBlock> block_query =
-      world.query_builder<const BuildingBlock>("EnvironmentRenderSystem::BlockQuery").build();
+  flecs::query<const BuildingBlock, const Eigen::Matrix4f> block_query =
+      world.query_builder<const BuildingBlock, const Eigen::Matrix4f>("EnvironmentRenderSystem::BlockQuery")
+          .build();
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
+      .read<BuildingBlock>()
       .each([world, block_query, block_models](const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
@@ -289,12 +304,14 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        block_query.each([block_models](flecs::entity e, const BuildingBlock& block) {
-          const auto it = block_models->find(e.id());
-          if (it != block_models->end() && it->second.model->meshCount > 0) {
-            DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
-          }
-        });
+        block_query.each(
+            [block_models](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
+              const auto it = block_models->find(e.id());
+              if (it != block_models->end() && it->second.model->meshCount > 0) {
+                it->second.model->transform = EigenToRaylibMatrix(transform);
+                DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
+              }
+            });
 
         EndScene3D();
       });

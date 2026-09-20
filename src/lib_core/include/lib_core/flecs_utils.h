@@ -29,4 +29,20 @@ class WorldNoDeferGuard {
   flecs::world world_;
 };
 
+// Runs flecs operations immediately, even inside an observer, where deferred
+// `.member()` calls overwrite each other (see CLAUDE.md). Nested instances are
+// safe: only the outermost one actually suspends/resumes deferring.
+class ImmediateScope {
+ public:
+  explicit ImmediateScope(flecs::world& world);
+  ~ImmediateScope();
+
+  ImmediateScope(const ImmediateScope&) = delete;
+  ImmediateScope& operator=(const ImmediateScope&) = delete;
+
+ private:
+  flecs::world& world_;
+  bool needs_resume_ {};
+};
+
 }  // namespace z13

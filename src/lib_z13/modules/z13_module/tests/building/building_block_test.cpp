@@ -27,6 +27,7 @@
 #include <z13/components/input.h>
 #include <z13_module/gameplay/camera_look.h>
 
+#include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
 
 // Exercises the real build/destroy pipeline end to end (mouse click -> flecs
@@ -36,40 +37,10 @@
 namespace z13::building {
 namespace {
 
-constexpr float kTestDeltaTime = 1.f;
-
-z13::input::KeyboardDownEvent KeyDown(z13::fbs::input::Keycode code) {
-  z13::input::KeyboardDownEvent event;
-  event.keycode.code = code;
-  return event;
-}
-
-z13::input::MouseButtonDownEvent MouseDown(z13::fbs::input::Keycode button) {
-  z13::input::MouseButtonDownEvent event;
-  event.button = button;
-  return event;
-}
-
-z13::input::MouseButtonUpEvent MouseUp(z13::fbs::input::Keycode button) {
-  z13::input::MouseButtonUpEvent event;
-  event.button = button;
-  return event;
-}
-
-// A full press-and-release, spread across two frames so the edge-triggered
-// ActionValueHolder in the action pipeline sees a real 0 -> 1 -> 0 sequence
-// (see ApplyBuildActionListener / ActionValueHolder::IsSwitchedOn).
-void Click(z13::testing::Z13TestWorld& test_world, z13::fbs::input::Keycode button) {
-  test_world.EmitInput(MouseDown(button));
-  test_world.World().progress(kTestDeltaTime);
-  test_world.EmitInput(MouseUp(button));
-  test_world.World().progress(kTestDeltaTime);
-}
-
-void EnterBuildMode(z13::testing::Z13TestWorld& test_world) {
-  test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_TAB));
-  test_world.World().progress(kTestDeltaTime);
-}
+using z13::testing::Click;
+using z13::testing::EnterBuildMode;
+using z13::testing::kTestDeltaTime;
+using z13::testing::KeyDown;
 
 std::optional<Eigen::Matrix4f> BrushTransform(flecs::world& world) {
   std::optional<Eigen::Matrix4f> transform;

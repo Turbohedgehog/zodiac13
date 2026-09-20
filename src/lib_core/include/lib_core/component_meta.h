@@ -21,6 +21,10 @@
 
 #include <flecs.h>
 
+#include <lib_core/flecs_utils.h>
+
+// reflect-cpp's headers trigger warnings under /W4 that this project treats as
+// errors; suppress them for code this project doesn't own.
 #if defined(_MSC_VER)
 #pragma warning(push, 0)
 #endif
@@ -36,6 +40,10 @@ namespace z13::flecs_tools {
 // Call once per world before registering components that have std::string members.
 void RegisterStdStringMeta(flecs::world& world);
 
+// Registers Eigen::Matrix4f as an opaque array of 16 floats (column-major), so
+// transforms serialize like any other component. Call once per world.
+void RegisterEigenMeta(flecs::world& world);
+
 // Registers T as a flecs component and derives its meta members from reflect-cpp
 // compile-time reflection, instead of a hand-written .member() list.
 //
@@ -44,6 +52,9 @@ void RegisterStdStringMeta(flecs::world& world);
 // RegisterStdStringMeta). Empty structs are registered as plain tags.
 template <class T>
 flecs::untyped_component RegisterComponentMeta(flecs::world& world) {
+  // Runs during module registration, which happens inside an observer (see CLAUDE.md);
+  // without this, the .member() calls below would be deferred and overwrite each other.
+  const ImmediateScope immediate(world);
   auto component = world.component<T>();
 
   if constexpr ((rfl::num_fields<T>) > 0) {

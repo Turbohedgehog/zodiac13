@@ -23,6 +23,7 @@ namespace z13::gameplay {
 // Persistent yaw/pitch for mouse-look: re-deriving via eulerAngles() every frame
 // let float error near +/-90 deg pitch leak into an unintended roll.
 struct LookAngles {
+  using State = void;
   float yaw_deg {};
   float pitch_deg {};
 };

@@ -55,6 +55,12 @@ class BulletBody {
 
   btRigidBody& Body() { return body_; }
 
+  bool HasTransform(const btTransform& transform) const {
+    const btTransform& current = body_.getWorldTransform();
+    return (current.getOrigin() - transform.getOrigin()).length() <= z13::math::kEpsilon &&
+           current.getRotation().angleShortestPath(transform.getRotation()) <= z13::math::kEpsilon;
+  }
+
  private:
   // Declaration order matters: members are destroyed in reverse, and body_
   // depends on shape_/motion_state_ still being alive to tear down.
@@ -136,11 +142,16 @@ btDiscreteDynamicsWorld& PhysicsWorld::DynamicsWorld() {
   return state_->dynamics_world;
 }
 
-void PhysicsWorld::AddBody(flecs::entity_t entity, const btTransform& transform, float size) {
-  auto [it, inserted] = state_->bodies.try_emplace(entity, entity, transform, size);
-  if (inserted) {
-    state_->dynamics_world.addRigidBody(&it->second.Body());
+void PhysicsWorld::SyncBody(flecs::entity_t entity, const btTransform& transform, float size) {
+  if (const auto existing = state_->bodies.find(entity); existing != state_->bodies.end()) {
+    if (existing->second.HasTransform(transform)) {
+      return;
+    }
+    RemoveBody(entity);
   }
+
+  const auto it = state_->bodies.try_emplace(entity, entity, transform, size).first;
+  state_->dynamics_world.addRigidBody(&it->second.Body());
 }
 
 void PhysicsWorld::RemoveBody(flecs::entity_t entity) {
@@ -150,6 +161,21 @@ void PhysicsWorld::RemoveBody(flecs::entity_t entity) {
   }
   state_->dynamics_world.removeRigidBody(&it->second.Body());
   state_->bodies.erase(it);
+}
+
+void PhysicsWorld::RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove) {
+  for (auto it = state_->bodies.begin(); it != state_->bodies.end();) {
+    if (should_remove(it->first)) {
+      state_->dynamics_world.removeRigidBody(&it->second.Body());
+      it = state_->bodies.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+size_t PhysicsWorld::BodyCount() const {
+  return state_->bodies.size();
 }
 
 btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, float radius) {

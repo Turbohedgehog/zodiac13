@@ -8,6 +8,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options dll)
 find_package(flecs CONFIG REQUIRED)
 find_package(reflectcpp CONFIG REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 file(
   GLOB_RECURSE
@@ -18,10 +19,17 @@ file(
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/lib_core/version.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/lib_core/version.h
+  @ONLY
+)
+
 target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
 )
@@ -31,6 +39,7 @@ target_link_libraries(
   PRIVATE
   Boost::program_options
   Boost::dll
+  Eigen3::Eigen
 )
 
 target_link_libraries(
@@ -47,6 +56,8 @@ target_link_libraries(
 # )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/lib_core/version.h
+        DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/lib_core)
 
 install(TARGETS ${PROJECT_NAME}
         EXPORT ${PROJECT_NAME}Targets

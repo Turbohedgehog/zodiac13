@@ -34,4 +34,8 @@ std::filesystem::path GetGameInputConfigJsonPath2() {
   return GetGameDataDirectory() / "input_config_2.json";
 }
 
+std::filesystem::path GetGameQuickSaveJsonPath() {
+  return GetGameDataDirectory() / "quick_save.json";
+}
+
 }  // namespace z13::tools::environment

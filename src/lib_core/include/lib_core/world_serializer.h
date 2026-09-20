@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <expected>
 #include <functional>
 #include <string>
 #include <vector>
@@ -51,6 +52,9 @@ struct WorldSnapshot {
 // Decides whether an entity belongs to the serialized state.
 using EntityFilter = std::function<bool(flecs::entity)>;
 
+// Decides whether a component (or tag) type is serialized; receives the type's entity.
+using ComponentFilter = std::function<bool(flecs::entity)>;
+
 // Named, alive, not under `flecs`, not a component/module definition.
 bool DefaultEntityFilter(flecs::entity e);
 
@@ -59,6 +63,18 @@ bool DefaultEntityFilter(flecs::entity e);
 // must have its meta registered (see component_meta.h).
 WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept);
 WorldSnapshot CaptureWorld(const flecs::world& world);  // accept = DefaultEntityFilter
+
+// World state: StateEntity entities and state singletons, with only StateComponent
+// types; relationships to non-state entities are dropped. Restore leaves a state
+// singleton alone when the snapshot has no entry for it.
+bool StateEntityFilter(flecs::entity e);
+bool StateComponentFilter(flecs::entity component);
+WorldSnapshot CaptureState(const flecs::world& world);
+
+// Makes the world's state equal to the snapshot, updating in place: state entities,
+// components and relationships it lacks are removed. Validated first; on error the
+// world is left untouched.
+std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot);
 
 // Recreates the snapshot in a world whose components and their meta are already
 // registered. Entities are matched/created by name; relationships are applied in

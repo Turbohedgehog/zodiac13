@@ -20,11 +20,14 @@
 
 #include <lib_core/components.h>
 #include <lib_core/log.h>
+#include <lib_core/world_state.h>
 
+#include <z13/components/building.h>
 #include <z13/components/z13.h>
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13_module/gameplay/camera_look.h>
 
 #include <flecs.h>
 
@@ -33,6 +36,7 @@
 #include "input/gameplay_input_system.h"
 #include "building/building_system.h"
 #include "building/building_input_system.h"
+#include "state/quick_save_input_system.h"
 
 namespace z13 {
 
@@ -41,12 +45,11 @@ namespace {
 void OnRegisterComponents(flecs::world world) {
   world.component<status::Z13State>()
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
-  world.component<gameplay::Gameplay>().add(flecs::Singleton);
-  world.component<gameplay::Pause>().add(flecs::Singleton);
+  flecs_tools::RegisterComponents<
+      gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::Camera,
+      gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool, building::BasicBlock,
+      gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings>(world);
   world.component<input::SystemInputEventType>();
-  world.component<input::ActionMap>().add(flecs::Singleton);
-  world.component<input::InputConfig>().add(flecs::Singleton);
-  world.component<input::InputConfigPersistenceSettings>().add(flecs::Singleton);
   world.component<PlayerInfoComponent>()
     .member<uint32_t>("id")
     .member(flecs::String, "login")
@@ -93,6 +96,7 @@ Z13Module::Z13Module(flecs::world& world) {
   z13::gameplay::input::GameplayInputSystem::Register(world);
   z13::building::BuildingSystem::Register(world);
   z13::building::BuildingInputSystem::Register(world);
+  z13::state::QuickSaveInputSystem::Register(world);
 }
 
 }  // namespace z13

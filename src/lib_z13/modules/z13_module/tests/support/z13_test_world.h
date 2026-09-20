@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <format>
 #include <memory>
 #include <string_view>
 
@@ -37,7 +41,18 @@ constexpr float kTestEpsilon = 1e-3f;
 // no on-disk input-config writes.
 class Z13TestWorld {
  public:
-  Z13TestWorld() : world_(CreateWorld(core_)) {}
+  Z13TestWorld() : world_(CreateWorld(core_, quick_save_path_)) {}
+
+  ~Z13TestWorld() {
+    std::error_code ignored;
+    std::filesystem::remove(quick_save_path_, ignored);
+  }
+
+  Z13TestWorld(const Z13TestWorld&) = delete;
+  Z13TestWorld& operator=(const Z13TestWorld&) = delete;
+
+  // A per-world temp file, so quick save/load never touches the real game data dir.
+  const std::filesystem::path& QuickSavePath() const { return quick_save_path_; }
 
   flecs::world& World() { return world_.get(); }
 
@@ -55,14 +70,18 @@ class Z13TestWorld {
   }
 
  private:
-  static z13::WorldRef CreateWorld(z13::Core& core) {
+  static z13::WorldRef CreateWorld(z13::Core& core, const std::filesystem::path& quick_save_path) {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
+    factory->SetQuickSavePath(quick_save_path);
     core.RegisterModuleFactory(factory);
     core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
     return core.CreateWorld();
   }
 
+  std::filesystem::path quick_save_path_ {std::filesystem::temp_directory_path() /
+      std::format("z13_quick_save_{}_{}.json", reinterpret_cast<std::uintptr_t>(this),
+                  std::chrono::steady_clock::now().time_since_epoch().count())};
   z13::Core core_ {0, nullptr};
   z13::WorldRef world_;  // declared after core_ -- initialization order matters
 };
