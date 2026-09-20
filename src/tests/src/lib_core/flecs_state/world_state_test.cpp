@@ -85,7 +85,9 @@ TEST_F(WorldStateTest, CaptureKeepsOnlyStateEntitiesAndComponents) {
 
   const ft::WorldSnapshot snapshot = ft::CaptureState(source_);
 
-  ASSERT_EQ(snapshot.entities.size(), 1u);
+  // +1 for the SimulationClock state singleton that RegisterStateMeta always gives a
+  // value to; "hero" still sorts first ("h" < the singleton's "z13::..." path).
+  ASSERT_EQ(snapshot.entities.size(), 2u);
   EXPECT_EQ(snapshot.entities[0].name, "hero");
   ASSERT_EQ(snapshot.entities[0].components.size(), 1u);
   EXPECT_EQ(snapshot.entities[0].components[0].type, "z13::tests::Position");
@@ -101,7 +103,8 @@ TEST_F(WorldStateTest, CaptureDropsRelationshipsToNonStateEntities) {
 
   const ft::WorldSnapshot snapshot = ft::CaptureState(source_);
 
-  ASSERT_EQ(snapshot.entities.size(), 2u);
+  // +1 for the SimulationClock state singleton (see CaptureKeepsOnlyStateEntitiesAndComponents).
+  ASSERT_EQ(snapshot.entities.size(), 3u);
   ASSERT_EQ(snapshot.entities[0].relationships.size(), 1u);
   EXPECT_EQ(snapshot.entities[0].relationships[0].target, "b");
 }

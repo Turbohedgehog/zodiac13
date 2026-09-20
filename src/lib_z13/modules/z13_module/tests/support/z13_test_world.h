@@ -56,6 +56,8 @@ class Z13TestWorld {
 
   flecs::world& World() { return world_.get(); }
 
+  const z13::Config& Config() const { return core_.GetConfig(); }
+
   flecs::entity Player() {
     return World().lookup(z13::gameplay::kTestPlayerEntityName.data());
   }

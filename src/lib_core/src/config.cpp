@@ -46,6 +46,14 @@ double Config::GetFPS() const {
   return fps_;
 }
 
+double Config::GetSnapshotIntervalSeconds() const {
+  return snapshot_interval_seconds_;
+}
+
+double Config::GetSnapshotRetentionSeconds() const {
+  return snapshot_retention_seconds_;
+}
+
 std::ostream& operator<<(std::ostream& os, const Config& person) {
   return os << person.options_description_;
 }

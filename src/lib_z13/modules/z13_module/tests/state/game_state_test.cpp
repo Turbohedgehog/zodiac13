@@ -35,6 +35,7 @@
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include "../support/building_test_helpers.h"
+#include "../support/world_json_test_helpers.h"
 #include "../support/z13_test_world.h"
 
 // Saves and restores the real game state (blocks, camera, build mode) through
@@ -336,7 +337,10 @@ TEST(GameStateTest, TransfersStateToAnotherWorld) {
   EXPECT_TRUE(target.Player().has<BuildingTool>());
   EXPECT_EQ(Counters(target).last_block_id, Counters(source).last_block_id);
   EXPECT_EQ(Counters(target).last_player_id, Counters(source).last_player_id);
-  EXPECT_EQ(Save(target), json);
+  // The settle frame above (Frames(target, 1)) advances SimulationClock.tick past what
+  // was captured in `json`, same as any other state a live system could still touch
+  // during that frame -- compare everything else byte-for-byte regardless.
+  EXPECT_EQ(z13::testing::WithNormalizedSimulationTick(Save(target)), z13::testing::WithNormalizedSimulationTick(json));
 }
 
 // Only singletons that also have the State property are world state: Gameplay is not, IdCounters is.

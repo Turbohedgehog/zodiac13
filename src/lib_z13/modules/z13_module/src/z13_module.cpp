@@ -28,6 +28,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13_module/gameplay/camera_look.h>
+#include <z13_module/state/replay.h>
 
 #include <flecs.h>
 
@@ -37,6 +38,7 @@
 #include "building/building_system.h"
 #include "building/building_input_system.h"
 #include "state/quick_save_input_system.h"
+#include "state/player_action_recorder.h"
 
 namespace z13 {
 
@@ -97,6 +99,8 @@ Z13Module::Z13Module(flecs::world& world) {
   z13::building::BuildingSystem::Register(world);
   z13::building::BuildingInputSystem::Register(world);
   z13::state::QuickSaveInputSystem::Register(world);
+  z13::state::PlayerActionRecorder::Register(world);
+  z13::state::Replay::Register(world);
 }
 
 }  // namespace z13
