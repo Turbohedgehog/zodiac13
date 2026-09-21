@@ -220,5 +220,32 @@ TEST_F(BlockDestroyTest, LateSystemsSeeTheDestroyedBlockInTheSameFrame) {
   EXPECT_EQ(world.count<z13::building::BasicBlock>(), 0);
 }
 
+TEST(PhysicsMainMenuTest, ExitToMainMenuDestroysThePhysicsWorld) {
+  z13::testing::Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  // Placed through the real build path, which tags the block as a state entity.
+  z13::testing::EnterBuildMode(test_world);
+  z13::testing::Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
+  ASSERT_EQ(world.get<PhysicsWorld>().BodyCount(), 1u);
+
+  test_world.ExitToMainMenu();
+  world.progress(kTestDeltaTime);
+
+  EXPECT_FALSE(world.has<PhysicsWorld>());
+}
+
+TEST(PhysicsMainMenuTest, NoPhysicsWorldBeforeTheGameStarts) {
+  z13::testing::Z13TestWorld test_world(false);
+  flecs::world& world = test_world.World();
+  world.progress(kTestDeltaTime);
+  EXPECT_FALSE(world.has<PhysicsWorld>());
+
+  test_world.StartGame();
+  world.progress(kTestDeltaTime);
+
+  ASSERT_TRUE(world.has<PhysicsWorld>());
+  EXPECT_EQ(world.get<PhysicsWorld>().BodyCount(), 0u);
+}
+
 }  // namespace
 }  // namespace z13::bullet_module

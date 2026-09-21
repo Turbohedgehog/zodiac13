@@ -71,6 +71,7 @@ struct WindowStack {
 };
 
 WindowPtr MakeMainMenu(flecs::world world);
+WindowPtr MakeGameplayPauseMenu(flecs::world world);
 WindowPtr MakeInputSettings(flecs::world world);
 WindowPtr MakeKeyBindings(flecs::world world);
 

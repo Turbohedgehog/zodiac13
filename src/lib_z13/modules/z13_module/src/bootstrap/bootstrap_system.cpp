@@ -18,6 +18,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/bootstrap.h>
@@ -32,27 +34,64 @@ struct BootstrapCompleteComponent {
   using Singleton = void;
 };
 
-void RegisterComponents(flecs::world& world) {
+void RegisterComponents(flecs::world world) {
   world.entity().add<BootstrapComponent>();
   z13::flecs_tools::RegisterComponent<BootstrapCompleteComponent>(world);
+}
+
+void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
+  // Real input-config loading is handled separately by InputConfigLoader; this
+  // step just closes the placeholder so it doesn't linger as a dangling tag.
+  e.remove<LoadConfigEvent>();
+}
+
+void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
+  flecs::world world = e.world();
+  const auto config = z13::GetCoreConfig(world);
+  if (config && config->get().SkipMainMenu()) {
+    world.add<z13::gameplay::Gameplay>();
+  } else {
+    world.add<z13::gameplay::Pause>();
+  }
+  e.remove<SelectInitialStateEvent>();
 }
 
 void InitBootstrap(flecs::entity e, const BootstrapComponent&) {
   // todo: завязать все загрузки и инициализации систем на последовательности, указанной здесь.
   // Последовательность будет расширена.
   e.add<LoadConfigEvent>();
-  e.add<CreatePlayerEvent>();
+  e.add<SelectInitialStateEvent>();
 
   e.world().add<BootstrapCompleteComponent>();
+}
+
+void RegisterSystems(flecs::world world) {
+  world.observer<LoadConfigEvent>("BootstrapSystem::OnLoadConfig")
+    .event(flecs::OnAdd)
+    .each(OnLoadConfig);
+
+  world.observer<SelectInitialStateEvent>("BootstrapSystem::OnSelectInitialState")
+    .event(flecs::OnAdd)
+    .each(OnSelectInitialState);
+
+  world.system<BootstrapComponent>("InitBootstrap")
+    .kind<z13::gameplay::PreUpdatePhase>()
+    .without<BootstrapCompleteComponent>()
+    .each(InitBootstrap);
 }
 
 }  // namespace
 
 void BootstrapSystem::Register(flecs::world& world) {
-  world.system<BootstrapComponent>("InitBootstrap")
-    .kind<z13::gameplay::PreUpdatePhase>()
-    .without<BootstrapCompleteComponent>()
-    .each(InitBootstrap);
+  world.observer<z13::RegisterComponentsEvent>("BootstrapSystem::RegisterComponents")
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterComponents(world); });
+
+  world.observer<z13::InitSystemsEvent>("BootstrapSystem::RegisterSystems")
+    .event(flecs::OnAdd)
+    .yield_existing()
+    .each([world = world](const auto&) { RegisterSystems(world); });
 }
 
 }  // namespace z13::bootstrap

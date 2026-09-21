@@ -140,7 +140,8 @@ void RegisterSystems(flecs::world world) {
         }
         const bool paused = world.has<gameplay::Pause>();
         if (paused && stack.windows.empty()) {
-          stack.windows.push_back(gui::MakeMainMenu(world));
+          stack.windows.push_back(world.has<gameplay::Gameplay>() ? gui::MakeGameplayPauseMenu(world)
+                                                                  : gui::MakeMainMenu(world));
         } else if (!paused && !stack.windows.empty()) {
           stack.windows.clear();
         }

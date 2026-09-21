@@ -16,6 +16,9 @@
 
 #include <lib_core/flecs_utils.h>
 
+#include <lib_core/components.h>
+#include <lib_core/core.h>
+
 namespace z13 {
 
 WorldNoDeferGuard::WorldNoDeferGuard(flecs::world world)
@@ -38,6 +41,17 @@ ImmediateScope::~ImmediateScope() {
   if (needs_resume_) {
     world_.defer_resume();
   }
+}
+
+std::optional<std::reference_wrapper<const Config>> GetCoreConfig(flecs::world world) {
+  if (!world.has<CoreComponent>()) {
+    return std::nullopt;
+  }
+  const CoreComponent& core_component = world.get<CoreComponent>();
+  if (!core_component.core) {
+    return std::nullopt;
+  }
+  return std::cref(core_component.core->get().GetConfig());
 }
 
 }  // namespace z13

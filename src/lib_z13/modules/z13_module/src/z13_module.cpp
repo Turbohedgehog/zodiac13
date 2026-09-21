@@ -60,24 +60,12 @@ void OnRegisterComponents(flecs::world world) {
 
 void OnCreateDefaults(flecs::world world) {
   world.add<status::Z13State>();
-  world.add<z13::gameplay::Gameplay>();
+  // Pause vs Gameplay is decided by BootstrapSystem from Config::SkipMainMenu().
   world.add<input::ActionMap>();
   world.add<input::InputConfig>();
   // Safety net default; add<T>() is a no-op if the factory already set a value.
   world.add<input::InputConfigPersistenceSettings>();
   world.add<z13::status::OnStartupGameEvent>();
-}
-
-void CreateDefaults(flecs::world world) {
-  // log_info("~~~~ CreateDefaults 1");
-  // world.add<z13::input::SystemInputListener>();
-  // log_info("~~~~ CreateDefaults 2");
-  world.add<status::Z13State>();
-  // log_info("~~~~ CreateDefaults 3");
-  world.add<z13::gameplay::Gameplay>();
-  // log_info("~~~~ CreateDefaults 4");
-  world.add<z13::status::OnStartupGameEvent>();
-  // log_info("~~~~ CreateDefaults 5");
 }
 
 }  // namespace

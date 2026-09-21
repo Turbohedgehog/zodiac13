@@ -45,3 +45,6 @@ vcpkg_installed/
 # clangd (symlinked from build/, plus its local index cache)
 compile_commands.json
 .cache/
+
+# Claude Code personal overrides
+.claude/settings.local.json

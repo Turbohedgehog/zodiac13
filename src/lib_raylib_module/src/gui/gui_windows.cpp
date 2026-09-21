@@ -198,17 +198,43 @@ class InputSettingsWindow : public Window {
   bool dirty_ {};
 };
 
-// ----- Main menu -------------------------------------------------------
+// ----- Gameplay pause menu ---------------------------------------------
 
-class MainMenuWindow : public Window {
+class GameplayPauseMenuWindow : public Window {
  public:
-  explicit MainMenuWindow(flecs::world world) : Window(world, "Main menu") {}
+  explicit GameplayPauseMenuWindow(flecs::world world) : Window(world, "Paused") {}
 
   StackRequest OnBack() override { return {StackOp::CloseMenu, nullptr}; }
 
  protected:
   void DrawBody() override {
     if (ImGui::Button("Resume", kButtonSize)) {
+      RequestCloseMenu();
+    }
+    if (ImGui::Button("Settings...", kButtonSize)) {
+      RequestPush(std::make_shared<InputSettingsWindow>(World()));
+    }
+    if (ImGui::Button("Exit to Main Menu", kButtonSize)) {
+      // Pause stays set, so the empty stack makes GuiSystem::Draw show the main menu next.
+      World().remove<z13::gameplay::Gameplay>();
+      RequestPop();
+    }
+  }
+};
+
+// ----- Main menu (no gameplay scene yet) -------------------------------
+
+class MainMenuWindow : public Window {
+ public:
+  explicit MainMenuWindow(flecs::world world) : Window(world, "Main menu") {}
+
+  // Nothing to resume: Esc must not unpause into an empty world.
+  StackRequest OnBack() override { return {}; }
+
+ protected:
+  void DrawBody() override {
+    if (ImGui::Button("Start Game", kButtonSize)) {
+      World().add<z13::gameplay::Gameplay>();
       RequestCloseMenu();
     }
     if (ImGui::Button("Settings...", kButtonSize)) {
@@ -244,6 +270,10 @@ Window::StackRequest Window::OnBack() { return {StackOp::Pop, nullptr}; }
 
 WindowPtr MakeMainMenu(flecs::world world) {
   return std::make_shared<MainMenuWindow>(world);
+}
+
+WindowPtr MakeGameplayPauseMenu(flecs::world world) {
+  return std::make_shared<GameplayPauseMenuWindow>(world);
 }
 
 WindowPtr MakeInputSettings(flecs::world world) {
