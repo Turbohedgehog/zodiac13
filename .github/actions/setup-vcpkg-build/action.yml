@@ -16,6 +16,10 @@ inputs:
     description: 'Extra arguments appended to the CMake configure command'
     required: false
     default: ''
+  cache-suffix:
+    description: 'Appended to the vcpkg cache key so triplets sharing an OS (x64/arm64 Linux) do not share a cache'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -25,7 +29,18 @@ runs:
     - name: Install Linux build tools
       if: runner.os == 'Linux'
       shell: bash
-      run: sudo apt-get update && sudo apt-get install -y autoconf autoconf-archive automake libtool libltdl-dev pkg-config libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev
+      run: sudo apt-get update && sudo apt-get install -y autoconf autoconf-archive automake libtool libltdl-dev pkg-config libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev ninja-build
+
+    # vcpkg has no prebuilt cmake/ninja for ARM hosts, so it must use the system ones.
+    # The distro cmake is too old for vcpkg scripts (string(JSON STRING_ENCODE) needs 4.3+), so use the pip wheel.
+    - name: Use system tools on ARM hosts
+      if: runner.arch == 'ARM64'
+      shell: bash
+      run: |
+        sudo python3 -m pip install --break-system-packages 'cmake>=4.3'
+        hash -r
+        cmake --version
+        echo "VCPKG_FORCE_SYSTEM_BINARIES=1" >> "$GITHUB_ENV"
 
     # Same key across workflows/OSes (scoped by runner.os) so a warm cache from
     # cache_update.yml or a previous run is reused instead of rebuilding vcpkg deps.
@@ -35,9 +50,9 @@ runs:
         path: |
           build/vcpkg_installed
           vcpkg_installed
-        key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+        key: ${{ runner.os }}-vcpkg${{ inputs.cache-suffix }}-${{ hashFiles('vcpkg.json') }}
         restore-keys: |
-          ${{ runner.os }}-vcpkg-
+          ${{ runner.os }}-vcpkg${{ inputs.cache-suffix }}-
 
     # Only prepares vcpkg.exe/vcpkg — actual package installation happens as
     # part of the CMake configure step below (manifest mode).

@@ -21,6 +21,9 @@ jobs:
             triplet: x64-windows
           - os: ubuntu-24.04
             triplet: x64-linux
+          - os: ubuntu-24.04-arm
+            triplet: arm64-linux
+            cache-suffix: -arm64-linux
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
 
@@ -36,6 +39,7 @@ jobs:
       - uses: ./.github/actions/setup-vcpkg-build
         with:
           triplet: ${{ matrix.triplet }}
+          cache-suffix: ${{ matrix.cache-suffix }}
 
       # Only the test runner and its deps (lib_core, gtest, reflectcpp) — not raylib / the app.
       - name: Build tests

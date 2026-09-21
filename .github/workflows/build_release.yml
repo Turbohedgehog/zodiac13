@@ -15,6 +15,10 @@ jobs:
           - os: ubuntu-24.04
             triplet: x64-linux
             package: cpack
+          - os: ubuntu-24.04-arm
+            triplet: arm64-linux
+            package: cpack
+            cache-suffix: -arm64-linux
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -38,6 +42,7 @@ jobs:
       - uses: ./.github/actions/setup-vcpkg-build
         with:
           triplet: ${{ matrix.triplet }}
+          cache-suffix: ${{ matrix.cache-suffix }}
           extra-cmake-args: -DZ13_VERSION_PATCH=${{ github.run_number }}
 
       - name: Build
