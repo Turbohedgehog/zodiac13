@@ -19,6 +19,6 @@
 namespace z13::bootstrap {
 
 struct LoadConfigEvent {};
-struct CreatePlayerEvent {};
+struct SelectInitialStateEvent {};
 
 }  // namespace z13::bootstrap

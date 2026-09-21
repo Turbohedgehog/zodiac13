@@ -18,9 +18,8 @@
 
 #include <cmath>
 
-#include <lib_core/components.h>
 #include <lib_core/config.h>
-#include <lib_core/core.h>
+#include <lib_core/flecs_utils.h>
 #include <lib_core/world_state.h>
 
 namespace z13::flecs_tools {
@@ -29,17 +28,6 @@ namespace {
 
 void IncrementTick(SimulationClock& clock) {
   ++clock.tick;
-}
-
-const Config* GetCoreConfig(flecs::world world) {
-  if (!world.has<CoreComponent>()) {
-    return nullptr;
-  }
-  const CoreComponent& core_component = world.get<CoreComponent>();
-  if (!core_component.core) {
-    return nullptr;
-  }
-  return &core_component.core->get().GetConfig();
 }
 
 }  // namespace
@@ -54,21 +42,21 @@ void RegisterSimulationClock(flecs::world& world) {
 }
 
 std::optional<uint64_t> TicksPerSecond(flecs::world world) {
-  const Config* config = GetCoreConfig(world);
+  const auto config = GetCoreConfig(world);
   if (!config) {
     return std::nullopt;
   }
-  return static_cast<uint64_t>(std::llround(config->GetFPS()));
+  return static_cast<uint64_t>(std::llround(config->get().GetFPS()));
 }
 
 std::optional<double> SnapshotIntervalSeconds(flecs::world world) {
-  const Config* config = GetCoreConfig(world);
-  return config ? std::optional(config->GetSnapshotIntervalSeconds()) : std::nullopt;
+  const auto config = GetCoreConfig(world);
+  return config ? std::optional(config->get().GetSnapshotIntervalSeconds()) : std::nullopt;
 }
 
 std::optional<double> SnapshotRetentionSeconds(flecs::world world) {
-  const Config* config = GetCoreConfig(world);
-  return config ? std::optional(config->GetSnapshotRetentionSeconds()) : std::nullopt;
+  const auto config = GetCoreConfig(world);
+  return config ? std::optional(config->get().GetSnapshotRetentionSeconds()) : std::nullopt;
 }
 
 }  // namespace z13::flecs_tools

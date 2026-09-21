@@ -94,12 +94,22 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   log_info("~~~~ gameplay::OnInit");
 }
 
+void OnTeardown(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
+  it.world().query_builder().with<z13::flecs_tools::StateEntity>().build()
+    .each([](flecs::entity e) { e.destruct(); });
+}
+
 void RegisterSystems(flecs::world world) {
   world.observer<gameplay::Gameplay>("GameplaySystem::OnInit")
     .event(flecs::OnAdd)
     .yield_existing()
     // .each([world](const auto& gameplay) { OnInit(world, gameplay); });
     .each(OnInit);
+
+  // Gameplay marks "a scene exists"; removing it (exit to main menu) destroys the scene.
+  world.observer<gameplay::Gameplay>("GameplaySystem::OnTeardown")
+    .event(flecs::OnRemove)
+    .each(OnTeardown);
 
   world.observer<const WindowFocusEvent>("WindowFocusEvent::OnSet")
     .event(flecs::OnSet)

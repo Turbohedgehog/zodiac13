@@ -16,13 +16,26 @@
 
 #include <lib_core/config.h>
 
+#include <string>
+#include <string_view>
+
 namespace z13 {
 
 namespace po = boost::program_options;
 
+namespace {
+
+constexpr std::string_view kQuickSavePathOption = "quick-save-path";
+
+}  // namespace
+
 Config::Config() {
   options_description_.add_options()
-      ("help,h", "Show help message");
+      ("help,h", "Show help message")
+      ("skip-main-menu", po::bool_switch(&skip_main_menu_),
+       "Start gameplay immediately, skipping the main menu")
+      (kQuickSavePathOption.data(), po::value<std::string>(),
+       "Quick save file (default: the game data directory)");
 }
 
 void Config::Clear() {
@@ -36,6 +49,7 @@ boost::program_options::options_description& Config::GetOptionsDescription() {
 void Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
   po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
+  po::notify(variables_map_);
 }
 
 bool Config::NeedShowHelp() const {
@@ -52,6 +66,18 @@ double Config::GetSnapshotIntervalSeconds() const {
 
 double Config::GetSnapshotRetentionSeconds() const {
   return snapshot_retention_seconds_;
+}
+
+bool Config::SkipMainMenu() const {
+  return skip_main_menu_;
+}
+
+std::optional<std::filesystem::path> Config::GetQuickSavePath() const {
+  if (const auto it = variables_map_.find(std::string(kQuickSavePathOption));
+      it != variables_map_.end()) {
+    return std::filesystem::path(it->second.as<std::string>());
+  }
+  return std::nullopt;
 }
 
 std::ostream& operator<<(std::ostream& os, const Config& person) {

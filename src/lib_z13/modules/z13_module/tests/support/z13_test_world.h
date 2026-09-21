@@ -21,13 +21,16 @@
 #include <filesystem>
 #include <format>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <flecs.h>
 
 #include <lib_core/core.h>
 
 #include <bullet_module/bullet_module_factory.h>
+#include <z13/components/gameplay.h>
 #include <z13/components/input_event_emitter.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/z13_module_factory.h>
@@ -36,12 +39,18 @@ namespace z13::testing {
 
 constexpr std::string_view kTestInputSourceName = "Z13TestWorld::InputSource";
 constexpr float kTestEpsilon = 1e-3f;
+constexpr std::string_view kInitBootstrapSystemName = "InitBootstrap";
+constexpr std::string_view kTestProgramName = "z13_test_runner";
+constexpr std::string_view kSkipMainMenuArg = "--skip-main-menu";
+constexpr std::string_view kQuickSavePathArg = "--quick-save-path";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
 class Z13TestWorld {
  public:
-  Z13TestWorld() : world_(CreateWorld(core_, quick_save_path_)) {}
+  // skip_main_menu mirrors --skip-main-menu: true spawns the scene on the first frame.
+  explicit Z13TestWorld(bool skip_main_menu = true)
+      : core_(MakeCore(skip_main_menu, quick_save_path_)), world_(CreateWorld(core_)) {}
 
   ~Z13TestWorld() {
     std::error_code ignored;
@@ -62,6 +71,9 @@ class Z13TestWorld {
     return World().lookup(z13::gameplay::kTestPlayerEntityName.data());
   }
 
+  void StartGame() { World().add<z13::gameplay::Gameplay>(); }
+  void ExitToMainMenu() { World().remove<z13::gameplay::Gameplay>(); }
+
   flecs::entity InputSource() {
     return World().entity(kTestInputSourceName.data());
   }
@@ -72,19 +84,33 @@ class Z13TestWorld {
   }
 
  private:
-  static z13::WorldRef CreateWorld(z13::Core& core, const std::filesystem::path& quick_save_path) {
+  // Goes through the real command line, so the module reads these settings from Config.
+  static z13::Core MakeCore(bool skip_main_menu, const std::filesystem::path& quick_save_path) {
+    std::string program {kTestProgramName};
+    std::string skip_main_menu_arg {kSkipMainMenuArg};
+    std::string quick_save_arg = std::format("{}={}", kQuickSavePathArg, quick_save_path.string());
+    std::vector<char*> argv {program.data(), quick_save_arg.data()};
+    if (skip_main_menu) {
+      argv.push_back(skip_main_menu_arg.data());
+    }
+    return z13::Core(static_cast<int>(argv.size()), argv.data());
+  }
+
+  static z13::WorldRef CreateWorld(z13::Core& core) {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
-    factory->SetQuickSavePath(quick_save_path);
     core.RegisterModuleFactory(factory);
     core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
-    return core.CreateWorld();
+    z13::WorldRef world = core.CreateWorld();
+    // Runs the one-shot bootstrap without a frame, so tick-counting tests see tick 0 as before.
+    ecs_run(world.get(), world.get().lookup(kInitBootstrapSystemName.data()).id(), 0.f, nullptr);
+    return world;
   }
 
   std::filesystem::path quick_save_path_ {std::filesystem::temp_directory_path() /
       std::format("z13_quick_save_{}_{}.json", reinterpret_cast<std::uintptr_t>(this),
                   std::chrono::steady_clock::now().time_since_epoch().count())};
-  z13::Core core_ {0, nullptr};
+  z13::Core core_;
   z13::WorldRef world_;  // declared after core_ -- initialization order matters
 };
 

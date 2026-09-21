@@ -16,10 +16,12 @@
 
 #include <z13_module/z13_module_factory.h>
 
+#include <filesystem>
 #include <utility>
 
 #include <flecs.h>
 
+#include <lib_core/flecs_utils.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
@@ -29,6 +31,19 @@
 #include "z13_module.h"
 
 namespace z13 {
+
+namespace {
+
+std::filesystem::path ResolveQuickSavePath(flecs::world world) {
+  if (const auto config = z13::GetCoreConfig(world)) {
+    if (auto path = config->get().GetQuickSavePath()) {
+      return *std::move(path);
+    }
+  }
+  return z13::tools::environment::GetGameQuickSaveJsonPath();
+}
+
+}  // namespace
 
 ModuleFactoryPtr Z13ModuleFactory::CreateFactory() {
   return std::make_shared<Z13ModuleFactory>();
@@ -41,8 +56,7 @@ void Z13ModuleFactory::RegisterModules(flecs::world& world) {
       {.load_config_from_file = load_config_from_file_});
 
   z13::flecs_tools::RegisterComponent<z13::gameplay::QuickSaveSettings>(world);
-  world.set<z13::gameplay::QuickSaveSettings>(
-      {.path = quick_save_path_.value_or(z13::tools::environment::GetGameQuickSaveJsonPath())});
+  world.set<z13::gameplay::QuickSaveSettings>({.path = ResolveQuickSavePath(world)});
 }
 
 const std::string& Z13ModuleFactory::GetName() const {
@@ -53,10 +67,6 @@ const std::string& Z13ModuleFactory::GetName() const {
 
 void Z13ModuleFactory::SetLoadConfigFromFile(bool load_config_from_file) {
   load_config_from_file_ = load_config_from_file;
-}
-
-void Z13ModuleFactory::SetQuickSavePath(std::filesystem::path path) {
-  quick_save_path_ = std::move(path);
 }
 
 }  // namespace z13

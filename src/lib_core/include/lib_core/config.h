@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <filesystem>
+#include <optional>
 #include <ostream>
 #include <boost/program_options.hpp>
 
@@ -33,6 +35,8 @@ class Config {
   double GetFPS() const;
   double GetSnapshotIntervalSeconds() const;
   double GetSnapshotRetentionSeconds() const;
+  bool SkipMainMenu() const;
+  std::optional<std::filesystem::path> GetQuickSavePath() const;
 
  private:
   boost::program_options::options_description options_description_;
@@ -40,6 +44,7 @@ class Config {
   double fps_ = 60.f;
   double snapshot_interval_seconds_ = 1.0;
   double snapshot_retention_seconds_ = 5.0;
+  bool skip_main_menu_ = false;
 };
 
 }  // namespace z13

@@ -118,64 +118,81 @@ btTransform ToBtTransform(const Eigen::Matrix4f& transform) {
 class PhysicsWorld::State {
  public:
   State()
-      : dispatcher(&collision_config),
-        dynamics_world(&dispatcher, &broadphase, &solver, &collision_config) {
+      : dispatcher_(&collision_config_),
+        dynamics_world_(&dispatcher_, &broadphase_, &solver_, &collision_config_) {
   }
 
-  // Declaration order matters: members are destroyed in reverse, and
-  // dynamics_world depends on all the others still being alive to tear down.
-  btDefaultCollisionConfiguration collision_config;
-  btCollisionDispatcher dispatcher;
-  btDbvtBroadphase broadphase;
-  btSequentialImpulseConstraintSolver solver;
-  btDiscreteDynamicsWorld dynamics_world;
+  btDiscreteDynamicsWorld& DynamicsWorld() { return dynamics_world_; }
+
+  size_t BodyCount() const { return bodies_.size(); }
+
+  void SyncBody(flecs::entity_t entity, const btTransform& transform, float size) {
+    if (const auto existing = bodies_.find(entity); existing != bodies_.end()) {
+      if (existing->second.HasTransform(transform)) {
+        return;
+      }
+      RemoveBody(entity);
+    }
+
+    const auto it = bodies_.try_emplace(entity, entity, transform, size).first;
+    dynamics_world_.addRigidBody(&it->second.Body());
+  }
+
+  void RemoveBody(flecs::entity_t entity) {
+    if (const auto it = bodies_.find(entity); it != bodies_.end()) {
+      dynamics_world_.removeRigidBody(&it->second.Body());
+      bodies_.erase(it);
+    }
+  }
+
+  void RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove) {
+    for (auto it = bodies_.begin(); it != bodies_.end();) {
+      if (should_remove(it->first)) {
+        dynamics_world_.removeRigidBody(&it->second.Body());
+        it = bodies_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+ private:
+  // Declaration order matters: members are destroyed in reverse, so
+  // dynamics_world_ must come after everything it points into (its own
+  // collaborators and bodies_) to still find them alive while tearing down.
+  btDefaultCollisionConfiguration collision_config_;
+  btCollisionDispatcher dispatcher_;
+  btDbvtBroadphase broadphase_;
+  btSequentialImpulseConstraintSolver solver_;
 
   // Node-based storage keeps a body's address (and Bullet's internal
   // cross-pointers into it) stable across insert/erase of other bodies.
-  std::unordered_map<flecs::entity_t, BulletBody> bodies;
+  std::unordered_map<flecs::entity_t, BulletBody> bodies_;
+
+  btDiscreteDynamicsWorld dynamics_world_;
 };
 
 PhysicsWorld::PhysicsWorld() : state_(std::make_shared<State>()) {
 }
 
 btDiscreteDynamicsWorld& PhysicsWorld::DynamicsWorld() {
-  return state_->dynamics_world;
+  return state_->DynamicsWorld();
 }
 
 void PhysicsWorld::SyncBody(flecs::entity_t entity, const btTransform& transform, float size) {
-  if (const auto existing = state_->bodies.find(entity); existing != state_->bodies.end()) {
-    if (existing->second.HasTransform(transform)) {
-      return;
-    }
-    RemoveBody(entity);
-  }
-
-  const auto it = state_->bodies.try_emplace(entity, entity, transform, size).first;
-  state_->dynamics_world.addRigidBody(&it->second.Body());
+  state_->SyncBody(entity, transform, size);
 }
 
 void PhysicsWorld::RemoveBody(flecs::entity_t entity) {
-  auto it = state_->bodies.find(entity);
-  if (it == state_->bodies.end()) {
-    return;
-  }
-  state_->dynamics_world.removeRigidBody(&it->second.Body());
-  state_->bodies.erase(it);
+  state_->RemoveBody(entity);
 }
 
 void PhysicsWorld::RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove) {
-  for (auto it = state_->bodies.begin(); it != state_->bodies.end();) {
-    if (should_remove(it->first)) {
-      state_->dynamics_world.removeRigidBody(&it->second.Body());
-      it = state_->bodies.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  state_->RemoveBodiesIf(should_remove);
 }
 
 size_t PhysicsWorld::BodyCount() const {
-  return state_->bodies.size();
+  return state_->BodyCount();
 }
 
 btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, float radius) {
@@ -188,13 +205,13 @@ btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, f
   probe.setWorldTransform(probe_transform);
 
   PenetrationCallback callback(probe);
-  state_->dynamics_world.contactTest(&probe, callback);
+  state_->DynamicsWorld().contactTest(&probe, callback);
   return desired_center + callback.correction;
 }
 
 std::optional<flecs::entity_t> PhysicsWorld::RaycastEntity(const btVector3& from, const btVector3& to) {
   btCollisionWorld::ClosestRayResultCallback callback(from, to);
-  state_->dynamics_world.rayTest(from, to, callback);
+  state_->DynamicsWorld().rayTest(from, to, callback);
   if (!callback.hasHit()) {
     return std::nullopt;
   }

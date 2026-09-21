@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <functional>
+#include <optional>
+
 #include <flecs.h>
+
+#include <lib_core/config.h>
 
 namespace z13 {
 
@@ -44,5 +49,9 @@ class ImmediateScope {
   flecs::world& world_;
   bool needs_resume_ {};
 };
+
+// Config of the Core that owns `world`; nullopt in worlds with no CoreComponent
+// (e.g. bare lib_core tests).
+std::optional<std::reference_wrapper<const Config>> GetCoreConfig(flecs::world world);
 
 }  // namespace z13

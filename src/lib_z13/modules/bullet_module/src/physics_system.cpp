@@ -118,10 +118,23 @@ void ProcessDestroyBlockRequest(
   }
 }
 
+// PhysicsWorld exists exactly while a gameplay scene does. It's set here, not next to
+// `.add(flecs::Singleton)`: doing both in one event aborts with flecs_assert_relation_unused.
+void ReconcilePhysicsWorld(flecs::world world) {
+  const bool scene_exists = world.has<z13::gameplay::Gameplay>();
+  const bool has_physics_world = world.has<PhysicsWorld>();
+  if (scene_exists && !has_physics_world) {
+    world.set<PhysicsWorld>(PhysicsWorld());
+  } else if (!scene_exists && has_physics_world) {
+    world.remove<PhysicsWorld>();
+  }
+}
+
 void RegisterSystems(flecs::world world) {
-  // Set here, not next to `.add(flecs::Singleton)`: doing both in one event aborts
-  // with flecs_assert_relation_unused (same split as raylib_module's Lighting).
-  world.set<PhysicsWorld>(PhysicsWorld());
+  world.system("PhysicsSystem::ReconcilePhysicsWorld")
+      .kind<z13::gameplay::PreUpdatePhase>()
+      .immediate()
+      .each([world]() { ReconcilePhysicsWorld(world); });
 
   world.system<PhysicsWorld>("PhysicsSystem::StepPhysicsWorld")
       .kind<PhysicsStepPhase>()
