@@ -80,5 +80,10 @@ set(CPACK_PACKAGE_VERSION_PATCH ${Z13_VERSION_PATCH})
 set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}")
 set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
 
+# Keeps arm64 artifacts from colliding with the x64 ones (whose names stay as they were).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}-arm64")
+endif()
+
 include(CPack)
 
