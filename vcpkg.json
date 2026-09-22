@@ -9,6 +9,7 @@
       "default-features": false
     },
     "bullet3",
+    "enet",
     "boost-program-options",
     "boost-dll",
     "boost-multi-index",
@@ -80,6 +81,10 @@
     {
       "name": "bullet3",
       "version": "3.25#3"
+    },
+    {
+      "name": "enet",
+      "version": "1.3.18"
     },
     {
       "name": "reflectcpp",
