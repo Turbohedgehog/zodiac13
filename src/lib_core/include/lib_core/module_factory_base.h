@@ -21,6 +21,8 @@
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
 
+#include <flecs.h>
+
 #include "core_types.h"
 
 extern "C" {
@@ -34,6 +36,10 @@ class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
   virtual ~ModuleFactoryBase() = default;
   virtual void RegisterModules(flecs::world& world) = 0;
   virtual const std::string& GetName() const = 0;
+
+  // Hands this process's already-initialized flecs OS API to a module before
+  // RegisterModules(), since each dynamically-loaded module statically links its own.
+  virtual void SyncFlecsOsApi(ecs_os_api_t api) { ecs_os_set_api(&api); }
 };
 
 }  // namespace z13

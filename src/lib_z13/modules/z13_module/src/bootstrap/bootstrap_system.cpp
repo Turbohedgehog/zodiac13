@@ -24,6 +24,7 @@
 
 #include <z13/components/bootstrap.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/net.h>
 
 namespace z13::bootstrap {
 
@@ -37,6 +38,8 @@ struct BootstrapCompleteComponent {
 void RegisterComponents(flecs::world world) {
   world.entity().add<BootstrapComponent>();
   z13::flecs_tools::RegisterComponent<BootstrapCompleteComponent>(world);
+  z13::flecs_tools::RegisterComponent<z13::net::ServerRole>(world);
+  z13::flecs_tools::RegisterComponent<z13::net::ClientRole>(world);
 }
 
 void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
@@ -45,10 +48,24 @@ void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
   e.remove<LoadConfigEvent>();
 }
 
+// --server skips the main menu (no menu to show); --connect only sets the role for
+// now -- there's no net session yet (a later branch) to act on a JoinRequest.
 void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   flecs::world world = e.world();
   const auto config = z13::GetCoreConfig(world);
-  if (config && config->get().SkipMainMenu()) {
+  if (!config) {
+    world.add<z13::gameplay::Pause>();
+    e.remove<SelectInitialStateEvent>();
+    return;
+  }
+
+  if (config->get().IsServer()) {
+    world.add<z13::net::ServerRole>();
+    world.add<z13::gameplay::Gameplay>();
+  } else if (config->get().GetConnectEndpoint()) {
+    world.add<z13::net::ClientRole>();
+    world.add<z13::gameplay::Pause>();
+  } else if (config->get().SkipMainMenu()) {
     world.add<z13::gameplay::Gameplay>();
   } else {
     world.add<z13::gameplay::Pause>();
@@ -61,7 +78,6 @@ void InitBootstrap(flecs::entity e, const BootstrapComponent&) {
   // Последовательность будет расширена.
   e.add<LoadConfigEvent>();
   e.add<SelectInitialStateEvent>();
-
   e.world().add<BootstrapCompleteComponent>();
 }
 

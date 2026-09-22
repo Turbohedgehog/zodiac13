@@ -16,19 +16,27 @@
 
 #pragma once
 
+#include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <ostream>
+#include <string>
 #include <boost/program_options.hpp>
 
+#include "endpoint.h"
+
 namespace z13 {
+
+inline constexpr uint16_t kDefaultServerPort = 26213;
 
 class Config {
  public:
   Config();
   void Clear();
 
-  void ParseCommandLineArguments(int argc, char *argv[]);
+  // Returns the rejection reason instead of applying anything; see Clear().
+  std::expected<void, std::string> ParseCommandLineArguments(int argc, char *argv[]);
   boost::program_options::options_description& GetOptionsDescription();
   bool NeedShowHelp() const;
   friend std::ostream& operator<<(std::ostream& os, const Config& person);
@@ -38,13 +46,26 @@ class Config {
   bool SkipMainMenu() const;
   std::optional<std::filesystem::path> GetQuickSavePath() const;
 
+  // --server[=PORT]: a dedicated (or listen-) server; mutually exclusive with
+  // --connect. PORT defaults to kDefaultServerPort when omitted.
+  bool IsServer() const;
+  uint16_t GetPort() const;
+  // --connect host[:port]: join that endpoint on startup instead of showing the
+  // main menu. std::nullopt when not given.
+  std::optional<Endpoint> GetConnectEndpoint() const;
+
  private:
+  std::expected<void, std::string> ValidateAndApplyArguments();
+
   boost::program_options::options_description options_description_;
   boost::program_options::variables_map variables_map_;
-  double fps_ = 60.f;
-  double snapshot_interval_seconds_ = 1.0;
-  double snapshot_retention_seconds_ = 5.0;
-  bool skip_main_menu_ = false;
+  double fps_ {60.f};
+  double snapshot_interval_seconds_ {1.0};
+  double snapshot_retention_seconds_ {5.0};
+  bool skip_main_menu_ {false};
+  bool server_ {false};
+  uint16_t port_ {kDefaultServerPort};
+  std::optional<Endpoint> connect_endpoint_;
 };
 
 }  // namespace z13

@@ -51,6 +51,7 @@ target_link_libraries(
   # that creates/imports into a flecs::world must live in this same binary.
   zodiac13::z13_module_static
   zodiac13::bullet_module_static
+  zodiac13::z13_launcher
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp
