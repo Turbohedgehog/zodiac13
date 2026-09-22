@@ -30,6 +30,15 @@ namespace z13 {
 
 inline constexpr uint16_t kDefaultServerPort = 26213;
 
+// enet_peer_timeout()'s three parameters (net_module/enet_transport.h); defaults
+// bound ENet's own (up to 30s) so a dead/unreachable server disconnects in a few
+// seconds instead.
+struct ConnectTimeoutConfig {
+  uint32_t limit = 32;
+  uint32_t min_timeout_ms = 1000;
+  uint32_t max_timeout_ms = 3000;
+};
+
 class Config {
  public:
   Config();
@@ -43,6 +52,7 @@ class Config {
   double GetFPS() const;
   double GetSnapshotIntervalSeconds() const;
   double GetSnapshotRetentionSeconds() const;
+  ConnectTimeoutConfig GetConnectTimeout() const;
   bool SkipMainMenu() const;
   std::optional<std::filesystem::path> GetQuickSavePath() const;
 
@@ -62,6 +72,7 @@ class Config {
   double fps_ {60.f};
   double snapshot_interval_seconds_ {1.0};
   double snapshot_retention_seconds_ {5.0};
+  ConnectTimeoutConfig connect_timeout_;
   bool skip_main_menu_ {false};
   bool server_ {false};
   uint16_t port_ {kDefaultServerPort};

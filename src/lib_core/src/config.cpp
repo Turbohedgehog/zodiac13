@@ -110,6 +110,10 @@ double Config::GetSnapshotRetentionSeconds() const {
   return snapshot_retention_seconds_;
 }
 
+ConnectTimeoutConfig Config::GetConnectTimeout() const {
+  return connect_timeout_;
+}
+
 bool Config::SkipMainMenu() const {
   return skip_main_menu_;
 }

@@ -1,0 +1,116 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Client-server wire protocol (docs/client-server-plan.md). Structs below are
+// fixed-size wire records; tables carry the variable-length envelope around them.
+// Session/command logic (handshake, scheduling, rollback) lands in later branches --
+// this schema exists now so the transport/codec layer has real messages to move.
+
+namespace z13.fbs.net;
+
+// 4 bytes. `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
+// SequencedCommands); `value` is quantized (see protocol.h's QuantizeActionValue).
+// Reused as-is for `held_values` (tick_delta unused there, see Welcome/Resync).
+struct CommandWire {
+  tick_delta: ubyte;
+  action_id: ubyte;
+  value: short;
+}
+
+// Only for StateDigest's coarse position check -- not a pose-sync message (movement
+// goes through commands, see the plan's "Модель синхронизации"). Position-specific by
+// design for now (epsilon tolerance absorbs cross-platform FP drift, see the plan's
+// "Кросс-платформенный детерминизм"); TODO generalize to other modules' state once a
+// real need shows up -- a hash-based digest can't offer the same tolerance.
+struct PoseWire {
+  player_id: uint;
+  x: float;
+  y: float;
+  z: float;
+}
+
+table ClientHello {
+  version: uint;
+}
+
+table CommandBatch {
+  base_tick: ulong;  // already apply_tick, not the client's raw local tick
+  commands: [CommandWire];
+}
+
+table ResyncRequest {}
+
+table Ping {
+  client_tick: ulong;
+}
+
+table Pong {
+  client_tick: ulong;
+  server_tick: ulong;
+}
+
+table Welcome {
+  player_id: uint;
+  server_tick: ulong;
+  snapshot: [ubyte];  // WorldSnapshot via SaveWorldState (msgpack)
+  held_values: [CommandWire];
+  pending: [CommandWire];
+}
+
+table Rejected {
+  reason: string;
+}
+
+table Resync {
+  server_tick: ulong;
+  snapshot: [ubyte];
+  held_values: [CommandWire];
+  pending: [CommandWire];
+}
+
+table PlayerJoined {
+  apply_tick: ulong;
+  entity_state: [ubyte];  // EntitySnapshot (msgpack)
+}
+
+table PlayerLeft {
+  apply_tick: ulong;
+  player_id: uint;
+}
+
+table SequencedCommands {
+  player_id: uint;
+  base_tick: ulong;  // already apply_tick
+  commands: [CommandWire];
+}
+
+table StateDigest {
+  tick: ulong;
+  entity_count: uint;
+  name_hash: ulong;
+  positions: [PoseWire];
+}
+
+union MessageBody {
+  ClientHello, CommandBatch, ResyncRequest, Ping, Pong,
+  Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest,
+}
+
+table MessageEnvelope {
+  body: MessageBody;
+}
+
+root_type MessageEnvelope;
