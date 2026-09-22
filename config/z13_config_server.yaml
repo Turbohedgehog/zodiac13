@@ -1,0 +1,8 @@
+# Copied to bin/config/ on build, read from next to the executable at startup.
+# Used instead of z13_config.yaml when launched with --server: no raylib_module, since
+# a dedicated server has no window/GUI/render.
+
+modules:
+  - modules/z13_module/z13_module
+  - modules/bullet_module/bullet_module
+  - modules/test_dll/test_dll_module

@@ -49,8 +49,9 @@ constexpr std::string_view kQuickSavePathArg = "--quick-save-path";
 class Z13TestWorld {
  public:
   // skip_main_menu mirrors --skip-main-menu: true spawns the scene on the first frame.
-  explicit Z13TestWorld(bool skip_main_menu = true)
-      : core_(MakeCore(skip_main_menu, quick_save_path_)), world_(CreateWorld(core_)) {}
+  // extra_args are appended as-is (e.g. {"--server"}, {"--connect", "host:1234"}).
+  explicit Z13TestWorld(bool skip_main_menu = true, std::vector<std::string> extra_args = {})
+      : core_(MakeCore(skip_main_menu, quick_save_path_, std::move(extra_args))), world_(CreateWorld(core_)) {}
 
   ~Z13TestWorld() {
     std::error_code ignored;
@@ -85,13 +86,17 @@ class Z13TestWorld {
 
  private:
   // Goes through the real command line, so the module reads these settings from Config.
-  static z13::Core MakeCore(bool skip_main_menu, const std::filesystem::path& quick_save_path) {
+  static z13::Core MakeCore(
+      bool skip_main_menu, const std::filesystem::path& quick_save_path, std::vector<std::string> extra_args) {
     std::string program {kTestProgramName};
     std::string skip_main_menu_arg {kSkipMainMenuArg};
     std::string quick_save_arg = std::format("{}={}", kQuickSavePathArg, quick_save_path.string());
     std::vector<char*> argv {program.data(), quick_save_arg.data()};
     if (skip_main_menu) {
       argv.push_back(skip_main_menu_arg.data());
+    }
+    for (std::string& arg : extra_args) {
+      argv.push_back(arg.data());
     }
     return z13::Core(static_cast<int>(argv.size()), argv.data());
   }

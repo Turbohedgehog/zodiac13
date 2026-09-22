@@ -4,7 +4,7 @@
 
 ## Требования
 
-- Сервер создаётся флагом `--server`, порт — `--port` (по умолчанию **26213**). Выделенный сервер не грузит raylib_module (нет окна, GUI, рендера).
+- Сервер создаётся флагом `--server[=PORT]` (порт по умолчанию **26213**). Выделенный сервер не грузит raylib_module (нет окна, GUI, рендера).
 - Клиент можно запустить сразу подключённым: `--connect host[:port]` (порт по умолчанию тот же). Несовместим с `--server`.
 - Сервер также создаётся из главного меню (диалог выбора порта): тогда это listen-server — с рендером, хост играет сам.
 - В главном меню кнопка «Join»: диалог с IP/хостом и портом.
@@ -15,13 +15,13 @@
 
 ## Проектные решения
 
-**Роль.** `z13::net::NetworkRole {None, Server, Client}` — runtime-singleton (не state), лежит в `z13/components/net.h` рядом с командами GUI. Одна и та же сетевая логика обслуживает `--server`, «Start Server» из меню, `--connect` и «Join»; отличие — только в источнике команды и наличии рендера. При `None` (одиночная игра) поведение не меняется.
+**Роль.** `z13::net::ServerRole`/`ClientRole` — runtime-singleton теги (не state, без данных), лежат в `z13/components/net.h` рядом с командами GUI. Одна и та же сетевая логика обслуживает `--server`, «Start Server» из меню, `--connect` и «Join»; отличие — только в источнике команды и наличии рендера. Ни один тег не выставлен — одиночная игра, поведение не меняется. Отдельные теги, а не одно enum-поле, чтобы будущая составная роль (напр. listen-server = сервер + локальный клиент) не требовала переопределения типа.
 
 **Модуль.** Новый плагин `src/lib_z13/modules/net_module` по образцу `bullet_module` (фабрика, `_objects` + `_static` близнец для тестов). Публичные заголовки (`include/net_module/`): `transport.h` (интерфейс), `protocol.h` (сообщения + codec). ENet — только внутри `enet_transport.cpp`: `ENetHost*`/`ENetPeer*` наружу не выходят, соединения адресуются `ConnectionId` (uint32), `ENetHost` под `unique_ptr` с deleter, пары `enet_initialize/deinitialize` — в RAII. Сессия — singleton `NetSession` с pImpl (`State`/`state_`, `shared_ptr` — исключение для обёрток над нативным, как `PhysicsWorld`).
 
 **Однопоточность.** ENet обслуживается системой в начале кадра (`enet_host_service(host, &event, 0)`), потоков нет — тесты детерминированы.
 
-**Запуск без рендера.** В `config/z13_config.yaml` запись модуля получает необязательное `headless: false` (не грузить при `--server`). Launcher после `Core` знает `Config::IsServer()` и фильтрует список; разбор записи выносится из анонимного namespace в тестируемую функцию. Выделенный сервер стартует сразу в `Gameplay` (без `Pause`/меню) — `BootstrapSystem::OnSelectInitialState`. Корректное завершение по SIGINT/SIGTERM — флаг в обработчике сигнала, который launcher проверяет и вызывает `Core::Shutdown()` (единственное оправданное исключение из «без static/глобалов»).
+**Запуск без рендера.** Отдельный `config/z13_config_server.yaml` без записи raylib_module; launcher выбирает между ним и обычным `z13_config.yaml` по `Config::IsServer()`. Разбор YAML вынесен из анонимного namespace в тестируемые `ParseModuleList`/`ReadModuleList` (`z13_launcher/module_list.h`), обе возвращают `std::expected<std::vector<std::string>, std::string>`. Выделенный сервер стартует сразу в `Gameplay` (без `Pause`/меню) — `BootstrapSystem::OnSelectInitialState`. Корректное завершение по SIGINT/SIGTERM — `Core::Run()` сам ставит обработчик и сам его опрашивает (сигнальный флаг — `sig_atomic_t`, не указатель на объект; единственное оправданное исключение из «без static/глобалов»), так что `pending_shutdown_` читается и пишется только в главном потоке и не нуждается в atomic.
 
 **`--connect`.** `Endpoint{host, port}` + `ParseEndpoint(text) -> std::expected<Endpoint, std::string>` в `lib_core` (один парсер для CLI и диалога Join; IPv6-литералы пока не поддерживаются). `Config::GetConnectEndpoint() -> std::optional<Endpoint>`. Bootstrap при заданном endpoint оставляет `Pause` (меню показывает «Connecting…») и выдаёт `JoinRequest`; успех закрывает меню, ошибка возвращает в главное меню с причиной.
 
@@ -105,7 +105,7 @@ FlatBuffers (`schemas/fbs/net.fbs`, уже подключённый генера
 
 Этапы тесно связаны (сессия без транспорта, команды без сессии и UI без сети бессмысленны), но каждый — самостоятельная, мержимая в `main` ветка: следующий этап начинается от `main` после того, как предыдущий смержен, а не веткой поверх ветки. Это укладывается в норму «≤ ~1000 строк на ветку» из CLAUDE.md без исключений (только этап 4 — на самой границе). Тесты каждого этапа идут в той же ветке, что и код. Оценки грубые.
 
-1. **`f/net-server-launch`** (~400): `--server`/`--port`/`--connect` в `Config` (`kDefaultServerPort` в `constants.h`, валидация 1–65535), `Endpoint`/`ParseEndpoint`, `headless:` в конфиге и фильтр в launcher, SIGINT, старт сразу в `Gameplay`, `NetworkRole`. Без сети.
+1. **`f/net-server-launch`** (~400): `--server[=PORT]`/`--connect` в `Config` (`kDefaultServerPort` в `constants.h`, валидация 1–65535), `Endpoint`/`ParseEndpoint`, второй конфиг модулей для сервера и выбор между ними в launcher, SIGINT, старт сразу в `Gameplay`, `ServerRole`/`ClientRole`. Без сети.
 2. **`f/net-transport`** (~700): зависимость `enet` в `vcpkg.json` (+`overrides`, 1.3.18), `net_module` со скелетом, `Transport` + `EnetTransport` + `InMemoryTransport` (drop/reorder/delay/jitter для тестов), два канала (0 reliable, 1 unreliable), `net.fbs` + codec.
 3. **`f/net-session`** (~700): handshake, id, снимок, join/leave (пока применяются сразу, без расписания), `JoinRequest` из bootstrap; рефакторинг спавна (`Player_<id>`, `SpawnPlayer`, `OnInit` по роли); `SaveEntityState`/`ApplyWorldStateDelta`; расширение `Z13TestWorld` и `TestNetwork`.
 4. **`f/net-commands`** (~1000, на границе лимита): `Ping`/`Pong` + оценка `clock_offset` (EWMA), `ScheduleTick`, `OutgoingCommands` + `NetActionSender`, `CommandSequencer`, `RemoteInput` (вынос из `Replay`), `SequencedCommands`, `held_values`/`pending` в `Welcome`, перевод `PlayerJoined/Left` на расписание.
@@ -119,10 +119,10 @@ FlatBuffers (`schemas/fbs/net.fbs`, уже подключённый генера
 Единая инфраструктура: `Z13TestWorld` принимает доп. аргументы командной строки и транспорт; `TestNetwork` гоняет N миров и сервисы транспорта до условия или лимита тиков (без `sleep`). Основная масса — на `InMemoryTransport` (детерминированно, drop/reorder/delay/jitter с фиксированным seed), плюс отдельный набор на реальном ENet через loopback.
 
 **Config/launcher (1).**
-- Значения по умолчанию (`server=false`, порт 26213, `connect` пуст); `--server`; `--port 30000`; `--port` без `--server`; невалидный порт (`0`, `70000`, `abc`) → ошибка; `--help` содержит опции.
+- Значения по умолчанию (`server=false`, порт 26213, `connect` пуст); `--server`; `--server 30000`; невалидный порт (`0`, `70000`, `abc`) → ошибка; `--help` содержит опции.
 - `--connect host`, `--connect host:port`, `--connect :80`, `--connect host:0` → корректный разбор/ошибка; `--server` + `--connect` → ошибка.
 - `ParseEndpoint`: IP, hostname, пустое, порт вне диапазона.
-- Фильтр модулей: с `--server` записи `headless:false` не попадают в список, без — попадают, битая запись пропускается.
+- `ParseModuleList`: скаляр и `path:`-запись читаются одинаково, битая запись пропускается (не фатально), отсутствие `modules:`/битый YAML → ошибка.
 - Сервер-мир стартует с `Gameplay`, без `Pause`, игрок id 0 есть.
 
 **Codec (2).** Round-trip каждого сообщения; квантование `CommandWire` (ошибка ≤ 1/`kActionValueScale`, булевы точно); несовпадение версии; усечённые/мусорные/пустые байты отвергаются `Verifier`, без крэша (табличный тест); `tick_delta` не переполняется при максимальном интервале отправки.
@@ -188,3 +188,5 @@ FlatBuffers (`schemas/fbs/net.fbs`, уже подключённый генера
 - `Pause` в онлайне лишь блокирует ввод/стройку (`without<Pause>`), симуляцию не останавливает.
 - Полная реплика состояния (`CaptureState` без dirty-tracking) на каждый join/resync — нормально для десятков игроков; узкое место отмечено в `network-sync-plan.md`.
 - Проверить при реализации: `enet_host_create` с портом 0 возвращает выбранный порт в `host->address.port` (нужно тестам).
+- **CLI-флагов становится много.** Ревью этапа 1 отметило, что рост числа отдельных `boost::program_options`-флагов (`--server`, `--connect`, `--skip-main-menu`, `--quick-save-path`, ...) со временем станет неудобно контролировать; предложена идея конфиг-генератора вместо ручного добавления флагов. Не в рамках этого плана — оценить при следующем этапе, если флагов станет заметно больше.
+- **Известное ограничение окружения (шире этого плана, обнаружено при ручной проверке этапа 1).** flecs слинкован статически (`flecs::flecs_static`) отдельно в exe и в каждый `.so`-модуль. Часть его process-wide состояния из-за этого дублируется по `.so`: `ecs_os_api` — исправлено (`ModuleFactoryBase::SyncFlecsOsApi`, см. `core.cpp`), но ~90 встроенных `const`-констант flecs (`EcsSparse`, `EcsModule`, ...) — нет, и переустановить их извне нельзя (в отличие от `ecs_os_api`, у них нет публичного сеттера). Из-за этого реальный `zodiac13 --server` с несколькими плагинами через `boost::dll` падает уже на импорте первого же модуля; юнит-тесты этого не ловят, так как линкуют модули статически в один бинарник (см. комментарий в `tests/CMakeLists.txt`). Правильный фикс — линковать flecs как общую `.so` для всех бинарников, как уже сделано для SDL3/raylib/imgui — отдельная инфраструктурная задача, не входит в этот план.

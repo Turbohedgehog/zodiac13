@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include <csignal>
 #include <map>
+#include <optional>
 #include <string>
 #include <memory>
 #include <vector>
@@ -34,6 +36,9 @@ class Core {
   Core(int argc, char *argv[]);
   ~Core();  // for forward declared unique_ptr
   const Config& GetConfig() const;
+  // Set when the command line Config parsed with an error; Run() re-checks this for
+  // callers that construct a Core directly.
+  std::optional<std::string> GetConfigError() const;
   bool RegisterModuleFactory(ModuleFactoryPtr module_factory);
   WorldRef CreateWorld();
 
@@ -49,16 +54,25 @@ class Core {
   void Shutdown();
   bool IsPendingShutDown() const;
 
+  // Signal-safe: records signal_number for Run() to consume on the main thread. The
+  // static flag is CLAUDE.md's one justified exception to "no static/globals".
+  static void RequestInterrupt(int signal_number);
+
  private:
   Config config_;
+  std::optional<std::string> config_error_;
 
   std::map<WorldId, flecs::world> worlds_;
   WorldId new_world_id_ = 0;
   // std::map<std::string, ModuleFactoryPtr> module_factories_;
   std::vector<ModuleFactoryPtr> module_factories_;
-  bool pending_shutdown_ = false;
+  // Only touched on the main thread; the signal handler writes interrupt_signal_ instead.
+  bool pending_shutdown_ {false};
   std::unique_ptr<ModuleLibHolder> module_lib_holder_;
   // std::unique_ptr<ModuleLibHolder> module_lib_holder_;
+
+  // 0 when idle, else the received signal number; sig_atomic_t is signal-handler-safe.
+  static volatile std::sig_atomic_t interrupt_signal_;
 };
 
 }  // namespace z13

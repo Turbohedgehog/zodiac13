@@ -16,6 +16,7 @@
 
 #include <lib_core/core.h>
 
+#include <csignal>
 #include <vector>
 #include <iostream>
 #include <chrono>
@@ -32,16 +33,32 @@
 
 namespace z13 {
 
+namespace {
+
+void HandleInterruptSignal(int signal_number) {
+  Core::RequestInterrupt(signal_number);
+}
+
+}  // namespace
+
+volatile std::sig_atomic_t Core::interrupt_signal_ = 0;
+
 Core::Core(int argc, char *argv[])
   : module_lib_holder_(std::make_unique<ModuleLibHolder>()) {
   // : module_lib_holder_(std::make_shared<ModuleLibHolder>()) {
-  config_.ParseCommandLineArguments(argc, argv);
+  if (const auto result = config_.ParseCommandLineArguments(argc, argv); !result) {
+    config_error_ = result.error();
+  }
 }
 
 Core::~Core() = default;
 
 const Config& Core::GetConfig() const {
   return config_;
+}
+
+std::optional<std::string> Core::GetConfigError() const {
+  return config_error_;
 }
 
 bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
@@ -74,7 +91,12 @@ WorldRef Core::CreateWorld() {
   world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world.set(core_component);
+  // See ModuleFactoryBase::SyncFlecsOsApi: this world's flecs::world() constructor
+  // (above) already initialized this process's os_api; hand that same value to
+  // each module before it makes its own first flecs call.
+  const ecs_os_api_t os_api = ecs_os_get_api();
   for (auto& module_factory_ptr : module_factories_) {
+    module_factory_ptr->SyncFlecsOsApi(os_api);
     module_factory_ptr->RegisterModules(world);
   }
 
@@ -100,6 +122,10 @@ bool Core::IsPendingShutDown() const {
   return pending_shutdown_;
 }
 
+void Core::RequestInterrupt(int signal_number) {
+  interrupt_signal_ = signal_number;
+}
+
 int Core::Run() {
   if (config_.NeedShowHelp()) {
     std::cout << config_ << "\n";
@@ -107,9 +133,18 @@ int Core::Run() {
     return 0;
   }
 
+  if (const auto error = GetConfigError()) {
+    log_error("{}", *error);
+    return 1;
+  }
+
   if (config_.GetFPS() <= std::numeric_limits<double>::epsilon()) {
     return 1;
   }
+
+  interrupt_signal_ = 0;
+  std::signal(SIGINT, HandleInterruptSignal);
+  std::signal(SIGTERM, HandleInterruptSignal);
 
   const auto update_time = 1. / config_.GetFPS();
   std::chrono::duration<double> sleep_time(update_time), frame_delta(update_time);
@@ -117,6 +152,13 @@ int Core::Run() {
   auto sleep_duration = sleep_time;
   auto prev = std::chrono::high_resolution_clock::now();
   while (!worlds_.empty() && !IsPendingShutDown()) {
+    if (interrupt_signal_) {
+      log_info("Core::Run: received signal {}, shutting down", static_cast<int>(interrupt_signal_));
+      interrupt_signal_ = 0;
+      Shutdown();
+      continue;
+    }
+
     if (sleep_duration > std::chrono::duration<double>::zero()) {
       std::this_thread::sleep_for(sleep_duration);
     }
