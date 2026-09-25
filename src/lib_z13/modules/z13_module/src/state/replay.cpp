@@ -51,8 +51,9 @@ void ResetActionValues(flecs::world& world) {
       });
 }
 
-// Both halves of the holder, so an action held across the rollback reads as steady
-// rather than a fresh edge wherever ClearActionFramePhase sits in the frame.
+// Both halves of the holder: the first replayed frame can miss ClearActionFramePhase
+// (the restore has just swapped the entities out from under its query), and a held
+// action with only current_value set would read there as a fresh edge.
 void SeedActionValues(flecs::world& world, const ActionValues& values) {
   world.query_builder<const z13::gameplay::Player, z13::input::ActionListener>().build().each(
       [&values](const z13::gameplay::Player& player, z13::input::ActionListener& action_listener) {
