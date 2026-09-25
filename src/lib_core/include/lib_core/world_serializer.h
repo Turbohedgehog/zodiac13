@@ -86,4 +86,21 @@ std::vector<char> SaveWorldState(const flecs::world& world, const EntityFilter& 
 std::vector<char> SaveWorldState(const flecs::world& world);
 bool LoadWorldState(flecs::world& world, const std::vector<char>& bytes);
 
+// One entity's state (StateComponent-filtered, like CaptureState) as binary msgpack,
+// for a delta join rather than a full snapshot (docs/client-server-plan.md's PlayerJoined).
+std::vector<char> SaveEntityState(const flecs::world& world, flecs::entity entity);
+
+// Applies a single-entity (or otherwise partial) state snapshot on top of the world,
+// validated like RestoreWorld since it carries untrusted network input. Entities the
+// snapshot doesn't mention are left alone.
+std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const std::vector<char>& bytes);
+
+// Binary world *state* (CaptureState/RestoreWorld, not the full unfiltered world) via
+// reflect-cpp msgpack; see SaveWorldState/LoadWorldState for the full form QuickSave uses.
+std::vector<char> SaveState(const flecs::world& world);
+// Overload for a snapshot already captured elsewhere (e.g. WorldSnapshotHistory's
+// periodic cache), avoiding CaptureState()'s full-world walk.
+std::vector<char> SaveState(const WorldSnapshot& snapshot);
+std::expected<void, std::string> LoadState(flecs::world& world, const std::vector<char>& bytes);
+
 }  // namespace z13::flecs_tools

@@ -37,6 +37,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}
   Boost::dll
@@ -52,12 +53,14 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}
   Boost::dll
 )
 
-# Test-only static twin (see z13_module_static). Never installed.
+# Test-only static twin (see z13_module_static). Never installed; links z13_module's
+# own static twin, not the SHARED plugin, for the same reason.
 add_library(${PROJECT_NAME}_static STATIC $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
 target_link_libraries(
@@ -67,6 +70,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module_static
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}
   Boost::dll

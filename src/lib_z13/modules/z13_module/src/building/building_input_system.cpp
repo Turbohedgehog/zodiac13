@@ -89,22 +89,21 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.destroy_block = find_action_id(z13::fbs::building::Action::DESTROY_BLOK);
 }
 
-void ToggleBuildingMode(
-    flecs::entity e,
-    const z13::input::ActionValueHolder& action_value_holder,
-    BuildingTool* building_tool) {
-  // const auto& toggle_building_mode = action_listener.action_values.at(build_action_ids.toggle_building_mode);
-  if (!action_value_holder.IsSwitchedOn()) {
-    return;
-  }
+bool IsSwitchedOn(
+    const z13::input::ActionListener& action_listener,
+    const std::optional<z13::input::ActionInfo::IdType>& action_id) {
+  const std::optional<z13::input::ActionValueHolder> value =
+      action_id ? action_listener.Value(*action_id) : std::nullopt;
+  return value && value->IsSwitchedOn();
+}
 
-  // building_tool не работает. Какой-то баг во флексе.
+void ToggleBuildingMode(flecs::entity e) {
+  // e.has<>() rather than a fetched BuildingTool* pointer: add/remove is deferred
+  // within this iteration, so a pointer captured up front wouldn't reflect this entity's
+  // own change.
   if (!e.has<BuildingTool>()) {
-    // TODO: Эта функция не работает! Разобраться!!!
-    log_info("~~~ ToggleBuildingMode add<BuildingTool>() = {}", building_tool == nullptr);
     e.add<BuildingTool>();
   } else {
-    log_info("~~~ ToggleBuildingMode remove<BuildingTool>() = {}", building_tool == nullptr);
     e.remove<BuildingTool>();
   }
 }
@@ -128,33 +127,22 @@ void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action
 void ApplyBuildActionListener(
     flecs::entity e,
     z13::input::ActionListener& action_listener,
-    const BuildActionIds& build_action_ids,
-    BuildingTool* building_tool) {
-  if (build_action_ids.toggle_building_mode) {
-    const auto& toggle_building_mode = action_listener.action_values.at(*build_action_ids.toggle_building_mode);
-    ToggleBuildingMode(e, toggle_building_mode, building_tool);
+    const BuildActionIds& build_action_ids) {
+  if (IsSwitchedOn(action_listener, build_action_ids.toggle_building_mode)) {
+    ToggleBuildingMode(e);
   }
 
-  // Building/destroying only makes sense while the brush is out. Checked via
-  // e.has<>() rather than the building_tool pointer: it can be stale within
-  // the same frame BuildingTool was just added/removed above (see the
-  // "не работает" note on ToggleBuildingMode).
+  // Building/destroying only makes sense while the brush is out.
   if (!e.has<BuildingTool>()) {
     return;
   }
 
-  if (build_action_ids.build_block) {
-    const auto& build_block = action_listener.action_values.at(*build_action_ids.build_block);
-    if (build_block.IsSwitchedOn()) {
-      e.add<RequestBuildBlock>();
-    }
+  if (IsSwitchedOn(action_listener, build_action_ids.build_block)) {
+    e.add<RequestBuildBlock>();
   }
 
-  if (build_action_ids.destroy_block) {
-    const auto& destroy_block = action_listener.action_values.at(*build_action_ids.destroy_block);
-    if (destroy_block.IsSwitchedOn()) {
-      e.add<RequestDestroyBlock>();
-    }
+  if (IsSwitchedOn(action_listener, build_action_ids.destroy_block)) {
+    e.add<RequestDestroyBlock>();
   }
 }
 
@@ -172,7 +160,7 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::input::ClearActionFramePhase>()
       .each(SyncBuildingActionGroup);
 
-  world.system<z13::input::ActionListener, BuildActionIds, BuildingTool*>("gameplay_input_system::ApplyBuildActionListener")
+  world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .without<z13::gameplay::Pause>()
       .write<BuildingTool>()

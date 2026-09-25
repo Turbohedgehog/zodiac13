@@ -25,6 +25,7 @@
 #include <typeinfo>
 
 #include <lib_core/components.h>
+#include <lib_core/rollback.h>
 #include <lib_core/module_factory_base.h>
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
@@ -110,7 +111,7 @@ WorldRef Core::CreateWorld() {
 
 void Core::Update(float delta_time) {
   for (auto& [_, world] : worlds_) {
-    world.progress(delta_time);
+    z13::flecs_tools::TickWorld(world, delta_time);
   }
 }
 

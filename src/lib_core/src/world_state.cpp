@@ -18,6 +18,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_snapshot_history.h>
 #include <lib_core/world_state_requests.h>
@@ -39,6 +40,7 @@ void RegisterStateMeta(flecs::world& world) {
   RegisterWorldStateRequests(world);
   RegisterSimulationClock(world);
   RegisterWorldSnapshotHistory(world);
+  RegisterRollback(world);
 }
 
 }  // namespace z13::flecs_tools

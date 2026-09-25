@@ -26,6 +26,7 @@
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/rollback.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/status.h>
@@ -61,21 +62,14 @@ struct InputListenerQueryComponent {
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
-// todo: remove code duplicate
-size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
-  auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
-  auto val = static_cast<int>(keyboard_code);
-  auto cur = val - min;
+constexpr int kKeycodeMin = static_cast<int>(z13::fbs::input::Keycode::MIN);
 
-  return static_cast<size_t>(cur);
+size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
+  return static_cast<size_t>(static_cast<int>(keyboard_code) - kKeycodeMin);
 }
 
 z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx) {
-  auto index = static_cast<int>(idx);
-  auto min = static_cast<int>(z13::fbs::input::Keycode::MIN);
-  auto code_idx = index + min;
-
-  return static_cast<z13::fbs::input::Keycode>(code_idx);
+  return static_cast<z13::fbs::input::Keycode>(static_cast<int>(idx) + kKeycodeMin);
 }
 
 void OnMousePos(
@@ -109,15 +103,20 @@ void ApplyMoveActionListener(
   }
   auto& look = e.ensure<LookAngles>();
 
+  const auto value_of = [&action_listener](z13::input::ActionInfo::IdType action_id) {
+    const std::optional<z13::input::ActionValueHolder> value = action_listener.Value(action_id);
+    return value ? value->current_value : 0.f;
+  };
+
   z13::gameplay::CameraMoveAxes axes {
-      .forward = *action_values.at(move_action_ids.move_forward_id),
-      .backward = *action_values.at(move_action_ids.move_backward_id),
-      .right = *action_values.at(move_action_ids.move_right_id),
-      .left = *action_values.at(move_action_ids.move_left_id),
-      .up = *action_values.at(move_action_ids.move_up_id),
-      .down = *action_values.at(move_action_ids.move_down_id),
-      .yaw_delta_deg = *action_values.at(move_action_ids.horizontal_look_id),
-      .pitch_delta_deg = *action_values.at(move_action_ids.vertical_look_id),
+      .forward = value_of(move_action_ids.move_forward_id),
+      .backward = value_of(move_action_ids.move_backward_id),
+      .right = value_of(move_action_ids.move_right_id),
+      .left = value_of(move_action_ids.move_left_id),
+      .up = value_of(move_action_ids.move_up_id),
+      .down = value_of(move_action_ids.move_down_id),
+      .yaw_delta_deg = value_of(move_action_ids.horizontal_look_id),
+      .pitch_delta_deg = value_of(move_action_ids.vertical_look_id),
   };
 
   z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
@@ -320,6 +319,30 @@ void OnInputSystemStartupGameEvent(
   CallConfigUpdatedEvent(it.world());
 }
 
+// ActionListener isn't state, so a restored player never gets one -- backfill it for
+// every Player, local or not.
+void EnsurePlayerActionListener(flecs::entity e, const z13::gameplay::Player&) {
+  e.set(z13::input::ActionListener{.action_group_priority = {std::string(z13::input::kControlActionGroup)}});
+}
+
+// Locality (live input routing) only, not ActionListener: re-derived every frame so it
+// self-heals the stale tags a snapshot leaves behind.
+void SyncLocalPlayerListener(
+    flecs::entity e, const z13::gameplay::Player& player, const z13::gameplay::LocalPlayer& local_player) {
+  const bool should_be_local = local_player.id == player.id;
+  if (e.has<z13::input::CurrentActionListenerTag>() == should_be_local) {
+    return;
+  }
+
+  if (should_be_local) {
+    e.add<z13::input::InputListener>();
+    e.add<z13::input::CurrentActionListenerTag>();
+  } else {
+    e.remove<z13::input::InputListener>();
+    e.remove<z13::input::CurrentActionListenerTag>();
+  }
+}
+
 void ClearActionListenerCurrentState(
     z13::input::ActionListener& action_listener,
     const z13::input::ActionMap& action_map) {
@@ -440,6 +463,21 @@ void RegisterSystems(flecs::world world) {
       .yield_existing()
       .each(OnInputSystemStartupGameEvent);
 
+  world.system<const z13::gameplay::Player>("gameplay_input_system::EnsurePlayerActionListener")
+      .kind<z13::input::ClearActionFramePhase>()
+      .without<z13::input::ActionListener>()
+      // Visible to ClearActionListenerCurrentState etc. later this same phase/frame.
+      .write<z13::input::ActionListener>()
+      .each(EnsurePlayerActionListener);
+
+  world.system<const z13::gameplay::Player, const z13::gameplay::LocalPlayer>(
+      "gameplay_input_system::SyncLocalPlayerListener")
+      .kind<z13::input::ClearActionFramePhase>()
+      // A cold add must be visible to CalculateInputValues later this same phase/frame.
+      .write<z13::input::InputListener>()
+      .write<z13::input::CurrentActionListenerTag>()
+      .each(SyncLocalPlayerListener);
+
   world.system<z13::input::ActionListener, z13::input::ActionMap>("gameplay_input_system::ClearActionListenerCurrentState")
       .kind<z13::input::ClearActionFramePhase>()
       .each(ClearActionListenerCurrentState);
@@ -449,7 +487,7 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::input::CalculateActionFramePhase>()
       .without<z13::gameplay::Pause>()
       // Replay::InjectRecordedActionValues (same phase) drives action_values instead -- see replay.cpp.
-      .without<z13::gameplay::ReplayInProgress>()
+      .without<z13::flecs_tools::ReplayInProgress>()
       // InputState is one shared singleton (one local keyboard/mouse); a second player
       // entity's ActionListener must not mirror it too.
       .with<z13::input::CurrentActionListenerTag>()

@@ -16,17 +16,14 @@
 
 #include "gameplay_system.h"
 
-#include <string>
-
 #include <flecs.h>
-#include <Eigen/Dense>
 
 #include <lib_core/log.h>
 #include <lib_core/components.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/net.h>
 
 #include <z13_module/gameplay/gameplay_entities.h>
 
@@ -34,9 +31,6 @@
 namespace z13::gameplay {
 
 namespace {
-
-// todo: убрать константу и брать из z13.fbs.actions.Action.action_group
-static const std::string kBuildingActionGroup = "Control";
 
 void RegisterPipeline(flecs::world world) {
   world.component<PreUpdatePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
@@ -57,39 +51,24 @@ void ValidateGameplay() {
   // log_info("ValidateGameplay()");
 }
 
-void CreateTestPlayer(flecs::world world, gameplay::IdCounters& counters) {
-  auto test_actor_entity = world.entity(kTestPlayerEntityName.data());
-  Camera camera {
-    .fov = 90,
-    .name = "TestActorCamera",
-  };
-
-  Player player {
-    .id = counters.last_player_id++,
-  };
-
-  Eigen::Matrix4f camera_transform = Eigen::Matrix4f::Identity();
-  z13::input::ActionListener action_listener {
-    .action_group_priority = { kBuildingActionGroup },
-  };
-
-  test_actor_entity
-      .add<z13::flecs_tools::StateEntity>()
-      .set(std::move(camera))
-      .set(std::move(camera_transform))
-      .set(std::move(player))
-      .set(PlayerCollider{.radius = kPlayerColliderRadius})
-      // todo: перенести добавление компонент в input_system
-      .add<z13::input::InputListener>()
-      .set(std::move(action_listener))
-      .add<z13::input::CurrentActionListenerTag>();
-}
-
 void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   const flecs::world world = it.world();
+  if (world.has<z13::net::ClientRole>()) {
+    // A client's scene/IdCounters/LocalPlayer.id all come from Welcome/Resync's snapshot,
+    // applied before Gameplay was added -- nothing to spawn here.
+    log_info("~~~~ gameplay::OnInit (client)");
+    return;
+  }
+
+  // Single-player and the server both play as id 0.
   gameplay::IdCounters counters;
-  CreateTestPlayer(world, counters);
+  const uint32_t local_id = counters.last_player_id++;
+  SpawnPlayer(world, local_id);
   world.set<gameplay::IdCounters>(counters);
+  world.set<gameplay::LocalPlayer>({.id = local_id});
+  // Callers expect the local player ready right after this observer runs, before any
+  // progress() -- the per-frame re-derivation in gameplay_input_system.cpp is too late.
+  EnsureLocalPlayerReady(world);
 
   log_info("~~~~ gameplay::OnInit");
 }

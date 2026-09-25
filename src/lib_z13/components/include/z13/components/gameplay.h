@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace z13::gameplay {
@@ -50,6 +51,14 @@ struct WindowFocusEvent {
 struct Player {
   using State = void;
   uint32_t id {};
+};
+
+// Which Player.id this participant controls; not state, since it's set locally (0 at
+// spawn, or from Welcome/Resync's player_id on join). Optional because a connecting
+// client briefly has none.
+struct LocalPlayer {
+  using Singleton = void;
+  std::optional<uint32_t> id;
 };
 
 struct Camera {

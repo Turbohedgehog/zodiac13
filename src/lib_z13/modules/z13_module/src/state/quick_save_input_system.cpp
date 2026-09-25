@@ -121,7 +121,8 @@ void ProcessActions(
     const QuickSaveActionIds& ids,
     const z13::gameplay::QuickSaveSettings& settings) {
   const auto switched_on = [&action_listener](const std::optional<QuickSaveActionIds::IdType>& id) {
-    return id && action_listener.action_values.at(*id).IsSwitchedOn();
+    const auto value = id ? action_listener.Value(*id) : std::nullopt;
+    return value && value->IsSwitchedOn();
   };
 
   if (switched_on(ids.save)) {

@@ -235,6 +235,12 @@ WorldSnapshot CaptureState(const flecs::world& world) {
   return CaptureImpl(world, StateEntityFilter, StateComponentFilter, StateEntityFilter);
 }
 
+std::vector<char> SaveEntityState(const flecs::world& world, flecs::entity entity) {
+  const WorldSnapshot snapshot = CaptureImpl(
+      world, [entity](flecs::entity e) { return e == entity; }, StateComponentFilter, StateEntityFilter);
+  return rfl::msgpack::write(snapshot);
+}
+
 namespace {
 
 using Error = std::unexpected<std::string>;
@@ -365,6 +371,45 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
     PruneToSnapshot(e, s);
   }
   return {};
+}
+
+std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const std::vector<char>& bytes) {
+  auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
+  if (!result) {
+    return Error(result.error().what());
+  }
+
+  const WorldSnapshot& snapshot = result.value();
+  if (auto valid = ValidateSnapshot(world, snapshot); !valid) {
+    return valid;
+  }
+
+  ApplyWorld(world, snapshot);
+
+  for (const auto& s : snapshot.entities) {
+    const flecs::entity e = world.lookup(s.name.c_str());
+    if (!e.has<flecs::Component>()) {
+      e.add<StateEntity>();
+    }
+    PruneToSnapshot(e, s);
+  }
+  return {};
+}
+
+std::vector<char> SaveState(const flecs::world& world) {
+  return rfl::msgpack::write(CaptureState(world));
+}
+
+std::vector<char> SaveState(const WorldSnapshot& snapshot) {
+  return rfl::msgpack::write(snapshot);
+}
+
+std::expected<void, std::string> LoadState(flecs::world& world, const std::vector<char>& bytes) {
+  auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
+  if (!result) {
+    return Error(result.error().what());
+  }
+  return RestoreWorld(world, result.value());
 }
 
 std::vector<char> SaveWorldState(const flecs::world& world, const EntityFilter& accept) {

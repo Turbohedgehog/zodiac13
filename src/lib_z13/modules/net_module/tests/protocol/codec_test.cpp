@@ -27,13 +27,6 @@ namespace {
 
 namespace fbn = fbs::net;
 
-// Mirrors MessageBodyUnion::AsXxx() (net_generated.h) generically via the same
-// MessageBodyUnionTraits the union itself uses, instead of a hand-written switch.
-template <typename T>
-const T* AsBody(const fbn::MessageBodyUnion& body) {
-  return body.type == fbn::MessageBodyUnionTraits<T>::enum_value ? static_cast<const T*>(body.value) : nullptr;
-}
-
 template <typename T>
 T RoundTrip(T value) {
   Envelope envelope;
@@ -108,6 +101,8 @@ TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   welcome.player_id = 3;
   welcome.server_tick = 900;
   welcome.snapshot = {1, 2, 3, 4, 5};
+  welcome.snapshot_tick = 840;
+  welcome.actions = {6, 7, 8};
   welcome.held_values.emplace_back(0, 2, 500);
   welcome.pending.emplace_back(1, 3, -500);
 
@@ -116,6 +111,8 @@ TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   EXPECT_EQ(decoded.player_id, 3u);
   EXPECT_EQ(decoded.server_tick, 900u);
   EXPECT_EQ(decoded.snapshot, welcome.snapshot);
+  EXPECT_EQ(decoded.snapshot_tick, 840u);
+  EXPECT_EQ(decoded.actions, welcome.actions);
   ASSERT_EQ(decoded.held_values.size(), 1u);
   EXPECT_EQ(decoded.held_values[0].action_id(), 2);
   ASSERT_EQ(decoded.pending.size(), 1u);

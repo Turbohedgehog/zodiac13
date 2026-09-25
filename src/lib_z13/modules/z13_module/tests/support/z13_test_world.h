@@ -30,9 +30,11 @@
 #include <lib_core/core.h>
 
 #include <bullet_module/bullet_module_factory.h>
+#include <net_module/in_memory_transport.h>
+#include <net_module/net_module_factory.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 #include <z13/components/input_event_emitter.h>
-#include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/z13_module_factory.h>
 
 namespace z13::testing {
@@ -50,8 +52,15 @@ class Z13TestWorld {
  public:
   // skip_main_menu mirrors --skip-main-menu: true spawns the scene on the first frame.
   // extra_args are appended as-is (e.g. {"--server"}, {"--connect", "host:1234"}).
-  explicit Z13TestWorld(bool skip_main_menu = true, std::vector<std::string> extra_args = {})
-      : core_(MakeCore(skip_main_menu, quick_save_path_, std::move(extra_args))), world_(CreateWorld(core_)) {}
+  // network is this world's virtual network for --server/--connect: pass the same
+  // InMemoryNetwork to several Z13TestWorlds so they can reach each other; left null,
+  // each world gets its own, so a solo --server/--connect world never touches a socket.
+  explicit Z13TestWorld(
+      bool skip_main_menu = true, std::vector<std::string> extra_args = {},
+      std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr)
+      : network_(network ? std::move(network) : std::make_shared<z13::net::InMemoryNetwork>()),
+        core_(MakeCore(skip_main_menu, quick_save_path_, std::move(extra_args))),
+        world_(CreateWorld(core_, network_)) {}
 
   ~Z13TestWorld() {
     std::error_code ignored;
@@ -68,8 +77,14 @@ class Z13TestWorld {
 
   const z13::Config& Config() const { return core_.GetConfig(); }
 
+  z13::net::InMemoryNetwork& Network() { return *network_; }
+
+  // This participant's own player: at most one, found by tag, not a fixed name.
   flecs::entity Player() {
-    return World().lookup(z13::gameplay::kTestPlayerEntityName.data());
+    flecs::entity found;
+    World().query_builder().with<z13::input::CurrentActionListenerTag>().build().each(
+        [&](flecs::entity e) { found = e; });
+    return found;
   }
 
   void StartGame() { World().add<z13::gameplay::Gameplay>(); }
@@ -101,11 +116,20 @@ class Z13TestWorld {
     return z13::Core(static_cast<int>(argv.size()), argv.data());
   }
 
-  static z13::WorldRef CreateWorld(z13::Core& core) {
+  static z13::WorldRef CreateWorld(z13::Core& core, const std::shared_ptr<z13::net::InMemoryNetwork>& network) {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
     core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
+
+    auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
+    net_factory->SetTransportFactories(
+        [network](uint16_t port) { return z13::net::CreateInMemoryServerTransport(*network, port); },
+        [network](const z13::Endpoint& server, z13::ConnectTimeoutConfig) {
+          return z13::net::CreateInMemoryClientTransport(*network, server.port);
+        });
+    core.RegisterModuleFactory(net_factory);
+
     z13::WorldRef world = core.CreateWorld();
     // Runs the one-shot bootstrap without a frame, so tick-counting tests see tick 0 as before.
     ecs_run(world.get(), world.get().lookup(kInitBootstrapSystemName.data()).id(), 0.f, nullptr);
@@ -115,6 +139,7 @@ class Z13TestWorld {
   std::filesystem::path quick_save_path_ {std::filesystem::temp_directory_path() /
       std::format("z13_quick_save_{}_{}.json", reinterpret_cast<std::uintptr_t>(this),
                   std::chrono::steady_clock::now().time_since_epoch().count())};
+  std::shared_ptr<z13::net::InMemoryNetwork> network_;  // declared before core_/world_ -- must outlive them
   z13::Core core_;
   z13::WorldRef world_;  // declared after core_ -- initialization order matters
 };

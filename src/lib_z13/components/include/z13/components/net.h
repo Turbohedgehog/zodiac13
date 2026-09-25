@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <string>
+
+#include <lib_core/endpoint.h>
+
 namespace z13::net {
 
 // Runtime-only (not state) role tags, set by BootstrapSystem; neither present means
@@ -25,6 +29,23 @@ struct ServerRole {
 };
 struct ClientRole {
   using Singleton = void;
+};
+
+// One-shot request raised by BootstrapSystem for --connect, consumed by net_module's
+// client session system to open the transport and start the handshake.
+struct JoinRequest {
+  Endpoint endpoint;
+};
+
+// Not state -- rebuilt by net_module every session, never saved. net_module is the
+// only writer; GUI reads it to show connecting/failure state.
+enum class ConnectionState { kNone, kConnecting, kConnected, kFailed, kDisconnected };
+
+struct ConnectionStatus {
+  using Singleton = void;
+
+  ConnectionState state = ConnectionState::kNone;
+  std::string reason;  // populated for kFailed/kDisconnected, empty otherwise
 };
 
 }  // namespace z13::net

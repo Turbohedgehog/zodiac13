@@ -65,7 +65,11 @@ table Pong {
 table Welcome {
   player_id: uint;
   server_tick: ulong;
-  snapshot: [ubyte];  // WorldSnapshot via SaveWorldState (msgpack)
+  // Reused from WorldSnapshotHistory's periodic capture rather than a fresh one taken
+  // for this join; snapshot_tick lets the client replay forward to server_tick below.
+  snapshot: [ubyte];  // WorldSnapshot (state only) via SaveState (msgpack)
+  snapshot_tick: ulong;
+  actions: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, (snapshot_tick, server_tick]
   held_values: [CommandWire];
   pending: [CommandWire];
 }

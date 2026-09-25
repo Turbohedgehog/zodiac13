@@ -48,7 +48,7 @@ void OnRegisterComponents(flecs::world world) {
   world.component<status::Z13State>()
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
   flecs_tools::RegisterComponents<
-      gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::Camera,
+      gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
       gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool, building::BasicBlock,
       gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings>(world);
   world.component<input::SystemInputEventType>();
@@ -63,6 +63,9 @@ void OnCreateDefaults(flecs::world world) {
   // Pause vs Gameplay is decided by BootstrapSystem from Config::SkipMainMenu().
   world.add<input::ActionMap>();
   world.add<input::InputConfig>();
+  // Present from world creation (default: no local player yet) so systems can take it
+  // as a plain singleton term instead of an optional one.
+  world.add<gameplay::LocalPlayer>();
   // Safety net default; add<T>() is a no-op if the factory already set a value.
   world.add<input::InputConfigPersistenceSettings>();
   world.add<z13::status::OnStartupGameEvent>();
