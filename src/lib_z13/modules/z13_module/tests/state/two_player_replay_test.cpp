@@ -26,6 +26,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/math.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_snapshot_history.h>
 #include <lib_core/world_state.h>
@@ -33,7 +34,6 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player_action.h>
-#include <z13_module/state/replay.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
@@ -65,13 +65,20 @@ float RealDeltaTime(Z13TestWorld& test_world) {
   return 1.f / test_world.Config().GetFPS();
 }
 
-// Replay::Run derives its delta from Config::GetFPS() (see action_replay_test.cpp), so a
-// live run must match it or replayed movement would diverge from the original.
+// The catch-up runs on whatever delta its caller ticks with (see action_replay_test.cpp),
+// so a live run must match it or replayed movement would diverge from the original.
 void RealFrames(Z13TestWorld& test_world, uint64_t count) {
   const float delta_time = RealDeltaTime(test_world);
   for (uint64_t i = 0; i < count; ++i) {
     test_world.World().progress(delta_time);
   }
+}
+
+// Asks for the rollback and then ticks the world until it has caught up -- the same two
+// steps Core::Update takes.
+void RollBackTo(Z13TestWorld& test_world, uint64_t to_tick, uint64_t target_tick) {
+  ft::RequestRollback(test_world.World(), to_tick, target_tick);
+  ft::TickWorld(test_world.World(), RealDeltaTime(test_world));
 }
 
 uint64_t IntervalTicks(Z13TestWorld& test_world) {
@@ -95,7 +102,7 @@ void MoveBackward(Z13TestWorld& test_world, uint64_t ticks) {
 
 // A minimal player entity representing the other client's avatar. Never locally
 // controlled -- no CurrentActionListenerTag, so live input and the recorder skip it;
-// driven only by Replay::Run. Starts at Identity like the real TestPlayer spawn does.
+// driven only by the replay. Starts at Identity like the real TestPlayer spawn does.
 flecs::entity SpawnRemotePlayer(Z13TestWorld& test_world, uint32_t player_id) {
   flecs::world world = test_world.World();
   return world.entity(kRemotePlayerEntityName.data())
@@ -162,7 +169,9 @@ TEST(TwoPlayerReplayTest, IndependentPlayersMergeAndReplayToIdenticalWorlds) {
   Z13TestWorld world_a;
   Z13TestWorld world_b;
   // Bootstrap assigns local player id 0 in both worlds -- give world_b's a distinct id.
+  // LocalPlayer.id must follow it, or the next progress() strips world_b's own listener.
   world_b.Player().set(z13::gameplay::Player{.id = kPlayerBId});
+  world_b.World().set<z13::gameplay::LocalPlayer>({.id = kPlayerBId});
 
   SpawnRemotePlayer(world_a, kPlayerBId);
   SpawnRemotePlayer(world_b, kPlayerAId);
@@ -217,10 +226,10 @@ TEST(TwoPlayerReplayTest, IndependentPlayersMergeAndReplayToIdenticalWorlds) {
   ReceiveForeignActions(world_b, actions_from_a);
 
   // Roll back to the shared baseline and replay the merged action history forward.
-  const auto replayed_a = Replay::Run(world_a.World(), baseline_a, target_tick);
-  ASSERT_TRUE(replayed_a.has_value()) << replayed_a.error();
-  const auto replayed_b = Replay::Run(world_b.World(), baseline_b, target_tick);
-  ASSERT_TRUE(replayed_b.has_value()) << replayed_b.error();
+  RollBackTo(world_a, baseline_a.tick, target_tick);
+  RollBackTo(world_b, baseline_b.tick, target_tick);
+  ASSERT_FALSE(world_a.World().has<ft::RollbackFailed>());
+  ASSERT_FALSE(world_b.World().has<ft::RollbackFailed>());
 
   // Each player's transform/build-mode agrees regardless of which world it's asked from.
   for (const uint32_t player_id : {kPlayerAId, kPlayerBId}) {

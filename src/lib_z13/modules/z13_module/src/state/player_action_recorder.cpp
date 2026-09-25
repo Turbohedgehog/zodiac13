@@ -23,6 +23,7 @@
 #include <flecs.h>
 
 #include <lib_core/components.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_snapshot_history.h>
 #include <lib_core/world_state.h>
@@ -56,7 +57,7 @@ bool IsReassertTick(const std::optional<uint64_t>& interval_ticks, uint64_t tick
 }
 
 // Mirrors WorldSnapshotHistory's own retention window, so a still-retained snapshot's
-// held-action state is never missing here (see Replay::Run's retention check).
+// held-action state is never missing here (a rollback can't reach past it either).
 void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::PlayerActionLog& log) {
   const std::optional<uint64_t> ticks_per_second = z13::flecs_tools::TicksPerSecond(world);
   const std::optional<double> retention_seconds = z13::flecs_tools::SnapshotRetentionSeconds(world);
@@ -73,7 +74,7 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
 }
 
 // Only the local player (CurrentActionListenerTag) is recorded -- a remote player's
-// entity is driven by Replay::Run injecting from this same log, so recording it too
+// entity is driven by the replay injecting from this same log, so recording it too
 // would be redundant.
 void RecordChangedActions(
     flecs::iter& it, size_t,
@@ -116,8 +117,8 @@ void RegisterSystems(flecs::world world) {
       "PlayerActionRecorder::RecordChangedActions")
       .kind<z13::input::ApplyActionFramePhase>()
       .without<z13::gameplay::Pause>()
-      // Don't re-log what Replay::Run is injecting from this same log -- see replay.cpp.
-      .without<z13::gameplay::ReplayInProgress>()
+      // Don't re-log what the replay is injecting from this same log -- see replay.cpp.
+      .without<z13::flecs_tools::ReplayInProgress>()
       // Only the local player -- see the comment on RecordChangedActions above.
       .with<z13::input::CurrentActionListenerTag>()
       .each(RecordChangedActions);

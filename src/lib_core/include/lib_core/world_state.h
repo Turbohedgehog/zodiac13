@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <type_traits>
+
 #include <flecs.h>
 
 #include <lib_core/component_meta.h>
@@ -33,11 +35,13 @@ struct StateComponent {};
 // Component properties, declared as nested types: `using State = void;` (values are
 // world state; empty structs become state tags) and `using Singleton = void;` (flecs
 // singleton). Nested types don't affect reflect-cpp; a base class would.
+// The alias must be void: an ordinary nested type that happens to be called State would
+// otherwise enrol its component into every snapshot.
 template <class T>
-concept StateComponentType = requires { typename T::State; };
+concept StateComponentType = requires { requires std::is_void_v<typename T::State>; };
 
 template <class T>
-concept SingletonComponentType = requires { typename T::Singleton; };
+concept SingletonComponentType = requires { requires std::is_void_v<typename T::Singleton>; };
 
 // Registers T and applies its properties: State builds reflect-cpp meta and adds the
 // StateComponent trait, Singleton the flecs Singleton trait. Only state components need

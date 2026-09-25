@@ -16,25 +16,17 @@
 
 #pragma once
 
-#include <cstdint>
-#include <expected>
-#include <string>
-
-#include <lib_core/core_types.h>
-#include <lib_core/world_snapshot_history.h>
+#include <flecs.h>
 
 namespace z13::state {
 
-// Client-side rollback: restores `world` to `snapshot`, then replays every
-// PlayerActionLog record in (snapshot.tick, target_tick] via normal world.progress(),
-// feeding ActionListener.action_values the same way live input does -- doesn't know
-// what any action_id means. Reads the log from `world` itself, not a different world's.
+// The action side of a rollback (lib_core's rollback.h drives the rest): while
+// ReplayInProgress is set, feeds each tick's PlayerActionLog records into
+// ActionListener.action_values the same way live input would, so the re-simulated ticks
+// take the same path as the original ones. Doesn't know what any action_id means.
 class Replay {
  public:
   static void Register(flecs::world& world);
-
-  static std::expected<void, std::string> Run(
-      flecs::world& world, const z13::flecs_tools::TimestampedSnapshot& snapshot, uint64_t target_tick);
 };
 
 }  // namespace z13::state

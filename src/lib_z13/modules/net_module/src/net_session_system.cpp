@@ -1,0 +1,572 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "net_session_system.h"
+
+#include <memory>
+#include <span>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include <flecs.h>
+
+#include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/log.h>
+#include <lib_core/rollback.h>
+#include <lib_core/simulation_clock.h>
+#include <lib_core/world_serializer.h>
+#include <lib_core/world_snapshot_history.h>
+#include <lib_core/world_state.h>
+
+#include <z13/components/gameplay.h>
+#include <z13/components/net.h>
+#include <z13/components/player_action.h>
+#include <z13_module/gameplay/gameplay_entities.h>
+
+#include <net_module/protocol.h>
+
+// reflect-cpp headers warn under /W4-as-errors; same suppression as world_serializer.cpp.
+#if defined(_MSC_VER)
+#pragma warning(push, 0)
+#endif
+#include <rfl/msgpack.hpp>
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+#include "net_session.h"
+#include "transport_factories.h"
+
+namespace z13::net {
+
+namespace {
+
+namespace ft = z13::flecs_tools;
+namespace fbn = fbs::net;
+
+std::vector<uint8_t> ToBytes(const std::vector<char>& data) {
+  return std::vector<uint8_t>(data.begin(), data.end());
+}
+
+std::vector<char> ToChars(const std::vector<uint8_t>& data) {
+  return std::vector<char>(data.begin(), data.end());
+}
+
+// TransportEvent::data is std::byte; the codec layer wants uint8_t, and std::as_bytes
+// only converts the other way.
+std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
+  return {reinterpret_cast<const uint8_t*>(data.data()), data.size()};
+}
+
+// ---------- Server ----------
+
+// Every PlayerActionLog record after `since_tick`, oldest first (Entries() already is).
+std::vector<z13::gameplay::PlayerActionRecord> ActionsSince(flecs::world world, uint64_t since_tick) {
+  std::vector<z13::gameplay::PlayerActionRecord> actions;
+  for (const auto& record : world.get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+    if (record.tick > since_tick) {
+      actions.push_back(record);
+    }
+  }
+  return actions;
+}
+
+NetSession::Result SendWelcome(
+    NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id) {
+  fbn::WelcomeT welcome;
+  welcome.player_id = player_id;
+  welcome.server_tick = world.get<ft::SimulationClock>().tick;
+
+  // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
+  // expensive); the action batch lets the client catch up to server_tick by replaying it.
+  const auto& history = world.get<ft::WorldSnapshotHistory>().history;
+  if (history.Empty()) {
+    // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
+    welcome.snapshot = ToBytes(ft::SaveState(world));
+    welcome.snapshot_tick = welcome.server_tick;
+  } else {
+    const ft::TimestampedSnapshot& latest = history.Entries().back();
+    welcome.snapshot = ToBytes(ft::SaveState(latest.snapshot));
+    welcome.snapshot_tick = latest.tick;
+    welcome.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, latest.tick)));
+  }
+
+  Envelope envelope;
+  envelope.body.Set(std::move(welcome));
+  return session.Send(connection, Channel::kReliable, envelope);
+}
+
+NetSession::Result SendRejected(NetSession& session, ConnectionId connection, std::string reason) {
+  fbn::RejectedT rejected;
+  rejected.reason = std::move(reason);
+
+  Envelope envelope;
+  envelope.body.Set(std::move(rejected));
+  return session.Send(connection, Channel::kReliable, envelope);
+}
+
+NetSession::Result BroadcastPlayerJoined(NetSession& session, flecs::world world, flecs::entity player) {
+  fbn::PlayerJoinedT joined;
+  joined.apply_tick = 0;  // stage 3: applied immediately -- scheduling lands in a later branch
+  joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
+
+  Envelope envelope;
+  envelope.body.Set(std::move(joined));
+  return session.Broadcast(Channel::kReliable, envelope);
+}
+
+NetSession::Result BroadcastPlayerLeft(NetSession& session, uint32_t player_id, ConnectionId except) {
+  fbn::PlayerLeftT left;
+  left.apply_tick = 0;
+  left.player_id = player_id;
+
+  Envelope envelope;
+  envelope.body.Set(std::move(left));
+  return session.Broadcast(Channel::kReliable, envelope, except);
+}
+
+NetSession::Result HandleClientHello(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
+    z13::gameplay::IdCounters& counters) {
+  if (hello.version != kProtocolVersion) {
+    return SendRejected(session, connection, "protocol version mismatch");
+  }
+  if (session.PlayerIdFor(connection)) {
+    // Honouring a second hello would spawn another player and orphan the first.
+    log_warn("NetSession(server): ignoring a repeated ClientHello on connection {}", connection);
+    return {};
+  }
+
+  // Post-increment (matches OnInit): last_player_id already holds the next id to hand
+  // out, not the last one used.
+  const uint32_t player_id = counters.last_player_id++;
+  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
+
+  if (const auto bound = session.BindPlayer(connection, player_id); !bound) {
+    return bound;
+  }
+  // Welcome first, then the spawn to everyone including the joiner: its snapshot is the
+  // cached one from before this spawn, so the joiner learns of its own player exactly the
+  // way the others do -- as a delta applied once its catch-up is done.
+  if (const auto welcomed = SendWelcome(session, world, connection, player_id); !welcomed) {
+    return welcomed;
+  }
+  return BroadcastPlayerJoined(session, world, player);
+}
+
+NetSession::Result HandleServerDisconnect(
+    NetSession& session, flecs::world world, ConnectionId connection) {
+  const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
+  if (const auto removed = session.RemoveConnection(connection); !removed) {
+    return removed;
+  }
+  if (!player_id) {
+    return {};  // never completed the handshake
+  }
+
+  if (const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(*player_id).c_str())) {
+    player.destruct();
+  }
+  return BroadcastPlayerLeft(session, *player_id, connection);
+}
+
+NetSession::Result HandleServerReceived(
+    NetSession& session, flecs::world world, const TransportEvent& event, z13::gameplay::IdCounters& counters) {
+  const auto decoded = DecodeMessage(AsUint8(event.data));
+  if (!decoded) {
+    log_warn("NetSession(server): dropping malformed packet from connection {}: {}", event.connection,
+             decoded.error());
+    // Disconnect() only notifies the peer, not us -- clean up our own bookkeeping the
+    // same way a real kDisconnected event would.
+    if (const auto dropped = session.Disconnect(event.connection); !dropped) {
+      return dropped;
+    }
+    return HandleServerDisconnect(session, world, event.connection);
+  }
+
+  if (const auto* hello = AsBody<fbn::ClientHelloT>(decoded->body)) {
+    return HandleClientHello(session, world, event.connection, *hello, counters);
+  }
+  // CommandBatch/ResyncRequest/Ping aren't handled until later stages; ignore.
+  return {};
+}
+
+NetSession::Result ServiceServerSession(
+    flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters) {
+  const auto events = session.Service();
+  if (!events) {
+    return std::unexpected(events.error());
+  }
+
+  for (const TransportEvent& event : *events) {
+    NetSession::Result handled;
+    switch (event.kind) {
+      case TransportEventKind::kConnected:
+        handled = session.AddConnection(event.connection);
+        break;
+      case TransportEventKind::kDisconnected:
+        handled = HandleServerDisconnect(session, world, event.connection);
+        break;
+      case TransportEventKind::kReceived:
+        handled = HandleServerReceived(session, world, event, counters);
+        break;
+    }
+    if (!handled) {
+      return handled;
+    }
+  }
+  return {};
+}
+
+// ---------- Client ----------
+
+void SetConnectionStatus(flecs::world world, ConnectionState state, std::string reason = {}) {
+  world.set<ConnectionStatus>({.state = state, .reason = std::move(reason)});
+}
+
+// Invalidates `session`: ServiceNetSession suspends defer, so the remove is immediate.
+// Callers must not touch it afterwards.
+void CloseClientSession(flecs::world world, NetSession& session) {
+  session.Close();
+  world.remove<NetSession>();
+}
+
+bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
+  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
+}
+
+// welcome.actions can legitimately be empty (nothing to report, or the "no cache yet"
+// fallback); msgpack can't decode zero bytes, so short-circuit that case.
+std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeActions(
+    const std::vector<char>& bytes) {
+  if (bytes.empty()) {
+    return std::vector<z13::gameplay::PlayerActionRecord> {};
+  }
+  auto result = rfl::msgpack::read<std::vector<z13::gameplay::PlayerActionRecord>>(bytes);
+  if (!result) {
+    return std::unexpected(result.error().what());
+  }
+  return *result;
+}
+
+void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
+  auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(welcome.snapshot));
+  auto actions = DecodeActions(ToChars(welcome.actions));
+  if (!snapshot || !actions) {
+    SetConnectionStatus(world, ConnectionState::kFailed, "corrupt snapshot");
+    CloseClientSession(world, session);
+    return;
+  }
+
+  // Untrusted: an implausible span would spin the catch-up for kMaxCatchUpTicksPerFrame
+  // frames per tick, forever, with the transport unserviced.
+  if (welcome.server_tick < welcome.snapshot_tick ||
+      welcome.server_tick - welcome.snapshot_tick > ft::kMaxCatchUpTicksPerFrame) {
+    SetConnectionStatus(world, ConnectionState::kFailed, "implausible server tick");
+    CloseClientSession(world, session);
+    return;
+  }
+
+  world.set<z13::gameplay::LocalPlayer>({.id = welcome.player_id});
+  world.remove<z13::gameplay::Pause>();
+  world.add<z13::gameplay::Gameplay>();
+
+  if (!actions->empty()) {
+    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(*actions, RecordLess);
+  }
+
+  // The join is an ordinary rollback; ConnectionStatus stays kConnecting until the
+  // catch-up lands (see FinishPendingJoin).
+  world.get_mut<ft::WorldSnapshotHistory>().history.Push(
+      {.tick = welcome.snapshot_tick, .snapshot = std::move(*snapshot)});
+  ft::RequestRollback(world, welcome.snapshot_tick, welcome.server_tick);
+}
+
+void HandleRejected(flecs::world world, NetSession& session, const fbn::RejectedT& rejected) {
+  SetConnectionStatus(world, ConnectionState::kFailed, rejected.reason);
+  CloseClientSession(world, session);
+}
+
+void HandlePlayerJoined(flecs::world world, const fbn::PlayerJoinedT& joined) {
+  if (auto applied = ft::ApplyWorldStateDelta(world, ToChars(joined.entity_state)); !applied) {
+    log_warn("NetSession(client): PlayerJoined delta rejected: {}", applied.error());
+  }
+}
+
+void HandlePlayerLeft(flecs::world world, const fbn::PlayerLeftT& left) {
+  if (const flecs::entity e = world.lookup(z13::gameplay::PlayerEntityName(left.player_id).c_str())) {
+    e.destruct();
+  }
+}
+
+void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
+  if (const auto* joined = std::get_if<fbn::PlayerJoinedT>(&delta)) {
+    HandlePlayerJoined(world, *joined);
+  } else if (const auto* left = std::get_if<fbn::PlayerLeftT>(&delta)) {
+    HandlePlayerLeft(world, *left);
+  }
+}
+
+// A rollback filed earlier in this same service call would undo an immediate apply.
+void ApplyOrQueueSessionDelta(flecs::world world, SessionDelta delta) {
+  if (ft::IsCatchingUp(world)) {
+    world.get_mut<PendingSessionDeltas>().deltas.push_back(std::move(delta));
+    return;
+  }
+  ApplySessionDelta(world, delta);
+}
+
+// Runs once the world is back in the present; returns whether the session is still open.
+bool FinishPendingJoin(flecs::world world, NetSession& session) {
+  if (world.has<ft::RollbackFailed>()) {
+    const std::string reason = world.get<ft::RollbackFailed>().reason;
+    world.remove<ft::RollbackFailed>();
+    world.get_mut<PendingSessionDeltas>().deltas.clear();
+    SetConnectionStatus(world, ConnectionState::kFailed, reason);
+    CloseClientSession(world, session);
+    return false;
+  }
+
+  for (const auto& delta : std::exchange(world.get_mut<PendingSessionDeltas>().deltas, {})) {
+    ApplySessionDelta(world, delta);
+  }
+
+  // LocalPlayer itself exists in every world from creation, so the id -- and the entity
+  // it names, which arrives as a PlayerJoined delta -- is what says the join landed.
+  if (!world.has<ConnectionStatus>() ||
+      world.get<ConnectionStatus>().state != ConnectionState::kConnecting) {
+    return true;
+  }
+  const std::optional<uint32_t> local_id = world.get<z13::gameplay::LocalPlayer>().id;
+  if (local_id && world.lookup(z13::gameplay::PlayerEntityName(*local_id).c_str())) {
+    // Do eagerly what SyncLocalPlayerListener would only do on the next frame.
+    z13::gameplay::EnsureLocalPlayerReady(world);
+    SetConnectionStatus(world, ConnectionState::kConnected);
+  }
+  return true;
+}
+
+void HandleClientReceived(flecs::world world, NetSession& session, const TransportEvent& event) {
+  const auto decoded = DecodeMessage(AsUint8(event.data));
+  if (!decoded) {
+    log_warn("NetSession(client): dropping malformed packet: {}", decoded.error());
+    return;
+  }
+
+  if (const auto* welcome = AsBody<fbn::WelcomeT>(decoded->body)) {
+    HandleWelcome(world, session, *welcome);
+  } else if (const auto* rejected = AsBody<fbn::RejectedT>(decoded->body)) {
+    HandleRejected(world, session, *rejected);
+  } else if (const auto* joined = AsBody<fbn::PlayerJoinedT>(decoded->body)) {
+    ApplyOrQueueSessionDelta(world, *joined);
+  } else if (const auto* left = AsBody<fbn::PlayerLeftT>(decoded->body)) {
+    ApplyOrQueueSessionDelta(world, *left);
+  }
+  // Pong/SequencedCommands/StateDigest aren't handled until later stages; ignore.
+}
+
+void HandleClientDisconnect(flecs::world world, NetSession& session) {
+  const bool was_connected = world.has<z13::gameplay::Gameplay>();
+  CloseClientSession(world, session);
+
+  if (was_connected) {
+    world.remove<z13::gameplay::Gameplay>();
+    world.add<z13::gameplay::Pause>();
+    SetConnectionStatus(world, ConnectionState::kDisconnected, "server closed the connection");
+  } else {
+    SetConnectionStatus(world, ConnectionState::kFailed, "disconnected before joining");
+  }
+}
+
+NetSession::Result SendClientHello(NetSession& session, ConnectionId server_connection) {
+  fbn::ClientHelloT hello;
+  hello.version = kProtocolVersion;
+
+  Envelope envelope;
+  envelope.body.Set(std::move(hello));
+  return session.Send(server_connection, Channel::kReliable, envelope);
+}
+
+NetSession::Result ServiceClientSession(flecs::world world, NetSession& session) {
+  const auto events = session.Service();
+  if (!events) {
+    return std::unexpected(events.error());
+  }
+
+  for (const TransportEvent& event : *events) {
+    switch (event.kind) {
+      case TransportEventKind::kConnected: {
+        if (const auto added = session.AddConnection(event.connection); !added) {
+          return added;
+        }
+        if (const auto bound = session.SetServerConnection(event.connection); !bound) {
+          return bound;
+        }
+        if (const auto greeted = SendClientHello(session, event.connection); !greeted) {
+          return greeted;
+        }
+        break;
+      }
+      case TransportEventKind::kDisconnected:
+        HandleClientDisconnect(world, session);
+        return {};  // session/NetSession are gone; nothing left in `event`s applies
+      case TransportEventKind::kReceived:
+        HandleClientReceived(world, session, event);
+        if (!world.has<NetSession>()) {
+          return {};  // a rejected/corrupt Welcome closed the session; `session` is gone
+        }
+        break;
+    }
+  }
+  return {};
+}
+
+// ---------- Lifecycle ----------
+
+// Eager rather than lazy: on InMemoryTransport a connect attempt only resolves against
+// whatever is already listening, so the server must bind first.
+void OnServerRoleAdded(flecs::iter it, size_t /*i*/, ServerRole, const TransportFactories& factories) {
+  flecs::world world = it.world();
+  const auto config = z13::GetCoreConfig(world);
+  const uint16_t port = config ? config->get().GetPort() : z13::kDefaultServerPort;
+  auto transport = factories.server(port);
+  if (!transport) {
+    log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
+    world.set<ConnectionStatus>({.state = ConnectionState::kFailed, .reason = transport.error()});
+    return;
+  }
+
+  NetSession session;
+  session.OpenAsServer(std::move(*transport));
+  world.set<NetSession>(std::move(session));
+  world.set<ConnectionStatus>({.state = ConnectionState::kConnected});
+}
+
+void OnServerRoleRemoved(flecs::iter it, size_t /*i*/, ServerRole) {
+  flecs::world world = it.world();
+  if (world.has<NetSession>()) {
+    world.get_mut<NetSession>().Close();
+    world.remove<NetSession>();
+  }
+}
+
+// Consumed via OnSet, not OnAdd: OnAdd would run before .set() assigns the Endpoint,
+// since add-then-assign is two observable steps in flecs.
+void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportFactories& factories) {
+  flecs::world world = e.world();
+  SetConnectionStatus(world, ConnectionState::kConnecting);
+
+  const auto config = z13::GetCoreConfig(world);
+  const z13::ConnectTimeoutConfig timeout = config ? config->get().GetConnectTimeout() : z13::ConnectTimeoutConfig {};
+  auto transport = factories.client(request.endpoint, timeout);
+  if (!transport) {
+    SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
+    e.destruct();
+    return;
+  }
+
+  NetSession session;
+  session.OpenAsClient(std::move(*transport));
+  world.set<NetSession>(std::move(session));
+  e.destruct();
+}
+
+void ServiceNetSession(flecs::world world) {
+  if (!world.has<NetSession>()) {
+    return;
+  }
+
+  // The transport belongs to the present, not to ticks being re-simulated.
+  if (ft::IsCatchingUp(world)) {
+    return;
+  }
+
+  // .immediate() only gives the real (non-staged) world; add/set/remove through it are
+  // still deferred, so defer must also be suspended here for this call's own SaveState().
+  const z13::ImmediateScope immediate(world);
+
+  NetSession& session = world.get_mut<NetSession>();
+  const bool is_server = world.has<ServerRole>();
+
+  NetSession::Result serviced;
+  if (is_server) {
+    serviced = ServiceServerSession(world, session, world.get_mut<z13::gameplay::IdCounters>());
+  } else if (FinishPendingJoin(world, session)) {
+    serviced = ServiceClientSession(world, session);
+  }
+  if (serviced) {
+    return;
+  }
+
+  // Only a closed session reports here, which means this file's own sequencing is wrong.
+  // Keeping the component would hide that and leave a half-dead session in the world.
+  log_error("NetSession: {}", serviced.error());
+  if (is_server) {
+    world.remove<NetSession>();
+  } else if (world.has<NetSession>()) {
+    SetConnectionStatus(world, ConnectionState::kFailed, serviced.error());
+    CloseClientSession(world, world.get_mut<NetSession>());
+  }
+}
+
+void RegisterComponents(flecs::world world) {
+  z13::flecs_tools::RegisterComponents<NetSession, PendingSessionDeltas>(world);
+}
+
+void RegisterSystems(flecs::world world) {
+  // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
+  world.set<PendingSessionDeltas>({});
+
+  world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
+      .event(flecs::OnAdd)
+      .yield_existing()
+      .each(OnServerRoleAdded);
+
+  world.observer<ServerRole>("NetSessionSystem::OnServerRoleRemoved")
+      .event(flecs::OnRemove)
+      .each(OnServerRoleRemoved);
+
+  world.observer<JoinRequest, const TransportFactories>("NetSessionSystem::OnJoinRequest")
+      .event(flecs::OnSet)
+      .each(OnJoinRequest);
+
+  // PreFrame: earliest custom phase point, so a join/spawn/leave this tick is visible
+  // to every gameplay system that runs later in the same frame.
+  world.system("NetSessionSystem::Service")
+      .kind(flecs::PreFrame)
+      .immediate()
+      .each([world]() { ServiceNetSession(world); });
+}
+
+}  // namespace
+
+void NetSessionSystem::Register(flecs::world& world) {
+  world.observer<z13::RegisterComponentsEvent>("NetSessionSystem::RegisterComponents")
+      .event(flecs::OnAdd)
+      .yield_existing()
+      .each([world = world](const auto&) { RegisterComponents(world); });
+
+  world.observer<z13::InitSystemsEvent>("NetSessionSystem::RegisterSystems")
+      .event(flecs::OnAdd)
+      .yield_existing()
+      .each([world = world](const auto&) { RegisterSystems(world); });
+}
+
+}  // namespace z13::net

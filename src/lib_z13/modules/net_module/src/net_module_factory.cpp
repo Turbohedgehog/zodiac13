@@ -16,11 +16,19 @@
 
 #include <net_module/net_module_factory.h>
 
+#include <utility>
+
 #include <flecs.h>
 
 #include <boost/dll/alias.hpp>
 
+#include <lib_core/flecs_utils.h>
+#include <lib_core/world_state.h>
+
+#include <net_module/enet_transport.h>
+
 #include "net_module.h"
+#include "transport_factories.h"
 
 namespace z13::net {
 
@@ -30,12 +38,30 @@ ModuleFactoryPtr NetModuleFactory::CreateFactory() {
 
 void NetModuleFactory::RegisterModules(flecs::world& world) {
   world.import<NetModule>();
+
+  z13::flecs_tools::RegisterComponent<TransportFactories>(world);
+  world.set<TransportFactories>({
+      .server = server_transport_factory_
+          ? server_transport_factory_
+          : ServerTransportFactory([](uint16_t port) { return CreateEnetServerTransport(port); }),
+      .client = client_transport_factory_
+          ? client_transport_factory_
+          : ClientTransportFactory([](const Endpoint& server, z13::ConnectTimeoutConfig timeout) {
+              return CreateEnetClientTransport(server, timeout);
+            }),
+  });
 }
 
 const std::string& NetModuleFactory::GetName() const {
   static std::string name = "NetModuleFactory";
 
   return name;
+}
+
+void NetModuleFactory::SetTransportFactories(
+    ServerTransportFactory server_factory, ClientTransportFactory client_factory) {
+  server_transport_factory_ = std::move(server_factory);
+  client_transport_factory_ = std::move(client_factory);
 }
 
 }  // namespace z13::net

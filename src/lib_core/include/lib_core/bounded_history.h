@@ -49,6 +49,12 @@ class BoundedHistory {
     std::inplace_merge(entries_.begin(), original_end, entries_.end(), less);
   }
 
+  // Anywhere in the history, unlike PruneOlderThan's front-only walk.
+  template <typename Predicate>
+  void RemoveIf(Predicate should_remove) {
+    std::erase_if(entries_, should_remove);
+  }
+
   const std::deque<T>& Entries() const { return entries_; }
   bool Empty() const { return entries_.empty(); }
 

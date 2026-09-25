@@ -16,15 +16,17 @@
 
 #pragma once
 
-#include <lib_core/core_types.h>
+#include <net_module/net_module_factory.h>
 
 namespace z13::net {
 
-// Same plugin shape as bullet_module/z13_module; the actual session/handshake logic
-// is NetSessionSystem (net_session_system.h).
-class NetModule {
- public:
-  explicit NetModule(flecs::world& world);
+// Runtime singleton wrapping the two factories NetModuleFactory was configured with
+// (real ENet by default). Not state -- never saved/restored.
+struct TransportFactories {
+  using Singleton = void;
+
+  ServerTransportFactory server;
+  ClientTransportFactory client;
 };
 
 }  // namespace z13::net

@@ -40,6 +40,8 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponent<BootstrapCompleteComponent>(world);
   z13::flecs_tools::RegisterComponent<z13::net::ServerRole>(world);
   z13::flecs_tools::RegisterComponent<z13::net::ClientRole>(world);
+  world.component<z13::net::JoinRequest>();
+  z13::flecs_tools::RegisterComponent<z13::net::ConnectionStatus>(world);
 }
 
 void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
@@ -48,8 +50,9 @@ void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
   e.remove<LoadConfigEvent>();
 }
 
-// --server skips the main menu (no menu to show); --connect only sets the role for
-// now -- there's no net session yet (a later branch) to act on a JoinRequest.
+// --server skips the main menu and lets net_module open the transport off ServerRole
+// alone. --connect sets the role and raises a JoinRequest; the menu (Pause) stays up
+// until Welcome/Rejected resolves it.
 void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   flecs::world world = e.world();
   const auto config = z13::GetCoreConfig(world);
@@ -62,9 +65,10 @@ void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   if (config->get().IsServer()) {
     world.add<z13::net::ServerRole>();
     world.add<z13::gameplay::Gameplay>();
-  } else if (config->get().GetConnectEndpoint()) {
+  } else if (const auto endpoint = config->get().GetConnectEndpoint()) {
     world.add<z13::net::ClientRole>();
     world.add<z13::gameplay::Pause>();
+    world.entity().set<z13::net::JoinRequest>({.endpoint = *endpoint});
   } else if (config->get().SkipMainMenu()) {
     world.add<z13::gameplay::Gameplay>();
   } else {

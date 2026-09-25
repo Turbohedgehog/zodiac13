@@ -16,13 +16,24 @@
 
 #pragma once
 
-#include <string_view>
+#include <cstdint>
+#include <string>
+
+#include <flecs.h>
 
 namespace z13::gameplay {
 
-// Single source of truth for the test player entity's name, shared by its
-// creation code and anything that looks it up by name.
-constexpr std::string_view kTestPlayerEntityName = "TestPlayer";
+std::string PlayerEntityName(uint32_t id);
 
+// Deterministic per-player spawn offset along X, so two players' octahedra never overlap.
+constexpr float kSpawnSpacing = 3.f;
+
+// No input/locality components -- those are attached separately (see LocalPlayer).
+// Public so net_module's join handling spawns players the same way host startup does.
+flecs::entity SpawnPlayer(flecs::world world, uint32_t id);
+
+// For callers that need the local player ready before the next progress(), unlike the
+// per-frame re-derivation in gameplay_input_system.cpp. A no-op if there is none.
+void EnsureLocalPlayerReady(flecs::world world);
 
 }  // namespace z13::gameplay

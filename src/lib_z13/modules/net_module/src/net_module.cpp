@@ -18,8 +18,12 @@
 
 #include <flecs.h>
 
+#include "net_session_system.h"
+
 namespace z13::net {
 
-NetModule::NetModule(flecs::world& /*world*/) {}
+NetModule::NetModule(flecs::world& world) {
+  NetSessionSystem::Register(world);
+}
 
 }  // namespace z13::net

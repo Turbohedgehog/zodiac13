@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 #include <vector>
 #include <span>
 #include <map>
@@ -275,9 +276,20 @@ struct ActionValueHolder {
 };
 
 struct ActionListener {
+  // action_values is filled by the clear phase at the end of the frame, so a listener
+  // added earlier in one has nothing in it yet -- readers must tolerate that.
+  std::optional<ActionValueHolder> Value(ActionInfo::IdType action_id) const {
+    const auto value = action_values.find(action_id);
+    return value == action_values.end() ? std::nullopt : std::optional(value->second);
+  }
+
   std::vector<std::string> action_group_priority;
   boost::container::flat_map<ActionInfo::IdType, ActionValueHolder> action_values;
 };
+
+// Default action group every local player listens to (movement, look).
+// todo: убрать константу и брать из z13.fbs.actions.Action.action_group
+constexpr std::string_view kControlActionGroup = "Control";
 
 struct WindowBackEvent {};
 

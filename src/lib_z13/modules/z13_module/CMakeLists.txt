@@ -48,9 +48,14 @@ target_link_libraries(
 add_library(${PROJECT_NAME} SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# Another plugin (net_module) links this one for SpawnPlayer and friends. MSVC exports
+# nothing by default, unlike ELF, so let CMake generate the .def instead of annotating
+# the public headers -- the object files are shared with the static test twin, which must
+# not carry dllexport.
 set_target_properties(
   ${PROJECT_NAME} PROPERTIES
   PROTO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}
+  WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
 # PUBLIC: camera_look.h (a public header) uses Eigen::Matrix4f, so consumers

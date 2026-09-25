@@ -16,16 +16,17 @@
 
 #include <z13_module/state/replay.h>
 
-#include <format>
-#include <optional>
+#include <algorithm>
+#include <cstdint>
+#include <deque>
 #include <utility>
 
 #include <boost/container/flat_map.hpp>
 #include <flecs.h>
 
 #include <lib_core/components.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
-#include <lib_core/world_serializer.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
@@ -36,12 +37,11 @@ namespace z13::state {
 
 namespace {
 
+namespace ft = z13::flecs_tools;
+
 using ActionValues = boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float>;
 
-// RestoreWorld doesn't touch ActionListener (not state), so without this an action
-// touched live after the snapshot keeps a stale prev_value into replay -- an
-// edge-triggered action (build, destroy, toggle) that should fire once then silently
-// doesn't, since it looks already-on from a tick ago.
+// ActionListener isn't state, so the restore leaves whatever live play last wrote.
 void ResetActionValues(flecs::world& world) {
   world.query_builder<z13::input::ActionListener>().build().each(
       [](z13::input::ActionListener& action_listener) {
@@ -51,18 +51,55 @@ void ResetActionValues(flecs::world& world) {
       });
 }
 
-// Writes `values` into every player entity's ActionListener.action_values in `world`.
-// Used both for the pre-replay seed below and by the per-tick injector system.
-void ApplyCurrentValues(flecs::world& world, const ActionValues& values) {
+// Both halves of the holder, so an action held across the rollback reads as steady
+// rather than a fresh edge wherever ClearActionFramePhase sits in the frame.
+void SeedActionValues(flecs::world& world, const ActionValues& values) {
   world.query_builder<const z13::gameplay::Player, z13::input::ActionListener>().build().each(
       [&values](const z13::gameplay::Player& player, z13::input::ActionListener& action_listener) {
         for (const auto& [key, value] : values) {
           const auto& [player_id, action_id] = key;
           if (player_id == player.id) {
-            action_listener.action_values[action_id].current_value = value;
+            auto& holder = action_listener.action_values[action_id];
+            holder.current_value = value;
+            holder.prev_value = value;
           }
         }
       });
+}
+
+// The log is kept sorted by tick, so each tick's records are one contiguous run.
+auto FirstRecordAtTick(const std::deque<z13::gameplay::PlayerActionRecord>& records, uint64_t tick) {
+  return std::lower_bound(
+      records.begin(), records.end(), tick,
+      [](const z13::gameplay::PlayerActionRecord& record, uint64_t value) { return record.tick < value; });
+}
+
+// A clock that isn't one past the last synced tick, or a different replay, means a
+// rollback just moved it -- rebuild the held values from the log.
+void AdvanceRecordedValues(
+    flecs::iter& it, size_t, const ft::SimulationClock& clock, const ft::ReplayInProgress& replay,
+    const z13::gameplay::PlayerActionLog& log, z13::gameplay::ReplayActionState& state) {
+  const auto& records = log.log.Entries();
+  const auto tick_begin = FirstRecordAtTick(records, clock.tick);
+
+  const bool restarted = !state.synced_replay_from_tick ||
+                         *state.synced_replay_from_tick != replay.from_tick ||
+                         state.synced_tick + 1 != clock.tick;
+  if (restarted) {
+    state.current_values.clear();
+    for (auto record = records.begin(); record != tick_begin; ++record) {
+      state.current_values[{record->player_id, record->action_id}] = record->value;
+    }
+    flecs::world world = it.world();
+    ResetActionValues(world);
+    SeedActionValues(world, state.current_values);
+  }
+
+  for (auto record = tick_begin; record != records.end() && record->tick == clock.tick; ++record) {
+    state.current_values[{record->player_id, record->action_id}] = record->value;
+  }
+  state.synced_replay_from_tick = replay.from_tick;
+  state.synced_tick = clock.tick;
 }
 
 void InjectRecordedActionValues(
@@ -77,7 +114,6 @@ void InjectRecordedActionValues(
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<z13::gameplay::ReplayInProgress>(world);
   z13::flecs_tools::RegisterComponent<z13::gameplay::ReplayActionState>(world);
 }
 
@@ -85,11 +121,19 @@ void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<z13::gameplay::ReplayActionState>({});
 
+  // PreFrame: this frame's tick is already known and nothing has read action values yet.
+  world.system<
+      const ft::SimulationClock, const ft::ReplayInProgress, const z13::gameplay::PlayerActionLog,
+      z13::gameplay::ReplayActionState>("Replay::AdvanceRecordedValues")
+      .kind(flecs::PreFrame)
+      .write<z13::input::ActionListener>()
+      .each(AdvanceRecordedValues);
+
   world.system<
       const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::ReplayActionState>(
       "Replay::InjectRecordedActionValues")
       .kind<z13::input::CalculateActionFramePhase>()
-      .with<z13::gameplay::ReplayInProgress>()
+      .with<ft::ReplayInProgress>()
       .each(InjectRecordedActionValues);
 }
 
@@ -105,57 +149,6 @@ void Replay::Register(flecs::world& world) {
       .event(flecs::OnAdd)
       .yield_existing()
       .each([world = world](const auto&) { RegisterSystems(world); });
-}
-
-std::expected<void, std::string> Replay::Run(
-    flecs::world& world, const z13::flecs_tools::TimestampedSnapshot& snapshot, uint64_t target_tick) {
-  if (target_tick < snapshot.tick) {
-    return std::unexpected("Replay::Run: target_tick precedes the snapshot's tick");
-  }
-  const std::optional<uint64_t> ticks_per_second = z13::flecs_tools::TicksPerSecond(world);
-  if (!ticks_per_second || *ticks_per_second == 0) {
-    return std::unexpected("Replay::Run: world has no known tick rate");
-  }
-  // Should never trigger in practice (same retention window as WorldSnapshotHistory,
-  // see player_action_recorder.cpp) -- fails loudly instead of silently reconstructing
-  // incomplete state if that invariant is ever broken.
-  const uint64_t retained_since_tick = world.get<z13::gameplay::PlayerActionLog>().retained_since_tick;
-  if (snapshot.tick < retained_since_tick) {
-    return std::unexpected(std::format(
-        "Replay::Run: snapshot tick {} is older than the action log's retention window (retained since tick {})",
-        snapshot.tick, retained_since_tick));
-  }
-
-  if (const auto restored = z13::flecs_tools::RestoreWorld(world, snapshot.snapshot); !restored) {
-    return std::unexpected(restored.error());
-  }
-
-  // Seed with every record up to the snapshot tick -- the recorder's periodic
-  // re-assertion guarantees a held action has an entry no later than this.
-  auto& replay_state = world.ensure<z13::gameplay::ReplayActionState>();
-  replay_state.current_values.clear();
-  const auto& records = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
-  auto record_it = records.begin();
-  for (; record_it != records.end() && record_it->tick <= snapshot.tick; ++record_it) {
-    replay_state.current_values[{record_it->player_id, record_it->action_id}] = record_it->value;
-  }
-
-  // Applied directly, before the injector system starts below, so the first tick's
-  // ClearActionFramePhase shifts the right value into prev_value.
-  ResetActionValues(world);
-  ApplyCurrentValues(world, replay_state.current_values);
-
-  world.add<z13::gameplay::ReplayInProgress>();
-  const float delta_time = 1.f / static_cast<float>(*ticks_per_second);
-  for (uint64_t tick = snapshot.tick + 1; tick <= target_tick; ++tick) {
-    for (; record_it != records.end() && record_it->tick == tick; ++record_it) {
-      replay_state.current_values[{record_it->player_id, record_it->action_id}] = record_it->value;
-    }
-    world.progress(delta_time);
-  }
-  world.remove<z13::gameplay::ReplayInProgress>();
-
-  return {};
 }
 
 }  // namespace z13::state

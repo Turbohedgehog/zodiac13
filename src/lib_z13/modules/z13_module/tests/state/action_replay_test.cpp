@@ -23,13 +23,13 @@
 #include <Eigen/Dense>
 
 #include <lib_core/math.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_json_store.h>
 #include <lib_core/world_snapshot_history.h>
 
 #include <z13/components/building.h>
 #include <z13/components/player_action.h>
-#include <z13_module/state/replay.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/world_json_test_helpers.h"
@@ -108,9 +108,9 @@ void Frames(Z13TestWorld& test_world, uint64_t count) {
   }
 }
 
-// Replay::Run derives its delta from Config::GetFPS(); kTestDeltaTime is a fixed 1s for
-// other tests' readability, so post-rollback movement here must use this real delta
-// instead or replayed positions would diverge from live ones.
+// The catch-up runs on whatever delta its caller ticks with; kTestDeltaTime is a fixed
+// 1s for other tests' readability, so post-rollback movement here must use this real
+// delta instead or replayed positions would diverge from live ones.
 float RealDeltaTime(Z13TestWorld& test_world) {
   return 1.f / test_world.Config().GetFPS();
 }
@@ -120,6 +120,13 @@ void RealFrames(Z13TestWorld& test_world, uint64_t count) {
   for (uint64_t i = 0; i < count; ++i) {
     test_world.World().progress(delta_time);
   }
+}
+
+// Asks for the rollback and then ticks the world until it has caught up -- the same two
+// steps Core::Update takes.
+void RollBackTo(Z13TestWorld& test_world, uint64_t to_tick, uint64_t target_tick) {
+  ft::RequestRollback(test_world.World(), to_tick, target_tick);
+  ft::TickWorld(test_world.World(), RealDeltaTime(test_world));
 }
 
 // Moves via real WASD input, not a .set() teleport like MovePlayerTo -- only input-driven
@@ -193,11 +200,10 @@ TEST(ActionReplayTest, RollbackAndReplayReproducesLiveStateAtTheSameTick) {
   // the action replay this test is about.
   Frames(test_world, interval_ticks);
   ASSERT_FALSE(world.get<ft::WorldSnapshotHistory>().history.Empty());
-  const ft::TimestampedSnapshot rollback_point =
-      world.get<ft::WorldSnapshotHistory>().history.Entries().front();
+  const uint64_t rollback_tick = world.get<ft::WorldSnapshotHistory>().history.Entries().front().tick;
 
   // Everything from here on is real input (movement, look, clicks) -- not a teleport --
-  // so it's exactly what PlayerActionLog captures and Replay::Run has to reconstruct.
+  // so it's exactly what PlayerActionLog captures and the replay has to reconstruct.
   MoveForward(test_world, 10);
   Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
   LookRightReal(test_world);
@@ -208,16 +214,33 @@ TEST(ActionReplayTest, RollbackAndReplayReproducesLiveStateAtTheSameTick) {
   const uint64_t target_tick = world.get<z13::flecs_tools::SimulationClock>().tick;
   const std::string ground_truth = Checkpoint(test_world);
 
-  const auto replayed = Replay::Run(world, rollback_point, target_tick);
-  ASSERT_TRUE(replayed.has_value()) << replayed.error();
+  RollBackTo(test_world, rollback_tick, target_tick);
+  ASSERT_FALSE(world.has<ft::RollbackFailed>());
 
   EXPECT_EQ(world.get<z13::flecs_tools::SimulationClock>().tick, target_tick);
   EXPECT_EQ(Checkpoint(test_world), ground_truth);
 }
 
-// Targets a tick older than the log's retained_since_tick directly, to check the guard
-// actually fires instead of silently reconstructing incomplete state.
-TEST(ActionReplayTest, RunRejectsASnapshotOlderThanTheActionLogsRetentionWindow) {
+// Coalescing is what keeps several late arrivals in one frame down to a single rollback:
+// the earliest tick asked for wins, and the latest target does.
+TEST(ActionReplayTest, RollbackRequestsInOneFrameCoalesce) {
+  Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+
+  ft::RequestRollback(world, 120, 140);
+  ft::RequestRollback(world, 60, 150);
+  ft::RequestRollback(world, 90, 100);
+
+  const auto& request = world.get<ft::RollbackRequest>();
+  ASSERT_TRUE(request.to_tick.has_value());
+  EXPECT_EQ(*request.to_tick, 60u);
+  EXPECT_EQ(request.target_tick, 150u);
+  EXPECT_TRUE(ft::IsCatchingUp(world));
+}
+
+// Targets a tick whose snapshot has already aged out, to check the guard actually fires
+// instead of silently reconstructing incomplete state.
+TEST(ActionReplayTest, RollbackFailsWhenNoRetainedSnapshotIsThatOld) {
   Z13TestWorld test_world;
   flecs::world& world = test_world.World();
   const uint64_t interval_ticks = IntervalTicks(test_world);
@@ -226,10 +249,10 @@ TEST(ActionReplayTest, RunRejectsASnapshotOlderThanTheActionLogsRetentionWindow)
   Frames(test_world, retention_ticks + interval_ticks);
   ASSERT_GT(world.get<z13::gameplay::PlayerActionLog>().retained_since_tick, 0u);
 
-  const ft::TimestampedSnapshot stale_snapshot {.tick = 0, .snapshot = {}};
-  const auto replayed = Replay::Run(world, stale_snapshot, world.get<z13::flecs_tools::SimulationClock>().tick);
+  RollBackTo(test_world, 0, world.get<z13::flecs_tools::SimulationClock>().tick);
 
-  ASSERT_FALSE(replayed.has_value());
+  EXPECT_TRUE(world.has<ft::RollbackFailed>());
+  EXPECT_FALSE(world.has<ft::ReplayInProgress>());
 }
 
 }  // namespace

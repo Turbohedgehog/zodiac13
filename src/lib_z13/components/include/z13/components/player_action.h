@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include <boost/container/flat_map.hpp>
@@ -46,17 +47,14 @@ struct PlayerActionLog {
   uint64_t retained_since_tick {};
 };
 
-// World-global gate set for the duration of a Replay::Run (see replay.h), so live input
-// and the recorder don't fight or re-log what replay injects.
-struct ReplayInProgress {
-  using Singleton = void;
-};
-
-// The per-(player, action) value replay is currently injecting, carried forward across
-// ticks with no log record; runtime only.
+// The per-(player, action) value replay is injecting, carried across ticks with no log
+// record; the gate itself is lib_core's ReplayInProgress.
 struct ReplayActionState {
   using Singleton = void;
   boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> current_values;
+  // Which replay and tick current_values matches; anything else means rebuild it.
+  std::optional<uint64_t> synced_replay_from_tick;
+  uint64_t synced_tick {};
 };
 
 }  // namespace z13::gameplay

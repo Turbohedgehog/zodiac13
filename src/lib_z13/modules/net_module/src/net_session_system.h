@@ -20,11 +20,9 @@
 
 namespace z13::net {
 
-// Same plugin shape as bullet_module/z13_module; the actual session/handshake logic
-// is NetSessionSystem (net_session_system.h).
-class NetModule {
+class NetSessionSystem {
  public:
-  explicit NetModule(flecs::world& world);
+  static void Register(flecs::world& world);
 };
 
 }  // namespace z13::net

@@ -38,6 +38,13 @@ std::vector<uint8_t> EncodeMessage(const Envelope& envelope);
 // local save file) must never reach the generated accessors unchecked.
 std::expected<Envelope, std::string> DecodeMessage(std::span<const uint8_t> bytes);
 
+// A decoded envelope's body as T, or null if it holds a different message type. Mirrors
+// MessageBodyUnion::AsXxx() generically instead of a hand-written switch per T.
+template <typename T>
+const T* AsBody(const fbs::net::MessageBodyUnion& body) {
+  return body.type == fbs::net::MessageBodyUnionTraits<T>::enum_value ? static_cast<const T*>(body.value) : nullptr;
+}
+
 // CommandWire::value is a quantized int16; docs/client-server-plan.md requires the
 // sender to apply the same quantized value everyone else receives, not the original
 // float, so these two are the only place that quantization happens.

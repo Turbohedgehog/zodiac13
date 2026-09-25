@@ -5,4 +5,5 @@
 modules:
   - modules/z13_module/z13_module
   - modules/bullet_module/bullet_module
+  - modules/net_module/net_module
   - modules/test_dll/test_dll_module
