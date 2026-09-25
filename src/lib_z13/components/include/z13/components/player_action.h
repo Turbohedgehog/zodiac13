@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include <boost/container/flat_map.hpp>
 
@@ -35,6 +36,22 @@ struct PlayerActionRecord {
   uint32_t player_id {};
   z13::input::ActionInfo::IdType action_id {};
   float value {};
+};
+
+// What the local player just did, stamped with this participant's own tick. Only
+// net_module knows how to turn that into the tick everyone applies it on, so the
+// recorder stops here; whoever consumes it clears it.
+struct OutgoingCommands {
+  using Singleton = void;
+  std::vector<PlayerActionRecord> records;
+};
+
+// Commands the server has put in order, waiting for the tick they apply on. Kept sorted
+// by (tick, player_id, action_id): every participant can derive that key on its own, so
+// nobody has to exchange sequence numbers to agree on the order.
+struct ScheduledCommands {
+  using Singleton = void;
+  std::vector<PlayerActionRecord> records;
 };
 
 // A rolling log of PlayerActionRecord; runtime only, never itself part of the state it

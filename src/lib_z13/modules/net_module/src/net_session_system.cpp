@@ -16,6 +16,7 @@
 
 #include "net_session_system.h"
 
+#include <algorithm>
 #include <memory>
 #include <span>
 #include <string>
@@ -74,6 +75,23 @@ std::vector<char> ToChars(const std::vector<uint8_t>& data) {
 // only converts the other way.
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
   return {reinterpret_cast<const uint8_t*>(data.data()), data.size()};
+}
+
+bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
+  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
+}
+
+// Keeps ScheduledCommands in apply order however the packets arrived.
+void QueueInOrder(z13::gameplay::ScheduledCommands& queue, const z13::gameplay::PlayerActionRecord& record) {
+  const auto at = std::ranges::upper_bound(queue.records, record, RecordLess);
+  queue.records.insert(at, record);
+}
+
+// The sender's own schedule is taken as given -- only sanitized, never recomputed, since
+// the server doesn't know that client's clock offset. Stage 5 replays a command that is
+// already late instead of nudging it forward like this.
+uint64_t SanitizeApplyTick(uint64_t apply_tick, uint64_t now) {
+  return std::clamp(apply_tick, now + 1, now + kMaxScheduleAheadTicks);
 }
 
 // ---------- Server ----------
@@ -185,6 +203,42 @@ NetSession::Result HandlePing(
   return session.Send(connection, Channel::kUnreliable, envelope);
 }
 
+// Commands from a peer that hasn't been welcomed have no player to belong to, and a
+// batch only reaches the others through here -- the sender applies its own copy.
+NetSession::Result HandleCommandBatch(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::CommandBatchT& batch) {
+  const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
+  if (!player_id) {
+    log_warn("NetSession(server): dropping a CommandBatch from an unwelcomed connection {}", connection);
+    return {};
+  }
+
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+
+  fbn::SequencedCommandsT sequenced;
+  sequenced.player_id = *player_id;
+  sequenced.base_tick = batch.base_tick;
+  for (const fbs::net::CommandWire& command : batch.commands) {
+    const uint64_t apply_tick = SanitizeApplyTick(batch.base_tick + command.tick_delta(), now);
+    QueueInOrder(queue, {
+        .tick = apply_tick,
+        .player_id = *player_id,
+        .action_id = command.action_id(),
+        .value = DequantizeActionValue(command.value()),
+    });
+    sequenced.commands.emplace_back(
+        static_cast<uint8_t>(apply_tick - sequenced.base_tick), command.action_id(), command.value());
+  }
+  if (sequenced.commands.empty()) {
+    return {};
+  }
+
+  Envelope envelope;
+  envelope.body.Set(std::move(sequenced));
+  return session.Broadcast(Channel::kReliable, envelope, connection);
+}
+
 NetSession::Result HandleServerDisconnect(
     NetSession& session, flecs::world world, ConnectionId connection) {
   const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
@@ -221,7 +275,10 @@ NetSession::Result HandleServerReceived(
   if (const auto* ping = AsBody<fbn::PingT>(decoded->body)) {
     return HandlePing(session, world, event.connection, *ping);
   }
-  // CommandBatch/ResyncRequest aren't handled until later stages; ignore.
+  if (const auto* batch = AsBody<fbn::CommandBatchT>(decoded->body)) {
+    return HandleCommandBatch(session, world, event.connection, *batch);
+  }
+  // ResyncRequest isn't handled until a later stage; ignore.
   return {};
 }
 
@@ -263,10 +320,6 @@ void SetConnectionStatus(flecs::world world, ConnectionState state, std::string 
 void CloseClientSession(flecs::world world, NetSession& session) {
   session.Close();
   world.remove<NetSession>();
-}
-
-bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
-  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
 }
 
 // welcome.actions can legitimately be empty (nothing to report, or the "no cache yet"
@@ -394,12 +447,22 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
   } else if (const auto* pong = AsBody<fbn::PongT>(decoded->body)) {
     ApplyPong(world.get_mut<ClockSync>(), pong->client_tick, pong->server_tick,
               world.get<ft::SimulationClock>().tick);
+  } else if (const auto* sequenced = AsBody<fbn::SequencedCommandsT>(decoded->body)) {
+    auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+    for (const fbs::net::CommandWire& command : sequenced->commands) {
+      QueueInOrder(queue, {
+          .tick = sequenced->base_tick + command.tick_delta(),
+          .player_id = sequenced->player_id,
+          .action_id = command.action_id(),
+          .value = DequantizeActionValue(command.value()),
+      });
+    }
   } else if (const auto* joined = AsBody<fbn::PlayerJoinedT>(decoded->body)) {
     ApplyOrQueueSessionDelta(world, *joined);
   } else if (const auto* left = AsBody<fbn::PlayerLeftT>(decoded->body)) {
     ApplyOrQueueSessionDelta(world, *left);
   }
-  // SequencedCommands/StateDigest aren't handled until later stages; ignore.
+  // StateDigest isn't handled until a later stage; ignore.
 }
 
 void HandleClientDisconnect(flecs::world world, NetSession& session) {

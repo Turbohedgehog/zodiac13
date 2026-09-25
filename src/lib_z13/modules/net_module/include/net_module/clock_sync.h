@@ -26,6 +26,14 @@ namespace z13::net {
 // trades input latency for more rollbacks.
 inline constexpr int64_t kInputDelayTicks = 12;
 
+// How often a client flushes its buffered commands: ~20 Hz at 60 ticks, which keeps a
+// held key to a couple of packets instead of one per tick.
+inline constexpr uint64_t kNetSendIntervalTicks = 3;
+
+// How far ahead of the server's own tick a command may claim to apply. A client's
+// estimate is never this wrong, so anything past it is a broken or hostile sender.
+inline constexpr uint64_t kMaxScheduleAheadTicks = 8 * static_cast<uint64_t>(kInputDelayTicks);
+
 // Weight of a fresh offset sample in the running estimate. Low enough that one delayed
 // Pong doesn't shift the schedule of every command after it.
 inline constexpr double kClockOffsetSmoothing = 0.25;
