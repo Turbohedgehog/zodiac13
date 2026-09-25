@@ -40,6 +40,7 @@
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
 
 // reflect-cpp headers warn under /W4-as-errors; same suppression as world_serializer.cpp.
@@ -171,6 +172,19 @@ NetSession::Result HandleClientHello(
   return BroadcastPlayerJoined(session, world, player);
 }
 
+// server_tick is stamped on the way out rather than at the next frame boundary: the
+// reply must not carry this frame's queueing delay as if it were time on the wire.
+NetSession::Result HandlePing(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::PingT& ping) {
+  fbn::PongT pong;
+  pong.client_tick = ping.client_tick;
+  pong.server_tick = world.get<ft::SimulationClock>().tick;
+
+  Envelope envelope;
+  envelope.body.Set(std::move(pong));
+  return session.Send(connection, Channel::kUnreliable, envelope);
+}
+
 NetSession::Result HandleServerDisconnect(
     NetSession& session, flecs::world world, ConnectionId connection) {
   const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
@@ -204,7 +218,10 @@ NetSession::Result HandleServerReceived(
   if (const auto* hello = AsBody<fbn::ClientHelloT>(decoded->body)) {
     return HandleClientHello(session, world, event.connection, *hello, counters);
   }
-  // CommandBatch/ResyncRequest/Ping aren't handled until later stages; ignore.
+  if (const auto* ping = AsBody<fbn::PingT>(decoded->body)) {
+    return HandlePing(session, world, event.connection, *ping);
+  }
+  // CommandBatch/ResyncRequest aren't handled until later stages; ignore.
   return {};
 }
 
@@ -374,12 +391,15 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
     HandleWelcome(world, session, *welcome);
   } else if (const auto* rejected = AsBody<fbn::RejectedT>(decoded->body)) {
     HandleRejected(world, session, *rejected);
+  } else if (const auto* pong = AsBody<fbn::PongT>(decoded->body)) {
+    ApplyPong(world.get_mut<ClockSync>(), pong->client_tick, pong->server_tick,
+              world.get<ft::SimulationClock>().tick);
   } else if (const auto* joined = AsBody<fbn::PlayerJoinedT>(decoded->body)) {
     ApplyOrQueueSessionDelta(world, *joined);
   } else if (const auto* left = AsBody<fbn::PlayerLeftT>(decoded->body)) {
     ApplyOrQueueSessionDelta(world, *left);
   }
-  // Pong/SequencedCommands/StateDigest aren't handled until later stages; ignore.
+  // SequencedCommands/StateDigest aren't handled until later stages; ignore.
 }
 
 void HandleClientDisconnect(flecs::world world, NetSession& session) {
@@ -402,6 +422,31 @@ NetSession::Result SendClientHello(NetSession& session, ConnectionId server_conn
   Envelope envelope;
   envelope.body.Set(std::move(hello));
   return session.Send(server_connection, Channel::kReliable, envelope);
+}
+
+// One Ping a second, on the unreliable channel: queued behind the reliable traffic it
+// would measure the queue rather than the network. A lost one just costs this second's
+// sample -- the next Ping replaces the one in flight.
+NetSession::Result SendPingIfDue(flecs::world world, NetSession& session) {
+  const std::optional<ConnectionId> server_connection = session.ServerConnection();
+  const std::optional<uint64_t> ticks_per_second = ft::TicksPerSecond(world);
+  if (!server_connection || !ticks_per_second || *ticks_per_second == 0) {
+    return {};
+  }
+  const uint64_t tick = world.get<ft::SimulationClock>().tick;
+  if (tick % *ticks_per_second != 0) {
+    return {};
+  }
+
+  fbn::PingT ping;
+  ping.client_tick = tick;
+  Envelope envelope;
+  envelope.body.Set(std::move(ping));
+  if (const auto sent = session.Send(*server_connection, Channel::kUnreliable, envelope); !sent) {
+    return sent;
+  }
+  world.get_mut<ClockSync>().ping_sent_tick = tick;
+  return {};
 }
 
 NetSession::Result ServiceClientSession(flecs::world world, NetSession& session) {
@@ -510,6 +555,9 @@ void ServiceNetSession(flecs::world world) {
     serviced = ServiceServerSession(world, session, world.get_mut<z13::gameplay::IdCounters>());
   } else if (FinishPendingJoin(world, session)) {
     serviced = ServiceClientSession(world, session);
+    if (serviced && world.has<NetSession>()) {
+      serviced = SendPingIfDue(world, session);
+    }
   }
   if (serviced) {
     return;
@@ -527,12 +575,13 @@ void ServiceNetSession(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<NetSession, PendingSessionDeltas>(world);
+  z13::flecs_tools::RegisterComponents<NetSession, PendingSessionDeltas, ClockSync>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<PendingSessionDeltas>({});
+  world.set<ClockSync>({});
 
   world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
       .event(flecs::OnAdd)
