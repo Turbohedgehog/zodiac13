@@ -20,6 +20,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -36,6 +37,7 @@
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -217,6 +219,39 @@ NetSession::Result HandlePing(
   return session.Send(connection, Channel::kUnreliable, envelope);
 }
 
+bool IsKnownActionId(const z13::input::ActionMap& action_map, uint8_t action_id) {
+  const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  return by_id.find(static_cast<z13::input::ActionInfo::IdType>(action_id)) != by_id.end();
+}
+
+// One connection's command budget within the current window; a fresh window starts the
+// first time it's found expired, not on a timer -- an idle connection costs nothing.
+struct ConnectionRateLimit {
+  uint64_t window_start_tick {};
+  uint32_t commands_this_window {};
+};
+
+// A hostile or broken client sending far more commands than any real input pipeline
+// could -- rate-limited per connection, not globally, so one bad peer can't starve
+// the others.
+struct CommandRateLimits {
+  using Singleton = void;
+  std::unordered_map<ConnectionId, ConnectionRateLimit> by_connection;
+};
+
+bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now) {
+  ConnectionRateLimit& state = limits.by_connection[connection];
+  if (now - state.window_start_tick >= kCommandRateLimitWindowTicks) {
+    state.window_start_tick = now;
+    state.commands_this_window = 0;
+  }
+  if (state.commands_this_window >= kMaxCommandsPerRateLimitWindow) {
+    return false;
+  }
+  ++state.commands_this_window;
+  return true;
+}
+
 // Commands from a peer that hasn't been welcomed have no player to belong to, and a
 // batch only reaches the others through here -- the sender applies its own copy.
 NetSession::Result HandleCommandBatch(
@@ -229,11 +264,24 @@ NetSession::Result HandleCommandBatch(
 
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  const auto& action_map = world.get<z13::input::ActionMap>();
+  auto& rate_limits = world.get_mut<CommandRateLimits>();
 
   fbn::SequencedCommandsT sequenced;
   sequenced.player_id = *player_id;
   sequenced.base_tick = batch.base_tick;
   for (const fbs::net::CommandWire& command : batch.commands) {
+    if (!IsKnownActionId(action_map, command.action_id())) {
+      log_warn(
+          "NetSession(server): dropping an unknown action id {} from connection {}", command.action_id(),
+          connection);
+      continue;
+    }
+    if (!AllowCommand(rate_limits, connection, now)) {
+      log_warn("NetSession(server): connection {} exceeded its command rate limit, dropping the rest of this batch",
+          connection);
+      break;
+    }
     const uint64_t apply_tick = SanitizeApplyTick(batch.base_tick + command.tick_delta(), now);
     QueueInOrder(queue, {
         .tick = apply_tick,
@@ -259,6 +307,7 @@ NetSession::Result HandleServerDisconnect(
   if (const auto removed = session.RemoveConnection(connection); !removed) {
     return removed;
   }
+  world.get_mut<CommandRateLimits>().by_connection.erase(connection);
   if (!player_id) {
     return {};  // never completed the handshake
   }
@@ -680,13 +729,14 @@ void ServiceNetSession(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<NetSession, ScheduledSessionDeltas, ClockSync>(world);
+  z13::flecs_tools::RegisterComponents<NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<ScheduledSessionDeltas>({});
   world.set<ClockSync>({});
+  world.set<CommandRateLimits>({});
 
   world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
       .event(flecs::OnAdd)

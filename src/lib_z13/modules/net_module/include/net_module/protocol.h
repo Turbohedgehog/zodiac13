@@ -52,4 +52,11 @@ constexpr float kActionValueScale = 100.f;
 int16_t QuantizeActionValue(float value);
 float DequantizeActionValue(int16_t wire_value);
 
+// Anti-abuse: past this many commands within the window, the server drops the rest of
+// that connection's batch (see net_session_system.cpp's AllowCommand) -- generous
+// relative to a real input pipeline's own traffic (NetActionSender sends at most a
+// handful of changed actions every kNetSendIntervalTicks).
+constexpr uint64_t kCommandRateLimitWindowTicks = 60;
+constexpr uint32_t kMaxCommandsPerRateLimitWindow = 128;
+
 }  // namespace z13::net

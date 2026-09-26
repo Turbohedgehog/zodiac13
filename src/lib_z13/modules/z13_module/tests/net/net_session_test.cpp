@@ -440,6 +440,66 @@ TEST(NetSessionTest, GarbagePacketFromClientDropsThatPeerButServerStaysAlive) {
   EXPECT_EQ(good_client.World().get<LocalPlayer>().id, 1u);  // garbage sender never got an id
 }
 
+// Any id an ActionMap has never uses -- there are nowhere near 256 distinct actions.
+constexpr uint8_t kUnknownActionId = 255;
+
+uint8_t AnyKnownActionId(flecs::world world) {
+  const auto& by_id = world.get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::IdTag>();
+  return static_cast<uint8_t>(by_id.begin()->id);
+}
+
+TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+
+  ConnectionId connection = kInvalidConnectionId;
+  const auto raw = ConnectRawClient(*network, server, connection);
+  ASSERT_NE(connection, kInvalidConnectionId);
+  SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+
+  const uint8_t valid_action_id = AnyKnownActionId(server.World());
+  fbs::net::CommandBatchT batch;
+  batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
+  batch.commands.emplace_back(0, kUnknownActionId, 100);
+  batch.commands.emplace_back(0, valid_action_id, 100);
+  SendRaw(*raw, connection, batch);
+
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] {
+    return !server.World().get<z13::gameplay::ScheduledCommands>().records.empty();
+  }));
+  const auto& records = server.World().get<z13::gameplay::ScheduledCommands>().records;
+  ASSERT_EQ(records.size(), 1u);
+  EXPECT_EQ(records.front().action_id, valid_action_id);
+}
+
+TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+
+  ConnectionId connection = kInvalidConnectionId;
+  const auto raw = ConnectRawClient(*network, server, connection);
+  ASSERT_NE(connection, kInvalidConnectionId);
+  SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+
+  const uint8_t valid_action_id = AnyKnownActionId(server.World());
+  fbs::net::CommandBatchT batch;
+  batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
+  for (uint32_t i = 0; i < z13::net::kMaxCommandsPerRateLimitWindow + 20; ++i) {
+    batch.commands.emplace_back(0, valid_action_id, 100);
+  }
+  SendRaw(*raw, connection, batch);
+
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] {
+    return !server.World().get<z13::gameplay::ScheduledCommands>().records.empty();
+  }));
+  EXPECT_EQ(
+      server.World().get<z13::gameplay::ScheduledCommands>().records.size(), z13::net::kMaxCommandsPerRateLimitWindow);
+}
+
 TEST(NetSessionTest, LargeSnapshotArrivesWhole) {
   constexpr int kBlockCount = 5000;
   auto network = std::make_shared<InMemoryNetwork>();
