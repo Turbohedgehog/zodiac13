@@ -74,7 +74,7 @@ bool IsSortedByApplyOrder(Z13TestWorld& world) {
   });
 }
 
-TEST(CommandStreamTest, AClientsCommandReachesTheServerAndTheOthersButNotItself) {
+TEST(CommandStreamTest, AClientsCommandReachesEveryoneOnceWithNoServerEcho) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client_a = MakeClient(network);
@@ -90,7 +90,7 @@ TEST(CommandStreamTest, AClientsCommandReachesTheServerAndTheOthersButNotItself)
     return QueuedFor(server, kClientAId) > 0 && QueuedFor(client_b, kClientAId) > 0;
   })) << "the command never reached both the server and the other client";
 
-  EXPECT_EQ(QueuedFor(client_a, kClientAId), 0u) << "the sender must not get its own command echoed back";
+  EXPECT_EQ(QueuedFor(client_a, kClientAId), 1u) << "the sender queues its own command locally, once, with no server echo on top";
   EXPECT_TRUE(IsSortedByApplyOrder(server));
   EXPECT_TRUE(IsSortedByApplyOrder(client_b));
 

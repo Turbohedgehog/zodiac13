@@ -14,20 +14,18 @@
  * limitations under the License.
  */
 
-#include "net_module.h"
+#pragma once
 
 #include <flecs.h>
 
-#include "net_action_sender.h"
-#include "net_session_system.h"
-#include "remote_input.h"
-
 namespace z13::net {
 
-NetModule::NetModule(flecs::world& world) {
-  NetSessionSystem::Register(world);
-  NetActionSender::Register(world);
-  RemoteInput::Register(world);
-}
+// Commits ScheduledCommands entries due this tick into PlayerActionLog, for every
+// participant (server and client alike). ActionListener itself is then updated from the
+// log by z13_module's RemoteActionFramePhase (replay.cpp), not here.
+class RemoteInput {
+ public:
+  static void Register(flecs::world& world);
+};
 
 }  // namespace z13::net

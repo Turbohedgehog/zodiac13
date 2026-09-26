@@ -27,6 +27,7 @@
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 
+#include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 
@@ -34,6 +35,7 @@
 #include <net_module/protocol.h>
 
 #include "net_session.h"
+#include "scheduled_commands.h"
 
 namespace z13::net {
 
@@ -89,16 +91,32 @@ fbn::CommandBatchT ToBatch(const std::vector<ScheduledCommand>& scheduled) {
   return batch;
 }
 
+// No echo needed: the sender queues its own command locally with the same apply_tick it
+// put on the wire, exactly as if it had come back from the server.
+void ScheduleLocally(
+    flecs::world world, uint32_t player_id, const std::vector<ScheduledCommand>& scheduled) {
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  for (const ScheduledCommand& command : scheduled) {
+    QueueInOrder(queue, {
+        .tick = command.apply_tick,
+        .player_id = player_id,
+        .action_id = command.action_id,
+        .value = DequantizeActionValue(command.value),
+    });
+  }
+}
+
 // Every kNetSendIntervalTicks, and never an empty batch: an idle client costs nothing
 // beyond the transport's own keepalive.
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ClockSync& sync,
-    const ft::SimulationClock& clock, z13::gameplay::OutgoingCommands& outgoing) {
+    const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
+    z13::gameplay::OutgoingCommands& outgoing) {
   if (clock.tick % kNetSendIntervalTicks != 0 || outgoing.records.empty()) {
     return;
   }
   const std::optional<ConnectionId> server_connection = session.ServerConnection();
-  if (!server_connection) {
+  if (!server_connection || !local_player.id) {
     return;
   }
 
@@ -107,6 +125,7 @@ void SendPendingCommands(
   if (scheduled.empty()) {
     return;
   }
+  ScheduleLocally(it.world(), *local_player.id, scheduled);
 
   Envelope envelope;
   envelope.body.Set(ToBatch(scheduled));
@@ -118,7 +137,9 @@ void SendPendingCommands(
 // PostUpdate, like the log's own drain: this frame's intent is already buffered (see
 // PhaseOrderTest), so a command goes out on the tick it was made.
 void RegisterSystems(flecs::world world) {
-  world.system<NetSession, const ClockSync, const ft::SimulationClock, z13::gameplay::OutgoingCommands>(
+  world.system<
+      NetSession, const ClockSync, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
+      z13::gameplay::OutgoingCommands>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .with<ClientRole>()

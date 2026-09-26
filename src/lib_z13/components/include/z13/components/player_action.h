@@ -64,14 +64,14 @@ struct PlayerActionLog {
   uint64_t retained_since_tick {};
 };
 
-// The per-(player, action) value replay is injecting, carried across ticks with no log
-// record; the gate itself is lib_core's ReplayInProgress.
-struct ReplayActionState {
+// Held (player, action) values RemoteActionFramePhase injects into ActionListener,
+// rebuilt from PlayerActionLog whenever the tick isn't a plain continuation of the last
+// one synced (a rollback, or the very first tick).
+struct RemoteActionState {
   using Singleton = void;
   boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> current_values;
-  // Which replay and tick current_values matches; anything else means rebuild it.
-  std::optional<uint64_t> synced_replay_from_tick;
-  uint64_t synced_tick {};
+  // Nullopt until the first run; anything but synced_tick + 1 means rebuild from the log.
+  std::optional<uint64_t> synced_tick;
 };
 
 }  // namespace z13::gameplay

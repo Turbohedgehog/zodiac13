@@ -42,6 +42,9 @@ TEST(PhaseOrderTest, InputPhasesRunInTheDocumentedOrder) {
   const auto mark = [&order](const char* name) { order.emplace_back(name); };
 
   world.system("PhaseOrderTest::PreFrame").kind(flecs::PreFrame).run([&](flecs::iter&) { mark("PreFrame"); });
+  world.system("PhaseOrderTest::ScheduledCommands")
+      .kind<ScheduledCommandsPhase>()
+      .run([&](flecs::iter&) { mark("ScheduledCommands"); });
   world.system("PhaseOrderTest::Clear")
       .kind<ClearActionFramePhase>()
       .run([&](flecs::iter&) { mark("Clear"); });
@@ -49,6 +52,12 @@ TEST(PhaseOrderTest, InputPhasesRunInTheDocumentedOrder) {
   world.system("PhaseOrderTest::Calculate")
       .kind<CalculateActionFramePhase>()
       .run([&](flecs::iter&) { mark("Calculate"); });
+  world.system("PhaseOrderTest::Record")
+      .kind<RecordActionFramePhase>()
+      .run([&](flecs::iter&) { mark("Record"); });
+  world.system("PhaseOrderTest::Remote")
+      .kind<RemoteActionFramePhase>()
+      .run([&](flecs::iter&) { mark("Remote"); });
   world.system("PhaseOrderTest::Apply")
       .kind<ApplyActionFramePhase>()
       .run([&](flecs::iter&) { mark("Apply"); });
@@ -56,7 +65,8 @@ TEST(PhaseOrderTest, InputPhasesRunInTheDocumentedOrder) {
 
   world.progress(z13::testing::kTestDeltaTime);
 
-  const std::vector<std::string> expected {"PreFrame", "Clear", "OnUpdate", "Calculate", "Apply", "PostFrame"};
+  const std::vector<std::string> expected {
+      "PreFrame", "ScheduledCommands", "Clear", "OnUpdate", "Calculate", "Record", "Remote", "Apply", "PostFrame"};
   EXPECT_EQ(order, expected);
 }
 

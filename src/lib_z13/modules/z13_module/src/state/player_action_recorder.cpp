@@ -128,13 +128,13 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::gameplay::OutgoingCommands>({});
   world.set<z13::gameplay::ScheduledCommands>({});
 
-  // ApplyActionFramePhase depends_on CalculateActionFramePhase, so action_values is
-  // always resolved first, regardless of registration order.
+  // RecordActionFramePhase: right after Calculate, before RemoteActionFramePhase can
+  // overwrite ActionListener with a delayed value.
   world.system<
       const z13::gameplay::Player, const z13::input::ActionListener, const z13::flecs_tools::SimulationClock,
       z13::gameplay::OutgoingCommands>(
       "PlayerActionRecorder::RecordChangedActions")
-      .kind<z13::input::ApplyActionFramePhase>()
+      .kind<z13::input::RecordActionFramePhase>()
       .without<z13::gameplay::Pause>()
       // Don't re-log what the replay is injecting from the log -- see replay.cpp.
       .without<z13::flecs_tools::ReplayInProgress>()

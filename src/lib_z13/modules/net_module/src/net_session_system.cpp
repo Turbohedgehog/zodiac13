@@ -20,7 +20,6 @@
 #include <memory>
 #include <span>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -54,6 +53,7 @@
 #endif
 
 #include "net_session.h"
+#include "scheduled_commands.h"
 #include "transport_factories.h"
 
 namespace z13::net {
@@ -75,16 +75,6 @@ std::vector<char> ToChars(const std::vector<uint8_t>& data) {
 // only converts the other way.
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
   return {reinterpret_cast<const uint8_t*>(data.data()), data.size()};
-}
-
-bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
-  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
-}
-
-// Keeps ScheduledCommands in apply order however the packets arrived.
-void QueueInOrder(z13::gameplay::ScheduledCommands& queue, const z13::gameplay::PlayerActionRecord& record) {
-  const auto at = std::ranges::upper_bound(queue.records, record, RecordLess);
-  queue.records.insert(at, record);
 }
 
 // The sender's own schedule is taken as given -- only sanitized, never recomputed, since
