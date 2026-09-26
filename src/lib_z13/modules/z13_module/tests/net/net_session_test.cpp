@@ -35,6 +35,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/net.h>
+#include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include <net_module/protocol.h>
@@ -297,12 +298,47 @@ TEST(NetSessionTest, PlayerLeftRemovesEntityOnServerAndOtherClients) {
 
   leaver->Disconnect(leaver_connection);
 
-  // Same reasoning as above: wait for client_a's copy to go away, not the server's
-  // (which updates synchronously, before the PlayerLeft broadcast has even been sent).
+  // Same reasoning as above: wait for client_a's copy to go away. The server schedules
+  // its own removal exactly like it does for everyone else (LeaveApplyTick), so by the
+  // time client_a's copy has caught up, the server's is long since gone too.
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server, client_a}, kTestDeltaTime, kMaxTicks,
       [&] { return !client_a.World().lookup(PlayerEntityName(2).c_str()); }));
   EXPECT_FALSE(server.World().lookup(PlayerEntityName(2).c_str()));
+}
+
+// A disconnect doesn't remove the entity outright: LeaveApplyTick holds it until
+// whatever that player already had scheduled has had a chance to apply everywhere.
+TEST(NetSessionTest, PlayerLeftWaitsForAlreadyScheduledCommandsToApply) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+
+  // The only connection so far, so it gets id 1 (server is 0) -- not the id 2 a second
+  // client would get, as in the test above.
+  ConnectionId leaver_connection = kInvalidConnectionId;
+  const auto leaver = ConnectRawClient(*network, server, leaver_connection);
+  ASSERT_NE(leaver_connection, kInvalidConnectionId);
+  SendRaw(*leaver, leaver_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] {
+    return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str()));
+  }));
+
+  // Stands in for a command this player sent moments before dropping -- already
+  // scheduled, not yet due.
+  const uint64_t future_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 5;
+  server.World().get_mut<z13::gameplay::ScheduledCommands>().records.push_back(
+      {.tick = future_tick, .player_id = 1, .action_id = 0, .value = 1.f});
+
+  leaver->Disconnect(leaver_connection);
+  RunNetworkUntil(*network, {server}, kTestDeltaTime, 2, [] { return false; });  // let the disconnect land
+
+  const uint64_t now = server.World().get<z13::flecs_tools::SimulationClock>().tick;
+  ASSERT_LT(now, future_tick);
+  EXPECT_TRUE(server.World().lookup(PlayerEntityName(1).c_str()))
+      << "removed before its already-scheduled command could apply";
+
+  RunNetworkUntil(*network, {server}, kTestDeltaTime, future_tick - now + 1, [] { return false; });
+  EXPECT_FALSE(server.World().lookup(PlayerEntityName(1).c_str()));
 }
 
 TEST(NetSessionTest, ConnectViaBootstrapStaysAtMenuUntilConnectedThenClearsPause) {

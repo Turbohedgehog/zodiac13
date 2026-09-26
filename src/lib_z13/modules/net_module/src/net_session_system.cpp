@@ -147,7 +147,9 @@ NetSession::Result SendRejected(NetSession& session, ConnectionId connection, st
 
 NetSession::Result BroadcastPlayerJoined(NetSession& session, flecs::world world, flecs::entity player) {
   fbn::PlayerJoinedT joined;
-  joined.apply_tick = 0;  // stage 3: applied immediately -- scheduling lands in a later branch
+  // The joiner's own catch-up replays forward to exactly this tick, so its own spawn is
+  // due the moment that replay ends -- no separate path needed for "my own join".
+  joined.apply_tick = world.get<ft::SimulationClock>().tick;
   joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
 
   Envelope envelope;
@@ -155,11 +157,19 @@ NetSession::Result BroadcastPlayerJoined(NetSession& session, flecs::world world
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
-NetSession::Result BroadcastPlayerLeft(NetSession& session, uint32_t player_id, ConnectionId except) {
-  fbn::PlayerLeftT left;
-  left.apply_tick = 0;
-  left.player_id = player_id;
+// After the last command already scheduled for this player, so it plays out everywhere
+// before the entity disappears -- not `now`, which could be earlier than that.
+uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
+  uint64_t latest = world.get<ft::SimulationClock>().tick;
+  for (const auto& record : world.get<z13::gameplay::ScheduledCommands>().records) {
+    if (record.player_id == player_id) {
+      latest = std::max(latest, record.tick);
+    }
+  }
+  return latest;
+}
 
+NetSession::Result BroadcastPlayerLeft(NetSession& session, ConnectionId except, fbn::PlayerLeftT left) {
   Envelope envelope;
   envelope.body.Set(std::move(left));
   return session.Broadcast(Channel::kReliable, envelope, except);
@@ -253,10 +263,14 @@ NetSession::Result HandleServerDisconnect(
     return {};  // never completed the handshake
   }
 
-  if (const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(*player_id).c_str())) {
-    player.destruct();
-  }
-  return BroadcastPlayerLeft(session, *player_id, connection);
+  fbn::PlayerLeftT left;
+  left.apply_tick = LeaveApplyTick(world, *player_id);
+  left.player_id = *player_id;
+  // Scheduled like every other participant's copy, not destructed immediately: this
+  // player's own already-queued commands (RemoteInput hasn't drained them yet) must
+  // still apply here too before the entity disappears.
+  world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = left.apply_tick, .delta = left});
+  return BroadcastPlayerLeft(session, connection, left);
 }
 
 NetSession::Result HandleServerReceived(
@@ -411,13 +425,24 @@ void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
   }
 }
 
-// A rollback filed earlier in this same service call would undo an immediate apply.
-void ApplyOrQueueSessionDelta(flecs::world world, SessionDelta delta) {
-  if (ft::IsCatchingUp(world)) {
-    world.get_mut<PendingSessionDeltas>().deltas.push_back(std::move(delta));
+// Runs every tick, replay included: the joiner's own spawn can be due on the very last
+// tick its own catch-up replays, and ServiceNetSession skips everything else during
+// catch-up (see below), so this can't wait for that.
+void ApplyDueSessionDeltas(flecs::world world) {
+  auto& scheduled = world.get_mut<ScheduledSessionDeltas>();
+  if (scheduled.pending.empty()) {
     return;
   }
-  ApplySessionDelta(world, delta);
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  std::vector<ScheduledSessionDelta> remaining;
+  for (auto& item : scheduled.pending) {
+    if (item.apply_tick <= now) {
+      ApplySessionDelta(world, item.delta);
+    } else {
+      remaining.push_back(std::move(item));
+    }
+  }
+  scheduled.pending = std::move(remaining);
 }
 
 // Runs once the world is back in the present; returns whether the session is still open.
@@ -425,14 +450,10 @@ bool FinishPendingJoin(flecs::world world, NetSession& session) {
   if (world.has<ft::RollbackFailed>()) {
     const std::string reason = world.get<ft::RollbackFailed>().reason;
     world.remove<ft::RollbackFailed>();
-    world.get_mut<PendingSessionDeltas>().deltas.clear();
+    world.get_mut<ScheduledSessionDeltas>().pending.clear();
     SetConnectionStatus(world, ConnectionState::kFailed, reason);
     CloseClientSession(world, session);
     return false;
-  }
-
-  for (const auto& delta : std::exchange(world.get_mut<PendingSessionDeltas>().deltas, {})) {
-    ApplySessionDelta(world, delta);
   }
 
   // LocalPlayer itself exists in every world from creation, so the id -- and the entity
@@ -475,9 +496,9 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
       });
     }
   } else if (const auto* joined = AsBody<fbn::PlayerJoinedT>(decoded->body)) {
-    ApplyOrQueueSessionDelta(world, *joined);
+    world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = joined->apply_tick, .delta = *joined});
   } else if (const auto* left = AsBody<fbn::PlayerLeftT>(decoded->body)) {
-    ApplyOrQueueSessionDelta(world, *left);
+    world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = left->apply_tick, .delta = *left});
   }
   // StateDigest isn't handled until a later stage; ignore.
 }
@@ -614,6 +635,14 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
 }
 
 void ServiceNetSession(flecs::world world) {
+  // .immediate() only gives the real (non-staged) world; add/set/remove through it are
+  // still deferred, so defer must also be suspended here for this call's own SaveState().
+  const z13::ImmediateScope immediate(world);
+
+  // Every tick, replay included -- unlike everything below, which only concerns the
+  // live transport and is skipped while catching up (see ApplyDueSessionDeltas).
+  ApplyDueSessionDeltas(world);
+
   if (!world.has<NetSession>()) {
     return;
   }
@@ -622,10 +651,6 @@ void ServiceNetSession(flecs::world world) {
   if (ft::IsCatchingUp(world)) {
     return;
   }
-
-  // .immediate() only gives the real (non-staged) world; add/set/remove through it are
-  // still deferred, so defer must also be suspended here for this call's own SaveState().
-  const z13::ImmediateScope immediate(world);
 
   NetSession& session = world.get_mut<NetSession>();
   const bool is_server = world.has<ServerRole>();
@@ -655,12 +680,12 @@ void ServiceNetSession(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<NetSession, PendingSessionDeltas, ClockSync>(world);
+  z13::flecs_tools::RegisterComponents<NetSession, ScheduledSessionDeltas, ClockSync>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
-  world.set<PendingSessionDeltas>({});
+  world.set<ScheduledSessionDeltas>({});
   world.set<ClockSync>({});
 
   world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
