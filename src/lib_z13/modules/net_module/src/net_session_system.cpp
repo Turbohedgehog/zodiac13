@@ -97,6 +97,18 @@ std::vector<z13::gameplay::PlayerActionRecord> ActionsSince(flecs::world world, 
   return actions;
 }
 
+// Every player's currently-held (action_id -> value), stamped at snapshot_tick so the
+// joiner's log rebuild (AdvanceRecordedValues) picks it up as history predating `actions`
+// above -- a hold that started before the snapshot leaves no record in the log itself.
+std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, uint64_t snapshot_tick) {
+  std::vector<z13::gameplay::PlayerActionRecord> held;
+  for (const auto& [key, value] : world.get<z13::gameplay::RemoteActionState>().current_values) {
+    const auto& [player_id, action_id] = key;
+    held.push_back({.tick = snapshot_tick, .player_id = player_id, .action_id = action_id, .value = value});
+  }
+  return held;
+}
+
 NetSession::Result SendWelcome(
     NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id) {
   fbn::WelcomeT welcome;
@@ -116,6 +128,8 @@ NetSession::Result SendWelcome(
     welcome.snapshot_tick = latest.tick;
     welcome.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, latest.tick)));
   }
+  welcome.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, welcome.snapshot_tick)));
+  welcome.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));
 
   Envelope envelope;
   envelope.body.Set(std::move(welcome));
@@ -312,9 +326,9 @@ void CloseClientSession(flecs::world world, NetSession& session) {
   world.remove<NetSession>();
 }
 
-// welcome.actions can legitimately be empty (nothing to report, or the "no cache yet"
-// fallback); msgpack can't decode zero bytes, so short-circuit that case.
-std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeActions(
+// actions/held_values/pending can legitimately be empty (nothing to report, or the "no
+// cache yet" fallback); msgpack can't decode zero bytes, so short-circuit that case.
+std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeRecords(
     const std::vector<char>& bytes) {
   if (bytes.empty()) {
     return std::vector<z13::gameplay::PlayerActionRecord> {};
@@ -328,8 +342,10 @@ std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> Decod
 
 void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
   auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(welcome.snapshot));
-  auto actions = DecodeActions(ToChars(welcome.actions));
-  if (!snapshot || !actions) {
+  auto actions = DecodeRecords(ToChars(welcome.actions));
+  auto held_values = DecodeRecords(ToChars(welcome.held_values));
+  auto pending = DecodeRecords(ToChars(welcome.pending));
+  if (!snapshot || !actions || !held_values || !pending) {
     SetConnectionStatus(world, ConnectionState::kFailed, "corrupt snapshot");
     CloseClientSession(world, session);
     return;
@@ -348,8 +364,19 @@ void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT&
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
 
-  if (!actions->empty()) {
-    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(*actions, RecordLess);
+  // held_values predates actions (both are tick-sorted; see HeldValues on the server) --
+  // merging them together keeps the log's own sort invariant with a single call.
+  std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(*held_values);
+  log_entries.insert(log_entries.end(), actions->begin(), actions->end());
+  if (!log_entries.empty()) {
+    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(std::move(log_entries), RecordLess);
+  }
+
+  if (!pending->empty()) {
+    auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+    for (const z13::gameplay::PlayerActionRecord& record : *pending) {
+      QueueInOrder(queue, record);
+    }
   }
 
   // The join is an ordinary rollback; ConnectionStatus stays kConnecting until the
