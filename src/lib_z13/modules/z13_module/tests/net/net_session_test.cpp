@@ -28,6 +28,7 @@
 
 #include <lib_core/math.h>
 #include <lib_core/simulation_clock.h>
+#include <lib_core/world_json_store.h>
 #include <lib_core/world_snapshot_history.h>
 #include <lib_core/world_state.h>
 
@@ -42,6 +43,7 @@
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
+#include "../support/world_json_test_helpers.h"
 #include "../support/z13_test_world.h"
 
 // Stage 3: handshake, id assignment, full snapshot on join, join/leave applied
@@ -515,6 +517,126 @@ TEST(NetSessionTest, LargeSnapshotArrivesWhole) {
       *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
 
   EXPECT_EQ(BlockCount(client.World()), static_cast<size_t>(kBlockCount));
+}
+
+// IdCounters.last_player_id is server-only bookkeeping (docs/client-server-plan.md,
+// "Клиент не трогает IdCounters при join"): a client never learns of some other
+// connection's join/leave bumping it beyond its own, so it can legitimately differ from
+// the server's value even once everything else matches.
+std::string WithoutLastPlayerId(std::string json) {
+  constexpr std::string_view kKey = "\"last_player_id\": ";
+  const auto key_pos = json.find(kKey);
+  if (key_pos == std::string::npos) {
+    return json;
+  }
+  const auto digits_start = key_pos + kKey.size();
+  const auto digits_end = json.find(',', digits_start);
+  json.replace(digits_start, digits_end - digits_start, "0");
+  return json;
+}
+
+std::string Checkpoint(Z13TestWorld& test_world) {
+  const auto json = z13::flecs_tools::WorldJsonStore::Save(test_world.World());
+  EXPECT_TRUE(json.has_value()) << (json ? "" : json.error());
+  return WithoutLastPlayerId(z13::testing::WithNormalizedSimulationTick(json.value_or("")));
+}
+
+// Every participant applies the same commands on the same ticks in the same order
+// (docs/client-server-plan.md, "Модель синхронизации"), so a whole scripted session --
+// movement, a look, building, destroying, a late join, and an unrelated third player
+// joining and leaving mid-session -- has to converge to bit-identical state on every
+// participant still around to check it.
+TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+
+  // Long enough for a command to clear kInputDelayTicks, NetActionSender's own batching
+  // interval and a network round trip, so each stage below has visibly landed everywhere
+  // before the next begins.
+  constexpr uint64_t kSettleTicks = 30;
+  auto tick_all = [&](std::vector<std::reference_wrapper<Z13TestWorld>> worlds, uint64_t count) {
+    RunNetworkUntil(*network, worlds, kTestDeltaTime, count, [] { return false; });
+  };
+
+  using z13::testing::KeyDown;
+  using z13::testing::KeyUp;
+  using z13::testing::MouseDown;
+  using z13::testing::MouseUp;
+  using Keycode = z13::fbs::input::Keycode;
+
+  // client_a: move forward, look, build a block, destroy it again.
+  client_a.EmitInput(KeyDown(Keycode::KEY_W));
+  tick_all({server, client_a}, 10);
+  client_a.EmitInput(KeyUp(Keycode::KEY_W));
+  tick_all({server, client_a}, kSettleTicks);
+
+  z13::input::MouseMoveEvent look;
+  look.delta = {.x = 50, .y = 0};
+  client_a.EmitInput(look);
+  tick_all({server, client_a}, kSettleTicks);
+
+  client_a.EmitInput(KeyDown(Keycode::KEY_TAB));
+  tick_all({server, client_a}, 1);
+  client_a.EmitInput(KeyUp(Keycode::KEY_TAB));
+  tick_all({server, client_a}, kSettleTicks);
+  ASSERT_TRUE(client_a.Player().has<z13::building::BuildingTool>())
+      << "TAB never toggled BuildingTool on for client_a's own local copy";
+
+  client_a.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_LEFT));
+  tick_all({server, client_a}, 1);
+  client_a.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  tick_all({server, client_a}, kSettleTicks);
+  ASSERT_EQ(BlockCount(server.World()), 1u) << "client_a's block never landed on the server";
+
+  client_a.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_RIGHT));
+  tick_all({server, client_a}, 1);
+  client_a.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_RIGHT));
+  tick_all({server, client_a}, kSettleTicks);
+  ASSERT_EQ(BlockCount(server.World()), 0u) << "client_a's own block survived its destroy";
+
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_a)) << "after move/look/build/destroy";
+
+  // client_b joins mid-session, well after client_a's own actions above.
+  Z13TestWorld client_b = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+    return IsConnected(client_b);
+  }));
+  tick_all({server, client_a, client_b}, kSettleTicks);
+
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_a)) << "right after client_b's join";
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_b)) << "right after client_b's join";
+
+  // An unrelated third player joins and leaves mid-session -- its id churn and the
+  // resulting PlayerJoined/PlayerLeft scheduling must not disturb the other two.
+  ConnectionId third_connection = kInvalidConnectionId;
+  const auto third = ConnectRawClient(*network, server, third_connection);
+  ASSERT_NE(third_connection, kInvalidConnectionId);
+  SendRaw(*third, third_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+    return static_cast<bool>(server.World().lookup(PlayerEntityName(3).c_str()));
+  }));
+  third->Disconnect(third_connection);
+  tick_all({server, client_a, client_b}, kSettleTicks);
+  ASSERT_FALSE(server.World().lookup(PlayerEntityName(3).c_str()));
+
+  // client_b builds its own block.
+  client_b.EmitInput(KeyDown(Keycode::KEY_TAB));
+  tick_all({server, client_a, client_b}, 1);
+  client_b.EmitInput(KeyUp(Keycode::KEY_TAB));
+  tick_all({server, client_a, client_b}, kSettleTicks);
+
+  client_b.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_LEFT));
+  tick_all({server, client_a, client_b}, 1);
+  client_b.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  tick_all({server, client_a, client_b}, kSettleTicks);
+  ASSERT_EQ(BlockCount(server.World()), 1u) << "client_b's block never landed on the server";
+
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_a)) << "after client_b's own build";
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_b)) << "after client_b's own build";
 }
 
 }  // namespace

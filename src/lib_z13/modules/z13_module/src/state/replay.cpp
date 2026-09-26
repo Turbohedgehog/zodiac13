@@ -117,19 +117,23 @@ void AdvanceRecordedValues(
 
 // A remote player has no other source for ActionListener, so it's always injected. The
 // local player keeps its own live value unless ClientRole (no prediction) or a replay
-// (live input is suppressed there) makes the delayed one mandatory.
+// (live input is suppressed there) makes the delayed one mandatory -- and when it does,
+// every known action is set from the log or zeroed, not just the ones current_values
+// already has an entry for. A brand-new action_id current_values hasn't seen yet would
+// otherwise leave Calculate's fresh (unscheduled) value standing for this one tick,
+// which is exactly the prediction this phase exists to prevent.
 void InjectRecordedActionValues(
     flecs::iter& it, size_t i, const z13::gameplay::Player& player,
-    z13::input::ActionListener& action_listener, const z13::gameplay::RemoteActionState& state) {
+    z13::input::ActionListener& action_listener, const z13::gameplay::RemoteActionState& state,
+    const z13::input::ActionMap& action_map) {
   if (!IsLogDriven(it.world(), it.entity(i))) {
     return;
   }
 
-  for (const auto& [key, value] : state.current_values) {
-    const auto& [player_id, action_id] = key;
-    if (player_id == player.id) {
-      action_listener.action_values[action_id].current_value = value;
-    }
+  for (const auto& action_info : action_map.action_map.get<z13::input::ActionMap::IdTag>()) {
+    const auto found = state.current_values.find({player.id, action_info.id});
+    action_listener.action_values[action_info.id].current_value =
+        found != state.current_values.end() ? found->second : 0.f;
   }
 }
 
@@ -149,7 +153,8 @@ void RegisterSystems(flecs::world world) {
       .each(AdvanceRecordedValues);
 
   world.system<
-      const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::RemoteActionState>(
+      const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::RemoteActionState,
+      const z13::input::ActionMap>(
       "Replay::InjectRecordedActionValues")
       .kind<z13::input::RemoteActionFramePhase>()
       .each(InjectRecordedActionValues);

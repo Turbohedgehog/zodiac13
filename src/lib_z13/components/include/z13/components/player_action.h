@@ -46,6 +46,15 @@ struct OutgoingCommands {
   std::vector<PlayerActionRecord> records;
 };
 
+// RecordChangedActions's own notion of "what did I last report for this action", kept
+// independent of ActionListener's current/prev pair: on a client, RemoteActionFramePhase
+// overwrites that pair with the delayed, log-driven value every tick (see RemoteActionState),
+// which would otherwise read back as a fresh edge on the next tick and re-record forever.
+struct LastRecordedActionValues {
+  using Singleton = void;
+  boost::container::flat_map<z13::input::ActionInfo::IdType, float> values;
+};
+
 // Commands the server has put in order, waiting for the tick they apply on. Kept sorted
 // by (tick, player_id, action_id): every participant can derive that key on its own, so
 // nobody has to exchange sequence numbers to agree on the order.
