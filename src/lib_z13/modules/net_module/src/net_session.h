@@ -78,11 +78,17 @@ class NetSession {
 
 using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT>;
 
-// Deltas that arrived while the world was catching up; applying one mid-replay would be
-// undone by the restore it races. Stage 4 schedules them by apply_tick instead.
-struct PendingSessionDeltas {
+struct ScheduledSessionDelta {
+  uint64_t apply_tick {};
+  SessionDelta delta;
+};
+
+// Session events scheduled by apply_tick, same as commands: a client's own join can
+// need to land exactly on the last tick its catch-up replays, and an already-connected
+// client's view of someone else's join/leave must apply at the same tick everywhere.
+struct ScheduledSessionDeltas {
   using Singleton = void;
-  std::vector<SessionDelta> deltas;
+  std::vector<ScheduledSessionDelta> pending;
 };
 
 }  // namespace z13::net

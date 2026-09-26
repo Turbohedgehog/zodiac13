@@ -28,6 +28,7 @@ namespace z13::net {
 // Delay is sampled uniformly from [min_delay_ticks, max_delay_ticks] per packet, which
 // gives reordering/jitter without a separate flag.
 struct FaultConfig {
+  // Unreliable traffic only -- see QueuePacket in in_memory_transport.cpp.
   double drop_probability {};
   uint32_t min_delay_ticks {};
   uint32_t max_delay_ticks {};

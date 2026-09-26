@@ -102,7 +102,10 @@ class InMemoryNetworkState {
   void QueuePacket(
       TransportId destination, ConnectionId destination_connection, Channel channel,
       std::vector<std::byte> data) {
-    if (RollDrop()) {
+    // Reliable traffic is never dropped, matching ENet: a lost packet there is
+    // retransmitted, so it arrives late rather than not at all. Only the unreliable
+    // channel (Ping/Pong) can actually go missing.
+    if (channel == Channel::kUnreliable && RollDrop()) {
       return;
     }
     pending_packets_.push_back({

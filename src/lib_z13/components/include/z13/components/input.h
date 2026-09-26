@@ -39,6 +39,16 @@ struct ClearActionFramePhase {};
 struct CalculateActionFramePhase {};
 struct ApplyActionFramePhase {};
 
+// PreFrame -> ScheduledCommandsPhase -> ClearActionFramePhase: net_module commits due
+// ScheduledCommands into PlayerActionLog before anything reads the log this tick.
+struct ScheduledCommandsPhase {};
+
+// Calculate -> RecordActionFramePhase -> RemoteActionFramePhase -> Apply: Record captures
+// this tick's fresh local value before Remote can overwrite ActionListener with a
+// delayed/log-driven one.
+struct RecordActionFramePhase {};
+struct RemoteActionFramePhase {};
+
 namespace bmi = boost::multi_index;
 
 struct SystemInputEventType {};

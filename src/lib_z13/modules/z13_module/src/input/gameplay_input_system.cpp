@@ -395,11 +395,14 @@ void CalculateInputValues(
 }
 
 void RegisterPhases(flecs::world world) {
-  world.component<z13::input::ClearActionFramePhase>().add(flecs::Phase).depends_on(flecs::PreFrame);
+  world.component<z13::input::ScheduledCommandsPhase>().add(flecs::Phase).depends_on(flecs::PreFrame);
+  world.component<z13::input::ClearActionFramePhase>().add(flecs::Phase).depends_on<z13::input::ScheduledCommandsPhase>();
   world.get_alive(flecs::OnLoad).add(flecs::Phase).depends_on<z13::input::ClearActionFramePhase>();
 
   world.component<z13::input::CalculateActionFramePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
-  world.component<z13::input::ApplyActionFramePhase>().add(flecs::Phase).depends_on<z13::input::CalculateActionFramePhase>();
+  world.component<z13::input::RecordActionFramePhase>().add(flecs::Phase).depends_on<z13::input::CalculateActionFramePhase>();
+  world.component<z13::input::RemoteActionFramePhase>().add(flecs::Phase).depends_on<z13::input::RecordActionFramePhase>();
+  world.component<z13::input::ApplyActionFramePhase>().add(flecs::Phase).depends_on<z13::input::RemoteActionFramePhase>();
   world.get_alive(flecs::PostUpdate).add(flecs::Phase).depends_on<z13::input::ApplyActionFramePhase>();
 }
 

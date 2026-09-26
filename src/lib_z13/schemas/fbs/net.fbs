@@ -23,7 +23,6 @@ namespace z13.fbs.net;
 
 // 4 bytes. `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
 // SequencedCommands); `value` is quantized (see protocol.h's QuantizeActionValue).
-// Reused as-is for `held_values` (tick_delta unused there, see Welcome/Resync).
 struct CommandWire {
   tick_delta: ubyte;
   action_id: ubyte;
@@ -70,8 +69,10 @@ table Welcome {
   snapshot: [ubyte];  // WorldSnapshot (state only) via SaveState (msgpack)
   snapshot_tick: ulong;
   actions: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, (snapshot_tick, server_tick]
-  held_values: [CommandWire];
-  pending: [CommandWire];
+  // CommandWire has no player_id (see actions above) -- both need every player's, so
+  // both are [PlayerActionRecord] via rfl::msgpack, same as actions.
+  held_values: [ubyte];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
+  pending: [ubyte];  // already-scheduled commands with apply_tick > server_tick
 }
 
 table Rejected {
@@ -81,8 +82,8 @@ table Rejected {
 table Resync {
   server_tick: ulong;
   snapshot: [ubyte];
-  held_values: [CommandWire];
-  pending: [CommandWire];
+  held_values: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, same as Welcome
+  pending: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, same as Welcome
 }
 
 table PlayerJoined {

@@ -26,6 +26,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <lib_core/components.h>
 #include <lib_core/math.h>
@@ -41,9 +42,14 @@ namespace {
 struct UpdateBuildingToolPhase {};
 
 void RegisterPipeline(flecs::world world) {
-  world.component<UpdateBuildingToolPhase>().add(flecs::Phase).depends_on<z13::gameplay::UpdatePhase>();
+  // BuildingTool is toggled in ApplyActionFramePhase; SyncBrush below must see that
+  // same frame, so this replaces (not adds to) UpdateBuildingToolPhase's dependency.
+  world.component<UpdateBuildingToolPhase>().add(flecs::Phase).depends_on<z13::input::ApplyActionFramePhase>();
   world.component<z13::gameplay::PostUpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
-  // world.component<z13::gameplay::UpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
+  // A "late system" (flecs::OnStore, e.g. render) must see this frame's brush/block
+  // removals too -- explicit, since OnStore's own default position isn't guaranteed to
+  // trail a custom phase this far downstream of ApplyActionFramePhase.
+  world.get_alive(flecs::OnStore).add(flecs::Phase).depends_on<z13::gameplay::PostUpdatePhase>();
 }
 
 void UpdateBrush(
