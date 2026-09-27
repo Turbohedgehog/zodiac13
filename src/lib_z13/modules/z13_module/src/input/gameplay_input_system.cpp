@@ -26,6 +26,7 @@
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/rollback.h>
 #include <lib_core/world_state.h>
 
@@ -529,44 +530,26 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void GameplayInputSystem::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>()
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      flecs::world w = world;
-      z13::flecs_tools::RegisterComponents<
-          InputListenerQueryComponent, z13::input::InputState, MoveActionIds>(w);
-      w.component<z13::gameplay::LookAngles>();
-    });
+  OnRegisterComponents(world, [](flecs::world& w) {
+    z13::flecs_tools::RegisterComponents<InputListenerQueryComponent, z13::input::InputState, MoveActionIds>(w);
+    w.component<z13::gameplay::LookAngles>();
+  });
 
-  world.observer<InitSystemsEvent>()
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      RegisterSystems(world);
-    });
+  OnInitSystems(world, RegisterSystems);
 
-  world.observer<InitPhasesEvent>()
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      RegisterPhases(world);
-    });
+  OnInitPhases(world, RegisterPhases);
 
-  world.observer<InitWorldDataEvent>()
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      world.add<z13::input::InputState>();
-      world.add<z13::gameplay::input::MoveActionIds>();
+  OnInitWorldData(world, [](flecs::world& w) {
+    w.add<z13::input::InputState>();
+    w.add<z13::gameplay::input::MoveActionIds>();
 
-      InputListenerQueryComponent input_listener_query_component = {
-          .listener_query = world
-              .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
-              .build(),
-      };
-      world.set(input_listener_query_component);
-    });
+    InputListenerQueryComponent input_listener_query_component = {
+        .listener_query = w
+            .query_builder<z13::input::CurrentActionListenerTag, z13::input::ActionListener>("InputListenerQuery")
+            .build(),
+    };
+    w.set(input_listener_query_component);
+  });
 
   log_info("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
 }

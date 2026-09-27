@@ -27,6 +27,7 @@
 #include <lib_core/components.h>
 #include <lib_core/rollback.h>
 #include <lib_core/module_factory_base.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
 
@@ -96,15 +97,13 @@ WorldRef Core::CreateWorld() {
   // (above) already initialized this process's os_api; hand that same value to
   // each module before it makes its own first flecs call.
   const ecs_os_api_t os_api = ecs_os_get_api();
+  InitLifecycle(world);
   for (auto& module_factory_ptr : module_factories_) {
     module_factory_ptr->SyncFlecsOsApi(os_api);
     module_factory_ptr->RegisterModules(world);
   }
 
-  world.add<RegisterComponentsEvent>();
-  world.add<InitPhasesEvent>();
-  world.add<InitSystemsEvent>();
-  world.add<InitWorldDataEvent>();
+  RunLifecycle(world);
 
   return WorldRef(world);
 }

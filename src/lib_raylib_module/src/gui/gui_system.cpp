@@ -27,6 +27,8 @@
 #include <rlgl.h>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 
 #include <z13/components/gameplay.h>
@@ -173,20 +175,11 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void GuiSystem::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitSystemsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 
-  world.observer<InitWorldDataEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { CreateDefaults(world); });
+  OnInitWorldData(world, CreateDefaults);
 }
 
 void GuiSystem::ShutdownImGui(flecs::world world) {

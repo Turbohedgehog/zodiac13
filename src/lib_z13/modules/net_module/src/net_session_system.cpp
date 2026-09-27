@@ -34,6 +34,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
@@ -879,15 +880,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void NetSessionSystem::Register(flecs::world& world) {
-  world.observer<z13::RegisterComponentsEvent>("NetSessionSystem::RegisterComponents")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  z13::OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<z13::InitSystemsEvent>("NetSessionSystem::RegisterSystems")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  z13::OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::net

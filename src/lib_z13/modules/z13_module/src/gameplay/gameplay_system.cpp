@@ -20,6 +20,8 @@
 
 #include <lib_core/log.h>
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
@@ -115,19 +117,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void GameplaySystem::Register(flecs::world& world) {
-  world.observer<InitPhasesEvent>("GameplaySystem::RegisterPipeline")
-    .event(flecs::OnSet)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      RegisterPipeline(world);
-    });
+  OnInitPhases(world, RegisterPipeline);
 
-  world.observer<InitSystemsEvent>("GameplaySystem::RegisterSystems")
-    .event(flecs::OnSet)
-    .yield_existing()
-    .each([world = world](const auto&) {
-      RegisterSystems(world);
-    });
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::gameplay

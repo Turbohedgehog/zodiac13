@@ -24,6 +24,8 @@
 #include <building_generated.h>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
 
@@ -174,15 +176,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void BuildingInputSystem::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>("BuildingInputSystem::RegisterComponents")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitSystemsEvent>("BuildingInputSystem::RegisterSystems")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::building
