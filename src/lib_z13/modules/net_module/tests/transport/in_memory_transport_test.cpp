@@ -132,7 +132,7 @@ TEST(InMemoryTransportTest, FaultConfigDelaysDeliveryByExactlyTheConfiguredTicks
   EXPECT_FALSE(client->Service().empty());
 }
 
-TEST(InMemoryTransportTest, FaultConfigCanDropPacketsDeterministically) {
+TEST(InMemoryTransportTest, FaultConfigDropsUnreliablePacketsAndKeepsReliableOnes) {
   InMemoryNetwork network(/*seed=*/7);
   network.SetFaultConfig({.drop_probability = 1.0});
   auto server = MustCreateServer(network, kPort);
@@ -141,10 +141,13 @@ TEST(InMemoryTransportTest, FaultConfigCanDropPacketsDeterministically) {
   const ConnectionId client_side_server = client->Service().at(0).connection;
   server->Service();
 
-  client->Send(client_side_server, Channel::kReliable, ToBytes("lost"));
+  client->Send(client_side_server, Channel::kUnreliable, ToBytes("lost"));
   network.Tick();
-
   EXPECT_TRUE(server->Service().empty());
+
+  client->Send(client_side_server, Channel::kReliable, ToBytes("kept"));
+  network.Tick();
+  EXPECT_EQ(server->Service().size(), 1u);
 }
 
 TEST(InMemoryTransportTest, DestroyingATransportLeavesPendingDeliveriesHarmless) {

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include <boost/container/flat_map.hpp>
 
@@ -37,6 +38,23 @@ struct PlayerActionRecord {
   float value {};
 };
 
+struct OutgoingCommands {
+  using Singleton = void;
+  std::vector<PlayerActionRecord> records;
+};
+
+// Not ActionListener's prev_value: RemoteActionFramePhase overwrites it every tick.
+struct LastRecordedActionValues {
+  using Singleton = void;
+  boost::container::flat_map<z13::input::ActionInfo::IdType, float> values;
+};
+
+// Sorted by (tick, player_id, action_id), a key every participant derives itself.
+struct ScheduledCommands {
+  using Singleton = void;
+  std::vector<PlayerActionRecord> records;
+};
+
 // A rolling log of PlayerActionRecord; runtime only, never itself part of the state it
 // logs.
 struct PlayerActionLog {
@@ -47,14 +65,11 @@ struct PlayerActionLog {
   uint64_t retained_since_tick {};
 };
 
-// The per-(player, action) value replay is injecting, carried across ticks with no log
-// record; the gate itself is lib_core's ReplayInProgress.
-struct ReplayActionState {
+struct RemoteActionState {
   using Singleton = void;
   boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> current_values;
-  // Which replay and tick current_values matches; anything else means rebuild it.
-  std::optional<uint64_t> synced_replay_from_tick;
-  uint64_t synced_tick {};
+  // Nullopt until the first run; anything but synced_tick + 1 means rebuild from the log.
+  std::optional<uint64_t> synced_tick;
 };
 
 }  // namespace z13::gameplay
