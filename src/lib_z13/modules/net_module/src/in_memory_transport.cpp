@@ -102,7 +102,8 @@ class InMemoryNetworkState {
   void QueuePacket(
       TransportId destination, ConnectionId destination_connection, Channel channel,
       std::vector<std::byte> data) {
-    if (RollDrop()) {
+    // Only unreliable traffic drops: ENet retransmits reliable packets.
+    if (channel == Channel::kUnreliable && RollDrop()) {
       return;
     }
     pending_packets_.push_back({

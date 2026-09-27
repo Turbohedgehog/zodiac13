@@ -78,11 +78,16 @@ class NetSession {
 
 using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT>;
 
-// Deltas that arrived while the world was catching up; applying one mid-replay would be
-// undone by the restore it races. Stage 4 schedules them by apply_tick instead.
-struct PendingSessionDeltas {
+struct ScheduledSessionDelta {
+  uint64_t apply_tick {};
+  SessionDelta delta;
+};
+
+// `history` lets a rollback replay applied deltas and a joiner catch up on them.
+struct ScheduledSessionDeltas {
   using Singleton = void;
-  std::vector<SessionDelta> deltas;
+  std::vector<ScheduledSessionDelta> pending;
+  std::vector<ScheduledSessionDelta> history;
 };
 
 }  // namespace z13::net

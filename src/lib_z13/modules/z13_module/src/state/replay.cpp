@@ -31,6 +31,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/net.h>
 #include <z13/components/player_action.h>
 
 namespace z13::state {
@@ -41,21 +42,32 @@ namespace ft = z13::flecs_tools;
 
 using ActionValues = boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float>;
 
+bool IsLogDriven(flecs::world world, flecs::entity player) {
+  return !player.has<z13::input::CurrentActionListenerTag>() || world.has<z13::net::ClientRole>() ||
+      world.has<ft::ReplayInProgress>();
+}
+
 // ActionListener isn't state, so the restore leaves whatever live play last wrote.
 void ResetActionValues(flecs::world& world) {
   world.query_builder<z13::input::ActionListener>().build().each(
-      [](z13::input::ActionListener& action_listener) {
+      [world](flecs::entity e, z13::input::ActionListener& action_listener) {
+        if (!IsLogDriven(world, e)) {
+          return;
+        }
         for (auto& [action_id, holder] : action_listener.action_values) {
           holder = z13::input::ActionValueHolder{};
         }
       });
 }
 
-// Both halves of the holder, so an action held across the rollback reads as steady
-// rather than a fresh edge wherever ClearActionFramePhase sits in the frame.
+// Sets prev_value too: the first replayed frame can miss ClearActionFramePhase.
 void SeedActionValues(flecs::world& world, const ActionValues& values) {
   world.query_builder<const z13::gameplay::Player, z13::input::ActionListener>().build().each(
-      [&values](const z13::gameplay::Player& player, z13::input::ActionListener& action_listener) {
+      [&values, world](
+          flecs::entity e, const z13::gameplay::Player& player, z13::input::ActionListener& action_listener) {
+        if (!IsLogDriven(world, e)) {
+          return;
+        }
         for (const auto& [key, value] : values) {
           const auto& [player_id, action_id] = key;
           if (player_id == player.id) {
@@ -74,17 +86,13 @@ auto FirstRecordAtTick(const std::deque<z13::gameplay::PlayerActionRecord>& reco
       [](const z13::gameplay::PlayerActionRecord& record, uint64_t value) { return record.tick < value; });
 }
 
-// A clock that isn't one past the last synced tick, or a different replay, means a
-// rollback just moved it -- rebuild the held values from the log.
 void AdvanceRecordedValues(
-    flecs::iter& it, size_t, const ft::SimulationClock& clock, const ft::ReplayInProgress& replay,
-    const z13::gameplay::PlayerActionLog& log, z13::gameplay::ReplayActionState& state) {
+    flecs::iter& it, size_t, const ft::SimulationClock& clock, const z13::gameplay::PlayerActionLog& log,
+    z13::gameplay::RemoteActionState& state) {
   const auto& records = log.log.Entries();
   const auto tick_begin = FirstRecordAtTick(records, clock.tick);
 
-  const bool restarted = !state.synced_replay_from_tick ||
-                         *state.synced_replay_from_tick != replay.from_tick ||
-                         state.synced_tick + 1 != clock.tick;
+  const bool restarted = !state.synced_tick || *state.synced_tick + 1 != clock.tick;
   if (restarted) {
     state.current_values.clear();
     for (auto record = records.begin(); record != tick_begin; ++record) {
@@ -98,42 +106,45 @@ void AdvanceRecordedValues(
   for (auto record = tick_begin; record != records.end() && record->tick == clock.tick; ++record) {
     state.current_values[{record->player_id, record->action_id}] = record->value;
   }
-  state.synced_replay_from_tick = replay.from_tick;
   state.synced_tick = clock.tick;
 }
 
+// Unknown actions are zeroed too, or a fresh local value would leak through as prediction.
 void InjectRecordedActionValues(
-    const z13::gameplay::Player& player, z13::input::ActionListener& action_listener,
-    const z13::gameplay::ReplayActionState& state) {
-  for (const auto& [key, value] : state.current_values) {
-    const auto& [player_id, action_id] = key;
-    if (player_id == player.id) {
-      action_listener.action_values[action_id].current_value = value;
-    }
+    flecs::iter& it, size_t i, const z13::gameplay::Player& player,
+    z13::input::ActionListener& action_listener, const z13::gameplay::RemoteActionState& state,
+    const z13::input::ActionMap& action_map) {
+  if (!IsLogDriven(it.world(), it.entity(i))) {
+    return;
+  }
+
+  for (const auto& action_info : action_map.action_map.get<z13::input::ActionMap::IdTag>()) {
+    const auto found = state.current_values.find({player.id, action_info.id});
+    action_listener.action_values[action_info.id].current_value =
+        found != state.current_values.end() ? found->second : 0.f;
   }
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<z13::gameplay::ReplayActionState>(world);
+  z13::flecs_tools::RegisterComponent<z13::gameplay::RemoteActionState>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
-  world.set<z13::gameplay::ReplayActionState>({});
+  world.set<z13::gameplay::RemoteActionState>({});
 
-  // PreFrame: this frame's tick is already known and nothing has read action values yet.
   world.system<
-      const ft::SimulationClock, const ft::ReplayInProgress, const z13::gameplay::PlayerActionLog,
-      z13::gameplay::ReplayActionState>("Replay::AdvanceRecordedValues")
-      .kind(flecs::PreFrame)
+      const ft::SimulationClock, const z13::gameplay::PlayerActionLog, z13::gameplay::RemoteActionState>(
+      "Replay::AdvanceRecordedValues")
+      .kind<z13::input::RemoteActionFramePhase>()
       .write<z13::input::ActionListener>()
       .each(AdvanceRecordedValues);
 
   world.system<
-      const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::ReplayActionState>(
+      const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::RemoteActionState,
+      const z13::input::ActionMap>(
       "Replay::InjectRecordedActionValues")
-      .kind<z13::input::CalculateActionFramePhase>()
-      .with<ft::ReplayInProgress>()
+      .kind<z13::input::RemoteActionFramePhase>()
       .each(InjectRecordedActionValues);
 }
 

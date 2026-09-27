@@ -16,14 +16,20 @@
 
 #include "net_session_system.h"
 
+#include <algorithm>
+#include <cmath>
+#include <iterator>
 #include <memory>
+#include <optional>
+#include <ranges>
 #include <span>
 #include <string>
-#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include <boost/container/flat_map.hpp>
 #include <flecs.h>
 
 #include <lib_core/components.h>
@@ -36,10 +42,12 @@
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
 
 // reflect-cpp headers warn under /W4-as-errors; same suppression as world_serializer.cpp.
@@ -52,6 +60,7 @@
 #endif
 
 #include "net_session.h"
+#include "scheduled_commands.h"
 #include "transport_factories.h"
 
 namespace z13::net {
@@ -75,17 +84,58 @@ std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
   return {reinterpret_cast<const uint8_t*>(data.data()), data.size()};
 }
 
+// Never moved: the sender has already queued its own copy on this tick.
+bool IsWithinScheduleWindow(uint64_t apply_tick, uint64_t now) {
+  return apply_tick + kMaxLateTicks >= now && apply_tick <= now + kMaxScheduleAheadTicks;
+}
+
+bool CanReplayFrom(flecs::world world, uint64_t tick) {
+  const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
+  return std::ranges::any_of(entries, [tick](const ft::TimestampedSnapshot& entry) { return entry.tick < tick; });
+}
+
 // ---------- Server ----------
 
-// Every PlayerActionLog record after `since_tick`, oldest first (Entries() already is).
+// PlayerActionLog is sorted by tick.
 std::vector<z13::gameplay::PlayerActionRecord> ActionsSince(flecs::world world, uint64_t since_tick) {
-  std::vector<z13::gameplay::PlayerActionRecord> actions;
-  for (const auto& record : world.get<z13::gameplay::PlayerActionLog>().log.Entries()) {
-    if (record.tick > since_tick) {
-      actions.push_back(record);
-    }
-  }
-  return actions;
+  const auto& entries = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
+  const auto first = std::ranges::upper_bound(entries, since_tick, {}, &z13::gameplay::PlayerActionRecord::tick);
+  return {first, entries.end()};
+}
+
+// As of snapshot_tick, not now: the joiner replays `actions` from there.
+std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, uint64_t snapshot_tick) {
+  const auto& entries = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
+  const auto up_to_snapshot = std::ranges::subrange(
+      entries.begin(), std::ranges::upper_bound(entries, snapshot_tick, {}, &z13::gameplay::PlayerActionRecord::tick));
+  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> values;
+  std::ranges::for_each(up_to_snapshot, [&values](const z13::gameplay::PlayerActionRecord& record) {
+    values[{record.player_id, record.action_id}] = record.value;
+  });
+
+  std::vector<z13::gameplay::PlayerActionRecord> held;
+  std::ranges::copy(
+      values | std::views::filter([](const auto& entry) { return entry.second != 0.f; }) |
+          std::views::transform([snapshot_tick](const auto& entry) {
+            const auto& [key, value] = entry;
+            return z13::gameplay::PlayerActionRecord {
+                .tick = snapshot_tick, .player_id = key.first, .action_id = key.second, .value = value};
+          }),
+      std::back_inserter(held));
+  return held;
+}
+
+// Stops at the first failed send.
+NetSession::Result SendSessionDeltas(
+    NetSession& session, ConnectionId connection, std::span<const ScheduledSessionDelta> deltas) {
+  NetSession::Result sent;
+  const bool all_sent = std::ranges::all_of(deltas, [&](const ScheduledSessionDelta& item) {
+    Envelope envelope;
+    std::visit([&envelope](auto body) { envelope.body.Set(std::move(body)); }, item.delta);
+    sent = session.Send(connection, Channel::kReliable, envelope);
+    return sent.has_value();
+  });
+  return all_sent ? NetSession::Result {} : sent;
 }
 
 NetSession::Result SendWelcome(
@@ -107,10 +157,23 @@ NetSession::Result SendWelcome(
     welcome.snapshot_tick = latest.tick;
     welcome.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, latest.tick)));
   }
+  welcome.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, welcome.snapshot_tick)));
+  welcome.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));
+  const uint64_t snapshot_tick = welcome.snapshot_tick;
 
   Envelope envelope;
   envelope.body.Set(std::move(welcome));
-  return session.Send(connection, Channel::kReliable, envelope);
+  if (const auto sent = session.Send(connection, Channel::kReliable, envelope); !sent) {
+    return sent;
+  }
+
+  // The joiner ignores session deltas received before Welcome.
+  const auto& deltas = world.get<ScheduledSessionDeltas>();
+  const auto newer = std::ranges::upper_bound(deltas.history, snapshot_tick, {}, &ScheduledSessionDelta::apply_tick);
+  if (const auto sent = SendSessionDeltas(session, connection, {newer, deltas.history.end()}); !sent) {
+    return sent;
+  }
+  return SendSessionDeltas(session, connection, deltas.pending);
 }
 
 NetSession::Result SendRejected(NetSession& session, ConnectionId connection, std::string reason) {
@@ -122,25 +185,42 @@ NetSession::Result SendRejected(NetSession& session, ConnectionId connection, st
   return session.Send(connection, Channel::kReliable, envelope);
 }
 
-NetSession::Result BroadcastPlayerJoined(NetSession& session, flecs::world world, flecs::entity player) {
-  fbn::PlayerJoinedT joined;
-  joined.apply_tick = 0;  // stage 3: applied immediately -- scheduling lands in a later branch
-  joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
+NetSession::Result ScheduleSessionDelta(
+    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta) {
+  world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = apply_tick, .delta = delta});
 
   Envelope envelope;
-  envelope.body.Set(std::move(joined));
+  std::visit([&envelope](auto& body) { envelope.body.Set(std::move(body)); }, delta);
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
-NetSession::Result BroadcastPlayerLeft(NetSession& session, uint32_t player_id, ConnectionId except) {
-  fbn::PlayerLeftT left;
-  left.apply_tick = 0;
-  left.player_id = player_id;
+// Spawned only to serialize it: like everywhere else, it exists from apply_tick on.
+NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id) {
+  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
+  fbn::PlayerJoinedT joined;
+  joined.apply_tick = world.get<ft::SimulationClock>().tick + kSessionEventDelayTicks;
+  joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
+  player.destruct();
 
-  Envelope envelope;
-  envelope.body.Set(std::move(left));
-  return session.Broadcast(Channel::kReliable, envelope, except);
+  const uint64_t apply_tick = joined.apply_tick;
+  return ScheduleSessionDelta(session, world, apply_tick, std::move(joined));
 }
+
+// Deltas apply before same-tick commands, so the leave waits past the last one.
+uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
+  auto after_own_commands = world.get<z13::gameplay::ScheduledCommands>().records |
+      std::views::filter([player_id](const auto& record) { return record.player_id == player_id; }) |
+      std::views::transform([](const auto& record) { return record.tick + 1; });
+  return std::ranges::fold_left(
+      after_own_commands, world.get<ft::SimulationClock>().tick + kSessionEventDelayTicks,
+      [](uint64_t a, uint64_t b) { return std::max(a, b); });
+}
+
+// Not state: a rollback restores IdCounters and would hand an id out twice.
+struct PlayerIdAllocator {
+  using Singleton = void;
+  uint32_t next_player_id {};
+};
 
 NetSession::Result HandleClientHello(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
@@ -156,19 +236,111 @@ NetSession::Result HandleClientHello(
 
   // Post-increment (matches OnInit): last_player_id already holds the next id to hand
   // out, not the last one used.
-  const uint32_t player_id = counters.last_player_id++;
-  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
+  auto& allocator = world.get_mut<PlayerIdAllocator>();
+  const uint32_t player_id = std::max(counters.last_player_id, allocator.next_player_id);
+  counters.last_player_id = player_id + 1;
+  allocator.next_player_id = player_id + 1;
 
   if (const auto bound = session.BindPlayer(connection, player_id); !bound) {
     return bound;
   }
-  // Welcome first, then the spawn to everyone including the joiner: its snapshot is the
-  // cached one from before this spawn, so the joiner learns of its own player exactly the
-  // way the others do -- as a delta applied once its catch-up is done.
   if (const auto welcomed = SendWelcome(session, world, connection, player_id); !welcomed) {
     return welcomed;
   }
-  return BroadcastPlayerJoined(session, world, player);
+  return SchedulePlayerJoined(session, world, player_id);
+}
+
+NetSession::Result HandlePing(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::PingT& ping) {
+  fbn::PongT pong;
+  pong.client_tick = ping.client_tick;
+  pong.server_tick = world.get<ft::SimulationClock>().tick;
+
+  Envelope envelope;
+  envelope.body.Set(std::move(pong));
+  return session.Send(connection, Channel::kUnreliable, envelope);
+}
+
+bool IsKnownActionId(const z13::input::ActionMap& action_map, uint8_t action_id) {
+  const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  return by_id.find(static_cast<z13::input::ActionInfo::IdType>(action_id)) != by_id.end();
+}
+
+struct ConnectionRateLimit {
+  uint64_t window_start_tick {};
+  uint32_t commands_this_window {};
+};
+
+struct CommandRateLimits {
+  using Singleton = void;
+  std::unordered_map<ConnectionId, ConnectionRateLimit> by_connection;
+};
+
+bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now) {
+  ConnectionRateLimit& state = limits.by_connection[connection];
+  if (now - state.window_start_tick >= kCommandRateLimitWindowTicks) {
+    state.window_start_tick = now;
+    state.commands_this_window = 0;
+  }
+  if (state.commands_this_window >= kMaxCommandsPerRateLimitWindow) {
+    return false;
+  }
+  ++state.commands_this_window;
+  return true;
+}
+
+NetSession::Result HandleCommandBatch(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::CommandBatchT& batch) {
+  const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
+  if (!player_id) {
+    log_warn("NetSession(server): dropping a CommandBatch from an unwelcomed connection {}", connection);
+    return {};
+  }
+
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  const auto& action_map = world.get<z13::input::ActionMap>();
+  auto& rate_limits = world.get_mut<CommandRateLimits>();
+
+  std::vector<fbs::net::CommandWire> accepted;
+  for (const fbs::net::CommandWire& command : batch.commands) {
+    if (!IsKnownActionId(action_map, command.action_id())) {
+      log_warn(
+          "NetSession(server): dropping an unknown action id {} from connection {}", command.action_id(),
+          connection);
+      continue;
+    }
+    const uint64_t apply_tick = batch.base_tick + command.tick_delta();
+    if (!IsWithinScheduleWindow(apply_tick, now) || (apply_tick < now && !CanReplayFrom(world, apply_tick))) {
+      log_warn("NetSession(server): dropping a command for tick {} from connection {} at tick {}", apply_tick,
+          connection, now);
+      continue;
+    }
+    if (!AllowCommand(rate_limits, connection, now)) {
+      log_warn("NetSession(server): connection {} exceeded its command rate limit, dropping the rest of this batch",
+          connection);
+      break;
+    }
+    QueueInOrder(queue, {
+        .tick = apply_tick,
+        .player_id = *player_id,
+        .action_id = command.action_id(),
+        .value = DequantizeActionValue(command.value()),
+    });
+    accepted.push_back(command);
+  }
+  if (accepted.empty()) {
+    return {};
+  }
+
+  fbn::SequencedCommandsT sequenced;
+  sequenced.player_id = *player_id;
+  sequenced.base_tick = batch.base_tick;
+  sequenced.commands = std::move(accepted);
+
+  Envelope envelope;
+  envelope.body.Set(std::move(sequenced));
+  return session.Broadcast(Channel::kReliable, envelope, connection);
 }
 
 NetSession::Result HandleServerDisconnect(
@@ -177,14 +349,16 @@ NetSession::Result HandleServerDisconnect(
   if (const auto removed = session.RemoveConnection(connection); !removed) {
     return removed;
   }
+  world.get_mut<CommandRateLimits>().by_connection.erase(connection);
   if (!player_id) {
     return {};  // never completed the handshake
   }
 
-  if (const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(*player_id).c_str())) {
-    player.destruct();
-  }
-  return BroadcastPlayerLeft(session, *player_id, connection);
+  fbn::PlayerLeftT left;
+  left.apply_tick = LeaveApplyTick(world, *player_id);
+  left.player_id = *player_id;
+  const uint64_t apply_tick = left.apply_tick;
+  return ScheduleSessionDelta(session, world, apply_tick, std::move(left));
 }
 
 NetSession::Result HandleServerReceived(
@@ -201,11 +375,13 @@ NetSession::Result HandleServerReceived(
     return HandleServerDisconnect(session, world, event.connection);
   }
 
-  if (const auto* hello = AsBody<fbn::ClientHelloT>(decoded->body)) {
-    return HandleClientHello(session, world, event.connection, *hello, counters);
-  }
-  // CommandBatch/ResyncRequest/Ping aren't handled until later stages; ignore.
-  return {};
+  const ConnectionId connection = event.connection;
+  return VisitBody(decoded->body, Overloaded {
+      [&](const fbn::ClientHelloT& hello) { return HandleClientHello(session, world, connection, hello, counters); },
+      [&](const fbn::PingT& ping) { return HandlePing(session, world, connection, ping); },
+      [&](const fbn::CommandBatchT& batch) { return HandleCommandBatch(session, world, connection, batch); },
+      [](const auto&) { return NetSession::Result {}; },
+  });
 }
 
 NetSession::Result ServiceServerSession(
@@ -248,13 +424,8 @@ void CloseClientSession(flecs::world world, NetSession& session) {
   world.remove<NetSession>();
 }
 
-bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
-  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
-}
-
-// welcome.actions can legitimately be empty (nothing to report, or the "no cache yet"
-// fallback); msgpack can't decode zero bytes, so short-circuit that case.
-std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeActions(
+// msgpack can't decode zero bytes, and an empty list is legitimate.
+std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeRecords(
     const std::vector<char>& bytes) {
   if (bytes.empty()) {
     return std::vector<z13::gameplay::PlayerActionRecord> {};
@@ -266,10 +437,32 @@ std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> Decod
   return *result;
 }
 
-void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
+struct WelcomePayload {
+  ft::WorldSnapshot snapshot;
+  std::vector<z13::gameplay::PlayerActionRecord> actions;
+  std::vector<z13::gameplay::PlayerActionRecord> held_values;
+  std::vector<z13::gameplay::PlayerActionRecord> pending;
+};
+
+std::expected<WelcomePayload, std::string> DecodeWelcomePayload(const fbn::WelcomeT& welcome) {
   auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(welcome.snapshot));
-  auto actions = DecodeActions(ToChars(welcome.actions));
-  if (!snapshot || !actions) {
+  if (!snapshot) {
+    return std::unexpected(snapshot.error().what());
+  }
+  WelcomePayload payload {.snapshot = std::move(*snapshot)};
+  const auto decode_into = [](const std::vector<uint8_t>& bytes, std::vector<z13::gameplay::PlayerActionRecord>& out) {
+    return DecodeRecords(ToChars(bytes)).transform([&out](auto records) { out = std::move(records); });
+  };
+  return decode_into(welcome.actions, payload.actions)
+      .and_then([&] { return decode_into(welcome.held_values, payload.held_values); })
+      .and_then([&] { return decode_into(welcome.pending, payload.pending); })
+      .transform([&payload] { return std::move(payload); });
+}
+
+void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
+  auto payload = DecodeWelcomePayload(welcome);
+  if (!payload) {
+    log_warn("NetSession(client): corrupt Welcome: {}", payload.error());
     SetConnectionStatus(world, ConnectionState::kFailed, "corrupt snapshot");
     CloseClientSession(world, session);
     return;
@@ -287,15 +480,24 @@ void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT&
   world.set<z13::gameplay::LocalPlayer>({.id = welcome.player_id});
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
+  // The catch-up moves this clock onto the server's.
+  world.set<ClockSync>({});
 
-  if (!actions->empty()) {
-    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(*actions, RecordLess);
+  std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(payload->held_values);
+  log_entries.insert(log_entries.end(), payload->actions.begin(), payload->actions.end());
+  if (!log_entries.empty()) {
+    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(std::move(log_entries), RecordLess);
+  }
+
+  if (!payload->pending.empty()) {
+    auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+    std::ranges::for_each(payload->pending, [&queue](const auto& record) { QueueInOrder(queue, record); });
   }
 
   // The join is an ordinary rollback; ConnectionStatus stays kConnecting until the
   // catch-up lands (see FinishPendingJoin).
   world.get_mut<ft::WorldSnapshotHistory>().history.Push(
-      {.tick = welcome.snapshot_tick, .snapshot = std::move(*snapshot)});
+      {.tick = welcome.snapshot_tick, .snapshot = std::move(payload->snapshot)});
   ft::RequestRollback(world, welcome.snapshot_tick, welcome.server_tick);
 }
 
@@ -304,10 +506,20 @@ void HandleRejected(flecs::world world, NetSession& session, const fbn::Rejected
   CloseClientSession(world, session);
 }
 
+// Keeps IdCounters in step with the server, which bumped it at ClientHello.
 void HandlePlayerJoined(flecs::world world, const fbn::PlayerJoinedT& joined) {
   if (auto applied = ft::ApplyWorldStateDelta(world, ToChars(joined.entity_state)); !applied) {
-    log_warn("NetSession(client): PlayerJoined delta rejected: {}", applied.error());
+    log_warn("NetSession: PlayerJoined delta rejected: {}", applied.error());
+    return;
   }
+  if (!world.has<z13::gameplay::IdCounters>()) {
+    return;
+  }
+  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  world.query_builder<const z13::gameplay::Player>().build().each(
+      [&counters](const z13::gameplay::Player& player) {
+        counters.last_player_id = std::max(counters.last_player_id, player.id + 1);
+      });
 }
 
 void HandlePlayerLeft(flecs::world world, const fbn::PlayerLeftT& left) {
@@ -324,13 +536,49 @@ void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
   }
 }
 
-// A rollback filed earlier in this same service call would undo an immediate apply.
-void ApplyOrQueueSessionDelta(flecs::world world, SessionDelta delta) {
-  if (ft::IsCatchingUp(world)) {
-    world.get_mut<PendingSessionDeltas>().deltas.push_back(std::move(delta));
+void PruneSessionHistory(flecs::world world, uint64_t now, std::vector<ScheduledSessionDelta>& history) {
+  const std::optional<uint64_t> ticks_per_second = ft::TicksPerSecond(world);
+  const std::optional<double> retention_seconds = ft::SnapshotRetentionSeconds(world);
+  if (!ticks_per_second || !retention_seconds) {
     return;
   }
-  ApplySessionDelta(world, delta);
+  const auto retention_ticks =
+      static_cast<uint64_t>(std::llround(*retention_seconds * static_cast<double>(*ticks_per_second)));
+  std::erase_if(history, [now, retention_ticks](const ScheduledSessionDelta& item) {
+    return item.apply_tick + retention_ticks < now;
+  });
+}
+
+// Every tick, replay included: a replayed tick re-applies its history.
+void ApplyDueSessionDeltas(flecs::world world) {
+  auto& scheduled = world.get_mut<ScheduledSessionDeltas>();
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+
+  // Stable, so same-tick deltas keep their arrival order in history.
+  auto& pending = scheduled.pending;
+  const auto not_due = std::ranges::stable_partition(
+      pending, [now](const ScheduledSessionDelta& item) { return item.apply_tick <= now; });
+  const auto due_now = std::ranges::subrange(pending.begin(), not_due.begin());
+  const uint64_t earliest_due = std::ranges::fold_left(
+      due_now | std::views::transform(&ScheduledSessionDelta::apply_tick), now,
+      [](uint64_t a, uint64_t b) { return std::min(a, b); });
+  std::ranges::for_each(due_now, [&history = scheduled.history](ScheduledSessionDelta& item) {
+    const auto at = std::ranges::upper_bound(history, item.apply_tick, {}, &ScheduledSessionDelta::apply_tick);
+    history.insert(at, std::move(item));
+  });
+  pending.erase(pending.begin(), not_due.begin());
+  PruneSessionHistory(world, now, scheduled.history);
+
+  // Applying creates/destroys entities, so not while iterating this component.
+  const auto applied_now =
+      std::ranges::equal_range(scheduled.history, now, {}, &ScheduledSessionDelta::apply_tick);
+  std::vector<SessionDelta> due;
+  std::ranges::transform(applied_now, std::back_inserter(due), &ScheduledSessionDelta::delta);
+  std::ranges::for_each(due, [world](const SessionDelta& delta) { ApplySessionDelta(world, delta); });
+
+  if (earliest_due < now && earliest_due > 0) {
+    ft::RequestRollback(world, earliest_due - 1, now);
+  }
 }
 
 // Runs once the world is back in the present; returns whether the session is still open.
@@ -338,14 +586,10 @@ bool FinishPendingJoin(flecs::world world, NetSession& session) {
   if (world.has<ft::RollbackFailed>()) {
     const std::string reason = world.get<ft::RollbackFailed>().reason;
     world.remove<ft::RollbackFailed>();
-    world.get_mut<PendingSessionDeltas>().deltas.clear();
+    world.set<ScheduledSessionDeltas>({});
     SetConnectionStatus(world, ConnectionState::kFailed, reason);
     CloseClientSession(world, session);
     return false;
-  }
-
-  for (const auto& delta : std::exchange(world.get_mut<PendingSessionDeltas>().deltas, {})) {
-    ApplySessionDelta(world, delta);
   }
 
   // LocalPlayer itself exists in every world from creation, so the id -- and the entity
@@ -363,6 +607,18 @@ bool FinishPendingJoin(flecs::world world, NetSession& session) {
   return true;
 }
 
+void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& sequenced) {
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  std::ranges::for_each(sequenced.commands, [&](const fbs::net::CommandWire& command) {
+    QueueInOrder(queue, {
+        .tick = sequenced.base_tick + command.tick_delta(),
+        .player_id = sequenced.player_id,
+        .action_id = command.action_id(),
+        .value = DequantizeActionValue(command.value()),
+    });
+  });
+}
+
 void HandleClientReceived(flecs::world world, NetSession& session, const TransportEvent& event) {
   const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
@@ -370,16 +626,29 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
     return;
   }
 
-  if (const auto* welcome = AsBody<fbn::WelcomeT>(decoded->body)) {
-    HandleWelcome(world, session, *welcome);
-  } else if (const auto* rejected = AsBody<fbn::RejectedT>(decoded->body)) {
-    HandleRejected(world, session, *rejected);
-  } else if (const auto* joined = AsBody<fbn::PlayerJoinedT>(decoded->body)) {
-    ApplyOrQueueSessionDelta(world, *joined);
-  } else if (const auto* left = AsBody<fbn::PlayerLeftT>(decoded->body)) {
-    ApplyOrQueueSessionDelta(world, *left);
-  }
-  // Pong/SequencedCommands/StateDigest aren't handled until later stages; ignore.
+  // Commands and session deltas only mean something once Welcome has set the baseline.
+  const bool welcomed = world.get<z13::gameplay::LocalPlayer>().id.has_value();
+  const auto queue_session_delta = [world, welcomed](const auto& delta) {
+    if (welcomed) {
+      world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = delta.apply_tick, .delta = delta});
+    }
+  };
+  VisitBody(decoded->body, Overloaded {
+      [&](const fbn::WelcomeT& welcome) { HandleWelcome(world, session, welcome); },
+      [&](const fbn::RejectedT& rejected) { HandleRejected(world, session, rejected); },
+      [world](const fbn::PongT& pong) {
+        ApplyPong(
+            world.get_mut<ClockSync>(), pong.client_tick, pong.server_tick, world.get<ft::SimulationClock>().tick);
+      },
+      [world, welcomed](const fbn::SequencedCommandsT& sequenced) {
+        if (welcomed) {
+          QueueSequencedCommands(world, sequenced);
+        }
+      },
+      [&](const fbn::PlayerJoinedT& joined) { queue_session_delta(joined); },
+      [&](const fbn::PlayerLeftT& left) { queue_session_delta(left); },
+      [](const auto&) {},
+  });
 }
 
 void HandleClientDisconnect(flecs::world world, NetSession& session) {
@@ -402,6 +671,32 @@ NetSession::Result SendClientHello(NetSession& session, ConnectionId server_conn
   Envelope envelope;
   envelope.body.Set(std::move(hello));
   return session.Send(server_connection, Channel::kReliable, envelope);
+}
+
+// Unreliable: behind reliable traffic it would measure the queue, not the network.
+NetSession::Result SendPingIfDue(flecs::world world, NetSession& session) {
+  if (!world.has<ConnectionStatus>() || world.get<ConnectionStatus>().state != ConnectionState::kConnected) {
+    return {};
+  }
+  const std::optional<ConnectionId> server_connection = session.ServerConnection();
+  const std::optional<uint64_t> ticks_per_second = ft::TicksPerSecond(world);
+  if (!server_connection || !ticks_per_second || *ticks_per_second == 0) {
+    return {};
+  }
+  const uint64_t tick = world.get<ft::SimulationClock>().tick;
+  if (tick % *ticks_per_second != 0) {
+    return {};
+  }
+
+  fbn::PingT ping;
+  ping.client_tick = tick;
+  Envelope envelope;
+  envelope.body.Set(std::move(ping));
+  if (const auto sent = session.Send(*server_connection, Channel::kUnreliable, envelope); !sent) {
+    return sent;
+  }
+  world.get_mut<ClockSync>().ping_sent_tick = tick;
+  return {};
 }
 
 NetSession::Result ServiceClientSession(flecs::world world, NetSession& session) {
@@ -472,6 +767,10 @@ void OnServerRoleRemoved(flecs::iter it, size_t /*i*/, ServerRole) {
 void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportFactories& factories) {
   flecs::world world = e.world();
   SetConnectionStatus(world, ConnectionState::kConnecting);
+  world.set<ClockSync>({});
+  world.set<z13::gameplay::LocalPlayer>({});
+  world.set<ScheduledSessionDeltas>({});
+  world.set<z13::gameplay::ScheduledCommands>({});
 
   const auto config = z13::GetCoreConfig(world);
   const z13::ConnectTimeoutConfig timeout = config ? config->get().GetConnectTimeout() : z13::ConnectTimeoutConfig {};
@@ -489,6 +788,11 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
 }
 
 void ServiceNetSession(flecs::world world) {
+  // Suspends defer: .immediate() alone still defers this SaveState()'s writes.
+  const z13::ImmediateScope immediate(world);
+
+  ApplyDueSessionDeltas(world);
+
   if (!world.has<NetSession>()) {
     return;
   }
@@ -498,18 +802,21 @@ void ServiceNetSession(flecs::world world) {
     return;
   }
 
-  // .immediate() only gives the real (non-staged) world; add/set/remove through it are
-  // still deferred, so defer must also be suspended here for this call's own SaveState().
-  const z13::ImmediateScope immediate(world);
-
   NetSession& session = world.get_mut<NetSession>();
   const bool is_server = world.has<ServerRole>();
 
   NetSession::Result serviced;
   if (is_server) {
+    if (world.has<ft::RollbackFailed>()) {
+      log_error("NetSession(server): {}", world.get<ft::RollbackFailed>().reason);
+      world.remove<ft::RollbackFailed>();
+    }
     serviced = ServiceServerSession(world, session, world.get_mut<z13::gameplay::IdCounters>());
   } else if (FinishPendingJoin(world, session)) {
     serviced = ServiceClientSession(world, session);
+    if (serviced && world.has<NetSession>()) {
+      serviced = SendPingIfDue(world, session);
+    }
   }
   if (serviced) {
     return;
@@ -527,12 +834,16 @@ void ServiceNetSession(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<NetSession, PendingSessionDeltas>(world);
+  z13::flecs_tools::RegisterComponents<
+      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
-  world.set<PendingSessionDeltas>({});
+  world.set<ScheduledSessionDeltas>({});
+  world.set<ClockSync>({});
+  world.set<CommandRateLimits>({});
+  world.set<PlayerIdAllocator>({});
 
   world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
       .event(flecs::OnAdd)
@@ -553,6 +864,16 @@ void RegisterSystems(flecs::world world) {
       .kind(flecs::PreFrame)
       .immediate()
       .each([world]() { ServiceNetSession(world); });
+
+  // PostFrame like the interval capture, so the snapshot's state and clock agree.
+  world.system<ft::WorldSnapshotHistory, const ft::SimulationClock>("NetSessionSystem::EnsureBaselineSnapshot")
+      .kind(flecs::PostFrame)
+      .with<ServerRole>()
+      .each([](flecs::iter& it, size_t, ft::WorldSnapshotHistory& history, const ft::SimulationClock& clock) {
+        if (history.history.Empty()) {
+          history.history.Push({.tick = clock.tick, .snapshot = ft::CaptureState(it.world())});
+        }
+      });
 }
 
 }  // namespace

@@ -39,6 +39,12 @@ struct ClearActionFramePhase {};
 struct CalculateActionFramePhase {};
 struct ApplyActionFramePhase {};
 
+struct ScheduledCommandsPhase {};
+
+// Record runs before Remote overwrites ActionListener with the delayed value.
+struct RecordActionFramePhase {};
+struct RemoteActionFramePhase {};
+
 namespace bmi = boost::multi_index;
 
 struct SystemInputEventType {};

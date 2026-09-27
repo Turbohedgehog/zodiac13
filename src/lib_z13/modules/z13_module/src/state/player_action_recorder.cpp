@@ -30,6 +30,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/net.h>
 #include <z13/components/player_action.h>
 
 namespace z13::state {
@@ -73,20 +74,21 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
   });
 }
 
-// Only the local player (CurrentActionListenerTag) is recorded -- a remote player's
-// entity is driven by the replay injecting from this same log, so recording it too
-// would be redundant.
+// Compares against last_recorded, not prev_value: see LastRecordedActionValues.
 void RecordChangedActions(
     flecs::iter& it, size_t,
     const z13::gameplay::Player& player,
     const z13::input::ActionListener& action_listener,
     const z13::flecs_tools::SimulationClock& clock,
-    z13::gameplay::PlayerActionLog& log) {
-  const flecs::world world = it.world();
-  const bool reassert = IsReassertTick(IntervalTicks(world), clock.tick);
+    z13::gameplay::OutgoingCommands& outgoing,
+    z13::gameplay::LastRecordedActionValues& last_recorded) {
+  const bool reassert = IsReassertTick(IntervalTicks(it.world()), clock.tick);
 
   for (const auto& [action_id, holder] : action_listener.action_values) {
-    if (!holder.HasBeenChanged() && !(reassert && *holder != 0.f)) {
+    const float current = *holder;
+    float& last = last_recorded.values[action_id];
+    const bool changed = std::abs(current - last) >= z13::input::ActionValueHolder::kInputValueEps;
+    if (!changed && !(reassert && current != 0.f)) {
       continue;
     }
 
@@ -94,34 +96,61 @@ void RecordChangedActions(
     record.tick = clock.tick;
     record.player_id = player.id;
     record.action_id = action_id;
-    record.value = *holder;
+    record.value = current;
+    outgoing.records.push_back(record);
+    last = current;
+  }
+}
+
+void ApplyOwnCommands(
+    flecs::iter&, size_t, z13::gameplay::OutgoingCommands& outgoing,
+    z13::gameplay::PlayerActionLog& log) {
+  for (const z13::gameplay::PlayerActionRecord& record : outgoing.records) {
     log.log.Push(record);
   }
+  outgoing.records.clear();
+}
 
-  PruneOldRecords(world, clock.tick, log);
+void PruneLog(
+    flecs::iter& it, size_t, const z13::flecs_tools::SimulationClock& clock,
+    z13::gameplay::PlayerActionLog& log) {
+  PruneOldRecords(it.world(), clock.tick, log);
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<z13::gameplay::PlayerActionLog>(world);
+  z13::flecs_tools::RegisterComponents<
+      z13::gameplay::PlayerActionLog, z13::gameplay::OutgoingCommands,
+      z13::gameplay::ScheduledCommands, z13::gameplay::LastRecordedActionValues>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<z13::gameplay::PlayerActionLog>({});
+  world.set<z13::gameplay::OutgoingCommands>({});
+  world.set<z13::gameplay::ScheduledCommands>({});
+  world.set<z13::gameplay::LastRecordedActionValues>({});
 
-  // ApplyActionFramePhase depends_on CalculateActionFramePhase, so action_values is
-  // always resolved first, regardless of registration order.
   world.system<
       const z13::gameplay::Player, const z13::input::ActionListener, const z13::flecs_tools::SimulationClock,
-      z13::gameplay::PlayerActionLog>(
+      z13::gameplay::OutgoingCommands, z13::gameplay::LastRecordedActionValues>(
       "PlayerActionRecorder::RecordChangedActions")
-      .kind<z13::input::ApplyActionFramePhase>()
+      .kind<z13::input::RecordActionFramePhase>()
       .without<z13::gameplay::Pause>()
-      // Don't re-log what the replay is injecting from this same log -- see replay.cpp.
       .without<z13::flecs_tools::ReplayInProgress>()
       // Only the local player -- see the comment on RecordChangedActions above.
       .with<z13::input::CurrentActionListenerTag>()
       .each(RecordChangedActions);
+
+  world.system<z13::gameplay::OutgoingCommands, z13::gameplay::PlayerActionLog>(
+      "PlayerActionRecorder::ApplyOwnCommands")
+      .kind(flecs::PostUpdate)
+      .without<z13::net::ClientRole>()
+      .each(ApplyOwnCommands);
+
+  world.system<const z13::flecs_tools::SimulationClock, z13::gameplay::PlayerActionLog>(
+      "PlayerActionRecorder::PruneLog")
+      .kind(flecs::PostUpdate)
+      .each(PruneLog);
 }
 
 }  // namespace

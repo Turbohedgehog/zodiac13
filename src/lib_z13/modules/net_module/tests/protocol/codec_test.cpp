@@ -103,8 +103,8 @@ TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   welcome.snapshot = {1, 2, 3, 4, 5};
   welcome.snapshot_tick = 840;
   welcome.actions = {6, 7, 8};
-  welcome.held_values.emplace_back(0, 2, 500);
-  welcome.pending.emplace_back(1, 3, -500);
+  welcome.held_values = {9, 10};
+  welcome.pending = {11, 12, 13};
 
   const auto decoded = RoundTrip(welcome);
 
@@ -113,10 +113,8 @@ TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   EXPECT_EQ(decoded.snapshot, welcome.snapshot);
   EXPECT_EQ(decoded.snapshot_tick, 840u);
   EXPECT_EQ(decoded.actions, welcome.actions);
-  ASSERT_EQ(decoded.held_values.size(), 1u);
-  EXPECT_EQ(decoded.held_values[0].action_id(), 2);
-  ASSERT_EQ(decoded.pending.size(), 1u);
-  EXPECT_EQ(decoded.pending[0].value(), -500);
+  EXPECT_EQ(decoded.held_values, welcome.held_values);
+  EXPECT_EQ(decoded.pending, welcome.pending);
 }
 
 TEST(CodecTest, RejectedRoundTripsReason) {

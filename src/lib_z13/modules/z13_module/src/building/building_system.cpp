@@ -26,6 +26,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <lib_core/components.h>
 #include <lib_core/math.h>
@@ -41,9 +42,11 @@ namespace {
 struct UpdateBuildingToolPhase {};
 
 void RegisterPipeline(flecs::world world) {
-  world.component<UpdateBuildingToolPhase>().add(flecs::Phase).depends_on<z13::gameplay::UpdatePhase>();
+  // SyncBrush must see the tool toggled this same frame.
+  world.component<UpdateBuildingToolPhase>().add(flecs::Phase).depends_on<z13::input::ApplyActionFramePhase>();
   world.component<z13::gameplay::PostUpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
-  // world.component<z13::gameplay::UpdatePhase>().add(flecs::Phase).depends_on<UpdateBuildingToolPhase>();
+  // Render (OnStore) must see this frame's removals.
+  world.get_alive(flecs::OnStore).add(flecs::Phase).depends_on<z13::gameplay::PostUpdatePhase>();
 }
 
 void UpdateBrush(

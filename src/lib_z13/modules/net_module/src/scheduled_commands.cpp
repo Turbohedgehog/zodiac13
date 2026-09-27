@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include "net_module.h"
+#include "scheduled_commands.h"
 
-#include <flecs.h>
-
-#include "net_action_sender.h"
-#include "net_session_system.h"
-#include "remote_input.h"
+#include <algorithm>
+#include <tuple>
 
 namespace z13::net {
 
-NetModule::NetModule(flecs::world& world) {
-  NetSessionSystem::Register(world);
-  NetActionSender::Register(world);
-  RemoteInput::Register(world);
+bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
+  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
+}
+
+void QueueInOrder(z13::gameplay::ScheduledCommands& queue, const z13::gameplay::PlayerActionRecord& record) {
+  const auto at = std::ranges::upper_bound(queue.records, record, RecordLess);
+  queue.records.insert(at, record);
 }
 
 }  // namespace z13::net
