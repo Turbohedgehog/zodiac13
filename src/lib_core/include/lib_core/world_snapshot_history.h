@@ -34,6 +34,7 @@ struct TimestampedSnapshot {
 // the state it captures (like PendingWorldState).
 struct WorldSnapshotHistory {
   using Singleton = void;
+  using SessionScoped = void;
   BoundedHistory<TimestampedSnapshot> history;
 };
 

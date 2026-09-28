@@ -237,6 +237,7 @@ uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
 // Not state: a rollback restores IdCounters and would hand an id out twice.
 struct PlayerIdAllocator {
   using Singleton = void;
+  using SessionScoped = void;
   uint32_t next_player_id {};
 };
 
@@ -305,6 +306,7 @@ struct ConnectionRateLimit {
 
 struct CommandRateLimits {
   using Singleton = void;
+  using SessionScoped = void;
   std::unordered_map<ConnectionId, ConnectionRateLimit> by_connection;
 };
 
@@ -450,11 +452,21 @@ void SetConnectionStatus(flecs::world world, ConnectionState state, std::string 
   world.set<ConnectionStatus>({.state = state, .reason = std::move(reason)});
 }
 
-// Invalidates `session`: ServiceNetSession suspends defer, so the remove is immediate.
-// Callers must not touch it afterwards.
-void CloseClientSession(flecs::world world, NetSession& session) {
-  session.Close();
-  world.remove<NetSession>();
+// Invalidates any NetSession reference: ServiceNetSession suspends defer, so the remove
+// is immediate. Callers must not touch it afterwards.
+void EndSession(flecs::world world) {
+  if (world.has<NetSession>()) {
+    world.get_mut<NetSession>().Close();
+    world.remove<NetSession>();
+  }
+  world.remove<ServerRole>();
+  world.remove<ClientRole>();
+  // Queue systems keep running without a session and would apply the leftovers.
+  ft::ResetSessionScopedComponents(world);
+}
+
+bool IsJoined(flecs::world world) {
+  return world.has<ConnectionStatus>() && world.get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
 // msgpack can't decode zero bytes, and an empty list is legitimate.
@@ -524,17 +536,17 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
   ft::RequestRollback(world, snapshot_tick, target_tick);
 }
 
-void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
+void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   auto payload = DecodeCatchUp(welcome);
   if (!payload) {
     log_warn("NetSession(client): corrupt Welcome: {}", payload.error());
     SetConnectionStatus(world, ConnectionState::kFailed, "corrupt snapshot");
-    CloseClientSession(world, session);
+    EndSession(world);
     return;
   }
   if (!IsPlausibleCatchUp(welcome.snapshot_tick, welcome.server_tick)) {
     SetConnectionStatus(world, ConnectionState::kFailed, "implausible server tick");
-    CloseClientSession(world, session);
+    EndSession(world);
     return;
   }
 
@@ -564,9 +576,9 @@ void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
   ++world.get_mut<StateDigests>().resyncs;
 }
 
-void HandleRejected(flecs::world world, NetSession& session, const fbn::RejectedT& rejected) {
+void HandleRejected(flecs::world world, const fbn::RejectedT& rejected) {
   SetConnectionStatus(world, ConnectionState::kFailed, rejected.reason);
-  CloseClientSession(world, session);
+  EndSession(world);
 }
 
 // Keeps IdCounters in step with the server, which bumped it at ClientHello.
@@ -642,13 +654,12 @@ void ApplyDueSessionDeltas(flecs::world world) {
 }
 
 // Runs once the world is back in the present; returns whether the session is still open.
-bool FinishPendingJoin(flecs::world world, NetSession& session) {
+bool FinishPendingJoin(flecs::world world) {
   if (world.has<ft::RollbackFailed>()) {
     const std::string reason = world.get<ft::RollbackFailed>().reason;
     world.remove<ft::RollbackFailed>();
-    world.set<ScheduledSessionDeltas>({});
     SetConnectionStatus(world, ConnectionState::kFailed, reason);
-    CloseClientSession(world, session);
+    EndSession(world);
     return false;
   }
 
@@ -679,7 +690,7 @@ void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& s
   });
 }
 
-void HandleClientReceived(flecs::world world, NetSession& session, const TransportEvent& event) {
+void HandleClientReceived(flecs::world world, const TransportEvent& event) {
   const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
     log_warn("NetSession(client): dropping malformed packet: {}", decoded.error());
@@ -694,8 +705,8 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
     }
   };
   VisitBody(decoded->body, Overloaded {
-      [&](const fbn::WelcomeT& welcome) { HandleWelcome(world, session, welcome); },
-      [&](const fbn::RejectedT& rejected) { HandleRejected(world, session, rejected); },
+      [&](const fbn::WelcomeT& welcome) { HandleWelcome(world, welcome); },
+      [&](const fbn::RejectedT& rejected) { HandleRejected(world, rejected); },
       [world](const fbn::PongT& pong) {
         ApplyPong(
             world.get_mut<ClockSync>(), pong.client_tick, pong.server_tick, world.get<ft::SimulationClock>().tick);
@@ -722,9 +733,9 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
   });
 }
 
-void HandleClientDisconnect(flecs::world world, NetSession& session) {
+void HandleClientDisconnect(flecs::world world) {
   const bool was_connected = world.has<z13::gameplay::Gameplay>();
-  CloseClientSession(world, session);
+  EndSession(world);
 
   if (was_connected) {
     world.remove<z13::gameplay::Gameplay>();
@@ -742,10 +753,6 @@ NetSession::Result SendClientHello(NetSession& session, ConnectionId server_conn
   Envelope envelope;
   envelope.body.Set(std::move(hello));
   return session.Send(server_connection, Channel::kReliable, envelope);
-}
-
-bool IsJoined(flecs::world world) {
-  return world.has<ConnectionStatus>() && world.get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
 // A failed rollback after the join is one more way to diverge; during it, it's fatal
@@ -820,10 +827,10 @@ NetSession::Result ServiceClientSession(flecs::world world, NetSession& session)
         break;
       }
       case TransportEventKind::kDisconnected:
-        HandleClientDisconnect(world, session);
+        HandleClientDisconnect(world);
         return {};  // session/NetSession are gone; nothing left in `event`s applies
       case TransportEventKind::kReceived:
-        HandleClientReceived(world, session, event);
+        HandleClientReceived(world, event);
         if (!world.has<NetSession>()) {
           return {};  // a rejected/corrupt Welcome closed the session; `session` is gone
         }
@@ -835,49 +842,52 @@ NetSession::Result ServiceClientSession(flecs::world world, NetSession& session)
 
 // ---------- Lifecycle ----------
 
-// Eager rather than lazy: on InMemoryTransport a connect attempt only resolves against
-// whatever is already listening, so the server must bind first.
-void OnServerRoleAdded(flecs::iter it, size_t /*i*/, ServerRole, const TransportFactories& factories) {
-  flecs::world world = it.world();
-  const auto config = z13::GetCoreConfig(world);
-  const uint16_t port = config ? config->get().GetPort() : z13::kDefaultServerPort;
-  auto transport = factories.server(port);
-  if (!transport) {
-    log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
-    world.set<ConnectionStatus>({.state = ConnectionState::kFailed, .reason = transport.error()});
+// Requests are consumed via OnSet, not OnAdd: OnAdd would run before .set() assigns the
+// value, since add-then-assign is two observable steps in flecs.
+void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, const TransportFactories& factories) {
+  flecs::world world = e.world();
+  const uint16_t port = request.port;
+  e.destruct();
+  if (world.has<NetSession>()) {
+    log_warn("NetSession: ignoring a StartServerRequest, a session is already open");
     return;
   }
 
+  auto transport = factories.server(port);
+  if (!transport) {
+    log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
+    SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
+    world.add<z13::gameplay::Pause>();  // --server skipped the menu; show the failure there
+    return;
+  }
+
+  ft::ResetSessionScopedComponents(world);
   NetSession session;
   session.OpenAsServer(std::move(*transport));
   world.set<NetSession>(std::move(session));
-  world.set<ConnectionStatus>({.state = ConnectionState::kConnected});
+  world.add<ServerRole>();
+  SetConnectionStatus(world, ConnectionState::kConnected);
+  world.remove<z13::gameplay::Pause>();
+  world.add<z13::gameplay::Gameplay>();
 }
 
-void OnServerRoleRemoved(flecs::iter it, size_t /*i*/, ServerRole) {
-  flecs::world world = it.world();
-  if (world.has<NetSession>()) {
-    world.get_mut<NetSession>().Close();
-    world.remove<NetSession>();
-  }
-}
-
-// Consumed via OnSet, not OnAdd: OnAdd would run before .set() assigns the Endpoint,
-// since add-then-assign is two observable steps in flecs.
 void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportFactories& factories) {
   flecs::world world = e.world();
+  if (world.has<NetSession>()) {
+    log_warn("NetSession: ignoring a JoinRequest, a session is already open");
+    e.destruct();
+    return;
+  }
+  ft::ResetSessionScopedComponents(world);
+  world.add<ClientRole>();
   SetConnectionStatus(world, ConnectionState::kConnecting);
-  world.set<ClockSync>({});
-  world.set<z13::gameplay::LocalPlayer>({});
-  world.set<ScheduledSessionDeltas>({});
-  world.set<z13::gameplay::ScheduledCommands>({});
-  world.set<StateDigests>({});
 
   const auto config = z13::GetCoreConfig(world);
   const z13::ConnectTimeoutConfig timeout = config ? config->get().GetConnectTimeout() : z13::ConnectTimeoutConfig {};
   auto transport = factories.client(request.endpoint, timeout);
   if (!transport) {
     SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
+    world.remove<ClientRole>();
     e.destruct();
     return;
   }
@@ -888,6 +898,13 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
   e.destruct();
 }
 
+void OnLeaveRequest(flecs::entity e) {
+  flecs::world world = e.world();
+  e.destruct();
+  EndSession(world);
+  SetConnectionStatus(world, ConnectionState::kNone);
+}
+
 void ServiceNetSession(flecs::world world) {
   // Suspends defer: .immediate() alone still defers this SaveState()'s writes.
   const z13::ImmediateScope immediate(world);
@@ -895,6 +912,14 @@ void ServiceNetSession(flecs::world world) {
   ApplyDueSessionDeltas(world);
 
   if (!world.has<NetSession>()) {
+    return;
+  }
+
+  // Exit to Main Menu only removes Gameplay; the session goes with it. A set local id
+  // means Gameplay was already there (a client may still be catching up after Welcome).
+  if (world.get<z13::gameplay::LocalPlayer>().id && !world.has<z13::gameplay::Gameplay>()) {
+    EndSession(world);
+    SetConnectionStatus(world, ConnectionState::kNone);
     return;
   }
 
@@ -920,7 +945,7 @@ void ServiceNetSession(flecs::world world) {
     // Before servicing: digests received last frame are checked once the rollbacks their
     // preceding commands caused have landed.
     serviced = ResyncIfDiverged(world, session);
-    if (serviced && FinishPendingJoin(world, session)) {
+    if (serviced && FinishPendingJoin(world)) {
       serviced = ServiceClientSession(world, session);
       if (serviced && world.has<NetSession>()) {
         serviced = SendPingIfDue(world, session);
@@ -934,12 +959,10 @@ void ServiceNetSession(flecs::world world) {
   // Only a closed session reports here, which means this file's own sequencing is wrong.
   // Keeping the component would hide that and leave a half-dead session in the world.
   log_error("NetSession: {}", serviced.error());
-  if (is_server) {
-    world.remove<NetSession>();
-  } else if (world.has<NetSession>()) {
+  if (!is_server) {
     SetConnectionStatus(world, ConnectionState::kFailed, serviced.error());
-    CloseClientSession(world, world.get_mut<NetSession>());
   }
+  EndSession(world);
 }
 
 void RegisterComponents(flecs::world world) {
@@ -956,18 +979,18 @@ void RegisterSystems(flecs::world world) {
   world.set<StateDigests>({});
   RegisterStateDigestSystems(world);
 
-  world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each(OnServerRoleAdded);
-
-  world.observer<ServerRole>("NetSessionSystem::OnServerRoleRemoved")
-      .event(flecs::OnRemove)
-      .each(OnServerRoleRemoved);
+  world.observer<StartServerRequest, const TransportFactories>("NetSessionSystem::OnStartServerRequest")
+      .event(flecs::OnSet)
+      .each(OnStartServerRequest);
 
   world.observer<JoinRequest, const TransportFactories>("NetSessionSystem::OnJoinRequest")
       .event(flecs::OnSet)
       .each(OnJoinRequest);
+
+  world.observer("NetSessionSystem::OnLeaveRequest")
+      .with<LeaveRequest>()
+      .event(flecs::OnAdd)
+      .each(OnLeaveRequest);
 
   // PreFrame: earliest custom phase point, so a join/spawn/leave this tick is visible
   // to every gameplay system that runs later in the same frame.

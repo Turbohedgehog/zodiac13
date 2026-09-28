@@ -38,12 +38,12 @@ namespace {
 namespace ft = z13::flecs_tools;
 using z13::testing::kConnectArg;
 using z13::testing::kServerArg;
+using z13::testing::kMaxNetTestTicks;
+using z13::testing::kNetTestDeltaTime;
+using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-constexpr float kTestDeltaTime = 1.f / 60.f;
-constexpr uint64_t kMaxTicks = 600;
-constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 constexpr uint64_t kSecondsToSettle = 4;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
@@ -51,7 +51,7 @@ Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kServerEndpoint)}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -125,17 +125,17 @@ TEST(ClockSyncTest, TheEstimateFindsTheRealOffsetAcrossAFixedDelay) {
 
   Z13TestWorld server = MakeServer(network);
   for (uint64_t i = 0; i < 90; ++i) {
-    server.World().progress(kTestDeltaTime);  // put the two clocks visibly apart
+    server.World().progress(kNetTestDeltaTime);  // put the two clocks visibly apart
   }
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return client.World().get<ClockSync>().offset_ticks.has_value();
   }));
-  RunNetworkUntil(*network, {server, client}, kTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
 
   const std::optional<int64_t> estimate = client.World().get<ClockSync>().offset_ticks;
   ASSERT_TRUE(estimate.has_value());
@@ -150,14 +150,14 @@ TEST(ClockSyncTest, LosingEveryPingLeavesTheSessionAloneAndTheNextOneRecovers) {
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
-  RunNetworkUntil(*network, {server, client}, kTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
   EXPECT_FALSE(client.World().get<ClockSync>().offset_ticks.has_value());
   EXPECT_TRUE(IsConnected(client)) << "dropping unreliable packets must not disturb the session";
 
   network->SetFaultConfig({});
-  EXPECT_TRUE(RunNetworkUntil(*network, {server, client}, kTestDeltaTime, kMaxTicks, [&] {
+  EXPECT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return client.World().get<ClockSync>().offset_ticks.has_value();
   }));
 }

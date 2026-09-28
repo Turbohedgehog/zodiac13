@@ -16,11 +16,14 @@
 
 #include "environment_render_system.h"
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <Eigen/Dense>
 #include <flecs.h>
@@ -36,6 +39,8 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
+#include <z13/components/player_color.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -58,6 +63,9 @@ constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientati
 
 constexpr ::Color kPlacedBlockColor = GREEN;
 
+constexpr float kAvatarRadius = 0.5f;
+constexpr float kMaxColorChannel = 255.f;
+
 // One directional "sun", Z-up world.
 constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
@@ -66,6 +74,7 @@ void RegisterComponents(flecs::world world) {
   world.component<RaylibCamera>();
   world.component<Skybox>().add(flecs::Singleton);
   world.component<RenderModel>().add(flecs::Singleton);
+  world.component<AvatarModel>().add(flecs::Singleton);
   world.component<Lighting>().add(flecs::Singleton);
   world.component<BuildingBlock>();
 }
@@ -139,6 +148,78 @@ RenderModel LoadSpaceship(const Lighting& lighting) {
   return RenderModel{.res = std::move(res)};
 }
 
+// UnloadModel frees mesh arrays with RL_FREE, so they must come from MemAlloc.
+float* CopyToRaylib(const std::vector<float>& values) {
+  auto* data = static_cast<float*>(MemAlloc(static_cast<unsigned int>(values.size() * sizeof(float))));
+  std::ranges::copy(values, data);
+  return data;
+}
+
+// Flat-shaded: every face gets its own three vertices and normal.
+::Mesh GenMeshOctahedron(float radius) {
+  constexpr uint32_t kFaces = 8;
+  constexpr uint32_t kCornersPerFace = 3;
+  constexpr uint32_t kTexcoordsPerVertex = 2;
+  constexpr uint32_t kVertexCount = kFaces * kCornersPerFace;
+  std::vector<float> vertices;
+  std::vector<float> normals;
+  for (uint32_t face = 0; face < kFaces; ++face) {
+    const Eigen::Vector3f sign((face & 1) ? -1.f : 1.f, (face & 2) ? -1.f : 1.f, (face & 4) ? -1.f : 1.f);
+    std::array<Eigen::Vector3f, kCornersPerFace> corners = {
+        Eigen::Vector3f(sign.x() * radius, 0.f, 0.f),
+        Eigen::Vector3f(0.f, sign.y() * radius, 0.f),
+        Eigen::Vector3f(0.f, 0.f, sign.z() * radius),
+    };
+    if (sign.prod() < 0.f) {
+      std::swap(corners[1], corners[2]);  // keep the winding counter-clockwise from outside
+    }
+    const Eigen::Vector3f normal = sign.normalized();
+    for (const Eigen::Vector3f& corner : corners) {
+      vertices.insert(vertices.end(), {corner.x(), corner.y(), corner.z()});
+      normals.insert(normals.end(), {normal.x(), normal.y(), normal.z()});
+    }
+  }
+
+  ::Mesh mesh{};
+  mesh.vertexCount = static_cast<int>(kVertexCount);
+  mesh.triangleCount = static_cast<int>(kFaces);
+  mesh.vertices = CopyToRaylib(vertices);
+  mesh.normals = CopyToRaylib(normals);
+  mesh.texcoords = CopyToRaylib(std::vector<float>(kVertexCount * kTexcoordsPerVertex));
+  UploadMesh(&mesh, false);
+  return mesh;
+}
+
+AvatarModel LoadAvatar(const Lighting& lighting) {
+  ::Model model = LoadModelFromMesh(GenMeshOctahedron(kAvatarRadius));
+  const unsigned int borrowed_shader_id = ApplyLightingShader(model, lighting);
+  auto res = std::make_shared<ModelResources>();
+  res->model = MakeManagedModel(model, borrowed_shader_id);
+  return AvatarModel{.res = std::move(res)};
+}
+
+::Color ToRaylibColor(const z13::gameplay::Rgb& rgb) {
+  const auto channel = [](float value) { return static_cast<unsigned char>(value * kMaxColorChannel); };
+  return {channel(rgb[0]), channel(rgb[1]), channel(rgb[2]), static_cast<unsigned char>(kMaxColorChannel)};
+}
+
+using RemotePlayerQuery = flecs::query<const gameplay::Player, const Eigen::Matrix4f>;
+
+// Every avatar shares the one model; only its transform and tint change per player.
+void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players) {
+  if (!world.has<AvatarModel>()) {
+    return;
+  }
+  const AvatarModel& avatar = world.get<AvatarModel>();
+  if (!avatar.res || avatar.res->model->meshCount == 0) {
+    return;
+  }
+  remote_players.each([&avatar](const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+    avatar.res->model->transform = EigenToRaylibMatrix(transform);
+    DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player.id)));
+  });
+}
+
 // Cameras are derived from gameplay::Camera components each frame, not from add
 // events, so restored or edited state is picked up too.
 void EnsureRaylibCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& camera) {
@@ -163,8 +244,11 @@ void SyncRaylibCamera(
   UpdateCameraFromTransform(raylib_camera.camera, transform);
 }
 
+// Only the local player's camera renders; other players' Cameras arrive with snapshots.
 void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
-  e.remove<RaylibCamera>();
+  if (!e.has<gameplay::Camera>() || !e.has<z13::input::CurrentActionListenerTag>()) {
+    e.remove<RaylibCamera>();
+  }
 }
 
 // Drops the model of every entity that is gone or is no longer a block/brush.
@@ -213,6 +297,7 @@ void RegisterSystems(flecs::world world) {
       .each([world](RaylibData&) {
         Lighting lighting = LoadLighting();
         world.set<RenderModel>(LoadSpaceship(lighting));
+        world.set<AvatarModel>(LoadAvatar(lighting));
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
       });
@@ -221,6 +306,7 @@ void RegisterSystems(flecs::world world) {
   // in registration order), so the scene is synced with this frame's final state.
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
       .kind<Render>()
+      .with<z13::input::CurrentActionListenerTag>()
       .without<RaylibCamera>()
       .write<RaylibCamera>()
       .each(EnsureRaylibCamera);
@@ -228,11 +314,13 @@ void RegisterSystems(flecs::world world) {
   world.system<RaylibCamera, const gameplay::Camera, const Eigen::Matrix4f>(
            "EnvironmentRenderSystem::SyncRaylibCamera")
       .kind<Render>()
+      .with<z13::input::CurrentActionListenerTag>()
       .each(SyncRaylibCamera);
 
   world.system<const RaylibCamera>("EnvironmentRenderSystem::ReleaseOrphanRaylibCamera")
       .kind<Render>()
-      .without<gameplay::Camera>()
+      .read<gameplay::Camera>()
+      .read<z13::input::CurrentActionListenerTag>()
       .write<RaylibCamera>()
       .each(ReleaseOrphanRaylibCamera);
 
@@ -274,11 +362,17 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const BuildingBlock, const Eigen::Matrix4f>("EnvironmentRenderSystem::BlockQuery")
           .build();
 
+  RemotePlayerQuery remote_player_query =
+      world.query_builder<const gameplay::Player, const Eigen::Matrix4f>("EnvironmentRenderSystem::RemotePlayerQuery")
+          .without<z13::input::CurrentActionListenerTag>()
+          .build();
+
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .read<BuildingBlock>()
-      .each([world, block_query, block_models](const RaylibCamera& raylib_camera, const WindowSize& size) {
+      .each([world, block_query, block_models, remote_player_query](
+                const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -314,6 +408,7 @@ void RegisterSystems(flecs::world world) {
                 DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
               }
             });
+        DrawRemotePlayers(world, remote_player_query);
 
         EndScene3D();
       });

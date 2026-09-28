@@ -40,18 +40,21 @@ struct PlayerActionRecord {
 
 struct OutgoingCommands {
   using Singleton = void;
+  using SessionScoped = void;
   std::vector<PlayerActionRecord> records;
 };
 
 // Not ActionListener's prev_value: RemoteActionFramePhase overwrites it every tick.
 struct LastRecordedActionValues {
   using Singleton = void;
+  using SessionScoped = void;
   boost::container::flat_map<z13::input::ActionInfo::IdType, float> values;
 };
 
 // Sorted by (tick, player_id, action_id), a key every participant derives itself.
 struct ScheduledCommands {
   using Singleton = void;
+  using SessionScoped = void;
   std::vector<PlayerActionRecord> records;
 };
 
@@ -59,6 +62,7 @@ struct ScheduledCommands {
 // logs.
 struct PlayerActionLog {
   using Singleton = void;
+  using SessionScoped = void;
   BoundedHistory<PlayerActionRecord> log;
   // Ticks older than this may already be pruned from `log` -- distinguishes "nothing
   // changed" from "that history was discarded", which look the same in `log` alone.

@@ -44,7 +44,10 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 using z13::testing::kConnectArg;
+using z13::testing::kMaxNetTestTicks;
+using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
+using z13::testing::kTestServerEndpoint;
 using z13::testing::KeyDown;
 using z13::testing::KeyUp;
 using z13::testing::MouseDown;
@@ -52,9 +55,6 @@ using z13::testing::MouseUp;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-constexpr float kTestDeltaTime = 1.f / 60.f;
-constexpr uint64_t kMaxTicks = 400;
-constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 constexpr uint32_t kClientAId = 1;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
@@ -62,7 +62,7 @@ Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kServerEndpoint)}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -106,13 +106,13 @@ TEST(CommandStreamTest, AClientsCommandReachesEveryoneOnceWithNoServerEcho) {
   Z13TestWorld client_a = MakeClient(network);
   Z13TestWorld client_b = MakeClient(network);
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_a) && IsConnected(client_b);
   }));
   ASSERT_EQ(client_a.World().get<z13::gameplay::LocalPlayer>().id, kClientAId);
 
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return QueuedFor(server, kClientAId) > 0 && QueuedFor(client_b, kClientAId) > 0;
   })) << "the command never reached both the server and the other client";
 
@@ -130,8 +130,8 @@ TEST(CommandStreamTest, AnIdleClientSendsNoCommands) {
   Z13TestWorld client = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
-  RunNetworkUntil(*network, {server, client}, kTestDeltaTime, 120, [] { return false; });
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 120, [] { return false; });
 
   EXPECT_TRUE(server.World().get<z13::gameplay::ScheduledCommands>().records.empty());
 }
@@ -146,19 +146,19 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   Z13TestWorld client_a = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   const flecs::entity a_on_server = server.World().lookup(z13::gameplay::PlayerEntityName(kClientAId).c_str());
   ASSERT_TRUE(a_on_server);
 
   const float spawn_x = Position(a_on_server).x();
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return Position(a_on_server).x() - spawn_x > 0.01f;
   })) << "the held command never took effect on the server";
 
   Z13TestWorld client_b = MakeClient(network);
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_b);
   }));
 
@@ -167,10 +167,10 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   const float position_at_join = Position(a_on_b).x();
 
   constexpr int kExtraTicks = 20;
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kExtraTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kExtraTicks, [] { return false; });
 
   const float moved = Position(a_on_b).x() - position_at_join;
-  const float expected = static_cast<float>(kExtraTicks) * z13::gameplay::kCameraVelocity * kTestDeltaTime;
+  const float expected = static_cast<float>(kExtraTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "held_values didn't seed the joiner's view of an already-held key";
 }
@@ -181,17 +181,17 @@ TEST(CommandStreamTest, LocalCommandDoesNotMoveTheClientBeforeItsApplyTick) {
   Z13TestWorld client_a = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   const flecs::entity local_player = client_a.Player();
   const float before = Position(local_player).x();
 
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, 3, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 3, [] { return false; });
   EXPECT_FLOAT_EQ(Position(local_player).x(), before)
       << "the client moved on its own command before that command's apply_tick -- that's prediction";
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return Position(local_player).x() - before > 0.01f;
   })) << "the command never took effect at all";
 }
@@ -203,7 +203,7 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
   Z13TestWorld client_a = MakeClient(network);
   Z13TestWorld client_b = MakeClient(network);
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_a) && IsConnected(client_b);
   }));
 
@@ -214,12 +214,12 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
   constexpr uint64_t kHoldTicks = 20;
   constexpr uint64_t kSettleTicks = 30;
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kHoldTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kHoldTicks, [] { return false; });
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kSettleTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
   const float moved = Position(a_on_b).x() - before;
-  const float expected = static_cast<float>(kHoldTicks) * z13::gameplay::kCameraVelocity * kTestDeltaTime;
+  const float expected = static_cast<float>(kHoldTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "jittered delivery changed how long the hold registered as lasting";
 }
@@ -231,24 +231,24 @@ TEST(CommandStreamTest, SimultaneousBuildsFromTwoClientsLandOnBothWorlds) {
   Z13TestWorld client_a = MakeClient(network);
   Z13TestWorld client_b = MakeClient(network);
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_a) && IsConnected(client_b);
   }));
 
   constexpr uint64_t kSettleTicks = 30;
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_TAB));
   client_b.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_TAB));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, 1, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_TAB));
   client_b.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_TAB));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kSettleTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
   client_a.EmitInput(MouseDown(z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT));
   client_b.EmitInput(MouseDown(z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, 1, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
   client_a.EmitInput(MouseUp(z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT));
   client_b.EmitInput(MouseUp(z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kSettleTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
   EXPECT_EQ(BlockCount(server.World()), 2u);
   EXPECT_EQ(BlockCount(client_a.World()), 2u);
@@ -261,12 +261,12 @@ TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {
   Z13TestWorld client_a = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   const uint64_t interval_ticks = SnapshotIntervalTicks(server);
   const uint64_t hold_ticks = interval_ticks * 2 + 10;  // spans two reassert boundaries
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, hold_ticks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, hold_ticks, [] { return false; });
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
 
   const size_t log_count = LogCountFor(server, kClientAId);

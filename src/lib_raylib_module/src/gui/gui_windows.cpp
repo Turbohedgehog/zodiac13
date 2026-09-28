@@ -25,16 +25,18 @@
 #include <lib_core/components.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/net.h>
 
 #include <raylib_module/raylib_components.h>
 
 #include "gui_keybindings.h"
+#include "gui_widgets.h"
+#include "net_windows.h"
 
 namespace z13::raylib::gui {
 
 namespace {
 
-constexpr ImVec2 kButtonSize{200.f, 0.f};
 constexpr float kBindingLabelWidth = 160.f;
 constexpr ImVec2 kBindingSlotSize{110.f, 0.f};
 // Stride used to combine (group, action, slot) into a single ImGui PushID; must
@@ -233,9 +235,30 @@ class MainMenuWindow : public Window {
 
  protected:
   void DrawBody() override {
+    const auto& status = World().get<z13::net::ConnectionStatus>();
+    if (status.state == z13::net::ConnectionState::kConnecting) {  // --connect
+      ImGui::TextUnformatted("Connecting...");
+      if (ImGui::Button("Cancel", kButtonSize)) {
+        World().entity().add<z13::net::LeaveRequest>();
+      }
+      return;
+    }
+    // Why the last session ended or failed, e.g. the server went away.
+    if (status.state == z13::net::ConnectionState::kFailed ||
+        status.state == z13::net::ConnectionState::kDisconnected) {
+      DrawError(status.reason);
+    }
+
     if (ImGui::Button("Start Game", kButtonSize)) {
+      World().set<z13::net::ConnectionStatus>({});
       World().add<z13::gameplay::Gameplay>();
       RequestCloseMenu();
+    }
+    if (ImGui::Button("Start Server...", kButtonSize)) {
+      RequestPush(MakeStartServerWindow(World()));
+    }
+    if (ImGui::Button("Join...", kButtonSize)) {
+      RequestPush(MakeJoinWindow(World()));
     }
     if (ImGui::Button("Settings...", kButtonSize)) {
       RequestPush(std::make_shared<InputSettingsWindow>(World()));

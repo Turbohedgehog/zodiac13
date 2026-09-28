@@ -46,7 +46,7 @@ using ActionValues = boost::container::flat_map<std::pair<uint32_t, z13::input::
 
 bool IsLogDriven(flecs::world world, flecs::entity player) {
   return !player.has<z13::input::CurrentActionListenerTag>() || world.has<z13::net::ClientRole>() ||
-      world.has<ft::ReplayInProgress>();
+      world.has<z13::net::ServerRole>() || world.has<ft::ReplayInProgress>();
 }
 
 // ActionListener isn't state, so the restore leaves whatever live play last wrote.

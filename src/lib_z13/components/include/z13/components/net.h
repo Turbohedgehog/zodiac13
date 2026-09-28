@@ -16,14 +16,15 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 #include <lib_core/endpoint.h>
 
 namespace z13::net {
 
-// Runtime-only (not state) role tags, set by BootstrapSystem; neither present means
-// single-player. Tags rather than an enum so a future composite role (listen-server) fits.
+// Runtime-only (not state) role tags, set by net_module while a session is open; neither
+// present means single-player. Tags rather than an enum so a future composite role (listen-server) fits.
 struct ServerRole {
   using Singleton = void;
 };
@@ -31,11 +32,18 @@ struct ClientRole {
   using Singleton = void;
 };
 
-// One-shot request raised by BootstrapSystem for --connect, consumed by net_module's
-// client session system to open the transport and start the handshake.
+// One-shot requests (an entity per request) raised by BootstrapSystem for --server/--connect
+// or by the main menu, consumed by net_module.
+struct StartServerRequest {
+  uint16_t port {};
+};
+
 struct JoinRequest {
   Endpoint endpoint;
 };
+
+// Abandons a join still connecting; leaving a running game is removing Gameplay.
+struct LeaveRequest {};
 
 // Not state -- rebuilt by net_module every session, never saved. net_module is the
 // only writer; GUI reads it to show connecting/failure state.

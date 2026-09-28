@@ -36,6 +36,7 @@ inline constexpr double kClockOffsetSmoothing = 0.25;
 
 struct ClockSync {
   using Singleton = void;
+  using SessionScoped = void;
   std::optional<int64_t> offset_ticks;
   std::optional<uint64_t> ping_sent_tick;
   std::optional<int64_t> rtt_ticks;

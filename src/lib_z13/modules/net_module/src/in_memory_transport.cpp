@@ -18,6 +18,7 @@
 
 #include <format>
 #include <optional>
+#include <ranges>
 #include <random>
 #include <unordered_map>
 #include <utility>
@@ -164,7 +165,11 @@ class InMemoryTransport final : public Transport {
   InMemoryTransport(std::shared_ptr<InMemoryNetworkState> network, TransportId id)
       : network_(std::move(network)), id_(id) {}
 
+  // Like ENet's, tells every peer it's gone rather than leaving it to time out.
   ~InMemoryTransport() override {
+    for (const PeerLink& link : peers_ | std::views::values) {
+      network_->QueueDisconnect(link.remote_transport_id, link.remote_connection_id);
+    }
     if (listening_port_) {
       network_->UnregisterListener(*listening_port_);
     }

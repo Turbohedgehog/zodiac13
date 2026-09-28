@@ -17,6 +17,7 @@
 #include <net_module/enet_transport.h>
 
 #include <format>
+#include <ranges>
 #include <unordered_map>
 
 #include <enet/enet.h>
@@ -64,6 +65,13 @@ class EnetTransport final : public Transport {
  public:
   EnetTransport(std::shared_ptr<EnetLifetime> lifetime, EnetHostPtr host)
       : lifetime_(std::move(lifetime)), host_(std::move(host)) {}
+
+  // Sent now: destroying the host would drop a queued enet_peer_disconnect unsent.
+  ~EnetTransport() override {
+    for (ENetPeer* peer : peers_by_id_ | std::views::values) {
+      enet_peer_disconnect_now(peer, 0);
+    }
+  }
 
   void Send(ConnectionId connection, Channel channel, std::span<const std::byte> data) override {
     ENetPeer* peer = FindPeer(connection);

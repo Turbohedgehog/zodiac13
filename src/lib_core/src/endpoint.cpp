@@ -21,8 +21,6 @@
 
 namespace z13 {
 
-namespace {
-
 std::expected<uint16_t, std::string> ParsePort(std::string_view text) {
   int port {};
   const auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), port);
@@ -34,8 +32,6 @@ std::expected<uint16_t, std::string> ParsePort(std::string_view text) {
   }
   return static_cast<uint16_t>(port);
 }
-
-}  // namespace
 
 std::expected<Endpoint, std::string> ParseEndpoint(std::string_view text, uint16_t default_port) {
   if (text.empty()) {

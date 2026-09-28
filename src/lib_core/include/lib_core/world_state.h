@@ -32,9 +32,13 @@ struct StateEntity {};
 // state entity are derived runtime data.
 struct StateComponent {};
 
+// Trait on a singleton that belongs to one network session, see ResetSessionScopedComponents.
+struct SessionScopedComponent {};
+
 // Component properties, declared as nested types: `using State = void;` (values are
-// world state; empty structs become state tags) and `using Singleton = void;` (flecs
-// singleton). Nested types don't affect reflect-cpp; a base class would.
+// world state; empty structs become state tags), `using Singleton = void;` (flecs
+// singleton) and `using SessionScoped = void;` (a singleton reset per network session).
+// Nested types don't affect reflect-cpp; a base class would.
 // The alias must be void: an ordinary nested type that happens to be called State would
 // otherwise enrol its component into every snapshot.
 template <class T>
@@ -42,6 +46,9 @@ concept StateComponentType = requires { requires std::is_void_v<typename T::Stat
 
 template <class T>
 concept SingletonComponentType = requires { requires std::is_void_v<typename T::Singleton>; };
+
+template <class T>
+concept SessionScopedComponentType = requires { requires std::is_void_v<typename T::SessionScoped>; };
 
 // Registers T and applies its properties: State builds reflect-cpp meta and adds the
 // StateComponent trait, Singleton the flecs Singleton trait. Only state components need
@@ -58,6 +65,10 @@ flecs::untyped_component RegisterComponent(flecs::world& world) {
   if constexpr (SingletonComponentType<T>) {
     component.add(flecs::Singleton);
   }
+  if constexpr (SessionScopedComponentType<T>) {
+    static_assert(SingletonComponentType<T>, "only singletons can be session-scoped");
+    component.template add<SessionScopedComponent>();
+  }
   return component;
 }
 
@@ -65,6 +76,10 @@ template <class... Ts>
 void RegisterComponents(flecs::world& world) {
   (RegisterComponent<Ts>(world), ...);
 }
+
+// Resets every SessionScoped singleton to its default value, so nothing of one network
+// session leaks into the next.
+void ResetSessionScopedComponents(flecs::world& world);
 
 // True for the component entity of a singleton that is world state (State + Singleton).
 bool IsStateSingleton(flecs::entity component);

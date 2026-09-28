@@ -41,6 +41,9 @@ TEST(ServerLaunchTest, DefaultRoleIsNeitherServerNorClient) {
 
   EXPECT_FALSE(test_world.World().has<ServerRole>());
   EXPECT_FALSE(test_world.World().has<ClientRole>());
+  // The main menu reads it every frame.
+  ASSERT_TRUE(test_world.World().has<ConnectionStatus>());
+  EXPECT_EQ(test_world.World().get<ConnectionStatus>().state, ConnectionState::kNone);
 }
 
 TEST(ServerLaunchTest, ServerFlagStartsGameplayWithoutPauseAndSetsServerRole) {

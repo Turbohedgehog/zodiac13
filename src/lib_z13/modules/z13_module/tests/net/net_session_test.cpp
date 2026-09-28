@@ -59,13 +59,13 @@ using z13::gameplay::Pause;
 using z13::gameplay::Player;
 using z13::gameplay::PlayerEntityName;
 using z13::testing::kConnectArg;
+using z13::testing::kMaxNetTestTicks;
+using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
+using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-constexpr float kTestDeltaTime = 1.f / 60.f;
-constexpr uint64_t kMaxTicks = 200;
-constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 
 // Server first: a client's connect attempt only ever resolves against whatever's
 // already listening at the moment it's created.
@@ -74,7 +74,7 @@ Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kServerEndpoint)}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 // Matches building_system.cpp's ProcessBuildBlockRequest: a block only round-trips
@@ -112,8 +112,8 @@ std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
 // own handshake -- for exercising rejection/malformed-input paths a real client never triggers.
 std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWorld& server, ConnectionId& connection) {
   auto raw = CreateInMemoryClientTransport(network, z13::kDefaultServerPort);
-  for (uint64_t tick = 0; tick < kMaxTicks; ++tick) {
-    server.World().progress(kTestDeltaTime);
+  for (uint64_t tick = 0; tick < kMaxNetTestTicks; ++tick) {
+    server.World().progress(kNetTestDeltaTime);
     network.Tick();
     for (const TransportEvent& event : raw->Service()) {
       if (event.kind == TransportEventKind::kConnected) {
@@ -145,7 +145,7 @@ TEST(NetSessionTest, ClientReceivesSnapshotAndMatchesServerCounters) {
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   EXPECT_EQ(BlockCount(client.World()), 1u);
   EXPECT_EQ(client.World().get<IdCounters>().last_player_id, server.World().get<IdCounters>().last_player_id);
@@ -167,13 +167,13 @@ TEST(NetSessionTest, JoinerGetsItsOwnPlayerFromACachedSnapshot) {
   const uint64_t interval_ticks = static_cast<uint64_t>(
       std::llround(server.Config().GetSnapshotIntervalSeconds() * server.Config().GetFPS()));
   for (uint64_t i = 0; i <= interval_ticks; ++i) {
-    server.World().progress(kTestDeltaTime);
+    server.World().progress(kNetTestDeltaTime);
   }
   ASSERT_FALSE(server.World().get<z13::flecs_tools::WorldSnapshotHistory>().history.Empty());
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   const std::optional<uint32_t> local_id = client.World().get<z13::gameplay::LocalPlayer>().id;
   ASSERT_TRUE(local_id.has_value());
@@ -193,21 +193,21 @@ TEST(NetSessionTest, JoinReplaysHostMovementSinceTheCachedSnapshot) {
   const uint64_t interval_ticks = static_cast<uint64_t>(
       std::llround(server.Config().GetSnapshotIntervalSeconds() * server.Config().GetFPS()));
   for (uint64_t i = 0; i < interval_ticks; ++i) {
-    server.World().progress(kTestDeltaTime);
+    server.World().progress(kNetTestDeltaTime);
   }
 
   // Move the host, then let a client join immediately -- well before the next periodic
   // capture, so Welcome must reuse the older cached snapshot and replay this movement.
   server.EmitInput(z13::testing::KeyDown(z13::fbs::input::Keycode::KEY_W));
   for (uint64_t i = 0; i < 10; ++i) {
-    server.World().progress(kTestDeltaTime);
+    server.World().progress(kNetTestDeltaTime);
   }
   server.EmitInput(z13::testing::KeyUp(z13::fbs::input::Keycode::KEY_W));
-  server.World().progress(kTestDeltaTime);
+  server.World().progress(kNetTestDeltaTime);
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   const flecs::entity host_on_server = server.World().lookup(PlayerEntityName(0).c_str());
   const flecs::entity host_on_client = client.World().lookup(PlayerEntityName(0).c_str());
@@ -232,7 +232,7 @@ TEST(NetSessionTest, ThreeClientsGetSequentialIdsServerIsZero) {
   // Also wait for client_a's own copy of b/c's PlayerJoined broadcasts: kConnected only
   // means its own Welcome resolved, not that other clients' joins have arrived yet.
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a, client_b, client_c}, kTestDeltaTime, kMaxTicks, [&] {
+      *network, {server, client_a, client_b, client_c}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
         return IsConnected(client_a) && IsConnected(client_b) && IsConnected(client_c) &&
             PlayerIds(client_a.World()) == expected;
       }));
@@ -249,7 +249,7 @@ TEST(NetSessionTest, ClientHasExactlyOneLocalPlayerOthersHaveNoInputListener) {
   Z13TestWorld client = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   size_t local_count = 0;
   client.World().query_builder().with<z13::input::CurrentActionListenerTag>().build().each(
@@ -271,11 +271,11 @@ TEST(NetSessionTest, PlayerJoinedReachesAlreadyConnectedClients) {
   Z13TestWorld client_a = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   Z13TestWorld client_b = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_b); }));
+      *network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_b); }));
 
   EXPECT_TRUE(client_a.World().lookup(PlayerEntityName(2).c_str()));
 }
@@ -285,7 +285,7 @@ TEST(NetSessionTest, PlayerLeftRemovesEntityOnServerAndOtherClients) {
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client_a = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   // A raw client stands in for the leaving peer so the test can call Disconnect()
   // directly; InMemoryTransport only notifies the peer on an explicit Disconnect(), not
@@ -297,14 +297,14 @@ TEST(NetSessionTest, PlayerLeftRemovesEntityOnServerAndOtherClients) {
 
   // Wait for client_a's copy specifically: the server spawns Player_2 synchronously,
   // but the PlayerJoined broadcast still needs a network tick to reach client_a.
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(client_a.World().lookup(PlayerEntityName(2).c_str()));
   }));
 
   leaver->Disconnect(leaver_connection);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks,
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks,
       [&] { return !client_a.World().lookup(PlayerEntityName(2).c_str()); }));
   EXPECT_FALSE(server.World().lookup(PlayerEntityName(2).c_str()));
 }
@@ -317,7 +317,7 @@ TEST(NetSessionTest, PlayerLeftWaitsForAlreadyScheduledCommandsToApply) {
   const auto leaver = ConnectRawClient(*network, server, leaver_connection);
   ASSERT_NE(leaver_connection, kInvalidConnectionId);
   SendRaw(*leaver, leaver_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
-  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str()));
   }));
 
@@ -328,11 +328,11 @@ TEST(NetSessionTest, PlayerLeftWaitsForAlreadyScheduledCommandsToApply) {
   leaver->Disconnect(leaver_connection);
   const auto tick = [&server] { return server.World().get<z13::flecs_tools::SimulationClock>().tick; };
   ASSERT_LT(tick(), future_tick);
-  RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] { return tick() >= future_tick; });
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return tick() >= future_tick; });
   EXPECT_TRUE(server.World().lookup(PlayerEntityName(1).c_str()))
       << "removed on or before the tick of its own already-scheduled command";
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return !server.World().lookup(PlayerEntityName(1).c_str());
   })) << "never removed at all";
   EXPECT_GT(tick(), future_tick);
@@ -347,7 +347,7 @@ TEST(NetSessionTest, ConnectViaBootstrapStaysAtMenuUntilConnectedThenClearsPause
   EXPECT_FALSE(client.World().has<Gameplay>());
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   EXPECT_FALSE(client.World().has<Pause>());
   EXPECT_TRUE(client.World().has<Gameplay>());
@@ -366,8 +366,8 @@ TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
   SendRaw(*raw, connection, hello);
 
   std::optional<std::string> reason;
-  for (uint64_t tick = 0; tick < kMaxTicks && !reason; ++tick) {
-    server.World().progress(kTestDeltaTime);
+  for (uint64_t tick = 0; tick < kMaxNetTestTicks && !reason; ++tick) {
+    server.World().progress(kNetTestDeltaTime);
     network->Tick();
     for (const TransportEvent& event : raw->Service()) {
       if (event.kind != TransportEventKind::kReceived) {
@@ -397,8 +397,8 @@ TEST(NetSessionTest, CorruptSnapshotFailsTheClientWithoutCreatingAScene) {
   Z13TestWorld client = MakeClient(network);
 
   std::optional<ConnectionId> connection;
-  for (uint64_t tick = 0; tick < kMaxTicks && !connection; ++tick) {
-    client.World().progress(kTestDeltaTime);
+  for (uint64_t tick = 0; tick < kMaxNetTestTicks && !connection; ++tick) {
+    client.World().progress(kNetTestDeltaTime);
     network->Tick();
     for (const TransportEvent& event : (*listener)->Service()) {
       if (event.kind == TransportEventKind::kConnected) {
@@ -413,7 +413,7 @@ TEST(NetSessionTest, CorruptSnapshotFailsTheClientWithoutCreatingAScene) {
   welcome.snapshot = {1, 2, 3, 4};  // not valid msgpack for WorldSnapshot
   SendRaw(**listener, *connection, welcome);
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {client}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return client.World().get<ConnectionStatus>().state == ConnectionState::kFailed;
   }));
 
@@ -432,7 +432,7 @@ TEST(NetSessionTest, GarbagePacketFromClientDropsThatPeerButServerStaysAlive) {
 
   Z13TestWorld good_client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, good_client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(good_client); }));
+      *network, {server, good_client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(good_client); }));
 
   EXPECT_EQ(good_client.World().get<LocalPlayer>().id, 1u);  // garbage sender never got an id
 }
@@ -459,7 +459,7 @@ TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) 
   ASSERT_NE(connection, kInvalidConnectionId);
   SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
   const uint8_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
@@ -469,7 +469,7 @@ TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) 
   SendRaw(*raw, connection, batch);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
+      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
   const auto& records = CommittedCommands(server.World());
   ASSERT_EQ(records.size(), 1u);
   EXPECT_EQ(records.front().action_id, valid_action_id);
@@ -484,7 +484,7 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   ASSERT_NE(connection, kInvalidConnectionId);
   SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
   const uint8_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
@@ -495,7 +495,7 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   SendRaw(*raw, connection, batch);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server}, kTestDeltaTime, kMaxTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
+      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
   EXPECT_EQ(CommittedCommands(server.World()).size(), z13::net::kMaxCommandsPerRateLimitWindow);
 }
 
@@ -511,7 +511,7 @@ TEST(NetSessionTest, LargeSnapshotArrivesWhole) {
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client); }));
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   EXPECT_EQ(BlockCount(client.World()), static_cast<size_t>(kBlockCount));
 }
@@ -528,11 +528,11 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   Z13TestWorld client_a = MakeClient(network);
 
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   constexpr uint64_t kSettleTicks = 30;
   auto tick_all = [&](std::vector<std::reference_wrapper<Z13TestWorld>> worlds, uint64_t count) {
-    RunNetworkUntil(*network, worlds, kTestDeltaTime, count, [] { return false; });
+    RunNetworkUntil(*network, worlds, kNetTestDeltaTime, count, [] { return false; });
   };
 
   using z13::testing::KeyDown;
@@ -573,7 +573,7 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_a)) << "after move/look/build/destroy";
 
   Z13TestWorld client_b = MakeClient(network);
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_b);
   }));
   tick_all({server, client_a, client_b}, kSettleTicks);
@@ -585,7 +585,7 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   const auto third = ConnectRawClient(*network, server, third_connection);
   ASSERT_NE(third_connection, kInvalidConnectionId);
   SendRaw(*third, third_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(3).c_str()));
   }));
   third->Disconnect(third_connection);
@@ -616,15 +616,15 @@ TEST(NetSessionTest, LateCommandsAndJoinsStillConvergeUnderHighLatency) {
   Z13TestWorld client_a = MakeClient(network);
   Z13TestWorld client_b = MakeClient(network);
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kSlowMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSlowMaxTicks, [&] {
     return IsConnected(client_a) && IsConnected(client_b) && PlayerIds(client_a.World()).size() == 3 &&
         PlayerIds(client_b.World()).size() == 3;
   }));
 
   client_a.EmitInput(z13::testing::KeyDown(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, 20, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 20, [] { return false; });
   client_a.EmitInput(z13::testing::KeyUp(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, 4 * kLatencyTicks, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 4 * kLatencyTicks, [] { return false; });
 
   const flecs::entity a_on_server = server.World().lookup(PlayerEntityName(1).c_str());
   ASSERT_TRUE(a_on_server);
@@ -643,11 +643,11 @@ TEST(NetSessionTest, ClockOffsetIsMeasuredOnlyAgainstTheJoinedClock) {
   constexpr int64_t kOffsetTolerance = 3;
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
-  RunNetworkUntil(*network, {server}, kTestDeltaTime, kServerHeadStartTicks, [] { return false; });
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kServerHeadStartTicks, [] { return false; });
   network->SetFaultConfig({.min_delay_ticks = kLatencyTicks, .max_delay_ticks = kLatencyTicks});
 
   Z13TestWorld client = MakeClient(network);
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kTestDeltaTime, kSlowMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kSlowMaxTicks, [&] {
     return IsConnected(client) && client.World().get<ClockSync>().offset_ticks.has_value();
   }));
 
@@ -659,7 +659,7 @@ TEST(NetSessionTest, KeyReleasedAfterTheSnapshotDoesNotKeepMovingOnTheJoiner) {
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client_a = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
-      *network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] { return IsConnected(client_a); }));
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   const uint64_t interval_ticks = static_cast<uint64_t>(
       std::llround(server.Config().GetSnapshotIntervalSeconds() * server.Config().GetFPS()));
@@ -670,18 +670,18 @@ TEST(NetSessionTest, KeyReleasedAfterTheSnapshotDoesNotKeepMovingOnTheJoiner) {
   if (capture_tick < server_tick() + 2 * static_cast<uint64_t>(kInputDelayTicks)) {
     capture_tick += interval_ticks;  // the press must have applied before that capture
   }
-  RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, kMaxTicks, [&] {
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return server_tick() > capture_tick + static_cast<uint64_t>(kInputDelayTicks);
   });
   client_a.EmitInput(z13::testing::KeyUp(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a}, kTestDeltaTime, 30, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 30, [] { return false; });
   ASSERT_LT(server_tick(), capture_tick + interval_ticks) << "the join must still use that same capture";
 
   Z13TestWorld client_b = MakeClient(network);
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, kMaxTicks, [&] {
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_b);
   }));
-  RunNetworkUntil(*network, {server, client_a, client_b}, kTestDeltaTime, 30, [] { return false; });
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 30, [] { return false; });
 
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));
 }
