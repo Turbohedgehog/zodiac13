@@ -125,6 +125,22 @@ void CollapseHeldBackRecords(std::vector<z13::gameplay::PlayerActionRecord>& rec
   std::ranges::copy(latest | std::views::values, std::back_inserter(records));
 }
 
+// The client sends a CommandBatch; the host sequences its own commands on the spot,
+// like any client's, and broadcasts them (its clock offset is 0).
+NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandBatchT batch) {
+  Envelope envelope;
+  if (!is_server) {
+    envelope.body.Set(std::move(batch));
+    return session.Send(*session.ServerConnection(), Channel::kReliable, envelope);
+  }
+  fbn::SequencedCommandsT sequenced;
+  sequenced.player_id = player_id;
+  sequenced.base_tick = batch.base_tick;
+  sequenced.commands = std::move(batch.commands);
+  envelope.body.Set(std::move(sequenced));
+  return session.Broadcast(Channel::kReliable, envelope);
+}
+
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ClockSync& sync,
     const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
@@ -137,8 +153,8 @@ void SendPendingCommands(
   if (clock.tick % kNetSendIntervalTicks != 0 || outgoing.records.empty()) {
     return;
   }
-  const std::optional<ConnectionId> server_connection = session.ServerConnection();
-  if (!server_connection || !local_player.id) {
+  const bool is_server = it.world().has<ServerRole>();
+  if ((!is_server && !session.ServerConnection()) || !local_player.id) {
     return;
   }
 
@@ -150,9 +166,7 @@ void SendPendingCommands(
   }
   ScheduleLocally(it.world(), *local_player.id, scheduled);
 
-  Envelope envelope;
-  envelope.body.Set(ToBatch(scheduled));
-  if (const auto sent = session.Send(*server_connection, Channel::kReliable, envelope); !sent) {
+  if (const auto sent = Send(session, is_server, *local_player.id, ToBatch(scheduled)); !sent) {
     log_error("NetActionSender: {}", sent.error());
   }
 }
@@ -163,7 +177,6 @@ void RegisterSystems(flecs::world world) {
       const StateDigests, z13::gameplay::OutgoingCommands>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
-      .with<ClientRole>()
       .without<ft::ReplayInProgress>()
       .each(SendPendingCommands);
 }

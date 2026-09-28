@@ -16,6 +16,8 @@
 
 #include <lib_core/world_state.h>
 
+#include <vector>
+
 #include <Eigen/Dense>
 
 #include <lib_core/rollback.h>
@@ -30,9 +32,23 @@ bool IsStateSingleton(flecs::entity component) {
          component.has(flecs::Singleton);
 }
 
+// A singleton's value lives on its own component entity; add() default-constructs it.
+// Immediate, since a deferred remove+add of one id may collapse into a no-op.
+void ResetSessionScopedComponents(flecs::world& world) {
+  const ImmediateScope immediate(world);
+  std::vector<flecs::entity> components;
+  world.query_builder().with<SessionScopedComponent>().build().each(
+      [&components](flecs::entity component) { components.push_back(component); });
+  for (const flecs::entity component : components) {
+    component.remove(component);
+    component.add(component);
+  }
+}
+
 void RegisterStateMeta(flecs::world& world) {
   world.component<StateEntity>();
   world.component<StateComponent>();
+  world.component<SessionScopedComponent>();
   RegisterStdStringMeta(world);
   RegisterEigenMeta(world);
   // Shared transform type; only state entities are captured, so this is safe module-wide.

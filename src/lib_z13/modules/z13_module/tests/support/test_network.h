@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string_view>
 #include <vector>
 
 #include <lib_core/rollback.h>
@@ -27,6 +28,12 @@
 #include "z13_test_world.h"
 
 namespace z13::testing {
+
+// Shared by the net test suites: 60 Hz like a real session, and the default port every
+// --server test world listens on.
+constexpr float kNetTestDeltaTime = 1.f / 60.f;
+constexpr uint64_t kMaxNetTestTicks = 600;
+constexpr std::string_view kTestServerEndpoint = "127.0.0.1:26213";
 
 // Advances a set of Z13TestWorlds sharing one InMemoryNetwork tick by tick -- each
 // world's own progress() first, then one network.Tick() to deliver sends -- until

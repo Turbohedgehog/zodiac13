@@ -66,6 +66,7 @@ inline int CompareByPlayerId(flecs::entity_t, const Player* a, flecs::entity_t, 
 // client briefly has none.
 struct LocalPlayer {
   using Singleton = void;
+  using SessionScoped = void;
   std::optional<uint32_t> id;
 };
 

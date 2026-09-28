@@ -33,8 +33,11 @@ struct Endpoint {
   friend bool operator==(const Endpoint&, const Endpoint&) = default;
 };
 
+// A decimal port in [kMinPort, kMaxPort].
+std::expected<uint16_t, std::string> ParsePort(std::string_view text);
+
 // Parses "host" or "host:port" (bare "host" uses `default_port`). Shared by --connect
-// and the future Join dialog, so both validate the same way. No IPv6 literals yet --
+// and the Join dialog, so both validate the same way. No IPv6 literals yet --
 // their embedded ':' would be ambiguous with the port separator.
 std::expected<Endpoint, std::string> ParseEndpoint(std::string_view text, uint16_t default_port);
 

@@ -41,7 +41,9 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponent<BootstrapCompleteComponent>(world);
   z13::flecs_tools::RegisterComponent<z13::net::ServerRole>(world);
   z13::flecs_tools::RegisterComponent<z13::net::ClientRole>(world);
+  world.component<z13::net::StartServerRequest>();
   world.component<z13::net::JoinRequest>();
+  world.component<z13::net::LeaveRequest>();
   z13::flecs_tools::RegisterComponent<z13::net::ConnectionStatus>(world);
 }
 
@@ -51,9 +53,8 @@ void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
   e.remove<LoadConfigEvent>();
 }
 
-// --server skips the main menu and lets net_module open the transport off ServerRole
-// alone. --connect sets the role and raises a JoinRequest; the menu (Pause) stays up
-// until Welcome/Rejected resolves it.
+// --server skips the main menu: net_module opens the transport and starts Gameplay.
+// --connect keeps the menu (Pause) up until Welcome/Rejected resolves the JoinRequest.
 void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   flecs::world world = e.world();
   const auto config = z13::GetCoreConfig(world);
@@ -64,10 +65,8 @@ void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   }
 
   if (config->get().IsServer()) {
-    world.add<z13::net::ServerRole>();
-    world.add<z13::gameplay::Gameplay>();
+    world.entity().set<z13::net::StartServerRequest>({.port = config->get().GetPort()});
   } else if (const auto endpoint = config->get().GetConnectEndpoint()) {
-    world.add<z13::net::ClientRole>();
     world.add<z13::gameplay::Pause>();
     world.entity().set<z13::net::JoinRequest>({.endpoint = *endpoint});
   } else if (config->get().SkipMainMenu()) {
@@ -87,6 +86,10 @@ void InitBootstrap(flecs::entity e, const BootstrapComponent&) {
 }
 
 void RegisterSystems(flecs::world world) {
+  // Set here, not next to its registration (see PhysicsSystem::RegisterSystems). The menu
+  // reads it before any session has written it.
+  world.set<z13::net::ConnectionStatus>({});
+
   world.observer<LoadConfigEvent>("BootstrapSystem::OnLoadConfig")
     .event(flecs::OnAdd)
     .each(OnLoadConfig);

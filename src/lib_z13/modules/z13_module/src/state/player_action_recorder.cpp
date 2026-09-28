@@ -147,6 +147,7 @@ void RegisterSystems(flecs::world world) {
       "PlayerActionRecorder::ApplyOwnCommands")
       .kind(flecs::PostUpdate)
       .without<z13::net::ClientRole>()
+      .without<z13::net::ServerRole>()
       .each(ApplyOwnCommands);
 
   world.system<const z13::flecs_tools::SimulationClock, z13::gameplay::PlayerActionLog>(

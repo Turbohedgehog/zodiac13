@@ -52,6 +52,12 @@ struct RenderModel {
   std::shared_ptr<ModelResources> res;
 };
 
+// One octahedron mesh shared by every remote player's avatar. Singleton; empty `res`
+// means it failed to load.
+struct AvatarModel {
+  std::shared_ptr<ModelResources> res;
+};
+
 // Marks a block's cube model, which lives in EnvironmentRenderSystem's
 // BlockModels, plus its plain-data render state.
 struct BuildingBlock {

@@ -35,6 +35,7 @@ constexpr float kDigestPositionTolerance = 1e-3f;
 // digests until this client has reached and settled their tick.
 struct StateDigests {
   using Singleton = void;
+  using SessionScoped = void;
   std::map<uint64_t, fbs::net::StateDigestT> local;
   std::vector<fbs::net::StateDigestT> received;
   std::optional<uint64_t> last_sent_tick;

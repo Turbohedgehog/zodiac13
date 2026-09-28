@@ -86,6 +86,7 @@ struct ScheduledSessionDelta {
 // `history` lets a rollback replay applied deltas and a joiner catch up on them.
 struct ScheduledSessionDeltas {
   using Singleton = void;
+  using SessionScoped = void;
   std::vector<ScheduledSessionDelta> pending;
   std::vector<ScheduledSessionDelta> history;
 };

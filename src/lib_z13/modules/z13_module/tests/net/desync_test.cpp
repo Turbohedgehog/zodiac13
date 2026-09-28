@@ -49,14 +49,14 @@ namespace {
 namespace ft = z13::flecs_tools;
 using z13::testing::KeyDown;
 using z13::testing::KeyUp;
+using z13::testing::kMaxNetTestTicks;
+using z13::testing::kNetTestDeltaTime;
+using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
-constexpr float kTestDeltaTime = 1.f / 60.f;
-constexpr uint64_t kMaxTicks = 600;
 constexpr uint64_t kSettleTicks = 30;
-constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
   return Z13TestWorld(/*skip_main_menu=*/false, {std::string(z13::testing::kServerArg)}, network);
@@ -64,7 +64,7 @@ Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
   return Z13TestWorld(
-      /*skip_main_menu=*/false, {std::string(z13::testing::kConnectArg), std::string(kServerEndpoint)}, network);
+      /*skip_main_menu=*/false, {std::string(z13::testing::kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -96,11 +96,11 @@ bool HasDuplicateRecords(flecs::world world) {
 class DesyncTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    ASSERT_TRUE(Run(kMaxTicks, [&] { return IsConnected(client_); }));
+    ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return IsConnected(client_); }));
   }
 
   bool Run(uint64_t max_ticks, const std::function<bool()>& condition) {
-    return RunNetworkUntil(*network_, {server_, client_}, kTestDeltaTime, max_ticks, condition);
+    return RunNetworkUntil(*network_, {server_, client_}, kNetTestDeltaTime, max_ticks, condition);
   }
 
   void Settle() {
@@ -109,8 +109,8 @@ class DesyncTest : public ::testing::Test {
 
   // Runs until the resync has landed and a later digest has confirmed it.
   bool RunUntilResynced() {
-    return Run(kMaxTicks, [&] { return Digests(client_).resyncs > 0; }) &&
-        Run(kMaxTicks, [&, checked = Digests(client_).checked] { return Digests(client_).checked > checked; });
+    return Run(kMaxNetTestTicks, [&] { return Digests(client_).resyncs > 0; }) &&
+        Run(kMaxNetTestTicks, [&, checked = Digests(client_).checked] { return Digests(client_).checked > checked; });
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
@@ -133,7 +133,7 @@ TEST_F(DesyncTest, DigestsAgreeAfterAScriptedSession) {
   Settle();
   ASSERT_EQ(server_.World().count<z13::building::BasicBlock>(), 1);
 
-  ASSERT_TRUE(Run(kMaxTicks, [&] { return Digests(client_).checked >= 3; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 3; }));
   EXPECT_EQ(Digests(client_).resyncs, 0u);
   EXPECT_FALSE(Digests(client_).awaiting_resync);
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
@@ -200,13 +200,13 @@ TEST_F(DesyncTest, InputWhileAwaitingResyncIsHeldBackThenSentOnTime) {
   const uint64_t resumed_at = server_.World().get<ft::SimulationClock>().tick;
   client_.World().get_mut<StateDigests>().awaiting_resync = false;
   const uint64_t rollbacks_before = server_.World().get<ft::RollbackMetrics>().rollbacks;
-  ASSERT_TRUE(Run(kMaxTicks, [&] { return !server_.World().get<z13::gameplay::ScheduledCommands>().records.empty(); }))
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !server_.World().get<z13::gameplay::ScheduledCommands>().records.empty(); }))
       << "the held-back press was never sent";
   EXPECT_GT(server_.World().get<z13::gameplay::ScheduledCommands>().records.front().tick, resumed_at);
   EXPECT_EQ(server_.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "it arrived late";
 
   client_.EmitInput(KeyUp(Keycode::KEY_W));
-  ASSERT_TRUE(Run(kMaxTicks, [&] { return Digests(client_).checked >= 2; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 2; }));
   EXPECT_EQ(Digests(client_).resyncs, 0u);
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
@@ -223,7 +223,7 @@ TEST_F(DesyncTest, ReplayNeitherResendsNorRerecordsCommands) {
     ft::RequestRollback(client_.World(), now - kRollbackDepthTicks, now);
   }
   client_.EmitInput(KeyUp(Keycode::KEY_W));
-  ASSERT_TRUE(Run(kMaxTicks, [&] { return Digests(client_).checked >= 2; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 2; }));
 
   const auto& metrics = client_.World().get<ft::RollbackMetrics>();
   EXPECT_GE(metrics.rollbacks, rollbacks_before + kRollbacks);
