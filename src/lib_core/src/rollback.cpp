@@ -54,16 +54,18 @@ void ApplyPendingRollback(flecs::world& world) {
   }
 
   const uint64_t from_tick = restore_point->tick;
-  for (const auto& entity : restore_point->snapshot.entities) {
-    if (entity.name.find("net") != std::string::npos || entity.name.find("Connection") != std::string::npos) {
-    }
-  }
   if (const auto restored = RestoreWorld(world, restore_point->snapshot); !restored) {
     world.set<RollbackFailed>({restored.error()});
     return;
   }
   // Everything newer is a future the replay is about to derive again; PostFrame re-captures it.
   history.history.RemoveIf([from_tick](const TimestampedSnapshot& entry) { return entry.tick > from_tick; });
+
+  auto& metrics = world.get_mut<RollbackMetrics>();
+  const uint64_t depth = target_tick > from_tick ? target_tick - from_tick : 0;
+  ++metrics.rollbacks;
+  metrics.last_depth_ticks = depth;
+  metrics.max_depth_ticks = std::max(metrics.max_depth_ticks, depth);
 
   // The clock is state, so the restore moved it back already; the next frame's increment
   // lands on the first replayed tick. Nothing to replay when the snapshot is the target.
@@ -81,8 +83,9 @@ void FinishReplay(flecs::iter& it, size_t, const SimulationClock& clock, const R
 }  // namespace
 
 void RegisterRollback(flecs::world& world) {
-  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed>(world);
+  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics>(world);
   world.set<RollbackRequest>({});
+  world.set<RollbackMetrics>({});
 
   world.system<const SimulationClock, const ReplayInProgress>("Rollback::FinishReplay")
       .kind(flecs::PostFrame)

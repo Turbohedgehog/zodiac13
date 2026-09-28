@@ -30,6 +30,14 @@ void IncrementTick(SimulationClock& clock) {
   ++clock.tick;
 }
 
+std::optional<uint64_t> SecondsToTicks(flecs::world world, std::optional<double> seconds) {
+  const std::optional<uint64_t> ticks_per_second = TicksPerSecond(world);
+  if (!ticks_per_second || !seconds) {
+    return std::nullopt;
+  }
+  return static_cast<uint64_t>(std::llround(*seconds * static_cast<double>(*ticks_per_second)));
+}
+
 }  // namespace
 
 void RegisterSimulationClock(flecs::world& world) {
@@ -57,6 +65,14 @@ std::optional<double> SnapshotIntervalSeconds(flecs::world world) {
 std::optional<double> SnapshotRetentionSeconds(flecs::world world) {
   const auto config = GetCoreConfig(world);
   return config ? std::optional(config->get().GetSnapshotRetentionSeconds()) : std::nullopt;
+}
+
+std::optional<uint64_t> SnapshotIntervalTicks(flecs::world world) {
+  return SecondsToTicks(world, SnapshotIntervalSeconds(world));
+}
+
+std::optional<uint64_t> SnapshotRetentionTicks(flecs::world world) {
+  return SecondsToTicks(world, SnapshotRetentionSeconds(world));
 }
 
 }  // namespace z13::flecs_tools

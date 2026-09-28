@@ -135,7 +135,8 @@ flecs::entity SpawnBlock(
   return block.add<z13::flecs_tools::StateEntity>().set(transform).add<BasicBlock>();
 }
 
-void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock, z13::gameplay::IdCounters& counters) {
+void ProcessBuildBlockRequest(
+    flecs::entity player, RequestBuildBlock, const z13::gameplay::Player&, z13::gameplay::IdCounters& counters) {
   player.remove<RequestBuildBlock>();
 
   const auto brush_transform = FindBrushTransform(player);
@@ -187,8 +188,10 @@ void RegisterSystems(flecs::world world) {
   // the brush position UpdateBrush just refreshed this frame.
   // The write<> terms make flecs merge the spawned block before systems that read
   // it later in the frame (e.g. bullet's body sync).
-  world.system<RequestBuildBlock, z13::gameplay::IdCounters>("BuildingSystem::ProcessBuildBlockRequest")
+  world.system<RequestBuildBlock, const z13::gameplay::Player, z13::gameplay::IdCounters>(
+      "BuildingSystem::ProcessBuildBlockRequest")
     .kind<UpdateBuildingToolPhase>()
+    .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
     .write<BasicBlock>()
     .write<Eigen::Matrix4f>()
     .each(ProcessBuildBlockRequest);

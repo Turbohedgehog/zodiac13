@@ -35,6 +35,7 @@
 
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
+#include <net_module/state_digest.h>
 
 #include "net_session.h"
 #include "scheduled_commands.h"
@@ -103,10 +104,26 @@ void ScheduleLocally(
   }
 }
 
+// Records older than one send interval were held back by a resync. Moved to now, keeping
+// their order and spacing, so they neither arrive late nor fall out of the server's window.
+void ShiftHeldBackRecords(std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t now) {
+  const uint64_t earliest = std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick;
+  if (earliest + kNetSendIntervalTicks > now) {
+    return;
+  }
+  const uint64_t shift = now - earliest;
+  std::ranges::for_each(records, [shift](z13::gameplay::PlayerActionRecord& record) { record.tick += shift; });
+}
+
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ClockSync& sync,
     const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
-    z13::gameplay::OutgoingCommands& outgoing) {
+    const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing) {
+  // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
+  // nothing after it may be, so the client can take the server's queue as-is.
+  if (digests.awaiting_resync) {
+    return;
+  }
   if (clock.tick % kNetSendIntervalTicks != 0 || outgoing.records.empty()) {
     return;
   }
@@ -115,6 +132,7 @@ void SendPendingCommands(
     return;
   }
 
+  ShiftHeldBackRecords(outgoing.records, clock.tick);
   const std::vector<ScheduledCommand> scheduled = Schedule(outgoing.records, sync);
   outgoing.records.clear();
   if (scheduled.empty()) {
@@ -132,7 +150,7 @@ void SendPendingCommands(
 void RegisterSystems(flecs::world world) {
   world.system<
       NetSession, const ClockSync, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
-      z13::gameplay::OutgoingCommands>(
+      const StateDigests, z13::gameplay::OutgoingCommands>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .with<ClientRole>()
