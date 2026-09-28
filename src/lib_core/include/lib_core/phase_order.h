@@ -16,17 +16,16 @@
 
 #pragma once
 
-#include <optional>
-
-#include <lib_core/core_types.h>
+#include <flecs.h>
 
 namespace z13 {
 
-struct PendingDestroy {};
-
-struct CoreComponent {
-  std::optional<CoreRef> core;
-};
-
+// Makes the phase order total and build-independent: a topological sort of the declared
+// DependsOn graph plus flecs' builtin order, ties broken by phase path (not entity id,
+// which differs between builds). Call once every module has declared its phases.
+//
+// Like flecs' own builtin phases, each phase then depends only on its own hidden anchor
+// (anchors form the chain), so disabling a phase stops just that phase's systems.
+void LinearizePhases(flecs::world& world);
 
 }  // namespace z13

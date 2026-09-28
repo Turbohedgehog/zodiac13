@@ -215,7 +215,7 @@ TEST_F(WorldStateTest, StringAfterScalarRoundTripsThroughJson) {
 
 struct RegistrationTrigger {};
 
-// Module registration runs inside observers, where flecs defers operations.
+// Registration may run inside an observer, where flecs defers operations.
 TEST_F(WorldStateTest, RegistrationInsideAnObserverKeepsAllMembers) {
   flecs::world world;
   ft::RegisterStateMeta(world);

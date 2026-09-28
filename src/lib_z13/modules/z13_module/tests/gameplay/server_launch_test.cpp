@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 
@@ -30,6 +32,8 @@ namespace {
 
 using z13::gameplay::Gameplay;
 using z13::gameplay::Pause;
+using z13::testing::kConnectArg;
+using z13::testing::kServerArg;
 using z13::testing::Z13TestWorld;
 
 TEST(ServerLaunchTest, DefaultRoleIsNeitherServerNorClient) {
@@ -40,7 +44,7 @@ TEST(ServerLaunchTest, DefaultRoleIsNeitherServerNorClient) {
 }
 
 TEST(ServerLaunchTest, ServerFlagStartsGameplayWithoutPauseAndSetsServerRole) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {"--server"});
+  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kServerArg)});
 
   EXPECT_TRUE(test_world.World().has<Gameplay>());
   EXPECT_FALSE(test_world.World().has<Pause>());
@@ -51,7 +55,7 @@ TEST(ServerLaunchTest, ServerFlagStartsGameplayWithoutPauseAndSetsServerRole) {
 }
 
 TEST(ServerLaunchTest, ConnectFlagSetsClientRoleButStaysAtMainMenuForNow) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {"--connect", "127.0.0.1:26213"});
+  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kConnectArg), "127.0.0.1:26213"});
 
   EXPECT_FALSE(test_world.World().has<Gameplay>());
   EXPECT_TRUE(test_world.World().has<Pause>());

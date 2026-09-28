@@ -26,6 +26,8 @@
 #include <bullet_module/bullet_components.h>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/math.h>
 #include <lib_core/world_state.h>
 
@@ -34,11 +36,12 @@
 
 namespace z13::bullet_module {
 
+// Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
+struct PhysicsStepPhase {};
+
 namespace {
 
 constexpr int kMaxSubSteps = 10;
-
-struct PhysicsStepPhase {};
 
 // How far along the player's forward axis DestroyBlock's raycast reaches.
 constexpr float kDestroyReachDistance = 5.f;
@@ -171,20 +174,11 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void PhysicsSystem::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>("PhysicsSystem::RegisterComponents")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitPhasesEvent>("PhysicsSystem::RegisterPipeline")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterPipeline(world); });
+  OnInitPhases(world, RegisterPipeline);
 
-  world.observer<InitSystemsEvent>("PhysicsSystem::RegisterSystems")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::bullet_module

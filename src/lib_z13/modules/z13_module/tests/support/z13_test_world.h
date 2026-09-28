@@ -45,13 +45,15 @@ constexpr std::string_view kInitBootstrapSystemName = "InitBootstrap";
 constexpr std::string_view kTestProgramName = "z13_test_runner";
 constexpr std::string_view kSkipMainMenuArg = "--skip-main-menu";
 constexpr std::string_view kQuickSavePathArg = "--quick-save-path";
+constexpr std::string_view kServerArg = "--server";
+constexpr std::string_view kConnectArg = "--connect";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
 class Z13TestWorld {
  public:
   // skip_main_menu mirrors --skip-main-menu: true spawns the scene on the first frame.
-  // extra_args are appended as-is (e.g. {"--server"}, {"--connect", "host:1234"}).
+  // extra_args are appended as-is (e.g. {kServerArg}, {kConnectArg, "host:1234"}).
   // network is this world's virtual network for --server/--connect: pass the same
   // InMemoryNetwork to several Z13TestWorlds so they can reach each other; left null,
   // each world gets its own, so a solo --server/--connect world never touches a socket.

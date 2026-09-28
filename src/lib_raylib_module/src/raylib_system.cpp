@@ -24,6 +24,8 @@
 
 #include <lib_core/components.h>
 #include <lib_core/core.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 
 #include <raylib_module/raylib_components.h>
@@ -89,10 +91,6 @@ void Shutdown(flecs::entity e, RaylibWindowClosed, RaylibData&, SdlPlatformData&
 }
 
 void RegisterSystems(flecs::world world) {
-  // Pre-add it so CreateDefaults's set() (same InitWorldDataEvent dispatch as
-  // InputPublisher's) is a value update, not a deferred add InputPublisher could miss.
-  world.ensure<SdlPlatformData>();
-
   world.system<const RaylibData, WindowSize, SdlPlatformData>("RaylibSystem::FrameBegin")
       .kind<PreRender>()
       .each([](const RaylibData&, WindowSize& size, SdlPlatformData& platform_data) {
@@ -120,25 +118,13 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void RaylibSystem::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitPhasesEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterPipelines(world); });
+  OnInitPhases(world, RegisterPipelines);
 
-  world.observer<InitSystemsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 
-  world.observer<InitWorldDataEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { CreateDefaults(world); });
+  OnInitWorldData(world, CreateDefaults);
 }
 
 }  // namespace z13::raylib

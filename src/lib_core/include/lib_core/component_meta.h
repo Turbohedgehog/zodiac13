@@ -52,8 +52,8 @@ void RegisterEigenMeta(flecs::world& world);
 // RegisterStdStringMeta). Empty structs are registered as plain tags.
 template <class T>
 flecs::untyped_component RegisterComponentMeta(flecs::world& world) {
-  // Runs during module registration, which happens inside an observer (see CLAUDE.md);
-  // without this, the .member() calls below would be deferred and overwrite each other.
+  // May run while the world is deferred (e.g. inside an observer); without this, the
+  // .member() calls below would be deferred and overwrite each other.
   const ImmediateScope immediate(world);
   auto component = world.component<T>();
 

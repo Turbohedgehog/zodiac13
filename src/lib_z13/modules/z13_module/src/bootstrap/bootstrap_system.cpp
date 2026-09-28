@@ -20,6 +20,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/bootstrap.h>
@@ -103,15 +104,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void BootstrapSystem::Register(flecs::world& world) {
-  world.observer<z13::RegisterComponentsEvent>("BootstrapSystem::RegisterComponents")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterComponents(world); });
+  z13::OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<z13::InitSystemsEvent>("BootstrapSystem::RegisterSystems")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterSystems(world); });
+  z13::OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::bootstrap

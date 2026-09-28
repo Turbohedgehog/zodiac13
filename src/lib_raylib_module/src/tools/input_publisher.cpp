@@ -27,6 +27,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -267,20 +268,11 @@ void CreateDefaults(flecs::world world) {
 }  // namespace
 
 void InputPublisher::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitSystemsEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 
-  world.observer<InitWorldDataEvent>()
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { CreateDefaults(world); });
+  OnInitWorldData(world, CreateDefaults);
 }
 
 }  // namespace z13::raylib

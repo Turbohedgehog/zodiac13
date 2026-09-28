@@ -29,6 +29,8 @@
 #include <z13/components/input.h>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/math.h>
 #include <lib_core/world_state.h>
 #include <lib_core/log.h>
@@ -37,9 +39,10 @@
 
 namespace z13::building {
 
-namespace {
-
+// Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
 struct UpdateBuildingToolPhase {};
+
+namespace {
 
 void RegisterPipeline(flecs::world world) {
   // SyncBrush must see the tool toggled this same frame.
@@ -197,15 +200,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void BuildingSystem::Register(flecs::world& world) {
-  world.observer<InitPhasesEvent>("BuildingSystem::RegisterPipeline")
-    .event(flecs::OnSet)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterPipeline(world); });
+  OnInitPhases(world, RegisterPipeline);
 
-  world.observer<InitSystemsEvent>("BuildingSystem::RegisterSystems")
-    .event(flecs::OnSet)
-    .yield_existing()
-    .each([world = world](const auto&) { RegisterSystems(world); });  
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::building

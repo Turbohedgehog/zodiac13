@@ -58,6 +58,8 @@ using z13::gameplay::LocalPlayer;
 using z13::gameplay::Pause;
 using z13::gameplay::Player;
 using z13::gameplay::PlayerEntityName;
+using z13::testing::kConnectArg;
+using z13::testing::kServerArg;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
@@ -68,11 +70,11 @@ constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 // Server first: a client's connect attempt only ever resolves against whatever's
 // already listening at the moment it's created.
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {"--server"}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {"--connect", std::string(kServerEndpoint)}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kServerEndpoint)}, network);
 }
 
 // Matches building_system.cpp's ProcessBuildBlockRequest: a block only round-trips

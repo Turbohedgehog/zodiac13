@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include <lib_core/components.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
 
@@ -44,7 +45,7 @@ namespace z13 {
 
 namespace {
 
-void OnRegisterComponents(flecs::world world) {
+void RegisterComponents(flecs::world world) {
   world.component<status::Z13State>()
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
   flecs_tools::RegisterComponents<
@@ -74,15 +75,9 @@ void OnCreateDefaults(flecs::world world) {
 }  // namespace
 
 Z13Module::Z13Module(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>("Z13Module::OnRegisterComponents")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { OnRegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitWorldDataEvent>("Z13Module::OnCreateDefaults")
-    .event(flecs::OnAdd)
-    .yield_existing()
-    .each([world = world](const auto&) { OnCreateDefaults(world); });
+  OnInitWorldData(world, OnCreateDefaults);
 
   z13::bootstrap::BootstrapSystem::Register(world);
   z13::gameplay::GameplaySystem::Register(world);

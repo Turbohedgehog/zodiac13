@@ -21,6 +21,8 @@
 #include <vector>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 
@@ -67,10 +69,7 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void RemoteInput::Register(flecs::world& world) {
-  world.observer<InitSystemsEvent>("RemoteInput::RegisterSystems")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::net

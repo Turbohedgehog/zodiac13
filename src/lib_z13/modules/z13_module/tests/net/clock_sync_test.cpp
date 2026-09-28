@@ -36,6 +36,8 @@ namespace z13::net {
 namespace {
 
 namespace ft = z13::flecs_tools;
+using z13::testing::kConnectArg;
+using z13::testing::kServerArg;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
@@ -45,11 +47,11 @@ constexpr std::string_view kServerEndpoint = "127.0.0.1:26213";
 constexpr uint64_t kSecondsToSettle = 4;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {"--server"}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {"--connect", std::string(kServerEndpoint)}, network);
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kServerEndpoint)}, network);
 }
 
 bool IsConnected(Z13TestWorld& world) {

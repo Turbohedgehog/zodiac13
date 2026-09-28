@@ -23,6 +23,8 @@
 #include <flecs.h>
 
 #include <lib_core/components.h>
+#include <lib_core/flecs_utils.h>
+#include <lib_core/lifecycle.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_snapshot_history.h>
@@ -156,15 +158,9 @@ void RegisterSystems(flecs::world world) {
 }  // namespace
 
 void PlayerActionRecorder::Register(flecs::world& world) {
-  world.observer<RegisterComponentsEvent>("PlayerActionRecorder::RegisterComponents")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterComponents(world); });
+  OnRegisterComponents(world, RegisterComponents);
 
-  world.observer<InitSystemsEvent>("PlayerActionRecorder::RegisterSystems")
-      .event(flecs::OnAdd)
-      .yield_existing()
-      .each([world = world](const auto&) { RegisterSystems(world); });
+  OnInitSystems(world, RegisterSystems);
 }
 
 }  // namespace z13::state
