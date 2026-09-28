@@ -141,6 +141,15 @@ NetSession::Result SendSessionDeltas(
   return all_sent ? NetSession::Result {} : sent;
 }
 
+// The newest snapshot older than any command the server may still accept late, so the
+// client can roll back for one; else the oldest, which the server can't go past either.
+const ft::TimestampedSnapshot& CatchUpBase(const ft::WorldSnapshotHistory& history, uint64_t now) {
+  const auto& entries = history.history.Entries();
+  const auto settled = std::ranges::find_last_if(
+      entries, [now](const ft::TimestampedSnapshot& entry) { return entry.tick + kMaxLateTicks < now; });
+  return settled.empty() ? entries.front() : settled.front();
+}
+
 // Welcome and Resync share this catch-up payload.
 template <typename Message>
 void FillCatchUp(flecs::world world, Message& message) {
@@ -148,16 +157,16 @@ void FillCatchUp(flecs::world world, Message& message) {
 
   // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
   // expensive); the action batch lets the client catch up to server_tick by replaying it.
-  const auto& history = world.get<ft::WorldSnapshotHistory>().history;
-  if (history.Empty()) {
+  const auto& history = world.get<ft::WorldSnapshotHistory>();
+  if (history.history.Empty()) {
     // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
     message.snapshot = ToBytes(ft::SaveState(world));
     message.snapshot_tick = message.server_tick;
   } else {
-    const ft::TimestampedSnapshot& latest = history.Entries().back();
-    message.snapshot = ToBytes(ft::SaveState(latest.snapshot));
-    message.snapshot_tick = latest.tick;
-    message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, latest.tick)));
+    const ft::TimestampedSnapshot& base = CatchUpBase(history, message.server_tick);
+    message.snapshot = ToBytes(ft::SaveState(base.snapshot));
+    message.snapshot_tick = base.tick;
+    message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, base.tick)));
   }
   message.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, message.snapshot_tick)));
   message.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));

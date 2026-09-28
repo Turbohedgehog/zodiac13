@@ -111,7 +111,8 @@ void RegisterStateDigestSystems(flecs::world world) {
 NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   for (const auto& [tick, digest] : digests.local) {
-    if (tick + kMaxLateTicks > now) {
+    // A command for `tick` is still accepted at exactly tick + kMaxLateTicks.
+    if (tick + kMaxLateTicks >= now) {
       break;
     }
     if (digests.last_sent_tick && tick <= *digests.last_sent_tick) {

@@ -18,9 +18,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <vector>
+
+#include <boost/container/flat_map.hpp>
 
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
@@ -104,15 +108,21 @@ void ScheduleLocally(
   }
 }
 
-// Records older than one send interval were held back by a resync. Moved to now, keeping
-// their order and spacing, so they neither arrive late nor fall out of the server's window.
-void ShiftHeldBackRecords(std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t now) {
+// Records older than one send interval were held back by a resync. Collapsed onto now,
+// last value per action, so the wait adds no input delay and can't outrun the server's
+// schedule window.
+void CollapseHeldBackRecords(std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t now) {
   const uint64_t earliest = std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick;
   if (earliest + kNetSendIntervalTicks > now) {
     return;
   }
-  const uint64_t shift = now - earliest;
-  std::ranges::for_each(records, [shift](z13::gameplay::PlayerActionRecord& record) { record.tick += shift; });
+  boost::container::flat_map<z13::input::ActionInfo::IdType, z13::gameplay::PlayerActionRecord> latest;
+  for (z13::gameplay::PlayerActionRecord record : records) {
+    record.tick = now;
+    latest.insert_or_assign(record.action_id, record);
+  }
+  records.clear();
+  std::ranges::copy(latest | std::views::values, std::back_inserter(records));
 }
 
 void SendPendingCommands(
@@ -132,7 +142,7 @@ void SendPendingCommands(
     return;
   }
 
-  ShiftHeldBackRecords(outgoing.records, clock.tick);
+  CollapseHeldBackRecords(outgoing.records, clock.tick);
   const std::vector<ScheduledCommand> scheduled = Schedule(outgoing.records, sync);
   outgoing.records.clear();
   if (scheduled.empty()) {
