@@ -49,6 +49,14 @@ struct RollbackFailed {
   std::string reason;
 };
 
+// Depth is target_tick minus the restored snapshot's tick, i.e. the ticks re-simulated.
+struct RollbackMetrics {
+  using Singleton = void;
+  uint64_t rollbacks {};
+  uint64_t last_depth_ticks {};
+  uint64_t max_depth_ticks {};
+};
+
 // Called by RegisterStateMeta.
 void RegisterRollback(flecs::world& world);
 

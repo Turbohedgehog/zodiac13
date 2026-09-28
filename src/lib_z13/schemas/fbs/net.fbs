@@ -78,11 +78,14 @@ table Rejected {
   reason: string;
 }
 
+// Welcome without the player id: the client already has one.
 table Resync {
   server_tick: ulong;
   snapshot: [ubyte];
-  held_values: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, same as Welcome
-  pending: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, same as Welcome
+  snapshot_tick: ulong;
+  actions: [ubyte];
+  held_values: [ubyte];
+  pending: [ubyte];
 }
 
 table PlayerJoined {

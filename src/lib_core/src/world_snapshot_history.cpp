@@ -16,8 +16,6 @@
 
 #include <lib_core/world_snapshot_history.h>
 
-#include <cmath>
-
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_state.h>
 
@@ -25,20 +23,10 @@ namespace z13::flecs_tools {
 
 namespace {
 
-uint64_t RoundTicks(double seconds, uint64_t ticks_per_second) {
-  return static_cast<uint64_t>(std::llround(seconds * static_cast<double>(ticks_per_second)));
-}
-
 void CaptureSnapshot(flecs::world world, const SimulationClock& clock, WorldSnapshotHistory& history) {
-  const std::optional<uint64_t> ticks_per_second = TicksPerSecond(world);
-  const std::optional<double> interval_seconds = SnapshotIntervalSeconds(world);
-  const std::optional<double> retention_seconds = SnapshotRetentionSeconds(world);
-  if (!ticks_per_second || !interval_seconds || !retention_seconds) {
-    return;
-  }
-
-  const uint64_t interval_ticks = RoundTicks(*interval_seconds, *ticks_per_second);
-  if (interval_ticks == 0 || clock.tick % interval_ticks != 0) {
+  const std::optional<uint64_t> interval_ticks = SnapshotIntervalTicks(world);
+  const std::optional<uint64_t> retention_ticks = SnapshotRetentionTicks(world);
+  if (!interval_ticks || !retention_ticks || *interval_ticks == 0 || clock.tick % *interval_ticks != 0) {
     return;
   }
 
@@ -47,11 +35,8 @@ void CaptureSnapshot(flecs::world world, const SimulationClock& clock, WorldSnap
   entry.snapshot = CaptureState(world);
   history.history.Push(std::move(entry));
 
-  // From ticks_per_second directly, not interval_ticks * retention_seconds -- those
-  // agree only when interval_seconds == 1.
-  const uint64_t retention_ticks = RoundTicks(*retention_seconds, *ticks_per_second);
   const uint64_t current_tick = clock.tick;
-  auto is_too_old = [current_tick, retention_ticks](const TimestampedSnapshot& old_entry) {
+  auto is_too_old = [current_tick, retention_ticks = *retention_ticks](const TimestampedSnapshot& old_entry) {
     return (current_tick - old_entry.tick) > retention_ticks;
   };
   history.history.PruneOlderThan(is_too_old);

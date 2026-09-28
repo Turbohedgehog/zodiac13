@@ -50,6 +50,7 @@
 
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
+#include <net_module/state_digest.h>
 
 // reflect-cpp headers warn under /W4-as-errors; same suppression as world_serializer.cpp.
 #if defined(_MSC_VER)
@@ -62,6 +63,7 @@
 
 #include "net_session.h"
 #include "scheduled_commands.h"
+#include "state_digest_system.h"
 #include "transport_factories.h"
 
 namespace z13::net {
@@ -139,27 +141,42 @@ NetSession::Result SendSessionDeltas(
   return all_sent ? NetSession::Result {} : sent;
 }
 
+// The newest snapshot older than any command the server may still accept late, so the
+// client can roll back for one; else the oldest, which the server can't go past either.
+const ft::TimestampedSnapshot& CatchUpBase(const ft::WorldSnapshotHistory& history, uint64_t now) {
+  const auto& entries = history.history.Entries();
+  const auto settled = std::ranges::find_last_if(
+      entries, [now](const ft::TimestampedSnapshot& entry) { return entry.tick + kMaxLateTicks < now; });
+  return settled.empty() ? entries.front() : settled.front();
+}
+
+// Welcome and Resync share this catch-up payload.
+template <typename Message>
+void FillCatchUp(flecs::world world, Message& message) {
+  message.server_tick = world.get<ft::SimulationClock>().tick;
+
+  // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
+  // expensive); the action batch lets the client catch up to server_tick by replaying it.
+  const auto& history = world.get<ft::WorldSnapshotHistory>();
+  if (history.history.Empty()) {
+    // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
+    message.snapshot = ToBytes(ft::SaveState(world));
+    message.snapshot_tick = message.server_tick;
+  } else {
+    const ft::TimestampedSnapshot& base = CatchUpBase(history, message.server_tick);
+    message.snapshot = ToBytes(ft::SaveState(base.snapshot));
+    message.snapshot_tick = base.tick;
+    message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, base.tick)));
+  }
+  message.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, message.snapshot_tick)));
+  message.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));
+}
+
 NetSession::Result SendWelcome(
     NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id) {
   fbn::WelcomeT welcome;
   welcome.player_id = player_id;
-  welcome.server_tick = world.get<ft::SimulationClock>().tick;
-
-  // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
-  // expensive); the action batch lets the client catch up to server_tick by replaying it.
-  const auto& history = world.get<ft::WorldSnapshotHistory>().history;
-  if (history.Empty()) {
-    // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
-    welcome.snapshot = ToBytes(ft::SaveState(world));
-    welcome.snapshot_tick = welcome.server_tick;
-  } else {
-    const ft::TimestampedSnapshot& latest = history.Entries().back();
-    welcome.snapshot = ToBytes(ft::SaveState(latest.snapshot));
-    welcome.snapshot_tick = latest.tick;
-    welcome.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, latest.tick)));
-  }
-  welcome.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, welcome.snapshot_tick)));
-  welcome.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));
+  FillCatchUp(world, welcome);
   const uint64_t snapshot_tick = welcome.snapshot_tick;
 
   Envelope envelope;
@@ -249,6 +266,20 @@ NetSession::Result HandleClientHello(
     return welcomed;
   }
   return SchedulePlayerJoined(session, world, player_id);
+}
+
+NetSession::Result HandleResyncRequest(NetSession& session, flecs::world world, ConnectionId connection) {
+  if (!session.PlayerIdFor(connection)) {
+    log_warn("NetSession(server): ignoring a ResyncRequest from an unwelcomed connection {}", connection);
+    return {};
+  }
+  log_info("NetSession(server): resyncing connection {}", connection);
+  fbn::ResyncT resync;
+  FillCatchUp(world, resync);
+
+  Envelope envelope;
+  envelope.body.Set(std::move(resync));
+  return session.Send(connection, Channel::kReliable, envelope);
 }
 
 NetSession::Result HandlePing(
@@ -380,6 +411,7 @@ NetSession::Result HandleServerReceived(
   return VisitBody(decoded->body, Overloaded {
       [&](const fbn::ClientHelloT& hello) { return HandleClientHello(session, world, connection, hello, counters); },
       [&](const fbn::PingT& ping) { return HandlePing(session, world, connection, ping); },
+      [&](const fbn::ResyncRequestT&) { return HandleResyncRequest(session, world, connection); },
       [&](const fbn::CommandBatchT& batch) { return HandleCommandBatch(session, world, connection, batch); },
       [](const auto&) { return NetSession::Result {}; },
   });
@@ -438,41 +470,69 @@ std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> Decod
   return *result;
 }
 
-struct WelcomePayload {
+struct CatchUpPayload {
   ft::WorldSnapshot snapshot;
   std::vector<z13::gameplay::PlayerActionRecord> actions;
   std::vector<z13::gameplay::PlayerActionRecord> held_values;
   std::vector<z13::gameplay::PlayerActionRecord> pending;
 };
 
-std::expected<WelcomePayload, std::string> DecodeWelcomePayload(const fbn::WelcomeT& welcome) {
-  auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(welcome.snapshot));
+template <typename Message>
+std::expected<CatchUpPayload, std::string> DecodeCatchUp(const Message& message) {
+  auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(message.snapshot));
   if (!snapshot) {
     return std::unexpected(snapshot.error().what());
   }
-  WelcomePayload payload {.snapshot = std::move(*snapshot)};
+  CatchUpPayload payload {.snapshot = std::move(*snapshot)};
   const auto decode_into = [](const std::vector<uint8_t>& bytes, std::vector<z13::gameplay::PlayerActionRecord>& out) {
     return DecodeRecords(ToChars(bytes)).transform([&out](auto records) { out = std::move(records); });
   };
-  return decode_into(welcome.actions, payload.actions)
-      .and_then([&] { return decode_into(welcome.held_values, payload.held_values); })
-      .and_then([&] { return decode_into(welcome.pending, payload.pending); })
+  return decode_into(message.actions, payload.actions)
+      .and_then([&] { return decode_into(message.held_values, payload.held_values); })
+      .and_then([&] { return decode_into(message.pending, payload.pending); })
       .transform([&payload] { return std::move(payload); });
 }
 
+// Untrusted: an implausible span would spin the catch-up for kMaxCatchUpTicksPerFrame
+// frames per tick, forever, with the transport unserviced.
+bool IsPlausibleCatchUp(uint64_t snapshot_tick, uint64_t target_tick) {
+  return target_tick >= snapshot_tick && target_tick - snapshot_tick <= ft::kMaxCatchUpTicksPerFrame;
+}
+
+// Replaces rather than merges: on a resync the local log, queue and snapshots are what
+// diverged. The queue needs no merge: NetActionSender holds input back while awaiting it.
+void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_tick, uint64_t target_tick) {
+  std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(payload.held_values);
+  log_entries.insert(log_entries.end(), payload.actions.begin(), payload.actions.end());
+  auto& log = world.get_mut<z13::gameplay::PlayerActionLog>().log;
+  log.RemoveIf([](const auto&) { return true; });
+  if (!log_entries.empty()) {
+    log.MergeSorted(std::move(log_entries), RecordLess);
+  }
+
+  world.get_mut<z13::gameplay::ScheduledCommands>().records = std::move(payload.pending);
+
+  auto& history = world.get_mut<ft::WorldSnapshotHistory>().history;
+  history.RemoveIf([](const auto&) { return true; });
+  history.Push({.tick = snapshot_tick, .snapshot = std::move(payload.snapshot)});
+
+  auto& digests = world.get_mut<StateDigests>();
+  digests.local.clear();
+  digests.received.clear();
+  digests.awaiting_resync = false;
+
+  ft::RequestRollback(world, snapshot_tick, target_tick);
+}
+
 void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT& welcome) {
-  auto payload = DecodeWelcomePayload(welcome);
+  auto payload = DecodeCatchUp(welcome);
   if (!payload) {
     log_warn("NetSession(client): corrupt Welcome: {}", payload.error());
     SetConnectionStatus(world, ConnectionState::kFailed, "corrupt snapshot");
     CloseClientSession(world, session);
     return;
   }
-
-  // Untrusted: an implausible span would spin the catch-up for kMaxCatchUpTicksPerFrame
-  // frames per tick, forever, with the transport unserviced.
-  if (welcome.server_tick < welcome.snapshot_tick ||
-      welcome.server_tick - welcome.snapshot_tick > ft::kMaxCatchUpTicksPerFrame) {
+  if (!IsPlausibleCatchUp(welcome.snapshot_tick, welcome.server_tick)) {
     SetConnectionStatus(world, ConnectionState::kFailed, "implausible server tick");
     CloseClientSession(world, session);
     return;
@@ -484,22 +544,24 @@ void HandleWelcome(flecs::world world, NetSession& session, const fbn::WelcomeT&
   // The catch-up moves this clock onto the server's.
   world.set<ClockSync>({});
 
-  std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(payload->held_values);
-  log_entries.insert(log_entries.end(), payload->actions.begin(), payload->actions.end());
-  if (!log_entries.empty()) {
-    world.get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(std::move(log_entries), RecordLess);
-  }
-
-  if (!payload->pending.empty()) {
-    auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
-    std::ranges::for_each(payload->pending, [&queue](const auto& record) { QueueInOrder(queue, record); });
-  }
-
   // The join is an ordinary rollback; ConnectionStatus stays kConnecting until the
   // catch-up lands (see FinishPendingJoin).
-  world.get_mut<ft::WorldSnapshotHistory>().history.Push(
-      {.tick = welcome.snapshot_tick, .snapshot = std::move(payload->snapshot)});
-  ft::RequestRollback(world, welcome.snapshot_tick, welcome.server_tick);
+  AdoptCatchUp(world, std::move(*payload), welcome.snapshot_tick, welcome.server_tick);
+}
+
+// Unlike a join, never moves this clock backwards: the replay also covers any ticks this
+// client has already run past server_tick.
+void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
+  auto payload = DecodeCatchUp(resync);
+  const uint64_t target_tick = std::max(resync.server_tick, world.get<ft::SimulationClock>().tick);
+  if (!payload || !IsPlausibleCatchUp(resync.snapshot_tick, target_tick)) {
+    log_warn("NetSession(client): unusable Resync: {}", payload ? "implausible server tick" : payload.error());
+    world.get_mut<StateDigests>().awaiting_resync = false;  // the next mismatch asks again
+    return;
+  }
+  log_info("NetSession(client): resyncing from tick {}", resync.snapshot_tick);
+  AdoptCatchUp(world, std::move(*payload), resync.snapshot_tick, target_tick);
+  ++world.get_mut<StateDigests>().resyncs;
 }
 
 void HandleRejected(flecs::world world, NetSession& session, const fbn::RejectedT& rejected) {
@@ -538,14 +600,11 @@ void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
 }
 
 void PruneSessionHistory(flecs::world world, uint64_t now, std::vector<ScheduledSessionDelta>& history) {
-  const std::optional<uint64_t> ticks_per_second = ft::TicksPerSecond(world);
-  const std::optional<double> retention_seconds = ft::SnapshotRetentionSeconds(world);
-  if (!ticks_per_second || !retention_seconds) {
+  const std::optional<uint64_t> retention_ticks = ft::SnapshotRetentionTicks(world);
+  if (!retention_ticks) {
     return;
   }
-  const auto retention_ticks =
-      static_cast<uint64_t>(std::llround(*retention_seconds * static_cast<double>(*ticks_per_second)));
-  std::erase_if(history, [now, retention_ticks](const ScheduledSessionDelta& item) {
+  std::erase_if(history, [now, retention_ticks = *retention_ticks](const ScheduledSessionDelta& item) {
     return item.apply_tick + retention_ticks < now;
   });
 }
@@ -648,6 +707,17 @@ void HandleClientReceived(flecs::world world, NetSession& session, const Transpo
       },
       [&](const fbn::PlayerJoinedT& joined) { queue_session_delta(joined); },
       [&](const fbn::PlayerLeftT& left) { queue_session_delta(left); },
+      [world, welcomed](const fbn::ResyncT& resync) {
+        if (welcomed) {
+          HandleResync(world, resync);
+        }
+      },
+      [world, welcomed](const fbn::StateDigestT& digest) {
+        auto& digests = world.get_mut<StateDigests>();
+        if (welcomed && !digests.awaiting_resync) {
+          digests.received.push_back(digest);
+        }
+      },
       [](const auto&) {},
   });
 }
@@ -672,6 +742,35 @@ NetSession::Result SendClientHello(NetSession& session, ConnectionId server_conn
   Envelope envelope;
   envelope.body.Set(std::move(hello));
   return session.Send(server_connection, Channel::kReliable, envelope);
+}
+
+bool IsJoined(flecs::world world) {
+  return world.has<ConnectionStatus>() && world.get<ConnectionStatus>().state == ConnectionState::kConnected;
+}
+
+// A failed rollback after the join is one more way to diverge; during it, it's fatal
+// (FinishPendingJoin).
+NetSession::Result ResyncIfDiverged(flecs::world world, NetSession& session) {
+  const std::optional<ConnectionId> server_connection = session.ServerConnection();
+  if (!IsJoined(world) || !server_connection) {
+    return {};
+  }
+  auto& digests = world.get_mut<StateDigests>();
+  bool diverged = CheckReceivedStateDigests(world, digests);
+  if (world.has<ft::RollbackFailed>()) {
+    log_warn("NetSession(client): {}", world.get<ft::RollbackFailed>().reason);
+    world.remove<ft::RollbackFailed>();
+    diverged = true;
+  }
+  if (!diverged || digests.awaiting_resync) {
+    return {};
+  }
+
+  digests.awaiting_resync = true;
+  digests.received.clear();
+  Envelope envelope;
+  envelope.body.Set(fbn::ResyncRequestT {});
+  return session.Send(*server_connection, Channel::kReliable, envelope);
 }
 
 // Unreliable: behind reliable traffic it would measure the queue, not the network.
@@ -772,6 +871,7 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
   world.set<z13::gameplay::LocalPlayer>({});
   world.set<ScheduledSessionDeltas>({});
   world.set<z13::gameplay::ScheduledCommands>({});
+  world.set<StateDigests>({});
 
   const auto config = z13::GetCoreConfig(world);
   const z13::ConnectTimeoutConfig timeout = config ? config->get().GetConnectTimeout() : z13::ConnectTimeoutConfig {};
@@ -813,10 +913,18 @@ void ServiceNetSession(flecs::world world) {
       world.remove<ft::RollbackFailed>();
     }
     serviced = ServiceServerSession(world, session, world.get_mut<z13::gameplay::IdCounters>());
-  } else if (FinishPendingJoin(world, session)) {
-    serviced = ServiceClientSession(world, session);
-    if (serviced && world.has<NetSession>()) {
-      serviced = SendPingIfDue(world, session);
+    if (serviced) {
+      serviced = SendSettledStateDigests(world, session, world.get_mut<StateDigests>());
+    }
+  } else {
+    // Before servicing: digests received last frame are checked once the rollbacks their
+    // preceding commands caused have landed.
+    serviced = ResyncIfDiverged(world, session);
+    if (serviced && FinishPendingJoin(world, session)) {
+      serviced = ServiceClientSession(world, session);
+      if (serviced && world.has<NetSession>()) {
+        serviced = SendPingIfDue(world, session);
+      }
     }
   }
   if (serviced) {
@@ -836,7 +944,7 @@ void ServiceNetSession(flecs::world world) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator>(world);
+      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator, StateDigests>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -845,6 +953,8 @@ void RegisterSystems(flecs::world world) {
   world.set<ClockSync>({});
   world.set<CommandRateLimits>({});
   world.set<PlayerIdAllocator>({});
+  world.set<StateDigests>({});
+  RegisterStateDigestSystems(world);
 
   world.observer<ServerRole, const TransportFactories>("NetSessionSystem::OnServerRoleAdded")
       .event(flecs::OnAdd)

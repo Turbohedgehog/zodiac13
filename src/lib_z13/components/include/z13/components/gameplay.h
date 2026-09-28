@@ -21,6 +21,8 @@
 #include <optional>
 #include <string>
 
+#include <flecs.h>
+
 namespace z13::gameplay {
 
 struct PreUpdatePhase {};
@@ -52,6 +54,12 @@ struct Player {
   using State = void;
   uint32_t id {};
 };
+
+// For `.order_by<Player>()` on systems where players compete (same-tick builds/destroys):
+// ECS iteration order follows entity creation, which differs between participants.
+inline int CompareByPlayerId(flecs::entity_t, const Player* a, flecs::entity_t, const Player* b) {
+  return (a->id > b->id) - (a->id < b->id);
+}
 
 // Which Player.id this participant controls; not state, since it's set locally (0 at
 // spawn, or from Welcome/Resync's player_id on join). Optional because a connecting

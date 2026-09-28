@@ -18,9 +18,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <vector>
+
+#include <boost/container/flat_map.hpp>
 
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
@@ -35,6 +39,7 @@
 
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
+#include <net_module/state_digest.h>
 
 #include "net_session.h"
 #include "scheduled_commands.h"
@@ -103,10 +108,32 @@ void ScheduleLocally(
   }
 }
 
+// Records older than one send interval were held back by a resync. Collapsed onto now,
+// last value per action, so the wait adds no input delay and can't outrun the server's
+// schedule window.
+void CollapseHeldBackRecords(std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t now) {
+  const uint64_t earliest = std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick;
+  if (earliest + kNetSendIntervalTicks > now) {
+    return;
+  }
+  boost::container::flat_map<z13::input::ActionInfo::IdType, z13::gameplay::PlayerActionRecord> latest;
+  for (z13::gameplay::PlayerActionRecord record : records) {
+    record.tick = now;
+    latest.insert_or_assign(record.action_id, record);
+  }
+  records.clear();
+  std::ranges::copy(latest | std::views::values, std::back_inserter(records));
+}
+
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ClockSync& sync,
     const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
-    z13::gameplay::OutgoingCommands& outgoing) {
+    const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing) {
+  // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
+  // nothing after it may be, so the client can take the server's queue as-is.
+  if (digests.awaiting_resync) {
+    return;
+  }
   if (clock.tick % kNetSendIntervalTicks != 0 || outgoing.records.empty()) {
     return;
   }
@@ -115,6 +142,7 @@ void SendPendingCommands(
     return;
   }
 
+  CollapseHeldBackRecords(outgoing.records, clock.tick);
   const std::vector<ScheduledCommand> scheduled = Schedule(outgoing.records, sync);
   outgoing.records.clear();
   if (scheduled.empty()) {
@@ -132,7 +160,7 @@ void SendPendingCommands(
 void RegisterSystems(flecs::world world) {
   world.system<
       NetSession, const ClockSync, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
-      z13::gameplay::OutgoingCommands>(
+      const StateDigests, z13::gameplay::OutgoingCommands>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .with<ClientRole>()

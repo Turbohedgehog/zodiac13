@@ -42,5 +42,8 @@ void RegisterSimulationClock(flecs::world& world);
 std::optional<uint64_t> TicksPerSecond(flecs::world world);  // Config::GetFPS(), rounded
 std::optional<double> SnapshotIntervalSeconds(flecs::world world);
 std::optional<double> SnapshotRetentionSeconds(flecs::world world);
+// The two above in ticks, rounded.
+std::optional<uint64_t> SnapshotIntervalTicks(flecs::world world);
+std::optional<uint64_t> SnapshotRetentionTicks(flecs::world world);
 
 }  // namespace z13::flecs_tools

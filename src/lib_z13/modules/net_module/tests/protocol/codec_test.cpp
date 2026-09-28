@@ -128,10 +128,14 @@ TEST(CodecTest, ResyncRoundTrips) {
   fbn::ResyncT resync;
   resync.server_tick = 1000;
   resync.snapshot = {9, 8, 7};
+  resync.snapshot_tick = 960;
+  resync.actions = {4, 5};
 
   const auto decoded = RoundTrip(resync);
   EXPECT_EQ(decoded.server_tick, 1000u);
   EXPECT_EQ(decoded.snapshot, resync.snapshot);
+  EXPECT_EQ(decoded.snapshot_tick, 960u);
+  EXPECT_EQ(decoded.actions, resync.actions);
 }
 
 TEST(CodecTest, PlayerJoinedRoundTrips) {
