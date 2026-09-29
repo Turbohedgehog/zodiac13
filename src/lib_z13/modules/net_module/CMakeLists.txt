@@ -7,9 +7,9 @@ set(CMAKE_CXX_STANDARD 23)
 find_package(unofficial-enet CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS dll)
 
-# ENet's Windows backend calls timeGetTime/timeBeginPeriod/timeEndPeriod from winmm.
+# vcpkg's enet links these itself only for MinGW.
 if(WIN32)
-  set(ENET_PLATFORM_LIBS winmm)
+  set(ENET_PLATFORM_LIBS winmm ws2_32)
 endif()
 
 file(

@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -28,7 +29,9 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
+#include <z13/components/player_action.h>
 
+#include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"
 
@@ -67,15 +70,133 @@ int64_t RealOffset(Z13TestWorld& server, Z13TestWorld& client) {
   return static_cast<int64_t>(Tick(server)) - static_cast<int64_t>(Tick(client));
 }
 
+TEST(ClockSyncTest, ASmallOffsetIsClosedOneTickPerCadenceStep) {
+  ClockSync sync;
+  sync.offset_ticks = kClockCatchUpThresholdTicks;
 
-TEST(ClockSyncTest, ScheduleTickAddsTheOffsetAndTheInputDelay) {
-  EXPECT_EQ(ScheduleTick(100, std::nullopt), 100u + kInputDelayTicks);
-  EXPECT_EQ(ScheduleTick(100, 30), 130u + kInputDelayTicks);
-  EXPECT_EQ(ScheduleTick(100, -30), 70u + kInputDelayTicks);
+  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), 0) << "off the cadence";
+  ASSERT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 1);
+  EXPECT_EQ(sync.offset_ticks, kClockCatchUpThresholdTicks - 1);
+  EXPECT_EQ(TakeClockAdjustment(sync, 2 * kClockCatchUpEveryTicks), 0) << "under the threshold";
+
+  sync.offset_ticks = -kClockCatchUpThresholdTicks;
+  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), -1) << "ahead: skip a tick";
+  EXPECT_EQ(sync.offset_ticks, -kClockCatchUpThresholdTicks + 1);
 }
 
-TEST(ClockSyncTest, ScheduleTickClampsInsteadOfWrapping) {
-  EXPECT_EQ(ScheduleTick(0, -1000), 0u);
+TEST(ClockSyncTest, ALargeOffsetIsClosedAtOnceEitherWay) {
+  ClockSync sync;
+  sync.offset_ticks = 120;
+  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), 120);
+  EXPECT_EQ(sync.offset_ticks, 0);
+
+  sync.offset_ticks = -kClockJumpThresholdTicks;
+  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), -kClockJumpThresholdTicks);
+  EXPECT_EQ(sync.offset_ticks, 0);
+}
+
+TEST(ClockSyncTest, AnUnmeasuredClockIsLeftAlone) {
+  ClockSync sync;
+  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 0);
+}
+
+TEST(ClockSyncTest, AdjustmentsDuringAPingDoNotCountAsRoundTrip) {
+  ClockSync sync;
+  sync.offset_ticks = 10;
+  sync.ping_sent_tick = 100;
+  ASSERT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 1);
+  ASSERT_EQ(TakeClockAdjustment(sync, 2 * kClockCatchUpEveryTicks), 1);
+
+  // 4 ticks of real round trip plus the 2 extra ticks run meanwhile.
+  ApplyPong(sync, 100, 110, 106);
+  EXPECT_EQ(sync.rtt_ticks, 4);
+  EXPECT_EQ(sync.adjusted_ticks_in_flight, 0);
+
+  sync.offset_ticks = -kClockJumpThresholdTicks;
+  sync.ping_sent_tick = 200;
+  ASSERT_EQ(TakeClockAdjustment(sync, 1), -kClockJumpThresholdTicks);
+  // 4 counted ticks plus the skipped frames, which the clock never counted.
+  ApplyPong(sync, 200, 210, 204);
+  EXPECT_EQ(sync.rtt_ticks, 4 + kClockJumpThresholdTicks);
+}
+
+TEST(ClockSyncTest, ALaggingClientCatchesUpWithoutJumping) {
+  constexpr uint32_t kLatencyTicks = 10;
+  constexpr uint64_t kMaxTicksPerFrame = 2;
+  auto network = std::make_shared<InMemoryNetwork>();
+  network->SetFaultConfig({.min_delay_ticks = kLatencyTicks, .max_delay_ticks = kLatencyTicks});
+
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client) && client.World().get<ClockSync>().offset_ticks.has_value();
+  }));
+  ASSERT_GT(RealOffset(server, client), kClockCatchUpThresholdTicks + 1) << "joined already caught up";
+
+  uint64_t previous = Tick(client);
+  uint64_t max_step = 0;
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [&] {
+    max_step = std::max(max_step, Tick(client) - previous);
+    previous = Tick(client);
+    return false;
+  });
+
+  EXPECT_LE(max_step, kMaxTicksPerFrame);
+  EXPECT_LE(RealOffset(server, client), kClockCatchUpThresholdTicks + 1);
+  EXPECT_GE(RealOffset(server, client), -kClockCatchUpThresholdTicks);
+}
+
+size_t LoggedFor(Z13TestWorld& world, uint32_t player_id) {
+  return static_cast<size_t>(std::ranges::count_if(
+      world.World().get<z13::gameplay::PlayerActionLog>().log.Entries(),
+      [player_id](const z13::gameplay::PlayerActionRecord& record) { return record.player_id == player_id; }));
+}
+
+// The other world never makes up the lost frames, like Core::Run.
+void RunAlone(InMemoryNetwork& network, Z13TestWorld& running, uint64_t frames) {
+  RunNetworkUntil(network, {running}, kNetTestDeltaTime, frames, [] { return false; });
+}
+
+void ExpectClockRecoversAndCommandsLand(
+    InMemoryNetwork& network, Z13TestWorld& server, Z13TestWorld& client) {
+  RunNetworkUntil(network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
+  EXPECT_LE(std::abs(RealOffset(server, client)), kClockCatchUpThresholdTicks + 1);
+
+  const uint32_t id = *client.World().get<z13::gameplay::LocalPlayer>().id;
+  client.EmitInput(z13::testing::KeyDown(z13::fbs::input::Keycode::KEY_W));
+  EXPECT_TRUE(RunNetworkUntil(network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return LoggedFor(server, id) > 0;
+  })) << "the server dropped the command";
+}
+
+TEST(ClockSyncTest, AServerHitchLeavesClientsAheadOnlyUntilTheNextPing) {
+  constexpr uint64_t kHitchFrames = 60;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client) && client.World().get<ClockSync>().offset_ticks.has_value();
+  }));
+
+  RunAlone(*network, client, kHitchFrames);
+  ASSERT_LT(RealOffset(server, client), -static_cast<int64_t>(kMaxScheduleAheadTicks)) << "the client should now be out of the window";
+
+  ExpectClockRecoversAndCommandsLand(*network, server, client);
+}
+
+TEST(ClockSyncTest, AClientHitchIsClosedAtOnceNotOverSeconds) {
+  constexpr uint64_t kHitchFrames = 120;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client) && client.World().get<ClockSync>().offset_ticks.has_value();
+  }));
+
+  RunAlone(*network, server, kHitchFrames);
+  ASSERT_GT(RealOffset(server, client), static_cast<int64_t>(kMaxLateTicks));
+
+  ExpectClockRecoversAndCommandsLand(*network, server, client);
 }
 
 TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {
@@ -88,10 +209,11 @@ TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {
   EXPECT_EQ(sync.rtt_ticks, 4);
   EXPECT_FALSE(sync.ping_sent_tick.has_value());
 
+  // Within what latency jitter explains: smoothed, not taken whole.
   sync.ping_sent_tick = 200;
-  ApplyPong(sync, 200, 302, 204);
+  ApplyPong(sync, 200, 262, 204);
   EXPECT_GT(*sync.offset_ticks, 50);
-  EXPECT_LT(*sync.offset_ticks, 100);
+  EXPECT_LT(*sync.offset_ticks, 60);
 }
 
 TEST(ClockSyncTest, AReplyToAnotherPingIsIgnored) {
@@ -111,11 +233,24 @@ TEST(ClockSyncTest, OneSpikeMovesTheEstimateOnlyPartway) {
   }
   ASSERT_EQ(*sync.offset_ticks, 50);
 
+  // A 100-tick latency spike, all of it on the way back: the sample is off by rtt / 2.
   sync.ping_sent_tick = 500;
-  ApplyPong(sync, 500, 650, 504);
+  ApplyPong(sync, 500, 552, 604);
 
-  EXPECT_GT(*sync.offset_ticks, 50);
-  EXPECT_LT(*sync.offset_ticks, 100) << "a single spike moved the estimate more than half way";
+  EXPECT_LT(*sync.offset_ticks, 50);
+  EXPECT_GT(*sync.offset_ticks, 25) << "a single spike moved the estimate more than half way";
+}
+
+TEST(ClockSyncTest, AMissLatencyCannotExplainIsTakenWhole) {
+  ClockSync sync;
+  sync.ping_sent_tick = 100;
+  ApplyPong(sync, 100, 152, 104);
+  ASSERT_EQ(*sync.offset_ticks, 50);
+
+  // Same round trip, server 100 ticks further: a clock moved.
+  sync.ping_sent_tick = 200;
+  ApplyPong(sync, 200, 352, 204);
+  EXPECT_EQ(*sync.offset_ticks, 150);
 }
 
 

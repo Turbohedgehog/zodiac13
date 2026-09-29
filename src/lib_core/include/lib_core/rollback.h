@@ -57,6 +57,12 @@ struct RollbackMetrics {
   uint64_t max_depth_ticks {};
 };
 
+// Positive: extra live ticks next frame; negative: frames to skip.
+struct ClockAdjustRequest {
+  using Singleton = void;
+  int64_t ticks {};
+};
+
 // Called by RegisterStateMeta.
 void RegisterRollback(flecs::world& world);
 
@@ -64,10 +70,12 @@ void RegisterRollback(flecs::world& world);
 // `target_tick`. Safe to call from a system -- the restore lands between frames.
 void RequestRollback(flecs::world& world, uint64_t to_tick, uint64_t target_tick);
 
+void RequestClockAdjust(flecs::world& world, int64_t ticks);
+
 bool IsCatchingUp(flecs::world world);
 
 // The one place a world is advanced: an ordinary frame, plus the frames a rollback
-// requested during it needs. Nothing else may call progress() -- the restore has to land
+// requested during it needs, adjusted by a ClockAdjustRequest. Nothing else may call progress() -- the restore has to land
 // between frames, or flecs skips the rest of that frame's pipeline.
 void TickWorld(flecs::world& world, float delta_time);
 

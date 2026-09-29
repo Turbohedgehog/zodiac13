@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -42,6 +43,8 @@ struct OutgoingCommands {
   using Singleton = void;
   using SessionScoped = void;
   std::vector<PlayerActionRecord> records;
+  // Leading records already in PlayerActionLog.
+  size_t applied_count {};
 };
 
 // Not ActionListener's prev_value: RemoteActionFramePhase overwrites it every tick.

@@ -44,12 +44,7 @@ class NetSession::State {
   std::optional<ConnectionId> server_connection;
 };
 
-void NetSession::OpenAsServer(std::unique_ptr<Transport> transport) {
-  state_ = std::make_shared<State>();
-  state_->transport = std::move(transport);
-}
-
-void NetSession::OpenAsClient(std::unique_ptr<Transport> transport) {
+void NetSession::Open(std::unique_ptr<Transport> transport) {
   state_ = std::make_shared<State>();
   state_->transport = std::move(transport);
 }

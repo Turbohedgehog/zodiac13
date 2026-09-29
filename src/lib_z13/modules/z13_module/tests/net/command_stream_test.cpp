@@ -70,14 +70,8 @@ bool IsConnected(Z13TestWorld& world) {
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-size_t QueuedFor(Z13TestWorld& world, uint32_t player_id) {
-  const auto& records = world.World().get<z13::gameplay::ScheduledCommands>().records;
-  return static_cast<size_t>(std::ranges::count_if(
-      records, [player_id](const z13::gameplay::PlayerActionRecord& r) { return r.player_id == player_id; }));
-}
-
-bool IsSortedByApplyOrder(Z13TestWorld& world) {
-  const auto& records = world.World().get<z13::gameplay::ScheduledCommands>().records;
+bool IsLogSorted(Z13TestWorld& world) {
+  const auto& records = world.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
   return std::ranges::is_sorted(records, [](const auto& a, const auto& b) {
     return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
   });
@@ -113,15 +107,15 @@ TEST(CommandStreamTest, AClientsCommandReachesEveryoneOnceWithNoServerEcho) {
 
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
-    return QueuedFor(server, kClientAId) > 0 && QueuedFor(client_b, kClientAId) > 0;
+    return LogCountFor(server, kClientAId) > 0 && LogCountFor(client_b, kClientAId) > 0;
   })) << "the command never reached both the server and the other client";
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 10, [] { return false; });
 
-  EXPECT_EQ(QueuedFor(client_a, kClientAId), 1u) << "the sender queues its own command locally, once, with no server echo on top";
-  EXPECT_TRUE(IsSortedByApplyOrder(server));
-  EXPECT_TRUE(IsSortedByApplyOrder(client_b));
-
-  const auto& queued = server.World().get<z13::gameplay::ScheduledCommands>().records;
-  EXPECT_GT(queued.front().tick, server.World().get<ft::SimulationClock>().tick);
+  EXPECT_EQ(LogCountFor(client_a, kClientAId), 1u) << "the sender logs its own command once, with no server echo on top";
+  EXPECT_EQ(LogCountFor(server, kClientAId), 1u);
+  EXPECT_EQ(LogCountFor(client_b, kClientAId), 1u);
+  EXPECT_TRUE(IsLogSorted(server));
+  EXPECT_TRUE(IsLogSorted(client_b));
 }
 
 TEST(CommandStreamTest, AnIdleClientSendsNoCommands) {
@@ -133,11 +127,14 @@ TEST(CommandStreamTest, AnIdleClientSendsNoCommands) {
       *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
   RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 120, [] { return false; });
 
-  EXPECT_TRUE(server.World().get<z13::gameplay::ScheduledCommands>().records.empty());
+  EXPECT_TRUE(server.World().get<z13::gameplay::PlayerActionLog>().log.Entries().empty());
 }
 
-Eigen::Vector3f Position(flecs::entity player) {
-  return z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
+// Looked up every time: a rollback past a join recreates the player entity.
+Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
+  const flecs::entity player = world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+  EXPECT_TRUE(player) << "no player " << player_id;
+  return player ? z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) : Eigen::Vector3f::Zero();
 }
 
 TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
@@ -148,13 +145,10 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
-  const flecs::entity a_on_server = server.World().lookup(z13::gameplay::PlayerEntityName(kClientAId).c_str());
-  ASSERT_TRUE(a_on_server);
-
-  const float spawn_x = Position(a_on_server).x();
+  const float spawn_x = Position(server, kClientAId).x();
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
-    return Position(a_on_server).x() - spawn_x > 0.01f;
+    return Position(server, kClientAId).x() - spawn_x > 0.01f;
   })) << "the held command never took effect on the server";
 
   Z13TestWorld client_b = MakeClient(network);
@@ -162,20 +156,18 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
     return IsConnected(client_b);
   }));
 
-  const flecs::entity a_on_b = client_b.World().lookup(z13::gameplay::PlayerEntityName(kClientAId).c_str());
-  ASSERT_TRUE(a_on_b);
-  const float position_at_join = Position(a_on_b).x();
+  const float position_at_join = Position(client_b, kClientAId).x();
 
   constexpr int kExtraTicks = 20;
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kExtraTicks, [] { return false; });
 
-  const float moved = Position(a_on_b).x() - position_at_join;
+  const float moved = Position(client_b, kClientAId).x() - position_at_join;
   const float expected = static_cast<float>(kExtraTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "held_values didn't seed the joiner's view of an already-held key";
 }
 
-TEST(CommandStreamTest, LocalCommandDoesNotMoveTheClientBeforeItsApplyTick) {
+TEST(CommandStreamTest, LocalCommandMovesTheClientOnTheTickItIsPressed) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client_a = MakeClient(network);
@@ -183,17 +175,13 @@ TEST(CommandStreamTest, LocalCommandDoesNotMoveTheClientBeforeItsApplyTick) {
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
-  const flecs::entity local_player = client_a.Player();
-  const float before = Position(local_player).x();
-
+  const float before = Position(client_a, kClientAId).x();
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 3, [] { return false; });
-  EXPECT_FLOAT_EQ(Position(local_player).x(), before)
-      << "the client moved on its own command before that command's apply_tick -- that's prediction";
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 1, [] { return false; });
 
-  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
-    return Position(local_player).x() - before > 0.01f;
-  })) << "the command never took effect at all";
+  const float expected = z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
+  EXPECT_NEAR(Position(client_a, kClientAId).x() - before, expected, z13::testing::kTestEpsilon)
+      << "the client's own command waited instead of applying on the tick it was pressed";
 }
 
 TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
@@ -207,9 +195,7 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
     return IsConnected(client_a) && IsConnected(client_b);
   }));
 
-  const flecs::entity a_on_b = client_b.World().lookup(z13::gameplay::PlayerEntityName(kClientAId).c_str());
-  ASSERT_TRUE(a_on_b);
-  const float before = Position(a_on_b).x();
+  const float before = Position(client_b, kClientAId).x();
 
   constexpr uint64_t kHoldTicks = 20;
   constexpr uint64_t kSettleTicks = 30;
@@ -218,7 +204,7 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
-  const float moved = Position(a_on_b).x() - before;
+  const float moved = Position(client_b, kClientAId).x() - before;
   const float expected = static_cast<float>(kHoldTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "jittered delivery changed how long the hold registered as lasting";

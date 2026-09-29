@@ -60,6 +60,9 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
   world.system("PhaseOrderTest::Record")
       .kind<RecordActionFramePhase>()
       .run([&](flecs::iter&) { mark("Record"); });
+  world.system("PhaseOrderTest::OwnCommands")
+      .kind<OwnCommandsFramePhase>()
+      .run([&](flecs::iter&) { mark("OwnCommands"); });
   world.system("PhaseOrderTest::Remote")
       .kind<RemoteActionFramePhase>()
       .run([&](flecs::iter&) { mark("Remote"); });
@@ -85,7 +88,7 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
   // Gameplay's Pre/Update phases and the input chain both only follow OnUpdate; the
   // tie goes to the smaller phase path (see LinearizePhases).
   const std::vector<std::string> expected {"PreFrame", "ScheduledCommands", "Clear", "OnUpdate",
-      "GameplayPreUpdate", "GameplayUpdate", "Calculate", "Record", "Remote", "Apply",
+      "GameplayPreUpdate", "GameplayUpdate", "Calculate", "Record", "OwnCommands", "Remote", "Apply",
       "GameplayPostUpdate", "OnValidate", "PostUpdate", "OnStore", "PostFrame"};
   EXPECT_EQ(order, expected);
 }

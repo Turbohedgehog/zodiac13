@@ -18,14 +18,27 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <utility>
 
 namespace z13::net {
 
-uint64_t ScheduleTick(uint64_t client_tick, std::optional<int64_t> offset_ticks) {
-  const int64_t scheduled =
-      static_cast<int64_t>(client_tick) + offset_ticks.value_or(0) + kInputDelayTicks;
-  // A wildly negative offset would otherwise wrap around into the far future.
-  return static_cast<uint64_t>(std::max<int64_t>(scheduled, 0));
+int64_t TakeClockAdjustment(ClockSync& sync, uint64_t tick) {
+  if (!sync.offset_ticks) {
+    return 0;
+  }
+  const int64_t offset = *sync.offset_ticks;
+  int64_t adjust {};
+  if (std::abs(offset) >= kClockJumpThresholdTicks) {
+    adjust = offset;
+  } else if (std::abs(offset) >= kClockCatchUpThresholdTicks && tick % kClockCatchUpEveryTicks == 0) {
+    adjust = offset > 0 ? 1 : -1;
+  }
+  *sync.offset_ticks -= adjust;
+  if (sync.ping_sent_tick) {
+    sync.adjusted_ticks_in_flight += adjust;
+  }
+  return adjust;
 }
 
 void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick) {
@@ -33,14 +46,17 @@ void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64
     return;  // not the Ping in flight, or a reply claiming to predate it
   }
   sync.ping_sent_tick.reset();
+  const int64_t adjusted_ticks = std::exchange(sync.adjusted_ticks_in_flight, 0);
 
-  const int64_t rtt = static_cast<int64_t>(received_tick - sent_tick);
+  const int64_t rtt = std::max<int64_t>(static_cast<int64_t>(received_tick - sent_tick) - adjusted_ticks, 0);
   sync.rtt_ticks = rtt;
   // Assumes a symmetric path; asymmetry only costs extra rollbacks.
   const int64_t sample =
       static_cast<int64_t>(server_tick) + rtt / 2 - static_cast<int64_t>(received_tick);
 
-  if (!sync.offset_ticks) {
+  // Asymmetry skews a sample by at most rtt / 2; a bigger miss is a clock that moved.
+  if (!sync.offset_ticks ||
+      std::abs(sample - *sync.offset_ticks) >= std::max(kClockJumpThresholdTicks, rtt)) {
     sync.offset_ticks = sample;
     return;
   }
