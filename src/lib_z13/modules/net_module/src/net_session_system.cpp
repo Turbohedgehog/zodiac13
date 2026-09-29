@@ -141,12 +141,15 @@ NetSession::Result SendSessionDeltas(
   return all_sent ? NetSession::Result {} : sent;
 }
 
-// The newest snapshot older than any command the server may still accept late, so the
-// client can roll back for one; else the oldest, which the server can't go past either.
-const ft::TimestampedSnapshot& CatchUpBase(const ft::WorldSnapshotHistory& history, uint64_t now) {
+// The newest snapshot older than any command the server may still accept or has yet to
+// replay, so the client can roll back for one; else the oldest, which the server can't go
+// past either.
+const ft::TimestampedSnapshot& CatchUpBase(
+    const ft::WorldSnapshotHistory& history, uint64_t now, std::optional<uint64_t> deferred_rollback_tick) {
   const auto& entries = history.history.Entries();
-  const auto settled = std::ranges::find_last_if(
-      entries, [now](const ft::TimestampedSnapshot& entry) { return entry.tick + kMaxLateTicks < now; });
+  const auto settled = std::ranges::find_last_if(entries, [&](const ft::TimestampedSnapshot& entry) {
+    return entry.tick + kMaxLateTicks < now && entry.tick <= deferred_rollback_tick.value_or(entry.tick);
+  });
   return settled.empty() ? entries.front() : settled.front();
 }
 
@@ -163,7 +166,7 @@ void FillCatchUp(flecs::world world, Message& message) {
     message.snapshot = ToBytes(ft::SaveState(world));
     message.snapshot_tick = message.server_tick;
   } else {
-    const ft::TimestampedSnapshot& base = CatchUpBase(history, message.server_tick);
+    const ft::TimestampedSnapshot& base = CatchUpBase(history, message.server_tick, ft::DeferredRollbackTick(world));
     message.snapshot = ToBytes(ft::SaveState(base.snapshot));
     message.snapshot_tick = base.tick;
     message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, base.tick)));
@@ -533,6 +536,8 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
   digests.received.clear();
   digests.awaiting_resync = false;
 
+  // A deferred rollback may reach past the adopted snapshot.
+  world.get_mut<ft::RollbackRequest>() = {};
   ft::RequestRollback(world, snapshot_tick, target_tick);
 }
 
@@ -864,6 +869,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
   }
 
   ft::ResetSessionScopedComponents(world);
+  world.set<ft::SnapshotCaptureRate>({.per_interval = kRollbackSnapshotsPerInterval});
   NetSession session;
   session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
@@ -881,6 +887,7 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
     return;
   }
   ft::ResetSessionScopedComponents(world);
+  world.set<ft::SnapshotCaptureRate>({.per_interval = kRollbackSnapshotsPerInterval});
   world.add<ClientRole>();
   SetConnectionStatus(world, ConnectionState::kConnecting);
 

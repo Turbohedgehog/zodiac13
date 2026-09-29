@@ -238,6 +238,44 @@ TEST(ActionReplayTest, RollbackRequestsInOneFrameCoalesce) {
   EXPECT_TRUE(ft::IsCatchingUp(world));
 }
 
+TEST(ActionReplayTest, DeferredRollbacksWaitThenReplayOnceFromTheEarliestTick) {
+  Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  const uint64_t interval_ticks = IntervalTicks(test_world);
+  RealFrames(test_world, interval_ticks * 2);
+  const uint64_t first_request_tick = world.get<ft::SimulationClock>().tick;
+
+  ft::DeferRollback(world, first_request_tick - 1);
+  ft::TickWorld(world, RealDeltaTime(test_world));
+  ft::DeferRollback(world, interval_ticks + 1);
+  for (uint64_t tick = 2; tick < ft::kMaxRollbackDelayTicks; ++tick) {
+    ft::TickWorld(world, RealDeltaTime(test_world));
+  }
+  EXPECT_EQ(world.get<ft::RollbackMetrics>().rollbacks, 0u);
+
+  ft::TickWorld(world, RealDeltaTime(test_world));
+
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  EXPECT_EQ(now, first_request_tick + ft::kMaxRollbackDelayTicks);
+  EXPECT_EQ(world.get<ft::RollbackMetrics>().rollbacks, 1u);
+  EXPECT_EQ(world.get<ft::RollbackMetrics>().last_depth_ticks, now - interval_ticks);
+  EXPECT_FALSE(ft::DeferredRollbackTick(world).has_value());
+}
+
+TEST(ActionReplayTest, DeferredRollbacksFireOnceEnoughPileUp) {
+  Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  RealFrames(test_world, IntervalTicks(test_world) * 2);
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+
+  for (uint32_t request = 0; request < ft::kMaxDeferredRollbacks; ++request) {
+    ft::DeferRollback(world, now - 1);
+  }
+  ft::TickWorld(world, RealDeltaTime(test_world));
+
+  EXPECT_EQ(world.get<ft::RollbackMetrics>().rollbacks, 1u);
+}
+
 // Targets a tick whose snapshot has already aged out, to check the guard actually fires
 // instead of silently reconstructing incomplete state.
 TEST(ActionReplayTest, RollbackFailsWhenNoRetainedSnapshotIsThatOld) {

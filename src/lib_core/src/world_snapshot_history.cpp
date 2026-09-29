@@ -23,10 +23,15 @@ namespace z13::flecs_tools {
 
 namespace {
 
-void CaptureSnapshot(flecs::world world, const SimulationClock& clock, WorldSnapshotHistory& history) {
+void CaptureSnapshot(
+    flecs::world world, const SimulationClock& clock, const SnapshotCaptureRate& rate, WorldSnapshotHistory& history) {
   const std::optional<uint64_t> interval_ticks = SnapshotIntervalTicks(world);
   const std::optional<uint64_t> retention_ticks = SnapshotRetentionTicks(world);
-  if (!interval_ticks || !retention_ticks || *interval_ticks == 0 || clock.tick % *interval_ticks != 0) {
+  if (!interval_ticks || !retention_ticks || rate.per_interval == 0) {
+    return;
+  }
+  const uint64_t capture_ticks = *interval_ticks / rate.per_interval;
+  if (capture_ticks == 0 || clock.tick % capture_ticks != 0) {
     return;
   }
 
@@ -45,16 +50,17 @@ void CaptureSnapshot(flecs::world world, const SimulationClock& clock, WorldSnap
 }  // namespace
 
 void RegisterWorldSnapshotHistory(flecs::world& world) {
-  RegisterComponent<WorldSnapshotHistory>(world);
+  RegisterComponents<WorldSnapshotHistory, SnapshotCaptureRate>(world);
   world.set<WorldSnapshotHistory>({});
+  world.set<SnapshotCaptureRate>({});
 
   // Lambda wrapper: passing CaptureSnapshot directly crashes this MSVC's .each() with
   // an ICE (flecs::world as the first param -- same workaround as input_publisher.cpp).
-  world.system<const SimulationClock, WorldSnapshotHistory>("WorldSnapshotHistory::CaptureSnapshot")
+  world.system<const SimulationClock, const SnapshotCaptureRate, WorldSnapshotHistory>(
+      "WorldSnapshotHistory::CaptureSnapshot")
       .kind(flecs::PostFrame)
-      .each([](flecs::iter& it, size_t, const SimulationClock& clock, WorldSnapshotHistory& history) {
-        CaptureSnapshot(it.world(), clock, history);
-      });
+      .each([](flecs::iter& it, size_t, const SimulationClock& clock, const SnapshotCaptureRate& rate,
+               WorldSnapshotHistory& history) { CaptureSnapshot(it.world(), clock, rate, history); });
 }
 
 }  // namespace z13::flecs_tools

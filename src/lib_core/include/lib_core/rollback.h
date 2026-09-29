@@ -28,11 +28,18 @@ namespace z13::flecs_tools {
 // hanging the loop.
 inline constexpr uint64_t kMaxCatchUpTicksPerFrame {1024};
 
+inline constexpr uint32_t kMaxDeferredRollbacks {16};
+inline constexpr uint64_t kMaxRollbackDelayTicks {6};
+
 // Requests coalesce: one rollback, to the earliest tick asked for, up to the latest target.
 struct RollbackRequest {
   using Singleton = void;
+  using SessionScoped = void;
   std::optional<uint64_t> to_tick;
   uint64_t target_tick {};
+  std::optional<uint64_t> deferred_to_tick;
+  uint64_t deferred_since_tick {};
+  uint32_t deferred_count {};
 };
 
 // Set while the world re-simulates ticks it has already run; systems that must not fire
@@ -70,13 +77,20 @@ void RegisterRollback(flecs::world& world);
 // `target_tick`. Safe to call from a system -- the restore lands between frames.
 void RequestRollback(flecs::world& world, uint64_t to_tick, uint64_t target_tick);
 
+// RequestRollback up to the present, batched with other deferred requests.
+void DeferRollback(flecs::world& world, uint64_t to_tick);
+
+// State after this tick is about to be re-simulated.
+std::optional<uint64_t> DeferredRollbackTick(flecs::world world);
+
 void RequestClockAdjust(flecs::world& world, int64_t ticks);
 
 bool IsCatchingUp(flecs::world world);
 
 // The one place a world is advanced: an ordinary frame, plus the frames a rollback
-// requested during it needs, adjusted by a ClockAdjustRequest. Nothing else may call progress() -- the restore has to land
-// between frames, or flecs skips the rest of that frame's pipeline.
+// requested during it needs, adjusted by a ClockAdjustRequest. Nothing else may call
+// progress() -- the restore has to land between frames, or flecs skips the rest of that
+// frame's pipeline.
 void TickWorld(flecs::world& world, float delta_time);
 
 }  // namespace z13::flecs_tools
