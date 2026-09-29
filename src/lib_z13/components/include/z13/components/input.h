@@ -41,8 +41,9 @@ struct ApplyActionFramePhase {};
 
 struct ScheduledCommandsPhase {};
 
-// Record runs before Remote overwrites ActionListener with the delayed value.
+// Own commands enter the log between Record and Remote, so they apply on their own tick.
 struct RecordActionFramePhase {};
+struct OwnCommandsFramePhase {};
 struct RemoteActionFramePhase {};
 
 namespace bmi = boost::multi_index;

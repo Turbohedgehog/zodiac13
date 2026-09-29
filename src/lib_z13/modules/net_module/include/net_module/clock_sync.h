@@ -21,18 +21,23 @@
 
 namespace z13::net {
 
-// Late commands are fixed by rollback; this trades input latency for fewer rollbacks.
-inline constexpr int64_t kInputDelayTicks = 12;
-
 inline constexpr uint64_t kNetSendIntervalTicks = 3;
 
-inline constexpr uint64_t kMaxScheduleAheadTicks = 8 * static_cast<uint64_t>(kInputDelayTicks);
+inline constexpr uint64_t kMaxLateTicks = 96;
 
-inline constexpr uint64_t kMaxLateTicks = kMaxScheduleAheadTicks;
+// A synced client is ahead only by estimate noise.
+inline constexpr uint64_t kMaxScheduleAheadTicks = 30;
 
-inline constexpr uint64_t kSessionEventDelayTicks = static_cast<uint64_t>(kInputDelayTicks);
+// Not input, so it can wait for peers to receive it in time.
+inline constexpr uint64_t kSessionEventDelayTicks = 12;
 
 inline constexpr double kClockOffsetSmoothing = 0.25;
+
+// Past the jump threshold (a hitch) the whole gap closes at once, before commands leave
+// the server's window.
+inline constexpr int64_t kClockCatchUpThresholdTicks = 2;
+inline constexpr uint64_t kClockCatchUpEveryTicks = 4;
+inline constexpr int64_t kClockJumpThresholdTicks = 15;
 
 struct ClockSync {
   using Singleton = void;
@@ -40,9 +45,12 @@ struct ClockSync {
   std::optional<int64_t> offset_ticks;
   std::optional<uint64_t> ping_sent_tick;
   std::optional<int64_t> rtt_ticks;
+  // Extra minus skipped ticks since the Ping went out; not round trip.
+  int64_t adjusted_ticks_in_flight {};
 };
 
-uint64_t ScheduleTick(uint64_t client_tick, std::optional<int64_t> offset_ticks);
+// Already taken off the offset.
+int64_t TakeClockAdjustment(ClockSync& sync, uint64_t tick);
 
 // Ignores a Pong that doesn't match the Ping in flight.
 void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick);

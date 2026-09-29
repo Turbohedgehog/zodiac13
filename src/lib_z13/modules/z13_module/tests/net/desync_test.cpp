@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -30,6 +31,7 @@
 #include <lib_core/world_json_store.h>
 #include <lib_core/world_state.h>
 
+#include <net_module/clock_sync.h>
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
@@ -158,19 +160,18 @@ TEST_F(DesyncTest, ExtraEntityOnTheClientIsDetectedAndResynced) {
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 
-TEST_F(DesyncTest, DroppedCommandIsDetectedAndResynced) {
+// The client's history loses its own hold after the server has applied it.
+TEST_F(DesyncTest, ForgottenCommandIsDetectedAndResynced) {
   const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
-  auto drop_own_commands = [&] {
-    std::erase_if(client_.World().get_mut<z13::gameplay::ScheduledCommands>().records,
-        [local_id](const auto& record) { return record.player_id == local_id; });
-  };
+  const uint64_t before_press = client_.World().get<ft::SimulationClock>().tick;
 
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   Run(20, [] { return false; });
-  drop_own_commands();
   client_.EmitInput(KeyUp(Keycode::KEY_W));
   Run(5, [] { return false; });
-  drop_own_commands();
+  client_.World().get_mut<z13::gameplay::PlayerActionLog>().log.RemoveIf(
+      [local_id](const auto& record) { return record.player_id == local_id; });
+  ft::RequestRollback(client_.World(), before_press, client_.World().get<ft::SimulationClock>().tick);
 
   ASSERT_TRUE(RunUntilResynced());
   Settle();
@@ -194,21 +195,50 @@ TEST_F(DesyncTest, InputWhileAwaitingResyncIsHeldBackThenSentOnTime) {
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   Run(kSettleTicks, [] { return false; });
 
-  EXPECT_TRUE(server_.World().get<z13::gameplay::ScheduledCommands>().records.empty());
-  EXPECT_TRUE(client_.World().get<z13::gameplay::ScheduledCommands>().records.empty());
+  const auto logged = [](Z13TestWorld& world) -> const auto& {
+    return world.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
+  };
+  EXPECT_TRUE(logged(server_).empty());
+  EXPECT_TRUE(logged(client_).empty()) << "held-back input must not apply locally either";
 
-  const uint64_t resumed_at = server_.World().get<ft::SimulationClock>().tick;
+  const uint64_t resumed_at = client_.World().get<ft::SimulationClock>().tick;
   client_.World().get_mut<StateDigests>().awaiting_resync = false;
-  const uint64_t rollbacks_before = server_.World().get<ft::RollbackMetrics>().rollbacks;
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !server_.World().get<z13::gameplay::ScheduledCommands>().records.empty(); }))
-      << "the held-back press was never sent";
-  EXPECT_GT(server_.World().get<z13::gameplay::ScheduledCommands>().records.front().tick, resumed_at);
-  EXPECT_EQ(server_.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "it arrived late";
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !logged(server_).empty(); })) << "the held-back press was never sent";
+  EXPECT_GT(logged(server_).front().tick, resumed_at) << "sent for the tick it was pressed, not the resume";
 
   client_.EmitInput(KeyUp(Keycode::KEY_W));
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 2; }));
   EXPECT_EQ(Digests(client_).resyncs, 0u);
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
+// The Resync's log lacks input applied but not yet sent.
+TEST_F(DesyncTest, InputAppliedButUnsentWhenAResyncStartsIsReappliedAfterIt) {
+  const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
+  const auto client_tick = [&] { return client_.World().get<ft::SimulationClock>().tick; };
+  // Right after a send tick, so the record waits.
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return client_tick() % kNetSendIntervalTicks == 0; }));
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  Run(1, [] { return false; });
+  ASSERT_EQ(client_.World().get<z13::gameplay::OutgoingCommands>().records.size(), 1u) << "sent already";
+
+  client_.World().get_mut<StateDigests>().awaiting_resync = true;
+  client_.World().get_mut<z13::gameplay::PlayerActionLog>().log.RemoveIf(
+      [local_id](const auto& record) { return record.player_id == local_id; });
+  Run(kSettleTicks, [] { return false; });
+  client_.World().get_mut<StateDigests>().awaiting_resync = false;
+
+  const auto logged_ticks = [local_id](Z13TestWorld& world) {
+    std::vector<uint64_t> ticks;
+    for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+      if (record.player_id == local_id) {
+        ticks.push_back(record.tick);
+      }
+    }
+    return ticks;
+  };
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !logged_ticks(server_).empty(); }));
+  EXPECT_EQ(logged_ticks(client_), logged_ticks(server_));
 }
 
 TEST_F(DesyncTest, ReplayNeitherResendsNorRerecordsCommands) {

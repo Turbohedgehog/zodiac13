@@ -608,7 +608,7 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
 }
 
 TEST(NetSessionTest, LateCommandsAndJoinsStillConvergeUnderHighLatency) {
-  constexpr uint32_t kLatencyTicks = static_cast<uint32_t>(kInputDelayTicks) + 8;
+  constexpr uint32_t kLatencyTicks = 20;
   constexpr uint64_t kSlowMaxTicks = 1000;
   auto network = std::make_shared<InMemoryNetwork>();
   network->SetFaultConfig({.min_delay_ticks = kLatencyTicks, .max_delay_ticks = kLatencyTicks});
@@ -651,7 +651,12 @@ TEST(NetSessionTest, ClockOffsetIsMeasuredOnlyAgainstTheJoinedClock) {
     return IsConnected(client) && client.World().get<ClockSync>().offset_ticks.has_value();
   }));
 
-  EXPECT_NEAR(*client.World().get<ClockSync>().offset_ticks, kLatencyTicks, kOffsetTolerance);
+  // A stale pre-Welcome Pong would make the client jump by the head start.
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 2, [] { return false; });
+  const auto tick = [](Z13TestWorld& world) {
+    return static_cast<int64_t>(world.World().get<z13::flecs_tools::SimulationClock>().tick);
+  };
+  EXPECT_NEAR(tick(server) - tick(client), 0, kOffsetTolerance);
 }
 
 TEST(NetSessionTest, KeyReleasedAfterTheSnapshotDoesNotKeepMovingOnTheJoiner) {
@@ -667,11 +672,13 @@ TEST(NetSessionTest, KeyReleasedAfterTheSnapshotDoesNotKeepMovingOnTheJoiner) {
 
   client_a.EmitInput(z13::testing::KeyDown(z13::fbs::input::Keycode::KEY_W));
   uint64_t capture_tick = (server_tick() / interval_ticks + 1) * interval_ticks;
-  if (capture_tick < server_tick() + 2 * static_cast<uint64_t>(kInputDelayTicks)) {
+  // Loose bound on the press reaching the server over the undelayed in-memory network.
+  constexpr uint64_t kPressArrivalTicks = 12;
+  if (capture_tick < server_tick() + 2 * kPressArrivalTicks) {
     capture_tick += interval_ticks;  // the press must have applied before that capture
   }
   RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
-    return server_tick() > capture_tick + static_cast<uint64_t>(kInputDelayTicks);
+    return server_tick() > capture_tick + kPressArrivalTicks;
   });
   client_a.EmitInput(z13::testing::KeyUp(z13::fbs::input::Keycode::KEY_W));
   RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 30, [] { return false; });

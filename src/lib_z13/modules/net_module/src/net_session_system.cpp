@@ -87,7 +87,7 @@ std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
   return {reinterpret_cast<const uint8_t*>(data.data()), data.size()};
 }
 
-// Never moved: the sender has already queued its own copy on this tick.
+// Never moved: the sender has already applied its own copy on this tick.
 bool IsWithinScheduleWindow(uint64_t apply_tick, uint64_t now) {
   return apply_tick + kMaxLateTicks >= now && apply_tick <= now + kMaxScheduleAheadTicks;
 }
@@ -802,7 +802,9 @@ NetSession::Result SendPingIfDue(flecs::world world, NetSession& session) {
   if (const auto sent = session.Send(*server_connection, Channel::kUnreliable, envelope); !sent) {
     return sent;
   }
-  world.get_mut<ClockSync>().ping_sent_tick = tick;
+  auto& sync = world.get_mut<ClockSync>();
+  sync.ping_sent_tick = tick;
+  sync.adjusted_ticks_in_flight = 0;
   return {};
 }
 
@@ -863,7 +865,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
 
   ft::ResetSessionScopedComponents(world);
   NetSession session;
-  session.OpenAsServer(std::move(*transport));
+  session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
   world.add<ServerRole>();
   SetConnectionStatus(world, ConnectionState::kConnected);
@@ -893,7 +895,7 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
   }
 
   NetSession session;
-  session.OpenAsClient(std::move(*transport));
+  session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
   e.destruct();
 }
@@ -1006,6 +1008,17 @@ void RegisterSystems(flecs::world world) {
       .each([](flecs::iter& it, size_t, ft::WorldSnapshotHistory& history, const ft::SimulationClock& clock) {
         if (history.history.Empty()) {
           history.history.Push({.tick = clock.tick, .snapshot = ft::CaptureState(it.world())});
+        }
+      });
+
+  world.system<ClockSync, const ft::SimulationClock>("NetSessionSystem::SteerClock")
+      .kind(flecs::PostFrame)
+      .with<ClientRole>()
+      .without<ft::ReplayInProgress>()
+      .each([](flecs::iter& it, size_t, ClockSync& sync, const ft::SimulationClock& clock) {
+        if (const int64_t adjust = TakeClockAdjustment(sync, clock.tick); adjust != 0) {
+          flecs::world world = it.world();
+          ft::RequestClockAdjust(world, adjust);
         }
       });
 }

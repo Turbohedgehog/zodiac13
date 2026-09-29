@@ -402,7 +402,8 @@ void RegisterPhases(flecs::world world) {
 
   world.component<z13::input::CalculateActionFramePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
   world.component<z13::input::RecordActionFramePhase>().add(flecs::Phase).depends_on<z13::input::CalculateActionFramePhase>();
-  world.component<z13::input::RemoteActionFramePhase>().add(flecs::Phase).depends_on<z13::input::RecordActionFramePhase>();
+  world.component<z13::input::OwnCommandsFramePhase>().add(flecs::Phase).depends_on<z13::input::RecordActionFramePhase>();
+  world.component<z13::input::RemoteActionFramePhase>().add(flecs::Phase).depends_on<z13::input::OwnCommandsFramePhase>();
   world.component<z13::input::ApplyActionFramePhase>().add(flecs::Phase).depends_on<z13::input::RemoteActionFramePhase>();
   world.get_alive(flecs::PostUpdate).add(flecs::Phase).depends_on<z13::input::ApplyActionFramePhase>();
 }

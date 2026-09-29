@@ -39,8 +39,7 @@ class NetSession {
   // quietly doing nothing, so a sequencing bug surfaces at ServiceNetSession.
   using Result = std::expected<void, std::string>;
 
-  void OpenAsServer(std::unique_ptr<Transport> transport);
-  void OpenAsClient(std::unique_ptr<Transport> transport);
+  void Open(std::unique_ptr<Transport> transport);
   bool IsOpen() const;
   void Close();
 

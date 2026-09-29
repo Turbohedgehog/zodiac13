@@ -41,9 +41,9 @@ jobs:
           triplet: ${{ matrix.triplet }}
           cache-suffix: ${{ matrix.cache-suffix }}
 
-      # Only the test runner and its deps (lib_core, gtest, reflectcpp) — not raylib / the app.
+      # Plus net_module's plugin DLL, which the tests (static twins) never link. Not raylib / the app.
       - name: Build tests
-        run: cmake --build build --config Release --target z13_test_runner
+        run: cmake --build build --config Release --target z13_test_runner net_module
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'

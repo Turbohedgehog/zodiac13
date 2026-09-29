@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <format>
+#include <utility>
 
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_serializer.h>
@@ -80,11 +81,22 @@ void FinishReplay(flecs::iter& it, size_t, const SimulationClock& clock, const R
   }
 }
 
+void AdvanceTick(flecs::world& world, float delta_time) {
+  for (uint64_t frame = 0; frame <= kMaxCatchUpTicksPerFrame; ++frame) {
+    world.progress(delta_time);
+    ApplyPendingRollback(world);
+    if (!IsCatchingUp(world)) {
+      return;
+    }
+  }
+}
+
 }  // namespace
 
 void RegisterRollback(flecs::world& world) {
-  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics>(world);
+  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest>(world);
   world.set<RollbackRequest>({});
+  world.set<ClockAdjustRequest>({});
   world.set<RollbackMetrics>({});
 
   world.system<const SimulationClock, const ReplayInProgress>("Rollback::FinishReplay")
@@ -98,18 +110,24 @@ void RequestRollback(flecs::world& world, uint64_t to_tick, uint64_t target_tick
   request.target_tick = std::max(request.target_tick, target_tick);
 }
 
+void RequestClockAdjust(flecs::world& world, int64_t ticks) {
+  world.get_mut<ClockAdjustRequest>().ticks += ticks;
+}
+
 bool IsCatchingUp(flecs::world world) {
   return world.has<ReplayInProgress>() ||
          (world.has<RollbackRequest>() && world.get<RollbackRequest>().to_tick.has_value());
 }
 
 void TickWorld(flecs::world& world, float delta_time) {
-  for (uint64_t frame = 0; frame <= kMaxCatchUpTicksPerFrame; ++frame) {
-    world.progress(delta_time);
-    ApplyPendingRollback(world);
-    if (!IsCatchingUp(world)) {
-      return;
-    }
+  const int64_t adjust = world.has<ClockAdjustRequest>() ? std::exchange(world.get_mut<ClockAdjustRequest>().ticks, 0) : 0;
+  if (adjust < 0) {
+    world.get_mut<ClockAdjustRequest>().ticks += adjust + 1;
+    return;
+  }
+  const int64_t extra_ticks = std::min<int64_t>(adjust, kMaxCatchUpTicksPerFrame);
+  for (int64_t tick = 0; tick <= extra_ticks; ++tick) {
+    AdvanceTick(world, delta_time);
   }
 }
 
