@@ -16,6 +16,9 @@
 
 #include "module_lib_holder.h"
 
+#include <format>
+#include <string_view>
+
 #include <boost/dll.hpp>
 #include <boost/dll/import.hpp>
 #include <boost/dll/shared_library.hpp>
@@ -25,7 +28,13 @@
 
 namespace z13 {
 
-ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
+namespace {
+
+constexpr std::string_view kFactoryAlias = "create_module_factory";
+
+}  // namespace
+
+std::expected<ModuleFactoryPtr, std::string> ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
   std::filesystem::path abs_path = boost::dll::program_location().parent_path().string();
   auto full_path = std::filesystem::absolute(abs_path / lib_path);
   if (append_platform_extension) {
@@ -33,19 +42,24 @@ ModuleFactoryPtr ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path
   }
 
   if (lib_holders_.contains(full_path)) {
-    log_critical("ModuleLibHolder::AppendModuleLib: lib '{}' already loaded!", full_path.string());
-    return ModuleFactoryPtr();
+    return std::unexpected(std::format("lib '{}' already loaded", full_path.string()));
   }
 
   if (!std::filesystem::exists(full_path)) {
-    log_critical("ModuleLibHolder::AppendModuleLib: path '{}' does not exist!", full_path.string());
-    return ModuleFactoryPtr();
+    return std::unexpected(std::format("path '{}' does not exist", full_path.string()));
   }
 
   boost::dll::fs::path boost_lib_path = full_path.string();
-  boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path);
+  boost::dll::fs::error_code error;
+  boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::load_with_altered_search_path, error);
+  if (error) {
+    return std::unexpected(std::format("cannot load '{}': {}", full_path.string(), error.message()));
+  }
+  if (!lib.has(kFactoryAlias.data())) {
+    return std::unexpected(std::format("'{}' has no '{}' alias", full_path.string(), kFactoryAlias));
+  }
 
-  auto module_factory = lib.get_alias<ModuleFactoryPtr()>("create_module_factory")();
+  auto module_factory = lib.get_alias<ModuleFactoryPtr()>(kFactoryAlias.data())();
   lib_holders_.emplace(
     full_path,
     LibHolder { .lib = std::move(lib), .module_factory = module_factory, }

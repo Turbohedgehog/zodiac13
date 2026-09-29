@@ -30,7 +30,7 @@ class BOOST_SYMBOL_VISIBLE RaylibModuleFactory : public z13::ModuleFactoryBase {
   static ModuleFactoryPtr CreateFactory();
 
   void RegisterModules(flecs::world& world) override;
-  const std::string& GetName() const override;
+  std::string_view GetName() const override;
 };
 
 }  // namespace z13::raylib

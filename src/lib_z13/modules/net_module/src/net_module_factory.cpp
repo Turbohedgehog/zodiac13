@@ -52,10 +52,8 @@ void NetModuleFactory::RegisterModules(flecs::world& world) {
   });
 }
 
-const std::string& NetModuleFactory::GetName() const {
-  static std::string name = "NetModuleFactory";
-
-  return name;
+std::string_view NetModuleFactory::GetName() const {
+  return "NetModuleFactory";
 }
 
 void NetModuleFactory::SetTransportFactories(

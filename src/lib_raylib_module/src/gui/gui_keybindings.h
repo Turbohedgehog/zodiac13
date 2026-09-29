@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <flecs.h>
@@ -43,6 +44,7 @@ struct KeyBindingGroup {
 
 struct KeyBindingModel {
   std::vector<KeyBindingGroup> groups;
+  std::unordered_map<z13::fbs::input::Keycode, std::string> keycode_text;
 };
 
 struct KeyBindingSlot {

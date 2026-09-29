@@ -16,8 +16,10 @@
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <map>
+#include <string>
 
 #include <boost/dll/shared_library.hpp>
 
@@ -32,7 +34,7 @@ struct LibHolder {
 
 class ModuleLibHolder {
  public:
-  ModuleFactoryPtr AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension = true);
+  std::expected<ModuleFactoryPtr, std::string> AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension = true);
 
  private:
   std::map<std::filesystem::path, LibHolder> lib_holders_;

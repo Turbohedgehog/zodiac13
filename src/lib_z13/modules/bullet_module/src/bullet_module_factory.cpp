@@ -32,10 +32,8 @@ void BulletModuleFactory::RegisterModules(flecs::world& world) {
   world.import<BulletModule>();
 }
 
-const std::string& BulletModuleFactory::GetName() const {
-  static std::string name = "BulletModuleFactory";
-
-  return name;
+std::string_view BulletModuleFactory::GetName() const {
+  return "BulletModuleFactory";
 }
 
 }  // namespace z13::bullet_module

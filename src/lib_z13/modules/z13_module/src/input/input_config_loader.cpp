@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <fstream>
 #include <optional>
+#include <string>
 #include <filesystem>
 #include <unordered_set>
 
@@ -49,7 +50,8 @@ static constexpr std::string_view kDefaultKeycodesSeparators = " ,;";
 std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
     std::string_view keycodes_value) {
   std::vector<std::string_view> key_tokens;
-  boost::split(key_tokens, keycodes_value, boost::is_any_of(kDefaultKeycodesSeparators));
+  boost::split(key_tokens, keycodes_value, boost::is_any_of(kDefaultKeycodesSeparators), boost::token_compress_on);
+  std::erase(key_tokens, std::string_view {});
   if (key_tokens.empty()) {
     return {};
   }
@@ -61,7 +63,7 @@ std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
     key_tokens.end(),
     std::back_inserter(keycodes),
     [&keycode_names](auto key_token) {
-      auto keycode_enum_idx = flatbuffers::LookupEnum(keycode_names, key_token.data());
+      auto keycode_enum_idx = flatbuffers::LookupEnum(keycode_names, std::string(key_token).c_str());
       if (keycode_enum_idx < 0) {
         log_critical("ExtractDefaultKeycodes: Cannot find key binding for token {}", key_token);
         keycode_enum_idx = 0;
@@ -203,24 +205,19 @@ std::optional<std::string> InputConfigLoader::SerializeConfig(
     const z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
   z13::fbs::input::InputConfigT input_config_msg;
-  std::transform(
-    input_config.keycode_binding.begin(),
-    input_config.keycode_binding.end(),
-    std::back_inserter(input_config_msg.action_bindings),
-    [&action_map](const auto& keycode_action) {
-      auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
-      const auto& id_map = action_map.action_map.get<z13::input::ActionMap::IdTag>();
-      auto it = id_map.find(keycode_action.action_id);
-      if (it == id_map.end()) {
-        throw std::runtime_error(fmt::format("InputConfigLoader::SaveConfig: Cannot find action with id = {}", keycode_action.action_id));
-      }
-
-      ab->action_name = fmt::format("{}{}{}", it->enum_name, kActionNameSeparator, it->value_name);
-      ab->key_code = keycode_action.keycode;
-
-      return ab;
+  const auto& id_map = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  for (const auto& keycode_action : input_config.keycode_binding) {
+    auto it = id_map.find(keycode_action.action_id);
+    if (it == id_map.end()) {
+      log_error("InputConfigLoader::SaveConfig: Cannot find action with id = {}", keycode_action.action_id);
+      return std::nullopt;
     }
-  );
+
+    auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
+    ab->action_name = fmt::format("{}{}{}", it->enum_name, kActionNameSeparator, it->value_name);
+    ab->key_code = keycode_action.keycode;
+    input_config_msg.action_bindings.push_back(std::move(ab));
+  }
 
   // An action without keys is written as KEY_UNKNOWN so LoadConfig can tell "unbound on
   // purpose" from "not in the file" (which gets default keys).

@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <boost/config.hpp>
 
@@ -45,7 +46,7 @@ class BOOST_SYMBOL_VISIBLE NetModuleFactory : public z13::ModuleFactoryBase {
   static ModuleFactoryPtr CreateFactory();
 
   void RegisterModules(flecs::world& world) override;
-  const std::string& GetName() const override;
+  std::string_view GetName() const override;
 
   // Defaults to real ENet transports when left unset; tests substitute InMemoryTransport
   // factories so multiple Z13TestWorlds can talk to each other deterministically.

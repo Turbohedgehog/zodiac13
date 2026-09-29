@@ -53,11 +53,7 @@ struct SystemInputEventType {};
 struct MousePos {
   int x;
   int y;
-
-  static constinit MousePos kZero;
 };
-
-inline constinit MousePos MousePos::kZero = {0, 0};
 
 struct MouseMoveEvent {
   MousePos delta;
