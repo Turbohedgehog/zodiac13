@@ -24,8 +24,10 @@
 #include <Eigen/Dense>
 
 #include <lib_core/math.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 
+#include <net_module/clock_sync.h>
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/building.h>
@@ -208,6 +210,40 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
   const float expected = static_cast<float>(kHoldTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "jittered delivery changed how long the hold registered as lasting";
+}
+
+TEST(CommandStreamTest, LateCommandsRollBackInBatchesFromANearbySnapshot) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  constexpr uint64_t kMaxDelayTicks = 4;
+  network->SetFaultConfig({.drop_probability = 0., .min_delay_ticks = 2, .max_delay_ticks = kMaxDelayTicks});
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client_a) && IsConnected(client_b);
+  }));
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, SnapshotIntervalTicks(server), [] {
+    return false;
+  });
+  const uint64_t rollbacks_before = server.World().get<ft::RollbackMetrics>().rollbacks;
+  server.World().get_mut<ft::RollbackMetrics>().max_depth_ticks = 0;
+
+  constexpr uint64_t kTapTicks = 120;
+  for (uint64_t tick = 0; tick < kTapTicks; ++tick) {
+    for (Z13TestWorld* client : {&client_a, &client_b}) {
+      if (tick % 2 == 0) {
+        client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
+      } else {
+        client->EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+      }
+    }
+    RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+  }
+
+  const auto& metrics = server.World().get<ft::RollbackMetrics>();
+  EXPECT_LE(metrics.rollbacks - rollbacks_before, kTapTicks / ft::kMaxRollbackDelayTicks + 1);
+  const uint64_t capture_gap = SnapshotIntervalTicks(server) / kRollbackSnapshotsPerInterval;
+  EXPECT_LE(metrics.max_depth_ticks, capture_gap + ft::kMaxRollbackDelayTicks + kNetSendIntervalTicks + 2 * kMaxDelayTicks);
 }
 
 TEST(CommandStreamTest, SimultaneousBuildsFromTwoClientsLandOnBothWorlds) {

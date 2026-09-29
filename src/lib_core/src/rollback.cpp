@@ -29,14 +29,33 @@ namespace z13::flecs_tools {
 
 namespace {
 
+// Not mid-replay: the replay's own target would be lost.
+void PromoteDeferredRollback(flecs::world& world, RollbackRequest& request) {
+  if (!request.deferred_to_tick || world.has<ReplayInProgress>()) {
+    return;
+  }
+  const uint64_t now = world.get<SimulationClock>().tick;
+  const bool due = request.to_tick || request.deferred_count >= kMaxDeferredRollbacks ||
+      now >= request.deferred_since_tick + kMaxRollbackDelayTicks;
+  if (!due) {
+    return;
+  }
+  request.to_tick = std::min(request.to_tick.value_or(*request.deferred_to_tick), *request.deferred_to_tick);
+  request.target_tick = std::max(request.target_tick, now);
+  request.deferred_to_tick.reset();
+  request.deferred_count = 0;
+}
+
 void ApplyPendingRollback(flecs::world& world) {
   auto& request = world.get_mut<RollbackRequest>();
+  PromoteDeferredRollback(world, request);
   if (!request.to_tick) {
     return;
   }
   const uint64_t to_tick = *request.to_tick;
   const uint64_t target_tick = request.target_tick;
-  request = {};
+  request.to_tick.reset();
+  request.target_tick = 0;
 
   auto& history = world.get_mut<WorldSnapshotHistory>();
   const auto& entries = history.history.Entries();
@@ -108,6 +127,19 @@ void RequestRollback(flecs::world& world, uint64_t to_tick, uint64_t target_tick
   auto& request = world.get_mut<RollbackRequest>();
   request.to_tick = request.to_tick ? std::min(*request.to_tick, to_tick) : to_tick;
   request.target_tick = std::max(request.target_tick, target_tick);
+}
+
+void DeferRollback(flecs::world& world, uint64_t to_tick) {
+  auto& request = world.get_mut<RollbackRequest>();
+  if (!request.deferred_to_tick) {
+    request.deferred_since_tick = world.get<SimulationClock>().tick;
+  }
+  request.deferred_to_tick = std::min(request.deferred_to_tick.value_or(to_tick), to_tick);
+  ++request.deferred_count;
+}
+
+std::optional<uint64_t> DeferredRollbackTick(flecs::world world) {
+  return world.has<RollbackRequest>() ? world.get<RollbackRequest>().deferred_to_tick : std::nullopt;
 }
 
 void RequestClockAdjust(flecs::world& world, int64_t ticks) {

@@ -73,6 +73,19 @@ TEST(WorldSnapshotHistoryTest, DoesNotCaptureBetweenIntervals) {
   EXPECT_TRUE(CapturedTicks(test_world).empty());
 }
 
+TEST(WorldSnapshotHistoryTest, CaptureRateSplitsTheInterval) {
+  Z13TestWorld test_world;
+  const uint64_t interval_ticks = IntervalTicks(test_world);
+  constexpr uint64_t kPerInterval = 4;
+  ASSERT_EQ(interval_ticks % kPerInterval, 0u);
+  test_world.World().set<ft::SnapshotCaptureRate>({.per_interval = kPerInterval});
+
+  Frames(test_world, interval_ticks);
+
+  const uint64_t gap = interval_ticks / kPerInterval;
+  EXPECT_EQ(CapturedTicks(test_world), (std::vector<uint64_t>{gap, gap * 2, gap * 3, gap * 4}));
+}
+
 TEST(WorldSnapshotHistoryTest, RetentionWindowPrunesSnapshotsOlderThanItsLimit) {
   Z13TestWorld test_world;
   const uint64_t interval_ticks = IntervalTicks(test_world);

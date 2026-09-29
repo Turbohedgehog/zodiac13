@@ -110,9 +110,10 @@ void RegisterStateDigestSystems(flecs::world world) {
 // ahead of this digest on the same ordered channel.
 NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
+  const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   for (const auto& [tick, digest] : digests.local) {
     // A command for `tick` is still accepted at exactly tick + kMaxLateTicks.
-    if (tick + kMaxLateTicks >= now) {
+    if (tick + kMaxLateTicks >= now || tick > deferred_rollback_tick.value_or(tick)) {
       break;
     }
     if (digests.last_sent_tick && tick <= *digests.last_sent_tick) {
@@ -130,10 +131,11 @@ NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& sessi
 
 bool CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
+  const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   bool mismatch = false;
   std::erase_if(digests.received, [&](const fbn::StateDigestT& remote) {
     // Strictly past: tick `now`'s PostFrame, which records its digest, hasn't run yet.
-    if (remote.tick >= now) {
+    if (remote.tick >= now || remote.tick > deferred_rollback_tick.value_or(remote.tick)) {
       return false;
     }
     const auto local = digests.local.find(remote.tick);

@@ -37,7 +37,7 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
-// A late command is merged in and replayed from just before its tick.
+// A late command is merged in and, batched with others, replayed from just before its tick.
 void CommitDueCommands(
     flecs::iter& it, size_t, const ft::SimulationClock& clock, z13::gameplay::ScheduledCommands& scheduled,
     z13::gameplay::PlayerActionLog& log) {
@@ -54,7 +54,7 @@ void CommitDueCommands(
   log.log.MergeSorted(std::move(due), RecordLess);
   if (earliest < clock.tick && earliest > 0) {
     flecs::world world = it.world();
-    ft::RequestRollback(world, earliest - 1, clock.tick);
+    ft::DeferRollback(world, earliest - 1);
   }
 }
 

@@ -31,6 +31,8 @@ inline constexpr uint64_t kMaxScheduleAheadTicks = 30;
 // Not input, so it can wait for peers to receive it in time.
 inline constexpr uint64_t kSessionEventDelayTicks = 12;
 
+inline constexpr uint64_t kRollbackSnapshotsPerInterval = 4;
+
 inline constexpr double kClockOffsetSmoothing = 0.25;
 
 // Past the jump threshold (a hitch) the whole gap closes at once, before commands leave

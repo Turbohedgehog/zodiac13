@@ -38,7 +38,14 @@ struct WorldSnapshotHistory {
   BoundedHistory<TimestampedSnapshot> history;
 };
 
-// Captures a snapshot every Config::GetSnapshotIntervalSeconds(), keeping
+// A rollback re-simulates up to one capture gap; worlds that roll back often raise this.
+struct SnapshotCaptureRate {
+  using Singleton = void;
+  using SessionScoped = void;
+  uint64_t per_interval {1};
+};
+
+// Captures SnapshotCaptureRate snapshots every Config::GetSnapshotIntervalSeconds(), keeping
 // Config::GetSnapshotRetentionSeconds() of history. A no-op without CoreComponent (e.g.
 // bare lib_core tests), since Config is only reachable through it.
 void RegisterWorldSnapshotHistory(flecs::world& world);
