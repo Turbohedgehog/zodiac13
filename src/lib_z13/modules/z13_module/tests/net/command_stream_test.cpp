@@ -277,6 +277,43 @@ TEST(CommandStreamTest, SimultaneousBuildsFromTwoClientsLandOnBothWorlds) {
   EXPECT_EQ(BlockCount(client_b.World()), 2u);
 }
 
+// Other players' late commands roll the client back; its own camera must not jump.
+TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  network->SetFaultConfig({.drop_probability = 0., .min_delay_ticks = 2, .max_delay_ticks = 4});
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client_a) && IsConnected(client_b);
+  }));
+
+  // Delivery order under jitter decides which client gets which id.
+  const uint32_t own_id = *client_a.World().get<z13::gameplay::LocalPlayer>().id;
+  const uint64_t rollbacks_before = client_a.World().get<ft::RollbackMetrics>().rollbacks;
+  constexpr uint64_t kTicks = 240;
+  constexpr int kLookDelta = 7;
+  const float max_step = z13::gameplay::kCameraVelocity * kNetTestDeltaTime + z13::testing::kTestEpsilon;
+  for (Z13TestWorld* client : {&client_a, &client_b}) {
+    client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
+  }
+  Eigen::Vector3f previous = Position(client_a, own_id);
+  for (uint64_t tick = 0; tick < kTicks; ++tick) {
+    z13::input::MouseMoveEvent look;
+    look.delta = {.x = kLookDelta, .y = 0};
+    client_a.EmitInput(look);
+    if (tick % 3 == 0) {
+      client_b.EmitInput(look);
+    }
+    RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+    const Eigen::Vector3f current = Position(client_a, own_id);
+    EXPECT_LE((current - previous).norm(), max_step) << "own camera jumped at tick " << tick << ": ("
+        << previous.transpose() << ") -> (" << current.transpose() << ")";
+    previous = current;
+  }
+  EXPECT_GT(client_a.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "no rollbacks exercised";
+}
+
 TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);

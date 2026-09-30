@@ -422,7 +422,8 @@ void RegisterSystems(flecs::world world) {
       z13::input::InputConfig,
       z13::input::InputState>("gameplay_input_system::OnMouseMoveObserver")
       .event<z13::input::SystemInputEventType>()
-      // .with<z13::gameplay::Pause>().not_()
+      // Menu mouse motion must not turn the camera on resume.
+      .without<z13::gameplay::Pause>()
       .each(OnMouseMove);
 
   world.observer<
@@ -490,6 +491,7 @@ void RegisterSystems(flecs::world world) {
   world.system<z13::input::InputState, z13::input::InputConfig, const MoveActionIds, z13::input::ActionListener>(
       "gameplay_input_system::CalculateInputValues")
       .kind<z13::input::CalculateActionFramePhase>()
+      // Paused input stays zero, so the recorder sees held keys released.
       .without<z13::gameplay::Pause>()
       // Replay::InjectRecordedActionValues (same phase) drives action_values instead -- see replay.cpp.
       .without<z13::flecs_tools::ReplayInProgress>()
@@ -500,7 +502,6 @@ void RegisterSystems(flecs::world world) {
 
   world.system<z13::input::ActionListener, MoveActionIds, Eigen::Matrix4f>("gameplay_input_system::ApplyMoveActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
-      .without<z13::gameplay::Pause>()
       .each(ApplyMoveActionListener);
 
   world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::SaveConfigEvent>("gameplay_input_system::OnSaveConfigObserver")

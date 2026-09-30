@@ -17,6 +17,7 @@
 #include <lib_core/simulation_clock.h>
 
 #include <cmath>
+#include <vector>
 
 #include <lib_core/config.h>
 #include <lib_core/flecs_utils.h>
@@ -41,12 +42,42 @@ std::optional<uint64_t> SecondsToTicks(flecs::world world, std::optional<double>
 }  // namespace
 
 void RegisterSimulationClock(flecs::world& world) {
-  RegisterComponent<SimulationClock>(world);
+  RegisterComponents<SimulationClock, SimulationFrozen>(world);
   world.set<SimulationClock>({});
+  world.component<PresentationPhase>();
+
+  world.component<SimulationTickPhase>().add(flecs::Phase);
+  world.get_alive(flecs::PreFrame).add(flecs::Phase).add<PresentationPhase>().depends_on<SimulationTickPhase>();
 
   world.system<SimulationClock>("SimulationClock::IncrementTick")
-      .kind(flecs::PreFrame)
+      .kind<SimulationTickPhase>()
       .each(IncrementTick);
+}
+
+void ApplySimulationFreeze(flecs::world& world) {
+  const bool frozen = world.has<SimulationFrozen>();
+  // All simulation phases toggle together.
+  if (world.component<SimulationTickPhase>().enabled() != frozen) {
+    return;
+  }
+  // Optional Disabled term: also match already-frozen phases.
+  std::vector<flecs::entity> phases;
+  world.query_builder()
+      .with(flecs::Phase)
+      .without<PresentationPhase>()
+      .with(flecs::Disabled).optional()
+      .build()
+      .each([&phases](flecs::entity phase) { phases.push_back(phase); });
+  for (flecs::entity phase : phases) {
+    if (phase == flecs::OnStart) {
+      continue;
+    }
+    if (frozen) {
+      phase.disable();
+    } else {
+      phase.enable();
+    }
+  }
 }
 
 std::optional<uint64_t> TicksPerSecond(flecs::world world) {

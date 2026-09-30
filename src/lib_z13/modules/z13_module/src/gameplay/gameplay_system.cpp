@@ -22,6 +22,7 @@
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
+#include <lib_core/simulation_clock.h>
 #include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
@@ -75,6 +76,20 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   log_info("~~~~ gameplay::OnInit");
 }
 
+// Only single-player freezes; runs in PreFrame so a frozen world can thaw.
+void SyncSimulationFrozen(flecs::iter& it) {
+  flecs::world world = it.world();
+  const bool frozen = world.has<Pause>() && !world.has<z13::net::ServerRole>() && !world.has<z13::net::ClientRole>();
+  if (frozen == world.has<z13::flecs_tools::SimulationFrozen>()) {
+    return;
+  }
+  if (frozen) {
+    world.add<z13::flecs_tools::SimulationFrozen>();
+  } else {
+    world.remove<z13::flecs_tools::SimulationFrozen>();
+  }
+}
+
 void OnTeardown(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   it.world().query_builder().with<z13::flecs_tools::StateEntity>().build()
     .each([](flecs::entity e) { e.destruct(); });
@@ -100,6 +115,14 @@ void RegisterSystems(flecs::world world) {
         world.add<Pause>();
       }
     });
+
+  world.system("GameplaySystem::SyncSimulationFrozen")
+    .kind(flecs::PreFrame)
+    .read<Pause>()
+    .read<z13::net::ServerRole>()
+    .read<z13::net::ClientRole>()
+    .write<z13::flecs_tools::SimulationFrozen>()
+    .run(SyncSimulationFrozen);
 
   world.system("UpdateGameplaySystem")
     .kind<UpdatePhase>()

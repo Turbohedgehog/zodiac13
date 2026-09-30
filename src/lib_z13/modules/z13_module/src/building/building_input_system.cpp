@@ -164,7 +164,6 @@ void RegisterSystems(flecs::world world) {
 
   world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
-      .without<z13::gameplay::Pause>()
       .write<BuildingTool>()
       .each(ApplyBuildActionListener);
 
