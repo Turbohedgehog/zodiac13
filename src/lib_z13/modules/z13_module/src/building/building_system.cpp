@@ -175,13 +175,11 @@ void RegisterSystems(flecs::world world) {
 
   world.system<Eigen::Matrix4f, Brush, Eigen::Matrix4f>("BuildingSystem::UpdateBrush")
     .kind<UpdateBuildingToolPhase>()
-    .without<z13::gameplay::Pause>()
     .term_at(0).parent()
     .each(UpdateBrush);
 
   world.system<z13::gameplay::Player, BuildingTool, Eigen::Matrix4f>("BuildingSystem::UpdateBuildingTool")
     .kind<UpdateBuildingToolPhase>()
-    .without<z13::gameplay::Pause>()
     .each(UpdateBuildingTool);
 
   // Registered after UpdateBrush above (same phase, so runs after it): reads

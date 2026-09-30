@@ -137,7 +137,7 @@ void RegisterSystems(flecs::world world) {
       z13::gameplay::OutgoingCommands, z13::gameplay::LastRecordedActionValues>(
       "PlayerActionRecorder::RecordChangedActions")
       .kind<z13::input::RecordActionFramePhase>()
-      .without<z13::gameplay::Pause>()
+      // Also runs on Pause, to record the release of held keys.
       .without<z13::flecs_tools::ReplayInProgress>()
       // Only the local player -- see the comment on RecordChangedActions above.
       .with<z13::input::CurrentActionListenerTag>()

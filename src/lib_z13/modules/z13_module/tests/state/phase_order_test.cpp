@@ -27,6 +27,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/simulation_clock.h>
+
 #include <z13_tests/test_time.h>
 
 #include <z13/components/gameplay.h>
@@ -47,6 +49,9 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
   std::vector<std::string> order;
   const auto mark = [&order](std::string_view name) { order.emplace_back(name); };
 
+  world.system("PhaseOrderTest::SimulationTick")
+      .kind<z13::flecs_tools::SimulationTickPhase>()
+      .run([&](flecs::iter&) { mark("SimulationTick"); });
   world.system("PhaseOrderTest::PreFrame").kind(flecs::PreFrame).run([&](flecs::iter&) { mark("PreFrame"); });
   world.system("PhaseOrderTest::ScheduledCommands")
       .kind<ScheduledCommandsPhase>()
@@ -88,7 +93,7 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
 
   // Gameplay's Pre/Update phases and the input chain both only follow OnUpdate; the
   // tie goes to the smaller phase path (see LinearizePhases).
-  const std::vector<std::string> expected {"PreFrame", "ScheduledCommands", "Clear", "OnUpdate",
+  const std::vector<std::string> expected {"SimulationTick", "PreFrame", "ScheduledCommands", "Clear", "OnUpdate",
       "GameplayPreUpdate", "GameplayUpdate", "Calculate", "Record", "OwnCommands", "Remote", "Apply",
       "GameplayPostUpdate", "OnValidate", "PostUpdate", "OnStore", "PostFrame"};
   EXPECT_EQ(order, expected);

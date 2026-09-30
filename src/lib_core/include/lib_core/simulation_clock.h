@@ -32,10 +32,22 @@ struct SimulationClock {
   uint64_t tick {};
 };
 
-// Registers SimulationClock and the system that increments `tick` once per
-// world.progress() call, in flecs::PreFrame so every other system of that frame sees
-// the tick it's currently on. Called by RegisterStateMeta.
+// Runs before flecs::PreFrame, so the whole frame sees the new tick.
+struct SimulationTickPhase {};
+
+// Keeps running while the simulation is frozen; untagged phases are simulation.
+struct PresentationPhase {};
+
+// While set, TickWorld disables all simulation phases (single-player pause only).
+struct SimulationFrozen {
+  using Singleton = void;
+};
+
+// Called by RegisterStateMeta.
 void RegisterSimulationClock(flecs::world& world);
+
+// Called by TickWorld between frames.
+void ApplySimulationFreeze(flecs::world& world);
 
 // Config values read through CoreComponent so callers don't each duplicate the lookup.
 // Nullopt in worlds with no CoreComponent (e.g. bare lib_core tests).

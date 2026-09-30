@@ -27,6 +27,7 @@
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
+#include <lib_core/simulation_clock.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -41,16 +42,17 @@ namespace {
 constexpr std::string_view kWindowTitle = "Zodiac 13";
 
 void RegisterPipelines(flecs::world world) {
-  world.component<ReadEvents>().add(flecs::Phase).depends_on(flecs::PreFrame);
+  using z13::flecs_tools::PresentationPhase;
+  world.component<ReadEvents>().add(flecs::Phase).add<PresentationPhase>().depends_on(flecs::PreFrame);
 
   // Real phase barrier for ReadEvents' consumers, since same-phase order isn't guaranteed.
-  world.component<ConsumeEvents>().add(flecs::Phase).depends_on<ReadEvents>();
+  world.component<ConsumeEvents>().add(flecs::Phase).add<PresentationPhase>().depends_on<ReadEvents>();
   world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ConsumeEvents>();
 
-  world.component<PreRender>().add(flecs::Phase).depends_on(flecs::OnStore);
-  world.component<Render>().add(flecs::Phase).depends_on<PreRender>();
-  world.component<PostRender>().add(flecs::Phase).depends_on<Render>();
-  world.component<FinalizeRender>().add(flecs::Phase).depends_on<PostRender>();
+  world.component<PreRender>().add(flecs::Phase).add<PresentationPhase>().depends_on(flecs::OnStore);
+  world.component<Render>().add(flecs::Phase).add<PresentationPhase>().depends_on<PreRender>();
+  world.component<PostRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<Render>();
+  world.component<FinalizeRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<PostRender>();
   world.get_alive(flecs::PostFrame).add(flecs::Phase).depends_on<FinalizeRender>();
 }
 

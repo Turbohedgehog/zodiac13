@@ -152,6 +152,7 @@ bool IsCatchingUp(flecs::world world) {
 }
 
 void TickWorld(flecs::world& world, float delta_time) {
+  ApplySimulationFreeze(world);
   const int64_t adjust = world.has<ClockAdjustRequest>() ? std::exchange(world.get_mut<ClockAdjustRequest>().ticks, 0) : 0;
   if (adjust < 0) {
     world.get_mut<ClockAdjustRequest>().ticks += adjust + 1;
