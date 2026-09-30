@@ -32,36 +32,33 @@ constexpr auto kUnknown = z13::fbs::input::Keycode::KEY_UNKNOWN;
 constexpr std::string_view kUnboundText = "...";
 
 // display_text attribute of every Keycode enum value, via the fbs schema.
-const std::unordered_map<z13::fbs::input::Keycode, std::string>& KeycodeTextMap() {
-  static const std::unordered_map<z13::fbs::input::Keycode, std::string> map = [] {
-    std::unordered_map<z13::fbs::input::Keycode, std::string> result;
-    const auto* schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
-    if (schema == nullptr) {
-      return result;
-    }
-    const auto* keycode_enum = schema->enums()->LookupByKey("z13.fbs.input.Keycode");
-    if (keycode_enum == nullptr) {
-      return result;
-    }
-    for (const auto* value : *keycode_enum->values()) {
-      const auto* attributes = value->attributes();
-      if (attributes == nullptr) {
-        continue;
-      }
-      if (const auto* display_text = attributes->LookupByKey("display_text")) {
-        result[static_cast<z13::fbs::input::Keycode>(value->value())] =
-            display_text->value()->str();
-      }
-    }
+std::unordered_map<z13::fbs::input::Keycode, std::string> BuildKeycodeTextMap() {
+  std::unordered_map<z13::fbs::input::Keycode, std::string> result;
+  const auto* schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
+  if (schema == nullptr) {
     return result;
-  }();
-  return map;
+  }
+  const auto* keycode_enum = schema->enums()->LookupByKey("z13.fbs.input.Keycode");
+  if (keycode_enum == nullptr) {
+    return result;
+  }
+  for (const auto* value : *keycode_enum->values()) {
+    const auto* attributes = value->attributes();
+    if (attributes == nullptr) {
+      continue;
+    }
+    if (const auto* display_text = attributes->LookupByKey("display_text")) {
+      result[static_cast<z13::fbs::input::Keycode>(value->value())] =
+          display_text->value()->str();
+    }
+  }
+  return result;
 }
 
 }  // namespace
 
 KeyBindingModel BuildKeyBindingModel(flecs::world world) {
-  KeyBindingModel model;
+  KeyBindingModel model {.keycode_text = BuildKeycodeTextMap()};
 
   const auto& action_map = world.ensure<z13::input::ActionMap>().action_map;
   const auto& config = world.ensure<z13::input::InputConfig>();
@@ -176,7 +173,7 @@ std::string_view KeyBindingSlotText(const KeyBindingModel& model, int group, int
   if (keycode == kUnknown) {
     return kUnboundText;
   }
-  const auto& text_map = KeycodeTextMap();
+  const auto& text_map = model.keycode_text;
   const auto it = text_map.find(keycode);
   return it != text_map.end() ? std::string_view(it->second) : kUnboundText;
 }

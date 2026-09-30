@@ -22,6 +22,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <flecs.h>
@@ -44,7 +45,7 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
   flecs::world& world = test_world.World();
 
   std::vector<std::string> order;
-  const auto mark = [&order](const char* name) { order.emplace_back(name); };
+  const auto mark = [&order](std::string_view name) { order.emplace_back(name); };
 
   world.system("PhaseOrderTest::PreFrame").kind(flecs::PreFrame).run([&](flecs::iter&) { mark("PreFrame"); });
   world.system("PhaseOrderTest::ScheduledCommands")

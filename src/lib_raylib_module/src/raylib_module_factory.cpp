@@ -26,9 +26,8 @@ void RaylibModuleFactory::RegisterModules(flecs::world& world) {
   world.import<z13::raylib::RaylibRender>();
 }
 
-const std::string& RaylibModuleFactory::GetName() const {
-  static std::string name = "RaylibModuleFactory";
-  return name;
+std::string_view RaylibModuleFactory::GetName() const {
+  return "RaylibModuleFactory";
 }
 
 ModuleFactoryPtr RaylibModuleFactory::CreateFactory() {

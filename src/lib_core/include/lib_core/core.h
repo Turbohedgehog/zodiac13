@@ -64,12 +64,10 @@ class Core {
 
   std::map<WorldId, flecs::world> worlds_;
   WorldId new_world_id_ = 0;
-  // std::map<std::string, ModuleFactoryPtr> module_factories_;
   std::vector<ModuleFactoryPtr> module_factories_;
   // Only touched on the main thread; the signal handler writes interrupt_signal_ instead.
   bool pending_shutdown_ {false};
   std::unique_ptr<ModuleLibHolder> module_lib_holder_;
-  // std::unique_ptr<ModuleLibHolder> module_lib_holder_;
 
   // 0 when idle, else the received signal number; sig_atomic_t is signal-handler-safe.
   static volatile std::sig_atomic_t interrupt_signal_;

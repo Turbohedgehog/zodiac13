@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
 
@@ -29,13 +30,11 @@ extern "C" {
 
 namespace z13 {
 
-// using ModuleFactoryPtr = std::shared_ptr<ModuleFactoryBase>;
-
 class BOOST_SYMBOL_VISIBLE ModuleFactoryBase {
  public:
   virtual ~ModuleFactoryBase() = default;
   virtual void RegisterModules(flecs::world& world) = 0;
-  virtual const std::string& GetName() const = 0;
+  virtual std::string_view GetName() const = 0;
 
   // Hands this process's already-initialized flecs OS API to a module before
   // RegisterModules(), since each dynamically-loaded module statically links its own.

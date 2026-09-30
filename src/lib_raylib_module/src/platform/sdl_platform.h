@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -42,7 +43,7 @@ class SdlPlatform {
   SdlPlatform& operator=(const SdlPlatform&) = delete;
 
   // SDL_Init + window + GL 3.3 core context + rlglInit. false on failure.
-  bool Init(int width, int height, const char* title);
+  bool Init(int width, int height, std::string_view title);
   void Shutdown();
   bool IsReady() const;
 

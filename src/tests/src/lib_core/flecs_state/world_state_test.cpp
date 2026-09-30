@@ -3,6 +3,8 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include <Eigen/Dense>
 #include <flecs.h>
@@ -63,8 +65,8 @@ void RegisterStateTestComponents(flecs::world& world) {
                          Settings, Scratch, RuntimeOnly>(world);
 }
 
-flecs::entity SpawnState(flecs::world& world, const char* name) {
-  return world.entity(name).add<ft::StateEntity>();
+flecs::entity SpawnState(flecs::world& world, std::string_view name) {
+  return world.entity(std::string(name).c_str()).add<ft::StateEntity>();
 }
 
 class WorldStateTest : public ::testing::Test {

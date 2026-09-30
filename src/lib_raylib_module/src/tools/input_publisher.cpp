@@ -16,9 +16,12 @@
 
 #include "input_publisher.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <string_view>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -49,8 +52,7 @@ constexpr std::string_view kInputSourceName = "z13::raylib::InputEventSource";
 
 // SDL keycode -> z13 Keycode. The z13 enum names mirror SDL's, so this is a
 // straight rename table; unlisted keys still reach systems via RaylibInputFrame.
-const std::unordered_map<SDL_Keycode, zkey::Keycode>& KeyMap() {
-  static const std::unordered_map<SDL_Keycode, zkey::Keycode> map = {
+constexpr auto kKeyMap = std::to_array<std::pair<SDL_Keycode, zkey::Keycode>>({
       {SDLK_A, zkey::Keycode::KEY_A}, {SDLK_B, zkey::Keycode::KEY_B},
       {SDLK_C, zkey::Keycode::KEY_C}, {SDLK_D, zkey::Keycode::KEY_D},
       {SDLK_E, zkey::Keycode::KEY_E}, {SDLK_F, zkey::Keycode::KEY_F},
@@ -115,8 +117,14 @@ const std::unordered_map<SDL_Keycode, zkey::Keycode>& KeyMap() {
       {SDLK_KP_8, zkey::Keycode::KEY_KP_8}, {SDLK_KP_9, zkey::Keycode::KEY_KP_9},
       {SDLK_KP_PERIOD, zkey::Keycode::KEY_KP_PERIOD},
       {SDLK_LGUI, zkey::Keycode::KEY_LGUI}, {SDLK_RGUI, zkey::Keycode::KEY_RGUI},
-  };
-  return map;
+});
+
+std::optional<zkey::Keycode> ToKeycode(SDL_Keycode key) {
+  const auto it = std::ranges::find(kKeyMap, key, &std::pair<SDL_Keycode, zkey::Keycode>::first);
+  if (it == kKeyMap.end()) {
+    return std::nullopt;
+  }
+  return it->second;
 }
 
 // Compact bitmask (bit0 Shift, bit1 Ctrl, bit2 Alt, bit3 GUI), not the raw
@@ -170,12 +178,12 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
       case SDL_EVENT_KEY_DOWN:
         [[fallthrough]];
       case SDL_EVENT_KEY_UP: {
-        const auto it = KeyMap().find(event.key.key);
-        if (it == KeyMap().end()) {
+        const auto code = ToKeycode(event.key.key);
+        if (!code) {
           break;
         }
         z13::input::Keycode keycode{};
-        keycode.code = it->second;
+        keycode.code = *code;
         keycode.raw_code = static_cast<int32_t>(event.key.key);
         keycode.mod = EncodeModifiers(event.key.mod);
         keycode.repeat = event.key.repeat ? 1 : 0;

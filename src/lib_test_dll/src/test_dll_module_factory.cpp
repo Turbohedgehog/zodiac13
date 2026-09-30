@@ -36,10 +36,8 @@ void TestDllModuleFactory::RegisterModules(flecs::world& world) {
   world.import<z13::dll::TestDllModule>();
 }
 
-const std::string& TestDllModuleFactory::GetName() const {
-  static std::string name = "TestDllModuleFactory";
-
-  return name;
+std::string_view TestDllModuleFactory::GetName() const {
+  return "TestDllModuleFactory";
 }
 
 }  // namespace z13::dll

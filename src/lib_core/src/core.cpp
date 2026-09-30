@@ -65,23 +65,15 @@ std::optional<std::string> Core::GetConfigError() const {
 
 bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
   return !!module_factories_.emplace_back(module_factory);
-  // return true;
-  // return module_factories_.insert({module_factory->GetName(), module_factory}).second;
 }
 
 bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension) {
-  try {
-    auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
-    if (!module_factory) {
-      return false;
-    }
-
-    return RegisterModuleFactory(module_factory);
-  } catch (std::runtime_error ex) {
-    log_critical("Core::RegisterModuleFactory error: {}", ex.what());
-    throw;
+  auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
+  if (!module_factory) {
+    log_critical("Core::RegisterModuleFactory: {}", module_factory.error());
+    return false;
   }
-  return false;
+  return RegisterModuleFactory(*module_factory);
 }
 
 WorldRef Core::CreateWorld() {

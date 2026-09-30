@@ -19,6 +19,7 @@
 #include <array>
 #include <cstdarg>
 #include <cstdio>
+#include <string>
 
 #include <SDL3/SDL.h>
 
@@ -62,7 +63,7 @@ bool IsGlContextAlive() { return gl_context_alive; }
 SdlPlatform::SdlPlatform() = default;
 SdlPlatform::~SdlPlatform() { Shutdown(); }
 
-bool SdlPlatform::Init(int width, int height, const char* title) {
+bool SdlPlatform::Init(int width, int height, std::string_view title) {
   SetTraceLogCallback(ForwardRaylibLog);
   SetTraceLogLevel(LOG_WARNING);
 
@@ -82,7 +83,7 @@ bool SdlPlatform::Init(int width, int height, const char* title) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-  SDL_Window* window = SDL_CreateWindow(title, width, height,
+  SDL_Window* window = SDL_CreateWindow(std::string(title).c_str(), width, height,
                                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (window == nullptr) {
     spdlog::error("[sdl] SDL_CreateWindow: {}", SDL_GetError());

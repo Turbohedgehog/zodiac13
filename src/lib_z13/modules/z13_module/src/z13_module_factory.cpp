@@ -59,10 +59,8 @@ void Z13ModuleFactory::RegisterModules(flecs::world& world) {
   world.set<z13::gameplay::QuickSaveSettings>({.path = ResolveQuickSavePath(world)});
 }
 
-const std::string& Z13ModuleFactory::GetName() const {
-  static std::string name = "Z13ModuleFactory";
-
-  return name;
+std::string_view Z13ModuleFactory::GetName() const {
+  return "Z13ModuleFactory";
 }
 
 void Z13ModuleFactory::SetLoadConfigFromFile(bool load_config_from_file) {

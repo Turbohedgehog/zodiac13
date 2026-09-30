@@ -63,10 +63,10 @@ void RegisterComponents(flecs::world world) {
 void ShutdownCore(flecs::world world) { world.get<CoreComponent>().core->get().Shutdown(); }
 
 void CreateDefaults(flecs::world world) {
-  static const Eigen::Vector2i kWindowSize = {960, 600};
+  const Eigen::Vector2i kWindowSize {960, 600};
   auto platform = std::make_shared<SdlPlatform>();
   world.set(SdlPlatformData{.platform = platform});
-  if (!platform->Init(kWindowSize.x(), kWindowSize.y(), kWindowTitle.data())) {
+  if (!platform->Init(kWindowSize.x(), kWindowSize.y(), kWindowTitle)) {
     log_critical("[raylib] SDL platform init failed");
     platform->Shutdown();
     ShutdownCore(world);

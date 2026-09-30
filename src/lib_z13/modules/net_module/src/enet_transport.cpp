@@ -47,7 +47,7 @@ std::expected<std::shared_ptr<EnetLifetime>, std::string> AcquireEnetLifetime() 
   if (enet_initialize() != 0) {
     return std::unexpected("enet_initialize failed");
   }
-  auto instance = std::shared_ptr<EnetLifetime>(new EnetLifetime());
+  auto instance = std::make_shared<EnetLifetime>();
   weak_instance = instance;
   return instance;
 }

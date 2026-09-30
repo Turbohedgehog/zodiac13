@@ -41,7 +41,7 @@ namespace z13::building {
 namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
-static const std::string kBuildingActionGroup = "Building";
+constexpr std::string_view kBuildingActionGroup = "Building";
 
 struct BuildActionIds {
   using Singleton = void;
@@ -122,7 +122,7 @@ void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action
   if (has_group) {
     std::erase(groups, kBuildingActionGroup);
   } else {
-    groups.push_back(kBuildingActionGroup);
+    groups.emplace_back(kBuildingActionGroup);
   }
 }
 
