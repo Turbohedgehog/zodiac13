@@ -31,14 +31,17 @@ namespace z13::raylib {
 
 namespace {
 
-constexpr std::array<float, 4> kAmbient{0.25f, 0.25f, 0.30f, 1.0f};
+// Keeps faces the sun misses from going black.
+constexpr std::array<float, 4> kAmbientSky{0.30f, 0.32f, 0.40f, 1.0f};
+constexpr std::array<float, 4> kAmbientGround{0.12f, 0.10f, 0.09f, 1.0f};
 
 const std::filesystem::path kLightingVertexShaderPath = "shaders/lighting.vs";
 const std::filesystem::path kLightingFragmentShaderPath = "shaders/lighting.fs";
 
 // Uniform names in assets/shaders/lighting.fs.
 constexpr std::string_view kViewPosUniform = "viewPos";  // camera world position
-constexpr std::string_view kAmbientUniform = "ambient";  // global ambient term
+constexpr std::string_view kAmbientSkyUniform = "ambient";           // ambient from above
+constexpr std::string_view kAmbientGroundUniform = "ambientGround";  // ambient from below
 // Per-light `lights[N].<field>` field names.
 constexpr std::string_view kLightEnabledField = "enabled";    // on/off flag
 constexpr std::string_view kLightTypeField = "type";          // LightKind
@@ -63,8 +66,10 @@ std::string LightUniform(int index, std::string_view field) {
 
   shader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(shader, kViewPosUniform.data());
 
-  const int ambient_loc = GetShaderLocation(shader, kAmbientUniform.data());
-  SetShaderValue(shader, ambient_loc, kAmbient.data(), SHADER_UNIFORM_VEC4);
+  SetShaderValue(shader, GetShaderLocation(shader, kAmbientSkyUniform.data()), kAmbientSky.data(),
+                 SHADER_UNIFORM_VEC4);
+  SetShaderValue(shader, GetShaderLocation(shader, kAmbientGroundUniform.data()), kAmbientGround.data(),
+                 SHADER_UNIFORM_VEC4);
   return shader;
 }
 
