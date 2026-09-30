@@ -76,11 +76,6 @@ void RegisterComponents(flecs::world world) {
   world.component<GuiState>().add(flecs::Singleton);
 }
 
-void CreateDefaults(flecs::world world) {
-  world.set<gui::WindowStack>({});
-  world.set<GuiState>({});
-}
-
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
 // / GL context (same trigger EnvironmentRenderSystem uses to load GPU resources).
 void InitImGui(const SdlPlatform& platform, GuiState& state) {
@@ -113,6 +108,11 @@ void EndImGuiFrame() {
 }
 
 void RegisterSystems(flecs::world world) {
+  // Set before InitImGui exists: set() on a new component fires OnAdd first and then
+  // assigns the value, which would wipe the imgui_ready the observer just wrote.
+  world.set<gui::WindowStack>({});
+  world.set<GuiState>({});
+
   // Bring up ImGui once the SDL window / GL context exists (RaylibData is set at
   // the tail of RaylibSystem::CreateDefaults).
   world.observer<const RaylibData, const SdlPlatformData, GuiState>("GuiSystem::InitImGui")
@@ -178,8 +178,6 @@ void GuiSystem::Register(flecs::world& world) {
   OnRegisterComponents(world, RegisterComponents);
 
   OnInitSystems(world, RegisterSystems);
-
-  OnInitWorldData(world, CreateDefaults);
 }
 
 void GuiSystem::ShutdownImGui(flecs::world world) {
