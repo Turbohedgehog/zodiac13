@@ -41,7 +41,7 @@ uint64_t IntervalTicks(Z13TestWorld& test_world) {
 
 void Frames(Z13TestWorld& test_world, uint64_t count) {
   for (uint64_t i = 0; i < count; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 }
 

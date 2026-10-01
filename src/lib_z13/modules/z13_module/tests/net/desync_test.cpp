@@ -126,14 +126,10 @@ TEST_F(DesyncTest, DigestsAgreeAfterAScriptedSession) {
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   Run(20, [] { return false; });
   client_.EmitInput(KeyUp(Keycode::KEY_W));
-  // Not EnterBuildMode/Click: those tick the client alone, off the network.
-  client_.EmitInput(KeyDown(Keycode::KEY_TAB));
-  Run(1, [] { return false; });
-  client_.EmitInput(KeyUp(Keycode::KEY_TAB));
+  const auto step = [this] { Run(1, [] { return false; }); };
+  z13::testing::Tap(client_, Keycode::KEY_TAB, step);
   Settle();
-  client_.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_BUTTON_LEFT));
-  Run(1, [] { return false; });
-  client_.EmitInput(z13::testing::MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  z13::testing::Click(client_, Keycode::MOUSE_BUTTON_LEFT, step);
   Settle();
   ASSERT_EQ(server_.World().count<z13::building::BasicBlock>(), 1);
 

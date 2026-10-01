@@ -89,7 +89,7 @@ TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
   world.system("PhaseOrderTest::OnStore").kind(flecs::OnStore).run([&](flecs::iter&) { mark("OnStore"); });
   world.system("PhaseOrderTest::PostFrame").kind(flecs::PostFrame).run([&](flecs::iter&) { mark("PostFrame"); });
 
-  world.progress(z13::testing::kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, z13::testing::kTestDeltaTime);
 
   // Gameplay's Pre/Update phases and the input chain both only follow OnUpdate; the
   // tie goes to the smaller phase path (see LinearizePhases).
@@ -189,7 +189,7 @@ TEST(PhaseOrderTest, DisablingAPhaseKeepsTheLaterOnesRunning) {
       .run([&order](flecs::iter&) { order.emplace_back("PostFrame"); });
 
   world.component<CalculateActionFramePhase>().disable();
-  world.progress(z13::testing::kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, z13::testing::kTestDeltaTime);
 
   const std::vector<std::string> expected {"Record", "PostFrame"};
   EXPECT_EQ(order, expected);

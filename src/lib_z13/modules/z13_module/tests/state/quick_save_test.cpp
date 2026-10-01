@@ -51,17 +51,17 @@ void BuildBlock(Z13TestWorld& test_world, int index) {
   z13::math::SetTranslation(
       Eigen::Vector3f(-kBrushDistance, kBlockSpacing * static_cast<float>(index), 0.f), player_transform);
   test_world.Player().set(player_transform);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
 }
 
 // The request is filed in the frame the key goes down and executed at the start of the next.
 void Tap(Z13TestWorld& test_world, Keycode key) {
   test_world.EmitInput(z13::testing::KeyDown(key));
-  test_world.World().progress(kTestDeltaTime);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   test_world.EmitInput(z13::testing::KeyUp(key));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 }
 
 size_t Blocks(Z13TestWorld& test_world) {
@@ -138,13 +138,13 @@ TEST(QuickSaveTest, HoldingF5SavesOnlyOnce) {
   z13::testing::EnterBuildMode(test_world);
   BuildBlock(test_world, 0);
   test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_F5));
-  test_world.World().progress(kTestDeltaTime);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   ASSERT_TRUE(std::filesystem::exists(test_world.QuickSavePath()));
   std::filesystem::remove(test_world.QuickSavePath());
 
-  test_world.World().progress(kTestDeltaTime);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   EXPECT_FALSE(std::filesystem::exists(test_world.QuickSavePath()));
 }

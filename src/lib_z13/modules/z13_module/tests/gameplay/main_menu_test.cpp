@@ -68,7 +68,7 @@ TEST(MainMenuTest, ExitToMainMenuDestroysPlayerAndBlocks) {
   ASSERT_EQ(test_world.World().count<BasicBlock>(), 1);
 
   test_world.ExitToMainMenu();
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   EXPECT_FALSE(test_world.Player());
   EXPECT_EQ(test_world.World().count<BasicBlock>(), 0);
@@ -80,7 +80,7 @@ TEST(MainMenuTest, RestartedGameGetsFreshIdCounters) {
   ASSERT_EQ(test_world.World().get<IdCounters>().last_block_id, kFirstBlockId);
 
   test_world.ExitToMainMenu();
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   test_world.StartGame();
   PlaceBlock(test_world);
 

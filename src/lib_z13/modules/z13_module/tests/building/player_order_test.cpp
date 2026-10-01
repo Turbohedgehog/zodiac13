@@ -59,12 +59,12 @@ std::map<std::string, Eigen::Vector3f> BuildSimultaneously(const std::vector<uin
   for (const uint32_t id : spawn_order) {
     players.push_back(z13::gameplay::SpawnPlayer(world, id).add<BuildingTool>());
   }
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 
   for (flecs::entity player : players) {
     player.add<RequestBuildBlock>();
   }
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
   return BlocksByName(world);
 }
 

@@ -75,7 +75,7 @@ Eigen::Matrix4f AtPosition(const Eigen::Vector3f& position) {
 
 void MovePlayerTo(Z13TestWorld& test_world, const Eigen::Vector3f& position) {
   test_world.Player().set(AtPosition(position));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 }
 
 // Player faces +X with no look angles applied, so block/brush geometry is simple.
@@ -91,17 +91,17 @@ void DestroyBlockAt(Z13TestWorld& test_world, const Eigen::Vector3f& position) {
 
 // Turns the camera by yaw -5 degrees through the mouse-look pipeline.
 void LookRight(Z13TestWorld& test_world) {
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = kMouseTestDelta, .y = 0};
   test_world.EmitInput(move_event);
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
 }
 
 void ResetLook(Z13TestWorld& test_world) {
   test_world.Player().set(LookAngles{});
   test_world.Player().set(Eigen::Matrix4f(Eigen::Matrix4f::Identity()));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 }
 
 std::vector<Eigen::Vector3f> BlockPositions(flecs::world& world) {
@@ -144,7 +144,7 @@ void Load(Z13TestWorld& test_world, const std::string& json) {
 
 void Frames(Z13TestWorld& test_world, int count) {
   for (int i = 0; i < count; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 }
 
@@ -169,7 +169,7 @@ TEST(GameStateTest, RestoresBlocksCameraAndModeAfterFurtherEdits) {
 
   LookRight(test_world);
   player.set(AtPosition({1.f, 2.f, 3.f}));
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
   const Eigen::Matrix4f saved_camera = player.get<Eigen::Matrix4f>();
   const LookAngles saved_look = player.get<LookAngles>();
   ASSERT_TRUE(player.has<BuildingTool>());
@@ -250,7 +250,7 @@ TEST(GameStateTest, RestoredOrientationDoesNotSnapBackOnTheNextMove) {
   const Eigen::Vector3f before =
       z13::math::ExtractTranslation<float>(test_world.Player().get<Eigen::Matrix4f>());
   test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_W));
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
 
   const Eigen::Vector3f moved =
       z13::math::ExtractTranslation<float>(test_world.Player().get<Eigen::Matrix4f>()) - before;
@@ -375,7 +375,7 @@ TEST(GameStateTest, LoadRequestedThroughTheQueueIsAppliedNextFrame) {
 
   ft::RequestLoadWorldState(test_world.World(), json);
   EXPECT_EQ(Count(test_world), 0u);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   EXPECT_EQ(Count(test_world), 1u);
 }

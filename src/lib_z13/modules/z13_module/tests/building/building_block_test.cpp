@@ -116,8 +116,8 @@ TEST(BuildingBlockTest, DestroyBlockDoesNothingWhenNoBlockInSight) {
   // Move the player well past the block (still facing the same +X axis it
   // was placed on), so the destroy raycast no longer reaches it.
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT);
 

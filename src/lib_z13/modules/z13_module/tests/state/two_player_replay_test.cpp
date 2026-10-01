@@ -70,7 +70,7 @@ float RealDeltaTime(Z13TestWorld& test_world) {
 void RealFrames(Z13TestWorld& test_world, uint64_t count) {
   const float delta_time = RealDeltaTime(test_world);
   for (uint64_t i = 0; i < count; ++i) {
-    test_world.World().progress(delta_time);
+    test_world.Tick(delta_time);
   }
 }
 
@@ -90,14 +90,14 @@ void MoveForward(Z13TestWorld& test_world, uint64_t ticks) {
   test_world.EmitInput(KeyDown(Keycode::KEY_W));
   RealFrames(test_world, ticks);
   test_world.EmitInput(KeyUp(Keycode::KEY_W));
-  test_world.World().progress(RealDeltaTime(test_world));
+  test_world.Tick(RealDeltaTime(test_world));
 }
 
 void MoveBackward(Z13TestWorld& test_world, uint64_t ticks) {
   test_world.EmitInput(KeyDown(Keycode::KEY_S));
   RealFrames(test_world, ticks);
   test_world.EmitInput(KeyUp(Keycode::KEY_S));
-  test_world.World().progress(RealDeltaTime(test_world));
+  test_world.Tick(RealDeltaTime(test_world));
 }
 
 // A minimal player entity representing the other client's avatar. Never locally
@@ -169,7 +169,7 @@ TEST(TwoPlayerReplayTest, IndependentPlayersMergeAndReplayToIdenticalWorlds) {
   Z13TestWorld world_a;
   Z13TestWorld world_b;
   // Bootstrap assigns local player id 0 in both worlds -- give world_b's a distinct id.
-  // LocalPlayer.id must follow it, or the next progress() strips world_b's own listener.
+  // LocalPlayer.id must follow it, or the next frame strips world_b's own listener.
   world_b.Player().set(z13::gameplay::Player{.id = kPlayerBId});
   world_b.World().set<z13::gameplay::LocalPlayer>({.id = kPlayerBId});
 

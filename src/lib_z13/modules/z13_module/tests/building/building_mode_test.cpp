@@ -36,7 +36,7 @@ using z13::testing::kTestDeltaTime;
 
 void ProgressFrames(z13::testing::Z13TestWorld& test_world, int frames) {
   for (int i = 0; i < frames; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 }
 

@@ -110,7 +110,7 @@ TEST(ListenServerTest, StartServerFromTheMenuHostsAJoinableGame) {
   ASSERT_TRUE(host.World().has<Pause>());
 
   host.World().entity().set<StartServerRequest>({.port = z13::kDefaultServerPort});
-  host.World().progress(kNetTestDeltaTime);
+  host.Tick(kNetTestDeltaTime);
 
   EXPECT_TRUE(host.World().has<ServerRole>());
   EXPECT_TRUE(host.World().has<Gameplay>());
@@ -129,7 +129,7 @@ TEST(ListenServerTest, StartServerOnABusyPortFailsWithoutAScene) {
   Z13TestWorld host = MakeMenuWorld(network);
 
   host.World().entity().set<StartServerRequest>({.port = z13::kDefaultServerPort});
-  host.World().progress(kNetTestDeltaTime);
+  host.Tick(kNetTestDeltaTime);
 
   EXPECT_EQ(StatusOf(host), ConnectionState::kFailed);
   EXPECT_FALSE(host.World().get<ConnectionStatus>().reason.empty());
@@ -164,7 +164,7 @@ TEST(ListenServerTest, HostExitRightAfterAJoinLeavesNoPlayerBehind) {
   EXPECT_FALSE(HasPlayer(server, 1));
 
   server.World().add<Gameplay>();
-  server.World().progress(kNetTestDeltaTime);
+  server.Tick(kNetTestDeltaTime);
   EXPECT_TRUE(HasPlayer(server, 0));
   EXPECT_FALSE(HasPlayer(server, 1));
 }
@@ -209,7 +209,7 @@ TEST(ListenServerTest, HostExitToMainMenuSendsClientsBackToTheirMenu) {
 
   // The port is free again, and a single-player game after it spawns its own player.
   server.World().entity().set<StartServerRequest>({.port = z13::kDefaultServerPort});
-  server.World().progress(kNetTestDeltaTime);
+  server.Tick(kNetTestDeltaTime);
   EXPECT_TRUE(server.World().has<ServerRole>());
 }
 
