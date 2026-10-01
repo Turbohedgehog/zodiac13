@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <string>
 
@@ -137,14 +138,16 @@ TEST(ListenServerTest, StartServerOnABusyPortFailsWithoutAScene) {
   EXPECT_TRUE(host.World().has<Pause>());
 }
 
-TEST(ListenServerTest, ServerFlagOnABusyPortFallsBackToTheMenu) {
+TEST(ListenServerTest, ServerFlagOnABusyPortExitsWithAnError) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld second = MakeServer(network);
 
   EXPECT_EQ(StatusOf(second), ConnectionState::kFailed);
   EXPECT_FALSE(second.World().has<Gameplay>());
-  EXPECT_TRUE(second.World().has<Pause>());
+  EXPECT_TRUE(second.Core().IsPendingShutDown());
+  EXPECT_EQ(second.Core().ExitCode(), EXIT_FAILURE);
+  EXPECT_FALSE(server.Core().IsPendingShutDown());
 }
 
 TEST(ListenServerTest, HostExitRightAfterAJoinLeavesNoPlayerBehind) {

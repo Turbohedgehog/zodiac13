@@ -79,6 +79,8 @@ class Z13TestWorld {
 
   const z13::Config& Config() const { return core_.GetConfig(); }
 
+  const z13::Core& Core() const { return core_; }
+
   z13::net::InMemoryNetwork& Network() { return *network_; }
 
   // This participant's own player: at most one, found by tag, not a fixed name.

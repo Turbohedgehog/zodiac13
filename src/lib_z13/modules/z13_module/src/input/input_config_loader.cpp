@@ -18,9 +18,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <expected>
+#include <format>
 #include <fstream>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <filesystem>
 #include <unordered_set>
 
@@ -201,7 +204,7 @@ bool InputConfigLoader::LoadConfigFromJson(
   return true;
 }
 
-std::optional<std::string> InputConfigLoader::SerializeConfig(
+std::expected<std::string, std::string> InputConfigLoader::SerializeConfig(
     const z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
   z13::fbs::input::InputConfigT input_config_msg;
@@ -209,8 +212,7 @@ std::optional<std::string> InputConfigLoader::SerializeConfig(
   for (const auto& keycode_action : input_config.keycode_binding) {
     auto it = id_map.find(keycode_action.action_id);
     if (it == id_map.end()) {
-      log_error("InputConfigLoader::SaveConfig: Cannot find action with id = {}", keycode_action.action_id);
-      return std::nullopt;
+      return std::unexpected(std::format("cannot find action with id = {}", keycode_action.action_id));
     }
 
     auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
@@ -241,8 +243,7 @@ std::optional<std::string> InputConfigLoader::SerializeConfig(
   flatbuffers::Parser parser;
   const auto* input_config_schema = reflection::GetSchema(z13::fbs::input::InputConfigBinarySchema::data());
   if (!parser.Deserialize(input_config_schema)) {
-    log_error("InputConfigLoader::SaveConfig: Failed to deserialize binary schema");
-    return std::nullopt;
+    return std::unexpected(std::string {"failed to deserialize binary schema"});
   }
 
   flatbuffers::FlatBufferBuilder builder;
@@ -257,34 +258,35 @@ std::optional<std::string> InputConfigLoader::SerializeConfig(
   parser.opts.output_default_scalars_in_json = true;
   parser.opts.strict_json = true;
   if (const auto* res = flatbuffers::GenerateText(parser, builder.GetBufferPointer(), &json_output); res) {
-    log_error("InputConfigLoader::SaveConfig: Failed to serialize data: {}", res);
-    return std::nullopt;
+    return std::unexpected(std::format("failed to serialize data: {}", res));
   }
 
   return json_output;
 }
 
-bool InputConfigLoader::SaveConfig(
+std::expected<void, std::string> InputConfigLoader::SaveConfig(
     const z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
   const auto json_output = SerializeConfig(input_config, action_map);
   if (!json_output) {
-    return false;
+    return std::unexpected(json_output.error());
   }
 
-  std::filesystem::create_directory(z13::tools::environment::GetGameDataDirectory());
+  const auto data_directory = z13::tools::environment::GetGameDataDirectory();
+  if (std::error_code error; !std::filesystem::create_directories(data_directory, error) && error) {
+    return std::unexpected(std::format("cannot create '{}': {}", data_directory.string(), error.message()));
+  }
 
   auto config_file_path = z13::tools::environment::GetGameInputConfigJsonPath2();
   std::ofstream output_file(config_file_path);
   if (!output_file.is_open()) {
-    log_error("InputConfigLoader::SaveConfig: cannot open json file for write '{}'", config_file_path.string());
-    return false;
+    return std::unexpected(std::format("cannot open json file for write '{}'", config_file_path.string()));
   }
 
   output_file << *json_output;
   output_file.close();
 
-  return true;
+  return {};
 }
 
 void InputConfigLoader::SetDefaults(

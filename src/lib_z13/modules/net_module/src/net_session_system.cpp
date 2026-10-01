@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -864,7 +865,10 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
   if (!transport) {
     log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
     SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
-    world.add<z13::gameplay::Pause>();  // --server skipped the menu; show the failure there
+    // A dedicated server has no menu to fall back to.
+    if (const auto config = z13::GetCoreConfig(world); config && config->get().IsServer()) {
+      z13::ShutdownCore(world, EXIT_FAILURE);
+    }
     return;
   }
 

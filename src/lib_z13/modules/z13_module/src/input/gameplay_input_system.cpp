@@ -210,11 +210,17 @@ void OnKeyboardUp(
 //   // log_info("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
 // }
 
+void SaveInputConfig(const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map) {
+  if (const auto saved = InputConfigLoader::SaveConfig(input_config, action_map); !saved) {
+    log_error("cannot save input config: {}", saved.error());
+  }
+}
+
 void OnSaveConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
     z13::input::SaveConfigEvent) {
-  InputConfigLoader::SaveConfig(input_config, action_map);
+  SaveInputConfig(input_config, action_map);
 }
 
 void CallConfigUpdatedEvent(flecs::world w) {
@@ -313,7 +319,7 @@ void OnInputSystemStartupGameEvent(
       !InputConfigLoader::LoadConfig(input_config, action_map)) {
     InputConfigLoader::SetDefaults(input_config, action_map);
     if (persistence.load_config_from_file) {
-      InputConfigLoader::SaveConfig(input_config, action_map);
+      SaveInputConfig(input_config, action_map);
     }
   }
 

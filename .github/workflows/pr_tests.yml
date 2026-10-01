@@ -41,9 +41,9 @@ jobs:
           triplet: ${{ matrix.triplet }}
           cache-suffix: ${{ matrix.cache-suffix }}
 
-      # Plus net_module's plugin DLL, which the tests (static twins) never link. Not raylib / the app.
+      # Plus the server plugins, which the tests (static twins) never link; z13_plugin_smoke loads them. Not raylib / the app.
       - name: Build tests
-        run: cmake --build build --config Release --target z13_test_runner net_module
+        run: cmake --build build --config Release --target z13_test_runner z13_plugin_smoke
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
