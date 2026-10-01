@@ -32,11 +32,13 @@
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
+#include <lib_core/rollback.h>
 #include <lib_core/world_state.h>
 #include <lib_core/world_state_requests.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/net.h>
 #include <z13_module/input/input_config_loader.h>
 
 namespace z13::state {
@@ -151,7 +153,12 @@ void RegisterSystems(flecs::world world) {
   world.system<const z13::input::ActionListener, const QuickSaveActionIds, const z13::gameplay::QuickSaveSettings>(
            "QuickSave::ProcessActions")
       .kind<z13::input::ApplyActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
       .without<z13::gameplay::Pause>()
+      // A peer's quick load would replace the whole session with a local file.
+      .without<z13::net::ServerRole>()
+      .without<z13::net::ClientRole>()
+      .without<z13::flecs_tools::ReplayInProgress>()
       .each(ProcessActions);
 }
 

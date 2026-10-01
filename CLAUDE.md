@@ -8,6 +8,7 @@
 - If running inside PRoot (check `uname -a` for `PRoot-Distro` in the kernel string), cap parallel build jobs at 2-3 (e.g. `-j3`) instead of `-j$(nproc)` — higher counts have hung the session before. `-j3` was verified safe (incremental and full clean rebuilds, no hang) on 2026-09-16.
 - `ccache` is auto-detected by `CMakeLists.txt` (`CMAKE_CXX_COMPILER_LAUNCHER`) when installed — install it (`apt install ccache`) to speed up rebuilds.
 - Run tests: `ctest --test-dir build` (or run `bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
+- `triplets/` overrides the built-in `x64-linux`/`arm64-linux` so flecs is a shared library there, as on `x64-windows`: every plugin must see the same flecs process state. `z13_plugin_smoke` (ctest `PluginSmoke`) loads the server plugins the launcher's way to check this.
 - ARM Linux in CI: `arm64-linux` builds natively on `ubuntu-24.04-arm`. 32-bit ARM (`arm-linux-gnueabihf`) is not supported: vcpkg marks `raylib` as `!arm32`.
 - `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration).
 

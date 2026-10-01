@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <expected>
 #include <optional>
 #include <string>
 
@@ -33,9 +34,10 @@ class InputConfigLoader {
       z13::input::InputConfig& input_config,
       const z13::input::ActionMap& action_map);
   // The config as JSON; an action without keys is written as KEY_UNKNOWN (unbound on purpose).
-  static std::optional<std::string> SerializeConfig(
+  static std::expected<std::string, std::string> SerializeConfig(
       const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
-  static bool SaveConfig(const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
+  static std::expected<void, std::string> SaveConfig(
+      const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void SetDefaults(z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void Clear(z13::input::InputConfig& input_config);
   static void AppendFlatbufActionsFromBinarySchema(

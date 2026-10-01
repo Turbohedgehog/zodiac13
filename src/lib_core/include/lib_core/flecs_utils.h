@@ -54,4 +54,7 @@ class ImmediateScope {
 // (e.g. bare lib_core tests).
 std::optional<std::reference_wrapper<const Config>> GetCoreConfig(flecs::world world);
 
+// Core::Shutdown for the Core that owns `world`; a no-op without CoreComponent.
+void ShutdownCore(flecs::world world, int exit_code);
+
 }  // namespace z13

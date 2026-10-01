@@ -54,4 +54,13 @@ std::optional<std::reference_wrapper<const Config>> GetCoreConfig(flecs::world w
   return std::cref(core_component.core->get().GetConfig());
 }
 
+void ShutdownCore(flecs::world world, int exit_code) {
+  if (!world.has<CoreComponent>()) {
+    return;
+  }
+  if (const CoreComponent& core_component = world.get<CoreComponent>(); core_component.core) {
+    core_component.core->get().Shutdown(exit_code);
+  }
+}
+
 }  // namespace z13

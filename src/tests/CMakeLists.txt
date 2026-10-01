@@ -80,3 +80,16 @@ gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
 )
+
+# The launcher's plugin path, out of process: z13_test_runner links static module twins
+# instead, so it can't tell whether separately loaded plugins share one flecs.
+find_package(Boost REQUIRED COMPONENTS dll)
+add_executable(z13_plugin_smoke plugin_smoke/main.cpp)
+target_link_libraries(z13_plugin_smoke PRIVATE zodiac13::core zodiac13::z13_launcher Boost::dll)
+set_target_properties(z13_plugin_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/tests
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/tests
+)
+add_dependencies(z13_plugin_smoke z13_config z13_module net_module bullet_module test_dll_module)
+add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)

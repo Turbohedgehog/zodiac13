@@ -26,6 +26,7 @@
 
 #include <lib_core/components.h>
 #include <lib_core/rollback.h>
+#include <lib_core/tick_pacer.h>
 #include <lib_core/module_factory_base.h>
 #include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
@@ -106,12 +107,17 @@ void Core::Update(float delta_time) {
   }
 }
 
-void Core::Shutdown() {
+void Core::Shutdown(int exit_code) {
   pending_shutdown_ = true;
+  exit_code_ = exit_code;
 }
 
 bool Core::IsPendingShutDown() const {
   return pending_shutdown_;
+}
+
+int Core::ExitCode() const {
+  return exit_code_;
 }
 
 void Core::RequestInterrupt(int signal_number) {
@@ -139,10 +145,9 @@ int Core::Run() {
   std::signal(SIGTERM, HandleInterruptSignal);
 
   const auto update_time = 1. / config_.GetFPS();
-  std::chrono::duration<double> sleep_time(update_time), frame_delta(update_time);
-  auto accumulated_frame_time = std::chrono::duration<double>::zero();
-  auto sleep_duration = sleep_time;
-  auto prev = std::chrono::high_resolution_clock::now();
+  TickPacer pacer(
+      std::chrono::duration_cast<TickPacer::Clock::duration>(std::chrono::duration<double>(update_time)),
+      TickPacer::Clock::now());
   while (!worlds_.empty() && !IsPendingShutDown()) {
     if (interrupt_signal_) {
       log_info("Core::Run: received signal {}, shutting down", static_cast<int>(interrupt_signal_));
@@ -151,20 +156,15 @@ int Core::Run() {
       continue;
     }
 
-    if (sleep_duration > std::chrono::duration<double>::zero()) {
-      std::this_thread::sleep_for(sleep_duration);
+    if (!pacer.TakeTick(TickPacer::Clock::now())) {
+      std::this_thread::sleep_until(pacer.NextTickTime());
+      continue;
     }
 
     Update(update_time);
-    // CleanupWorlds();
-    auto now = std::chrono::high_resolution_clock::now();
-    accumulated_frame_time += now - prev - sleep_duration;
-    sleep_duration = std::max(frame_delta - accumulated_frame_time, std::chrono::duration<double>::zero());
-    accumulated_frame_time = std::min(frame_delta - sleep_duration, std::chrono::duration<double>::zero());
-    prev = now;
   }
 
-  return 0;
+  return exit_code_;
 }
 
 }  // namespace z13

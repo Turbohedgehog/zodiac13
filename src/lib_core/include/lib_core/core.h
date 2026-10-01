@@ -17,6 +17,7 @@
 #pragma once
 
 #include <csignal>
+#include <cstdlib>
 #include <map>
 #include <optional>
 #include <string>
@@ -51,8 +52,10 @@ class Core {
 
   void Update(float delta_time);
   int Run();
-  void Shutdown();
+  // Run() returns exit_code once the current frame ends.
+  void Shutdown(int exit_code = EXIT_SUCCESS);
   bool IsPendingShutDown() const;
+  int ExitCode() const;
 
   // Signal-safe: records signal_number for Run() to consume on the main thread. The
   // static flag is CLAUDE.md's one justified exception to "no static/globals".
@@ -67,6 +70,7 @@ class Core {
   std::vector<ModuleFactoryPtr> module_factories_;
   // Only touched on the main thread; the signal handler writes interrupt_signal_ instead.
   bool pending_shutdown_ {false};
+  int exit_code_ {EXIT_SUCCESS};
   std::unique_ptr<ModuleLibHolder> module_lib_holder_;
 
   // 0 when idle, else the received signal number; sig_atomic_t is signal-handler-safe.
