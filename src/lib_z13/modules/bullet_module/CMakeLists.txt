@@ -15,7 +15,6 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-# Shared by the SHARED plugin and the test-only STATIC twin (rationale: z13_module/CMakeLists.txt).
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES})
 
 target_include_directories(
@@ -40,23 +39,11 @@ target_link_libraries(
 add_library(${PROJECT_NAME} SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# The tests link the plugin directly and use its internal symbols; MSVC exports nothing by default.
+set_target_properties(${PROJECT_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC
-  ${PROJECT_NAME}_objects
-  Eigen3::Eigen
-  PRIVATE
-  zodiac13::core
-  zodiac13::components
-  ${BULLET_LIBRARIES}
-  Boost::dll
-)
-
-# Test-only static twin (see z13_module_static). Never installed.
-add_library(${PROJECT_NAME}_static STATIC $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
-target_link_libraries(
-  ${PROJECT_NAME}_static
   PUBLIC
   ${PROJECT_NAME}_objects
   Eigen3::Eigen

@@ -14,11 +14,6 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-# Compiled once, reused as object files by both the SHARED (real plugin) and
-# STATIC (test-only twin, see below) targets -- CMAKE_POSITION_INDEPENDENT_CODE
-# is ON globally (root CMakeLists.txt), so there's no PIC conflict between the
-# two consumers, and this avoids compiling every z13_module .cpp twice on
-# every build.
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
 
 # Depend on the concrete flatc custom target, not the fbs_schemas INTERFACE lib:
@@ -48,10 +43,9 @@ target_link_libraries(
 add_library(${PROJECT_NAME} SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-# Another plugin (net_module) links this one for SpawnPlayer and friends. MSVC exports
+# Other plugins (net_module) and the tests link this one for SpawnPlayer and friends. MSVC exports
 # nothing by default, unlike ELF, so let CMake generate the .def instead of annotating
-# the public headers -- the object files are shared with the static test twin, which must
-# not carry dllexport.
+# the public headers.
 set_target_properties(
   ${PROJECT_NAME} PROPERTIES
   PROTO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}
@@ -62,26 +56,6 @@ set_target_properties(
 # linking z13_module need Eigen's include paths too.
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC
-  ${PROJECT_NAME}_objects
-  Eigen3::Eigen
-  PRIVATE
-  zodiac13::core
-  zodiac13::components
-  sago::platform_folders
-  Boost::dll
-)
-
-# Test-only static twin of the SHARED target above, same object files. Lets
-# test binaries link z13_module directly into their own process instead of
-# across a .so boundary -- needed because flecs (statically linked into
-# zodiac13::core) keeps process-global internal state that isn't shared
-# correctly between independently-linked shared objects. Never installed;
-# not part of the plugin API surface ModuleLibHolder loads at runtime.
-add_library(${PROJECT_NAME}_static STATIC $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
-target_link_libraries(
-  ${PROJECT_NAME}_static
   PUBLIC
   ${PROJECT_NAME}_objects
   Eigen3::Eigen
