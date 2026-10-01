@@ -29,6 +29,7 @@
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
+#include <lib_core/world_state.h>
 #include <lib_core/log.h>
 
 #include <z13/components/gameplay.h>
@@ -48,6 +49,7 @@ constexpr std::string_view kGlslVersion = "#version 330";
 // Singleton: whether the ImGui context/backends are up. Was a file-scope static;
 // moved into the world so nothing here is process-global state.
 struct GuiState {
+  using Singleton = void;
   bool imgui_ready {};
 };
 
@@ -72,8 +74,7 @@ void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
 }
 
 void RegisterComponents(flecs::world world) {
-  world.component<gui::WindowStack>().add(flecs::Singleton);
-  world.component<GuiState>().add(flecs::Singleton);
+  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState>(world);
 }
 
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
@@ -92,10 +93,13 @@ void InitImGui(const SdlPlatform& platform, GuiState& state) {
   log_info("[gui] Dear ImGui {} initialised (SDL3 + OpenGL3)", IMGUI_VERSION);
 }
 
-void BeginImGuiFrame(const SdlPlatform& platform) {
+void ForwardImGuiEvents(const SdlPlatform& platform) {
   for (const SDL_Event& event : platform.FrameEvents()) {
     ImGui_ImplSDL3_ProcessEvent(&event);
   }
+}
+
+void BeginImGuiFrame() {
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplSDL3_NewFrame();
   ImGui::NewFrame();
@@ -122,13 +126,22 @@ void RegisterSystems(flecs::world world) {
         InitImGui(*platform_data.platform, state);
       });
 
-  // Forward this frame's SDL events to ImGui and open a new UI frame. Runs in
+  // Every tick, drawn or not: ImGui queues the events until its next NewFrame. Runs in
   // ConsumeEvents, not ReadEvents, to guarantee it's after PumpEvents.
-  world.system<const RaylibData, const SdlPlatformData, const GuiState>("GuiSystem::BeginFrame")
+  world.system<const RaylibData, const SdlPlatformData, const GuiState>("GuiSystem::ForwardEvents")
       .kind<ConsumeEvents>()
       .each([](const RaylibData&, const SdlPlatformData& platform_data, const GuiState& state) {
         if (state.imgui_ready) {
-          BeginImGuiFrame(*platform_data.platform);
+          ForwardImGuiEvents(*platform_data.platform);
+        }
+      });
+
+  world.system<const RaylibData, const GuiState>("GuiSystem::BeginFrame")
+      .kind<PreRender>()
+      .tick_source<RenderGate>()
+      .each([](const RaylibData&, const GuiState& state) {
+        if (state.imgui_ready) {
+          BeginImGuiFrame();
         }
       });
 
@@ -136,6 +149,7 @@ void RegisterSystems(flecs::world world) {
   // ImGui draw data. Render must be called every frame to match NewFrame.
   world.system<gui::WindowStack, const GuiState>("GuiSystem::Draw")
       .kind<PostRender>()
+      .tick_source<RenderGate>()
       .each([world](gui::WindowStack& stack, const GuiState& state) {
         if (!state.imgui_ready) {
           return;

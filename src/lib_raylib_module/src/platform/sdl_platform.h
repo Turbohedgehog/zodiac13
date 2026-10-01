@@ -89,6 +89,7 @@ bool IsGlContextAlive();
 // Singleton component owning the platform instance for a world. shared_ptr matches
 // this module's existing GPU-resource-holding component idiom (Skybox, RenderModel).
 struct SdlPlatformData {
+  using Singleton = void;
   std::shared_ptr<SdlPlatform> platform;
 };
 

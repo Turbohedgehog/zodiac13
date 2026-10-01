@@ -67,6 +67,7 @@ class Window {
 
 // Pause-menu window stack (singleton). Back of the vector is the visible window.
 struct WindowStack {
+  using Singleton = void;
   std::vector<WindowPtr> windows;
 };
 

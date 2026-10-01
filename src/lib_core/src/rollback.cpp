@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <format>
 #include <utility>
+#include <vector>
 
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_serializer.h>
@@ -27,7 +28,19 @@
 
 namespace z13::flecs_tools {
 
+// Outside the anonymous namespace: every module binary must resolve the same component.
+struct FrameStartCallbacks {
+  using Singleton = void;
+  std::vector<FrameStartCallback> callbacks;
+};
+
 namespace {
+
+void StartFrame(flecs::world& world, FrameKind kind) {
+  for (const FrameStartCallback& callback : world.get<FrameStartCallbacks>().callbacks) {
+    callback(world, kind);
+  }
+}
 
 // Not mid-replay: the replay's own target would be lost.
 void PromoteDeferredRollback(flecs::world& world, RollbackRequest& request) {
@@ -100,8 +113,14 @@ void FinishReplay(flecs::iter& it, size_t, const SimulationClock& clock, const R
   }
 }
 
-void AdvanceTick(flecs::world& world, float delta_time) {
+bool IsLastReplayFrame(flecs::world& world) {
+  return world.has<ReplayInProgress>() &&
+         world.get<SimulationClock>().tick + 1 >= world.get<ReplayInProgress>().target_tick;
+}
+
+void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
   for (uint64_t frame = 0; frame <= kMaxCatchUpTicksPerFrame; ++frame) {
+    StartFrame(world, frame == 0 || IsLastReplayFrame(world) ? kind : FrameKind::kReplay);
     world.progress(delta_time);
     ApplyPendingRollback(world);
     if (!IsCatchingUp(world)) {
@@ -113,7 +132,9 @@ void AdvanceTick(flecs::world& world, float delta_time) {
 }  // namespace
 
 void RegisterRollback(flecs::world& world) {
-  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest>(world);
+  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest,
+                     FrameStartCallbacks>(world);
+  world.set<FrameStartCallbacks>({});
   world.set<RollbackRequest>({});
   world.set<ClockAdjustRequest>({});
   world.set<RollbackMetrics>({});
@@ -121,6 +142,10 @@ void RegisterRollback(flecs::world& world) {
   world.system<const SimulationClock, const ReplayInProgress>("Rollback::FinishReplay")
       .kind(flecs::PostFrame)
       .each(FinishReplay);
+}
+
+void OnFrameStart(flecs::world& world, FrameStartCallback callback) {
+  world.get_mut<FrameStartCallbacks>().callbacks.push_back(std::move(callback));
 }
 
 void RequestRollback(flecs::world& world, uint64_t to_tick, uint64_t target_tick) {
@@ -151,7 +176,7 @@ bool IsCatchingUp(flecs::world world) {
          (world.has<RollbackRequest>() && world.get<RollbackRequest>().to_tick.has_value());
 }
 
-void TickWorld(flecs::world& world, float delta_time) {
+void TickWorld(flecs::world& world, float delta_time, FrameKind kind) {
   ApplySimulationFreeze(world);
   const int64_t adjust = world.has<ClockAdjustRequest>() ? std::exchange(world.get_mut<ClockAdjustRequest>().ticks, 0) : 0;
   if (adjust < 0) {
@@ -160,7 +185,7 @@ void TickWorld(flecs::world& world, float delta_time) {
   }
   const int64_t extra_ticks = std::min<int64_t>(adjust, kMaxCatchUpTicksPerFrame);
   for (int64_t tick = 0; tick <= extra_ticks; ++tick) {
-    AdvanceTick(world, delta_time);
+    AdvanceTick(world, delta_time, tick == extra_ticks ? kind : FrameKind::kCatchUp);
   }
 }
 

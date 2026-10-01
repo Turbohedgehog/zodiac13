@@ -101,9 +101,9 @@ WorldRef Core::CreateWorld() {
   return WorldRef(world);
 }
 
-void Core::Update(float delta_time) {
+void Core::Update(float delta_time, flecs_tools::FrameKind kind) {
   for (auto& [_, world] : worlds_) {
-    z13::flecs_tools::TickWorld(world, delta_time);
+    z13::flecs_tools::TickWorld(world, delta_time, kind);
   }
 }
 
@@ -161,7 +161,8 @@ int Core::Run() {
       continue;
     }
 
-    Update(update_time);
+    const bool behind = TickPacer::Clock::now() >= pacer.NextTickTime();
+    Update(update_time, behind ? flecs_tools::FrameKind::kCatchUp : flecs_tools::FrameKind::kLive);
   }
 
   return exit_code_;

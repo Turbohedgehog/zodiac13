@@ -37,6 +37,7 @@ struct SkyboxResources {
 
 // Skybox singleton. Empty `res` means the skybox failed to load.
 struct Skybox {
+  using Singleton = void;
   std::shared_ptr<SkyboxResources> res;
 };
 
@@ -49,12 +50,14 @@ struct ModelResources {
 // A drawable model. Empty `res` means the model failed to load. Singleton for
 // now (the demo spaceship); becomes per-entity when scene content grows.
 struct RenderModel {
+  using Singleton = void;
   std::shared_ptr<ModelResources> res;
 };
 
 // One octahedron mesh shared by every remote player's avatar. Singleton; empty `res`
 // means it failed to load.
 struct AvatarModel {
+  using Singleton = void;
   std::shared_ptr<ModelResources> res;
 };
 
@@ -70,6 +73,7 @@ struct LightingResources {
 };
 
 struct Lighting {
+  using Singleton = void;
   std::shared_ptr<LightingResources> res;
 };
 

@@ -206,10 +206,6 @@ void OnKeyboardUp(
   input_state.input_state[KeyCodeToArrayIndex(key_up.keycode.code)] = 0.f;
 }
 
-// void OnMousePosEvent(flecs::entity e, z13::input::MousePos& mp) {
-//   // log_info("==== {} OnMousePosEvent = {}, {} -> {}", mp.idx, e.name().c_str(), mp.x, mp.y, e.world().count<input::MousePos>());
-// }
-
 void SaveInputConfig(const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map) {
   if (const auto saved = InputConfigLoader::SaveConfig(input_config, action_map); !saved) {
     log_error("cannot save input config: {}", saved.error());

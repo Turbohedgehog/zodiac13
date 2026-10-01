@@ -22,11 +22,13 @@ namespace z13::raylib {
 
 // Marks that the SDL window / GL context is up and rlgl is initialised. Singleton.
 struct RaylibData {
+  using Singleton = void;
   bool initialized {};
 };
 
 // Current drawable size of the SDL window. Singleton, refreshed each frame.
 struct WindowSize {
+  using Singleton = void;
   Eigen::Vector2i size = Eigen::Vector2i::Zero();
 };
 
@@ -37,6 +39,9 @@ struct ReadEvents {};
 // Phase barrier after ReadEvents: same-phase order isn't guaranteed, so
 // consumers of pumped events (e.g. GuiSystem::BeginFrame) run here instead.
 struct ConsumeEvents {};
+struct RenderGatePhase {};
+// Tick source of every render system: closed when a rollback is already pending.
+struct RenderGate {};
 struct PreRender {};
 struct Render {};
 struct PostRender {};
@@ -45,6 +50,7 @@ struct FinalizeRender {};
 // Raw raylib input for the current frame; escape hatch for what the table-driven
 // flecs events don't cover (wheel, absolute position, arbitrary keys).
 struct RaylibInputFrame {
+  using Singleton = void;
   Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
   Eigen::Vector2f mouse_delta = Eigen::Vector2f::Zero();
   float mouse_wheel {};
