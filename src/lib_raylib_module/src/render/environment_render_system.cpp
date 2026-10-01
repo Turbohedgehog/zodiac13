@@ -34,6 +34,7 @@
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
+#include <lib_core/world_state.h>
 #include <lib_core/log.h>
 #include <lib_core/math.h>
 
@@ -71,12 +72,7 @@ constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
-  world.component<RaylibCamera>();
-  world.component<Skybox>().add(flecs::Singleton);
-  world.component<RenderModel>().add(flecs::Singleton);
-  world.component<AvatarModel>().add(flecs::Singleton);
-  world.component<Lighting>().add(flecs::Singleton);
-  world.component<BuildingBlock>();
+  z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BuildingBlock>(world);
 }
 
 // Per-entity cube models backing placed blocks / the brush preview, keyed by
@@ -306,6 +302,7 @@ void RegisterSystems(flecs::world world) {
   // in registration order), so the scene is synced with this frame's final state.
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .with<z13::input::CurrentActionListenerTag>()
       .without<RaylibCamera>()
       .write<RaylibCamera>()
@@ -314,11 +311,13 @@ void RegisterSystems(flecs::world world) {
   world.system<RaylibCamera, const gameplay::Camera, const Eigen::Matrix4f>(
            "EnvironmentRenderSystem::SyncRaylibCamera")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .with<z13::input::CurrentActionListenerTag>()
       .each(SyncRaylibCamera);
 
   world.system<const RaylibCamera>("EnvironmentRenderSystem::ReleaseOrphanRaylibCamera")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .read<gameplay::Camera>()
       .read<z13::input::CurrentActionListenerTag>()
       .write<RaylibCamera>()
@@ -327,6 +326,7 @@ void RegisterSystems(flecs::world world) {
   // Singleton-only term, so $this is empty: use the iter/row overload.
   world.system<const Lighting>("EnvironmentRenderSystem::ReleaseOrphanModels")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .read<z13::building::BasicBlock>()
       .read<z13::building::Brush>()
       .write<BuildingBlock>()
@@ -339,6 +339,7 @@ void RegisterSystems(flecs::world world) {
   world.system<const z13::building::Brush, const Eigen::Matrix4f, const Lighting>(
            "EnvironmentRenderSystem::AddBrushModel")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .without<BuildingBlock>()
       .write<BuildingBlock>()
       .each([block_models](
@@ -350,6 +351,7 @@ void RegisterSystems(flecs::world world) {
   world.system<const z13::building::BasicBlock, const Eigen::Matrix4f, const Lighting>(
            "EnvironmentRenderSystem::AddBlockModel")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .without<BuildingBlock>()
       .write<BuildingBlock>()
       .each([block_models](
@@ -370,6 +372,7 @@ void RegisterSystems(flecs::world world) {
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
+      .tick_source<RenderGate>()
       .read<BuildingBlock>()
       .each([world, block_query, block_models, remote_player_query](
                 const RaylibCamera& raylib_camera, const WindowSize& size) {

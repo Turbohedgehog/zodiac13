@@ -17,6 +17,7 @@
 #include "raylib_system.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 
@@ -26,7 +27,9 @@
 #include <lib_core/core.h>
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
+#include <lib_core/world_state.h>
 #include <lib_core/log.h>
+#include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 
 #include <raylib_module/raylib_components.h>
@@ -37,9 +40,43 @@
 
 namespace z13::raylib {
 
+struct RenderThrottle {
+  using Singleton = void;
+  uint64_t skipped_frames {};
+};
+
 namespace {
 
 constexpr std::string_view kWindowTitle = "Zodiac 13";
+
+// Floor on the frame rate while catching up: at least every (kMaxSkippedFrames + 1)-th frame draws.
+constexpr uint64_t kMaxSkippedFrames {3};
+
+template <class... Phases>
+void SetPhasesEnabled(flecs::world& world, bool enabled) {
+  const auto set_enabled = [enabled](flecs::entity phase) {
+    if (enabled) {
+      phase.enable();
+    } else {
+      phase.disable();
+    }
+  };
+  (set_enabled(world.entity<Phases>()), ...);
+}
+
+void ThrottleRender(flecs::world& world, z13::flecs_tools::FrameKind kind) {
+  using z13::flecs_tools::FrameKind;
+  RenderThrottle& throttle = world.get_mut<RenderThrottle>();
+  const bool draw = kind == FrameKind::kLive ||
+                    (kind == FrameKind::kCatchUp && throttle.skipped_frames >= kMaxSkippedFrames);
+  // Replays re-draw the past: skipped without counting toward the floor.
+  if (kind != FrameKind::kReplay) {
+    throttle.skipped_frames = draw ? 0 : throttle.skipped_frames + 1;
+  }
+  if (world.entity<PreRender>().enabled() != draw) {
+    SetPhasesEnabled<PreRender, Render, PostRender, FinalizeRender>(world, draw);
+  }
+}
 
 void RegisterPipelines(flecs::world world) {
   using z13::flecs_tools::PresentationPhase;
@@ -49,7 +86,8 @@ void RegisterPipelines(flecs::world world) {
   world.component<ConsumeEvents>().add(flecs::Phase).add<PresentationPhase>().depends_on<ReadEvents>();
   world.get_alive(flecs::PreUpdate).add(flecs::Phase).depends_on<ConsumeEvents>();
 
-  world.component<PreRender>().add(flecs::Phase).add<PresentationPhase>().depends_on(flecs::OnStore);
+  world.component<RenderGatePhase>().add(flecs::Phase).add<PresentationPhase>().depends_on(flecs::OnStore);
+  world.component<PreRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<RenderGatePhase>();
   world.component<Render>().add(flecs::Phase).add<PresentationPhase>().depends_on<PreRender>();
   world.component<PostRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<Render>();
   world.component<FinalizeRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<PostRender>();
@@ -57,9 +95,8 @@ void RegisterPipelines(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  world.component<RaylibData>().add(flecs::Singleton);
-  world.component<WindowSize>().add(flecs::Singleton);
-  world.component<SdlPlatformData>().add(flecs::Singleton);
+  z13::flecs_tools::RegisterComponents<RaylibData, WindowSize, SdlPlatformData, RenderThrottle>(world);
+  world.entity<RenderGate>().set<flecs::TickSource>({.tick = true, .time_elapsed = 0.f});
 }
 
 void ShutdownCore(flecs::world world) { world.get<CoreComponent>().core->get().Shutdown(); }
@@ -93,8 +130,22 @@ void Shutdown(flecs::entity e, RaylibWindowClosed, RaylibData&, SdlPlatformData&
 }
 
 void RegisterSystems(flecs::world world) {
+  world.set<RenderThrottle>({});
+  z13::flecs_tools::OnFrameStart(world, ThrottleRender);
+
+  // A rollback requested this frame replays it, and the replay's last frame is drawn instead.
+  world.system("RaylibSystem::UpdateRenderGate")
+      .kind<RenderGatePhase>()
+      .immediate()
+      .run([](flecs::iter& it) {
+        flecs::world world = it.world();
+        world.entity<RenderGate>().get_mut<flecs::TickSource>().tick =
+            !world.get<z13::flecs_tools::RollbackRequest>().to_tick.has_value();
+      });
+
   world.system<const RaylibData, WindowSize, SdlPlatformData>("RaylibSystem::FrameBegin")
       .kind<PreRender>()
+      .tick_source<RenderGate>()
       .each([](const RaylibData&, WindowSize& size, SdlPlatformData& platform_data) {
         SdlPlatform& platform = *platform_data.platform;
         size.size = platform.Size();
@@ -104,6 +155,7 @@ void RegisterSystems(flecs::world world) {
 
   world.system<const RaylibData, SdlPlatformData>("RaylibSystem::FrameEnd")
       .kind<FinalizeRender>()
+      .tick_source<RenderGate>()
       .each([world](const RaylibData&, SdlPlatformData& platform_data) {
         SdlPlatform& platform = *platform_data.platform;
         platform.EndFrame();

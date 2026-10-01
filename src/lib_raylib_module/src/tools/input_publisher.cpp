@@ -31,6 +31,7 @@
 #include <lib_core/components.h>
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
+#include <lib_core/world_state.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -247,7 +248,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
 }
 
 void RegisterComponents(flecs::world world) {
-  world.component<RaylibInputFrame>().add(flecs::Singleton);
+  z13::flecs_tools::RegisterComponent<RaylibInputFrame>(world);
 }
 
 void RegisterSystems(flecs::world world) {

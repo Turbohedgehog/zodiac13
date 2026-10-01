@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -70,6 +71,20 @@ struct ClockAdjustRequest {
   int64_t ticks {};
 };
 
+enum class FrameKind {
+  kLive,
+  // Another frame follows right away: a wall-clock backlog or extra clock ticks.
+  kCatchUp,
+  // Re-simulates a tick already shown; never worth presenting.
+  kReplay,
+};
+
+using FrameStartCallback = std::function<void(flecs::world&, FrameKind)>;
+
+// Called by TickWorld between frames, right before each progress(), so the callback may
+// enable or disable phases for the coming frame.
+void OnFrameStart(flecs::world& world, FrameStartCallback callback);
+
 // Called by RegisterStateMeta.
 void RegisterRollback(flecs::world& world);
 
@@ -90,7 +105,8 @@ bool IsCatchingUp(flecs::world world);
 // The one place a world is advanced: an ordinary frame, plus the frames a rollback
 // requested during it needs, adjusted by a ClockAdjustRequest. Nothing else may call
 // progress() -- the restore has to land between frames, or flecs skips the rest of that
-// frame's pipeline.
-void TickWorld(flecs::world& world, float delta_time);
+// frame's pipeline. `kind` is the caller's view of the frame (kCatchUp when it is behind the
+// wall clock); extra clock ticks and replays override it.
+void TickWorld(flecs::world& world, float delta_time, FrameKind kind = FrameKind::kLive);
 
 }  // namespace z13::flecs_tools

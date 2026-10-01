@@ -30,6 +30,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/rollback.h>
+
 namespace z13 {
 
 class Core {
@@ -50,7 +52,7 @@ class Core {
 
   bool RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
 
-  void Update(float delta_time);
+  void Update(float delta_time, flecs_tools::FrameKind kind = flecs_tools::FrameKind::kLive);
   int Run();
   // Run() returns exit_code once the current frame ends.
   void Shutdown(int exit_code = EXIT_SUCCESS);
