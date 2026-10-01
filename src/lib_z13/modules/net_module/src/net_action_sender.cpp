@@ -54,7 +54,7 @@ namespace fbn = fbs::net;
 
 struct ScheduledCommand {
   uint64_t apply_tick {};
-  uint8_t action_id {};
+  uint16_t action_id {};
   int16_t value {};
 };
 
@@ -62,13 +62,13 @@ std::vector<ScheduledCommand> ToWire(const std::vector<z13::gameplay::PlayerActi
   std::vector<ScheduledCommand> scheduled;
   scheduled.reserve(records.size());
   for (const z13::gameplay::PlayerActionRecord& record : records) {
-    if (record.action_id > std::numeric_limits<uint8_t>::max()) {
+    if (record.action_id > std::numeric_limits<uint16_t>::max()) {
       log_error("NetActionSender: action id {} does not fit the wire format", record.action_id);
       continue;
     }
     scheduled.push_back({
         .apply_tick = record.tick,
-        .action_id = static_cast<uint8_t>(record.action_id),
+        .action_id = static_cast<uint16_t>(record.action_id),
         .value = QuantizeActionValue(record.value),
     });
   }

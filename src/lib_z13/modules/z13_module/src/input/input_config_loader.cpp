@@ -81,6 +81,10 @@ std::vector<z13::fbs::input::Keycode> ExtractDefaultKeycodes(
 
 namespace {
 
+bool IsRemoteAction(const z13::input::ActionInfo& action_info) {
+  return action_info.group_name == z13::input::kRemoteActionGroup;
+}
+
 // A default whose (group, keycode) is already bound is skipped by the unique index.
 void AppendDefaultKeycodes(z13::input::InputConfig& input_config, const z13::input::ActionInfo& action_info) {
   for (const auto key_code : action_info.default_keycodes) {
@@ -225,6 +229,9 @@ std::expected<std::string, std::string> InputConfigLoader::SerializeConfig(
   // purpose" from "not in the file" (which gets default keys).
   const auto& bound_actions = input_config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
   for (const auto& action_info : action_map.action_map) {
+    if (IsRemoteAction(action_info)) {
+      continue;
+    }
     if (bound_actions.count(action_info.id) == 0) {
       auto ab = std::make_unique<z13::fbs::input::ActionBindingT>();
       ab->action_name = fmt::format("{}{}{}", action_info.enum_name, kActionNameSeparator, action_info.value_name);

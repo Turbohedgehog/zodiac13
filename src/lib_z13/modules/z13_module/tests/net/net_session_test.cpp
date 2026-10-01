@@ -125,6 +125,12 @@ std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWor
   return raw;
 }
 
+fbs::net::ClientHelloT HelloWithoutActions() {
+  fbs::net::ClientHelloT hello;
+  hello.version = kProtocolVersion;
+  return hello;
+}
+
 template <typename T>
 void SendRaw(Transport& transport, ConnectionId connection, T message) {
   Envelope envelope;
@@ -293,7 +299,7 @@ TEST(NetSessionTest, PlayerLeftRemovesEntityOnServerAndOtherClients) {
   ConnectionId leaver_connection = kInvalidConnectionId;
   const auto leaver = ConnectRawClient(*network, server, leaver_connection);
   ASSERT_NE(leaver_connection, kInvalidConnectionId);
-  SendRaw(*leaver, leaver_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  SendRaw(*leaver, leaver_connection, HelloWithoutActions());
 
   // Wait for client_a's copy specifically: the server spawns Player_2 synchronously,
   // but the PlayerJoined broadcast still needs a network tick to reach client_a.
@@ -316,7 +322,7 @@ TEST(NetSessionTest, PlayerLeftWaitsForAlreadyScheduledCommandsToApply) {
   ConnectionId leaver_connection = kInvalidConnectionId;
   const auto leaver = ConnectRawClient(*network, server, leaver_connection);
   ASSERT_NE(leaver_connection, kInvalidConnectionId);
-  SendRaw(*leaver, leaver_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  SendRaw(*leaver, leaver_connection, HelloWithoutActions());
   ASSERT_TRUE(RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str()));
   }));
@@ -437,11 +443,11 @@ TEST(NetSessionTest, GarbagePacketFromClientDropsThatPeerButServerStaysAlive) {
   EXPECT_EQ(good_client.World().get<LocalPlayer>().id, 1u);  // garbage sender never got an id
 }
 
-constexpr uint8_t kUnknownActionId = 255;
+constexpr uint16_t kUnknownActionId = 65535;
 
-uint8_t AnyKnownActionId(flecs::world world) {
+uint16_t AnyKnownActionId(flecs::world world) {
   const auto& by_id = world.get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::IdTag>();
-  return static_cast<uint8_t>(by_id.begin()->id);
+  return static_cast<uint16_t>(by_id.begin()->id);
 }
 
 // A command due on the tick it arrives is committed within that frame, so it may never
@@ -457,11 +463,11 @@ TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) 
   ConnectionId connection = kInvalidConnectionId;
   const auto raw = ConnectRawClient(*network, server, connection);
   ASSERT_NE(connection, kInvalidConnectionId);
-  SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  SendRaw(*raw, connection, HelloWithoutActions());
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
-  const uint8_t valid_action_id = AnyKnownActionId(server.World());
+  const uint16_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
   batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
   batch.commands.emplace_back(0, kUnknownActionId, 100);
@@ -482,11 +488,11 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   ConnectionId connection = kInvalidConnectionId;
   const auto raw = ConnectRawClient(*network, server, connection);
   ASSERT_NE(connection, kInvalidConnectionId);
-  SendRaw(*raw, connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  SendRaw(*raw, connection, HelloWithoutActions());
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
-  const uint8_t valid_action_id = AnyKnownActionId(server.World());
+  const uint16_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
   batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
   for (uint32_t i = 0; i < z13::net::kMaxCommandsPerRateLimitWindow + 20; ++i) {
@@ -584,7 +590,7 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   ConnectionId third_connection = kInvalidConnectionId;
   const auto third = ConnectRawClient(*network, server, third_connection);
   ASSERT_NE(third_connection, kInvalidConnectionId);
-  SendRaw(*third, third_connection, fbs::net::ClientHelloT {.version = kProtocolVersion});
+  SendRaw(*third, third_connection, HelloWithoutActions());
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(3).c_str()));
   }));

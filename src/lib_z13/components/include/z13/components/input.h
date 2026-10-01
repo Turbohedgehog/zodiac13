@@ -18,6 +18,8 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
+#include <string>
 #include <string_view>
 #include <vector>
 #include <span>
@@ -116,6 +118,8 @@ struct ActionInfo {
   const IdType id {};
 };
 
+constexpr std::string_view kRemoteActionGroup = "Remote";
+
 struct ActionMap {
   using Singleton = void;
   struct ActionNameTag;
@@ -170,6 +174,8 @@ struct ActionMap {
   >;
 
   ActionMapContainer action_map;
+  // Deque: the name views of registered actions must stay valid.
+  std::deque<std::string> owned_names;
 };
 
 struct KeyCodeAction {

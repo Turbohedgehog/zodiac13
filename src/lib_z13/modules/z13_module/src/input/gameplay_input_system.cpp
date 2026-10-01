@@ -35,6 +35,7 @@
 #include <z13/components/input.h>
 #include <z13/components/player_action.h>
 #include <z13_module/tools/z13_environment.h>
+#include <z13_module/input/action_negotiation.h>
 #include <z13_module/input/input_config_loader.h>
 #include <z13_module/gameplay/camera_look.h>
 
@@ -220,10 +221,7 @@ void OnSaveConfig(
 }
 
 void CallConfigUpdatedEvent(flecs::world w) {
-  w.event<z13::input::SystemInputEventType>()
-      .id<z13::input::OnConfigUpdatedEvent>()
-      .entity(w.entity().add<z13::input::OnConfigUpdatedEvent>())
-      .enqueue();
+  NotifyConfigUpdated(w);
 }
 
 void OnLoadConfig(

@@ -21,11 +21,11 @@
 
 namespace z13.fbs.net;
 
-// 4 bytes. `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
+// 6 bytes (padded). `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
 // SequencedCommands); `value` is quantized (see protocol.h's QuantizeActionValue).
 struct CommandWire {
   tick_delta: ubyte;
-  action_id: ubyte;
+  action_id: ushort;
   value: short;
 }
 
@@ -41,8 +41,16 @@ struct PoseWire {
   z: float;
 }
 
+// An action by its stable name; ids are local to each side until the server assigns them.
+table ActionDesc {
+  enum_name: string;
+  value_name: string;
+  enum_value: long;
+}
+
 table ClientHello {
   version: uint;
+  actions: [ActionDesc];  // every action the client has, in its own order
 }
 
 table CommandBatch {
@@ -72,6 +80,7 @@ table Welcome {
   // [PlayerActionRecord] via rfl::msgpack, like actions: CommandWire has no player_id.
   held_values: [ubyte];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
   pending: [ubyte];  // already-scheduled commands with apply_tick > server_tick
+  action_ids: [uint];  // the server's id for each ClientHello.actions entry, same order
 }
 
 table Rejected {
