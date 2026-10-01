@@ -1,8 +1,6 @@
 name: Update vcpkg Cache (Cron)
 
 on:
-  schedule:
-    - cron: '0 3 * * 0,3'
   workflow_dispatch: # Позволяет запустить обновление вручную
 
 jobs:
