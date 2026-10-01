@@ -267,7 +267,7 @@ TEST(ClockSyncTest, TheEstimateFindsTheRealOffsetAcrossAFixedDelay) {
 
   Z13TestWorld server = MakeServer(network);
   for (uint64_t i = 0; i < 90; ++i) {
-    server.World().progress(kNetTestDeltaTime);  // put the two clocks visibly apart
+    server.Tick(kNetTestDeltaTime);  // put the two clocks visibly apart
   }
 
   Z13TestWorld client = MakeClient(network);

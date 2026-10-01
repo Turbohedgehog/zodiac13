@@ -28,6 +28,7 @@
 #include <flecs.h>
 
 #include <lib_core/core.h>
+#include <lib_core/rollback.h>
 
 #include <bullet_module/bullet_module_factory.h>
 #include <net_module/in_memory_transport.h>
@@ -37,6 +38,7 @@
 #include <z13/components/input_event_emitter.h>
 #include <z13_module/z13_module_factory.h>
 #include <z13_settings/settings.h>
+#include <z13_tests/test_time.h>
 
 namespace z13::testing {
 
@@ -79,6 +81,9 @@ class Z13TestWorld {
 
   flecs::world& World() { return world_.get(); }
 
+  // One frame through TickWorld, the world's only entry point (never progress() directly).
+  void Tick(float delta_time = kTestDeltaTime) { z13::flecs_tools::TickWorld(World(), delta_time); }
+
   const z13::Config& Config() const { return core_.GetConfig(); }
 
   const z13::Core& Core() const { return core_; }
@@ -93,7 +98,11 @@ class Z13TestWorld {
     return found;
   }
 
-  void StartGame() { World().add<z13::gameplay::Gameplay>(); }
+  // Like the main menu's Start Game, which also closes the menu (unpauses).
+  void StartGame() {
+    World().add<z13::gameplay::Gameplay>();
+    World().remove<z13::gameplay::Pause>();
+  }
   void ExitToMainMenu() { World().remove<z13::gameplay::Gameplay>(); }
 
   flecs::entity InputSource() {

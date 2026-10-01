@@ -36,7 +36,7 @@ constexpr uint64_t kMaxNetTestTicks = 600;
 constexpr std::string_view kTestServerEndpoint = "127.0.0.1:26213";
 
 // Advances a set of Z13TestWorlds sharing one InMemoryNetwork tick by tick -- each
-// world's own progress() first, then one network.Tick() to deliver sends -- until
+// world's own TickWorld() first, then one network.Tick() to deliver sends -- until
 // `condition` holds or max_ticks is reached. Returns whether it held, so a test asserts
 // on convergence instead of guessing a fixed tick count.
 inline bool RunNetworkUntil(

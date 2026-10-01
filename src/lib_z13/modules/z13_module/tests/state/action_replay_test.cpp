@@ -68,7 +68,7 @@ Eigen::Matrix4f AtPosition(const Eigen::Vector3f& position) {
 
 void MovePlayerTo(Z13TestWorld& test_world, const Eigen::Vector3f& position) {
   test_world.Player().set(AtPosition(position));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 }
 
 // Player faces +X with no look angles applied, so block/brush geometry is simple.
@@ -84,11 +84,11 @@ void DestroyBlockAt(Z13TestWorld& test_world, const Eigen::Vector3f& position) {
 
 // Turns the camera by yaw -5 degrees through the mouse-look pipeline.
 void LookRight(Z13TestWorld& test_world) {
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = kMouseTestDelta, .y = 0};
   test_world.EmitInput(move_event);
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
 }
 
 std::string Checkpoint(Z13TestWorld& test_world) {
@@ -107,7 +107,7 @@ uint64_t IntervalTicks(Z13TestWorld& test_world) {
 
 void Frames(Z13TestWorld& test_world, uint64_t count) {
   for (uint64_t i = 0; i < count; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 }
 
@@ -121,7 +121,7 @@ float RealDeltaTime(Z13TestWorld& test_world) {
 void RealFrames(Z13TestWorld& test_world, uint64_t count) {
   const float delta_time = RealDeltaTime(test_world);
   for (uint64_t i = 0; i < count; ++i) {
-    test_world.World().progress(delta_time);
+    test_world.Tick(delta_time);
   }
 }
 
@@ -138,16 +138,16 @@ void MoveForward(Z13TestWorld& test_world, uint64_t ticks) {
   test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_W));
   RealFrames(test_world, ticks);
   test_world.EmitInput(z13::testing::KeyUp(Keycode::KEY_W));
-  test_world.World().progress(RealDeltaTime(test_world));
+  test_world.Tick(RealDeltaTime(test_world));
 }
 
 void LookRightReal(Z13TestWorld& test_world) {
   const float delta_time = RealDeltaTime(test_world);
-  test_world.World().progress(delta_time);
+  test_world.Tick(delta_time);
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = kMouseTestDelta, .y = 0};
   test_world.EmitInput(move_event);
-  test_world.World().progress(delta_time);
+  test_world.Tick(delta_time);
 }
 
 // Mixed camera + build/destroy sequence, checkpointed after every stage so a divergence

@@ -61,7 +61,7 @@ flecs::entity SpawnBlockAt(flecs::world& world, const Eigen::Matrix4f& transform
 Eigen::Vector3f SettlePlayerAt(z13::testing::Z13TestWorld& test_world, float x) {
   flecs::entity player = test_world.Player();
   player.set(TranslatedIdentity(x, 0.f, 0.f));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   return z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
 }
 
@@ -74,7 +74,7 @@ TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
   SpawnBlockAt(world, block_transform);
 
   player.set(TranslatedIdentity(kBlockX + kInsideOffset, 0.f, 0.f));
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 
   const auto& resolved = player.get<Eigen::Matrix4f>();
   const float distance = (z13::math::ExtractTranslation<float>(resolved) -
@@ -94,7 +94,7 @@ TEST(PhysicsCollisionTest, PlayerUntouchedWhenClearOfBlocks) {
 
   const Eigen::Matrix4f far_transform = TranslatedIdentity(50.f, 0.f, 0.f);
   player.set(far_transform);
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 
   EXPECT_TRUE(player.get<Eigen::Matrix4f>().isApprox(far_transform));
 }
@@ -112,11 +112,11 @@ TEST(PhysicsBodySyncTest, BlockCreatedDirectlyGetsRigidBodyAndCollides) {
 TEST(PhysicsBodySyncTest, RemovingBasicBlockTagReleasesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   ASSERT_TRUE(block.has<RigidBody>());
 
   block.remove<z13::building::BasicBlock>();
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   EXPECT_FALSE(block.has<RigidBody>());
   const Eigen::Vector3f resolved = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
@@ -126,10 +126,10 @@ TEST(PhysicsBodySyncTest, RemovingBasicBlockTagReleasesBody) {
 TEST(PhysicsBodySyncTest, DestroyedBlockReleasesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   block.destruct();
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f resolved = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
   EXPECT_NEAR(resolved.x(), kBlockX + kInsideOffset, z13::testing::kTestEpsilon);
@@ -138,10 +138,10 @@ TEST(PhysicsBodySyncTest, DestroyedBlockReleasesBody) {
 TEST(PhysicsBodySyncTest, ChangingBlockTransformInPlaceMovesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   block.set(TranslatedIdentity(kFarX, 0.f, 0.f));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f at_old_place = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
   EXPECT_NEAR(at_old_place.x(), kBlockX + kInsideOffset, z13::testing::kTestEpsilon);
@@ -155,7 +155,7 @@ TEST(PhysicsBodySyncTest, SyncIsIdempotentAcrossFrames) {
   SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
 
   for (int i = 0; i < 3; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 
   EXPECT_EQ(test_world.World().count<RigidBody>(), 1);
@@ -185,10 +185,10 @@ class BlockDestroyTest : public ::testing::Test {
 template <typename Check>
 void ClickCheckingEachFrame(z13::testing::Z13TestWorld& test_world, Check check) {
   test_world.EmitInput(z13::testing::MouseDown(z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   check();
   test_world.EmitInput(z13::testing::MouseUp(z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   check();
 }
 
@@ -229,7 +229,7 @@ TEST(PhysicsMainMenuTest, ExitToMainMenuDestroysThePhysicsWorld) {
   ASSERT_EQ(world.get<PhysicsWorld>().BodyCount(), 1u);
 
   test_world.ExitToMainMenu();
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 
   EXPECT_FALSE(world.has<PhysicsWorld>());
 }
@@ -237,11 +237,13 @@ TEST(PhysicsMainMenuTest, ExitToMainMenuDestroysThePhysicsWorld) {
 TEST(PhysicsMainMenuTest, NoPhysicsWorldBeforeTheGameStarts) {
   z13::testing::Z13TestWorld test_world(false);
   flecs::world& world = test_world.World();
-  world.progress(kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
   EXPECT_FALSE(world.has<PhysicsWorld>());
 
   test_world.StartGame();
-  world.progress(kTestDeltaTime);
+  // The main menu froze the simulation; unfreezing lands one frame after it closes.
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
+  z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 
   ASSERT_TRUE(world.has<PhysicsWorld>());
   EXPECT_EQ(world.get<PhysicsWorld>().BodyCount(), 0u);

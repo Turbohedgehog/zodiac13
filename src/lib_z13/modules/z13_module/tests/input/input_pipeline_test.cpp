@@ -57,13 +57,13 @@ TEST(InputPipelineTest, MouseLookRotatesCameraThroughPipeline) {
 
   // OnMouseMove reads world.delta_time() synchronously at emit time, so warm
   // up with the same dt first or the mouse delta gets scaled by a stale 0.
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
 
   z13::input::MouseMoveEvent move_event;
   move_event.delta = {.x = 100, .y = 0};
   test_world.EmitInput(move_event);
 
-  test_world.World().progress(kMouseTestDeltaTime);
+  test_world.Tick(kMouseTestDeltaTime);
 
   ASSERT_TRUE(player.has<z13::gameplay::LookAngles>());
   // invert_x=false, delta.x=100 > 0 (mouse moved right) -> yaw_deg negative.
@@ -79,16 +79,16 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
 
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
 
-  test_world.World().progress(1.f);
+  test_world.Tick(1.f);
   EXPECT_TRUE(Position(player).isApprox(
       Eigen::Vector3f(z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 
-  test_world.World().progress(1.f);  // no new event -- key is still held
+  test_world.Tick(1.f);  // no new event -- key is still held
   EXPECT_TRUE(Position(player).isApprox(
       Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 
   test_world.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
-  test_world.World().progress(1.f);
+  test_world.Tick(1.f);
   EXPECT_TRUE(Position(player).isApprox(
       Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
 }
@@ -101,17 +101,17 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
 
-  // Warm-up progress(): see MouseLookRotatesCameraThroughPipeline above.
-  test_world.World().progress(kTurnTestDeltaTime);
+  // Warm-up frame: see MouseLookRotatesCameraThroughPipeline above.
+  test_world.Tick(kTurnTestDeltaTime);
 
   z13::input::MouseMoveEvent turn_event;
   turn_event.delta = {.x = -18, .y = 0};
   test_world.EmitInput(turn_event);
-  test_world.World().progress(kTurnTestDeltaTime);
+  test_world.Tick(kTurnTestDeltaTime);
   ASSERT_NEAR(player.get<z13::gameplay::LookAngles>().yaw_deg, 90.f, kTestEpsilon);
 
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
-  test_world.World().progress(kTurnTestDeltaTime);
+  test_world.Tick(kTurnTestDeltaTime);
 
   // A +90 deg yaw turn rotates the camera's forward axis from +X to +Y.
   EXPECT_TRUE(Position(player).isApprox(

@@ -115,7 +115,7 @@ std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
 std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWorld& server, ConnectionId& connection) {
   auto raw = CreateInMemoryClientTransport(network, z13::kDefaultServerPort);
   for (uint64_t tick = 0; tick < kMaxNetTestTicks; ++tick) {
-    server.World().progress(kNetTestDeltaTime);
+    server.Tick(kNetTestDeltaTime);
     network.Tick();
     for (const TransportEvent& event : raw->Service()) {
       if (event.kind == TransportEventKind::kConnected) {
@@ -175,7 +175,7 @@ TEST(NetSessionTest, JoinerGetsItsOwnPlayerFromACachedSnapshot) {
   const uint64_t interval_ticks = static_cast<uint64_t>(
       std::llround(server.Config().GetSnapshotIntervalSeconds() * server.Config().GetFPS()));
   for (uint64_t i = 0; i <= interval_ticks; ++i) {
-    server.World().progress(kNetTestDeltaTime);
+    server.Tick(kNetTestDeltaTime);
   }
   ASSERT_FALSE(server.World().get<z13::flecs_tools::WorldSnapshotHistory>().history.Empty());
 
@@ -201,17 +201,17 @@ TEST(NetSessionTest, JoinReplaysHostMovementSinceTheCachedSnapshot) {
   const uint64_t interval_ticks = static_cast<uint64_t>(
       std::llround(server.Config().GetSnapshotIntervalSeconds() * server.Config().GetFPS()));
   for (uint64_t i = 0; i < interval_ticks; ++i) {
-    server.World().progress(kNetTestDeltaTime);
+    server.Tick(kNetTestDeltaTime);
   }
 
   // Move the host, then let a client join immediately -- well before the next periodic
   // capture, so Welcome must reuse the older cached snapshot and replay this movement.
   server.EmitInput(z13::testing::KeyDown(z13::fbs::input::Keycode::KEY_W));
   for (uint64_t i = 0; i < 10; ++i) {
-    server.World().progress(kNetTestDeltaTime);
+    server.Tick(kNetTestDeltaTime);
   }
   server.EmitInput(z13::testing::KeyUp(z13::fbs::input::Keycode::KEY_W));
-  server.World().progress(kNetTestDeltaTime);
+  server.Tick(kNetTestDeltaTime);
 
   Z13TestWorld client = MakeClient(network);
   ASSERT_TRUE(RunNetworkUntil(
@@ -375,7 +375,7 @@ TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
 
   std::optional<std::string> reason;
   for (uint64_t tick = 0; tick < kMaxNetTestTicks && !reason; ++tick) {
-    server.World().progress(kNetTestDeltaTime);
+    server.Tick(kNetTestDeltaTime);
     network->Tick();
     for (const TransportEvent& event : raw->Service()) {
       if (event.kind != TransportEventKind::kReceived) {
@@ -406,7 +406,7 @@ TEST(NetSessionTest, CorruptSnapshotFailsTheClientWithoutCreatingAScene) {
 
   std::optional<ConnectionId> connection;
   for (uint64_t tick = 0; tick < kMaxNetTestTicks && !connection; ++tick) {
-    client.World().progress(kNetTestDeltaTime);
+    client.Tick(kNetTestDeltaTime);
     network->Tick();
     for (const TransportEvent& event : (*listener)->Service()) {
       if (event.kind == TransportEventKind::kConnected) {
@@ -545,8 +545,6 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
 
   using z13::testing::KeyDown;
   using z13::testing::KeyUp;
-  using z13::testing::MouseDown;
-  using z13::testing::MouseUp;
   using Keycode = z13::fbs::input::Keycode;
 
   client_a.EmitInput(KeyDown(Keycode::KEY_W));
@@ -559,22 +557,17 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   client_a.EmitInput(look);
   tick_all({server, client_a}, kSettleTicks);
 
-  client_a.EmitInput(KeyDown(Keycode::KEY_TAB));
-  tick_all({server, client_a}, 1);
-  client_a.EmitInput(KeyUp(Keycode::KEY_TAB));
+  const auto step_a = [&] { tick_all({server, client_a}, 1); };
+  z13::testing::Tap(client_a, Keycode::KEY_TAB, step_a);
   tick_all({server, client_a}, kSettleTicks);
   ASSERT_TRUE(client_a.Player().has<z13::building::BuildingTool>())
       << "TAB never toggled BuildingTool on for client_a's own local copy";
 
-  client_a.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_LEFT));
-  tick_all({server, client_a}, 1);
-  client_a.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  z13::testing::Click(client_a, Keycode::MOUSE_BUTTON_LEFT, step_a);
   tick_all({server, client_a}, kSettleTicks);
   ASSERT_EQ(BlockCount(server.World()), 1u) << "client_a's block never landed on the server";
 
-  client_a.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_RIGHT));
-  tick_all({server, client_a}, 1);
-  client_a.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_RIGHT));
+  z13::testing::Click(client_a, Keycode::MOUSE_BUTTON_RIGHT, step_a);
   tick_all({server, client_a}, kSettleTicks);
   ASSERT_EQ(BlockCount(server.World()), 0u) << "client_a's own block survived its destroy";
 
@@ -600,14 +593,11 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   tick_all({server, client_a, client_b}, kSettleTicks);
   ASSERT_FALSE(server.World().lookup(PlayerEntityName(3).c_str()));
 
-  client_b.EmitInput(KeyDown(Keycode::KEY_TAB));
-  tick_all({server, client_a, client_b}, 1);
-  client_b.EmitInput(KeyUp(Keycode::KEY_TAB));
+  const auto step_b = [&] { tick_all({server, client_a, client_b}, 1); };
+  z13::testing::Tap(client_b, Keycode::KEY_TAB, step_b);
   tick_all({server, client_a, client_b}, kSettleTicks);
 
-  client_b.EmitInput(MouseDown(Keycode::MOUSE_BUTTON_LEFT));
-  tick_all({server, client_a, client_b}, 1);
-  client_b.EmitInput(MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  z13::testing::Click(client_b, Keycode::MOUSE_BUTTON_LEFT, step_b);
   tick_all({server, client_a, client_b}, kSettleTicks);
   ASSERT_EQ(BlockCount(server.World()), 1u) << "client_b's block never landed on the server";
 

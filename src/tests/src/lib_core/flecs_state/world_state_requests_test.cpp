@@ -6,6 +6,7 @@
 #include <flecs.h>
 
 #include <lib_core/component_meta.h>
+#include <lib_core/rollback.h>
 #include <lib_core/world_json_store.h>
 #include <lib_core/world_state.h>
 #include <lib_core/world_state_requests.h>
@@ -47,7 +48,7 @@ TEST_F(WorldStateRequestsTest, LoadIsAppliedAtTheStartOfTheNextFrame) {
   EXPECT_EQ(HeroX(), 9.f);
   EXPECT_FALSE(outcome.has_value());
 
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
 
   EXPECT_EQ(HeroX(), 5.f);
   ASSERT_TRUE(outcome.has_value());
@@ -63,7 +64,7 @@ TEST_F(WorldStateRequestsTest, SystemsOfTheSameFrameSeeTheRestoredState) {
   });
 
   ft::RequestLoadWorldState(world_, json);
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
 
   EXPECT_EQ(seen_by_system, 5.f);
 }
@@ -82,11 +83,11 @@ TEST_F(WorldStateRequestsTest, LoadRequestedFromInsideASystemIsApplied) {
     }
   });
 
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
   EXPECT_TRUE(requested);
   EXPECT_EQ(HeroX(), 9.f);
 
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
   EXPECT_EQ(HeroX(), 5.f);
 }
 
@@ -99,7 +100,7 @@ TEST_F(WorldStateRequestsTest, RequestsRunInOrder) {
     saved_before_load = saved.value();
   });
   ft::RequestLoadWorldState(world_, json);
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
 
   EXPECT_NE(saved_before_load.find("9"), std::string::npos);
   EXPECT_EQ(HeroX(), 5.f);
@@ -109,7 +110,7 @@ TEST_F(WorldStateRequestsTest, FailedLoadIsReportedAndLeavesTheWorldUntouched) {
   std::optional<std::expected<void, std::string>> outcome;
 
   ft::RequestLoadWorldState(world_, "not json", [&outcome](const auto& result) { outcome = result; });
-  world_.progress(kTestDeltaTime);
+  ft::TickWorld(world_, kTestDeltaTime);
 
   ASSERT_TRUE(outcome.has_value());
   EXPECT_FALSE(outcome->has_value());

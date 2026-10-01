@@ -18,7 +18,7 @@
 
 namespace z13::testing {
 
-// Standard fixed-step tick for tests that just need world.progress() to advance
+// Standard fixed-step tick for tests that just need a frame to advance
 // time by a deterministic amount; shared so test files don't each redeclare it.
 constexpr float kTestDeltaTime = 1.f;
 

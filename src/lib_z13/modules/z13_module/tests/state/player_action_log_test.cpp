@@ -46,7 +46,7 @@ std::vector<PlayerActionRecord> Records(Z13TestWorld& test_world) {
 
 void Frames(Z13TestWorld& test_world, uint64_t count) {
   for (uint64_t i = 0; i < count; ++i) {
-    test_world.World().progress(kTestDeltaTime);
+    test_world.Tick(kTestDeltaTime);
   }
 }
 
@@ -68,14 +68,14 @@ TEST(PlayerActionLogTest, RecordsPressAndReleaseEdgesOnce) {
   Z13TestWorld test_world;
 
   test_world.EmitInput(KeyDown(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   const auto after_press = Records(test_world);
   ASSERT_EQ(after_press.size(), 1u);
   EXPECT_EQ(after_press.front().value, 1.f);
 
   test_world.EmitInput(KeyUp(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   const auto after_release = Records(test_world);
   ASSERT_EQ(after_release.size(), 2u);
@@ -89,7 +89,7 @@ TEST(PlayerActionLogTest, HoldingLongerThanOneIntervalAddsNoExtraRecordsBeforeTh
   ASSERT_GT(interval_ticks, 2u) << "test assumes room for ticks strictly between press and the boundary";
 
   test_world.EmitInput(KeyDown(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   ASSERT_EQ(Records(test_world).size(), 1u);
 
   // Hold, stopping one tick short of the next re-assertion boundary.
@@ -104,11 +104,11 @@ TEST(PlayerActionLogTest, RetentionWindowPrunesRecordsOlderThanItsLimit) {
   const uint64_t retention_ticks = RoundTicks(test_world.Config().GetSnapshotRetentionSeconds(), test_world.Config().GetFPS());
 
   test_world.EmitInput(KeyDown(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   ASSERT_FALSE(Records(test_world).empty());
 
   test_world.EmitInput(KeyUp(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
 
   // Run well past the retention window so the press/release above are pruned away.
   Frames(test_world, retention_ticks + interval_ticks);
@@ -135,7 +135,7 @@ TEST(PlayerActionLogTest, HeldActionIsReassertedAtTheSnapshotIntervalBoundary) {
   const uint64_t interval_ticks = IntervalTicks(test_world);
 
   test_world.EmitInput(KeyDown(Keycode::KEY_W));
-  test_world.World().progress(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
   const auto action_id = Records(test_world).front().action_id;
 
   Frames(test_world, interval_ticks - 1);  // now at tick == interval_ticks
