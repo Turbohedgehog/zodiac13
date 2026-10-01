@@ -18,7 +18,6 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-# Shared by the SHARED plugin and the test-only STATIC twin (rationale: z13_module/CMakeLists.txt).
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES})
 
 # net_generated.h comes from the concrete flatc custom target, not the fbs_schemas
@@ -46,6 +45,9 @@ target_link_libraries(
 add_library(${PROJECT_NAME} SHARED $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+# The tests link the plugin directly and use its internal symbols; MSVC exports nothing by default.
+set_target_properties(${PROJECT_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
@@ -54,23 +56,6 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::z13_module
-  unofficial::enet::enet
-  ${ENET_PLATFORM_LIBS}
-  Boost::dll
-)
-
-# Test-only static twin (see z13_module_static). Never installed; links z13_module's
-# own static twin, not the SHARED plugin, for the same reason.
-add_library(${PROJECT_NAME}_static STATIC $<TARGET_OBJECTS:${PROJECT_NAME}_objects>)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME}_static ALIAS ${PROJECT_NAME}_static)
-target_link_libraries(
-  ${PROJECT_NAME}_static
-  PUBLIC
-  ${PROJECT_NAME}_objects
-  PRIVATE
-  zodiac13::core
-  zodiac13::components
-  zodiac13::z13_module_static
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}
   Boost::dll

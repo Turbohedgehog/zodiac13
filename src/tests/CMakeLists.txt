@@ -45,18 +45,25 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  # The static twin, not the SHARED z13_module plugin .so: flecs (statically
-  # linked into zodiac13::core) keeps process-global state that isn't shared
-  # correctly across independently-linked shared objects, so module code
-  # that creates/imports into a flecs::world must live in this same binary.
-  zodiac13::z13_module_static
-  zodiac13::bullet_module_static
-  zodiac13::net_module_static
+  zodiac13::z13_module
+  zodiac13::bullet_module
+  zodiac13::net_module
   zodiac13::z13_launcher
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp
 )
+
+# Windows finds the plugin DLLs only next to the exe; ELF finds them by build-tree RPATH.
+if(WIN32)
+  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:zodiac13::z13_module>
+      $<TARGET_FILE:zodiac13::bullet_module>
+      $<TARGET_FILE:zodiac13::net_module>
+      $<TARGET_FILE_DIR:${PROJECT_NAME}>
+  )
+endif()
 
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
@@ -81,7 +88,7 @@ gtest_discover_tests(z13_test_runner
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
 )
 
-# The launcher's plugin path, out of process: z13_test_runner links static module twins
+# The launcher's plugin path, out of process: z13_test_runner links the plugins directly
 # instead, so it can't tell whether separately loaded plugins share one flecs.
 find_package(Boost REQUIRED COMPONENTS dll)
 add_executable(z13_plugin_smoke plugin_smoke/main.cpp)
