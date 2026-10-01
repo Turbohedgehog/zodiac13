@@ -49,6 +49,7 @@ target_link_libraries(
   zodiac13::bullet_module
   zodiac13::net_module
   zodiac13::z13_launcher
+  zodiac13::z13_settings
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

@@ -23,15 +23,15 @@
 
 namespace z13::net {
 
-int64_t TakeClockAdjustment(ClockSync& sync, uint64_t tick) {
+int64_t TakeClockAdjustment(ClockSync& sync, const NetTuning& tuning, uint64_t tick) {
   if (!sync.offset_ticks) {
     return 0;
   }
   const int64_t offset = *sync.offset_ticks;
   int64_t adjust {};
-  if (std::abs(offset) >= kClockJumpThresholdTicks) {
+  if (std::abs(offset) >= tuning.clock_jump_threshold_ticks) {
     adjust = offset;
-  } else if (std::abs(offset) >= kClockCatchUpThresholdTicks && tick % kClockCatchUpEveryTicks == 0) {
+  } else if (std::abs(offset) >= tuning.clock_catch_up_threshold_ticks && tick % tuning.clock_catch_up_every_ticks == 0) {
     adjust = offset > 0 ? 1 : -1;
   }
   *sync.offset_ticks -= adjust;
@@ -41,7 +41,7 @@ int64_t TakeClockAdjustment(ClockSync& sync, uint64_t tick) {
   return adjust;
 }
 
-void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick) {
+void ApplyPong(ClockSync& sync, const NetTuning& tuning, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick) {
   if (sync.ping_sent_tick != sent_tick || received_tick < sent_tick) {
     return;  // not the Ping in flight, or a reply claiming to predate it
   }
@@ -56,12 +56,12 @@ void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64
 
   // Asymmetry skews a sample by at most rtt / 2; a bigger miss is a clock that moved.
   if (!sync.offset_ticks ||
-      std::abs(sample - *sync.offset_ticks) >= std::max(kClockJumpThresholdTicks, rtt)) {
+      std::abs(sample - *sync.offset_ticks) >= std::max(tuning.clock_jump_threshold_ticks, rtt)) {
     sync.offset_ticks = sample;
     return;
   }
-  const double smoothed = kClockOffsetSmoothing * static_cast<double>(sample) +
-                          (1. - kClockOffsetSmoothing) * static_cast<double>(*sync.offset_ticks);
+  const double smoothed = tuning.clock_offset_smoothing * static_cast<double>(sample) +
+                          (1. - tuning.clock_offset_smoothing) * static_cast<double>(*sync.offset_ticks);
   sync.offset_ticks = static_cast<int64_t>(std::llround(smoothed));
 }
 

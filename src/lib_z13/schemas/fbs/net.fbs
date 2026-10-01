@@ -19,6 +19,8 @@
 // Session/command logic (handshake, scheduling, rollback) lands in later branches --
 // this schema exists now so the transport/codec layer has real messages to move.
 
+include "net_tuning.fbs";
+
 namespace z13.fbs.net;
 
 // 6 bytes (padded). `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
@@ -81,6 +83,9 @@ table Welcome {
   held_values: [ubyte];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
   pending: [ubyte];  // already-scheduled commands with apply_tick > server_tick
   action_ids: [uint];  // the server's id for each ClientHello.actions entry, same order
+  // The client runs on these instead of its own: peers must tick alike.
+  fps: double;
+  tuning: NetTuning;
 }
 
 table Rejected {

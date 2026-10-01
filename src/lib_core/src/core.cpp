@@ -46,9 +46,15 @@ void HandleInterruptSignal(int signal_number) {
 
 volatile std::sig_atomic_t Core::interrupt_signal_ = 0;
 
-Core::Core(int argc, char *argv[])
+Core::Core(int argc, char *argv[], const ConfigureOptions& configure_options)
   : module_lib_holder_(std::make_unique<ModuleLibHolder>()) {
   // : module_lib_holder_(std::make_shared<ModuleLibHolder>()) {
+  if (configure_options) {
+    if (const auto configured = configure_options(config_); !configured) {
+      config_error_ = configured.error();
+      return;
+    }
+  }
   if (const auto result = config_.ParseCommandLineArguments(argc, argv); !result) {
     config_error_ = result.error();
   }
@@ -57,6 +63,10 @@ Core::Core(int argc, char *argv[])
 Core::~Core() = default;
 
 const Config& Core::GetConfig() const {
+  return config_;
+}
+
+Config& Core::GetConfig() {
   return config_;
 }
 
@@ -83,6 +93,7 @@ WorldRef Core::CreateWorld() {
 
   auto& world = it.first->second;
   z13::flecs_tools::RegisterStateMeta(world);
+  world.set(ActiveCoreSettings(config_.GetCoreSettings()));
   world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world.set(core_component);
@@ -144,10 +155,23 @@ int Core::Run() {
   std::signal(SIGINT, HandleInterruptSignal);
   std::signal(SIGTERM, HandleInterruptSignal);
 
-  const auto update_time = 1. / config_.GetFPS();
-  TickPacer pacer(
-      std::chrono::duration_cast<TickPacer::Clock::duration>(std::chrono::duration<double>(update_time)),
-      TickPacer::Clock::now());
+  // A joined client's fps and backlog come from the server and change mid-run.
+  struct PaceSettings {
+    double fps {};
+    uint64_t max_backlog {};
+    bool operator==(const PaceSettings&) const = default;
+  };
+  const auto current_pace = [this] {
+    return PaceSettings {.fps = config_.GetFPS(), .max_backlog = config_.GetCoreSettings().max_tick_backlog};
+  };
+  const auto make_pacer = [](const PaceSettings& pace) {
+    return TickPacer(
+        std::chrono::duration_cast<TickPacer::Clock::duration>(std::chrono::duration<double>(1. / pace.fps)),
+        TickPacer::Clock::now(), pace.max_backlog);
+  };
+
+  PaceSettings pace = current_pace();
+  TickPacer pacer = make_pacer(pace);
   while (!worlds_.empty() && !IsPendingShutDown()) {
     if (interrupt_signal_) {
       log_info("Core::Run: received signal {}, shutting down", static_cast<int>(interrupt_signal_));
@@ -156,13 +180,18 @@ int Core::Run() {
       continue;
     }
 
+    if (const PaceSettings latest = current_pace(); latest != pace) {
+      pace = latest;
+      pacer = make_pacer(pace);
+    }
+
     if (!pacer.TakeTick(TickPacer::Clock::now())) {
       std::this_thread::sleep_until(pacer.NextTickTime());
       continue;
     }
 
     const bool behind = TickPacer::Clock::now() >= pacer.NextTickTime();
-    Update(update_time, behind ? flecs_tools::FrameKind::kCatchUp : flecs_tools::FrameKind::kLive);
+    Update(1. / pace.fps, behind ? flecs_tools::FrameKind::kCatchUp : flecs_tools::FrameKind::kLive);
   }
 
   return exit_code_;

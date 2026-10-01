@@ -48,6 +48,8 @@
 namespace z13::net {
 namespace {
 
+const uint64_t kNetSendIntervalTicks = NetTuning {}.send_interval_ticks;
+
 namespace ft = z13::flecs_tools;
 using z13::testing::KeyDown;
 using z13::testing::KeyUp;

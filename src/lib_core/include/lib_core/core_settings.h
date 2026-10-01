@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#include <lib_core/tick_pacer.h>
+#pragma once
+
+#include <core_settings_generated.h>
 
 namespace z13 {
 
-TickPacer::TickPacer(Clock::duration tick_duration, Clock::time_point start, uint64_t max_backlog)
-    : tick_duration_(tick_duration), next_tick_(start), max_backlog_(max_backlog) {}
+// Fields and defaults: fbs/core_settings.fbs.
+using CoreSettings = fbs::core::CoreSettingsT;
 
-bool TickPacer::TakeTick(Clock::time_point now) {
-  if (now < next_tick_) {
-    return false;
-  }
-  if (now - next_tick_ >= tick_duration_ * static_cast<Clock::rep>(max_backlog_)) {
-    next_tick_ = now;
-  }
-  next_tick_ += tick_duration_;
-  return true;
-}
+// The world's copy, a runtime singleton set by Core::CreateWorld from Config.
+struct ActiveCoreSettings : CoreSettings {
+  using Singleton = void;
+
+  ActiveCoreSettings() = default;
+  explicit ActiveCoreSettings(const CoreSettings& values) : CoreSettings(values) {}
+};
 
 }  // namespace z13

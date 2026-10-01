@@ -27,6 +27,7 @@
 #include <vector>
 
 #include <lib_core/math.h>
+#include <z13_settings/net_tuning.h>
 
 #include <net_module/in_memory_transport.h>
 
@@ -202,7 +203,7 @@ TEST(ActionNegotiationNetTest, AClientWithTooManyActionsFailsTheJoinWithoutSpend
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld bad_client = MakeClient(network);
   std::deque<std::string> names;
-  for (size_t i = 0; i < z13::gameplay::input::kMaxActionsPerClient; ++i) {
+  for (size_t i = 0; i < NetTuning {}.max_actions_per_client; ++i) {
     AddActionFromMissingModule(
         bad_client.World(), kClientEnum, names.emplace_back(std::format("A{}", i)), static_cast<ActionInfo::EnumValueType>(i));
   }

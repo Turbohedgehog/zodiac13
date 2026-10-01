@@ -22,22 +22,17 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <vector>
 #include <boost/program_options.hpp>
+#include <flatbuffers/reflection.h>
 
 #include "endpoint.h"
+#include "core_settings.h"
+#include "schema_attributes.h"
 
 namespace z13 {
 
 inline constexpr uint16_t kDefaultServerPort = 26213;
-
-// enet_peer_timeout()'s three parameters (net_module/enet_transport.h); defaults
-// bound ENet's own (up to 30s) so a dead/unreachable server disconnects in a few
-// seconds instead.
-struct ConnectTimeoutConfig {
-  uint32_t limit = 32;
-  uint32_t min_timeout_ms = 1000;
-  uint32_t max_timeout_ms = 3000;
-};
 
 class Config {
  public:
@@ -52,7 +47,13 @@ class Config {
   double GetFPS() const;
   double GetSnapshotIntervalSeconds() const;
   double GetSnapshotRetentionSeconds() const;
-  ConnectTimeoutConfig GetConnectTimeout() const;
+  const CoreSettings& GetCoreSettings() const;
+  void SetCoreSettings(const CoreSettings& settings);
+  // Registers an option per `cli` field of `root` (schema_attributes.h); call before parsing.
+  // The schema must outlive this Config.
+  std::expected<void, std::string> AddSchemaOptions(const reflection::Schema& schema, const reflection::Object& root);
+  std::expected<void, std::string> ApplySchemaOverrides(const reflection::Object& root, flatbuffers::Table& table) const;
+  void OverrideFps(std::optional<double> fps);
   bool SkipMainMenu() const;
   std::optional<std::filesystem::path> GetQuickSavePath() const;
 
@@ -69,10 +70,15 @@ class Config {
 
   boost::program_options::options_description options_description_;
   boost::program_options::variables_map variables_map_;
-  double fps_ {60.f};
-  double snapshot_interval_seconds_ {1.0};
-  double snapshot_retention_seconds_ {5.0};
-  ConnectTimeoutConfig connect_timeout_;
+  struct SchemaOptions {
+    const reflection::Schema* schema {};
+    const reflection::Object* root {};
+    std::vector<schema::CliOption> options;
+  };
+
+  CoreSettings core_settings_;
+  std::vector<SchemaOptions> schema_options_;
+  std::optional<double> fps_override_;
   bool skip_main_menu_ {false};
   bool server_ {false};
   uint16_t port_ {kDefaultServerPort};

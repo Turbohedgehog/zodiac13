@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <format>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -37,6 +38,7 @@
 #include <lib_core/flecs_utils.h>
 #include <lib_core/lifecycle.h>
 #include <lib_core/log.h>
+#include <z13_settings/settings.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_serializer.h>
@@ -91,8 +93,8 @@ std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {
 }
 
 // Never moved: the sender has already applied its own copy on this tick.
-bool IsWithinScheduleWindow(uint64_t apply_tick, uint64_t now) {
-  return apply_tick + kMaxLateTicks >= now && apply_tick <= now + kMaxScheduleAheadTicks;
+bool IsWithinScheduleWindow(uint64_t apply_tick, uint64_t now, const NetTuning& tuning) {
+  return apply_tick + tuning.max_late_ticks >= now && apply_tick <= now + tuning.max_schedule_ahead_ticks;
 }
 
 bool CanReplayFrom(flecs::world world, uint64_t tick) {
@@ -148,10 +150,11 @@ NetSession::Result SendSessionDeltas(
 // replay, so the client can roll back for one; else the oldest, which the server can't go
 // past either.
 const ft::TimestampedSnapshot& CatchUpBase(
-    const ft::WorldSnapshotHistory& history, uint64_t now, std::optional<uint64_t> deferred_rollback_tick) {
+    const ft::WorldSnapshotHistory& history, uint64_t now, std::optional<uint64_t> deferred_rollback_tick,
+    uint64_t max_late_ticks) {
   const auto& entries = history.history.Entries();
   const auto settled = std::ranges::find_last_if(entries, [&](const ft::TimestampedSnapshot& entry) {
-    return entry.tick + kMaxLateTicks < now && entry.tick <= deferred_rollback_tick.value_or(entry.tick);
+    return entry.tick + max_late_ticks < now && entry.tick <= deferred_rollback_tick.value_or(entry.tick);
   });
   return settled.empty() ? entries.front() : settled.front();
 }
@@ -169,7 +172,8 @@ void FillCatchUp(flecs::world world, Message& message) {
     message.snapshot = ToBytes(ft::SaveState(world));
     message.snapshot_tick = message.server_tick;
   } else {
-    const ft::TimestampedSnapshot& base = CatchUpBase(history, message.server_tick, ft::DeferredRollbackTick(world));
+    const ft::TimestampedSnapshot& base = CatchUpBase(
+        history, message.server_tick, ft::DeferredRollbackTick(world), world.get<NetTuning>().max_late_ticks);
     message.snapshot = ToBytes(ft::SaveState(base.snapshot));
     message.snapshot_tick = base.tick;
     message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, base.tick)));
@@ -184,6 +188,9 @@ NetSession::Result SendWelcome(
   fbn::WelcomeT welcome;
   welcome.player_id = player_id;
   welcome.action_ids = std::move(action_ids);
+  const auto config = z13::GetCoreConfig(world);
+  welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
+  welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
   FillCatchUp(world, welcome);
   const uint64_t snapshot_tick = welcome.snapshot_tick;
 
@@ -224,7 +231,7 @@ NetSession::Result ScheduleSessionDelta(
 NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id) {
   const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
   fbn::PlayerJoinedT joined;
-  joined.apply_tick = world.get<ft::SimulationClock>().tick + kSessionEventDelayTicks;
+  joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
   joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
   player.destruct();
 
@@ -238,7 +245,7 @@ uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
       std::views::filter([player_id](const auto& record) { return record.player_id == player_id; }) |
       std::views::transform([](const auto& record) { return record.tick + 1; });
   return std::ranges::fold_left(
-      after_own_commands, world.get<ft::SimulationClock>().tick + kSessionEventDelayTicks,
+      after_own_commands, world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks,
       [](uint64_t a, uint64_t b) { return std::max(a, b); });
 }
 
@@ -258,7 +265,7 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
     }
     descriptors.push_back({.enum_name = action->enum_name, .value_name = action->value_name, .enum_value = action->enum_value});
   }
-  return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), descriptors);
+  return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), world.get<NetTuning>(), descriptors);
 }
 
 NetSession::Result HandleClientHello(
@@ -337,13 +344,13 @@ struct CommandRateLimits {
   std::unordered_map<ConnectionId, ConnectionRateLimit> by_connection;
 };
 
-bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now) {
+bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now, const NetTuning& tuning) {
   ConnectionRateLimit& state = limits.by_connection[connection];
-  if (now - state.window_start_tick >= kCommandRateLimitWindowTicks) {
+  if (now - state.window_start_tick >= tuning.command_rate_limit_window_ticks) {
     state.window_start_tick = now;
     state.commands_this_window = 0;
   }
-  if (state.commands_this_window >= kMaxCommandsPerRateLimitWindow) {
+  if (state.commands_this_window >= tuning.max_commands_per_rate_limit_window) {
     return false;
   }
   ++state.commands_this_window;
@@ -362,6 +369,7 @@ NetSession::Result HandleCommandBatch(
   auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
   const auto& action_map = world.get<z13::input::ActionMap>();
   auto& rate_limits = world.get_mut<CommandRateLimits>();
+  const auto& tuning = world.get<NetTuning>();
 
   std::vector<fbs::net::CommandWire> accepted;
   for (const fbs::net::CommandWire& command : batch.commands) {
@@ -372,12 +380,12 @@ NetSession::Result HandleCommandBatch(
       continue;
     }
     const uint64_t apply_tick = batch.base_tick + command.tick_delta();
-    if (!IsWithinScheduleWindow(apply_tick, now) || (apply_tick < now && !CanReplayFrom(world, apply_tick))) {
+    if (!IsWithinScheduleWindow(apply_tick, now, tuning) || (apply_tick < now && !CanReplayFrom(world, apply_tick))) {
       log_warn("NetSession(server): dropping a command for tick {} from connection {} at tick {}", apply_tick,
           connection, now);
       continue;
     }
-    if (!AllowCommand(rate_limits, connection, now)) {
+    if (!AllowCommand(rate_limits, connection, now, tuning)) {
       log_warn("NetSession(server): connection {} exceeded its command rate limit, dropping the rest of this batch",
           connection);
       break;
@@ -479,6 +487,30 @@ void SetConnectionStatus(flecs::world world, ConnectionState state, std::string 
   world.set<ConnectionStatus>({.state = state, .reason = std::move(reason)});
 }
 
+// A client's own net tuning, kept while it runs on its server's.
+struct AdoptedSettings {
+  using Singleton = void;
+  NetTuning own_net;
+};
+
+void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& session) {
+  if (!world.has<AdoptedSettings>()) {
+    world.set<AdoptedSettings>({.own_net = world.get<NetTuning>()});
+  }
+  z13::OverrideCoreFps(world, session.fps);
+  world.set(NetTuning(session.net));
+}
+
+void RestoreOwnSettings(flecs::world world) {
+  if (!world.has<AdoptedSettings>()) {
+    return;
+  }
+  const NetTuning own = world.get<AdoptedSettings>().own_net;
+  world.remove<AdoptedSettings>();
+  world.set(own);
+  z13::OverrideCoreFps(world, std::nullopt);
+}
+
 // Invalidates any NetSession reference: ServiceNetSession suspends defer, so the remove
 // is immediate. Callers must not touch it afterwards.
 void EndSession(flecs::world world) {
@@ -488,6 +520,7 @@ void EndSession(flecs::world world) {
   }
   world.remove<ServerRole>();
   world.remove<ClientRole>();
+  RestoreOwnSettings(world);
   // Queue systems keep running without a session and would apply the leftovers.
   ft::ResetSessionScopedComponents(world);
 }
@@ -532,10 +565,11 @@ std::expected<CatchUpPayload, std::string> DecodeCatchUp(const Message& message)
       .transform([&payload] { return std::move(payload); });
 }
 
-// Untrusted: an implausible span would spin the catch-up for kMaxCatchUpTicksPerFrame
+// Untrusted: an implausible span would spin the catch-up for max_catch_up_ticks_per_frame
 // frames per tick, forever, with the transport unserviced.
-bool IsPlausibleCatchUp(uint64_t snapshot_tick, uint64_t target_tick) {
-  return target_tick >= snapshot_tick && target_tick - snapshot_tick <= ft::kMaxCatchUpTicksPerFrame;
+bool IsPlausibleCatchUp(flecs::world world, uint64_t snapshot_tick, uint64_t target_tick) {
+  return target_tick >= snapshot_tick &&
+         target_tick - snapshot_tick <= world.get<z13::ActiveCoreSettings>().max_catch_up_ticks_per_frame;
 }
 
 // Replaces rather than merges: on a resync the local log, queue and snapshots are what
@@ -565,6 +599,21 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
   ft::RequestRollback(world, snapshot_tick, target_tick);
 }
 
+// Validated together with this client's own retention: a server's windows must still fit its history.
+std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(flecs::world world, const fbn::WelcomeT& welcome) {
+  if (!welcome.tuning) {
+    return std::unexpected("server sent no settings");
+  }
+  const z13::SessionSettings session {.fps = welcome.fps, .net = *welcome.tuning};
+  z13::Settings own = z13::MakeSettings();
+  *own.core = world.get<z13::ActiveCoreSettings>();
+  *own.net = world.get<NetTuning>();
+  if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
+    return std::unexpected(std::format("unusable server settings ({})", valid.error()));
+  }
+  return session;
+}
+
 void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   auto payload = DecodeCatchUp(welcome);
   if (!payload) {
@@ -573,7 +622,18 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
     EndSession(world);
     return;
   }
-  if (!IsPlausibleCatchUp(welcome.snapshot_tick, welcome.server_tick)) {
+  const auto session_settings = DecodeSessionSettings(world, welcome);
+  if (!session_settings) {
+    log_warn("NetSession(client): unusable Welcome: {}", session_settings.error());
+    SetConnectionStatus(world, ConnectionState::kFailed, session_settings.error());
+    EndSession(world);
+    return;
+  }
+  // Before the plausibility check, which is bounded by the server's catch-up limit.
+  AdoptSessionSettings(world, *session_settings);
+  world.set<ft::SnapshotCaptureRate>({.per_interval = world.get<NetTuning>().rollback_snapshots_per_interval});
+
+  if (!IsPlausibleCatchUp(world, welcome.snapshot_tick, welcome.server_tick)) {
     SetConnectionStatus(world, ConnectionState::kFailed, "implausible server tick");
     EndSession(world);
     return;
@@ -602,7 +662,7 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
 void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
   auto payload = DecodeCatchUp(resync);
   const uint64_t target_tick = std::max(resync.server_tick, world.get<ft::SimulationClock>().tick);
-  if (!payload || !IsPlausibleCatchUp(resync.snapshot_tick, target_tick)) {
+  if (!payload || !IsPlausibleCatchUp(world, resync.snapshot_tick, target_tick)) {
     log_warn("NetSession(client): unusable Resync: {}", payload ? "implausible server tick" : payload.error());
     world.get_mut<StateDigests>().awaiting_resync = false;  // the next mismatch asks again
     return;
@@ -745,7 +805,8 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       [&](const fbn::RejectedT& rejected) { HandleRejected(world, rejected); },
       [world](const fbn::PongT& pong) {
         ApplyPong(
-            world.get_mut<ClockSync>(), pong.client_tick, pong.server_tick, world.get<ft::SimulationClock>().tick);
+            world.get_mut<ClockSync>(), world.get<NetTuning>(), pong.client_tick, pong.server_tick,
+            world.get<ft::SimulationClock>().tick);
       },
       [world, welcomed](const fbn::SequencedCommandsT& sequenced) {
         if (welcomed) {
@@ -910,7 +971,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
   }
 
   ft::ResetSessionScopedComponents(world);
-  world.set<ft::SnapshotCaptureRate>({.per_interval = kRollbackSnapshotsPerInterval});
+  world.set<ft::SnapshotCaptureRate>({.per_interval = world.get<NetTuning>().rollback_snapshots_per_interval});
   NetSession session;
   session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
@@ -928,12 +989,11 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
     return;
   }
   ft::ResetSessionScopedComponents(world);
-  world.set<ft::SnapshotCaptureRate>({.per_interval = kRollbackSnapshotsPerInterval});
+  world.set<ft::SnapshotCaptureRate>({.per_interval = world.get<NetTuning>().rollback_snapshots_per_interval});
   world.add<ClientRole>();
   SetConnectionStatus(world, ConnectionState::kConnecting);
 
-  const auto config = z13::GetCoreConfig(world);
-  const z13::ConnectTimeoutConfig timeout = config ? config->get().GetConnectTimeout() : z13::ConnectTimeoutConfig {};
+  const z13::ConnectTimeoutConfig timeout = world.get<z13::ConnectTimeout>();
   auto transport = factories.client(request.endpoint, timeout);
   if (!transport) {
     SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
@@ -1017,7 +1077,8 @@ void ServiceNetSession(flecs::world world) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator, StateDigests>(world);
+      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator, StateDigests,
+      NetTuning, z13::ConnectTimeout, AdoptedSettings>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -1027,6 +1088,9 @@ void RegisterSystems(flecs::world world) {
   world.set<CommandRateLimits>({});
   world.set<PlayerIdAllocator>({});
   world.set<StateDigests>({});
+  // The launcher overwrites these with the loaded settings (z13::InstallSettings).
+  world.set<NetTuning>({});
+  world.set<z13::ConnectTimeout>({});
   RegisterStateDigestSystems(world);
 
   world.observer<StartServerRequest, const TransportFactories>("NetSessionSystem::OnStartServerRequest")
@@ -1059,12 +1123,12 @@ void RegisterSystems(flecs::world world) {
         }
       });
 
-  world.system<ClockSync, const ft::SimulationClock>("NetSessionSystem::SteerClock")
+  world.system<ClockSync, const ft::SimulationClock, const NetTuning>("NetSessionSystem::SteerClock")
       .kind(flecs::PostFrame)
       .with<ClientRole>()
       .without<ft::ReplayInProgress>()
-      .each([](flecs::iter& it, size_t, ClockSync& sync, const ft::SimulationClock& clock) {
-        if (const int64_t adjust = TakeClockAdjustment(sync, clock.tick); adjust != 0) {
+      .each([](flecs::iter& it, size_t, ClockSync& sync, const ft::SimulationClock& clock, const NetTuning& tuning) {
+        if (const int64_t adjust = TakeClockAdjustment(sync, tuning, clock.tick); adjust != 0) {
           flecs::world world = it.world();
           ft::RequestClockAdjust(world, adjust);
         }

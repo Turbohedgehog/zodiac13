@@ -14,28 +14,17 @@
  * limitations under the License.
  */
 
-#include <z13_module/tools/z13_environment.h>
+#pragma once
 
-#include <z13/constants/constants.h>
-
-#include <sago/platform_folders.h>
+#include <filesystem>
 
 namespace z13::tools::environment {
 
-std::filesystem::path GetGameDataDirectory() {
-  return std::filesystem::path(sago::getDataHome()) / z13::constants::kGameName;
-}
+std::filesystem::path GetGameDataDirectory();
+std::filesystem::path GetGameInputConfigJsonPath();
+std::filesystem::path GetGameInputConfigJsonPath2();
+// Next to the input config; generated from the schema defaults when missing.
+std::filesystem::path GetGameSettingsJsonPath();
+std::filesystem::path GetGameQuickSaveJsonPath();
 
-std::filesystem::path GetGameInputConfigJsonPath() {
-  return GetGameDataDirectory() / "input_config.json";
-}
-
-std::filesystem::path GetGameInputConfigJsonPath2() {
-  return GetGameDataDirectory() / "input_config_2.json";
-}
-
-std::filesystem::path GetGameQuickSaveJsonPath() {
-  return GetGameDataDirectory() / "quick_save.json";
-}
-
-}  // namespace z13::tools::environment
+} // namespace z13::environment

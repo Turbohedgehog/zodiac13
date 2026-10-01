@@ -4,5 +4,6 @@ project(lib_z13)
 
 add_subdirectory(schemas)
 add_subdirectory(components)
+add_subdirectory(settings)
 add_subdirectory(modules)
 add_subdirectory(z13_launcher)

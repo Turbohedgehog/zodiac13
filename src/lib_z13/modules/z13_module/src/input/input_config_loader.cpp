@@ -34,7 +34,7 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/log.h>
-#include <z13_module/tools/z13_environment.h>
+#include <z13_settings/environment.h>
 #include <z13/components/input.h>
 
 #include <input_config_generated.h>

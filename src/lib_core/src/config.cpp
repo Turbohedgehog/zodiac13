@@ -99,19 +99,70 @@ bool Config::NeedShowHelp() const {
 }
 
 double Config::GetFPS() const {
-  return fps_;
+  return fps_override_.value_or(core_settings_.fps);
 }
 
 double Config::GetSnapshotIntervalSeconds() const {
-  return snapshot_interval_seconds_;
+  return core_settings_.snapshot_interval_seconds;
 }
 
 double Config::GetSnapshotRetentionSeconds() const {
-  return snapshot_retention_seconds_;
+  return core_settings_.snapshot_retention_seconds;
 }
 
-ConnectTimeoutConfig Config::GetConnectTimeout() const {
-  return connect_timeout_;
+const CoreSettings& Config::GetCoreSettings() const {
+  return core_settings_;
+}
+
+void Config::SetCoreSettings(const CoreSettings& settings) {
+  core_settings_ = settings;
+}
+
+std::expected<void, std::string> Config::AddSchemaOptions(
+    const reflection::Schema& schema, const reflection::Object& root) {
+  auto collected = schema::CollectCliOptions(schema, root);
+  if (!collected) {
+    return std::unexpected(collected.error());
+  }
+
+  for (const schema::CliOption& option : *collected) {
+    if (options_description_.find_nothrow(option.long_name, false) != nullptr) {
+      return std::unexpected(std::format("--{} ({}) is already an option", option.long_name, option.path));
+    }
+    if (option.short_name && options_description_.find_nothrow(std::format("-{}", *option.short_name), false) != nullptr) {
+      return std::unexpected(std::format("-{} ({}) is already an option", *option.short_name, option.path));
+    }
+    const std::string names =
+        option.short_name ? std::format("{},{}", option.long_name, *option.short_name) : option.long_name;
+    options_description_.add_options()(names.c_str(), po::value<std::string>(), option.help.c_str());
+  }
+  schema_options_.push_back({.schema = &schema, .root = &root, .options = std::move(*collected)});
+  return {};
+}
+
+std::expected<void, std::string> Config::ApplySchemaOverrides(
+    const reflection::Object& root, flatbuffers::Table& table) const {
+  for (const SchemaOptions& registered : schema_options_) {
+    if (registered.root != &root) {
+      continue;
+    }
+    for (const schema::CliOption& option : registered.options) {
+      const auto given = variables_map_.find(option.long_name);
+      if (given == variables_map_.end()) {
+        continue;
+      }
+      if (const auto set = schema::SetFieldFromText(
+              *registered.schema, root, table, option.path, given->second.as<std::string>());
+          !set) {
+        return std::unexpected(std::format("--{}: {}", option.long_name, set.error()));
+      }
+    }
+  }
+  return {};
+}
+
+void Config::OverrideFps(std::optional<double> fps) {
+  fps_override_ = fps;
 }
 
 bool Config::SkipMainMenu() const {

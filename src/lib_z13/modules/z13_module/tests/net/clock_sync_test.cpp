@@ -38,6 +38,13 @@
 namespace z13::net {
 namespace {
 
+const NetTuning kTuning;
+const int64_t kClockCatchUpThresholdTicks = kTuning.clock_catch_up_threshold_ticks;
+const uint64_t kClockCatchUpEveryTicks = kTuning.clock_catch_up_every_ticks;
+const int64_t kClockJumpThresholdTicks = kTuning.clock_jump_threshold_ticks;
+const uint64_t kMaxScheduleAheadTicks = kTuning.max_schedule_ahead_ticks;
+const uint64_t kMaxLateTicks = kTuning.max_late_ticks;
+
 namespace ft = z13::flecs_tools;
 using z13::testing::kConnectArg;
 using z13::testing::kServerArg;
@@ -74,49 +81,49 @@ TEST(ClockSyncTest, ASmallOffsetIsClosedOneTickPerCadenceStep) {
   ClockSync sync;
   sync.offset_ticks = kClockCatchUpThresholdTicks;
 
-  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), 0) << "off the cadence";
-  ASSERT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 1);
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks + 1), 0) << "off the cadence";
+  ASSERT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks), 1);
   EXPECT_EQ(sync.offset_ticks, kClockCatchUpThresholdTicks - 1);
-  EXPECT_EQ(TakeClockAdjustment(sync, 2 * kClockCatchUpEveryTicks), 0) << "under the threshold";
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, 2 * kClockCatchUpEveryTicks), 0) << "under the threshold";
 
   sync.offset_ticks = -kClockCatchUpThresholdTicks;
-  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), -1) << "ahead: skip a tick";
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks), -1) << "ahead: skip a tick";
   EXPECT_EQ(sync.offset_ticks, -kClockCatchUpThresholdTicks + 1);
 }
 
 TEST(ClockSyncTest, ALargeOffsetIsClosedAtOnceEitherWay) {
   ClockSync sync;
   sync.offset_ticks = 120;
-  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), 120);
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks + 1), 120);
   EXPECT_EQ(sync.offset_ticks, 0);
 
   sync.offset_ticks = -kClockJumpThresholdTicks;
-  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks + 1), -kClockJumpThresholdTicks);
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks + 1), -kClockJumpThresholdTicks);
   EXPECT_EQ(sync.offset_ticks, 0);
 }
 
 TEST(ClockSyncTest, AnUnmeasuredClockIsLeftAlone) {
   ClockSync sync;
-  EXPECT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 0);
+  EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks), 0);
 }
 
 TEST(ClockSyncTest, AdjustmentsDuringAPingDoNotCountAsRoundTrip) {
   ClockSync sync;
   sync.offset_ticks = 10;
   sync.ping_sent_tick = 100;
-  ASSERT_EQ(TakeClockAdjustment(sync, kClockCatchUpEveryTicks), 1);
-  ASSERT_EQ(TakeClockAdjustment(sync, 2 * kClockCatchUpEveryTicks), 1);
+  ASSERT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks), 1);
+  ASSERT_EQ(TakeClockAdjustment(sync, kTuning, 2 * kClockCatchUpEveryTicks), 1);
 
   // 4 ticks of real round trip plus the 2 extra ticks run meanwhile.
-  ApplyPong(sync, 100, 110, 106);
+  ApplyPong(sync, kTuning, 100, 110, 106);
   EXPECT_EQ(sync.rtt_ticks, 4);
   EXPECT_EQ(sync.adjusted_ticks_in_flight, 0);
 
   sync.offset_ticks = -kClockJumpThresholdTicks;
   sync.ping_sent_tick = 200;
-  ASSERT_EQ(TakeClockAdjustment(sync, 1), -kClockJumpThresholdTicks);
+  ASSERT_EQ(TakeClockAdjustment(sync, kTuning, 1), -kClockJumpThresholdTicks);
   // 4 counted ticks plus the skipped frames, which the clock never counted.
-  ApplyPong(sync, 200, 210, 204);
+  ApplyPong(sync, kTuning, 200, 210, 204);
   EXPECT_EQ(sync.rtt_ticks, 4 + kClockJumpThresholdTicks);
 }
 
@@ -203,7 +210,7 @@ TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {
   ClockSync sync;
   sync.ping_sent_tick = 100;
   // Round trip of 4 ticks, server 50 ahead: stamped at 100 + 50 + 2.
-  ApplyPong(sync, 100, 152, 104);
+  ApplyPong(sync, kTuning, 100, 152, 104);
   ASSERT_TRUE(sync.offset_ticks.has_value());
   EXPECT_EQ(*sync.offset_ticks, 50);
   EXPECT_EQ(sync.rtt_ticks, 4);
@@ -211,7 +218,7 @@ TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {
 
   // Within what latency jitter explains: smoothed, not taken whole.
   sync.ping_sent_tick = 200;
-  ApplyPong(sync, 200, 262, 204);
+  ApplyPong(sync, kTuning, 200, 262, 204);
   EXPECT_GT(*sync.offset_ticks, 50);
   EXPECT_LT(*sync.offset_ticks, 60);
 }
@@ -219,7 +226,7 @@ TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {
 TEST(ClockSyncTest, AReplyToAnotherPingIsIgnored) {
   ClockSync sync;
   sync.ping_sent_tick = 300;
-  ApplyPong(sync, 100, 152, 304);
+  ApplyPong(sync, kTuning, 100, 152, 304);
 
   EXPECT_FALSE(sync.offset_ticks.has_value());
   EXPECT_EQ(sync.ping_sent_tick, 300u);
@@ -229,13 +236,13 @@ TEST(ClockSyncTest, OneSpikeMovesTheEstimateOnlyPartway) {
   ClockSync sync;
   for (uint64_t sent = 100; sent <= 400; sent += 100) {
     sync.ping_sent_tick = sent;
-    ApplyPong(sync, sent, sent + 52, sent + 4);
+    ApplyPong(sync, kTuning, sent, sent + 52, sent + 4);
   }
   ASSERT_EQ(*sync.offset_ticks, 50);
 
   // A 100-tick latency spike, all of it on the way back: the sample is off by rtt / 2.
   sync.ping_sent_tick = 500;
-  ApplyPong(sync, 500, 552, 604);
+  ApplyPong(sync, kTuning, 500, 552, 604);
 
   EXPECT_LT(*sync.offset_ticks, 50);
   EXPECT_GT(*sync.offset_ticks, 25) << "a single spike moved the estimate more than half way";
@@ -244,12 +251,12 @@ TEST(ClockSyncTest, OneSpikeMovesTheEstimateOnlyPartway) {
 TEST(ClockSyncTest, AMissLatencyCannotExplainIsTakenWhole) {
   ClockSync sync;
   sync.ping_sent_tick = 100;
-  ApplyPong(sync, 100, 152, 104);
+  ApplyPong(sync, kTuning, 100, 152, 104);
   ASSERT_EQ(*sync.offset_ticks, 50);
 
   // Same round trip, server 100 ticks further: a clock moved.
   sync.ping_sent_tick = 200;
-  ApplyPong(sync, 200, 352, 204);
+  ApplyPong(sync, kTuning, 200, 352, 204);
   EXPECT_EQ(*sync.offset_ticks, 150);
 }
 

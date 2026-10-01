@@ -33,6 +33,8 @@ target_include_directories(
 
 target_link_libraries(
   ${PROJECT_NAME}_objects
+  PUBLIC
+  zodiac13::z13_settings
   PRIVATE
   zodiac13::core
   zodiac13::components
@@ -52,6 +54,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   ${PROJECT_NAME}_objects
+  zodiac13::z13_settings
   PRIVATE
   zodiac13::core
   zodiac13::components

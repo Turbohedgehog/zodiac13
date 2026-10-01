@@ -28,6 +28,7 @@ using namespace std::chrono_literals;
 
 constexpr TickPacer::Clock::duration kTick = 10ms;
 const TickPacer::Clock::time_point kStart {};
+constexpr uint64_t kMaxBacklog = 15;
 
 uint64_t TakeAllDue(TickPacer& pacer, TickPacer::Clock::time_point now) {
   uint64_t ticks {};
@@ -38,7 +39,7 @@ uint64_t TakeAllDue(TickPacer& pacer, TickPacer::Clock::time_point now) {
 }
 
 TEST(TickPacerTest, RunsOneTickPerTickDuration) {
-  TickPacer pacer(kTick, kStart);
+  TickPacer pacer(kTick, kStart, kMaxBacklog);
 
   EXPECT_EQ(TakeAllDue(pacer, kStart), 1u);
   EXPECT_EQ(TakeAllDue(pacer, kStart + kTick / 2), 0u);
@@ -47,7 +48,7 @@ TEST(TickPacerTest, RunsOneTickPerTickDuration) {
 }
 
 TEST(TickPacerTest, SlowFrameIsMadeUpByTheNextTicks) {
-  TickPacer pacer(kTick, kStart);
+  TickPacer pacer(kTick, kStart, kMaxBacklog);
   ASSERT_EQ(TakeAllDue(pacer, kStart), 1u);
 
   EXPECT_EQ(TakeAllDue(pacer, kStart + 3 * kTick + kTick / 2), 3u);
@@ -55,7 +56,7 @@ TEST(TickPacerTest, SlowFrameIsMadeUpByTheNextTicks) {
 }
 
 TEST(TickPacerTest, HitchBacklogIsDropped) {
-  TickPacer pacer(kTick, kStart);
+  TickPacer pacer(kTick, kStart, kMaxBacklog);
   ASSERT_EQ(TakeAllDue(pacer, kStart), 1u);
   const auto after_hitch = kStart + 100 * kTick;
 

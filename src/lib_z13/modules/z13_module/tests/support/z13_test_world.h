@@ -36,6 +36,7 @@
 #include <z13/components/input.h>
 #include <z13/components/input_event_emitter.h>
 #include <z13_module/z13_module_factory.h>
+#include <z13_settings/settings.h>
 
 namespace z13::testing {
 
@@ -59,10 +60,11 @@ class Z13TestWorld {
   // each world gets its own, so a solo --server/--connect world never touches a socket.
   explicit Z13TestWorld(
       bool skip_main_menu = true, std::vector<std::string> extra_args = {},
-      std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr)
+      std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr,
+      const z13::Settings& settings = z13::MakeSettings())
       : network_(network ? std::move(network) : std::make_shared<z13::net::InMemoryNetwork>()),
         core_(MakeCore(skip_main_menu, quick_save_path_, std::move(extra_args))),
-        world_(CreateWorld(core_, network_)) {}
+        world_(CreateWorld(core_, network_, settings)) {}
 
   ~Z13TestWorld() {
     std::error_code ignored;
@@ -120,7 +122,9 @@ class Z13TestWorld {
     return z13::Core(static_cast<int>(argv.size()), argv.data());
   }
 
-  static z13::WorldRef CreateWorld(z13::Core& core, const std::shared_ptr<z13::net::InMemoryNetwork>& network) {
+  static z13::WorldRef CreateWorld(
+      z13::Core& core, const std::shared_ptr<z13::net::InMemoryNetwork>& network, const z13::Settings& settings) {
+    core.GetConfig().SetCoreSettings(*settings.core);
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
@@ -135,6 +139,7 @@ class Z13TestWorld {
     core.RegisterModuleFactory(net_factory);
 
     z13::WorldRef world = core.CreateWorld();
+    z13::InstallSettings(world.get(), settings);
     // Runs the one-shot bootstrap without a frame, so tick-counting tests see tick 0 as before.
     ecs_run(world.get(), world.get().lookup(kInitBootstrapSystemName.data()).id(), 0.f, nullptr);
     return world;

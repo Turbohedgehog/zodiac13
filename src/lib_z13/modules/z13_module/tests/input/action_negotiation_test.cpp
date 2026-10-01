@@ -33,6 +33,10 @@
 namespace z13::gameplay::input {
 namespace {
 
+const NetTuning kTuning;
+const size_t kMaxActionsPerClient = kTuning.max_actions_per_client;
+const size_t kMaxRemoteActions = kTuning.max_remote_actions;
+
 using z13::input::ActionInfo;
 using z13::input::ActionMap;
 using z13::input::InputConfig;
@@ -58,7 +62,7 @@ TEST(ActionNegotiationTest, KnownActionsKeepTheirIds) {
   const auto described = DescribeActions(Map(test_world));
   const size_t count_before = Map(test_world).action_map.size();
 
-  const auto ids = RegisterRemoteActions(Map(test_world), described);
+  const auto ids = RegisterRemoteActions(Map(test_world), kTuning, described);
 
   ASSERT_TRUE(ids.has_value()) << ids.error();
   ASSERT_EQ(ids->size(), described.size());
@@ -73,7 +77,7 @@ TEST(ActionNegotiationTest, UnknownActionGetsTheNextFreeIdAndStaysOutOfTheConfig
   Z13TestWorld test_world;
   const ActionInfo::IdType first_free = MaxId(Map(test_world)) + 1;
 
-  const auto ids = RegisterRemoteActions(Map(test_world), std::vector {Extra()});
+  const auto ids = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra()});
 
   ASSERT_TRUE(ids.has_value()) << ids.error();
   EXPECT_EQ(ids->front(), first_free);
@@ -90,8 +94,8 @@ TEST(ActionNegotiationTest, UnknownActionGetsTheNextFreeIdAndStaysOutOfTheConfig
 
 TEST(ActionNegotiationTest, ASecondClientWithTheSameActionGetsTheSameId) {
   Z13TestWorld test_world;
-  const auto first = RegisterRemoteActions(Map(test_world), std::vector {Extra()});
-  const auto second = RegisterRemoteActions(Map(test_world), std::vector {Extra()});
+  const auto first = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra()});
+  const auto second = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra()});
 
   ASSERT_TRUE(first.has_value() && second.has_value());
   EXPECT_EQ(*first, *second);
@@ -99,8 +103,8 @@ TEST(ActionNegotiationTest, ASecondClientWithTheSameActionGetsTheSameId) {
 
 TEST(ActionNegotiationTest, ADifferentActionNeverReusesAnId) {
   Z13TestWorld test_world;
-  const auto first = RegisterRemoteActions(Map(test_world), std::vector {Extra("ONE", 701)});
-  const auto second = RegisterRemoteActions(Map(test_world), std::vector {Extra("TWO", 702)});
+  const auto first = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra("ONE", 701)});
+  const auto second = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra("TWO", 702)});
 
   ASSERT_TRUE(first.has_value() && second.has_value());
   EXPECT_NE(first->front(), second->front());
@@ -108,10 +112,10 @@ TEST(ActionNegotiationTest, ADifferentActionNeverReusesAnId) {
 
 TEST(ActionNegotiationTest, ADifferentEnumValueForAKnownNameKeepsTheServersId) {
   Z13TestWorld test_world;
-  const auto first = RegisterRemoteActions(Map(test_world), std::vector {Extra()});
+  const auto first = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra()});
   const size_t count_before = Map(test_world).action_map.size();
 
-  const auto again = RegisterRemoteActions(Map(test_world), std::vector {Extra(std::string(kExtraValue), 999)});
+  const auto again = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra(std::string(kExtraValue), 999)});
 
   ASSERT_TRUE(first.has_value() && again.has_value());
   EXPECT_EQ(*first, *again);
@@ -120,9 +124,9 @@ TEST(ActionNegotiationTest, ADifferentEnumValueForAKnownNameKeepsTheServersId) {
 
 TEST(ActionNegotiationTest, ATakenEnumValueMovesToTheNextFreeOne) {
   Z13TestWorld test_world;
-  ASSERT_TRUE(RegisterRemoteActions(Map(test_world), std::vector {Extra()}).has_value());
+  ASSERT_TRUE(RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra()}).has_value());
 
-  const auto ids = RegisterRemoteActions(Map(test_world), std::vector {Extra("CLASH", kExtraEnumValue)});
+  const auto ids = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra("CLASH", kExtraEnumValue)});
 
   ASSERT_TRUE(ids.has_value()) << ids.error();
   const auto found = InputConfigLoader::FindActionId(Map(test_world).action_map, kExtraEnum, kExtraEnumValue + 1);
@@ -134,9 +138,9 @@ TEST(ActionNegotiationTest, AnInvalidNameRefusesTheWholeListAndRegistersNothing)
   Z13TestWorld test_world;
   const size_t count_before = Map(test_world).action_map.size();
 
-  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), std::vector {Extra("FRESH", 800), Extra("")}).has_value());
+  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra("FRESH", 800), Extra("")}).has_value());
   EXPECT_FALSE(RegisterRemoteActions(
-      Map(test_world), std::vector {Extra("FRESH", 800), Extra(std::string(kMaxActionNameLength + 1, 'x'))}).has_value());
+      Map(test_world), kTuning, std::vector {Extra("FRESH", 800), Extra(std::string(kMaxActionNameLength + 1, 'x'))}).has_value());
 
   EXPECT_EQ(Map(test_world).action_map.size(), count_before);
 }
@@ -153,7 +157,7 @@ TEST(ActionNegotiationTest, ANewActionListedTwiceInOneHelloGetsOneId) {
   Z13TestWorld test_world;
   const size_t count_before = Map(test_world).action_map.size();
 
-  const auto ids = RegisterRemoteActions(Map(test_world), std::vector {Extra(), Extra()});
+  const auto ids = RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra(), Extra()});
 
   ASSERT_TRUE(ids.has_value()) << ids.error();
   EXPECT_EQ((*ids)[0], (*ids)[1]);
@@ -164,8 +168,8 @@ TEST(ActionNegotiationTest, ASingleClientCannotListMoreThanTheLimit) {
   Z13TestWorld test_world;
   const size_t count_before = Map(test_world).action_map.size();
 
-  EXPECT_TRUE(RegisterRemoteActions(Map(test_world), ManyActions(kMaxActionsPerClient, 1000)).has_value());
-  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), ManyActions(kMaxActionsPerClient + 1, 5000)).has_value());
+  EXPECT_TRUE(RegisterRemoteActions(Map(test_world), kTuning, ManyActions(kMaxActionsPerClient, 1000)).has_value());
+  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), kTuning, ManyActions(kMaxActionsPerClient + 1, 5000)).has_value());
   EXPECT_EQ(Map(test_world).action_map.size(), count_before + kMaxActionsPerClient);
 }
 
@@ -173,15 +177,15 @@ TEST(ActionNegotiationTest, ClientsTogetherCannotRegisterMoreThanTheServerLimit)
   Z13TestWorld test_world;
   for (size_t registered = 0; registered < kMaxRemoteActions; registered += kMaxActionsPerClient) {
     const size_t batch = std::min(kMaxActionsPerClient, kMaxRemoteActions - registered);
-    ASSERT_TRUE(RegisterRemoteActions(Map(test_world), ManyActions(batch, 1000 + static_cast<ActionInfo::EnumValueType>(registered))).has_value());
+    ASSERT_TRUE(RegisterRemoteActions(Map(test_world), kTuning, ManyActions(batch, 1000 + static_cast<ActionInfo::EnumValueType>(registered))).has_value());
   }
   const size_t count_at_limit = Map(test_world).action_map.size();
 
-  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), std::vector {Extra("ONE_TOO_MANY", 90000)}).has_value());
+  EXPECT_FALSE(RegisterRemoteActions(Map(test_world), kTuning, std::vector {Extra("ONE_TOO_MANY", 90000)}).has_value());
   EXPECT_EQ(Map(test_world).action_map.size(), count_at_limit);
 
   // Already registered actions keep working for new clients.
-  EXPECT_TRUE(RegisterRemoteActions(Map(test_world), ManyActions(kMaxActionsPerClient, 1000)).has_value());
+  EXPECT_TRUE(RegisterRemoteActions(Map(test_world), kTuning, ManyActions(kMaxActionsPerClient, 1000)).has_value());
 }
 
 TEST(ActionNegotiationTest, AdoptingIdsRenumbersTheMapAndKeepsTheKeyBindings) {

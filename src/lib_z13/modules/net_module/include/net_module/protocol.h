@@ -27,7 +27,7 @@
 
 namespace z13::net {
 
-constexpr uint32_t kProtocolVersion = 1;
+constexpr uint32_t kProtocolVersion = 2;
 
 // MessageEnvelopeT's `body` is already a tagged union over every wire message
 // (MessageBodyUnion::type/Set<T>()/AsXxx(), net_generated.h) -- no variant needed.
@@ -91,9 +91,5 @@ auto VisitBody(const fbs::net::MessageBodyUnion& body, Visitor&& visitor) {
 constexpr float kActionValueScale = 100.f;
 int16_t QuantizeActionValue(float value);
 float DequantizeActionValue(int16_t wire_value);
-
-// Per-connection anti-abuse cap, far above what NetActionSender ever sends.
-constexpr uint64_t kCommandRateLimitWindowTicks = 60;
-constexpr uint32_t kMaxCommandsPerRateLimitWindow = 128;
 
 }  // namespace z13::net

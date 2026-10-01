@@ -5,7 +5,6 @@ project(z13_module)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
-find_package(platform_folders REQUIRED)
 find_package(Boost REQUIRED COMPONENTS dll)
 
 file(
@@ -36,7 +35,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  sago::platform_folders
+  zodiac13::z13_settings
   Boost::dll
 )
 
@@ -62,7 +61,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  sago::platform_folders
+  zodiac13::z13_settings
   Boost::dll
 )
 

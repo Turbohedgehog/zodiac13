@@ -1,24 +1,22 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_launcher)
+project(z13_settings)
 
 set(CMAKE_CXX_STANDARD 23)
 
-find_package(Boost REQUIRED COMPONENTS dll)
-find_package(yaml-cpp CONFIG REQUIRED)
+find_package(platform_folders REQUIRED)
 
 file(
   GLOB_RECURSE
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 # settings_generated.h comes from the concrete flatc target (see net_module/CMakeLists.txt).
 add_dependencies(${PROJECT_NAME} GENERATE_FBS_SCHEMAS_HEADERS)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
   ${PROJECT_NAME}
@@ -30,17 +28,12 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
-  zodiac13::z13_settings
-  PRIVATE
   zodiac13::core
   zodiac13::fbs_schemas
-  Boost::dll
-  yaml-cpp::yaml-cpp
+  PRIVATE
+  zodiac13::components
+  sago::platform_folders
 )
-
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
-#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-# )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
@@ -56,4 +49,3 @@ install(EXPORT ${PROJECT_NAME}Targets
         NAMESPACE ${PROJECT_NAMESPACE}::
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
-

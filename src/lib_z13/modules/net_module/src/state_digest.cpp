@@ -106,14 +106,15 @@ void RegisterStateDigestSystems(flecs::world world) {
       });
 }
 
-// Every command for tick T reaches the server by T + kMaxLateTicks, and reaches clients
+// Every command for tick T reaches the server by T + max_late_ticks, and reaches clients
 // ahead of this digest on the same ordered channel.
 NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
+  const uint64_t max_late_ticks = world.get<NetTuning>().max_late_ticks;
   for (const auto& [tick, digest] : digests.local) {
-    // A command for `tick` is still accepted at exactly tick + kMaxLateTicks.
-    if (tick + kMaxLateTicks >= now || tick > deferred_rollback_tick.value_or(tick)) {
+    // A command for `tick` is still accepted at exactly tick + max_late_ticks.
+    if (tick + max_late_ticks >= now || tick > deferred_rollback_tick.value_or(tick)) {
       break;
     }
     if (digests.last_sent_tick && tick <= *digests.last_sent_tick) {
