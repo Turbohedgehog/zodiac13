@@ -25,13 +25,6 @@
 
 namespace z13::flecs_tools {
 
-// Safety bound, not a scheduler: a corrupt target tick spreads over calls instead of
-// hanging the loop.
-inline constexpr uint64_t kMaxCatchUpTicksPerFrame {1024};
-
-inline constexpr uint32_t kMaxDeferredRollbacks {16};
-inline constexpr uint64_t kMaxRollbackDelayTicks {6};
-
 // Requests coalesce: one rollback, to the earliest tick asked for, up to the latest target.
 struct RollbackRequest {
   using Singleton = void;

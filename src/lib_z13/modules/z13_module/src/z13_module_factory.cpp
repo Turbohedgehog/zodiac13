@@ -26,7 +26,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
-#include <z13_module/tools/z13_environment.h>
+#include <z13_settings/environment.h>
 
 #include "z13_module.h"
 

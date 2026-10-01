@@ -52,6 +52,8 @@
 namespace z13::net {
 namespace {
 
+const uint32_t kMaxCommandsPerRateLimitWindow = NetTuning {}.max_commands_per_rate_limit_window;
+
 using z13::gameplay::Gameplay;
 using z13::gameplay::IdCounters;
 using z13::gameplay::LocalPlayer;
@@ -495,14 +497,14 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   const uint16_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
   batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
-  for (uint32_t i = 0; i < z13::net::kMaxCommandsPerRateLimitWindow + 20; ++i) {
+  for (uint32_t i = 0; i < kMaxCommandsPerRateLimitWindow + 20; ++i) {
     batch.commands.emplace_back(0, valid_action_id, 100);
   }
   SendRaw(*raw, connection, batch);
 
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
-  EXPECT_EQ(CommittedCommands(server.World()).size(), z13::net::kMaxCommandsPerRateLimitWindow);
+  EXPECT_EQ(CommittedCommands(server.World()).size(), kMaxCommandsPerRateLimitWindow);
 }
 
 TEST(NetSessionTest, LargeSnapshotArrivesWhole) {

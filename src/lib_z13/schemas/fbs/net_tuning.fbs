@@ -1,0 +1,39 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The "net" table of settings.json, also what a server sends in Welcome.
+
+include "attributes.fbs";
+
+namespace z13.fbs.net;
+
+table NetTuning {
+  send_interval_ticks: uint64 = 3 (min: 1, cli);
+  max_late_ticks: uint64 = 96 (cli);
+  max_schedule_ahead_ticks: uint64 = 30 (cli);
+  session_event_delay_ticks: uint64 = 12 (cli);
+  rollback_snapshots_per_interval: uint64 = 4 (min: 1, cli);
+
+  clock_offset_smoothing: double = 0.25 (min: "0.001", max: 1, cli);
+  clock_catch_up_threshold_ticks: int64 = 2 (min: 1, cli);
+  clock_catch_up_every_ticks: uint64 = 4 (min: 1, cli);
+  clock_jump_threshold_ticks: int64 = 15 (min: 1, cli);
+
+  command_rate_limit_window_ticks: uint64 = 60 (min: 1, cli);
+  max_commands_per_rate_limit_window: uint32 = 128 (min: 1, cli);
+  max_actions_per_client: uint32 = 1024 (min: 1, cli);
+  max_remote_actions: uint32 = 4096 (min: 1, cli);
+}

@@ -12,6 +12,9 @@
 #include <lib_core/module_factory_base.h>
 
 #include <z13_launcher/module_list.h>
+#include <z13_launcher/settings_loader.h>
+#include <z13_settings/environment.h>
+#include <z13_settings/settings.h>
 
 namespace z13 {
 
@@ -29,7 +32,7 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   spdlog::flush_on(spdlog::level::debug);
   spdlog::set_level(spdlog::level::debug);
 
-  Core core(argc, argv);
+  Core core(argc, argv, [](Config& config) { return AddSettingsOptions(config); });
 
   // Bail out before loading any module on --help or a rejected command line;
   // Core::Run() re-checks both for callers that construct a Core directly.
@@ -45,6 +48,19 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
   const auto config_path = exe_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);
 
+  const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());
+  if (!settings) {
+    log_error("{}", settings.error());
+    return 1;
+  }
+  // File first, then the command line, which wins.
+  const auto effective = ApplyCliOverrides(core.GetConfig(), *settings);
+  if (!effective) {
+    log_error("{}", effective.error());
+    return 1;
+  }
+  core.GetConfig().SetCoreSettings(*effective->core);
+
   const auto modules = ReadModuleList(config_path);
   if (!modules) {
     log_error("{}", modules.error());
@@ -54,7 +70,7 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     core.RegisterModuleFactory(module_path);
   }
 
-  core.CreateWorld();
+  InstallSettings(core.CreateWorld(), *effective);
 
   return core.Run();
 }

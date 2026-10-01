@@ -23,6 +23,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/math.h>
+#include <lib_core/core_settings.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_json_store.h>
@@ -46,6 +47,8 @@ using z13::testing::Click;
 using z13::testing::kTestDeltaTime;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
+
+const CoreSettings kTuning;
 
 constexpr float kBrushDistance = 5.f;
 constexpr float kBlockColumnX = 20.f;
@@ -248,7 +251,7 @@ TEST(ActionReplayTest, DeferredRollbacksWaitThenReplayOnceFromTheEarliestTick) {
   ft::DeferRollback(world, first_request_tick - 1);
   ft::TickWorld(world, RealDeltaTime(test_world));
   ft::DeferRollback(world, interval_ticks + 1);
-  for (uint64_t tick = 2; tick < ft::kMaxRollbackDelayTicks; ++tick) {
+  for (uint64_t tick = 2; tick < kTuning.max_rollback_delay_ticks; ++tick) {
     ft::TickWorld(world, RealDeltaTime(test_world));
   }
   EXPECT_EQ(world.get<ft::RollbackMetrics>().rollbacks, 0u);
@@ -256,7 +259,7 @@ TEST(ActionReplayTest, DeferredRollbacksWaitThenReplayOnceFromTheEarliestTick) {
   ft::TickWorld(world, RealDeltaTime(test_world));
 
   const uint64_t now = world.get<ft::SimulationClock>().tick;
-  EXPECT_EQ(now, first_request_tick + ft::kMaxRollbackDelayTicks);
+  EXPECT_EQ(now, first_request_tick + kTuning.max_rollback_delay_ticks);
   EXPECT_EQ(world.get<ft::RollbackMetrics>().rollbacks, 1u);
   EXPECT_EQ(world.get<ft::RollbackMetrics>().last_depth_ticks, now - interval_ticks);
   EXPECT_FALSE(ft::DeferredRollbackTick(world).has_value());
@@ -268,7 +271,7 @@ TEST(ActionReplayTest, DeferredRollbacksFireOnceEnoughPileUp) {
   RealFrames(test_world, IntervalTicks(test_world) * 2);
   const uint64_t now = world.get<ft::SimulationClock>().tick;
 
-  for (uint32_t request = 0; request < ft::kMaxDeferredRollbacks; ++request) {
+  for (uint32_t request = 0; request < kTuning.max_deferred_rollbacks; ++request) {
     ft::DeferRollback(world, now - 1);
   }
   ft::TickWorld(world, RealDeltaTime(test_world));

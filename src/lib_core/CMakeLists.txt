@@ -9,6 +9,19 @@ find_package(Boost REQUIRED COMPONENTS program_options dll)
 find_package(flecs CONFIG REQUIRED)
 find_package(reflectcpp CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(flatbuffers CONFIG REQUIRED)
+
+find_path(FLATBUFFERS_CMAKE_DIR BuildFlatBuffers.cmake
+          HINTS ${flatbuffers_DIR} "${flatbuffers_DIR}/../../../share/flatbuffers")
+include(${FLATBUFFERS_CMAKE_DIR}/BuildFlatBuffers.cmake)
+
+# lib_core owns the schema of its own settings and knows nothing of the game's schemas.
+flatbuffers_generate_headers(
+    TARGET CORE_SETTINGS_HEADERS
+    SCHEMAS ${PROJECT_SOURCE_DIR}/fbs/attributes.fbs ${PROJECT_SOURCE_DIR}/fbs/core_settings.fbs
+    # Same flags as the game schemas: their generated headers reference this one's type table.
+    FLAGS "--scoped-enums" "--reflect-names" "--gen-name-strings" "--gen-object-api" "--gen-compare" "--cpp-std" "c++17"
+)
 
 file(
   GLOB_RECURSE
@@ -17,6 +30,8 @@ file(
 )
 
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+
+add_dependencies(${PROJECT_NAME} GENERATE_CORE_SETTINGS_HEADERS)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 configure_file(
@@ -30,6 +45,7 @@ target_include_directories(
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CORE_SETTINGS_HEADERS>
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
 )
@@ -45,6 +61,7 @@ target_link_libraries(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
+  flatbuffers::flatbuffers
   flecs::flecs_static
   # spdlog::spdlog
   spdlog::spdlog_header_only

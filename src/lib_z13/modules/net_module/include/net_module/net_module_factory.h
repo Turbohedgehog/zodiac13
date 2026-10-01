@@ -25,6 +25,7 @@
 #include <boost/config.hpp>
 
 #include <lib_core/config.h>
+#include <z13_settings/settings.h>
 #include <lib_core/endpoint.h>
 #include <lib_core/module_factory_base.h>
 

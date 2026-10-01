@@ -17,6 +17,8 @@
 #pragma once
 
 #include <csignal>
+#include <expected>
+#include <functional>
 #include <cstdlib>
 #include <map>
 #include <optional>
@@ -36,9 +38,13 @@ namespace z13 {
 
 class Core {
  public:
-  Core(int argc, char *argv[]);
+  // Lets the application add its options (Config::AddSchemaOptions) before the command line is parsed.
+  using ConfigureOptions = std::function<std::expected<void, std::string>(Config&)>;
+
+  Core(int argc, char *argv[], const ConfigureOptions& configure_options = {});
   ~Core();  // for forward declared unique_ptr
   const Config& GetConfig() const;
+  Config& GetConfig();
   // Set when the command line Config parsed with an error; Run() re-checks this for
   // callers that construct a Core directly.
   std::optional<std::string> GetConfigError() const;

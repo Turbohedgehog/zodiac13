@@ -28,6 +28,7 @@ set(
     "--reflect-names"
     "--gen-name-strings"
     "--gen-object-api"
+    "--gen-compare"
     "--cpp-std" "c++17"
     # "--cpp-str-type" "std::string_view"
 )
@@ -37,6 +38,7 @@ flatbuffers_generate_headers(
     SCHEMAS ${FBS_SCHEMAS}
     BINARY_SCHEMAS_DIR "${CMAKE_CURRENT_BINARY_DIR}/bfbs"
     INCLUDE_DIR ${FBS_DIR}
+    INCLUDE ${CMAKE_SOURCE_DIR}/src/lib_core/fbs
     FLAGS ${GEN_FLAT_FLAGS}
 )
 
@@ -51,7 +53,8 @@ target_include_directories(
   $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
 )
 
-target_link_libraries(${PROJECT_NAME} INTERFACE flatbuffers::flatbuffers)
+# settings.fbs includes lib_core's core_settings.fbs, whose generated header lives with lib_core.
+target_link_libraries(${PROJECT_NAME} INTERFACE zodiac13::core flatbuffers::flatbuffers)
 
 # install(
 #     DIRECTORY include/

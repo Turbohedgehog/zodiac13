@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <lib_core/core_settings.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_serializer.h>
 #include <lib_core/world_snapshot_history.h>
@@ -48,8 +49,9 @@ void PromoteDeferredRollback(flecs::world& world, RollbackRequest& request) {
     return;
   }
   const uint64_t now = world.get<SimulationClock>().tick;
-  const bool due = request.to_tick || request.deferred_count >= kMaxDeferredRollbacks ||
-      now >= request.deferred_since_tick + kMaxRollbackDelayTicks;
+  const auto& tuning = world.get<ActiveCoreSettings>();
+  const bool due = request.to_tick || request.deferred_count >= tuning.max_deferred_rollbacks ||
+      now >= request.deferred_since_tick + tuning.max_rollback_delay_ticks;
   if (!due) {
     return;
   }
@@ -119,7 +121,8 @@ bool IsLastReplayFrame(flecs::world& world) {
 }
 
 void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
-  for (uint64_t frame = 0; frame <= kMaxCatchUpTicksPerFrame; ++frame) {
+  const uint64_t max_frames = world.get<ActiveCoreSettings>().max_catch_up_ticks_per_frame;
+  for (uint64_t frame = 0; frame <= max_frames; ++frame) {
     StartFrame(world, frame == 0 || IsLastReplayFrame(world) ? kind : FrameKind::kReplay);
     world.progress(delta_time);
     ApplyPendingRollback(world);
@@ -132,8 +135,9 @@ void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
 }  // namespace
 
 void RegisterRollback(flecs::world& world) {
-  RegisterComponents<RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest,
+  RegisterComponents<ActiveCoreSettings, RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest,
                      FrameStartCallbacks>(world);
+  world.set<ActiveCoreSettings>({});
   world.set<FrameStartCallbacks>({});
   world.set<RollbackRequest>({});
   world.set<ClockAdjustRequest>({});
@@ -183,7 +187,7 @@ void TickWorld(flecs::world& world, float delta_time, FrameKind kind) {
     world.get_mut<ClockAdjustRequest>().ticks += adjust + 1;
     return;
   }
-  const int64_t extra_ticks = std::min<int64_t>(adjust, kMaxCatchUpTicksPerFrame);
+  const int64_t extra_ticks = std::min<int64_t>(adjust, static_cast<int64_t>(world.get<ActiveCoreSettings>().max_catch_up_ticks_per_frame));
   for (int64_t tick = 0; tick <= extra_ticks; ++tick) {
     AdvanceTick(world, delta_time, tick == extra_ticks ? kind : FrameKind::kCatchUp);
   }

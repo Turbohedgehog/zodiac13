@@ -44,6 +44,11 @@
 namespace z13::net {
 namespace {
 
+const NetTuning kTuning;
+const uint64_t kRollbackSnapshotsPerInterval = kTuning.rollback_snapshots_per_interval;
+const uint64_t kNetSendIntervalTicks = kTuning.send_interval_ticks;
+const uint64_t kMaxRollbackDelayTicks = CoreSettings {}.max_rollback_delay_ticks;
+
 namespace ft = z13::flecs_tools;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
@@ -241,9 +246,9 @@ TEST(CommandStreamTest, LateCommandsRollBackInBatchesFromANearbySnapshot) {
   }
 
   const auto& metrics = server.World().get<ft::RollbackMetrics>();
-  EXPECT_LE(metrics.rollbacks - rollbacks_before, kTapTicks / ft::kMaxRollbackDelayTicks + 1);
+  EXPECT_LE(metrics.rollbacks - rollbacks_before, kTapTicks / kMaxRollbackDelayTicks + 1);
   const uint64_t capture_gap = SnapshotIntervalTicks(server) / kRollbackSnapshotsPerInterval;
-  EXPECT_LE(metrics.max_depth_ticks, capture_gap + ft::kMaxRollbackDelayTicks + kNetSendIntervalTicks + 2 * kMaxDelayTicks);
+  EXPECT_LE(metrics.max_depth_ticks, capture_gap + kMaxRollbackDelayTicks + kNetSendIntervalTicks + 2 * kMaxDelayTicks);
 }
 
 TEST(CommandStreamTest, SimultaneousBuildsFromTwoClientsLandOnBothWorlds) {

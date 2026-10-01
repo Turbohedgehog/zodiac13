@@ -170,7 +170,7 @@ void SendPendingCommands(
   if (digests.awaiting_resync) {
     return;
   }
-  if (clock.tick % kNetSendIntervalTicks != 0 || outgoing.records.empty()) {
+  if (clock.tick % it.world().get<NetTuning>().send_interval_ticks != 0 || outgoing.records.empty()) {
     return;
   }
   const bool is_server = it.world().has<ServerRole>();

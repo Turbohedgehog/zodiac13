@@ -19,27 +19,9 @@
 #include <cstdint>
 #include <optional>
 
+#include <z13_settings/net_tuning.h>
+
 namespace z13::net {
-
-inline constexpr uint64_t kNetSendIntervalTicks = 3;
-
-inline constexpr uint64_t kMaxLateTicks = 96;
-
-// A synced client is ahead only by estimate noise.
-inline constexpr uint64_t kMaxScheduleAheadTicks = 30;
-
-// Not input, so it can wait for peers to receive it in time.
-inline constexpr uint64_t kSessionEventDelayTicks = 12;
-
-inline constexpr uint64_t kRollbackSnapshotsPerInterval = 4;
-
-inline constexpr double kClockOffsetSmoothing = 0.25;
-
-// Past the jump threshold (a hitch) the whole gap closes at once, before commands leave
-// the server's window.
-inline constexpr int64_t kClockCatchUpThresholdTicks = 2;
-inline constexpr uint64_t kClockCatchUpEveryTicks = 4;
-inline constexpr int64_t kClockJumpThresholdTicks = 15;
 
 struct ClockSync {
   using Singleton = void;
@@ -52,9 +34,9 @@ struct ClockSync {
 };
 
 // Already taken off the offset.
-int64_t TakeClockAdjustment(ClockSync& sync, uint64_t tick);
+int64_t TakeClockAdjustment(ClockSync& sync, const NetTuning& tuning, uint64_t tick);
 
 // Ignores a Pong that doesn't match the Ping in flight.
-void ApplyPong(ClockSync& sync, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick);
+void ApplyPong(ClockSync& sync, const NetTuning& tuning, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick);
 
 }  // namespace z13::net

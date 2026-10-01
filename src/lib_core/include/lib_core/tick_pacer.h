@@ -21,16 +21,15 @@
 
 namespace z13 {
 
-// A larger backlog is a hitch (a breakpoint, a stalled disk): dropped, not replayed in a burst.
-inline constexpr uint64_t kMaxTickBacklog {15};
-
 // Keeps simulation ticks on wall-clock time: a slow frame is made up by the next ticks
 // running back to back, so a peer's clock doesn't drift behind the others'.
 class TickPacer {
  public:
   using Clock = std::chrono::steady_clock;
 
-  TickPacer(Clock::duration tick_duration, Clock::time_point start);
+  // A backlog of `max_backlog` ticks or more is a hitch (a breakpoint, a stalled disk):
+  // dropped, not replayed in a burst.
+  TickPacer(Clock::duration tick_duration, Clock::time_point start, uint64_t max_backlog);
 
   // True when a tick is due at `now`; consumes it.
   bool TakeTick(Clock::time_point now);
@@ -40,6 +39,7 @@ class TickPacer {
  private:
   Clock::duration tick_duration_;
   Clock::time_point next_tick_;
+  uint64_t max_backlog_;
 };
 
 }  // namespace z13

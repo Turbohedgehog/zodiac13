@@ -23,6 +23,7 @@
 #include <string>
 
 #include <lib_core/config.h>
+#include <z13_settings/settings.h>
 #include <lib_core/endpoint.h>
 
 #include <net_module/transport.h>

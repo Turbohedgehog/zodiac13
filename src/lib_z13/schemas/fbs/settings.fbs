@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-#pragma once
+include "core_settings.fbs";
+include "net_tuning.fbs";
 
-#include <filesystem>
+// The game's settings.json, next to the input config.
 
-namespace z13::tools::environment {
+namespace z13.fbs.settings;
 
-std::filesystem::path GetGameDataDirectory();
-std::filesystem::path GetGameInputConfigJsonPath();
-std::filesystem::path GetGameInputConfigJsonPath2();
-std::filesystem::path GetGameQuickSaveJsonPath();
+table ConnectTimeout {
+  limit: uint32 = 32 (min: 1, cli: "--connect-limit");
+  min_timeout_ms: uint32 = 1000 (min: 1, cli: "--connect-min-timeout-ms");
+  max_timeout_ms: uint32 = 3000 (min: 1, cli: "--connect-max-timeout-ms");
+}
 
-} // namespace z13::environment
+table Settings {
+  core: z13.fbs.core.CoreSettings;
+  connect_timeout: ConnectTimeout;
+  net: z13.fbs.net.NetTuning;
+}
+
+root_type Settings;
