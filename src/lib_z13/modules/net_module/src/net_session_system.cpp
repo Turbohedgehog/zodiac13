@@ -48,6 +48,7 @@
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
+#include <z13_module/input/action_negotiation.h>
 
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
@@ -73,6 +74,7 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
+namespace zgi = z13::gameplay::input;
 
 std::vector<uint8_t> ToBytes(const std::vector<char>& data) {
   return std::vector<uint8_t>(data.begin(), data.end());
@@ -177,9 +179,11 @@ void FillCatchUp(flecs::world world, Message& message) {
 }
 
 NetSession::Result SendWelcome(
-    NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id) {
+    NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id,
+    std::vector<uint32_t> action_ids) {
   fbn::WelcomeT welcome;
   welcome.player_id = player_id;
+  welcome.action_ids = std::move(action_ids);
   FillCatchUp(world, welcome);
   const uint64_t snapshot_tick = welcome.snapshot_tick;
 
@@ -245,6 +249,18 @@ struct PlayerIdAllocator {
   uint32_t next_player_id {};
 };
 
+std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world world, const fbn::ClientHelloT& hello) {
+  std::vector<zgi::ActionDescriptor> descriptors;
+  descriptors.reserve(hello.actions.size());
+  for (const auto& action : hello.actions) {
+    if (!action) {
+      return std::unexpected(std::string {"malformed action list"});
+    }
+    descriptors.push_back({.enum_name = action->enum_name, .value_name = action->value_name, .enum_value = action->enum_value});
+  }
+  return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), descriptors);
+}
+
 NetSession::Result HandleClientHello(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
     z13::gameplay::IdCounters& counters) {
@@ -257,6 +273,13 @@ NetSession::Result HandleClientHello(
     return {};
   }
 
+  // Before an id is spent: a refused client must not cost one.
+  auto action_ids = NegotiateActions(world, hello);
+  if (!action_ids) {
+    log_warn("NetSession(server): refusing connection {}: {}", connection, action_ids.error());
+    return SendRejected(session, connection, std::move(action_ids.error()));
+  }
+
   // Post-increment (matches OnInit): last_player_id already holds the next id to hand
   // out, not the last one used.
   auto& allocator = world.get_mut<PlayerIdAllocator>();
@@ -267,7 +290,7 @@ NetSession::Result HandleClientHello(
   if (const auto bound = session.BindPlayer(connection, player_id); !bound) {
     return bound;
   }
-  if (const auto welcomed = SendWelcome(session, world, connection, player_id); !welcomed) {
+  if (const auto welcomed = SendWelcome(session, world, connection, player_id, std::move(*action_ids)); !welcomed) {
     return welcomed;
   }
   return SchedulePlayerJoined(session, world, player_id);
@@ -298,7 +321,7 @@ NetSession::Result HandlePing(
   return session.Send(connection, Channel::kUnreliable, envelope);
 }
 
-bool IsKnownActionId(const z13::input::ActionMap& action_map, uint8_t action_id) {
+bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id) {
   const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
   return by_id.find(static_cast<z13::input::ActionInfo::IdType>(action_id)) != by_id.end();
 }
@@ -556,6 +579,13 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
     return;
   }
 
+  if (const auto adopted = zgi::AdoptActionIds(world, welcome.action_ids); !adopted) {
+    log_warn("NetSession(client): unusable Welcome: {}", adopted.error());
+    SetConnectionStatus(world, ConnectionState::kFailed, adopted.error());
+    EndSession(world);
+    return;
+  }
+
   world.set<z13::gameplay::LocalPlayer>({.id = welcome.player_id});
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
@@ -752,9 +782,16 @@ void HandleClientDisconnect(flecs::world world) {
   }
 }
 
-NetSession::Result SendClientHello(NetSession& session, ConnectionId server_connection) {
+NetSession::Result SendClientHello(flecs::world world, NetSession& session, ConnectionId server_connection) {
   fbn::ClientHelloT hello;
   hello.version = kProtocolVersion;
+  for (const zgi::ActionDescriptor& action : zgi::DescribeActions(world.get<z13::input::ActionMap>())) {
+    auto described = std::make_unique<fbn::ActionDescT>();
+    described->enum_name = action.enum_name;
+    described->value_name = action.value_name;
+    described->enum_value = action.enum_value;
+    hello.actions.push_back(std::move(described));
+  }
 
   Envelope envelope;
   envelope.body.Set(std::move(hello));
@@ -829,7 +866,7 @@ NetSession::Result ServiceClientSession(flecs::world world, NetSession& session)
         if (const auto bound = session.SetServerConnection(event.connection); !bound) {
           return bound;
         }
-        if (const auto greeted = SendClientHello(session, event.connection); !greeted) {
+        if (const auto greeted = SendClientHello(world, session, event.connection); !greeted) {
           return greeted;
         }
         break;
