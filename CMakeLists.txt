@@ -38,7 +38,7 @@ project(zodiac13 VERSION ${Z13_FULL_VERSION})
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 set(PROJECT_NAMESPACE ${PROJECT_NAME} CACHE PATH "Project namespace" FORCE)
-set(PROJECT_VERSION 0.0.1 CACHE PATH "Z13 version" FORCE)
+set(PROJECT_VERSION 0.2.0 CACHE PATH "Z13 version" FORCE)
 
 
 # get_cmake_property(_variableNames VARIABLES)
