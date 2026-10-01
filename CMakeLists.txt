@@ -51,6 +51,13 @@ set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Local builds pick up ccache when installed; CI passes its own launcher.
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 # Lockstep simulation needs matching float results across participants: no FMA
 # contraction (GCC's gnu++ default fuses on arm64). vcpkg-built deps (Bullet) keep theirs.
 if(MSVC)
