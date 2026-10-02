@@ -87,18 +87,5 @@ add_custom_target(z13_config ALL
 # build them — otherwise `--target zodiac13` / the IDE build produces a useless exe.
 add_dependencies(zodiac13 z13_config z13_module net_module bullet_module raylib_module test_dll_module)
 
-set(CPACK_GENERATOR "DEB;TGZ")
-
-set(CPACK_PACKAGE_VERSION_MAJOR ${Z13_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${Z13_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${Z13_VERSION_PATCH})
-set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}")
-set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
-
-# Keeps arm64 artifacts from colliding with the x64 ones (whose names stay as they were).
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-    set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}-arm64")
-endif()
-
-include(CPack)
+include(cmake/packaging.cmake)
 

@@ -40,6 +40,4 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 #     # MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 # )
 
-# install(TARGETS ${PROJECT_NAME}
-#         # RUNTIME_DEPENDENCY_SET runtime_deps
-#         DESTINATION ${ZODIAC_13_ROOT_DIR}/bin)
+# Installed for the package by cmake/packaging.cmake.
