@@ -1,11 +1,13 @@
-# The Linux package: bin/'s runtime layout (exe, config/, modules/, assets/) plus the shared
-# flecs, found through $ORIGIN instead of the build tree's absolute RUNPATH. Only the
+# The Linux package: bin/'s runtime layout (exe, z13_core, config/, modules/, assets/) plus
+# the shared flecs, spdlog and fmt, found through $ORIGIN instead of the build tree's absolute RUNPATH. Only the
 # "runtime" component is packaged; the SDK installs (headers, static libs) stay out.
 
 set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
 set(Z13_PLUGINS z13_module bullet_module net_module raylib_module test_dll_module)
 
 find_package(flecs CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 
 install(TARGETS zodiac13 RUNTIME DESTINATION . COMPONENT runtime)
 set_target_properties(zodiac13 PROPERTIES INSTALL_RPATH "$ORIGIN")
@@ -21,7 +23,9 @@ foreach(plugin IN LISTS Z13_PLUGINS)
     set_target_properties(${plugin} PROPERTIES INSTALL_RPATH "$ORIGIN/../..;$ORIGIN/../z13_module")
 endforeach()
 
-install(IMPORTED_RUNTIME_ARTIFACTS flecs::flecs DESTINATION . COMPONENT runtime)
+install(TARGETS core RUNTIME DESTINATION . COMPONENT runtime LIBRARY DESTINATION . COMPONENT runtime)
+set_target_properties(core PROPERTIES INSTALL_RPATH "$ORIGIN")
+install(IMPORTED_RUNTIME_ARTIFACTS flecs::flecs spdlog::spdlog fmt::fmt DESTINATION . COMPONENT runtime)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/config/" DESTINATION config COMPONENT runtime)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION assets COMPONENT runtime)
 
@@ -36,12 +40,12 @@ if(UNIX)
     install(FILES "${CMAKE_SOURCE_DIR}/cmake/deb/zodiac13.desktop" DESTINATION /usr/share/applications
             COMPONENT deb EXCLUDE_FROM_ALL)
 
-    # Depends from the binaries; libflecs.so and z13_module.so ship in the package itself.
+    # Depends from the binaries; the shared libraries above ship in the package itself.
     get_target_property(flecs_location flecs::flecs LOCATION)
     get_filename_component(flecs_dir "${flecs_location}" DIRECTORY)
     get_target_property(z13_module_dir z13_module LIBRARY_OUTPUT_DIRECTORY)
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${flecs_dir};${z13_module_dir}")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${flecs_dir};${Z13_BIN_DIR};${z13_module_dir}")
 endif()
 
 set(CPACK_GENERATOR "DEB;TGZ")

@@ -15,20 +15,26 @@
  */
 
 // Loads the dedicated server's plugins through boost::dll, as the launcher does, and runs
-// a few frames: fails where each plugin gets its own copy of flecs (a static flecs build).
+// a few frames: fails where each plugin gets its own copy of flecs (a static flecs build),
+// or keeps its own spdlog logger registry instead of the process's one.
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <boost/dll/runtime_symbol_info.hpp>
+#include <spdlog/sinks/ringbuffer_sink.h>
+#include <spdlog/spdlog.h>
 
 #include <lib_core/core.h>
 #include <lib_core/log.h>
 #include <lib_core/simulation_clock.h>
+#include <lib_test_dll/test_dll_messages.h>
 #include <z13_launcher/module_list.h>
 
 namespace {
@@ -39,10 +45,16 @@ const std::filesystem::path kServerConfigPath = kBinDir / "config" / "z13_config
 
 constexpr uint64_t kFrames {10};
 constexpr float kDeltaTime {1.f / 60.f};
+constexpr size_t kCapturedMessages {256};
 
 }  // namespace
 
 int main() {
+  // Debug here; a plugin with its own spdlog copy would still be at the default info level.
+  auto captured = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(kCapturedMessages);
+  spdlog::default_logger()->sinks().push_back(captured);
+  spdlog::set_level(spdlog::level::debug);
+
   std::string program {"z13_plugin_smoke"};
   std::string skip_main_menu {"--skip-main-menu"};
   std::vector<char*> argv {program.data(), skip_main_menu.data()};
@@ -63,6 +75,13 @@ int main() {
   flecs::world& world = core.CreateWorld().get();
   for (uint64_t frame = 0; frame < kFrames; ++frame) {
     core.Update(kDeltaTime);
+  }
+
+  if (std::ranges::none_of(captured->last_formatted(), [](const std::string& line) {
+        return line.find(z13::dll::kRegisterModulesMessage) != std::string::npos;
+      })) {
+    z13::log_error("test_dll's debug message didn't reach the core's logger");
+    return EXIT_FAILURE;
   }
 
   const uint64_t tick = world.get<z13::flecs_tools::SimulationClock>().tick;
