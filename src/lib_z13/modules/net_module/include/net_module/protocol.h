@@ -85,11 +85,4 @@ auto VisitBody(const fbs::net::MessageBodyUnion& body, Visitor&& visitor) {
       fbn::StateDigestT>(body, visitor);
 }
 
-// CommandWire::value is a quantized int16; docs/client-server-plan.md requires the
-// sender to apply the same quantized value everyone else receives, not the original
-// float, so these two are the only place that quantization happens.
-constexpr float kActionValueScale = 100.f;
-int16_t QuantizeActionValue(float value);
-float DequantizeActionValue(int16_t wire_value);
-
 }  // namespace z13::net

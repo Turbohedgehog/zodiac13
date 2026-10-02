@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <limits>
 #include <vector>
 
 #include <net_module/protocol.h>
@@ -206,26 +205,6 @@ TEST(CodecTest, GarbageBytesAreRejected) {
 
 TEST(CodecTest, EmptyBytesAreRejected) {
   EXPECT_FALSE(DecodeMessage(std::span<const uint8_t> {}).has_value());
-}
-
-TEST(QuantizeActionValueTest, RoundTripsWithinOneQuantizationStep) {
-  for (const float value : {0.f, 1.f, -1.f, 0.5f, -0.33f, 3.14f}) {
-    const float dequantized = DequantizeActionValue(QuantizeActionValue(value));
-    EXPECT_NEAR(dequantized, value, 1.f / kActionValueScale);
-  }
-}
-
-TEST(QuantizeActionValueTest, BooleanActionsRoundTripExactly) {
-  EXPECT_EQ(QuantizeActionValue(0.f), 0);
-  EXPECT_EQ(DequantizeActionValue(QuantizeActionValue(1.f)), 1.f);
-}
-
-TEST(QuantizeActionValueTest, OutOfRangeValuesClampInsteadOfOverflowing) {
-  const int16_t max_wire = std::numeric_limits<int16_t>::max();
-  const int16_t min_wire = std::numeric_limits<int16_t>::min();
-
-  EXPECT_EQ(QuantizeActionValue(1e9f), max_wire);
-  EXPECT_EQ(QuantizeActionValue(-1e9f), min_wire);
 }
 
 }  // namespace

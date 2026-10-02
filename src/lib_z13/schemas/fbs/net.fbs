@@ -24,7 +24,7 @@ include "net_tuning.fbs";
 namespace z13.fbs.net;
 
 // 6 bytes (padded). `tick_delta` is relative to a batch's own base_tick (see CommandBatch /
-// SequencedCommands); `value` is quantized (see protocol.h's QuantizeActionValue).
+// SequencedCommands); `value` is quantized (see player_action.h's QuantizeActionValue).
 struct CommandWire {
   tick_delta: ubyte;
   action_id: ushort;

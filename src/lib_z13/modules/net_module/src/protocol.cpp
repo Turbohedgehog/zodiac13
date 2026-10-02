@@ -16,10 +16,6 @@
 
 #include <net_module/protocol.h>
 
-#include <algorithm>
-#include <cmath>
-#include <limits>
-
 namespace z13::net {
 
 namespace {
@@ -48,17 +44,6 @@ std::expected<Envelope, std::string> DecodeMessage(std::span<const uint8_t> byte
   Envelope envelope;
   root->UnPackTo(&envelope);
   return envelope;
-}
-
-int16_t QuantizeActionValue(float value) {
-  const float scaled = std::clamp(
-      value * kActionValueScale, static_cast<float>(std::numeric_limits<int16_t>::min()),
-      static_cast<float>(std::numeric_limits<int16_t>::max()));
-  return static_cast<int16_t>(std::lround(scaled));
-}
-
-float DequantizeActionValue(int16_t wire_value) {
-  return static_cast<float>(wire_value) / kActionValueScale;
 }
 
 }  // namespace z13::net

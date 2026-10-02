@@ -69,7 +69,7 @@ std::vector<ScheduledCommand> ToWire(const std::vector<z13::gameplay::PlayerActi
     scheduled.push_back({
         .apply_tick = record.tick,
         .action_id = static_cast<uint16_t>(record.action_id),
-        .value = QuantizeActionValue(record.value),
+        .value = z13::gameplay::QuantizeActionValue(record.value),
     });
   }
   return scheduled;
@@ -102,7 +102,7 @@ void ScheduleLocally(
         .tick = command.apply_tick,
         .player_id = player_id,
         .action_id = command.action_id,
-        .value = DequantizeActionValue(command.value),
+        .value = z13::gameplay::DequantizeActionValue(command.value),
     });
   }
 }
@@ -135,12 +135,7 @@ void ApplyOwnCommands(
       std::ranges::any_of(unapplied, [&clock](const auto& record) { return record.tick != clock.tick; })) {
     return;  // a backlog: the sender collapses it
   }
-  std::vector<z13::gameplay::PlayerActionRecord> recorded_now;
-  for (z13::gameplay::PlayerActionRecord& record : unapplied) {
-    // As peers will see it, or the sender diverges from them.
-    record.value = DequantizeActionValue(QuantizeActionValue(record.value));
-    recorded_now.push_back(record);
-  }
+  std::vector<z13::gameplay::PlayerActionRecord> recorded_now(unapplied.begin(), unapplied.end());
   outgoing.applied_count = outgoing.records.size();
   std::ranges::sort(recorded_now, RecordLess);
   log.log.MergeSorted(std::move(recorded_now), RecordLess);

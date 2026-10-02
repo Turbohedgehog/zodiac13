@@ -394,7 +394,7 @@ NetSession::Result HandleCommandBatch(
         .tick = apply_tick,
         .player_id = *player_id,
         .action_id = command.action_id(),
-        .value = DequantizeActionValue(command.value()),
+        .value = z13::gameplay::DequantizeActionValue(command.value()),
     });
     accepted.push_back(command);
   }
@@ -781,7 +781,7 @@ void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& s
         .tick = sequenced.base_tick + command.tick_delta(),
         .player_id = sequenced.player_id,
         .action_id = command.action_id(),
-        .value = DequantizeActionValue(command.value()),
+        .value = z13::gameplay::DequantizeActionValue(command.value()),
     });
   });
 }
