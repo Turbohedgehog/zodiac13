@@ -69,4 +69,45 @@ jobs:
 
       # Every test is its own process (gtest_discover_tests), so they run side by side.
       - name: Run tests
+        env:
+          Z13_STATE_DUMP: ${{ github.workspace }}/state-dump.txt
         run: ctest --test-dir build --output-on-failure --no-tests=error --parallel 4
+
+      # CrossPlatformStateTest's dump; the cross-platform-state job compares them.
+      - name: Upload state dump
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-dump-${{ matrix.triplet }}
+          path: state-dump.txt
+          if-no-files-found: error
+
+  cross-platform-state:
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: state-dump-*
+          path: dumps
+
+      # Lines are "tick, entity, component, value": the first diff line is where they diverged.
+      - name: Compare state dumps
+        shell: bash
+        run: |
+          reference=dumps/state-dump-x64-linux/state-dump.txt
+          status=0
+          dumps=(dumps/*/state-dump.txt)
+          if [ "${#dumps[@]}" -ne 3 ]; then
+            echo "::error::expected a dump from each of the 3 platforms, got ${#dumps[@]}"
+            status=1
+          fi
+          for dump in "${dumps[@]}"; do
+            if ! cmp -s "$reference" "$dump"; then
+              echo "::error::$dump differs from $reference"
+              diff "$reference" "$dump" | head -20 || true  # bash -e -o pipefail would stop here
+              status=1
+            fi
+          done
+          exit $status
