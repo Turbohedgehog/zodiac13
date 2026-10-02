@@ -46,7 +46,8 @@ jobs:
           extra-cmake-args: -DZ13_VERSION_PATCH=${{ github.run_number }}
 
       - name: Build
-        run: cmake --build build --config Release --parallel # Linux uses Makefiles, serial by default
+        # A bare --parallel is an unbounded `make -j` on Linux: the runner runs out of memory.
+        run: cmake --build build --config Release --parallel 4
 
       # Windows has no CPack packaging set up here, so this mirrors the
       # original build_windows.yml: just zip the bin/ output directory.
