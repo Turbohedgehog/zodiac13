@@ -18,24 +18,17 @@
 
 #include <algorithm>
 #include <format>
+#include <memory>
 #include <string>
 #include <unordered_set>
 #include <string_view>
 #include <tuple>
 #include <utility>
 
+#include <flatbuffers/flatbuffers.h>
+
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
-
-// reflect-cpp's headers trigger warnings under /W4 that this project treats as
-// errors; suppress them for code this project doesn't own.
-#if defined(_MSC_VER)
-#pragma warning(push, 0)
-#endif
-#include <rfl/msgpack.hpp>
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 namespace z13::flecs_tools {
 
@@ -235,10 +228,9 @@ WorldSnapshot CaptureState(const flecs::world& world) {
   return CaptureImpl(world, StateEntityFilter, StateComponentFilter, StateEntityFilter);
 }
 
-std::vector<char> SaveEntityState(const flecs::world& world, flecs::entity entity) {
-  const WorldSnapshot snapshot = CaptureImpl(
+WorldSnapshot CaptureEntityState(const flecs::world& world, flecs::entity entity) {
+  return CaptureImpl(
       world, [entity](flecs::entity e) { return e == entity; }, StateComponentFilter, StateEntityFilter);
-  return rfl::msgpack::write(snapshot);
 }
 
 namespace {
@@ -373,13 +365,7 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
   return {};
 }
 
-std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const std::vector<char>& bytes) {
-  auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
-  if (!result) {
-    return Error(result.error().what());
-  }
-
-  const WorldSnapshot& snapshot = result.value();
+std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot) {
   if (auto valid = ValidateSnapshot(world, snapshot); !valid) {
     return valid;
   }
@@ -396,38 +382,63 @@ std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const
   return {};
 }
 
-std::vector<char> SaveState(const flecs::world& world) {
-  return rfl::msgpack::write(CaptureState(world));
-}
-
-std::vector<char> SaveState(const WorldSnapshot& snapshot) {
-  return rfl::msgpack::write(snapshot);
-}
-
-std::expected<void, std::string> LoadState(flecs::world& world, const std::vector<char>& bytes) {
-  auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
-  if (!result) {
-    return Error(result.error().what());
+fbs::state::WorldSnapshotT ToFlatbuffer(const WorldSnapshot& snapshot) {
+  fbs::state::WorldSnapshotT flat;
+  for (const EntitySnapshot& entity : snapshot.entities) {
+    auto& flat_entity = *flat.entities.emplace_back(std::make_unique<fbs::state::EntitySnapshotT>());
+    flat_entity.name = entity.name;
+    flat_entity.tags = entity.tags;
+    for (const ComponentValue& component : entity.components) {
+      auto& flat_component = *flat_entity.components.emplace_back(std::make_unique<fbs::state::ComponentValueT>());
+      flat_component.type = component.type;
+      flat_component.value = component.value;
+    }
+    for (const Relationship& relationship : entity.relationships) {
+      auto& flat_relationship =
+          *flat_entity.relationships.emplace_back(std::make_unique<fbs::state::RelationshipT>());
+      flat_relationship.relation = relationship.relation;
+      flat_relationship.target = relationship.target;
+    }
   }
-  return RestoreWorld(world, result.value());
+  return flat;
 }
 
-std::vector<char> SaveWorldState(const flecs::world& world, const EntityFilter& accept) {
-  return rfl::msgpack::write(CaptureWorld(world, accept));
+WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& flat) {
+  WorldSnapshot snapshot;
+  for (const auto& flat_entity : flat.entities) {
+    EntitySnapshot& entity = snapshot.entities.emplace_back();
+    entity.name = flat_entity->name;
+    entity.tags = flat_entity->tags;
+    for (const auto& flat_component : flat_entity->components) {
+      entity.components.push_back({.type = flat_component->type, .value = flat_component->value});
+    }
+    for (const auto& flat_relationship : flat_entity->relationships) {
+      entity.relationships.push_back({.relation = flat_relationship->relation, .target = flat_relationship->target});
+    }
+  }
+  return snapshot;
 }
 
-std::vector<char> SaveWorldState(const flecs::world& world) {
+std::vector<uint8_t> SaveWorldState(const flecs::world& world, const EntityFilter& accept) {
+  const fbs::state::WorldSnapshotT flat = ToFlatbuffer(CaptureWorld(world, accept));
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(fbs::state::WorldSnapshot::Pack(builder, &flat));
+  return {builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize()};
+}
+
+std::vector<uint8_t> SaveWorldState(const flecs::world& world) {
   return SaveWorldState(world, DefaultEntityFilter);
 }
 
-bool LoadWorldState(flecs::world& world, const std::vector<char>& bytes) {
-  auto result = rfl::msgpack::read<WorldSnapshot>(bytes);
-  if (!result) {
-    log_error("z13::LoadWorldState: {}", result.error().what());
+bool LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes) {
+  flatbuffers::Verifier verifier(bytes.data(), bytes.size());
+  if (!fbs::state::VerifyWorldSnapshotBuffer(verifier)) {
+    log_error("z13::LoadWorldState: malformed WorldSnapshot buffer");
     return false;
   }
-
-  ApplyWorld(world, result.value());
+  fbs::state::WorldSnapshotT flat;
+  fbs::state::GetWorldSnapshot(bytes.data())->UnPackTo(&flat);
+  ApplyWorld(world, FromFlatbuffer(flat));
   return true;
 }
 

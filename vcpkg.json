@@ -30,12 +30,7 @@
         "opengl3-binding"
       ]
     },
-    {
-      "name": "reflectcpp",
-      "features": [
-        "msgpack"
-      ]
-    }
+    "reflectcpp"
   ],
   "overrides": [
     {

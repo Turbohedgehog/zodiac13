@@ -15,7 +15,8 @@
 
 #include <flecs.h>
 #include <rfl/json.hpp>
-#include <rfl/msgpack.hpp>
+
+#include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/world_serializer.h>
 
@@ -85,17 +86,29 @@ std::int64_t BestNs(const Op& op, std::size_t& sink, int ops, int samples) {
   return best;
 }
 
-// `guard` asserts the stable facts (msgpack write faster, payload smaller).
-// Off for the large world: in Debug, write timing there is too noisy for a
-// strict compare — the printed numbers are the point.
-void RunBenchmark(std::size_t entity_count, int ops, int samples, bool guard) {
+std::vector<uint8_t> WriteBinary(const ft::WorldSnapshot& snapshot) {
+  const z13::fbs::state::WorldSnapshotT flat = ft::ToFlatbuffer(snapshot);
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(z13::fbs::state::WorldSnapshot::Pack(builder, &flat));
+  return {builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize()};
+}
+
+ft::WorldSnapshot ReadBinary(const std::vector<uint8_t>& bytes) {
+  z13::fbs::state::WorldSnapshotT flat;
+  z13::fbs::state::GetWorldSnapshot(bytes.data())->UnPackTo(&flat);
+  return ft::FromFlatbuffer(flat);
+}
+
+// Prints the numbers only: with values still JSON text, the FlatBuffers snapshot is no
+// smaller than JSON (docs/serialization-plan.md, stage 2 adds a size check).
+void RunBenchmark(std::size_t entity_count, int ops, int samples) {
   const ft::WorldSnapshot snapshot = MakeBenchmarkSnapshot(entity_count);
 
   const std::string json_bytes = rfl::json::write(snapshot);
-  const std::vector<char> binary_bytes = rfl::msgpack::write(snapshot);
+  const std::vector<uint8_t> binary_bytes = WriteBinary(snapshot);
 
   // Both formats must round-trip the same data.
-  ASSERT_EQ(rfl::json::write(rfl::msgpack::read<ft::WorldSnapshot>(binary_bytes).value()),
+  ASSERT_EQ(rfl::json::write(ReadBinary(binary_bytes)),
             rfl::json::write(rfl::json::read<ft::WorldSnapshot>(json_bytes).value()));
 
   std::size_t sink = 0;
@@ -106,9 +119,9 @@ void RunBenchmark(std::size_t entity_count, int ops, int samples, bool guard) {
       [&] { return rfl::json::read<ft::WorldSnapshot>(json_bytes).value().entities.size(); },
       sink, ops, samples);
   const std::int64_t binary_write = BestNs(
-      [&] { return rfl::msgpack::write(snapshot).size(); }, sink, ops, samples);
+      [&] { return WriteBinary(snapshot).size(); }, sink, ops, samples);
   const std::int64_t binary_read = BestNs(
-      [&] { return rfl::msgpack::read<ft::WorldSnapshot>(binary_bytes).value().entities.size(); },
+      [&] { return ReadBinary(binary_bytes).entities.size(); },
       sink, ops, samples);
   EXPECT_GT(sink, 0u);
 
@@ -127,11 +140,6 @@ void RunBenchmark(std::size_t entity_count, int ops, int samples, bool guard) {
             << static_cast<double>(binary_bytes.size()) / static_cast<double>(json_bytes.size())
             << "x\n";
 
-  if (guard) {
-    EXPECT_LT(binary_write, json_write);
-    EXPECT_LT(binary_bytes.size(), json_bytes.size());
-  }
-
   // Full capture+sort+write pipeline on a real world (this path holds the sorts).
   const flecs::world world = MakeBenchmarkWorld(entity_count);
   const std::int64_t save = BestNs(
@@ -140,11 +148,11 @@ void RunBenchmark(std::size_t entity_count, int ops, int samples, bool guard) {
 }
 
 TEST(SerializationEfficiency, DISABLED_BinaryVsJson) {
-  RunBenchmark(/*entity_count=*/30, /*ops=*/60, /*samples=*/5, /*guard=*/true);
+  RunBenchmark(/*entity_count=*/30, /*ops=*/60, /*samples=*/5);
 }
 
 TEST(SerializationEfficiency, DISABLED_BinaryVsJsonLargeWorld) {
-  RunBenchmark(/*entity_count=*/10000, /*ops=*/2, /*samples=*/2, /*guard=*/false);
+  RunBenchmark(/*entity_count=*/10000, /*ops=*/2, /*samples=*/2);
 }
 
 }  // namespace
