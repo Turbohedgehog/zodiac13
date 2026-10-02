@@ -78,11 +78,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           cmake --build build --target zodiac13
-          cd build && cpack -G TGZ
+          cd build && cpack -G "TGZ;DEB"
 
       - name: Run the server from the package (Linux)
         if: runner.os == 'Linux'
         run: .github/scripts/package_smoke.sh build/zodiac13-*.tar.gz
+
+      - name: Install the .deb and run the server (Linux)
+        if: runner.os == 'Linux'
+        run: .github/scripts/deb_smoke.sh build/zodiac13-*.deb
 
       # CrossPlatformStateTest's dump; the cross-platform-state job compares them.
       - name: Upload state dump
