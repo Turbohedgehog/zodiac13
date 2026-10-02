@@ -36,7 +36,7 @@ class FlecsStateRoundTrip : public ::testing::Test {
 
   // SaveWorldState(A) -> LoadWorldState(B).
   void RunPipeline() {
-    const std::vector<char> binary = ft::SaveWorldState(world_a_, kTestFilter);
+    const std::vector<uint8_t> binary = ft::SaveWorldState(world_a_, kTestFilter);
     ASSERT_FALSE(binary.empty());
     ASSERT_TRUE(ft::LoadWorldState(world_b_, binary));
   }

@@ -10,7 +10,7 @@
 
 ## Слои
 
-`Capture(world)` → `WorldSnapshot` (в памяти) → кодек (JSON; msgpack уже есть) → транспорт (файл, сеть).
+`Capture(world)` → `WorldSnapshot` (в памяти) → кодек (JSON для сохранений, FlatBuffers для сети) → транспорт (файл, сеть).
 
 - `Restore(world, snapshot)` принимает готовый снимок без текста (пригодится для истории снимков/отката).
 - `WorldJsonStore`: `ToJson(snapshot)` и `FromJson(text) -> std::expected<WorldSnapshot, std::string>`, формат `{"version":1,"entities":[...]}`. Значения компонентов хранятся объектом (`rfl::Generic`), а не экранированной строкой.

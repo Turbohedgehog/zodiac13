@@ -394,10 +394,10 @@ TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
   EXPECT_EQ(PlayerIds(server.World()), std::set<uint32_t> {0});  // no player spawned for the rejected connection
 }
 
-TEST(NetSessionTest, CorruptSnapshotFailsTheClientWithoutCreatingAScene) {
+TEST(NetSessionTest, WelcomeWithoutASnapshotFailsTheClientWithoutCreatingAScene) {
   auto network = std::make_shared<InMemoryNetwork>();
 
-  // A bare listener stands in for a server sending a well-formed but corrupt Welcome,
+  // A bare listener stands in for a server sending a well-formed but incomplete Welcome,
   // purely to exercise the client's decode-failure path.
   auto listener = CreateInMemoryServerTransport(*network, z13::kDefaultServerPort);
   ASSERT_TRUE(listener.has_value());
@@ -417,8 +417,7 @@ TEST(NetSessionTest, CorruptSnapshotFailsTheClientWithoutCreatingAScene) {
   ASSERT_TRUE(connection.has_value());
 
   fbs::net::WelcomeT welcome;
-  welcome.player_id = 1;
-  welcome.snapshot = {1, 2, 3, 4};  // not valid msgpack for WorldSnapshot
+  welcome.player_id = 1;  // and no snapshot
   SendRaw(**listener, *connection, welcome);
 
   ASSERT_TRUE(RunNetworkUntil(*network, {client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
