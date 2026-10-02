@@ -66,7 +66,6 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
-  Boost::program_options
   Boost::dll
   Eigen3::Eigen
 )
@@ -74,6 +73,8 @@ target_link_libraries(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
+  # config.h holds program_options members, so its users link it too.
+  Boost::program_options
   flatbuffers::flatbuffers
   flecs::flecs_static
   spdlog::spdlog
