@@ -21,7 +21,8 @@ ALLOWED = [
      "flecs's C++ headers keep per-binary type caches and entity ids; SyncFlecsOsApi and "
      "name lookup reconcile them (z13_plugin_smoke)"),
     (r"^std::", "standard-library constants (ranges CPOs, in_place tags); libstdc++ is shared"),
-    (r"^(__|DW\.ref\.|completed\.\d+$|_TLS_MODULE_BASE_$)", "toolchain bookkeeping in every ELF object"),
+    (r"^(__|_DYNAMIC$|_GLOBAL_OFFSET_TABLE_$|DW\.ref\.|completed\.\d+$|_TLS_MODULE_BASE_$)",
+     "toolchain bookkeeping in every ELF object"),
     (r"^rfl::Field<", "reflect-cpp field-name constants"),
     (r"^flatbuffers::(kHashFunctions\d+$|data<|\(anonymous namespace\)::TokenToString\(int\)::tokens$|Parser::)",
      "FlatBuffers constants and parser scratch; each binary parses its own schemas"),
