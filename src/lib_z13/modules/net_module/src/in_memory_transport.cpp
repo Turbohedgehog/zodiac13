@@ -103,6 +103,9 @@ class InMemoryNetworkState {
   void QueuePacket(
       TransportId destination, ConnectionId destination_connection, Channel channel,
       std::vector<std::byte> data) {
+    TrafficStats& traffic = traffic_to_[destination];
+    ++traffic.packets;
+    traffic.bytes += data.size();
     // Only unreliable traffic drops: ENet retransmits reliable packets.
     if (channel == Channel::kUnreliable && RollDrop()) {
       return;
@@ -114,6 +117,11 @@ class InMemoryNetworkState {
         .channel = channel,
         .data = std::move(data),
     });
+  }
+
+  TrafficStats TrafficTo(TransportId destination) const {
+    const auto it = traffic_to_.find(destination);
+    return it != traffic_to_.end() ? it->second : TrafficStats {};
   }
 
   void QueueDisconnect(TransportId destination, ConnectionId destination_connection) {
@@ -151,6 +159,7 @@ class InMemoryNetworkState {
 
   std::unordered_map<uint16_t, TransportId> listeners_;
   std::unordered_map<TransportId, InMemoryTransport*> transports_;  // live transports only
+  std::unordered_map<TransportId, TrafficStats> traffic_to_;
 
   std::vector<PendingConnect> pending_connects_;
   std::vector<PendingPacket> pending_packets_;
@@ -268,6 +277,10 @@ void InMemoryNetwork::SetFaultConfig(FaultConfig config) {
 
 void InMemoryNetwork::Tick() {
   state_->Tick();
+}
+
+TrafficStats InMemoryNetwork::TrafficTo(uint16_t port) const {
+  return state_->TrafficTo(state_->FindListener(port));
 }
 
 std::expected<std::unique_ptr<Transport>, std::string> CreateInMemoryServerTransport(

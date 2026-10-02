@@ -33,6 +33,12 @@ struct FaultConfig {
   uint32_t max_delay_ticks {};
 };
 
+// Payload only: UDP/IP and ENet headers come on top.
+struct TrafficStats {
+  uint64_t packets {};
+  uint64_t bytes {};
+};
+
 // Defined in in_memory_transport.cpp; only ever held behind a shared_ptr here.
 class InMemoryNetworkState;
 
@@ -47,6 +53,9 @@ class InMemoryNetwork {
   // Advances virtual time by one tick, delivering whatever's now due. Call once per
   // test "frame", after every transport has queued its sends for this tick.
   void Tick();
+
+  // Everything sent to the transport listening on `port`, dropped packets included.
+  TrafficStats TrafficTo(uint16_t port) const;
 
   // For CreateInMemoryServerTransport/CreateInMemoryClientTransport and
   // InMemoryTransport: an opaque handle, since InMemoryNetworkState is only fully
