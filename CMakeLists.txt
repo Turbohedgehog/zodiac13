@@ -59,7 +59,7 @@ if(CCACHE_PROGRAM AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
 endif()
 
 # Lockstep simulation needs matching float results across participants: no FMA
-# contraction (GCC's gnu++ default fuses on arm64). Bullet gets the same via triplets/.
+# contraction (GCC's gnu++ default fuses on arm64). Bullet gets the same via ports/bullet3.
 if(MSVC)
     add_compile_options(/fp:precise)
 else()
