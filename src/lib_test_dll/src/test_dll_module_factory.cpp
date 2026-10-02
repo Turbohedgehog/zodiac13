@@ -19,6 +19,7 @@
 #include <flecs.h>
 
 #include <lib_core/log.h>
+#include <lib_test_dll/test_dll_messages.h>
 
 #include "test_dll_module.h"
 
@@ -33,6 +34,7 @@ TestDllModuleFactory::~TestDllModuleFactory() {
 }
 
 void TestDllModuleFactory::RegisterModules(flecs::world& world) {
+  log_debug("{}", kRegisterModulesMessage);
   world.import<z13::dll::TestDllModule>();
 }
 

@@ -30,7 +30,19 @@ file(
   ${PROJECT_SOURCE_DIR}/src/**.cpp
 )
 
-add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
+# Shared: one copy for the executable and every plugin, instead of one inside each.
+# Next to the executable, where Windows looks for a plugin's dependencies too.
+add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME z13_core
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin
+)
 
 add_dependencies(${PROJECT_NAME} GENERATE_CORE_SETTINGS_HEADERS)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
@@ -64,8 +76,7 @@ target_link_libraries(
   PUBLIC
   flatbuffers::flatbuffers
   flecs::flecs_static
-  # spdlog::spdlog
-  spdlog::spdlog_header_only
+  spdlog::spdlog
   reflectcpp::reflectcpp
 )
 
