@@ -55,7 +55,7 @@ jobs:
         if: matrix.package == 'zip'
         shell: pwsh
         run: |
-          $ZIP_NAME = "zodiac13-v${{ env.FULL_VER }}-windows.zip"
+          $ZIP_NAME = "zodiac13-${{ env.FULL_VER }}-windows-x64.zip"
           if (Test-Path bin) {
             Compress-Archive -Path bin\* -DestinationPath $ZIP_NAME
           } else {
@@ -72,7 +72,7 @@ jobs:
         if: matrix.package == 'zip'
         uses: softprops/action-gh-release@v2
         with:
-          files: zodiac13-v${{ env.FULL_VER }}-windows.zip
+          files: zodiac13-${{ env.FULL_VER }}-windows-x64.zip
           tag_name: v${{ env.FULL_VER }}
           name: "Release v${{ env.FULL_VER }}"
         env:
@@ -83,7 +83,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/zodiac13-*.deb
+            build/zodiac13_*.deb
             build/zodiac13-*.tar.gz
           tag_name: v${{ env.FULL_VER }}
           name: "Release v${{ env.FULL_VER }}"
