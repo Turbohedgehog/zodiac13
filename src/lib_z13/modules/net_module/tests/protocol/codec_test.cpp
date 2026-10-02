@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include <net_module/protocol.h>
@@ -25,6 +27,20 @@ namespace z13::net {
 namespace {
 
 namespace fbn = fbs::net;
+namespace fbs_state = fbs::state;
+
+std::unique_ptr<fbs_state::WorldSnapshotT> OneEntitySnapshot(const std::string& name) {
+  auto component = std::make_unique<fbs_state::ComponentValueT>();
+  component->type = "z13::Position";
+  component->value = R"({"x":1})";
+  auto entity = std::make_unique<fbs_state::EntitySnapshotT>();
+  entity->name = name;
+  entity->tags = {"z13::StateEntity"};
+  entity->components.push_back(std::move(component));
+  auto snapshot = std::make_unique<fbs_state::WorldSnapshotT>();
+  snapshot->entities.push_back(std::move(entity));
+  return snapshot;
+}
 
 template <typename T>
 T RoundTrip(T value) {
@@ -99,17 +115,18 @@ TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   fbn::WelcomeT welcome;
   welcome.player_id = 3;
   welcome.server_tick = 900;
-  welcome.snapshot = {1, 2, 3, 4, 5};
+  welcome.snapshot = OneEntitySnapshot("Player_3");
   welcome.snapshot_tick = 840;
-  welcome.actions = {6, 7, 8};
-  welcome.held_values = {9, 10};
-  welcome.pending = {11, 12, 13};
+  welcome.actions = {{841, 1, 2, 1.f}, {842, 2, 7, -0.5f}};
+  welcome.held_values = {{840, 1, 3, 1.f}};
+  welcome.pending = {{901, 2, 4, 0.25f}};
 
   const auto decoded = RoundTrip(welcome);
 
   EXPECT_EQ(decoded.player_id, 3u);
   EXPECT_EQ(decoded.server_tick, 900u);
-  EXPECT_EQ(decoded.snapshot, welcome.snapshot);
+  ASSERT_NE(decoded.snapshot, nullptr);
+  EXPECT_EQ(*decoded.snapshot, *welcome.snapshot);
   EXPECT_EQ(decoded.snapshot_tick, 840u);
   EXPECT_EQ(decoded.actions, welcome.actions);
   EXPECT_EQ(decoded.held_values, welcome.held_values);
@@ -126,13 +143,14 @@ TEST(CodecTest, RejectedRoundTripsReason) {
 TEST(CodecTest, ResyncRoundTrips) {
   fbn::ResyncT resync;
   resync.server_tick = 1000;
-  resync.snapshot = {9, 8, 7};
+  resync.snapshot = OneEntitySnapshot("Player_1");
   resync.snapshot_tick = 960;
-  resync.actions = {4, 5};
+  resync.actions = {{961, 1, 2, 1.f}};
 
   const auto decoded = RoundTrip(resync);
   EXPECT_EQ(decoded.server_tick, 1000u);
-  EXPECT_EQ(decoded.snapshot, resync.snapshot);
+  ASSERT_NE(decoded.snapshot, nullptr);
+  EXPECT_EQ(*decoded.snapshot, *resync.snapshot);
   EXPECT_EQ(decoded.snapshot_tick, 960u);
   EXPECT_EQ(decoded.actions, resync.actions);
 }
@@ -140,11 +158,12 @@ TEST(CodecTest, ResyncRoundTrips) {
 TEST(CodecTest, PlayerJoinedRoundTrips) {
   fbn::PlayerJoinedT joined;
   joined.apply_tick = 55;
-  joined.entity_state = {1, 1, 2, 3};
+  joined.entity_state = OneEntitySnapshot("Player_2");
 
   const auto decoded = RoundTrip(joined);
   EXPECT_EQ(decoded.apply_tick, 55u);
-  EXPECT_EQ(decoded.entity_state, joined.entity_state);
+  ASSERT_NE(decoded.entity_state, nullptr);
+  EXPECT_EQ(*decoded.entity_state, *joined.entity_state);
 }
 
 TEST(CodecTest, PlayerLeftRoundTrips) {

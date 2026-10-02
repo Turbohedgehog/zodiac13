@@ -56,15 +56,6 @@
 #include <net_module/protocol.h>
 #include <net_module/state_digest.h>
 
-// reflect-cpp headers warn under /W4-as-errors; same suppression as world_serializer.cpp.
-#if defined(_MSC_VER)
-#pragma warning(push, 0)
-#endif
-#include <rfl/msgpack.hpp>
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-
 #include "net_session.h"
 #include "scheduled_commands.h"
 #include "state_digest_system.h"
@@ -78,12 +69,31 @@ namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 namespace zgi = z13::gameplay::input;
 
-std::vector<uint8_t> ToBytes(const std::vector<char>& data) {
-  return std::vector<uint8_t>(data.begin(), data.end());
+std::vector<fbn::ActionRecordWire> ToWire(const std::vector<z13::gameplay::PlayerActionRecord>& records) {
+  std::vector<fbn::ActionRecordWire> wire;
+  wire.reserve(records.size());
+  for (const z13::gameplay::PlayerActionRecord& record : records) {
+    wire.emplace_back(record.tick, record.player_id, static_cast<uint32_t>(record.action_id), record.value);
+  }
+  return wire;
 }
 
-std::vector<char> ToChars(const std::vector<uint8_t>& data) {
-  return std::vector<char>(data.begin(), data.end());
+std::vector<z13::gameplay::PlayerActionRecord> FromWire(const std::vector<fbn::ActionRecordWire>& wire) {
+  std::vector<z13::gameplay::PlayerActionRecord> records;
+  records.reserve(wire.size());
+  for (const fbn::ActionRecordWire& record : wire) {
+    records.push_back({
+        .tick = record.tick(),
+        .player_id = record.player_id(),
+        .action_id = record.action_id(),
+        .value = record.value(),
+    });
+  }
+  return records;
+}
+
+std::unique_ptr<fbs::state::WorldSnapshotT> ToWire(const ft::WorldSnapshot& snapshot) {
+  return std::make_unique<fbs::state::WorldSnapshotT>(ft::ToFlatbuffer(snapshot));
 }
 
 // TransportEvent::data is std::byte; the codec layer wants uint8_t, and std::as_bytes
@@ -169,17 +179,17 @@ void FillCatchUp(flecs::world world, Message& message) {
   const auto& history = world.get<ft::WorldSnapshotHistory>();
   if (history.history.Empty()) {
     // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
-    message.snapshot = ToBytes(ft::SaveState(world));
+    message.snapshot = ToWire(ft::CaptureState(world));
     message.snapshot_tick = message.server_tick;
   } else {
     const ft::TimestampedSnapshot& base = CatchUpBase(
         history, message.server_tick, ft::DeferredRollbackTick(world), world.get<NetTuning>().max_late_ticks);
-    message.snapshot = ToBytes(ft::SaveState(base.snapshot));
+    message.snapshot = ToWire(base.snapshot);
     message.snapshot_tick = base.tick;
-    message.actions = ToBytes(rfl::msgpack::write(ActionsSince(world, base.tick)));
+    message.actions = ToWire(ActionsSince(world, base.tick));
   }
-  message.held_values = ToBytes(rfl::msgpack::write(HeldValues(world, message.snapshot_tick)));
-  message.pending = ToBytes(rfl::msgpack::write(world.get<z13::gameplay::ScheduledCommands>().records));
+  message.held_values = ToWire(HeldValues(world, message.snapshot_tick));
+  message.pending = ToWire(world.get<z13::gameplay::ScheduledCommands>().records);
 }
 
 NetSession::Result SendWelcome(
@@ -232,7 +242,7 @@ NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world,
   const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
   fbn::PlayerJoinedT joined;
   joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
-  joined.entity_state = ToBytes(ft::SaveEntityState(world, player));
+  joined.entity_state = ToWire(ft::CaptureEntityState(world, player));
   player.destruct();
 
   const uint64_t apply_tick = joined.apply_tick;
@@ -529,19 +539,6 @@ bool IsJoined(flecs::world world) {
   return world.has<ConnectionStatus>() && world.get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-// msgpack can't decode zero bytes, and an empty list is legitimate.
-std::expected<std::vector<z13::gameplay::PlayerActionRecord>, std::string> DecodeRecords(
-    const std::vector<char>& bytes) {
-  if (bytes.empty()) {
-    return std::vector<z13::gameplay::PlayerActionRecord> {};
-  }
-  auto result = rfl::msgpack::read<std::vector<z13::gameplay::PlayerActionRecord>>(bytes);
-  if (!result) {
-    return std::unexpected(result.error().what());
-  }
-  return *result;
-}
-
 struct CatchUpPayload {
   ft::WorldSnapshot snapshot;
   std::vector<z13::gameplay::PlayerActionRecord> actions;
@@ -551,18 +548,15 @@ struct CatchUpPayload {
 
 template <typename Message>
 std::expected<CatchUpPayload, std::string> DecodeCatchUp(const Message& message) {
-  auto snapshot = rfl::msgpack::read<ft::WorldSnapshot>(ToChars(message.snapshot));
-  if (!snapshot) {
-    return std::unexpected(snapshot.error().what());
+  if (!message.snapshot) {
+    return std::unexpected(std::string {"no snapshot"});
   }
-  CatchUpPayload payload {.snapshot = std::move(*snapshot)};
-  const auto decode_into = [](const std::vector<uint8_t>& bytes, std::vector<z13::gameplay::PlayerActionRecord>& out) {
-    return DecodeRecords(ToChars(bytes)).transform([&out](auto records) { out = std::move(records); });
+  return CatchUpPayload {
+      .snapshot = ft::FromFlatbuffer(*message.snapshot),
+      .actions = FromWire(message.actions),
+      .held_values = FromWire(message.held_values),
+      .pending = FromWire(message.pending),
   };
-  return decode_into(message.actions, payload.actions)
-      .and_then([&] { return decode_into(message.held_values, payload.held_values); })
-      .and_then([&] { return decode_into(message.pending, payload.pending); })
-      .transform([&payload] { return std::move(payload); });
 }
 
 // Untrusted: an implausible span would spin the catch-up for max_catch_up_ticks_per_frame
@@ -679,7 +673,11 @@ void HandleRejected(flecs::world world, const fbn::RejectedT& rejected) {
 
 // Keeps IdCounters in step with the server, which bumped it at ClientHello.
 void HandlePlayerJoined(flecs::world world, const fbn::PlayerJoinedT& joined) {
-  if (auto applied = ft::ApplyWorldStateDelta(world, ToChars(joined.entity_state)); !applied) {
+  if (!joined.entity_state) {
+    log_warn("NetSession: PlayerJoined without the player's state");
+    return;
+  }
+  if (auto applied = ft::ApplyWorldStateDelta(world, ft::FromFlatbuffer(*joined.entity_state)); !applied) {
     log_warn("NetSession: PlayerJoined delta rejected: {}", applied.error());
     return;
   }

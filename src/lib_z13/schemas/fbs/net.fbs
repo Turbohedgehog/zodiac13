@@ -20,6 +20,7 @@
 // this schema exists now so the transport/codec layer has real messages to move.
 
 include "net_tuning.fbs";
+include "world_snapshot.fbs";
 
 namespace z13.fbs.net;
 
@@ -41,6 +42,15 @@ struct PoseWire {
   x: float;
   y: float;
   z: float;
+}
+
+// 24 bytes (padded): a PlayerActionRecord with its absolute tick and player, for the
+// catch-up lists, which span several players and an arbitrary window of ticks.
+struct ActionRecordWire {
+  tick: ulong;
+  player_id: uint;
+  action_id: uint;
+  value: float;
 }
 
 // An action by its stable name; ids are local to each side until the server assigns them.
@@ -76,12 +86,11 @@ table Welcome {
   server_tick: ulong;
   // Reused from WorldSnapshotHistory's periodic capture rather than a fresh one taken
   // for this join; snapshot_tick lets the client replay forward to server_tick below.
-  snapshot: [ubyte];  // WorldSnapshot (state only) via SaveState (msgpack)
+  snapshot: z13.fbs.state.WorldSnapshot;  // state only
   snapshot_tick: ulong;
-  actions: [ubyte];  // [PlayerActionRecord] via rfl::msgpack, (snapshot_tick, server_tick]
-  // [PlayerActionRecord] via rfl::msgpack, like actions: CommandWire has no player_id.
-  held_values: [ubyte];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
-  pending: [ubyte];  // already-scheduled commands with apply_tick > server_tick
+  actions: [ActionRecordWire];  // (snapshot_tick, server_tick]
+  held_values: [ActionRecordWire];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
+  pending: [ActionRecordWire];  // already-scheduled commands with apply_tick > server_tick
   action_ids: [uint];  // the server's id for each ClientHello.actions entry, same order
   // The client runs on these instead of its own: peers must tick alike.
   fps: double;
@@ -95,16 +104,16 @@ table Rejected {
 // Welcome without the player id: the client already has one.
 table Resync {
   server_tick: ulong;
-  snapshot: [ubyte];
+  snapshot: z13.fbs.state.WorldSnapshot;
   snapshot_tick: ulong;
-  actions: [ubyte];
-  held_values: [ubyte];
-  pending: [ubyte];
+  actions: [ActionRecordWire];
+  held_values: [ActionRecordWire];
+  pending: [ActionRecordWire];
 }
 
 table PlayerJoined {
   apply_tick: ulong;
-  entity_state: [ubyte];  // EntitySnapshot (msgpack)
+  entity_state: z13.fbs.state.WorldSnapshot;  // the joining player's entity only
 }
 
 table PlayerLeft {

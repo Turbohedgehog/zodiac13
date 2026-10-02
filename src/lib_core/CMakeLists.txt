@@ -19,6 +19,7 @@ include(${FLATBUFFERS_CMAKE_DIR}/BuildFlatBuffers.cmake)
 flatbuffers_generate_headers(
     TARGET CORE_SETTINGS_HEADERS
     SCHEMAS ${PROJECT_SOURCE_DIR}/fbs/attributes.fbs ${PROJECT_SOURCE_DIR}/fbs/core_settings.fbs
+            ${PROJECT_SOURCE_DIR}/fbs/world_snapshot.fbs
     # Same flags as the game schemas: their generated headers reference this one's type table.
     FLAGS "--scoped-enums" "--reflect-names" "--gen-name-strings" "--gen-object-api" "--gen-compare" "--cpp-std" "c++17"
 )
