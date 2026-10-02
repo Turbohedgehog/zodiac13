@@ -73,6 +73,17 @@ jobs:
           Z13_STATE_DUMP: ${{ github.workspace }}/state-dump.txt
         run: ctest --test-dir build --output-on-failure --no-tests=error --parallel 4
 
+      # The release packages are Linux-only (Windows zips bin/), so only they are checked.
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake --build build --target zodiac13
+          cd build && cpack -G TGZ
+
+      - name: Run the server from the package (Linux)
+        if: runner.os == 'Linux'
+        run: .github/scripts/package_smoke.sh build/zodiac13-*.tar.gz
+
       # CrossPlatformStateTest's dump; the cross-platform-state job compares them.
       - name: Upload state dump
         if: ${{ !cancelled() }}
