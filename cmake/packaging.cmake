@@ -25,8 +25,29 @@ install(IMPORTED_RUNTIME_ARTIFACTS flecs::flecs DESTINATION . COMPONENT runtime)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/config/" DESTINATION config COMPONENT runtime)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION assets COMPONENT runtime)
 
+# The .deb's own files outside /opt/zodiac13: the command on PATH and a menu entry.
+# EXCLUDE_FROM_ALL: only CPack asks for them, a plain `cmake --install` must not touch /usr.
+set(CPACK_Z13_DEB_INSTALL_DIR "/opt/zodiac13")
+if(UNIX)
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/deb")
+    file(CREATE_LINK "${CPACK_Z13_DEB_INSTALL_DIR}/zodiac13" "${CMAKE_BINARY_DIR}/deb/zodiac13" SYMBOLIC)
+    install(FILES "${CMAKE_BINARY_DIR}/deb/zodiac13" DESTINATION /usr/bin
+            COMPONENT deb EXCLUDE_FROM_ALL)
+    install(FILES "${CMAKE_SOURCE_DIR}/cmake/deb/zodiac13.desktop" DESTINATION /usr/share/applications
+            COMPONENT deb EXCLUDE_FROM_ALL)
+
+    # Depends from the binaries; libflecs.so and z13_module.so ship in the package itself.
+    get_target_property(flecs_location flecs::flecs LOCATION)
+    get_filename_component(flecs_dir "${flecs_location}" DIRECTORY)
+    get_target_property(z13_module_dir z13_module LIBRARY_OUTPUT_DIRECTORY)
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${flecs_dir};${z13_module_dir}")
+endif()
+
 set(CPACK_GENERATOR "DEB;TGZ")
 set(CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${PROJECT_NAME};runtime;/")
+# CPACK_-prefixed, so it reaches cpack_options.cmake at packaging time.
+set(CPACK_Z13_DEB_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${CMAKE_BINARY_DIR};${PROJECT_NAME};deb;/")
 set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/cmake/cpack_options.cmake")
 
 set(CPACK_PACKAGE_VERSION_MAJOR ${Z13_VERSION_MAJOR})
