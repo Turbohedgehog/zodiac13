@@ -106,7 +106,7 @@ jobs:
           for dump in "${dumps[@]}"; do
             if ! cmp -s "$reference" "$dump"; then
               echo "::error::$dump differs from $reference"
-              diff "$reference" "$dump" | head -20
+              diff "$reference" "$dump" | head -20 || true  # bash -e -o pipefail would stop here
               status=1
             fi
           done

@@ -9,3 +9,9 @@ set(VCPKG_CMAKE_SYSTEM_NAME Linux)
 if(PORT STREQUAL "flecs")
   set(VCPKG_LIBRARY_LINKAGE dynamic)
 endif()
+
+# Lockstep physics: no FMA contraction, like our own code (see CMakeLists.txt).
+if(PORT STREQUAL "bullet3")
+  set(VCPKG_C_FLAGS "-ffp-contract=off")
+  set(VCPKG_CXX_FLAGS "-ffp-contract=off")
+endif()
