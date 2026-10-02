@@ -36,11 +36,14 @@ void RegisterStdStringMeta(flecs::world& world) {
 namespace {
 
 constexpr int32_t kMatrix4fElementCount = 16;
+// Saves and snapshots name components by path; the derived one differs between GCC and MSVC.
+constexpr std::string_view kMatrix4fName = "Matrix4f";
 
 }  // namespace
 
 void RegisterEigenMeta(flecs::world& world) {
   world.component<Eigen::Matrix4f>()
+      .set_name(kMatrix4fName.data())
       .opaque<float>(world.array<float>(kMatrix4fElementCount).id())
       .serialize([](const flecs::serializer* s, const Eigen::Matrix4f* data) {
         for (int32_t i = 0; i < kMatrix4fElementCount; ++i) {
