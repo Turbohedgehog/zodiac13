@@ -86,7 +86,7 @@ jobs:
 
       - name: Install the .deb and run the server (Linux)
         if: runner.os == 'Linux'
-        run: .github/scripts/deb_smoke.sh build/zodiac13-*.deb
+        run: .github/scripts/deb_smoke.sh build/zodiac13_*.deb
 
       # CrossPlatformStateTest's dump; the cross-platform-state job compares them.
       - name: Upload state dump

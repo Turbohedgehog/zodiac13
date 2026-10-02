@@ -57,12 +57,17 @@ set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/cmake/cpack_options.cmake")
 set(CPACK_PACKAGE_VERSION_MAJOR ${Z13_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${Z13_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${Z13_VERSION_PATCH})
-set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}")
 set(CPACK_PACKAGE_CONTACT unlinker@mail.ru)
 
-# Keeps arm64 artifacts from colliding with the x64 ones (whose names stay as they were).
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-    set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}-arm64")
+# zodiac13-<version>-<os>-<arch>, like the Windows zip; the .deb keeps Debian's own
+# zodiac13_<version>_<arch>.deb, which apt users expect.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(Z13_PACKAGE_ARCH arm64)
+else()
+    set(Z13_PACKAGE_ARCH x64)
 endif()
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" Z13_PACKAGE_OS)
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${Z13_FULL_VERSION}-${Z13_PACKAGE_OS}-${Z13_PACKAGE_ARCH}")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 include(CPack)
