@@ -3,6 +3,9 @@ name: PR Tests
 on:
   pull_request:
     branches: [ main ]
+  # A PR can't read another PR's caches, only main's, so main keeps the compiler cache warm.
+  push:
+    branches: [ main ]
 
 concurrency:
   group: pr-tests-${{ github.head_ref || github.ref }}
@@ -19,11 +22,14 @@ jobs:
         include:
           - os: windows-2025
             triplet: x64-windows
+            compiler-cache: sccache # ccache can't wrap MSVC
           - os: ubuntu-24.04
             triplet: x64-linux
+            compiler-cache: ccache
           - os: ubuntu-24.04-arm
             triplet: arm64-linux
             cache-suffix: -arm64-linux
+            compiler-cache: ccache
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
 
@@ -36,19 +42,31 @@ jobs:
         with:
           submodules: recursive
 
+      # cl on PATH, so Windows builds with Ninja: the VS generator ignores compiler launchers.
+      - name: Set up MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.triplet }}
+          variant: ${{ matrix.compiler-cache }}
+          max-size: 2G
+
       - uses: ./.github/actions/setup-vcpkg-build
         with:
           triplet: ${{ matrix.triplet }}
           cache-suffix: ${{ matrix.cache-suffix }}
+          extra-cmake-args: >-
+            -G Ninja
+            -DCMAKE_C_COMPILER_LAUNCHER=${{ matrix.compiler-cache }}
+            -DCMAKE_CXX_COMPILER_LAUNCHER=${{ matrix.compiler-cache }}
 
       # Plus the server plugins, which the tests (static twins) never link; z13_plugin_smoke loads them. Not raylib / the app.
       - name: Build tests
-        run: cmake --build build --config Release --target z13_test_runner z13_plugin_smoke
+        run: cmake --build build --target z13_test_runner z13_plugin_smoke
 
-      - name: Run tests (Windows)
-        if: runner.os == 'Windows'
-        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error
-
-      - name: Run tests (Linux)
-        if: runner.os == 'Linux'
-        run: ctest --test-dir build --output-on-failure --no-tests=error
+      # Every test is its own process (gtest_discover_tests), so they run side by side.
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure --no-tests=error --parallel 4

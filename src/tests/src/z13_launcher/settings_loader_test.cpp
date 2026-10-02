@@ -34,7 +34,9 @@ constexpr std::string_view kTestFileName = "settings.json";
 class SettingsFileTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    directory_ = std::filesystem::temp_directory_path() / kTestDirectoryName;
+    // Per test: ctest runs them as parallel processes.
+    directory_ = std::filesystem::temp_directory_path() / kTestDirectoryName /
+                 ::testing::UnitTest::GetInstance()->current_test_info()->name();
     std::filesystem::remove_all(directory_);
   }
 
