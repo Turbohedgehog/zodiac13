@@ -80,6 +80,11 @@ jobs:
           cmake --build build --target zodiac13
           cd build && cpack -G "TGZ;DEB"
 
+      # A library linked statically into several plugins splits its globals per plugin.
+      - name: Check for state duplicated across plugins (Linux)
+        if: runner.os == 'Linux'
+        run: .github/scripts/check_duplicated_state.py bin/zodiac13 bin/libz13_core.so bin/modules/*/*.so
+
       - name: Run the server from the package (Linux)
         if: runner.os == 'Linux'
         run: .github/scripts/package_smoke.sh build/zodiac13-*.tar.gz
