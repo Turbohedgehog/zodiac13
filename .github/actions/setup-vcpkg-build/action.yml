@@ -50,7 +50,7 @@ runs:
         path: |
           build/vcpkg_installed
           vcpkg_installed
-        key: ${{ runner.os }}-vcpkg${{ inputs.cache-suffix }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'triplets/**') }}
+        key: ${{ runner.os }}-vcpkg${{ inputs.cache-suffix }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'triplets/**', 'ports/**') }}
         restore-keys: |
           ${{ runner.os }}-vcpkg${{ inputs.cache-suffix }}-
 

@@ -5,6 +5,7 @@
     "repository": "https://github.com/microsoft/vcpkg"
   },
   "overlay-triplets": ["./triplets"],
+  "overlay-ports": ["./ports"],
   "registries": [
     {
       "kind": "artifact",
