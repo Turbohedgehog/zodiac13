@@ -16,8 +16,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -29,6 +32,25 @@
 #include <z13/components/input.h>
 
 namespace z13::gameplay {
+
+// Every logged action value is a whole number of 1/kActionValueScale steps, so the int16
+// on the wire carries it exactly and live play, replay and peers all see the same float.
+constexpr float kActionValueScale = 100.f;
+
+inline int16_t QuantizeActionValue(float value) {
+  const float scaled = std::clamp(
+      value * kActionValueScale, static_cast<float>(std::numeric_limits<int16_t>::min()),
+      static_cast<float>(std::numeric_limits<int16_t>::max()));
+  return static_cast<int16_t>(std::lround(scaled));
+}
+
+inline float DequantizeActionValue(int16_t wire_value) {
+  return static_cast<float>(wire_value) / kActionValueScale;
+}
+
+inline float CanonicalActionValue(float value) {
+  return DequantizeActionValue(QuantizeActionValue(value));
+}
 
 // One action's value at one tick, for one player -- covers movement, look, build,
 // destroy, toggle the same way, so a new action never needs its own record type.

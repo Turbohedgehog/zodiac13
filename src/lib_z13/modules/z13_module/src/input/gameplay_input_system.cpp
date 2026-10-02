@@ -353,16 +353,24 @@ void ClearActionListenerCurrentState(
   }
 }
 
+// Half to even: a half-step remainder rounded away from zero would flip sign every frame.
+float WholeActionSteps(float value) {
+  return std::nearbyint(value * z13::gameplay::kActionValueScale) / z13::gameplay::kActionValueScale;
+}
+
 void CalculateInputValues(
     z13::input::InputState& input_state,
     const z13::input::InputConfig& input_config,
     const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener) {
-  // Fold in and reset the mouse-look delta here, since this phase reliably runs after Clear.
-  action_listener.action_values[move_action_ids.horizontal_look_id] += input_state.mouse_yaw_delta_deg;
-  action_listener.action_values[move_action_ids.vertical_look_id] += input_state.mouse_pitch_delta_deg;
-  input_state.mouse_yaw_delta_deg = 0.f;
-  input_state.mouse_pitch_delta_deg = 0.f;
+  // Fold in the mouse-look delta here, since this phase reliably runs after Clear. What the
+  // recorder would round off stays for the next frame, or slow mouse movement is lost.
+  const float yaw_deg = WholeActionSteps(input_state.mouse_yaw_delta_deg);
+  const float pitch_deg = WholeActionSteps(input_state.mouse_pitch_delta_deg);
+  action_listener.action_values[move_action_ids.horizontal_look_id] += yaw_deg;
+  action_listener.action_values[move_action_ids.vertical_look_id] += pitch_deg;
+  input_state.mouse_yaw_delta_deg -= yaw_deg;
+  input_state.mouse_pitch_delta_deg -= pitch_deg;
 
   const auto& action_group_key_codes = input_config.keycode_binding.get<z13::input::InputConfig::ActionGroupKeycodeIdTag>();
   const auto& key_codes = input_config.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();

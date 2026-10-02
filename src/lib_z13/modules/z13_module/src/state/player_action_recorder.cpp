@@ -76,21 +76,22 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
   });
 }
 
-// Compares against last_recorded, not prev_value: see LastRecordedActionValues.
+// Compares against last_recorded, not prev_value: see LastRecordedActionValues. The
+// listener keeps the canonical value too, so live play matches the log it replays from.
 void RecordChangedActions(
     flecs::iter& it, size_t,
     const z13::gameplay::Player& player,
-    const z13::input::ActionListener& action_listener,
+    z13::input::ActionListener& action_listener,
     const z13::flecs_tools::SimulationClock& clock,
     z13::gameplay::OutgoingCommands& outgoing,
     z13::gameplay::LastRecordedActionValues& last_recorded) {
   const bool reassert = IsReassertTick(IntervalTicks(it.world()), clock.tick);
 
-  for (const auto& [action_id, holder] : action_listener.action_values) {
-    const float current = *holder;
+  for (auto& [action_id, holder] : action_listener.action_values) {
+    const float current = z13::gameplay::CanonicalActionValue(*holder);
+    *holder = current;
     float& last = last_recorded.values[action_id];
-    const bool changed = std::abs(current - last) >= z13::input::ActionValueHolder::kInputValueEps;
-    if (!changed && !(reassert && current != 0.f)) {
+    if (current == last && !(reassert && current != 0.f)) {
       continue;
     }
 
@@ -133,7 +134,7 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::gameplay::LastRecordedActionValues>({});
 
   world.system<
-      const z13::gameplay::Player, const z13::input::ActionListener, const z13::flecs_tools::SimulationClock,
+      const z13::gameplay::Player, z13::input::ActionListener, const z13::flecs_tools::SimulationClock,
       z13::gameplay::OutgoingCommands, z13::gameplay::LastRecordedActionValues>(
       "PlayerActionRecorder::RecordChangedActions")
       .kind<z13::input::RecordActionFramePhase>()
