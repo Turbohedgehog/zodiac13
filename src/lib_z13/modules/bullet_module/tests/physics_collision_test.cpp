@@ -29,6 +29,7 @@
 #include <z13/components/input.h>
 
 #include <lib_core/math.h>
+#include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_tests/test_time.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -136,6 +137,20 @@ TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
   EXPECT_GE(
       distance,
       z13::building::kBlockSize / 2.f + z13::gameplay::kPlayerColliderRadius - z13::testing::kTestEpsilon);
+}
+
+// SweepOrigin is set in the frame the player first appears, so its collision runs then too.
+TEST(PhysicsCollisionTest, NewPlayerInsideABlockIsPushedOutOnItsFirstFrame) {
+  z13::testing::Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  SpawnBlockAt(world, TranslatedIdentity(kBlockX, 0.f, 0.f));
+  constexpr uint32_t kNewPlayerId = 2;
+  const flecs::entity newcomer = z13::gameplay::SpawnPlayer(world, kNewPlayerId);
+  newcomer.set(TranslatedIdentity(kBlockX + kInsideOffset, 0.f, 0.f));
+
+  test_world.Tick(kTestDeltaTime);
+
+  EXPECT_GT(z13::math::ExtractTranslation<float>(newcomer.get<Eigen::Matrix4f>()).x(), kBlockX + kInsideOffset);
 }
 
 TEST(PhysicsCollisionTest, PlayerUntouchedWhenClearOfBlocks) {
