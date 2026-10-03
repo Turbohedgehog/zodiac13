@@ -33,6 +33,15 @@ struct Everything {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 };
 
+struct Flags {
+  uint32_t bits {};
+};
+
+constexpr uint32_t kFlagA = 1;
+constexpr uint32_t kFlagB = 2;
+constexpr uint32_t kUnknownFlag = 4;
+constexpr int32_t kUnknownMood = 7;
+
 struct Link {
   flecs::entity_t target {};
 };
@@ -62,6 +71,7 @@ class ComponentCodecTest : public ::testing::Test {
         .member("mood", &Everything::mood)
         .member("text", &Everything::text)
         .member("transform", &Everything::transform);
+    world_.component<Flags>().bit("kFlagA", kFlagA).bit("kFlagB", kFlagB);
     world_.component<Link>().member(flecs::Entity, "target");
     world_.component<Cells>().member<int32_t>("values", kCellCount, offsetof(Cells, values));
     target_ = world_.entity("some::target");
@@ -171,6 +181,27 @@ TEST_F(ComponentCodecTest, EntitiesTravelByPath) {
 
   target_.destruct();
   EXPECT_FALSE(ft::ValidateValue(world_, type, bytes));
+}
+
+template <class T>
+std::vector<uint8_t> RawBytes(T value) {
+  std::vector<uint8_t> bytes(sizeof(T));
+  std::memcpy(bytes.data(), &value, sizeof(T));
+  return bytes;
+}
+
+TEST_F(ComponentCodecTest, RejectsAnUnknownEnumConstant) {
+  const flecs::entity_t type = world_.component<Mood>();
+
+  EXPECT_TRUE(ft::ValidateValue(world_, type, RawBytes(Mood::kAngry)));
+  EXPECT_FALSE(ft::ValidateValue(world_, type, RawBytes(kUnknownMood)));
+}
+
+TEST_F(ComponentCodecTest, RejectsUnknownBitmaskFlags) {
+  const flecs::entity_t type = world_.component<Flags>();
+
+  EXPECT_TRUE(ft::ValidateValue(world_, type, RawBytes(kFlagA | kFlagB)));
+  EXPECT_FALSE(ft::ValidateValue(world_, type, RawBytes(kFlagA | kUnknownFlag)));
 }
 
 TEST_F(ComponentCodecTest, GarbageNeverDecodes) {

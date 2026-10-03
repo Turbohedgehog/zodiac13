@@ -80,6 +80,35 @@ std::optional<size_t> FixedSize(ecs_primitive_kind_t kind) {
   }
 }
 
+// An integer primitive's value, widened.
+std::optional<int64_t> AsInt64(ecs_primitive_kind_t kind, const void* value) {
+  const auto widen = [value]<class T>(T) {
+    T narrow {};
+    std::memcpy(&narrow, value, sizeof(T));
+    return static_cast<int64_t>(narrow);
+  };
+  switch (kind) {
+    case EcsU8:
+      return widen(uint8_t {});
+    case EcsU16:
+      return widen(uint16_t {});
+    case EcsU32:
+      return widen(uint32_t {});
+    case EcsU64:
+      return widen(uint64_t {});
+    case EcsI8:
+      return widen(int8_t {});
+    case EcsI16:
+      return widen(int16_t {});
+    case EcsI32:
+      return widen(int32_t {});
+    case EcsI64:
+      return widen(int64_t {});
+    default:
+      return std::nullopt;
+  }
+}
+
 class ScratchValue {
  public:
   ScratchValue(const flecs::world& world, flecs::entity_t type)
@@ -270,9 +299,9 @@ class Decoder {
       case EcsPrimitiveType:
         return ReadPrimitive(type, Meta<EcsPrimitive>(world_, type, ecs_id(EcsPrimitive))->kind, value);
       case EcsEnumType:
-        return Read(Meta<EcsEnum>(world_, type, ecs_id(EcsEnum))->underlying_type, value);
+        return ReadEnum(type, value);
       case EcsBitmaskType:
-        return ReadInto(value, sizeof(uint32_t));
+        return ReadBitmask(type, value);
       case EcsStructType:
         return ReadStruct(*Meta<EcsStruct>(world_, type, ecs_id(EcsStruct)), value);
       case EcsArrayType: {
@@ -386,6 +415,46 @@ class Decoder {
       return Error(std::format("primitive '{}' is not supported", TypeName(world_, type)));
     }
     return ReadInto(value, *size);
+  }
+
+  Status ReadEnum(flecs::entity_t type, void* value) {
+    const flecs::entity_t underlying = Meta<EcsEnum>(world_, type, ecs_id(EcsEnum))->underlying_type;
+    if (auto read = Read(underlying, value); !read) {
+      return read;
+    }
+    const std::optional<int64_t> decoded =
+        AsInt64(Meta<EcsPrimitive>(world_, underlying, ecs_id(EcsPrimitive))->kind, value);
+    const bool known = decoded && std::ranges::any_of(Constants<ecs_enum_constant_t>(type), [&](const auto& c) {
+      return c.value == *decoded || static_cast<int64_t>(c.value_unsigned) == *decoded;
+    });
+    return known ? Status{} : Error(std::format("not a constant of enum '{}'", TypeName(world_, type)));
+  }
+
+  Status ReadBitmask(flecs::entity_t type, void* value) {
+    uint32_t bits {};
+    if (auto read = ReadInto(&bits, sizeof(bits)); !read) {
+      return read;
+    }
+    ecs_flags64_t known {};
+    for (const ecs_bitmask_constant_t& constant : Constants<ecs_bitmask_constant_t>(type)) {
+      known |= constant.value;
+    }
+    if ((bits & ~known) != 0) {
+      return Error(std::format("unknown flags in bitmask '{}'", TypeName(world_, type)));
+    }
+    std::memcpy(value, &bits, sizeof(bits));
+    return {};
+  }
+
+  // Enum and bitmask constants share a layout (flecs meta.h).
+  template <class Constant>
+  std::span<const Constant> Constants(flecs::entity_t type) const {
+    const EcsConstants* constants = Meta<EcsConstants>(world_, type, ecs_id(EcsConstants));
+    if (constants == nullptr) {
+      return {};
+    }
+    return {static_cast<const Constant*>(ecs_vec_first(&constants->ordered_constants)),
+            static_cast<size_t>(ecs_vec_count(&constants->ordered_constants))};
   }
 
   Status ReadStruct(const EcsStruct& meta, void* value) {
