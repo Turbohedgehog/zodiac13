@@ -33,11 +33,18 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 namespace z13::bullet_module {
 
 // Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
 struct PhysicsStepPhase {};
+
+// Where the player stood when the frame began; the collision sweep starts there. Derived
+// every frame, so a rollback or teleport between frames is never swept.
+struct SweepOrigin {
+  Eigen::Vector3f position = Eigen::Vector3f::Zero();
+};
 
 namespace {
 
@@ -51,7 +58,7 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody>(world);
+  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin>(world);
 }
 
 // Only term is a singleton, so $this is empty and the entity-taking .each()
@@ -87,14 +94,24 @@ void ReleaseOrphanBodies(flecs::iter& it, size_t, PhysicsWorld& physics_world) {
   });
 }
 
+btVector3 ToBtVector(const Eigen::Vector3f& vector) {
+  return {vector.x(), vector.y(), vector.z()};
+}
+
+void RecordSweepOrigin(flecs::entity e, const z13::gameplay::PlayerCollider&, const Eigen::Matrix4f& transform) {
+  e.set(SweepOrigin {.position = z13::math::ExtractTranslation<float>(transform)});
+}
+
 // Mutate-then-e.set() idiom (like BuildingSystem::UpdateBrush), so OnSet
-// observers see the correction; IsNear makes it a no-op once resolved.
+// observers see the correction; IsNear makes it a no-op once resolved. The push-out
+// still runs after the sweep, for blocks placed onto the player.
 void ResolvePlayerCollision(
-    flecs::entity e, const z13::gameplay::PlayerCollider& collider, Eigen::Matrix4f& transform,
-    PhysicsWorld& physics_world) {
+    flecs::entity e, const z13::gameplay::PlayerCollider& collider, const SweepOrigin& origin,
+    Eigen::Matrix4f& transform, PhysicsWorld& physics_world) {
   const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transform);
-  const btVector3 resolved = physics_world.ResolveSpherePosition(
-      btVector3(position.x(), position.y(), position.z()), collider.radius);
+  const btVector3 swept =
+      physics_world.SweepSphere(ToBtVector(origin.position), ToBtVector(position), collider.radius);
+  const btVector3 resolved = physics_world.ResolveSpherePosition(swept, collider.radius);
   const Eigen::Vector3f resolved_position(resolved.x(), resolved.y(), resolved.z());
   if (z13::math::IsNear(position, resolved_position)) {
     return;
@@ -157,7 +174,13 @@ void RegisterSystems(flecs::world world) {
       .write<RigidBody>()
       .each(SyncBlockBody);
 
-  world.system<const z13::gameplay::PlayerCollider, Eigen::Matrix4f, PhysicsWorld>(
+  // The first phase of a frame, before any movement.
+  world.system<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>("PhysicsSystem::RecordSweepOrigin")
+      .kind<z13::input::ClearActionFramePhase>()
+      .write<SweepOrigin>()
+      .each(RecordSweepOrigin);
+
+  world.system<const z13::gameplay::PlayerCollider, const SweepOrigin, Eigen::Matrix4f, PhysicsWorld>(
            "PhysicsSystem::ResolvePlayerCollision")
       .kind<z13::gameplay::PostUpdatePhase>()
       .each(ResolvePlayerCollision);
