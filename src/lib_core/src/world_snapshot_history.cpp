@@ -16,6 +16,7 @@
 
 #include <lib_core/world_snapshot_history.h>
 
+#include <lib_core/log.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_state.h>
 
@@ -35,10 +36,12 @@ void CaptureSnapshot(
     return;
   }
 
-  TimestampedSnapshot entry;
-  entry.tick = clock.tick;
-  entry.snapshot = CaptureState(world);
-  history.history.Push(std::move(entry));
+  auto snapshot = CaptureState(world);
+  if (!snapshot) {
+    log_error("z13::WorldSnapshotHistory: capture at tick {} failed: {}", clock.tick, snapshot.error());
+    return;
+  }
+  history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
 
   const uint64_t current_tick = clock.tick;
   auto is_too_old = [current_tick, retention_ticks = *retention_ticks](const TimestampedSnapshot& old_entry) {

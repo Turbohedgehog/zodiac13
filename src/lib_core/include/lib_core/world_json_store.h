@@ -35,10 +35,9 @@ class WorldJsonStore {
  public:
   static constexpr int kVersion = 1;
 
-  // Fails if a component value cannot be written as JSON (e.g. NaN or infinity), so
-  // a save that could not be loaded back is never produced.
-  static std::expected<std::string, std::string> ToJson(const WorldSnapshot& snapshot);
-  static std::expected<WorldSnapshot, std::string> FromJson(std::string_view json);
+  // Component types must be registered in `world`.
+  static std::expected<std::string, std::string> ToJson(const flecs::world& world, const WorldSnapshot& snapshot);
+  static std::expected<WorldSnapshot, std::string> FromJson(const flecs::world& world, std::string_view json);
 
   static std::expected<std::string, std::string> Save(const flecs::world& world);
 

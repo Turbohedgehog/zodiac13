@@ -68,7 +68,7 @@ TEST_F(FrameStartTest, RolledBackTicksAreReplayFrames) {
   while (Tick() < kSnapshotTick) {
     ft::TickWorld(world_, 1.f);
   }
-  world_.get_mut<ft::WorldSnapshotHistory>().history.Push({.tick = Tick(), .snapshot = ft::CaptureState(world_)});
+  world_.get_mut<ft::WorldSnapshotHistory>().history.Push({.tick = Tick(), .snapshot = ft::CaptureState(world_).value()});
   while (Tick() < kPresentTick) {
     ft::TickWorld(world_, 1.f);
   }

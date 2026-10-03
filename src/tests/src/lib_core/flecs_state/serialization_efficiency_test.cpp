@@ -18,6 +18,8 @@
 
 #include <flatbuffers/flatbuffers.h>
 
+#include <lib_core/component_codec.h>
+#include <lib_core/world_json_store.h>
 #include <lib_core/world_serializer.h>
 
 #include "test_components.h"
@@ -32,11 +34,9 @@ using Clock = std::chrono::steady_clock;
 
 const ft::EntityFilter kTestFilter = [](flecs::entity e) { return e.has<TestEntity>(); };
 
-// The fixture snapshot, tiled to `entity_count` entities with unique names.
-ft::WorldSnapshot MakeBenchmarkSnapshot(std::size_t entity_count) {
-  flecs::world world;
-  PopulateFixtureWorld(world);
-  const ft::WorldSnapshot base = ft::CaptureWorld(world, kTestFilter);
+// The fixture world's snapshot, tiled to `entity_count` entities with unique names.
+ft::WorldSnapshot MakeBenchmarkSnapshot(const flecs::world& world, std::size_t entity_count) {
+  const ft::WorldSnapshot base = ft::CaptureWorld(world, kTestFilter).value();
 
   ft::WorldSnapshot inflated;
   inflated.entities.reserve(entity_count);
@@ -99,24 +99,53 @@ ft::WorldSnapshot ReadBinary(const std::vector<uint8_t>& bytes) {
   return ft::FromFlatbuffer(flat);
 }
 
-// Prints the numbers only: with values still JSON text, the FlatBuffers snapshot is no
-// smaller than JSON (docs/serialization-plan.md, stage 2 adds a size check).
-void RunBenchmark(std::size_t entity_count, int ops, int samples) {
-  const ft::WorldSnapshot snapshot = MakeBenchmarkSnapshot(entity_count);
+// Stage 1's format: values as flecs JSON text.
+std::vector<uint8_t> WriteWithJsonValues(const flecs::world& world, const ft::WorldSnapshot& snapshot) {
+  z13::fbs::state::WorldSnapshotT flat = ft::ToFlatbuffer(snapshot);
+  for (const auto& entity : flat.entities) {
+    for (const auto& component : entity->components) {
+      const std::string json =
+          ft::ValueToJson(world, world.lookup(component->type.c_str()), component->value).value();
+      component->value.assign(json.begin(), json.end());
+    }
+  }
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(z13::fbs::state::WorldSnapshot::Pack(builder, &flat));
+  return {builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize()};
+}
 
-  const std::string json_bytes = rfl::json::write(snapshot);
+TEST(SerializationEfficiency, BinaryValuesShrinkTheSnapshot) {
+  flecs::world world;
+  PopulateFixtureWorld(world);
+  const ft::WorldSnapshot snapshot = MakeBenchmarkSnapshot(world, /*entity_count=*/30);
+
+  const std::size_t binary = WriteBinary(snapshot).size();
+  const std::size_t with_json = WriteWithJsonValues(world, snapshot).size();
+
+  std::cout << "[ size  ] binary values " << binary << " bytes, JSON values " << with_json << " bytes ("
+            << static_cast<double>(binary) / static_cast<double>(with_json) << "x)\n";
+  EXPECT_LT(binary, with_json);
+}
+
+// Binary snapshot against the JSON save format; prints the numbers only.
+void RunBenchmark(std::size_t entity_count, int ops, int samples) {
+  flecs::world fixture;
+  PopulateFixtureWorld(fixture);
+  const ft::WorldSnapshot snapshot = MakeBenchmarkSnapshot(fixture, entity_count);
+
+  const std::string json_bytes = ft::WorldJsonStore::ToJson(fixture, snapshot).value();
   const std::vector<uint8_t> binary_bytes = WriteBinary(snapshot);
 
   // Both formats must round-trip the same data.
   ASSERT_EQ(rfl::json::write(ReadBinary(binary_bytes)),
-            rfl::json::write(rfl::json::read<ft::WorldSnapshot>(json_bytes).value()));
+            rfl::json::write(ft::WorldJsonStore::FromJson(fixture, json_bytes).value()));
 
   std::size_t sink = 0;
 
   const std::int64_t json_write = BestNs(
-      [&] { return rfl::json::write(snapshot).size(); }, sink, ops, samples);
+      [&] { return ft::WorldJsonStore::ToJson(fixture, snapshot).value().size(); }, sink, ops, samples);
   const std::int64_t json_read = BestNs(
-      [&] { return rfl::json::read<ft::WorldSnapshot>(json_bytes).value().entities.size(); },
+      [&] { return ft::WorldJsonStore::FromJson(fixture, json_bytes).value().entities.size(); },
       sink, ops, samples);
   const std::int64_t binary_write = BestNs(
       [&] { return WriteBinary(snapshot).size(); }, sink, ops, samples);
@@ -143,7 +172,7 @@ void RunBenchmark(std::size_t entity_count, int ops, int samples) {
   // Full capture+sort+write pipeline on a real world (this path holds the sorts).
   const flecs::world world = MakeBenchmarkWorld(entity_count);
   const std::int64_t save = BestNs(
-      [&] { return ft::SaveWorldState(world, kTestFilter).size(); }, sink, ops, samples);
+      [&] { return ft::SaveWorldState(world, kTestFilter).value().size(); }, sink, ops, samples);
   std::cout << "[ bench ]   SaveWorldState (capture+sort+write) " << save / 1000 << " us\n";
 }
 

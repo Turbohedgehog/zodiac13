@@ -32,7 +32,7 @@ namespace fbs_state = fbs::state;
 std::unique_ptr<fbs_state::WorldSnapshotT> OneEntitySnapshot(const std::string& name) {
   auto component = std::make_unique<fbs_state::ComponentValueT>();
   component->type = "z13::Position";
-  component->value = R"({"x":1})";
+  component->value = {1, 2, 3};
   auto entity = std::make_unique<fbs_state::EntitySnapshotT>();
   entity->name = name;
   entity->tags = {"z13::StateEntity"};

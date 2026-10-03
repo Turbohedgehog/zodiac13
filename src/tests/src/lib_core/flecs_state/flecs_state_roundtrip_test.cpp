@@ -21,7 +21,7 @@ namespace ft = z13::flecs_tools;
 const ft::EntityFilter kTestFilter = [](flecs::entity e) { return e.has<TestEntity>(); };
 
 ft::WorldSnapshot Capture(const flecs::world& world) {
-  return ft::CaptureWorld(world, kTestFilter);
+  return ft::CaptureWorld(world, kTestFilter).value();
 }
 
 class FlecsStateRoundTrip : public ::testing::Test {
@@ -36,7 +36,7 @@ class FlecsStateRoundTrip : public ::testing::Test {
 
   // SaveWorldState(A) -> LoadWorldState(B).
   void RunPipeline() {
-    const std::vector<uint8_t> binary = ft::SaveWorldState(world_a_, kTestFilter);
+    const std::vector<uint8_t> binary = ft::SaveWorldState(world_a_, kTestFilter).value();
     ASSERT_FALSE(binary.empty());
     ASSERT_TRUE(ft::LoadWorldState(world_b_, binary));
   }
@@ -101,8 +101,8 @@ TEST(FlecsStateSnapshot, BinaryWriteIsDeterministic) {
   flecs::world world;
   PopulateFixtureWorld(world);
 
-  const auto first = ft::SaveWorldState(world, kTestFilter);
-  const auto second = ft::SaveWorldState(world, kTestFilter);
+  const auto first = ft::SaveWorldState(world, kTestFilter).value();
+  const auto second = ft::SaveWorldState(world, kTestFilter).value();
   EXPECT_FALSE(first.empty());
   EXPECT_EQ(first, second);
 }
@@ -113,10 +113,10 @@ TEST(FlecsStateSnapshot, EmptyWorldRoundTrips) {
   RegisterTestComponents(world_a);
   RegisterTestComponents(world_b);
 
-  const auto binary = ft::SaveWorldState(world_a, kTestFilter);
+  const auto binary = ft::SaveWorldState(world_a, kTestFilter).value();
   ASSERT_TRUE(ft::LoadWorldState(world_b, binary));
 
-  EXPECT_TRUE(ft::CaptureWorld(world_a, kTestFilter).entities.empty());
+  EXPECT_TRUE(ft::CaptureWorld(world_a, kTestFilter).value().entities.empty());
   EXPECT_EQ(CanonicalWorldJson(world_a), CanonicalWorldJson(world_b));
 }
 
