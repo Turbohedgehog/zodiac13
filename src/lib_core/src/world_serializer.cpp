@@ -182,7 +182,11 @@ std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world
 }
 
 std::expected<void, std::string> ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
-  // Pass 1: entities, tags, component values.
+  // Entities first, so values can reference any of them by path.
+  for (const auto& s : snapshot.entities) {
+    world.entity(s.name.c_str());
+  }
+
   for (const auto& s : snapshot.entities) {
     flecs::entity e = world.entity(s.name.c_str());
 

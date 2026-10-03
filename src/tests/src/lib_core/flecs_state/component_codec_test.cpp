@@ -13,6 +13,7 @@
 
 #include <lib_core/component_codec.h>
 #include <lib_core/component_meta.h>
+#include <lib_core/world_serializer.h>
 
 namespace {
 
@@ -209,6 +210,16 @@ TEST_F(ComponentCodecTest, RejectsUnknownBitmaskFlags) {
 
   EXPECT_TRUE(ft::ValidateValue(world_, type, RawBytes(kFlagA | kFlagB)));
   EXPECT_FALSE(ft::ValidateValue(world_, type, RawBytes(kFlagA | kUnknownFlag)));
+}
+
+TEST_F(ComponentCodecTest, ApplyResolvesReferencesToEntitiesLaterInTheSnapshot) {
+  flecs::world source;
+  source.component<Link>().member(flecs::Entity, "target");
+  source.entity("a").set(Link {.target = source.entity("b")});
+  const ft::WorldSnapshot snapshot = ft::CaptureWorld(source).value();
+
+  ASSERT_TRUE(ft::ApplyWorld(world_, snapshot));
+  EXPECT_EQ(world_.lookup("a").get<Link>().target, world_.lookup("b").id());
 }
 
 TEST_F(ComponentCodecTest, GarbageNeverDecodes) {
