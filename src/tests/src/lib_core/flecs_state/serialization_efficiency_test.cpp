@@ -99,7 +99,7 @@ ft::WorldSnapshot ReadBinary(const std::vector<uint8_t>& bytes) {
   return ft::FromFlatbuffer(flat);
 }
 
-// The snapshot with stage 1's values (docs/serialization-plan.md): flecs JSON text in the same table.
+// Stage 1's format: values as flecs JSON text.
 std::vector<uint8_t> WriteWithJsonValues(const flecs::world& world, const ft::WorldSnapshot& snapshot) {
   z13::fbs::state::WorldSnapshotT flat = ft::ToFlatbuffer(snapshot);
   for (const auto& entity : flat.entities) {

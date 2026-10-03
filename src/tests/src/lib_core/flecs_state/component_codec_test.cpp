@@ -149,7 +149,7 @@ TEST_F(ComponentCodecTest, RejectsCorruptCounts) {
   std::vector<uint8_t> bytes = ft::EncodeValue(world_, matrix, &identity).value();
   ASSERT_TRUE(ft::ValidateValue(world_, matrix, bytes));
 
-  // One element too many, padded so only the count is wrong.
+  // Padded, so only the count is wrong.
   const uint32_t too_many = 17;
   std::memcpy(bytes.data() + kMatrixCountOffset, &too_many, sizeof(too_many));
   bytes.resize(bytes.size() + sizeof(float));

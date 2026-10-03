@@ -35,8 +35,7 @@ class WorldJsonStore {
  public:
   static constexpr int kVersion = 1;
 
-  // Converts component values through `world`'s meta, so their types must be registered
-  // there. ToJson fails rather than produce a save that could not be loaded back.
+  // Component types must be registered in `world`.
   static std::expected<std::string, std::string> ToJson(const flecs::world& world, const WorldSnapshot& snapshot);
   static std::expected<WorldSnapshot, std::string> FromJson(const flecs::world& world, std::string_view json);
 

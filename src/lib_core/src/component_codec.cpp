@@ -29,13 +29,13 @@ namespace z13::flecs_tools {
 
 namespace {
 
-// Every supported platform (x64, arm64) is little-endian, so primitives are copied as-is.
+// Primitives are copied as-is: every supported platform is little-endian.
 static_assert(std::endian::native == std::endian::little);
 
 using Error = std::unexpected<std::string>;
 using Status = std::expected<void, std::string>;
 
-// Pointer-sized integers are always written as 8 bytes, so the format doesn't depend on the platform.
+// Pointer-sized integers are always 8 bytes, independent of the platform.
 using WideUPtr = uint64_t;
 using WideIPtr = int64_t;
 
@@ -80,7 +80,6 @@ std::optional<size_t> FixedSize(ecs_primitive_kind_t kind) {
   }
 }
 
-// An instance of a meta type outside any entity, for decoding or JSON conversion.
 class ScratchValue {
  public:
   ScratchValue(const flecs::world& world, flecs::entity_t type)
@@ -134,7 +133,6 @@ class Encoder {
   std::vector<uint8_t> Take() { return std::move(bytes_); }
 
  private:
-  // Collects what an opaque type's serialize callback emits.
   struct OpaqueSink {
     Encoder& encoder;
     size_t count {};
@@ -210,8 +208,7 @@ class Encoder {
     return {};
   }
 
-  // Opaque values are written as their `as_type`: a primitive as is, a collection
-  // with its element count first.
+  // Written as `as_type`; a collection with its element count first.
   Status WriteOpaque(flecs::entity_t type, const void* value) {
     const EcsOpaque& opaque = *Meta<EcsOpaque>(world_, type, ecs_id(EcsOpaque));
     const EcsType* as_type = Meta<EcsType>(world_, opaque.as_type, ecs_id(EcsType));
@@ -310,7 +307,7 @@ class Decoder {
     return scalar;
   }
 
-  // Every element takes at least one byte, so a count beyond the remaining bytes is corrupt.
+  // Every element takes at least one byte.
   std::expected<size_t, std::string> ReadCount() {
     const auto count = ReadScalar<uint32_t>();
     if (count && *count > bytes_.size()) {
@@ -415,7 +412,6 @@ class Decoder {
     return {};
   }
 
-  // Reads a primitive of `kind` and hands it to the matching assign_* callback.
   Status AssignOpaquePrimitive(const EcsOpaque& opaque, ecs_primitive_kind_t kind, void* value) {
     const auto assign = [&](auto callback, auto read, auto&&... args) -> Status {
       if (callback == nullptr) {
@@ -585,7 +581,7 @@ std::expected<std::vector<uint8_t>, std::string> ValueFromJson(
     return Error(std::format("'{}' can't be instantiated", TypeName(world, type)));
   }
   const std::string owned(json);
-  flecs::world mutable_world = world;  // from_json isn't const
+  flecs::world mutable_world = world;
   if (mutable_world.from_json(type, scratch.Get(), owned.c_str()) == nullptr) {
     return Error(std::format("invalid JSON value for '{}'", TypeName(world, type)));
   }
