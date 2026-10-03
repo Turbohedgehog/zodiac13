@@ -206,6 +206,7 @@ NetSession::Result SendWelcome(
   const auto config = z13::GetCoreConfig(world);
   welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
   welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
+  welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
   if (auto filled = FillCatchUp(world, welcome); !filled) {
     return filled;
   }
@@ -514,23 +515,26 @@ void SetConnectionStatus(flecs::world world, ConnectionState state, std::string 
 struct AdoptedSettings {
   using Singleton = void;
   NetTuning own_net;
+  z13::PhysicsTuning own_physics;
 };
 
 void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& session) {
   if (!world.has<AdoptedSettings>()) {
-    world.set<AdoptedSettings>({.own_net = world.get<NetTuning>()});
+    world.set<AdoptedSettings>({.own_net = world.get<NetTuning>(), .own_physics = world.get<z13::PhysicsTuning>()});
   }
   z13::OverrideCoreFps(world, session.fps);
   world.set(NetTuning(session.net));
+  world.set(z13::PhysicsTuning(session.physics));
 }
 
 void RestoreOwnSettings(flecs::world world) {
   if (!world.has<AdoptedSettings>()) {
     return;
   }
-  const NetTuning own = world.get<AdoptedSettings>().own_net;
+  const AdoptedSettings own = world.get<AdoptedSettings>();
   world.remove<AdoptedSettings>();
-  world.set(own);
+  world.set(own.own_net);
+  world.set(own.own_physics);
   z13::OverrideCoreFps(world, std::nullopt);
 }
 
@@ -608,13 +612,14 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
 
 // Validated together with this client's own retention: a server's windows must still fit its history.
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(flecs::world world, const fbn::WelcomeT& welcome) {
-  if (!welcome.tuning) {
+  if (!welcome.tuning || !welcome.physics) {
     return std::unexpected("server sent no settings");
   }
-  const z13::SessionSettings session {.fps = welcome.fps, .net = *welcome.tuning};
+  const z13::SessionSettings session {.fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics};
   z13::Settings own = z13::MakeSettings();
   *own.core = world.get<z13::ActiveCoreSettings>();
   *own.net = world.get<NetTuning>();
+  *own.physics = world.get<z13::PhysicsTuning>();
   if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
     return std::unexpected(std::format("unusable server settings ({})", valid.error()));
   }

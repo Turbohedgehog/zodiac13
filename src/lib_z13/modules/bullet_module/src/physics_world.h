@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -48,6 +49,10 @@ class PhysicsWorld {
   void RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove);
 
   size_t BodyCount() const;
+
+  // Moves a sphere from `from` toward `to`, stopping at placed blocks and sliding along
+  // them (at most `max_iterations` slides), so a long step can't pass through a block.
+  btVector3 SweepSphere(const btVector3& from, const btVector3& to, float radius, uint32_t max_iterations);
 
   // Pushes a sphere out of any placed block it penetrates. No persistent
   // body: the player is purely kinematic, so this is a one-off query.

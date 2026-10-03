@@ -64,12 +64,16 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.net) {
     settings.net = std::make_unique<fbs::net::NetTuningT>();
   }
+  if (!settings.physics) {
+    settings.physics = std::make_unique<fbs::physics::PhysicsTuningT>();
+  }
 }
 
 SessionSettings SessionOf(const Settings& settings) {
   return {
       .fps = settings.core ? settings.core->fps : CoreSettings {}.fps,
       .net = settings.net ? *settings.net : fbs::net::NetTuningT {},
+      .physics = settings.physics ? *settings.physics : fbs::physics::PhysicsTuningT {},
   };
 }
 
@@ -77,11 +81,12 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
   EnsureNestedSettings(settings);
   settings.core->fps = session.fps;
   settings.net = std::make_unique<fbs::net::NetTuningT>(session.net);
+  settings.physics = std::make_unique<fbs::physics::PhysicsTuningT>(session.physics);
   return settings;
 }
 
 std::expected<void, std::string> ValidateSettings(const Settings& settings) {
-  if (!settings.core || !settings.connect_timeout || !settings.net) {
+  if (!settings.core || !settings.connect_timeout || !settings.net || !settings.physics) {
     return Invalid("nested tables", "must be set");
   }
 
@@ -136,9 +141,12 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 }
 
 void InstallSettings(flecs::world world, const Settings& settings) {
-  flecs_tools::RegisterComponents<NetTuning, ConnectTimeout>(world);
+  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, ConnectTimeout>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
+  }
+  if (settings.physics) {
+    world.set(PhysicsTuning(*settings.physics));
   }
   if (settings.connect_timeout) {
     world.set(ConnectTimeout(*settings.connect_timeout));

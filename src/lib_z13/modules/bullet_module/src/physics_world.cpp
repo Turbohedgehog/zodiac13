@@ -30,6 +30,10 @@ namespace {
 constexpr float kStaticMass = 0.f;
 const btVector3 kZeroVector(0.f, 0.f, 0.f);
 
+// Stops this short of a hit surface, so the next step doesn't start touching it.
+constexpr float kSweepSkin = 1e-3f;
+constexpr float kMinSweepDistance = 1e-5f;
+
 btRigidBody::btRigidBodyConstructionInfo MakeStaticBodyInfo(
     btMotionState& motion_state, btCollisionShape& shape) {
   return btRigidBody::btRigidBodyConstructionInfo(kStaticMass, &motion_state, &shape, kZeroVector);
@@ -99,6 +103,34 @@ class PenetrationCallback : public btCollisionWorld::ContactResultCallback {
  private:
   const btCollisionObject& probe_;
 };
+
+// The closest hit that blocks the motion; surfaces it moves away from (normal along the
+// motion) are ignored, so a sphere resting against a block can leave it.
+class BlockingSweepCallback : public btCollisionWorld::ClosestConvexResultCallback {
+ public:
+  BlockingSweepCallback(const btVector3& from, const btVector3& to)
+      : ClosestConvexResultCallback(from, to), motion_(to - from) {}
+
+  btScalar addSingleResult(btCollisionWorld::LocalConvexResult& result, bool normal_in_world_space) override {
+    const btVector3 normal = normal_in_world_space
+        ? result.m_hitNormalLocal
+        : result.m_hitCollisionObject->getWorldTransform().getBasis() * result.m_hitNormalLocal;
+    if (normal.dot(motion_) >= 0.f) {
+      return m_closestHitFraction;
+    }
+    return ClosestConvexResultCallback::addSingleResult(result, normal_in_world_space);
+  }
+
+ private:
+  btVector3 motion_ {};
+};
+
+btTransform AtPosition(const btVector3& position) {
+  btTransform transform;
+  transform.setIdentity();
+  transform.setOrigin(position);
+  return transform;
+}
 
 }  // namespace
 
@@ -207,6 +239,27 @@ btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, f
   PenetrationCallback callback(probe);
   state_->DynamicsWorld().contactTest(&probe, callback);
   return desired_center + callback.correction;
+}
+
+btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, float radius, uint32_t max_iterations) {
+  const btSphereShape shape(radius);
+  btVector3 position = from;
+  btVector3 remaining = to - from;
+  for (uint32_t i = 0; i < max_iterations && remaining.length() > kMinSweepDistance; ++i) {
+    // Exactly `to` when unobstructed, so an unblocked step leaves the position bit-identical.
+    const btVector3 target = i == 0 ? to : position + remaining;
+    BlockingSweepCallback callback(position, target);
+    state_->DynamicsWorld().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
+    if (!callback.hasHit()) {
+      return target;
+    }
+
+    const btVector3 normal = callback.m_hitNormalWorld;
+    position += remaining * callback.m_closestHitFraction + normal * kSweepSkin;
+    remaining *= 1.f - callback.m_closestHitFraction;
+    remaining -= normal * normal.dot(remaining);
+  }
+  return position;
 }
 
 std::optional<flecs::entity_t> PhysicsWorld::RaycastEntity(const btVector3& from, const btVector3& to) {

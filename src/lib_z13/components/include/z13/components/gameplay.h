@@ -82,8 +82,6 @@ struct QuickSaveSettings {
   std::filesystem::path path;
 };
 
-constexpr float kPlayerColliderRadius = 0.4f;
-
 struct PlayerCollider {
   using State = void;
   float radius {};

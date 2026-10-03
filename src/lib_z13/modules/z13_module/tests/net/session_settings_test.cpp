@@ -45,6 +45,8 @@ Settings ServerSettings() {
   settings.core->fps = 30.;
   settings.net->max_late_ticks = 50;
   settings.net->send_interval_ticks = 5;
+  settings.physics->player_collider_radius = 0.25f;
+  settings.physics->max_sweep_iterations = 5;
   return settings;
 }
 
@@ -62,7 +64,7 @@ bool IsConnected(Z13TestWorld& world) {
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndNetTuning) {
+TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndTuning) {
   auto network = std::make_shared<InMemoryNetwork>();
   const Settings server_settings = ServerSettings();
   Z13TestWorld server = MakeServer(network, server_settings);
@@ -74,6 +76,7 @@ TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndNetTuning) {
 
   EXPECT_EQ(client.Config().GetFPS(), server_settings.core->fps);
   EXPECT_EQ(client.World().get<NetTuning>(), *server_settings.net);
+  EXPECT_EQ(client.World().get<PhysicsTuning>(), *server_settings.physics);
   EXPECT_EQ(client.Config().GetCoreSettings().fps, CoreSettings {}.fps) << "the configured rate stays as it was";
   EXPECT_EQ(server.World().get<NetTuning>(), *server_settings.net) << "the server keeps its own";
 }
@@ -92,6 +95,7 @@ TEST(SessionSettingsTest, LeavingGivesTheClientItsOwnSettingsBack) {
 
   EXPECT_EQ(client.Config().GetFPS(), CoreSettings {}.fps);
   EXPECT_EQ(client.World().get<NetTuning>(), NetTuning {});
+  EXPECT_EQ(client.World().get<PhysicsTuning>(), PhysicsTuning {});
 }
 
 TEST(SessionSettingsTest, ClientRefusesServerSettingsItsHistoryCannotCover) {

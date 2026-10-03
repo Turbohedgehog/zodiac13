@@ -34,6 +34,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player_action.h>
+#include <z13_settings/physics_tuning.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
@@ -109,7 +110,7 @@ flecs::entity SpawnRemotePlayer(Z13TestWorld& test_world, uint32_t player_id) {
       .add<z13::flecs_tools::StateEntity>()
       .set(z13::gameplay::Player{.id = player_id})
       .set(Eigen::Matrix4f(Eigen::Matrix4f::Identity()))
-      .set(z13::gameplay::PlayerCollider{.radius = z13::gameplay::kPlayerColliderRadius})
+      .set(z13::gameplay::PlayerCollider{.radius = z13::PhysicsTuning {}.player_collider_radius})
       .set(z13::input::ActionListener{});
 }
 

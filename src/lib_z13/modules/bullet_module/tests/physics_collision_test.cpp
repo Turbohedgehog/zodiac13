@@ -26,8 +26,11 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <lib_core/math.h>
+#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13_settings/physics_tuning.h>
 #include <z13_tests/test_time.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -65,6 +68,72 @@ Eigen::Vector3f SettlePlayerAt(z13::testing::Z13TestWorld& test_world, float x) 
   return z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
 }
 
+const float kPlayerRadius = z13::PhysicsTuning {}.player_collider_radius;
+// Closest the player's center gets to the block's -X face.
+const float kTouchingX = kBlockX - z13::building::kBlockSize / 2.f - kPlayerRadius;
+const float kApproachX = kTouchingX - 1.f;
+constexpr float kPastBlockX = kBlockX + 2.f;
+// Small enough that the step hits the face, not the edge.
+constexpr float kSlideY = 0.2f;
+// The sweep stops a skin short of a surface.
+constexpr float kSweepTolerance = 1e-2f;
+
+// Moves the player to `target` mid-frame, after the sweep origin is recorded, as movement input does.
+Eigen::Vector3f MovePlayerWithinFrame(z13::testing::Z13TestWorld& test_world, const Eigen::Vector3f& target) {
+  flecs::entity mover = test_world.World()
+                            .system<Eigen::Matrix4f>()
+                            .with<z13::gameplay::Player>()
+                            .kind<z13::input::ApplyActionFramePhase>()
+                            .each([target](Eigen::Matrix4f& transform) { z13::math::SetTranslation(target, transform); });
+  test_world.Tick(kTestDeltaTime);
+  mover.destruct();
+  return z13::math::ExtractTranslation<float>(test_world.Player().get<Eigen::Matrix4f>());
+}
+
+TEST(PhysicsCollisionTest, LongStepStopsAtABlockInsteadOfPassingThrough) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kApproachX);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(test_world, Eigen::Vector3f(kPastBlockX, 0.f, 0.f));
+
+  EXPECT_NEAR(moved.x(), kTouchingX, kSweepTolerance);
+}
+
+TEST(PhysicsCollisionTest, DiagonalStepSlidesAlongTheBlockFace) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kApproachX);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(test_world, Eigen::Vector3f(kPastBlockX, kSlideY, 0.f));
+
+  EXPECT_NEAR(moved.x(), kTouchingX, kSweepTolerance);
+  EXPECT_NEAR(moved.y(), kSlideY, kSweepTolerance);
+}
+
+// Less than any IsNear-style epsilon, so a tolerance would let the player sink into the block.
+constexpr float kTinyStep = 5e-3f;
+
+TEST(PhysicsCollisionTest, TinyStepIntoABlockIsStoppedToo) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kTouchingX);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(test_world, Eigen::Vector3f(kTouchingX + kTinyStep, 0.f, 0.f));
+
+  EXPECT_LE(moved.x(), kTouchingX);
+}
+
+TEST(PhysicsCollisionTest, StepAwayFromATouchingBlockIsFree) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kTouchingX);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(test_world, Eigen::Vector3f(kApproachX, 0.f, 0.f));
+
+  EXPECT_NEAR(moved.x(), kApproachX, kSweepTolerance);
+}
+
 TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
   z13::testing::Z13TestWorld test_world;
   flecs::world& world = test_world.World();
@@ -82,7 +151,21 @@ TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
                               .norm();
   EXPECT_GE(
       distance,
-      z13::building::kBlockSize / 2.f + z13::gameplay::kPlayerColliderRadius - z13::testing::kTestEpsilon);
+      z13::building::kBlockSize / 2.f + kPlayerRadius - z13::testing::kTestEpsilon);
+}
+
+// SweepOrigin is set in the frame the player first appears, so its collision runs then too.
+TEST(PhysicsCollisionTest, NewPlayerInsideABlockIsPushedOutOnItsFirstFrame) {
+  z13::testing::Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  SpawnBlockAt(world, TranslatedIdentity(kBlockX, 0.f, 0.f));
+  constexpr uint32_t kNewPlayerId = 2;
+  const flecs::entity newcomer = z13::gameplay::SpawnPlayer(world, kNewPlayerId);
+  newcomer.set(TranslatedIdentity(kBlockX + kInsideOffset, 0.f, 0.f));
+
+  test_world.Tick(kTestDeltaTime);
+
+  EXPECT_GT(z13::math::ExtractTranslation<float>(newcomer.get<Eigen::Matrix4f>()).x(), kBlockX + kInsideOffset);
 }
 
 TEST(PhysicsCollisionTest, PlayerUntouchedWhenClearOfBlocks) {

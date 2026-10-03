@@ -26,6 +26,7 @@
 #include <settings_generated.h>
 
 #include "net_tuning.h"
+#include "physics_tuning.h"
 
 namespace z13 {
 
@@ -45,6 +46,7 @@ struct ConnectTimeout : ConnectTimeoutConfig {
 struct SessionSettings {
   double fps {};
   fbs::net::NetTuningT net;
+  fbs::physics::PhysicsTuningT physics;
 
   bool operator==(const SessionSettings&) const = default;
 };
@@ -66,7 +68,7 @@ std::expected<void, std::string> AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning and ConnectTimeout singletons; the core part goes through
+// Sets the world's NetTuning, PhysicsTuning and ConnectTimeout singletons; the core part goes through
 // Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
