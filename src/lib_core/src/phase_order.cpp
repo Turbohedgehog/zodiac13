@@ -24,8 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include <lib_core/log.h>
-
 namespace z13 {
 
 namespace {
@@ -88,7 +86,7 @@ std::vector<flecs::entity_t> SortPhases(
 
 }  // namespace
 
-void LinearizePhases(flecs::world& world) {
+std::expected<void, std::string> LinearizePhases(flecs::world& world) {
   // OnStart stays out: the pipeline skips anything that depends on it.
   std::map<flecs::entity_t, std::string> paths;
   world.query_builder().with(flecs::Phase).build().each([&paths](flecs::entity phase) {
@@ -99,8 +97,7 @@ void LinearizePhases(flecs::world& world) {
 
   const std::vector<flecs::entity_t> order = SortPhases(paths, CollectEdges(world, paths));
   if (order.size() != paths.size()) {
-    log_error("LinearizePhases: phase DependsOn graph has a cycle, order left as declared");
-    return;
+    return std::unexpected(std::string {"phase DependsOn graph has a cycle"});
   }
 
   flecs::entity previous_anchor;
@@ -119,6 +116,7 @@ void LinearizePhases(flecs::world& world) {
     phase.depends_on(anchor);
     previous_anchor = anchor;
   }
+  return {};
 }
 
 }  // namespace z13

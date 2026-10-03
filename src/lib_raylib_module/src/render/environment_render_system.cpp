@@ -122,10 +122,15 @@ Lighting LoadLighting() {
 }
 
 RenderModel LoadSpaceship(const Lighting& lighting) {
-  ::Model model = LoadModelFromAsset(kSpaceshipAsset);
-  if (model.meshCount == 0) {
+  auto loaded = LoadModelFromAsset(kSpaceshipAsset);
+  if (!loaded) {
+    log_error("[raylib] assimp: {}", loaded.error());
     return RenderModel{};
   }
+  for (const std::string& warning : loaded->warnings) {
+    log_warn("[raylib] assimp: '{}': {}", kSpaceshipAsset, warning);
+  }
+  ::Model& model = loaded->model;
 
   const unsigned int borrowed_shader_id = ApplyLightingShader(model, lighting);
 

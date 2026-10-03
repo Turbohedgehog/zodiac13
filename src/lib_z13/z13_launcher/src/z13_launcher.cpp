@@ -67,7 +67,8 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     return 1;
   }
   for (const auto& module_path : *modules) {
-    if (!core.RegisterModuleFactory(module_path)) {
+    if (const auto registered = core.RegisterModuleFactory(module_path); !registered) {
+      log_error("{}", registered.error());
       return 1;  // a missing plugin leaves a broken game, not a smaller one
     }
   }

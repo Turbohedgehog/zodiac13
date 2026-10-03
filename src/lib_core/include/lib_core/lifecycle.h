@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include <expected>
 #include <functional>
+#include <string>
 #include <utility>
 
 #include <flecs.h>
@@ -52,7 +54,8 @@ inline void OnInitWorldData(flecs::world& world, LifecycleCallback callback) {
 
 // Core::CreateWorld only: InitLifecycle before modules register, RunLifecycle after.
 void InitLifecycle(flecs::world& world);
-// Runs every stage in order, with LinearizePhases between phases and systems.
-void RunLifecycle(flecs::world& world);
+// Runs every stage in order, with LinearizePhases between phases and systems; stops there
+// if the phases can't be ordered.
+std::expected<void, std::string> RunLifecycle(flecs::world& world);
 
 }  // namespace z13

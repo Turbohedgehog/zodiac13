@@ -62,7 +62,10 @@ void OnAppendInputSchema(
         z13::fbs::building::BlockBinarySchema::size()
       },
   };
-  z13::gameplay::input::InputConfigLoader::AppendFlatbufActionsFromBinarySchema(ev, action_map);
+  if (const auto appended = z13::gameplay::input::InputConfigLoader::AppendFlatbufActionsFromBinarySchema(ev, action_map);
+      !appended) {
+    log_error("cannot read building actions from schema: {}", appended.error());
+  }
 }
 
 void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z13::input::ActionMap& action_map) {

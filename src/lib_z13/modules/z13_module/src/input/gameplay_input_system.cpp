@@ -229,7 +229,9 @@ void OnLoadConfig(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
     z13::input::LoadConfigEvent) {
-  InputConfigLoader::LoadConfig(input_config, action_map);
+  if (const auto loaded = InputConfigLoader::LoadConfig(input_config, action_map); !loaded) {
+    log_error("cannot load input config: {}", loaded.error());
+  }
   CallConfigUpdatedEvent(e.world());
 }
 
@@ -242,10 +244,11 @@ void OnSetDefaultConfig(
   CallConfigUpdatedEvent(e.world());
 }
 
-void AppendFlatbufActionsFromBinarySchema(
-    const z13::input::FlatbufferBinarySchema& binary_schema,
-    z13::input::ActionMap& action_map) {
-  InputConfigLoader::AppendFlatbufActionsFromBinarySchema(binary_schema, action_map);
+void AppendActions(const z13::input::FlatbufferBinarySchema& binary_schema, z13::input::ActionMap& action_map) {
+  if (const auto appended = InputConfigLoader::AppendFlatbufActionsFromBinarySchema(binary_schema, action_map);
+      !appended) {
+    log_error("cannot read actions from schema: {}", appended.error());
+  }
 }
 
 void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z13::input::ActionMap& action_map) {
@@ -287,7 +290,7 @@ void OnAppendInputSchema(
         z13::fbs::actions::ActionsTableBinarySchema::size()
       },
   };
-  InputConfigLoader::AppendFlatbufActionsFromBinarySchema(ev, action_map);
+  AppendActions(ev, action_map);
 }
 
 void OnInputSystemStartupGameEvent(
@@ -309,8 +312,15 @@ void OnInputSystemStartupGameEvent(
 
   log_info("~~~~ OnInputSystemStartupGameEvent");
 
-  if (!persistence.load_config_from_file ||
-      !InputConfigLoader::LoadConfig(input_config, action_map)) {
+  bool loaded = false;
+  if (persistence.load_config_from_file) {
+    const auto load = InputConfigLoader::LoadConfig(input_config, action_map);
+    if (!load) {
+      log_error("cannot load input config, using defaults: {}", load.error());
+    }
+    loaded = load.value_or(false);
+  }
+  if (!loaded) {
     InputConfigLoader::SetDefaults(input_config, action_map);
     if (persistence.load_config_from_file) {
       SaveInputConfig(input_config, action_map);
@@ -526,7 +536,7 @@ void RegisterSystems(flecs::world world) {
 
   world.observer<const z13::input::FlatbufferBinarySchema, z13::input::ActionMap>("gameplay_input_system::AppendFlatbufActionsFromBinarySchema")
       .event<z13::input::SystemInputEventType>()
-      .each(AppendFlatbufActionsFromBinarySchema);
+      .each(AppendActions);
 
   world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
       .event<z13::input::SystemInputEventType>()

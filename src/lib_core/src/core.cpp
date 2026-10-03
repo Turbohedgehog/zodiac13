@@ -78,13 +78,10 @@ bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
   return !!module_factories_.emplace_back(module_factory);
 }
 
-bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension) {
-  auto module_factory = module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension);
-  if (!module_factory) {
-    log_critical("Core::RegisterModuleFactory: {}", module_factory.error());
-    return false;
-  }
-  return RegisterModuleFactory(*module_factory);
+std::expected<void, std::string> Core::RegisterModuleFactory(
+    const std::filesystem::path& module_lib_path, bool append_platform_extension) {
+  return module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension)
+      .transform([this](ModuleFactoryPtr module_factory) { RegisterModuleFactory(std::move(module_factory)); });
 }
 
 std::expected<WorldRef, std::string> Core::CreateWorld() {
@@ -107,10 +104,10 @@ std::expected<WorldRef, std::string> Core::CreateWorld() {
     module_factory_ptr->RegisterModules(world);
   }
 
-  RunLifecycle(world);
-  if (auto valid = flecs_tools::ValidateStateComponents(world); !valid) {
+  if (auto created = RunLifecycle(world).and_then([&] { return flecs_tools::ValidateStateComponents(world); });
+      !created) {
     worlds_.erase(it.first);
-    return std::unexpected(std::move(valid.error()));
+    return std::unexpected(std::move(created.error()));
   }
 
   return WorldRef(world);

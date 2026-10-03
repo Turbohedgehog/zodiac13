@@ -38,9 +38,13 @@ void CaptureSnapshot(
 
   auto snapshot = CaptureState(world);
   if (!snapshot) {
-    log_error("z13::WorldSnapshotHistory: capture at tick {} failed: {}", clock.tick, snapshot.error());
+    if (history.capture_error != snapshot.error()) {
+      log_error("z13::WorldSnapshotHistory: capture at tick {} failed: {}", clock.tick, snapshot.error());
+      history.capture_error = snapshot.error();
+    }
     return;
   }
+  history.capture_error.reset();
   history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
 
   const uint64_t current_tick = clock.tick;

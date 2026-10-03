@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <string>
 
 #include <flecs.h>
 
@@ -36,6 +38,8 @@ struct WorldSnapshotHistory {
   using Singleton = void;
   using SessionScoped = void;
   BoundedHistory<TimestampedSnapshot> history;
+  // Logged when it changes, not on every failed capture.
+  std::optional<std::string> capture_error;
 };
 
 // A rollback re-simulates up to one capture gap; worlds that roll back often raise this.

@@ -64,12 +64,15 @@ void InitLifecycle(flecs::world& world) {
   world.set<LifecycleCallbacks>({});
 }
 
-void RunLifecycle(flecs::world& world) {
+std::expected<void, std::string> RunLifecycle(flecs::world& world) {
   RunStage(world, LifecycleStage::kRegisterComponents);
   RunStage(world, LifecycleStage::kInitPhases);
-  LinearizePhases(world);
+  if (auto linearized = LinearizePhases(world); !linearized) {
+    return linearized;
+  }
   RunStage(world, LifecycleStage::kInitSystems);
   RunStage(world, LifecycleStage::kInitWorldData);
+  return {};
 }
 
 }  // namespace z13

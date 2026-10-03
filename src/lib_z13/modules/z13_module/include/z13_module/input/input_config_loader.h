@@ -26,10 +26,12 @@ namespace z13::gameplay::input {
 
 class InputConfigLoader {
  public:
-  static bool LoadConfig(z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
+  // False if there is no config file; on error `input_config` is left untouched.
+  static std::expected<bool, std::string> LoadConfig(
+      z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   // Parses a config JSON; actions it doesn't mention get their default bindings, except
   // those saved as KEY_UNKNOWN (unbound on purpose).
-  static bool LoadConfigFromJson(
+  static std::expected<void, std::string> LoadConfigFromJson(
       const std::string& json_input,
       z13::input::InputConfig& input_config,
       const z13::input::ActionMap& action_map);
@@ -40,7 +42,7 @@ class InputConfigLoader {
       const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void SetDefaults(z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void Clear(z13::input::InputConfig& input_config);
-  static void AppendFlatbufActionsFromBinarySchema(
+  static std::expected<void, std::string> AppendFlatbufActionsFromBinarySchema(
       const z13::input::FlatbufferBinarySchema& binary_schema,
       z13::input::ActionMap& action_map);
   static std::optional<z13::input::ActionInfo::IdType> FindActionId(

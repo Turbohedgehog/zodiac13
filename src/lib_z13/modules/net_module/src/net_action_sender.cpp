@@ -18,10 +18,13 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <expected>
+#include <format>
 #include <iterator>
 #include <limits>
 #include <optional>
 #include <ranges>
+#include <string>
 #include <vector>
 
 #include <boost/container/flat_map.hpp>
@@ -58,13 +61,13 @@ struct ScheduledCommand {
   int16_t value {};
 };
 
-std::vector<ScheduledCommand> ToWire(const std::vector<z13::gameplay::PlayerActionRecord>& records) {
+std::expected<std::vector<ScheduledCommand>, std::string> ToWire(
+    const std::vector<z13::gameplay::PlayerActionRecord>& records) {
   std::vector<ScheduledCommand> scheduled;
   scheduled.reserve(records.size());
   for (const z13::gameplay::PlayerActionRecord& record : records) {
     if (record.action_id > std::numeric_limits<uint16_t>::max()) {
-      log_error("NetActionSender: action id {} does not fit the wire format", record.action_id);
-      continue;
+      return std::unexpected(std::format("action id {} does not fit the wire format", record.action_id));
     }
     scheduled.push_back({
         .apply_tick = record.tick,
@@ -75,7 +78,7 @@ std::vector<ScheduledCommand> ToWire(const std::vector<z13::gameplay::PlayerActi
   return scheduled;
 }
 
-fbn::CommandBatchT ToBatch(const std::vector<ScheduledCommand>& scheduled) {
+std::expected<fbn::CommandBatchT, std::string> ToBatch(const std::vector<ScheduledCommand>& scheduled) {
   uint64_t base_tick = scheduled.front().apply_tick;
   for (const ScheduledCommand& command : scheduled) {
     base_tick = std::min(base_tick, command.apply_tick);
@@ -86,8 +89,7 @@ fbn::CommandBatchT ToBatch(const std::vector<ScheduledCommand>& scheduled) {
   for (const ScheduledCommand& command : scheduled) {
     const uint64_t delta = command.apply_tick - batch.base_tick;
     if (delta > std::numeric_limits<uint8_t>::max()) {
-      log_error("NetActionSender: command {} ticks past the batch base, dropping it", delta);
-      continue;
+      return std::unexpected(std::format("command {} ticks past the batch base", delta));
     }
     batch.commands.emplace_back(static_cast<uint8_t>(delta), command.action_id, command.value);
   }
@@ -174,17 +176,22 @@ void SendPendingCommands(
   }
 
   const bool held_back = CollapseHeldBackRecords(outgoing, clock.tick);
-  const std::vector<ScheduledCommand> scheduled = ToWire(outgoing.records);
+  const auto scheduled = ToWire(outgoing.records);
   outgoing.records.clear();
   outgoing.applied_count = 0;
-  if (scheduled.empty()) {
+  if (scheduled && scheduled->empty()) {
+    return;
+  }
+  auto batch = scheduled.and_then(ToBatch);
+  if (!batch) {
+    log_error("NetActionSender: dropping a batch: {}", batch.error());
     return;
   }
   if (held_back) {
-    ScheduleLocally(it.world(), *local_player.id, scheduled);
+    ScheduleLocally(it.world(), *local_player.id, *scheduled);
   }
 
-  if (const auto sent = Send(session, is_server, *local_player.id, ToBatch(scheduled)); !sent) {
+  if (const auto sent = Send(session, is_server, *local_player.id, std::move(*batch)); !sent) {
     log_error("NetActionSender: {}", sent.error());
   }
 }
