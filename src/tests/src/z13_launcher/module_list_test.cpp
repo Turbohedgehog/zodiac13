@@ -38,19 +38,14 @@ TEST(ParseModuleListTest, ScalarAndMapEntriesAreBothRead) {
   EXPECT_EQ((*modules)[2], "modules/test_dll/test_dll_module");
 }
 
-TEST(ParseModuleListTest, MalformedEntryIsSkippedNotFatal) {
+TEST(ParseModuleListTest, MalformedEntryReturnsError) {
   constexpr char kYaml[] = R"(
 modules:
   - modules/a
   - foo: bar
   - modules/b
 )";
-  const auto modules = ParseModuleList(kYaml);
-
-  ASSERT_TRUE(modules.has_value());
-  ASSERT_EQ(modules->size(), 2u);
-  EXPECT_EQ((*modules)[0], "modules/a");
-  EXPECT_EQ((*modules)[1], "modules/b");
+  EXPECT_FALSE(ParseModuleList(kYaml).has_value());
 }
 
 TEST(ParseModuleListTest, MissingModulesSequenceReturnsError) {

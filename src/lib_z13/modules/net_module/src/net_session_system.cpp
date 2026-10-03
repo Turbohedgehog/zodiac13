@@ -883,7 +883,11 @@ NetSession::Result ResyncIfDiverged(flecs::world world, NetSession& session) {
     return {};
   }
   auto& digests = world.get_mut<StateDigests>();
-  bool diverged = CheckReceivedStateDigests(world, digests);
+  bool diverged = false;
+  if (const std::optional<std::string> mismatch = CheckReceivedStateDigests(world, digests)) {
+    log_warn("NetSession(client): {}", *mismatch);
+    diverged = true;
+  }
   if (world.has<ft::RollbackFailed>()) {
     log_warn("NetSession(client): {}", world.get<ft::RollbackFailed>().reason);
     world.remove<ft::RollbackFailed>();

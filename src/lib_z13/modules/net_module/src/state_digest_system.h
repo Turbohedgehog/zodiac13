@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+
 #include <flecs.h>
 
 #include <net_module/state_digest.h>
@@ -30,8 +33,8 @@ void RegisterStateDigestSystems(flecs::world world);
 // Server: broadcasts each recorded digest once no late command can change its tick.
 NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests);
 
-// Client: compares the server's digests this client has reached. Returns whether any
-// disagreed; digests with no local counterpart are dropped unchecked.
-bool CheckReceivedStateDigests(flecs::world world, StateDigests& digests);
+// Client: compares the server's digests this client has reached. Returns the first
+// mismatch, if any; digests with no local counterpart are dropped unchecked.
+std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests);
 
 }  // namespace z13::net

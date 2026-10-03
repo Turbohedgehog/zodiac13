@@ -101,15 +101,14 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
   }
 }
 
-::Mesh BuildMesh(const TaggedMesh& tagged) {
+std::expected<::Mesh, std::string> BuildMesh(const TaggedMesh& tagged) {
   const aiMesh& src = *tagged.mesh;
 
   // A real runtime check, not assert(): assert compiles out under NDEBUG, and
   // truncating indices into unsigned short would silently scramble the mesh.
   if (src.mNumVertices > kMaxIndexableVertices) {
-    log_error("[raylib] assimp: mesh '{}' has {} vertices (> {}); 16-bit indices would wrap, skipping mesh",
-              src.mName.C_Str(), src.mNumVertices, kMaxIndexableVertices);
-    return ::Mesh{};
+    return std::unexpected(std::format("mesh '{}' has {} vertices (> {}); 16-bit indices would wrap, skipping mesh",
+                                       src.mName.C_Str(), src.mNumVertices, kMaxIndexableVertices));
   }
 
   ::Mesh mesh{};
@@ -184,8 +183,9 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
   return result;
 }
 
-::Texture2D ResolveDiffuseTexture(const aiScene& scene, const aiMaterial& material,
-                                  const fs::path& model_dir, const std::string& model_stem) {
+// An empty texture if the material has none; an error if it has one that can't be found.
+std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const aiScene& scene, const aiMaterial& material,
+                                                             const fs::path& model_dir, const std::string& model_stem) {
   aiString reference;
   if (material.GetTexture(aiTextureType_DIFFUSE, 0, &reference) != AI_SUCCESS &&
       material.GetTexture(aiTextureType_BASE_COLOR, 0, &reference) != AI_SUCCESS) {
@@ -224,13 +224,12 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
     return result;
   }
 
-  log_warn("[raylib] assimp: texture '{}' not found next to the model", ref);
-  return ::Texture2D{};
+  return std::unexpected(std::format("texture '{}' not found next to the model", ref));
 }
 
 }  // namespace
 
-::Model LoadModelFromAsset(std::string_view relative_path) {
+std::expected<LoadedModel, std::string> LoadModelFromAsset(std::string_view relative_path) {
   const std::string path = AssetPath(relative_path);
 
   Assimp::Importer importer;
@@ -240,18 +239,17 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
 
   if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 ||
       scene->mRootNode == nullptr) {
-    log_error("[raylib] assimp: cannot load '{}': {}", path, importer.GetErrorString());
-    return ::Model{};
+    return std::unexpected(std::format("cannot load '{}': {}", path, importer.GetErrorString()));
   }
 
   std::vector<TaggedMesh> tagged;
   CollectMeshes(*scene, *scene->mRootNode, aiMatrix4x4(), tagged);
   if (tagged.empty()) {
-    log_error("[raylib] assimp: '{}' has no meshes", path);
-    return ::Model{};
+    return std::unexpected(std::format("'{}' has no meshes", path));
   }
 
-  ::Model model{};
+  LoadedModel loaded;
+  ::Model& model = loaded.model;
   model.transform = MatrixIdentity();
   model.meshCount = static_cast<int>(tagged.size());
   model.meshes = static_cast<::Mesh*>(MemAlloc(static_cast<unsigned>(model.meshCount) * sizeof(::Mesh)));
@@ -268,10 +266,11 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
   for (int m = 0; m < model.materialCount; ++m) {
     model.materials[m] = LoadMaterialDefault();
     if (m < static_cast<int>(scene->mNumMaterials)) {
-      const ::Texture2D texture =
-          ResolveDiffuseTexture(*scene, *scene->mMaterials[m], model_dir, model_stem);
-      if (texture.id != 0) {
-        model.materials[m].maps[MATERIAL_MAP_DIFFUSE].texture = texture;
+      const auto texture = ResolveDiffuseTexture(*scene, *scene->mMaterials[m], model_dir, model_stem);
+      if (!texture) {
+        loaded.warnings.push_back(texture.error());
+      } else if (texture->id != 0) {
+        model.materials[m].maps[MATERIAL_MAP_DIFFUSE].texture = *texture;
         ++textured_materials;
       }
     }
@@ -279,7 +278,11 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
 
   unsigned long long total_vertices = 0;
   for (int i = 0; i < model.meshCount; ++i) {
-    model.meshes[i] = BuildMesh(tagged[i]);
+    auto mesh = BuildMesh(tagged[i]);
+    if (!mesh) {
+      loaded.warnings.push_back(mesh.error());
+    }
+    model.meshes[i] = mesh.value_or(::Mesh{});
     total_vertices += static_cast<unsigned>(model.meshes[i].vertexCount);
     const unsigned material_index = tagged[i].mesh->mMaterialIndex;
     model.meshMaterial[i] =
@@ -289,7 +292,7 @@ void CollectMeshes(const aiScene& scene, const aiNode& node, const aiMatrix4x4& 
 
   log_info("[raylib] assimp: '{}' -> {} mesh(es), {} verts, {} material(s) ({} textured)",
            relative_path, model.meshCount, total_vertices, model.materialCount, textured_materials);
-  return model;
+  return loaded;
 }
 
 }  // namespace z13::raylib

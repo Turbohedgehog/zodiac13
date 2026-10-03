@@ -16,14 +16,23 @@
 
 #pragma once
 
+#include <expected>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <raylib.h>
 
 namespace z13::raylib {
 
+struct LoadedModel {
+  ::Model model {};
+  // What was skipped (oversized meshes, missing textures); the model is still usable.
+  std::vector<std::string> warnings;
+};
+
 // Loads an assimp-supported model from <assets>/<relative_path>, with node
-// transforms baked into vertices. Empty Model (meshCount == 0) on failure.
-::Model LoadModelFromAsset(std::string_view relative_path);
+// transforms baked into vertices.
+std::expected<LoadedModel, std::string> LoadModelFromAsset(std::string_view relative_path);
 
 }  // namespace z13::raylib

@@ -49,7 +49,7 @@ class Core {
   // callers that construct a Core directly.
   std::optional<std::string> GetConfigError() const;
   bool RegisterModuleFactory(ModuleFactoryPtr module_factory);
-  // Fails if a module registered a State component that can't be encoded.
+  // Fails if the modules' phases form a cycle or a State component can't be encoded.
   std::expected<WorldRef, std::string> CreateWorld();
 
   template <typename T, typename... Ts>
@@ -57,7 +57,8 @@ class Core {
     return RegisterModuleFactory(std::make_shared<T>(std::forward<Ts>(params)...));
   }
 
-  bool RegisterModuleFactory(const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
+  std::expected<void, std::string> RegisterModuleFactory(
+      const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
 
   void Update(float delta_time, flecs_tools::FrameKind kind = flecs_tools::FrameKind::kLive);
   int Run();

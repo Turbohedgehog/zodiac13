@@ -22,8 +22,6 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <lib_core/log.h>
-
 namespace z13 {
 
 std::expected<std::vector<std::string>, std::string> ParseModuleList(const std::string& yaml_text) {
@@ -42,7 +40,7 @@ std::expected<std::vector<std::string>, std::string> ParseModuleList(const std::
       } else if (entry.IsMap() && entry["path"]) {
         modules.push_back(entry["path"].as<std::string>());
       } else {
-        log_warn("ParseModuleList: skipping malformed module entry");
+        return std::unexpected("ParseModuleList: a module entry is neither a path nor a map with 'path'");
       }
     }
   } catch (const YAML::Exception& ex) {

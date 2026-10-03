@@ -42,7 +42,7 @@ TEST(LifecycleTest, RunsStagesInOrderAndLateCallbacksImmediately) {
     OnRegisterComponents(w, record("ComponentsQueuedDuringStage"));
   });
 
-  RunLifecycle(world);
+  ASSERT_TRUE(RunLifecycle(world));
   const std::vector<std::string> expected {
       "Components", "ComponentsQueuedDuringStage", "Phases", "Systems", "WorldData"};
   EXPECT_EQ(calls, expected);

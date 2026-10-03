@@ -155,5 +155,24 @@ TEST_F(InputConfigDefaultsTest, AnActionUnboundByTheUserIsSavedAndStaysUnbound) 
   EXPECT_EQ(Bindings(loaded), expected);
 }
 
+TEST_F(InputConfigDefaultsTest, AMalformedActionNameFailsAndLeavesTheConfigAlone) {
+  z13::input::InputConfig config;
+  InputConfigLoader::SetDefaults(config, ActionMap());
+  const BindingSet defaults = Bindings(config);
+  const std::string json = Config(R"({"action_name": "no_separator", "key_code": "KEY_I"})");
+
+  EXPECT_FALSE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
+  EXPECT_EQ(Bindings(config), defaults);
+}
+
+TEST_F(InputConfigDefaultsTest, ARemovedActionIsSkipped) {
+  z13::input::InputConfig config;
+  const std::string json = Config(Binding("NO_SUCH_ACTION", "KEY_I") + "," + Binding("MOVE_FORWARD", "KEY_I"));
+
+  ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
+
+  EXPECT_EQ(KeyOf(config, Action::MOVE_FORWARD), Keycode::KEY_I);
+}
+
 }  // namespace
 }  // namespace z13::gameplay::input

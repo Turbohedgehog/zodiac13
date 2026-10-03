@@ -18,13 +18,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include <Eigen/Dense>
 
-#include <lib_core/log.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_state.h>
@@ -130,10 +130,10 @@ NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& sessi
   return {};
 }
 
-bool CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
+std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
-  bool mismatch = false;
+  std::optional<std::string> mismatch;
   std::erase_if(digests.received, [&](const fbn::StateDigestT& remote) {
     // Strictly past: tick `now`'s PostFrame, which records its digest, hasn't run yet.
     if (remote.tick >= now || remote.tick > deferred_rollback_tick.value_or(remote.tick)) {
@@ -144,10 +144,9 @@ bool CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
       return true;
     }
     ++digests.checked;
-    if (!DigestsMatch(local->second, remote)) {
-      log_warn("NetSession(client): state digest mismatch at tick {}: {} entities (server {})", remote.tick,
+    if (!mismatch && !DigestsMatch(local->second, remote)) {
+      mismatch = std::format("state digest mismatch at tick {}: {} entities (server {})", remote.tick,
           local->second.entity_count, remote.entity_count);
-      mismatch = true;
     }
     return true;
   });

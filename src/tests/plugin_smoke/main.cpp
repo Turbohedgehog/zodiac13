@@ -67,7 +67,11 @@ int main() {
     return EXIT_FAILURE;
   }
   if (std::ranges::any_of(*modules, [&core](const std::string& module_path) {
-        return !core.RegisterModuleFactory(kBinDir / module_path);
+        const auto registered = core.RegisterModuleFactory(kBinDir / module_path);
+        if (!registered) {
+          z13::log_error("{}", registered.error());
+        }
+        return !registered;
       })) {
     return EXIT_FAILURE;
   }
