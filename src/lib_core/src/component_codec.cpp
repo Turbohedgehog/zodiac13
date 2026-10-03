@@ -71,6 +71,12 @@ std::expected<std::span<const std::byte>, std::string> ComponentBytes(
   return codec::ViewValue(world, type, value);
 }
 
+std::expected<void, std::string> CheckEncodable(const flecs::world& world, flecs::entity_t type) {
+  return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {
+    return EncodeValue(world, type, scratch.Bytes()).transform([](const std::vector<uint8_t>&) {});
+  });
+}
+
 std::expected<void, std::string> ValidateValue(
     const flecs::world& world, flecs::entity_t type, std::span<const uint8_t> bytes) {
   return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {

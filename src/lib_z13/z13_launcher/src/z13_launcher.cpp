@@ -72,7 +72,12 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     }
   }
 
-  InstallSettings(core.CreateWorld(), *effective);
+  const auto world = core.CreateWorld();
+  if (!world) {
+    log_error("{}", world.error());
+    return 1;
+  }
+  InstallSettings(*world, *effective);
 
   return core.Run();
 }

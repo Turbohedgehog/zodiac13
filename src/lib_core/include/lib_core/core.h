@@ -49,7 +49,8 @@ class Core {
   // callers that construct a Core directly.
   std::optional<std::string> GetConfigError() const;
   bool RegisterModuleFactory(ModuleFactoryPtr module_factory);
-  WorldRef CreateWorld();
+  // Fails if a module registered a State component that can't be encoded.
+  std::expected<WorldRef, std::string> CreateWorld();
 
   template <typename T, typename... Ts>
   bool RegisterModuleFactory(Ts&&... params) {

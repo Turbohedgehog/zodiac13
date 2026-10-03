@@ -271,6 +271,30 @@ TEST_F(WorldStateTest, PropertiesAreAppliedIndependently) {
   EXPECT_FALSE(ft::IsStateSingleton(source_.component<Position>()));
 }
 
+// No meta of its own: the codec can't write it as a State field.
+struct Unreflected {
+  int hidden {};
+};
+
+struct WithUnreflectedField {
+  using State = void;
+  Unreflected field;
+};
+
+TEST_F(WorldStateTest, EncodableStateComponentsPassValidation) {
+  const auto valid = ft::ValidateStateComponents(source_);
+  EXPECT_TRUE(valid.has_value()) << valid.error();
+}
+
+TEST_F(WorldStateTest, StateComponentWithUnencodableFieldFailsValidation) {
+  ft::RegisterComponent<WithUnreflectedField>(source_);
+
+  const auto valid = ft::ValidateStateComponents(source_);
+
+  ASSERT_FALSE(valid.has_value());
+  EXPECT_NE(valid.error().find("WithUnreflectedField"), std::string::npos) << valid.error();
+}
+
 void SetUpSingletons(flecs::world& world) {
   world.set<Settings>({0.25f});
   world.set<Scratch>({7.f});
