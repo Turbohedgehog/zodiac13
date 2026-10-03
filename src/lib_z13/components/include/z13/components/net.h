@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <string>
 
-#include <lib_core/endpoint.h>
+#include <lib_core/utils/endpoint.h>
 
 namespace z13::net {
 

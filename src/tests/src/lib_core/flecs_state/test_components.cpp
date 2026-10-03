@@ -1,6 +1,6 @@
 #include "test_components.h"
 
-#include <lib_core/component_meta.h>
+#include <lib_core/state/component_meta.h>
 
 namespace z13::tests {
 

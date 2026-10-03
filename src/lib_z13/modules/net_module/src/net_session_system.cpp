@@ -34,16 +34,16 @@
 #include <boost/container/flat_map.hpp>
 #include <flecs.h>
 
-#include <lib_core/components.h>
-#include <lib_core/flecs_utils.h>
-#include <lib_core/lifecycle.h>
-#include <lib_core/log.h>
+#include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/world/components.h>
+#include <lib_core/world/lifecycle.h>
 #include <z13_settings/settings.h>
-#include <lib_core/rollback.h>
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_serializer.h>
-#include <lib_core/world_snapshot_history.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/state/world_serializer.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>

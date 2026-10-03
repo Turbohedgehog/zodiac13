@@ -20,7 +20,7 @@
 #include <string>
 #include <string_view>
 
-#include <lib_core/config.h>
+#include <lib_core/settings/config.h>
 #include <net_module/in_memory_transport.h>
 
 namespace z13::net {

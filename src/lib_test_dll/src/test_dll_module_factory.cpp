@@ -18,7 +18,7 @@
 
 #include <flecs.h>
 
-#include <lib_core/log.h>
+#include <lib_core/utils/log.h>
 #include <lib_test_dll/test_dll_messages.h>
 
 #include "test_dll_module.h"

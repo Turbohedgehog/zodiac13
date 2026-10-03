@@ -42,7 +42,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#include <lib_core/log.h>
+#include <lib_core/utils/log.h>
 
 #include "asset_path.h"
 

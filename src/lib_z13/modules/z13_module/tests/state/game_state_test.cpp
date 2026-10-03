@@ -24,9 +24,9 @@
 
 #include <bullet_module/bullet_components.h>
 
-#include <lib_core/math.h>
-#include <lib_core/world_json_store.h>
-#include <lib_core/world_state_requests.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_state_requests.h>
+#include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>

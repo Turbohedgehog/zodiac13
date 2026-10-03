@@ -7,9 +7,9 @@
 #include <boost/dll/import.hpp>
 #include <boost/dll/shared_library.hpp>
 
-#include <lib_core/core.h>
-#include <lib_core/log.h>
-#include <lib_core/module_factory_base.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/world/core.h>
+#include <lib_core/world/module_factory_base.h>
 
 #include <z13_launcher/module_list.h>
 #include <z13_launcher/settings_loader.h>

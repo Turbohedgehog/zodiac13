@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include <lib_core/endpoint.h>
+#include <lib_core/utils/endpoint.h>
 #include <net_module/enet_transport.h>
 
 // Real ENet over loopback, no mocking -- see docs/client-server-plan.md's stage-2

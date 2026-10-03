@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 
 namespace z13::gameplay {
 

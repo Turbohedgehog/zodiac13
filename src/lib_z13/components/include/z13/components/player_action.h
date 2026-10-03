@@ -27,7 +27,7 @@
 
 #include <boost/container/flat_map.hpp>
 
-#include <lib_core/bounded_history.h>
+#include <lib_core/state/bounded_history.h>
 
 #include <z13/components/input.h>
 

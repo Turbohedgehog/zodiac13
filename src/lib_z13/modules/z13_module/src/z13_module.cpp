@@ -18,10 +18,10 @@
 
 #include <cstdint>
 
-#include <lib_core/components.h>
-#include <lib_core/lifecycle.h>
-#include <lib_core/log.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/world/components.h>
+#include <lib_core/world/lifecycle.h>
 
 #include <z13/components/building.h>
 #include <z13/components/z13.h>

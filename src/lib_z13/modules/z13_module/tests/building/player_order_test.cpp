@@ -23,7 +23,7 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>

@@ -31,12 +31,12 @@
 #include <raymath.h>
 #include <rlgl.h>
 
-#include <lib_core/components.h>
-#include <lib_core/flecs_utils.h>
-#include <lib_core/lifecycle.h>
-#include <lib_core/world_state.h>
-#include <lib_core/log.h>
-#include <lib_core/math.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/utils/math.h>
+#include <lib_core/world/components.h>
+#include <lib_core/world/lifecycle.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>

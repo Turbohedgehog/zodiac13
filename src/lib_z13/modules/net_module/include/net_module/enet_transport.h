@@ -22,9 +22,9 @@
 #include <memory>
 #include <string>
 
-#include <lib_core/config.h>
+#include <lib_core/settings/config.h>
 #include <z13_settings/settings.h>
-#include <lib_core/endpoint.h>
+#include <lib_core/utils/endpoint.h>
 
 #include <net_module/transport.h>
 

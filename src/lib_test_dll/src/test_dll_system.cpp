@@ -17,7 +17,7 @@
 #include "test_dll_system.h"
 
 #include <flecs.h>
-#include <lib_core/log.h>
+#include <lib_core/utils/log.h>
 
 namespace z13::dll {
 

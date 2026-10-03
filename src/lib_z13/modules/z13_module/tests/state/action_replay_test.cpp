@@ -22,12 +22,12 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/math.h>
-#include <lib_core/core_settings.h>
-#include <lib_core/rollback.h>
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_json_store.h>
-#include <lib_core/world_snapshot_history.h>
+#include <lib_core/settings/core_settings.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
 #include <z13/components/player_action.h>

@@ -18,7 +18,7 @@
 
 #include <memory>
 #include <boost/config.hpp>
-#include <lib_core/module_factory_base.h>
+#include <lib_core/world/module_factory_base.h>
 
 // The BOOST_DLL_ALIAS export (the "create_module_factory" symbol
 // ModuleLibHolder looks up at runtime) lives in bullet_module_factory.cpp,

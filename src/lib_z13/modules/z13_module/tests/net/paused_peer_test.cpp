@@ -23,8 +23,8 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/math.h>
-#include <lib_core/simulation_clock.h>
+#include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>

@@ -27,7 +27,7 @@
 
 #include <flecs.h>
 
-#include <lib_core/simulation_clock.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <z13_tests/test_time.h>
 

@@ -18,9 +18,9 @@
 
 #include <flatbuffers/flatbuffers.h>
 
-#include <lib_core/component_codec.h>
-#include <lib_core/world_json_store.h>
-#include <lib_core/world_serializer.h>
+#include <lib_core/state/component_codec.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_serializer.h>
 
 #include "test_components.h"
 #include "world_fixture.h"

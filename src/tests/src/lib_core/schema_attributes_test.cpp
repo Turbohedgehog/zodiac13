@@ -27,9 +27,9 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
 
-#include <lib_core/config.h>
-#include <lib_core/core.h>
-#include <lib_core/schema_attributes.h>
+#include <lib_core/settings/config.h>
+#include <lib_core/settings/schema_attributes.h>
+#include <lib_core/world/core.h>
 #include <z13_settings/settings.h>
 
 // The attribute machinery is generic; the game's settings schema is simply the richest

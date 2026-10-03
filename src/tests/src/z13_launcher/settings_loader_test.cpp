@@ -20,8 +20,8 @@
 #include <fstream>
 #include <string>
 
-#include <lib_core/config.h>
-#include <lib_core/core.h>
+#include <lib_core/settings/config.h>
+#include <lib_core/world/core.h>
 #include <z13_launcher/settings_loader.h>
 #include <z13_settings/settings.h>
 

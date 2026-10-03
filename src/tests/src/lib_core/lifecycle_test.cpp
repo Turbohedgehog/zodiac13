@@ -21,7 +21,7 @@
 
 #include <flecs.h>
 
-#include <lib_core/lifecycle.h>
+#include <lib_core/world/lifecycle.h>
 
 namespace z13 {
 namespace {

@@ -28,7 +28,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
 #include <z13_tests/test_time.h>

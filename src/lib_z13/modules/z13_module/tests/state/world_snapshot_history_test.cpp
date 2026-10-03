@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <vector>
 
-#include <lib_core/world_snapshot_history.h>
+#include <lib_core/state/world_snapshot_history.h>
 #include <z13_tests/test_time.h>
 
 #include "../support/z13_test_world.h"

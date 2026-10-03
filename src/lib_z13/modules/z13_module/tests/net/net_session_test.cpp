@@ -26,11 +26,11 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/math.h>
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_json_store.h>
-#include <lib_core/world_snapshot_history.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>

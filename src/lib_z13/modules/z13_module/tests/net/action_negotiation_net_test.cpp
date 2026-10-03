@@ -26,7 +26,7 @@
 #include <string_view>
 #include <vector>
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 #include <z13_settings/net_tuning.h>
 
 #include <net_module/in_memory_transport.h>

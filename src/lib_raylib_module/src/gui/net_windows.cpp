@@ -24,8 +24,8 @@
 #include <imgui.h>
 #include <imgui_stdlib.h>
 
-#include <lib_core/config.h>
-#include <lib_core/endpoint.h>
+#include <lib_core/settings/config.h>
+#include <lib_core/utils/endpoint.h>
 
 #include <z13/components/net.h>
 

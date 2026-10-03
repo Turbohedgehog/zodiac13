@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <unordered_map>
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 
 namespace z13::bullet_module {
 
