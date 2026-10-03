@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <span>
@@ -28,12 +29,19 @@
 namespace z13::flecs_tools {
 
 // Binary component values, written by walking the type's flecs meta (docs/serialization-plan.md).
+// `value` is the component's memory and must be exactly its type's size.
 std::expected<std::vector<uint8_t>, std::string> EncodeValue(
-    const flecs::world& world, flecs::entity_t type, const void* value);
+    const flecs::world& world, flecs::entity_t type, std::span<const std::byte> value);
 
 // Bytes may be untrusted; on error `value` may be partly written.
 std::expected<void, std::string> DecodeValue(
-    const flecs::world& world, flecs::entity_t type, void* value, std::span<const uint8_t> bytes);
+    const flecs::world& world, flecs::entity_t type, std::span<std::byte> value, std::span<const uint8_t> bytes);
+
+// Views component memory flecs hands out (try_get, ensure) as a value of `type`; an error if null.
+std::expected<std::span<std::byte>, std::string> ComponentBytes(
+    const flecs::world& world, flecs::entity_t type, void* value);
+std::expected<std::span<const std::byte>, std::string> ComponentBytes(
+    const flecs::world& world, flecs::entity_t type, const void* value);
 
 std::expected<void, std::string> ValidateValue(
     const flecs::world& world, flecs::entity_t type, std::span<const uint8_t> bytes);

@@ -119,7 +119,8 @@ class Scenario {
   }
 
   void Checkpoint(uint64_t tick) {
-    for (const ft::EntitySnapshot& entity : ft::CaptureState(world_.World()).entities) {
+    const ft::WorldSnapshot snapshot = ft::CaptureState(world_.World()).value();
+    for (const ft::EntitySnapshot& entity : snapshot.entities) {
       for (const ft::ComponentValue& component : entity.components) {
         const flecs::entity type = world_.World().lookup(component.type.c_str());
         const std::string json = ft::ValueToJson(world_.World(), type, component.value).value();

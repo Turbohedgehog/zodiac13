@@ -122,7 +122,7 @@ std::expected<WorldSnapshot, std::string> WorldJsonStore::FromJson(
 }
 
 std::expected<std::string, std::string> WorldJsonStore::Save(const flecs::world& world) {
-  return ToJson(world, CaptureState(world));
+  return CaptureState(world).and_then([&world](const WorldSnapshot& snapshot) { return ToJson(world, snapshot); });
 }
 
 std::expected<void, std::string> WorldJsonStore::Load(flecs::world& world, std::string_view json) {

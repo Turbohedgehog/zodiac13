@@ -28,7 +28,6 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/component_codec.h>
-#include <lib_core/log.h>
 #include <lib_core/world_state.h>
 
 namespace z13::flecs_tools {
@@ -59,11 +58,12 @@ std::string PathOf(flecs::entity e) {
   return path;
 }
 
-void CaptureComponentsAndTags(
+std::expected<void, std::string> CaptureComponentsAndTags(
     const flecs::world& world, flecs::entity e, const ComponentFilter& accept_component,
     EntitySnapshot& s) {
+  std::expected<void, std::string> captured;
   e.each([&](flecs::id id) {
-    if (!id.is_entity()) {
+    if (!captured || !id.is_entity()) {
       return;  // pairs handled separately
     }
 
@@ -81,9 +81,11 @@ void CaptureComponentsAndTags(
     if (!id.entity().has(ecs_id(EcsType))) {
       return;  // data component without meta: cannot round-trip
     }
-    auto bytes = EncodeValue(world, id.raw_id(), value);
+    auto bytes = ComponentBytes(world, id.raw_id(), value).and_then([&](std::span<const std::byte> view) {
+      return EncodeValue(world, id.raw_id(), view);
+    });
     if (!bytes) {
-      log_error("z13::CaptureWorld: '{}' on '{}' skipped: {}", path, s.name, bytes.error());
+      captured = std::unexpected(std::format("'{}' on '{}': {}", path, s.name, bytes.error()));
       return;
     }
     s.components.push_back({std::move(path), std::move(*bytes)});
@@ -92,6 +94,7 @@ void CaptureComponentsAndTags(
   std::sort(s.tags.begin(), s.tags.end());
   std::sort(s.components.begin(), s.components.end(),
             [](const ComponentValue& a, const ComponentValue& b) { return a.type < b.type; });
+  return captured;
 }
 
 void CaptureRelationships(flecs::entity e, const EntityFilter& accept_target, EntitySnapshot& s) {
@@ -140,23 +143,24 @@ bool DefaultEntityFilter(flecs::entity e) {
 
 namespace {
 
-WorldSnapshot CaptureImpl(
+std::expected<WorldSnapshot, std::string> CaptureImpl(
     const flecs::world& world, const EntityFilter& accept, const ComponentFilter& accept_component,
     const EntityFilter& accept_target) {
   WorldSnapshot snapshot;
+  std::expected<void, std::string> captured;
 
   flecs::world w = world;
   w.query_builder()
       .with<flecs::Identifier>(flecs::Name)  // every named entity
       .build()
       .each([&](flecs::entity e) {
-        if (accept && !accept(e)) {
+        if (!captured || (accept && !accept(e))) {
           return;
         }
 
         EntitySnapshot s;
         s.name = PathOf(e);
-        CaptureComponentsAndTags(w, e, accept_component, s);
+        captured = CaptureComponentsAndTags(w, e, accept_component, s);
         CaptureRelationships(e, accept_target, s);
         snapshot.entities.push_back(std::move(s));
       });
@@ -164,20 +168,20 @@ WorldSnapshot CaptureImpl(
   std::sort(snapshot.entities.begin(), snapshot.entities.end(),
             [](const EntitySnapshot& a, const EntitySnapshot& b) { return a.name < b.name; });
 
-  return snapshot;
+  return captured.transform([&snapshot] { return std::move(snapshot); });
 }
 
 }  // namespace
 
-WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept) {
+std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world, const EntityFilter& accept) {
   return CaptureImpl(world, accept, {}, {});
 }
 
-WorldSnapshot CaptureWorld(const flecs::world& world) {
+std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world) {
   return CaptureWorld(world, DefaultEntityFilter);
 }
 
-void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
+std::expected<void, std::string> ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
   // Pass 1: entities, tags, component values.
   for (const auto& s : snapshot.entities) {
     flecs::entity e = world.entity(s.name.c_str());
@@ -193,10 +197,13 @@ void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
       if (!comp) {
         continue;
       }
-      if (auto decoded = DecodeValue(world, comp, e.ensure(comp), c.value); !decoded) {
-        log_error("z13::ApplyWorld: '{}' on '{}': {}", c.type, s.name, decoded.error());
-      }
+      const auto decoded = ComponentBytes(world, comp, e.ensure(comp)).and_then([&](std::span<std::byte> view) {
+        return DecodeValue(world, comp, view, c.value);
+      });
       e.modified(comp);
+      if (!decoded) {
+        return std::unexpected(std::format("'{}' on '{}': {}", c.type, s.name, decoded.error()));
+      }
     }
   }
 
@@ -216,6 +223,7 @@ void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
       }
     }
   }
+  return {};
 }
 
 // A singleton's value lives on its component entity, so those are state only for
@@ -231,11 +239,11 @@ bool StateComponentFilter(flecs::entity component) {
   return component.has<StateComponent>();
 }
 
-WorldSnapshot CaptureState(const flecs::world& world) {
+std::expected<WorldSnapshot, std::string> CaptureState(const flecs::world& world) {
   return CaptureImpl(world, StateEntityFilter, StateComponentFilter, StateEntityFilter);
 }
 
-WorldSnapshot CaptureEntityState(const flecs::world& world, flecs::entity entity) {
+std::expected<WorldSnapshot, std::string> CaptureEntityState(const flecs::world& world, flecs::entity entity) {
   return CaptureImpl(
       world, [entity](flecs::entity e) { return e == entity; }, StateComponentFilter, StateEntityFilter);
 }
@@ -349,7 +357,9 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
     e.destruct();
   }
 
-  ApplyWorld(world, snapshot);
+  if (auto applied = ApplyWorld(world, snapshot); !applied) {
+    return applied;
+  }
 
   for (const auto& s : snapshot.entities) {
     const flecs::entity e = world.lookup(s.name.c_str());
@@ -366,7 +376,9 @@ std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const
     return valid;
   }
 
-  ApplyWorld(world, snapshot);
+  if (auto applied = ApplyWorld(world, snapshot); !applied) {
+    return applied;
+  }
 
   for (const auto& s : snapshot.entities) {
     const flecs::entity e = world.lookup(s.name.c_str());
@@ -415,27 +427,28 @@ WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& flat) {
   return snapshot;
 }
 
-std::vector<uint8_t> SaveWorldState(const flecs::world& world, const EntityFilter& accept) {
-  const fbs::state::WorldSnapshotT flat = ToFlatbuffer(CaptureWorld(world, accept));
-  flatbuffers::FlatBufferBuilder builder;
-  builder.Finish(fbs::state::WorldSnapshot::Pack(builder, &flat));
-  return {builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize()};
+std::expected<std::vector<uint8_t>, std::string> SaveWorldState(
+    const flecs::world& world, const EntityFilter& accept) {
+  return CaptureWorld(world, accept).transform([](const WorldSnapshot& snapshot) {
+    const fbs::state::WorldSnapshotT flat = ToFlatbuffer(snapshot);
+    flatbuffers::FlatBufferBuilder builder;
+    builder.Finish(fbs::state::WorldSnapshot::Pack(builder, &flat));
+    return std::vector<uint8_t>(builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize());
+  });
 }
 
-std::vector<uint8_t> SaveWorldState(const flecs::world& world) {
+std::expected<std::vector<uint8_t>, std::string> SaveWorldState(const flecs::world& world) {
   return SaveWorldState(world, DefaultEntityFilter);
 }
 
-bool LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes) {
+std::expected<void, std::string> LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes) {
   flatbuffers::Verifier verifier(bytes.data(), bytes.size());
   if (!fbs::state::VerifyWorldSnapshotBuffer(verifier)) {
-    log_error("z13::LoadWorldState: malformed WorldSnapshot buffer");
-    return false;
+    return std::unexpected("malformed WorldSnapshot buffer");
   }
   fbs::state::WorldSnapshotT flat;
   fbs::state::GetWorldSnapshot(bytes.data())->UnPackTo(&flat);
-  ApplyWorld(world, FromFlatbuffer(flat));
-  return true;
+  return ApplyWorld(world, FromFlatbuffer(flat));
 }
 
 }  // namespace z13::flecs_tools

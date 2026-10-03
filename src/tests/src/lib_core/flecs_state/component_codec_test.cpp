@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -51,6 +52,16 @@ struct Cells {
 };
 
 constexpr int32_t kCellCount = 3;
+
+template <class T>
+std::span<const std::byte> BytesOf(const T& value) {
+  return std::as_bytes(std::span(&value, 1));
+}
+
+template <class T>
+std::span<std::byte> MutableBytesOf(T& value) {
+  return std::as_writable_bytes(std::span(&value, 1));
+}
 constexpr std::size_t kMatrixCountOffset = 0;
 
 class ComponentCodecTest : public ::testing::Test {
@@ -58,19 +69,8 @@ class ComponentCodecTest : public ::testing::Test {
   void SetUp() override {
     ft::RegisterStdStringMeta(world_);
     ft::RegisterEigenMeta(world_);
-    world_.component<Mood>();
-    world_.component<Everything>()
-        .member("flag", &Everything::flag)
-        .member("small", &Everything::small)
-        .member("port", &Everything::port)
-        .member("big", &Everything::big)
-        .member("huge", &Everything::huge)
-        .member("address", &Everything::address)
-        .member("ratio", &Everything::ratio)
-        .member("precise", &Everything::precise)
-        .member("mood", &Everything::mood)
-        .member("text", &Everything::text)
-        .member("transform", &Everything::transform);
+    ft::RegisterComponentMeta<Everything>(world_);
+    // Beyond RegisterComponentMeta: a bitmask, an entity member (it would become u64) and an inline array.
     world_.component<Flags>().bit("kFlagA", kFlagA).bit("kFlagB", kFlagB);
     world_.component<Link>().member(flecs::Entity, "target");
     world_.component<Cells>().member<int32_t>("values", kCellCount, offsetof(Cells, values));
@@ -95,7 +95,7 @@ class ComponentCodecTest : public ::testing::Test {
   }
 
   std::vector<uint8_t> Encode(const Everything& value) const {
-    return ft::EncodeValue(world_, world_.component<Everything>(), &value).value();
+    return ft::EncodeValue(world_, world_.component<Everything>(), BytesOf(value)).value();
   }
 
   flecs::world world_;
@@ -106,7 +106,7 @@ TEST_F(ComponentCodecTest, EveryFieldKindRoundTrips) {
   const Everything original = Sample();
 
   Everything restored;
-  ASSERT_TRUE(ft::DecodeValue(world_, world_.component<Everything>(), &restored, Encode(original)));
+  ASSERT_TRUE(ft::DecodeValue(world_, world_.component<Everything>(), MutableBytesOf(restored), Encode(original)));
 
   EXPECT_EQ(restored.flag, original.flag);
   EXPECT_EQ(restored.small, original.small);
@@ -121,13 +121,20 @@ TEST_F(ComponentCodecTest, EveryFieldKindRoundTrips) {
   EXPECT_EQ(restored.transform, original.transform);
 }
 
+TEST_F(ComponentCodecTest, RejectsMemoryOfTheWrongSize) {
+  const Cells cells;
+  const flecs::entity_t type = world_.component<Everything>();
+
+  EXPECT_FALSE(ft::EncodeValue(world_, type, BytesOf(cells)));
+}
+
 TEST_F(ComponentCodecTest, InlineArrayMemberRoundTrips) {
   const Cells original {.values = {1, -2, 3}};
-  const auto bytes = ft::EncodeValue(world_, world_.component<Cells>(), &original).value();
+  const auto bytes = ft::EncodeValue(world_, world_.component<Cells>(), BytesOf(original)).value();
   EXPECT_EQ(bytes.size(), sizeof(original.values));
 
   Cells restored;
-  ASSERT_TRUE(ft::DecodeValue(world_, world_.component<Cells>(), &restored, bytes));
+  ASSERT_TRUE(ft::DecodeValue(world_, world_.component<Cells>(), MutableBytesOf(restored), bytes));
   EXPECT_EQ(restored.values, original.values);
 }
 
@@ -156,7 +163,7 @@ TEST_F(ComponentCodecTest, RejectsTruncatedAndTrailingBytes) {
 TEST_F(ComponentCodecTest, RejectsCorruptCounts) {
   const flecs::entity_t matrix = world_.component<Eigen::Matrix4f>();
   const Eigen::Matrix4f identity = Eigen::Matrix4f::Identity();
-  std::vector<uint8_t> bytes = ft::EncodeValue(world_, matrix, &identity).value();
+  std::vector<uint8_t> bytes = ft::EncodeValue(world_, matrix, BytesOf(identity)).value();
   ASSERT_TRUE(ft::ValidateValue(world_, matrix, bytes));
 
   // Padded, so only the count is wrong.
@@ -173,10 +180,10 @@ TEST_F(ComponentCodecTest, RejectsCorruptCounts) {
 TEST_F(ComponentCodecTest, EntitiesTravelByPath) {
   const flecs::entity_t type = world_.component<Link>();
   const Link original {.target = target_.id()};
-  const auto bytes = ft::EncodeValue(world_, type, &original).value();
+  const auto bytes = ft::EncodeValue(world_, type, BytesOf(original)).value();
 
   Link restored;
-  ASSERT_TRUE(ft::DecodeValue(world_, type, &restored, bytes));
+  ASSERT_TRUE(ft::DecodeValue(world_, type, MutableBytesOf(restored), bytes));
   EXPECT_EQ(restored.target, original.target);
 
   target_.destruct();

@@ -65,15 +65,16 @@ bool DefaultEntityFilter(flecs::entity e);
 // Reads matching entities into a snapshot. Component values go through flecs meta
 // reflection, so no component type is named here — but every persisted component
 // must have its meta registered (see component_meta.h).
-WorldSnapshot CaptureWorld(const flecs::world& world, const EntityFilter& accept);
-WorldSnapshot CaptureWorld(const flecs::world& world);  // accept = DefaultEntityFilter
+// Fails if a component value can't be encoded (component_codec.h).
+std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world, const EntityFilter& accept);
+std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world);  // accept = DefaultEntityFilter
 
 // World state: StateEntity entities and state singletons, with only StateComponent
 // types; relationships to non-state entities are dropped. Restore leaves a state
 // singleton alone when the snapshot has no entry for it.
 bool StateEntityFilter(flecs::entity e);
 bool StateComponentFilter(flecs::entity component);
-WorldSnapshot CaptureState(const flecs::world& world);
+std::expected<WorldSnapshot, std::string> CaptureState(const flecs::world& world);
 
 // Makes the world's state equal to the snapshot, updating in place: state entities,
 // components and relationships it lacks are removed. Validated first; on error the
@@ -83,20 +84,22 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
 // Recreates the snapshot in a world whose components and their meta are already
 // registered. Entities are matched/created by name; relationships are applied in
 // a second pass once all targets exist.
-void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot);
+// Stops at the first value that doesn't decode, leaving the world partly applied.
+std::expected<void, std::string> ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot);
 
 // The snapshot as a FlatBuffers table (fbs/world_snapshot.fbs), for messages that embed it.
 fbs::state::WorldSnapshotT ToFlatbuffer(const WorldSnapshot& snapshot);
 WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& snapshot);
 
 // Binary world as a standalone FlatBuffers buffer; Load verifies it first.
-std::vector<uint8_t> SaveWorldState(const flecs::world& world, const EntityFilter& accept);
-std::vector<uint8_t> SaveWorldState(const flecs::world& world);
-bool LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes);
+std::expected<std::vector<uint8_t>, std::string> SaveWorldState(
+    const flecs::world& world, const EntityFilter& accept);
+std::expected<std::vector<uint8_t>, std::string> SaveWorldState(const flecs::world& world);
+std::expected<void, std::string> LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes);
 
 // One entity's state (StateComponent-filtered, like CaptureState), for a delta join
 // rather than a full snapshot (docs/client-server-plan.md's PlayerJoined).
-WorldSnapshot CaptureEntityState(const flecs::world& world, flecs::entity entity);
+std::expected<WorldSnapshot, std::string> CaptureEntityState(const flecs::world& world, flecs::entity entity);
 
 // Applies a single-entity (or otherwise partial) state snapshot on top of the world,
 // validated like RestoreWorld since it carries untrusted network input. Entities the

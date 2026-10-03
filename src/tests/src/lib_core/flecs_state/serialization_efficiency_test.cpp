@@ -36,7 +36,7 @@ const ft::EntityFilter kTestFilter = [](flecs::entity e) { return e.has<TestEnti
 
 // The fixture world's snapshot, tiled to `entity_count` entities with unique names.
 ft::WorldSnapshot MakeBenchmarkSnapshot(const flecs::world& world, std::size_t entity_count) {
-  const ft::WorldSnapshot base = ft::CaptureWorld(world, kTestFilter);
+  const ft::WorldSnapshot base = ft::CaptureWorld(world, kTestFilter).value();
 
   ft::WorldSnapshot inflated;
   inflated.entities.reserve(entity_count);
@@ -172,7 +172,7 @@ void RunBenchmark(std::size_t entity_count, int ops, int samples) {
   // Full capture+sort+write pipeline on a real world (this path holds the sorts).
   const flecs::world world = MakeBenchmarkWorld(entity_count);
   const std::int64_t save = BestNs(
-      [&] { return ft::SaveWorldState(world, kTestFilter).size(); }, sink, ops, samples);
+      [&] { return ft::SaveWorldState(world, kTestFilter).value().size(); }, sink, ops, samples);
   std::cout << "[ bench ]   SaveWorldState (capture+sort+write) " << save / 1000 << " us\n";
 }
 

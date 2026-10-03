@@ -171,7 +171,7 @@ const ft::TimestampedSnapshot& CatchUpBase(
 
 // Welcome and Resync share this catch-up payload.
 template <typename Message>
-void FillCatchUp(flecs::world world, Message& message) {
+NetSession::Result FillCatchUp(flecs::world world, Message& message) {
   message.server_tick = world.get<ft::SimulationClock>().tick;
 
   // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
@@ -179,7 +179,11 @@ void FillCatchUp(flecs::world world, Message& message) {
   const auto& history = world.get<ft::WorldSnapshotHistory>();
   if (history.history.Empty()) {
     // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
-    message.snapshot = ToWire(ft::CaptureState(world));
+    const auto snapshot = ft::CaptureState(world);
+    if (!snapshot) {
+      return std::unexpected(snapshot.error());
+    }
+    message.snapshot = ToWire(*snapshot);
     message.snapshot_tick = message.server_tick;
   } else {
     const ft::TimestampedSnapshot& base = CatchUpBase(
@@ -190,6 +194,7 @@ void FillCatchUp(flecs::world world, Message& message) {
   }
   message.held_values = ToWire(HeldValues(world, message.snapshot_tick));
   message.pending = ToWire(world.get<z13::gameplay::ScheduledCommands>().records);
+  return {};
 }
 
 NetSession::Result SendWelcome(
@@ -201,7 +206,9 @@ NetSession::Result SendWelcome(
   const auto config = z13::GetCoreConfig(world);
   welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
   welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
-  FillCatchUp(world, welcome);
+  if (auto filled = FillCatchUp(world, welcome); !filled) {
+    return filled;
+  }
   const uint64_t snapshot_tick = welcome.snapshot_tick;
 
   Envelope envelope;
@@ -242,8 +249,12 @@ NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world,
   const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
   fbn::PlayerJoinedT joined;
   joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
-  joined.entity_state = ToWire(ft::CaptureEntityState(world, player));
+  const auto entity_state = ft::CaptureEntityState(world, player);
   player.destruct();
+  if (!entity_state) {
+    return std::unexpected(entity_state.error());
+  }
+  joined.entity_state = ToWire(*entity_state);
 
   const uint64_t apply_tick = joined.apply_tick;
   return ScheduleSessionDelta(session, world, apply_tick, std::move(joined));
@@ -320,7 +331,9 @@ NetSession::Result HandleResyncRequest(NetSession& session, flecs::world world, 
   }
   log_info("NetSession(server): resyncing connection {}", connection);
   fbn::ResyncT resync;
-  FillCatchUp(world, resync);
+  if (auto filled = FillCatchUp(world, resync); !filled) {
+    return filled;
+  }
 
   Envelope envelope;
   envelope.body.Set(std::move(resync));
@@ -1116,9 +1129,15 @@ void RegisterSystems(flecs::world world) {
       .kind(flecs::PostFrame)
       .with<ServerRole>()
       .each([](flecs::iter& it, size_t, ft::WorldSnapshotHistory& history, const ft::SimulationClock& clock) {
-        if (history.history.Empty()) {
-          history.history.Push({.tick = clock.tick, .snapshot = ft::CaptureState(it.world())});
+        if (!history.history.Empty()) {
+          return;
         }
+        auto snapshot = ft::CaptureState(it.world());
+        if (!snapshot) {
+          log_error("NetSession(server): baseline snapshot failed: {}", snapshot.error());
+          return;
+        }
+        history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
       });
 
   world.system<ClockSync, const ft::SimulationClock, const NetTuning>("NetSessionSystem::SteerClock")
