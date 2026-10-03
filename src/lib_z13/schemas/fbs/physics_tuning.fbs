@@ -14,25 +14,14 @@
  * limitations under the License.
  */
 
-include "core_settings.fbs";
-include "net_tuning.fbs";
-include "physics_tuning.fbs";
+// The "physics" table of settings.json, also what a server sends in Welcome.
 
-// The game's settings.json, next to the input config.
+include "attributes.fbs";
 
-namespace z13.fbs.settings;
+namespace z13.fbs.physics;
 
-table ConnectTimeout {
-  limit: uint32 = 32 (min: 1, cli: "--connect-limit");
-  min_timeout_ms: uint32 = 1000 (min: 1, cli: "--connect-min-timeout-ms");
-  max_timeout_ms: uint32 = 3000 (min: 1, cli: "--connect-max-timeout-ms");
+table PhysicsTuning {
+  player_collider_radius: float = 0.4 (min: "0.01", cli);
+  // Slide steps per collider sweep: a corner (two faces) needs two.
+  max_sweep_iterations: uint32 = 3 (min: 1, max: 16, cli);
 }
-
-table Settings {
-  core: z13.fbs.core.CoreSettings;
-  connect_timeout: ConnectTimeout;
-  net: z13.fbs.net.NetTuning;
-  physics: z13.fbs.physics.PhysicsTuning;
-}
-
-root_type Settings;

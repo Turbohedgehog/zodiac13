@@ -30,6 +30,7 @@
 #include <z13/components/input.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/state/replay.h>
+#include <z13_settings/physics_tuning.h>
 
 #include <flecs.h>
 
@@ -51,7 +52,8 @@ void RegisterComponents(flecs::world world) {
   flecs_tools::RegisterComponents<
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
       gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool, building::BasicBlock,
-      gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings>(world);
+      gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
+      PhysicsTuning>(world);
   world.component<input::SystemInputEventType>();
   world.component<PlayerInfoComponent>()
     .member<uint32_t>("id")
@@ -69,6 +71,8 @@ void OnCreateDefaults(flecs::world world) {
   world.add<gameplay::LocalPlayer>();
   // Safety net default; add<T>() is a no-op if the factory already set a value.
   world.add<input::InputConfigPersistenceSettings>();
+  // SpawnPlayer reads it; InstallSettings replaces the default with settings.json's.
+  world.add<PhysicsTuning>();
   world.add<z13::status::OnStartupGameEvent>();
 }
 

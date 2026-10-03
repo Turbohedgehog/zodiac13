@@ -26,6 +26,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13_settings/physics_tuning.h>
 
 namespace z13::gameplay {
 
@@ -50,7 +51,7 @@ flecs::entity SpawnPlayer(flecs::world world, uint32_t id) {
       .set(std::move(camera))
       .set(transform)
       .set(Player{.id = id})
-      .set(PlayerCollider{.radius = kPlayerColliderRadius});
+      .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius});
 }
 
 void EnsureLocalPlayerReady(flecs::world world) {

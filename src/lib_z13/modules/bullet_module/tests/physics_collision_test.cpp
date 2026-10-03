@@ -30,6 +30,7 @@
 
 #include <lib_core/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
+#include <z13_settings/physics_tuning.h>
 #include <z13_tests/test_time.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -67,9 +68,10 @@ Eigen::Vector3f SettlePlayerAt(z13::testing::Z13TestWorld& test_world, float x) 
   return z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
 }
 
+const float kPlayerRadius = z13::PhysicsTuning {}.player_collider_radius;
 // Closest the player's center gets to the block's -X face.
-constexpr float kTouchingX = kBlockX - z13::building::kBlockSize / 2.f - z13::gameplay::kPlayerColliderRadius;
-constexpr float kApproachX = kTouchingX - 1.f;
+const float kTouchingX = kBlockX - z13::building::kBlockSize / 2.f - kPlayerRadius;
+const float kApproachX = kTouchingX - 1.f;
 constexpr float kPastBlockX = kBlockX + 2.f;
 // Small enough that the step hits the face, not the edge.
 constexpr float kSlideY = 0.2f;
@@ -136,7 +138,7 @@ TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
                               .norm();
   EXPECT_GE(
       distance,
-      z13::building::kBlockSize / 2.f + z13::gameplay::kPlayerColliderRadius - z13::testing::kTestEpsilon);
+      z13::building::kBlockSize / 2.f + kPlayerRadius - z13::testing::kTestEpsilon);
 }
 
 // SweepOrigin is set in the frame the player first appears, so its collision runs then too.

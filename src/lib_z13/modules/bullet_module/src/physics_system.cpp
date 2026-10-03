@@ -34,6 +34,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13_settings/physics_tuning.h>
 
 namespace z13::bullet_module {
 
@@ -58,7 +59,7 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin>(world);
+  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning>(world);
 }
 
 // Only term is a singleton, so $this is empty and the entity-taking .each()
@@ -107,10 +108,10 @@ void RecordSweepOrigin(flecs::entity e, const z13::gameplay::PlayerCollider&, co
 // still runs after the sweep, for blocks placed onto the player.
 void ResolvePlayerCollision(
     flecs::entity e, const z13::gameplay::PlayerCollider& collider, const SweepOrigin& origin,
-    Eigen::Matrix4f& transform, PhysicsWorld& physics_world) {
+    Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::PhysicsTuning& tuning) {
   const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transform);
-  const btVector3 swept =
-      physics_world.SweepSphere(ToBtVector(origin.position), ToBtVector(position), collider.radius);
+  const btVector3 swept = physics_world.SweepSphere(
+      ToBtVector(origin.position), ToBtVector(position), collider.radius, tuning.max_sweep_iterations);
   const btVector3 resolved = physics_world.ResolveSpherePosition(swept, collider.radius);
   const Eigen::Vector3f resolved_position(resolved.x(), resolved.y(), resolved.z());
   if (z13::math::IsNear(position, resolved_position)) {
@@ -180,8 +181,8 @@ void RegisterSystems(flecs::world world) {
       .write<SweepOrigin>()
       .each(RecordSweepOrigin);
 
-  world.system<const z13::gameplay::PlayerCollider, const SweepOrigin, Eigen::Matrix4f, PhysicsWorld>(
-           "PhysicsSystem::ResolvePlayerCollision")
+  world.system<const z13::gameplay::PlayerCollider, const SweepOrigin, Eigen::Matrix4f, PhysicsWorld,
+               const z13::PhysicsTuning>("PhysicsSystem::ResolvePlayerCollision")
       .kind<z13::gameplay::PostUpdatePhase>()
       .each(ResolvePlayerCollision);
 

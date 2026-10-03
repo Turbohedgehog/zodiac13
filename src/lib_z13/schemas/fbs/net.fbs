@@ -20,6 +20,7 @@
 // this schema exists now so the transport/codec layer has real messages to move.
 
 include "net_tuning.fbs";
+include "physics_tuning.fbs";
 include "world_snapshot.fbs";
 
 namespace z13.fbs.net;
@@ -95,6 +96,7 @@ table Welcome {
   // The client runs on these instead of its own: peers must tick alike.
   fps: double;
   tuning: NetTuning;
+  physics: z13.fbs.physics.PhysicsTuning;
 }
 
 table Rejected {

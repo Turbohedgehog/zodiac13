@@ -30,8 +30,6 @@ namespace {
 constexpr float kStaticMass = 0.f;
 const btVector3 kZeroVector(0.f, 0.f, 0.f);
 
-// Slide steps per sweep: enough for a corner (two faces) plus one more.
-constexpr int kMaxSweepIterations = 3;
 // Stops this short of a hit surface, so the next step doesn't start touching it.
 constexpr float kSweepSkin = 1e-3f;
 constexpr float kMinSweepDistance = 1e-5f;
@@ -243,11 +241,11 @@ btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, f
   return desired_center + callback.correction;
 }
 
-btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, float radius) {
+btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, float radius, uint32_t max_iterations) {
   const btSphereShape shape(radius);
   btVector3 position = from;
   btVector3 remaining = to - from;
-  for (int i = 0; i < kMaxSweepIterations && remaining.length() > kMinSweepDistance; ++i) {
+  for (uint32_t i = 0; i < max_iterations && remaining.length() > kMinSweepDistance; ++i) {
     const btVector3 target = position + remaining;
     BlockingSweepCallback callback(position, target);
     state_->DynamicsWorld().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
