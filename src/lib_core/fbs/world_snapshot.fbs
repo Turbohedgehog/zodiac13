@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-// WorldSnapshot (lib_core/world_serializer.h) on the wire and on disk. Component values
-// are still flecs meta JSON; binary values are the next step (docs/serialization-plan.md).
+// WorldSnapshot (lib_core/world_serializer.h) on the wire and on disk.
 
 namespace z13.fbs.state;
 
 table ComponentValue {
   type: string;   // component full path
-  value: string;  // flecs meta JSON
+  value: [ubyte]; // EncodeValue bytes (lib_core/component_codec.h)
 }
 
 table Relationship {

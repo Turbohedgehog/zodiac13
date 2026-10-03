@@ -27,6 +27,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
+#include <lib_core/component_codec.h>
 #include <lib_core/log.h>
 #include <lib_core/world_state.h>
 
@@ -77,10 +78,15 @@ void CaptureComponentsAndTags(
       return;
     }
 
-    if (const flecs::string json = world.to_json(id.raw_id(), value); json.size() > 0) {
-      s.components.push_back({std::move(path), json.c_str()});
+    if (!id.entity().has(ecs_id(EcsType))) {
+      return;  // data component without meta: cannot round-trip
     }
-    // data component without meta: cannot round-trip, skipped.
+    auto bytes = EncodeValue(world, id.raw_id(), value);
+    if (!bytes) {
+      log_error("z13::CaptureWorld: '{}' on '{}' skipped: {}", path, s.name, bytes.error());
+      return;
+    }
+    s.components.push_back({std::move(path), std::move(*bytes)});
   });
 
   std::sort(s.tags.begin(), s.tags.end());
@@ -187,8 +193,9 @@ void ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
       if (!comp) {
         continue;
       }
-      void* value = e.ensure(comp);
-      world.from_json(comp, value, c.value.c_str());
+      if (auto decoded = DecodeValue(world, comp, e.ensure(comp), c.value); !decoded) {
+        log_error("z13::ApplyWorld: '{}' on '{}': {}", c.type, s.name, decoded.error());
+      }
       e.modified(comp);
     }
   }
@@ -237,17 +244,6 @@ namespace {
 
 using Error = std::unexpected<std::string>;
 
-// A value is valid if flecs can parse it into a fresh instance of its component.
-bool ParsesAs(flecs::world& world, flecs::entity component, const std::string& json) {
-  void* scratch = ecs_value_new(world.c_ptr(), component.id());
-  if (scratch == nullptr) {
-    return false;
-  }
-  const bool parsed = world.from_json(component, scratch, json.c_str()) != nullptr;
-  ecs_value_free(world.c_ptr(), component.id(), scratch);
-  return parsed;
-}
-
 std::expected<void, std::string> ValidateSnapshot(flecs::world& world, const WorldSnapshot& snapshot) {
   std::unordered_set<std::string> names;
   for (const auto& s : snapshot.entities) {
@@ -277,8 +273,8 @@ std::expected<void, std::string> ValidateSnapshot(flecs::world& world, const Wor
       if (!component) {
         return Error(std::format("unknown state component '{}' on '{}'", c.type, s.name));
       }
-      if (!ParsesAs(world, component, c.value)) {
-        return Error(std::format("invalid value for '{}' on '{}'", c.type, s.name));
+      if (auto valid = ValidateValue(world, component, c.value); !valid) {
+        return Error(std::format("invalid value for '{}' on '{}': {}", c.type, s.name, valid.error()));
       }
     }
 

@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 
+#include <lib_core/component_codec.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_serializer.h>
 
@@ -120,7 +121,9 @@ class Scenario {
   void Checkpoint(uint64_t tick) {
     for (const ft::EntitySnapshot& entity : ft::CaptureState(world_.World()).entities) {
       for (const ft::ComponentValue& component : entity.components) {
-        dump_ += std::format("{}\t{}\t{}\t{}\n", tick, entity.name, component.type, component.value);
+        const flecs::entity type = world_.World().lookup(component.type.c_str());
+        const std::string json = ft::ValueToJson(world_.World(), type, component.value).value();
+        dump_ += std::format("{}\t{}\t{}\t{}\n", tick, entity.name, component.type, json);
       }
     }
   }

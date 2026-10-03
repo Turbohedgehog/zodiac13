@@ -165,11 +165,11 @@ TEST_F(WorldStateTest, RestoreRejectsInvalidSnapshotsWithoutTouchingTheWorld) {
   SpawnState(target_, "hero").set(Position{1.f, 1.f, 1.f});
 
   ft::WorldSnapshot unknown_component;
-  unknown_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Nope", "{}"}}});
+  unknown_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Nope", {}}}});
   ft::WorldSnapshot non_state_component;
-  non_state_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Velocity", "{}"}}});
+  non_state_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Velocity", {}}}});
   ft::WorldSnapshot bad_value;
-  bad_value.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", "{\"x\": \"oops\"}"}}});
+  bad_value.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}});
   ft::WorldSnapshot duplicate_names;
   duplicate_names.entities.push_back({.name = "hero"});
   duplicate_names.entities.push_back({.name = "hero"});
@@ -334,11 +334,11 @@ TEST_F(WorldStateTest, NanAndInfinityRoundTrip) {
   EXPECT_EQ(restored.y, kInf);
 }
 
-TEST_F(WorldStateTest, ToJsonRejectsAValueThatIsNotJson) {
+TEST_F(WorldStateTest, ToJsonRejectsAValueThatDoesNotDecode) {
   ft::WorldSnapshot snapshot;
-  snapshot.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", "{oops"}}});
+  snapshot.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}});
 
-  const auto json = ft::WorldJsonStore::ToJson(snapshot);
+  const auto json = ft::WorldJsonStore::ToJson(source_, snapshot);
 
   ASSERT_FALSE(json.has_value());
   EXPECT_NE(json.error().find("z13::tests::Position"), std::string::npos) << json.error();

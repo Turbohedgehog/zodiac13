@@ -27,7 +27,7 @@
 
 namespace z13::net {
 
-constexpr uint32_t kProtocolVersion = 3;
+constexpr uint32_t kProtocolVersion = 4;
 
 // MessageEnvelopeT's `body` is already a tagged union over every wire message
 // (MessageBodyUnion::type/Set<T>()/AsXxx(), net_generated.h) -- no variant needed.

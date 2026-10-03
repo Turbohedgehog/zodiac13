@@ -31,8 +31,8 @@ namespace z13::flecs_tools {
 
 // A data component and its value, serialized through flecs meta reflection.
 struct ComponentValue {
-  std::string type;   // component full path, e.g. "z13::Position"
-  std::string value;  // flecs meta JSON, e.g. {"x":1, "y":2, "z":3}
+  std::string type;            // component full path, e.g. "z13::Position"
+  std::vector<uint8_t> value;  // EncodeValue bytes (component_codec.h)
 };
 
 // A flecs (relation, target) pair. `relation` is "ChildOf" for the parent
