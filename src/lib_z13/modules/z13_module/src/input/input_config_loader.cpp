@@ -33,7 +33,7 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/flatbuffers.h>
 
-#include <lib_core/log.h>
+#include <lib_core/utils/log.h>
 #include <z13_settings/environment.h>
 #include <z13/components/input.h>
 

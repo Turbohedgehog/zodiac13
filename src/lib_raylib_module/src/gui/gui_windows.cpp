@@ -22,7 +22,7 @@
 
 #include <imgui.h>
 
-#include <lib_core/components.h>
+#include <lib_core/world/components.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>

@@ -23,8 +23,8 @@
 #include <flatbuffers/flatbuffers.h>
 #include <flatbuffers/reflection.h>
 
-#include <lib_core/schema_attributes.h>
-#include <lib_core/world_state.h>
+#include <lib_core/settings/schema_attributes.h>
+#include <lib_core/state/world_state.h>
 
 namespace z13 {
 

@@ -28,8 +28,8 @@
 #include <flecs.h>
 #include <gtest/gtest.h>
 
-#include <lib_core/core.h>
-#include <lib_core/rollback.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/world/core.h>
 
 #include <bullet_module/bullet_module_factory.h>
 #include <net_module/in_memory_transport.h>

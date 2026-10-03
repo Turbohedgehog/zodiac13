@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include <lib_core/config.h>
+#include <lib_core/settings/config.h>
 
 namespace z13 {
 namespace {

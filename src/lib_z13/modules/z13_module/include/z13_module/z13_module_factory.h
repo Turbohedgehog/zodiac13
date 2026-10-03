@@ -19,7 +19,7 @@
 #include <memory>
 #include <boost/config.hpp>
 #include <boost/dll/alias.hpp>
-#include <lib_core/module_factory_base.h>
+#include <lib_core/world/module_factory_base.h>
 
 extern "C" {
 

@@ -22,8 +22,8 @@
 
 #include <boost/dll/alias.hpp>
 
-#include <lib_core/flecs_utils.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/utils/flecs_utils.h>
 
 #include <net_module/enet_transport.h>
 

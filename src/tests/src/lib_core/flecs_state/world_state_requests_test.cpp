@@ -5,11 +5,11 @@
 
 #include <flecs.h>
 
-#include <lib_core/component_meta.h>
-#include <lib_core/rollback.h>
-#include <lib_core/world_json_store.h>
-#include <lib_core/world_state.h>
-#include <lib_core/world_state_requests.h>
+#include <lib_core/state/component_meta.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/state/world_state_requests.h>
 #include <z13_tests/test_time.h>
 
 #include "test_components.h"

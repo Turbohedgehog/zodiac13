@@ -24,7 +24,7 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
 
-#include <lib_core/log.h>
+#include <lib_core/utils/log.h>
 
 namespace z13 {
 

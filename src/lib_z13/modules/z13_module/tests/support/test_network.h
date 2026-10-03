@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-#include <lib_core/rollback.h>
+#include <lib_core/state/rollback.h>
 
 #include <net_module/in_memory_transport.h>
 

@@ -21,11 +21,11 @@
 
 #include <flecs.h>
 
-#include <lib_core/rollback.h>
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_serializer.h>
-#include <lib_core/world_snapshot_history.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/state/world_serializer.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 
 namespace z13 {
 namespace {

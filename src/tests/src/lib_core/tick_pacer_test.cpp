@@ -19,7 +19,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include <lib_core/tick_pacer.h>
+#include <lib_core/time/tick_pacer.h>
 
 namespace z13 {
 namespace {

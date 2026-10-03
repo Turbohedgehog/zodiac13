@@ -22,7 +22,7 @@
 #include <memory>
 #include <string>
 
-#include <lib_core/simulation_clock.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <net_module/clock_sync.h>
 #include <net_module/in_memory_transport.h>

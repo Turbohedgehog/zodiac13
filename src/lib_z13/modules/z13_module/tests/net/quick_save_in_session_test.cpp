@@ -23,8 +23,8 @@
 #include <memory>
 #include <string>
 
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_json_store.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <net_module/in_memory_transport.h>
 

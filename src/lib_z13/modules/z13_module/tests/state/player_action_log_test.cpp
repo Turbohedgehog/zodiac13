@@ -20,8 +20,8 @@
 #include <cstdint>
 #include <vector>
 
-#include <lib_core/simulation_clock.h>
-#include <lib_core/world_snapshot_history.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/time/simulation_clock.h>
 #include <z13/components/player_action.h>
 #include <z13_tests/test_time.h>
 

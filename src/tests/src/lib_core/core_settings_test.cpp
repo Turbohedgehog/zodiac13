@@ -16,8 +16,8 @@
 
 #include <gtest/gtest.h>
 
-#include <lib_core/config.h>
-#include <lib_core/core_settings.h>
+#include <lib_core/settings/config.h>
+#include <lib_core/settings/core_settings.h>
 
 namespace z13 {
 namespace {

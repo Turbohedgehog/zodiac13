@@ -5,7 +5,7 @@
 #include <flecs.h>
 #include <rfl/json.hpp>
 
-#include <lib_core/world_serializer.h>
+#include <lib_core/state/world_serializer.h>
 
 #include "fixture_names.h"
 #include "json_canonical.h"

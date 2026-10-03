@@ -11,9 +11,9 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <lib_core/component_codec.h>
-#include <lib_core/component_meta.h>
-#include <lib_core/world_serializer.h>
+#include <lib_core/state/component_codec.h>
+#include <lib_core/state/component_meta.h>
+#include <lib_core/state/world_serializer.h>
 
 namespace {
 

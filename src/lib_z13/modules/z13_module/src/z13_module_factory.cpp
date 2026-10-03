@@ -21,8 +21,8 @@
 
 #include <flecs.h>
 
-#include <lib_core/flecs_utils.h>
-#include <lib_core/world_state.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/utils/flecs_utils.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>

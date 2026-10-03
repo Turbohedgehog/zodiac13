@@ -16,7 +16,7 @@
 
 #include "math_convert.h"
 
-#include <lib_core/math.h>
+#include <lib_core/utils/math.h>
 
 namespace z13::raylib {
 

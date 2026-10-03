@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include <lib_core/endpoint.h>
+#include <lib_core/utils/endpoint.h>
 
 namespace z13 {
 namespace {

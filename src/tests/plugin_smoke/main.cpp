@@ -31,9 +31,9 @@
 #include <spdlog/sinks/ringbuffer_sink.h>
 #include <spdlog/spdlog.h>
 
-#include <lib_core/core.h>
-#include <lib_core/log.h>
-#include <lib_core/simulation_clock.h>
+#include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/world/core.h>
 #include <lib_test_dll/test_dll_messages.h>
 #include <z13_launcher/module_list.h>
 
