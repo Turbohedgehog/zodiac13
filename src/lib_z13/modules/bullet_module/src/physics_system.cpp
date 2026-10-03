@@ -174,7 +174,7 @@ void RegisterSystems(flecs::world world) {
       .write<RigidBody>()
       .each(SyncBlockBody);
 
-  // The first phase of a frame, before any movement.
+  // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.
   world.system<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>("PhysicsSystem::RecordSweepOrigin")
       .kind<z13::input::ClearActionFramePhase>()
       .write<SweepOrigin>()
