@@ -104,8 +104,9 @@ void RecordSweepOrigin(flecs::entity e, const z13::gameplay::PlayerCollider&, co
 }
 
 // Mutate-then-e.set() idiom (like BuildingSystem::UpdateBrush), so OnSet
-// observers see the correction; IsNear makes it a no-op once resolved. The push-out
-// still runs after the sweep, for blocks placed onto the player.
+// observers see the correction. Compared exactly: a sweep can stop a step short by
+// less than any epsilon. The push-out still runs after the sweep, for blocks placed
+// onto the player.
 void ResolvePlayerCollision(
     flecs::entity e, const z13::gameplay::PlayerCollider& collider, const SweepOrigin& origin,
     Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::PhysicsTuning& tuning) {
@@ -114,7 +115,7 @@ void ResolvePlayerCollision(
       ToBtVector(origin.position), ToBtVector(position), collider.radius, tuning.max_sweep_iterations);
   const btVector3 resolved = physics_world.ResolveSpherePosition(swept, collider.radius);
   const Eigen::Vector3f resolved_position(resolved.x(), resolved.y(), resolved.z());
-  if (z13::math::IsNear(position, resolved_position)) {
+  if (resolved_position == position) {
     return;
   }
 

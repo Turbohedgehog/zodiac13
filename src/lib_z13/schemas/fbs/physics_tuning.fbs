@@ -22,6 +22,6 @@ namespace z13.fbs.physics;
 
 table PhysicsTuning {
   player_collider_radius: float = 0.4 (min: "0.01", cli);
-  // Slide steps per collider sweep: a corner (two faces) needs two.
-  max_sweep_iterations: uint32 = 3 (min: 1, max: 16, cli);
+  // Sweeps per step: sliding along one face takes two, around a corner three.
+  max_sweep_iterations: uint32 = 3 (min: 2, max: 16, cli);
 }

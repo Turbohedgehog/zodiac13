@@ -111,6 +111,19 @@ TEST(PhysicsCollisionTest, DiagonalStepSlidesAlongTheBlockFace) {
   EXPECT_NEAR(moved.y(), kSlideY, kSweepTolerance);
 }
 
+// Less than any IsNear-style epsilon, so a tolerance would let the player sink into the block.
+constexpr float kTinyStep = 5e-3f;
+
+TEST(PhysicsCollisionTest, TinyStepIntoABlockIsStoppedToo) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kTouchingX);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(test_world, Eigen::Vector3f(kTouchingX + kTinyStep, 0.f, 0.f));
+
+  EXPECT_LE(moved.x(), kTouchingX);
+}
+
 TEST(PhysicsCollisionTest, StepAwayFromATouchingBlockIsFree) {
   z13::testing::Z13TestWorld test_world;
   SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));

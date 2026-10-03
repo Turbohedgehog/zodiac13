@@ -246,7 +246,8 @@ btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, 
   btVector3 position = from;
   btVector3 remaining = to - from;
   for (uint32_t i = 0; i < max_iterations && remaining.length() > kMinSweepDistance; ++i) {
-    const btVector3 target = position + remaining;
+    // Exactly `to` when unobstructed, so an unblocked step leaves the position bit-identical.
+    const btVector3 target = i == 0 ? to : position + remaining;
     BlockingSweepCallback callback(position, target);
     state_->DynamicsWorld().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
     if (!callback.hasHit()) {
