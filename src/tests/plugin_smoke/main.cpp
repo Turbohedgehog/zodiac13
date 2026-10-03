@@ -72,7 +72,12 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  flecs::world& world = core.CreateWorld().get();
+  const auto created = core.CreateWorld();
+  if (!created) {
+    z13::log_error("{}", created.error());
+    return EXIT_FAILURE;
+  }
+  flecs::world& world = created->get();
   for (uint64_t frame = 0; frame < kFrames; ++frame) {
     core.Update(kDeltaTime);
   }

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <flecs.h>
+#include <gtest/gtest.h>
 
 #include <lib_core/core.h>
 #include <lib_core/rollback.h>
@@ -147,7 +148,11 @@ class Z13TestWorld {
         });
     core.RegisterModuleFactory(net_factory);
 
-    z13::WorldRef world = core.CreateWorld();
+    const auto created = core.CreateWorld();
+    if (!created) {
+      ADD_FAILURE() << created.error();  // value() below then aborts the fixture
+    }
+    z13::WorldRef world = created.value();
     z13::InstallSettings(world.get(), settings);
     // Runs the one-shot bootstrap without a frame, so tick-counting tests see tick 0 as before.
     ecs_run(world.get(), world.get().lookup(kInitBootstrapSystemName.data()).id(), 0.f, nullptr);

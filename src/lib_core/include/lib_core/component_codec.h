@@ -43,6 +43,9 @@ std::expected<std::span<std::byte>, std::string> ComponentBytes(
 std::expected<std::span<const std::byte>, std::string> ComponentBytes(
     const flecs::world& world, flecs::entity_t type, const void* value);
 
+// Encodes a default value of `type`, to catch member types the codec can't write.
+std::expected<void, std::string> CheckEncodable(const flecs::world& world, flecs::entity_t type);
+
 std::expected<void, std::string> ValidateValue(
     const flecs::world& world, flecs::entity_t type, std::span<const uint8_t> bytes);
 

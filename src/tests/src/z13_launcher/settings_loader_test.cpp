@@ -162,7 +162,9 @@ TEST(SettingsLoaderTest, InstalledSettingsReachConfigAndWorld) {
   settings.net->max_late_ticks = 7;
   core.GetConfig().SetCoreSettings(*settings.core);
 
-  flecs::world& world = core.CreateWorld().get();
+  const auto created = core.CreateWorld();
+  ASSERT_TRUE(created.has_value()) << created.error();
+  flecs::world& world = created->get();
   InstallSettings(world, settings);
 
   EXPECT_EQ(core.GetConfig().GetFPS(), 30.);

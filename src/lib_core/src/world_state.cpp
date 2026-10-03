@@ -16,10 +16,12 @@
 
 #include <lib_core/world_state.h>
 
+#include <format>
 #include <vector>
 
 #include <Eigen/Dense>
 
+#include <lib_core/component_codec.h>
 #include <lib_core/rollback.h>
 #include <lib_core/simulation_clock.h>
 #include <lib_core/world_snapshot_history.h>
@@ -30,6 +32,23 @@ namespace z13::flecs_tools {
 bool IsStateSingleton(flecs::entity component) {
   return component.has<flecs::Component>() && component.has<StateComponent>() &&
          component.has(flecs::Singleton);
+}
+
+std::expected<void, std::string> ValidateStateComponents(flecs::world& world) {
+  std::string errors;
+  world.query_builder().with<StateComponent>().build().each([&](flecs::entity component) {
+    const auto* info = component.try_get<flecs::Component>();
+    if (info == nullptr || info->size == 0) {
+      return;  // tags carry no value
+    }
+    if (const auto encodable = CheckEncodable(world, component); !encodable) {
+      errors += std::format("{}'{}': {}", errors.empty() ? "" : "; ", component.path().c_str(), encodable.error());
+    }
+  });
+  if (!errors.empty()) {
+    return std::unexpected(std::format("State components can't be encoded: {}", errors));
+  }
+  return {};
 }
 
 // A singleton's value lives on its own component entity; add() default-constructs it.

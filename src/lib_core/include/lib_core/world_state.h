@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <expected>
+#include <string>
 #include <type_traits>
 
 #include <flecs.h>
@@ -80,6 +82,10 @@ void RegisterComponents(flecs::world& world) {
 // Resets every SessionScoped singleton to its default value, so nothing of one network
 // session leaks into the next.
 void ResetSessionScopedComponents(flecs::world& world);
+
+// Checks that every State component with data can be encoded, so a field type the codec
+// doesn't support fails world creation instead of every CaptureState.
+std::expected<void, std::string> ValidateStateComponents(flecs::world& world);
 
 // True for the component entity of a singleton that is world state (State + Singleton).
 bool IsStateSingleton(flecs::entity component);

@@ -87,7 +87,7 @@ bool Core::RegisterModuleFactory(const std::filesystem::path& module_lib_path, b
   return RegisterModuleFactory(*module_factory);
 }
 
-WorldRef Core::CreateWorld() {
+std::expected<WorldRef, std::string> Core::CreateWorld() {
   auto it = worlds_.insert({new_world_id_, flecs::world()});
   ++new_world_id_;
 
@@ -108,6 +108,10 @@ WorldRef Core::CreateWorld() {
   }
 
   RunLifecycle(world);
+  if (auto valid = flecs_tools::ValidateStateComponents(world); !valid) {
+    worlds_.erase(it.first);
+    return std::unexpected(std::move(valid.error()));
+  }
 
   return WorldRef(world);
 }
