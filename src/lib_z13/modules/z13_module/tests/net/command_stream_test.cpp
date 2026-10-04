@@ -336,10 +336,14 @@ TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
     if (tick % 3 == 0) {
       client_b.EmitInput(look);
     }
+    const uint64_t clock_before = client_a.World().get<ft::SimulationClock>().tick;
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+    // A clock catch-up runs an extra tick in the frame; only rollbacks must not move the camera.
+    const uint64_t ticks_run = client_a.World().get<ft::SimulationClock>().tick - clock_before;
     const Eigen::Vector3f current = Position(client_a, own_id);
-    EXPECT_LE((current - previous).norm(), max_step) << "own camera jumped at tick " << tick << ": ("
-        << previous.transpose() << ") -> (" << current.transpose() << ")";
+    EXPECT_LE((current - previous).norm(), max_step * static_cast<float>(std::max<uint64_t>(ticks_run, 1)))
+        << "own camera jumped at tick " << tick << ": (" << previous.transpose() << ") -> (" << current.transpose()
+        << ")";
     previous = current;
   }
   EXPECT_GT(client_a.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "no rollbacks exercised";
