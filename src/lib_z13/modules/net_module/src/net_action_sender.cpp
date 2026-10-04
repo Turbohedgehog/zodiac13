@@ -163,30 +163,10 @@ NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id,
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
-// New input is held back (nothing sent after the ResyncRequest may be in the Resync), so the
-// values in effect are re-sent to keep the player confirmed and held actions in the pruned log.
-NetSession::Result ReassertWhileAwaitingResync(
-    NetSession& session, bool is_server, uint32_t player_id, uint64_t tick, z13::gameplay::PlayerActionLog& log) {
-  std::vector<z13::gameplay::PlayerActionRecord> held;
-  for (const auto& [action_id, value] : ValuesAt(log, player_id, tick)) {
-    if (value != 0.f) {
-      held.push_back({.tick = tick, .player_id = player_id, .action_id = action_id, .value = value});
-    }
-  }
-  auto batch = ToWire(held).and_then(
-      [tick](const std::vector<ScheduledCommand>& commands) { return ToBatch(commands, tick); });
-  if (!batch) {
-    return std::unexpected(std::format("dropping a batch: {}", batch.error()));
-  }
-  log.log.MergeSorted(std::move(held), RecordLess);
-  return Send(session, is_server, player_id, std::move(*batch));
-}
-
 NetSession::Result TrySendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
     const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
-    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map,
-    z13::gameplay::PlayerActionLog& log) {
+    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
   const auto& tuning = it.world().get<NetTuning>();
   if (clock.tick % tuning.send_interval_ticks != 0) {
     return {};
@@ -196,9 +176,15 @@ NetSession::Result TrySendPendingCommands(
     return {};
   }
   const bool neutral = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral;
+  // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
+  // nothing after it may be. An empty batch still confirms the wait, or the server would
+  // stand the player still for all of it; held-back input is later retimed past it.
   if (digests.awaiting_resync) {
     if (neutral) {
-      return ReassertWhileAwaitingResync(session, is_server, *local_player.id, clock.tick, log);
+      fbn::CommandBatchT heartbeat;
+      heartbeat.base_tick = clock.tick;
+      heartbeat.through_tick = clock.tick;
+      return Send(session, is_server, *local_player.id, std::move(heartbeat));
     }
     return {};
   }
@@ -227,9 +213,9 @@ void SendPendingCommands(
     flecs::iter& it, size_t row, NetSession& session, const ft::SimulationClock& clock,
     const z13::gameplay::LocalPlayer& local_player, const StateDigests& digests,
     z13::gameplay::OutgoingCommands& outgoing, const z13::gameplay::LastRecordedActionValues& last_recorded,
-    const z13::input::ActionMap& action_map, z13::gameplay::PlayerActionLog& log) {
+    const z13::input::ActionMap& action_map) {
   if (const auto sent = TrySendPendingCommands(
-          it, row, session, clock, local_player, digests, outgoing, last_recorded, action_map, log);
+          it, row, session, clock, local_player, digests, outgoing, last_recorded, action_map);
       !sent) {
     log_error("NetActionSender: {}", sent.error());
   }
@@ -246,7 +232,7 @@ void RegisterSystems(flecs::world world) {
   world.system<
       NetSession, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
       const StateDigests, z13::gameplay::OutgoingCommands, const z13::gameplay::LastRecordedActionValues,
-      const z13::input::ActionMap, z13::gameplay::PlayerActionLog>(
+      const z13::input::ActionMap>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .without<ft::ReplayInProgress>()

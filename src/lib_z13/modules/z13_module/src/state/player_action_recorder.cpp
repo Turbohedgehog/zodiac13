@@ -16,9 +16,14 @@
 
 #include "player_action_recorder.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <utility>
+#include <vector>
+
+#include <boost/container/flat_map.hpp>
 
 #include <flecs.h>
 
@@ -60,7 +65,8 @@ bool IsReassertTick(const std::optional<uint64_t>& interval_ticks, uint64_t tick
 }
 
 // Mirrors WorldSnapshotHistory's own retention window, so a still-retained snapshot's
-// held-action state is never missing here (a rollback can't reach past it either).
+// held-action state is never missing here (a rollback can't reach past it either). A pruned
+// press still holds until its release, so its value moves to the oldest kept tick.
 void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::PlayerActionLog& log) {
   const std::optional<uint64_t> ticks_per_second = z13::flecs_tools::TicksPerSecond(world);
   const std::optional<double> retention_seconds = z13::flecs_tools::SnapshotRetentionSeconds(world);
@@ -71,9 +77,29 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
   log.retained_since_tick = current_tick > retention_ticks ? current_tick - retention_ticks : 0;
 
   const uint64_t retained_since = log.retained_since_tick;
-  log.log.PruneOlderThan([retained_since](const z13::gameplay::PlayerActionRecord& record) {
-    return record.tick < retained_since;
+  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> pruned;
+  log.log.PruneOlderThan([retained_since, &pruned](const z13::gameplay::PlayerActionRecord& record) {
+    if (record.tick >= retained_since) {
+      return false;
+    }
+    pruned.insert_or_assign({record.player_id, record.action_id}, record.value);
+    return true;
   });
+
+  const auto& kept = log.log.Entries();
+  const auto kept_at_oldest = std::ranges::subrange(
+      kept.begin(), std::ranges::find_if(kept, [retained_since](const auto& record) { return record.tick != retained_since; }));
+  std::vector<z13::gameplay::PlayerActionRecord> carried;
+  for (const auto& [key, value] : pruned) {
+    const auto& [player_id, action_id] = key;
+    const bool overridden = std::ranges::any_of(kept_at_oldest, [&key](const auto& record) {
+      return std::pair(record.player_id, record.action_id) == key;
+    });
+    if (value != 0.f && !overridden) {
+      carried.push_back({.tick = retained_since, .player_id = player_id, .action_id = action_id, .value = value});
+    }
+  }
+  log.log.MergeSorted(std::move(carried), z13::gameplay::RecordLess);
 }
 
 // Compares against last_recorded, not prev_value: see LastRecordedActionValues. The
