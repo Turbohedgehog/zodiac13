@@ -163,27 +163,55 @@ NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id,
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
+void SendOrLog(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandBatchT batch) {
+  if (const auto sent = Send(session, is_server, player_id, std::move(batch)); !sent) {
+    log_error("NetActionSender: {}", sent.error());
+  }
+}
+
+// New input is held back (nothing sent after the ResyncRequest may be in the Resync), so the
+// values in effect are re-sent to keep the player confirmed and held actions in the pruned log.
+void ReassertWhileAwaitingResync(
+    NetSession& session, bool is_server, uint32_t player_id, uint64_t tick, z13::gameplay::PlayerActionLog& log) {
+  std::vector<z13::gameplay::PlayerActionRecord> held;
+  for (const auto& [action_id, value] : ValuesAt(log, player_id, tick)) {
+    if (value != 0.f) {
+      held.push_back({.tick = tick, .player_id = player_id, .action_id = action_id, .value = value});
+    }
+  }
+  auto batch = ToWire(held).and_then(
+      [tick](const std::vector<ScheduledCommand>& commands) { return ToBatch(commands, tick); });
+  if (!batch) {
+    log_error("NetActionSender: dropping a batch: {}", batch.error());
+    return;
+  }
+  log.log.MergeSorted(std::move(held), RecordLess);
+  SendOrLog(session, is_server, player_id, std::move(*batch));
+}
+
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
     const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
-    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
-  // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
-  // nothing after it may be, so the client can take the server's queue as-is.
-  if (digests.awaiting_resync) {
-    return;
-  }
+    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map,
+    z13::gameplay::PlayerActionLog& log) {
   const auto& tuning = it.world().get<NetTuning>();
   if (clock.tick % tuning.send_interval_ticks != 0) {
     return;
   }
-  // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
-  const bool heartbeat = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral &&
-      HoldsReleasableAction(last_recorded.values, action_map);
-  if (outgoing.records.empty() && !heartbeat) {
-    return;
-  }
   const bool is_server = it.world().has<ServerRole>();
   if ((!is_server && !session.ServerConnection()) || !local_player.id) {
+    return;
+  }
+  const bool neutral = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral;
+  if (digests.awaiting_resync) {
+    if (neutral) {
+      ReassertWhileAwaitingResync(session, is_server, *local_player.id, clock.tick, log);
+    }
+    return;
+  }
+  // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
+  const bool heartbeat = neutral && HoldsReleasableAction(last_recorded.values, action_map);
+  if (outgoing.records.empty() && !heartbeat) {
     return;
   }
 
@@ -200,10 +228,7 @@ void SendPendingCommands(
   if (held_back) {
     ScheduleLocally(it.world(), *local_player.id, *scheduled);
   }
-
-  if (const auto sent = Send(session, is_server, *local_player.id, std::move(*batch)); !sent) {
-    log_error("NetActionSender: {}", sent.error());
-  }
+  SendOrLog(session, is_server, *local_player.id, std::move(*batch));
 }
 
 void RegisterSystems(flecs::world world) {
@@ -217,7 +242,7 @@ void RegisterSystems(flecs::world world) {
   world.system<
       NetSession, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
       const StateDigests, z13::gameplay::OutgoingCommands, const z13::gameplay::LastRecordedActionValues,
-      const z13::input::ActionMap>(
+      const z13::input::ActionMap, z13::gameplay::PlayerActionLog>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .without<ft::ReplayInProgress>()

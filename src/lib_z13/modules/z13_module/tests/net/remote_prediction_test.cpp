@@ -25,9 +25,11 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/rollback.h>
 #include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
+#include <net_module/state_digest.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -188,6 +190,38 @@ TEST(RemotePredictionTest, NeutralPredictionKeepsALongHoldMoving) {
   ASSERT_TRUE(neutral.metrics.path_ratio);
   EXPECT_NEAR(*neutral.metrics.path_ratio, 1.f, kTestEpsilon);
   EXPECT_LT((neutral.b_final - neutral.a_final).norm(), kTestEpsilon);
+}
+
+// Without confirmations through the wait, the server would stand A still for all of it:
+// too deep to replay, and the press itself may have aged out of the log.
+TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
+  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  ASSERT_TRUE(session.Connect());
+  session.A().EmitInput(KeyDown(Keycode::KEY_W));
+  for (int tick = 0; tick < kMaxLagTicks; ++tick) {
+    session.Tick();
+  }
+
+  const uint64_t retention_ticks = static_cast<uint64_t>(std::llround(
+      session.Server().Config().GetSnapshotRetentionSeconds() * session.Server().Config().GetFPS()));
+  session.A().World().get_mut<StateDigests>().awaiting_resync = true;
+  for (uint64_t tick = 0; tick <= retention_ticks; ++tick) {
+    session.Tick();
+  }
+  session.A().World().get_mut<StateDigests>().awaiting_resync = false;
+  session.A().EmitInput(KeyUp(Keycode::KEY_W));
+  for (int tick = 0; tick < kMaxLagTicks; ++tick) {
+    session.Tick();
+  }
+
+  for (Z13TestWorld* world : {&session.Server(), &session.B()}) {
+    EXPECT_FALSE(world->World().has<z13::flecs_tools::RollbackFailed>());
+    EXPECT_LT(world->World().get<z13::flecs_tools::RollbackMetrics>().max_depth_ticks, retention_ticks);
+  }
+  EXPECT_EQ(session.A().World().get<StateDigests>().resyncs, 0u) << "A diverged during the wait";
+  EXPECT_EQ(session.B().World().get<StateDigests>().resyncs, 0u);
+  EXPECT_LT((session.PositionOfA(session.B()) - session.PositionOfA(session.A())).norm(), kTestEpsilon);
+  EXPECT_LT((session.PositionOfA(session.Server()) - session.PositionOfA(session.A())).norm(), kTestEpsilon);
 }
 
 // Kept while a rollback may still cross the leave, dropped once none can.

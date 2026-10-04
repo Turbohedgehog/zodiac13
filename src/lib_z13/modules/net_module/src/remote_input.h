@@ -22,10 +22,14 @@
 #include <flecs.h>
 
 #include <z13/components/input.h>
+#include <z13/components/player_action.h>
 
 namespace z13::net {
 
 using ActionValues = boost::container::flat_map<z13::input::ActionInfo::IdType, float>;
+
+// `player_id`'s action values in effect at `tick`, as far as `log` still holds them.
+ActionValues ValuesAt(const z13::gameplay::PlayerActionLog& log, uint32_t player_id, uint64_t tick);
 
 // Whether any of `values` is a held action Neutral prediction would release (not `absolute`).
 bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionMap& action_map);

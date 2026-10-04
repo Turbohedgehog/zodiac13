@@ -38,19 +38,6 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
-ActionValues ValuesAt(const z13::gameplay::PlayerActionLog& log, uint32_t player_id, uint64_t tick) {
-  ActionValues values;
-  for (const z13::gameplay::PlayerActionRecord& record : log.log.Entries()) {
-    if (record.tick > tick) {
-      break;
-    }
-    if (record.player_id == player_id) {
-      values.insert_or_assign(record.action_id, record.value);
-    }
-  }
-  return values;
-}
-
 // A late command is merged in and, batched with others, replayed from just before its tick.
 void CommitDueCommands(
     flecs::iter& it, size_t, const ft::SimulationClock& clock, z13::gameplay::ScheduledCommands& scheduled,
@@ -81,6 +68,19 @@ void RegisterSystems(flecs::world world) {
 }
 
 }  // namespace
+
+ActionValues ValuesAt(const z13::gameplay::PlayerActionLog& log, uint32_t player_id, uint64_t tick) {
+  ActionValues values;
+  for (const z13::gameplay::PlayerActionRecord& record : log.log.Entries()) {
+    if (record.tick > tick) {
+      break;
+    }
+    if (record.player_id == player_id) {
+      values.insert_or_assign(record.action_id, record.value);
+    }
+  }
+  return values;
+}
 
 bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionMap& action_map) {
   const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
