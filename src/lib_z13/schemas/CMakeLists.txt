@@ -42,6 +42,19 @@ flatbuffers_generate_headers(
     FLAGS ${GEN_FLAT_FLAGS}
 )
 
+# flatc's rules depend only on their own schema, but --bfbs-gen-embed embeds what a schema
+# includes too: rebuild every output when any schema changes, or one embeds a stale layout.
+file(GLOB CORE_FBS_SCHEMAS ${CMAKE_SOURCE_DIR}/src/lib_core/fbs/*.fbs)
+foreach(schema IN LISTS FBS_SCHEMAS)
+  get_filename_component(schema_name ${schema} NAME_WE)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/FBS_SCHEMAS_HEADERS/${schema_name}_generated.h
+    APPEND DEPENDS ${FBS_SCHEMAS} ${CORE_FBS_SCHEMAS})
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/bfbs/${schema_name}.bfbs
+    APPEND DEPENDS ${FBS_SCHEMAS} ${CORE_FBS_SCHEMAS})
+endforeach()
+
 add_dependencies(${PROJECT_NAME} FBS_SCHEMAS_HEADERS)
 
 set(GEN_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/FBS_SCHEMAS_HEADERS")
