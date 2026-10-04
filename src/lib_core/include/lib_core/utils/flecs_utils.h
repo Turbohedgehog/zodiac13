@@ -50,6 +50,17 @@ class ImmediateScope {
   bool needs_resume_ {};
 };
 
+// Whether `e` or any entity it is a child of has `T`.
+template <typename T>
+bool HasInAncestry(flecs::entity e) {
+  for (flecs::entity current = e; current; current = current.parent()) {
+    if (current.has<T>()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Config of the Core that owns `world`; nullopt in worlds with no CoreComponent
 // (e.g. bare lib_core tests).
 std::optional<std::reference_wrapper<const Config>> GetCoreConfig(flecs::world world);
