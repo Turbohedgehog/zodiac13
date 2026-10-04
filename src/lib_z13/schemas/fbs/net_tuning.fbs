@@ -20,6 +20,12 @@ include "attributes.fbs";
 
 namespace z13.fbs.net;
 
+// What an observer assumes a remote player does on ticks whose input hasn't arrived yet.
+enum RemoteInputPrediction : ubyte {
+  Hold,     // keeps the last value
+  Neutral,  // releases everything but absolute actions; senders mark how far their input is confirmed
+}
+
 table NetTuning {
   send_interval_ticks: uint64 = 3 (min: 1, cli);
   max_late_ticks: uint64 = 96 (cli);
@@ -40,4 +46,6 @@ table NetTuning {
   // Client-to-server payload per second; UplinkBudgetTest holds the client to them.
   client_uplink_budget_bytes_per_second: uint32 = 2560 (min: 1, cli);
   idle_uplink_budget_bytes_per_second: uint32 = 64 (min: 1, cli);
+
+  remote_input_prediction: RemoteInputPrediction = Hold (cli);
 }

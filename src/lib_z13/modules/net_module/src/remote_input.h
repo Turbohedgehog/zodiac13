@@ -16,9 +16,16 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include <flecs.h>
 
 namespace z13::net {
+
+// Under RemoteInputPrediction::Neutral, records that `player_id`'s input up to `through_tick`
+// has arrived, and replays the ticks that were predicted released while the player held an
+// action. Returns whether the confirmed tick moved.
+bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t through_tick);
 
 class RemoteInput {
  public:

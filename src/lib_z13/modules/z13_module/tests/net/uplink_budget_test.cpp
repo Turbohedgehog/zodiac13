@@ -31,6 +31,7 @@
 #include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13_settings/net_tuning.h>
+#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -65,12 +66,19 @@ constexpr int kMouseDeltaX = 5;
 constexpr int kMouseJitterX = 5;
 constexpr int kMouseJitterY = 3;
 
-Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+z13::Settings SettingsFor(fbs::net::RemoteInputPrediction prediction) {
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->remote_input_prediction = prediction;
+  return settings;
 }
 
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
+}
+
+Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
+  return Z13TestWorld(
+      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -97,7 +105,8 @@ std::vector<uint64_t> UplinkBytesPerSecond(
   return per_second;
 }
 
-class UplinkBudgetTest : public ::testing::Test {
+// Neutral prediction adds a batch per send interval while a key is held.
+class UplinkBudgetTest : public ::testing::TestWithParam<fbs::net::RemoteInputPrediction> {
  protected:
   void SetUp() override {
     ASSERT_TRUE(RunNetworkUntil(
@@ -105,12 +114,13 @@ class UplinkBudgetTest : public ::testing::Test {
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server_ = MakeServer(network_);
-  Z13TestWorld client_ = MakeClient(network_);
+  z13::Settings settings_ = SettingsFor(GetParam());
+  Z13TestWorld server_ = MakeServer(network_, settings_);
+  Z13TestWorld client_ = MakeClient(network_, settings_);
 };
 
 // W for 5 s, then 2 s of mouse look changing every tick (a steady delta would be sent once).
-TEST_F(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
+TEST_P(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
   const auto per_second = UplinkBytesPerSecond(*network_, server_, client_, kSessionSeconds, [&](uint64_t tick) {
     if (tick == 0) {
       client_.EmitInput(KeyDown(Keycode::KEY_W));
@@ -130,11 +140,18 @@ TEST_F(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
   EXPECT_LE(peak, kClientUplinkBudgetBytesPerSecond);
 }
 
-TEST_F(UplinkBudgetTest, IdleClientStaysWithinIdleBudget) {
+TEST_P(UplinkBudgetTest, IdleClientStaysWithinIdleBudget) {
   const auto per_second = UplinkBytesPerSecond(*network_, server_, client_, kIdleSeconds, [](uint64_t) {});
 
   EXPECT_LE(std::ranges::max(per_second), kIdleUplinkBudgetBytesPerSecond);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Prediction, UplinkBudgetTest,
+    ::testing::Values(fbs::net::RemoteInputPrediction::Hold, fbs::net::RemoteInputPrediction::Neutral),
+    [](const ::testing::TestParamInfo<fbs::net::RemoteInputPrediction>& info) {
+      return std::string(fbs::net::EnumNameRemoteInputPrediction(info.param));
+    });
 
 }  // namespace
 }  // namespace z13::net

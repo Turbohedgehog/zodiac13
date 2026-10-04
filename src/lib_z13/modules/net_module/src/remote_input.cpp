@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <boost/container/flat_map.hpp>
+
 #include <lib_core/state/rollback.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
@@ -28,6 +30,7 @@
 
 #include <z13/components/input.h>
 #include <z13/components/player_action.h>
+#include <z13_settings/net_tuning.h>
 
 #include "scheduled_commands.h"
 
@@ -36,6 +39,26 @@ namespace z13::net {
 namespace {
 
 namespace ft = z13::flecs_tools;
+
+// Whether `player_id` held a non-absolute action at `tick`, which Neutral prediction released.
+bool HeldReleasableAction(
+    const z13::gameplay::PlayerActionLog& log, const z13::input::ActionMap& action_map, uint32_t player_id,
+    uint64_t tick) {
+  boost::container::flat_map<z13::input::ActionInfo::IdType, float> values;
+  for (const z13::gameplay::PlayerActionRecord& record : log.log.Entries()) {
+    if (record.tick > tick) {
+      break;
+    }
+    if (record.player_id == player_id) {
+      values.insert_or_assign(record.action_id, record.value);
+    }
+  }
+  const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  return std::ranges::any_of(values, [&by_id](const auto& entry) {
+    const auto info = by_id.find(entry.first);
+    return entry.second != 0.f && (info == by_id.end() || !info->absolute);
+  });
+}
 
 // A late command is merged in and, batched with others, replayed from just before its tick.
 void CommitDueCommands(
@@ -67,6 +90,27 @@ void RegisterSystems(flecs::world world) {
 }
 
 }  // namespace
+
+bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t through_tick) {
+  if (world.get<NetTuning>().remote_input_prediction != fbs::net::RemoteInputPrediction::Neutral) {
+    return false;
+  }
+  auto& confirmed = world.get_mut<z13::gameplay::ConfirmedInputTicks>().by_player;
+  const auto [entry, inserted] = confirmed.try_emplace(player_id, through_tick);
+  if (!inserted && through_tick <= entry->second) {
+    return false;
+  }
+  // A first confirmation turns the ticks past it from held into released.
+  const uint64_t predicted_since = inserted ? through_tick : entry->second;
+  entry->second = through_tick;
+  if (predicted_since < world.get<ft::SimulationClock>().tick &&
+      HeldReleasableAction(
+          world.get<z13::gameplay::PlayerActionLog>(), world.get<z13::input::ActionMap>(), player_id,
+          predicted_since)) {
+    ft::DeferRollback(world, predicted_since);
+  }
+  return true;
+}
 
 void RemoteInput::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);

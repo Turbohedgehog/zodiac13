@@ -119,16 +119,27 @@ std::vector<NetProfile> NetProfiles() {
   };
 }
 
+void PredictNeutral(z13::Settings& settings) {
+  settings.net->remote_input_prediction = z13::fbs::net::RemoteInputPrediction::Neutral;
+}
+
+void SendEveryTick(z13::Settings& settings) {
+  settings.net->send_interval_ticks = 1;
+  settings.core->max_rollback_delay_ticks = 0;
+}
+
 std::vector<TuningVariant> TuningVariants() {
   return {
       {.name = "default", .apply = [](z13::Settings&) {}},
       {.name = "send1", .apply = [](z13::Settings& settings) { settings.net->send_interval_ticks = 1; }},
       {.name = "rollback0", .apply = [](z13::Settings& settings) { settings.core->max_rollback_delay_ticks = 0; }},
-      {.name = "send1+rollback0",
+      {.name = "send1+rollback0", .apply = SendEveryTick},
+      {.name = "neutral", .apply = PredictNeutral},
+      {.name = "neutral+send1+rb0",
        .apply =
            [](z13::Settings& settings) {
-             settings.net->send_interval_ticks = 1;
-             settings.core->max_rollback_delay_ticks = 0;
+             PredictNeutral(settings);
+             SendEveryTick(settings);
            }},
   };
 }
@@ -191,6 +202,11 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
     Sample(client_a, a_id, run.truth);
     Sample(client_b, a_id, run.observed);
   };
+  const auto step = [&] {
+    tick(1);
+    sample();
+  };
+  sample();
   for (const Segment& segment : scenario.segments) {
     UpdateHeldKeys(client_a, held, segment.keys);
     held = segment.keys;
@@ -202,11 +218,6 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
       }
       step();
     }
-  const auto step = [&] {
-    tick(1);
-    sample();
-  };
-  sample();
   }
   UpdateHeldKeys(client_a, held, {});
   for (int t = 0; t < kTailTicks; ++t) {

@@ -20,6 +20,8 @@ attribute "display_text";
 attribute "action_group";
 attribute "action";
 attribute "default_keycodes";
+// The value is a state (an angle), not an input: an unconfirmed tick keeps the last one.
+attribute "absolute";
 
 table CommonTable {
 }

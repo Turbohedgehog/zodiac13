@@ -57,6 +57,7 @@
 #include <net_module/state_digest.h>
 
 #include "net_session.h"
+#include "remote_input.h"
 #include "scheduled_commands.h"
 #include "state_digest_system.h"
 #include "transport_factories.h"
@@ -422,7 +423,10 @@ NetSession::Result HandleCommandBatch(
     });
     accepted.push_back(command);
   }
-  if (accepted.empty()) {
+  // Capped like a command's tick, so a client can't claim input far ahead.
+  const uint64_t through_tick = std::min(batch.through_tick, now + tuning.max_schedule_ahead_ticks);
+  const bool confirmed_more = ConfirmInputThrough(world, *player_id, through_tick);
+  if (accepted.empty() && !confirmed_more) {
     return {};
   }
 
@@ -430,6 +434,7 @@ NetSession::Result HandleCommandBatch(
   sequenced.player_id = *player_id;
   sequenced.base_tick = batch.base_tick;
   sequenced.commands = std::move(accepted);
+  sequenced.through_tick = through_tick;
 
   Envelope envelope;
   envelope.body.Set(std::move(sequenced));
@@ -800,6 +805,7 @@ void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& s
         .value = z13::gameplay::DequantizeActionValue(command.value()),
     });
   });
+  ConfirmInputThrough(world, sequenced.player_id, sequenced.through_tick);
 }
 
 void HandleClientReceived(flecs::world world, const TransportEvent& event) {

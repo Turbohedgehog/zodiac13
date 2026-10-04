@@ -69,6 +69,7 @@ table ClientHello {
 table CommandBatch {
   base_tick: ulong;  // already apply_tick, not the client's raw local tick
   commands: [CommandWire];
+  through_tick: ulong;  // the sender's commands up to this tick are all in this batch or earlier ones
 }
 
 table ResyncRequest {}
@@ -127,6 +128,7 @@ table SequencedCommands {
   player_id: uint;
   base_tick: ulong;  // already apply_tick
   commands: [CommandWire];
+  through_tick: ulong;  // as in CommandBatch
 }
 
 table StateDigest {

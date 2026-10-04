@@ -163,6 +163,7 @@ std::expected<void, std::string> AdoptActionIds(flecs::world world, std::span<co
         .group_name = info.group_name,
         .display_text = info.display_text,
         .default_keycodes = info.default_keycodes,
+        .absolute = info.absolute,
         .enum_value = info.enum_value,
         .id = new_id,
     });
