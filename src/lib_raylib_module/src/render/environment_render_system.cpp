@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -35,6 +37,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/pose_smoothing.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -42,6 +45,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
+#include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -74,6 +78,13 @@ constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BuildingBlock>(world);
 }
+
+// Where everything not the local player's own is drawn, chasing its simulated transform in
+// real time so rollback corrections glide in. Own entities are drawn as simulated.
+struct DrawnPoses {
+  std::unordered_map<flecs::entity_t, z13::math::SmoothedPose> by_entity;
+  std::optional<std::chrono::steady_clock::time_point> last_frame;
+};
 
 // Per-entity cube models backing placed blocks / the brush preview, keyed by
 // entity -- the model itself doesn't live on BuildingBlock (see render_components.h).
@@ -205,9 +216,50 @@ AvatarModel LoadAvatar(const Lighting& lighting) {
 }
 
 using RemotePlayerQuery = flecs::query<const gameplay::Player, const Eigen::Matrix4f>;
+using DrawnQuery = flecs::query<const Eigen::Matrix4f>;
+
+bool IsOwn(flecs::entity e) {
+  for (flecs::entity current = e; current; current = current.parent()) {
+    if (current.has<z13::input::CurrentActionListenerTag>()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Rebuilt every frame, so entities that are gone or became own drop out.
+void ChaseDrawnPoses(DrawnPoses& drawn, const VisualSmoothing& settings, const DrawnQuery& drawn_query) {
+  const auto now = std::chrono::steady_clock::now();
+  const float delta_seconds =
+      drawn.last_frame ? std::chrono::duration<float>(now - *drawn.last_frame).count() : 0.f;
+  drawn.last_frame = now;
+  const z13::math::PoseSmoothingParams params {
+      .smooth_time_seconds = settings.smooth_time_seconds,
+      .snap_distance = settings.snap_distance,
+      .snap_angle_rad = z13::math::ToRadians(settings.snap_angle_deg),
+  };
+
+  std::unordered_map<flecs::entity_t, z13::math::SmoothedPose> next;
+  drawn_query.each([&](flecs::entity e, const Eigen::Matrix4f& transform) {
+    if (IsOwn(e)) {
+      return;
+    }
+    const auto previous = drawn.by_entity.find(e.id());
+    z13::math::SmoothedPose pose =
+        previous != drawn.by_entity.end() ? previous->second : z13::math::PoseAt(transform);
+    z13::math::ChasePose(pose, transform, delta_seconds, params);
+    next.emplace(e.id(), pose);
+  });
+  drawn.by_entity = std::move(next);
+}
+
+Eigen::Matrix4f DrawnTransform(const DrawnPoses& drawn, flecs::entity e, const Eigen::Matrix4f& transform) {
+  const auto found = drawn.by_entity.find(e.id());
+  return found != drawn.by_entity.end() ? z13::math::DrawnTransform(found->second, transform) : transform;
+}
 
 // Every avatar shares the one model; only its transform and tint change per player.
-void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players) {
+void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const DrawnPoses& drawn) {
   if (!world.has<AvatarModel>()) {
     return;
   }
@@ -215,8 +267,8 @@ void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remot
   if (!avatar.res || avatar.res->model->meshCount == 0) {
     return;
   }
-  remote_players.each([&avatar](const gameplay::Player& player, const Eigen::Matrix4f& transform) {
-    avatar.res->model->transform = EigenToRaylibMatrix(transform);
+  remote_players.each([&avatar, &drawn](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+    avatar.res->model->transform = EigenToRaylibMatrix(DrawnTransform(drawn, e, transform));
     DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player.id)));
   });
 }
@@ -290,6 +342,7 @@ void EndScene3D() {
 void RegisterSystems(flecs::world world) {
   // Shared by the closures below; lives as long as the world.
   auto block_models = std::make_shared<BlockModels>();
+  auto drawn_poses = std::make_shared<DrawnPoses>();
 
   // RaylibData is set right after InitWindow, so a live GL context is guaranteed.
   world.observer<RaylibData>("EnvironmentRenderSystem::LoadEnvironment")
@@ -374,12 +427,26 @@ void RegisterSystems(flecs::world world) {
           .without<z13::input::CurrentActionListenerTag>()
           .build();
 
+  DrawnQuery drawn_query = world.query_builder<const Eigen::Matrix4f>("EnvironmentRenderSystem::DrawnQuery")
+                               .with<gameplay::Player>()
+                               .or_()
+                               .with<BuildingBlock>()
+                               .build();
+
+  world.system<const VisualSmoothing>("EnvironmentRenderSystem::ChaseDrawnPoses")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .read<z13::input::CurrentActionListenerTag>()
+      .each([drawn_poses, drawn_query](flecs::iter&, size_t, const VisualSmoothing& settings) {
+        ChaseDrawnPoses(*drawn_poses, settings, drawn_query);
+      });
+
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<BuildingBlock>()
-      .each([world, block_query, block_models, remote_player_query](
+      .each([world, block_query, block_models, remote_player_query, drawn_poses](
                 const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
@@ -409,14 +476,14 @@ void RegisterSystems(flecs::world world) {
         }
 
         block_query.each(
-            [block_models](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
+            [block_models, &drawn_poses](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
               const auto it = block_models->find(e.id());
               if (it != block_models->end() && it->second.model->meshCount > 0) {
-                it->second.model->transform = EigenToRaylibMatrix(transform);
+                it->second.model->transform = EigenToRaylibMatrix(DrawnTransform(*drawn_poses, e, transform));
                 DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
               }
             });
-        DrawRemotePlayers(world, remote_player_query);
+        DrawRemotePlayers(world, remote_player_query, *drawn_poses);
 
         EndScene3D();
       });

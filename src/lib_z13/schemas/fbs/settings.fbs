@@ -28,11 +28,20 @@ table ConnectTimeout {
   max_timeout_ms: uint32 = 3000 (min: 1, cli: "--connect-max-timeout-ms");
 }
 
+// How remote entities are drawn chasing their simulated pose (client only, never sent).
+table VisualSmoothing {
+  smooth_time_seconds: float = 0.1 (min: 0, max: 2, cli: "--visual-smooth-time");
+  // A correction past either limit (a teleport, a resync) is drawn at once.
+  snap_distance: float = 20 (min: 0, cli: "--visual-snap-distance");
+  snap_angle_deg: float = 90 (min: 0, max: 180, cli: "--visual-snap-angle");
+}
+
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
   net: z13.fbs.net.NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
+  visual_smoothing: VisualSmoothing;
 }
 
 root_type Settings;

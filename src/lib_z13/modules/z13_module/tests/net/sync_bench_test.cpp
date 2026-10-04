@@ -39,6 +39,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/pose_smoothing.h>
 
 #include <net_module/in_memory_transport.h>
 
@@ -102,14 +103,17 @@ struct TuningVariant {
   std::function<void(z13::Settings&)> apply;
 };
 
-struct Trajectory {
-  std::vector<Eigen::Vector3f> position;
-  std::vector<LookAngles> look;
+// What B draws: the simulated pose as is, or chased by the render's smoothing.
+struct SmoothingVariant {
+  std::string_view name;
+  float smooth_time_seconds {};
 };
+
+using Trajectory = std::vector<Eigen::Matrix4f>;
 
 struct BenchRun {
   Trajectory truth;     // A as A sees itself
-  Trajectory observed;  // A as B sees it
+  Trajectory observed;  // A as B simulates it
 };
 
 std::vector<NetProfile> NetProfiles() {
@@ -131,9 +135,7 @@ void SendEveryTick(z13::Settings& settings) {
 std::vector<TuningVariant> TuningVariants() {
   return {
       {.name = "default", .apply = [](z13::Settings&) {}},
-      {.name = "send1", .apply = [](z13::Settings& settings) { settings.net->send_interval_ticks = 1; }},
-      {.name = "rollback0", .apply = [](z13::Settings& settings) { settings.core->max_rollback_delay_ticks = 0; }},
-      {.name = "send1+rollback0", .apply = SendEveryTick},
+      {.name = "send1+rb0", .apply = SendEveryTick},
       {.name = "neutral", .apply = PredictNeutral},
       {.name = "neutral+send1+rb0",
        .apply =
@@ -144,14 +146,53 @@ std::vector<TuningVariant> TuningVariants() {
   };
 }
 
+std::vector<SmoothingVariant> SmoothingVariants() {
+  return {
+      {.name = "raw"},
+      {.name = "s50", .smooth_time_seconds = 0.05f},
+      {.name = "s100", .smooth_time_seconds = 0.1f},
+      {.name = "s150", .smooth_time_seconds = 0.15f},
+  };
+}
+
 flecs::entity PlayerIn(Z13TestWorld& world, uint32_t player_id) {
   return world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
 }
 
 void Sample(Z13TestWorld& world, uint32_t player_id, Trajectory& trajectory) {
-  const flecs::entity player = PlayerIn(world, player_id);
-  trajectory.position.push_back(z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()));
-  trajectory.look.push_back(player.get<LookAngles>());
+  trajectory.push_back(PlayerIn(world, player_id).get<Eigen::Matrix4f>());
+}
+
+Trajectory Drawn(const Trajectory& simulated, const SmoothingVariant& smoothing) {
+  const z13::VisualSmoothing defaults(*z13::MakeSettings().visual_smoothing);
+  const z13::math::PoseSmoothingParams params {
+      .smooth_time_seconds = smoothing.smooth_time_seconds,
+      .snap_distance = defaults.snap_distance,
+      .snap_angle_rad = z13::math::ToRadians(defaults.snap_angle_deg),
+  };
+  Trajectory drawn;
+  z13::math::SmoothedPose pose = z13::math::PoseAt(simulated.front());
+  for (const Eigen::Matrix4f& target : simulated) {
+    z13::math::ChasePose(pose, target, kNetTestDeltaTime, params);
+    drawn.push_back(z13::math::DrawnTransform(pose, target));
+  }
+  return drawn;
+}
+
+std::vector<Eigen::Vector3f> Positions(const Trajectory& trajectory) {
+  std::vector<Eigen::Vector3f> positions;
+  for (const Eigen::Matrix4f& transform : trajectory) {
+    positions.push_back(z13::math::ExtractTranslation(transform));
+  }
+  return positions;
+}
+
+std::vector<Eigen::Vector3f> Looks(const Trajectory& trajectory) {
+  std::vector<LookAngles> looks;
+  for (const Eigen::Matrix4f& transform : trajectory) {
+    looks.push_back(z13::gameplay::LookAnglesFromTransform(transform));
+  }
+  return z13::testing::UnwrappedLook(looks);
 }
 
 void UpdateHeldKeys(Z13TestWorld& world, const std::set<Keycode>& held, const std::set<Keycode>& wanted) {
@@ -232,16 +273,18 @@ std::filesystem::path OutputDir() {
                     : std::filesystem::temp_directory_path() / kDefaultOutputDirName;
 }
 
-void WriteTrace(const std::filesystem::path& path, const BenchRun& run) {
+void WriteTrace(const std::filesystem::path& path, const Trajectory& truth, const Trajectory& drawn) {
   std::ofstream out(path);
   out << "tick,truth_x,truth_y,truth_z,truth_yaw,truth_pitch,seen_x,seen_y,seen_z,seen_yaw,seen_pitch\n";
-  for (size_t t = 0; t < run.truth.position.size(); ++t) {
-    const Eigen::Vector3f& truth = run.truth.position[t];
-    const Eigen::Vector3f& seen = run.observed.position[t];
+  const auto truth_position = Positions(truth);
+  const auto truth_look = Looks(truth);
+  const auto seen_position = Positions(drawn);
+  const auto seen_look = Looks(drawn);
+  for (size_t t = 0; t < truth.size(); ++t) {
     out << std::format(
-        "{},{},{},{},{},{},{},{},{},{},{}\n", t, truth.x(), truth.y(), truth.z(), run.truth.look[t].yaw_deg,
-        run.truth.look[t].pitch_deg, seen.x(), seen.y(), seen.z(), run.observed.look[t].yaw_deg,
-        run.observed.look[t].pitch_deg);
+        "{},{},{},{},{},{},{},{},{},{},{}\n", t, truth_position[t].x(), truth_position[t].y(), truth_position[t].z(),
+        truth_look[t].x(), truth_look[t].y(), seen_position[t].x(), seen_position[t].y(), seen_position[t].z(),
+        seen_look[t].x(), seen_look[t].y());
   }
 }
 
@@ -256,15 +299,14 @@ std::string MetricsCsv(const TrackingMetrics& m) {
       Optional(m.stall_fraction, "{}"));
 }
 
-std::string MetricsRow(const TrackingMetrics& m) {
+std::string MetricsColumns(const TrackingMetrics& m) {
   return std::format(
-      "{:>4} {:>7.3f} {:>7.3f} {:>7.3f} {:>6} {:>6.3f}/{:<6.3f} {:>6.3f}/{:<6.3f} {:>5}", m.lag_ticks, m.rms_error,
-      m.max_error, m.max_off_path, Optional(m.path_ratio, "{:.3f}"), m.max_step, m.truth_max_step,
-      m.rms_acceleration, m.truth_rms_acceleration, Optional(m.stall_fraction, "{:.2f}"));
+      "{:>4} {:>6.2f} {:>6.2f} {:>5} {:>6.3f} {:>5}", m.lag_ticks, m.rms_error, m.max_off_path,
+      Optional(m.path_ratio, "{:.2f}"), m.rms_acceleration, Optional(m.stall_fraction, "{:.2f}"));
 }
 
 constexpr std::string_view kSummaryHeader =
-    "profile,tuning,"
+    "profile,tuning,smoothing,"
     "pos_lag,pos_rms,pos_max,pos_off_path,pos_path_ratio,pos_max_step,pos_truth_max_step,pos_rms_accel,"
     "pos_truth_rms_accel,pos_stall,"
     "look_lag,look_rms,look_max,look_off_path,look_path_ratio,look_max_step,look_truth_max_step,look_rms_accel,"
@@ -275,29 +317,35 @@ void RunScenario(const Scenario& scenario) {
   std::filesystem::create_directories(dir);
   std::ofstream summary(dir / kSummaryFileName);
   summary << kSummaryHeader;
-  const std::string metrics_header = std::format(
-      "{:>4} {:>7} {:>7} {:>7} {:>6} {:>13} {:>13} {:>5}", "lag", "rms", "max", "offpath", "path", "step/truth",
-      "accel/truth", "stall");
+  const std::string columns =
+      std::format("{:>4} {:>6} {:>6} {:>5} {:>6} {:>5}", "lag", "rms", "offpth", "path", "accel", "stall");
   std::cout << std::format(
-      "\n== {} ==   (B's view of A; position in world units, look in degrees)\n{:<24}|          {}\n",
-      scenario.name, "", metrics_header);
+      "\n== {} ==   (B's view of A; position in world units, look in degrees)\n{:<26}| position {} | look {}\n",
+      scenario.name, "", columns, columns);
   for (const NetProfile& profile : NetProfiles()) {
     for (const TuningVariant& variant : TuningVariants()) {
       const std::optional<BenchRun> run = Run(scenario, profile, variant);
-      const std::string label = std::format("{} {}", profile.name, variant.name);
       if (!run) {
-        ADD_FAILURE() << label << ": the session never got going";
+        ADD_FAILURE() << profile.name << " " << variant.name << ": the session never got going";
         continue;
       }
-      const TrackingMetrics position =
-          z13::testing::MeasureTracking(run->truth.position, run->observed.position, kMaxLagTicks);
-      const TrackingMetrics look = z13::testing::MeasureTracking(
-          z13::testing::UnwrappedLook(run->truth.look), z13::testing::UnwrappedLook(run->observed.look),
-          kMaxLagTicks);
-      std::cout << std::format("{:<24}| position {}\n{:<24}| look     {}\n", label, MetricsRow(position), "",
-                               MetricsRow(look));
-      WriteTrace(dir / std::format("{}_{}.csv", profile.name, variant.name), *run);
-      summary << std::format("{},{},{},{}\n", profile.name, variant.name, MetricsCsv(position), MetricsCsv(look));
+      const auto truth_position = Positions(run->truth);
+      const auto truth_look = Looks(run->truth);
+      for (const SmoothingVariant& smoothing : SmoothingVariants()) {
+        const Trajectory drawn = Drawn(run->observed, smoothing);
+        const TrackingMetrics position = z13::testing::MeasureTracking(truth_position, Positions(drawn), kMaxLagTicks);
+        const TrackingMetrics look = z13::testing::MeasureTracking(truth_look, Looks(drawn), kMaxLagTicks);
+        const std::string label = std::format("{} {} {}", profile.name, variant.name, smoothing.name);
+        std::cout << std::format("{:<26}|          {} |      {}\n", label, MetricsColumns(position), MetricsColumns(look));
+        WriteTrace(dir / std::format("{}_{}_{}.csv", profile.name, variant.name, smoothing.name), run->truth, drawn);
+        summary << std::format(
+            "{},{},{},{},{}\n", profile.name, variant.name, smoothing.name, MetricsCsv(position), MetricsCsv(look));
+      }
+      const TrackingMetrics reference = z13::testing::MeasureTracking(truth_position, truth_position, 0);
+      const TrackingMetrics look_reference = z13::testing::MeasureTracking(truth_look, truth_look, 0);
+      std::cout << std::format(
+          "{:<26}|          truth accel {:.3f}                    |      truth accel {:.3f}\n", "", reference.rms_acceleration,
+          look_reference.rms_acceleration);
     }
   }
   std::cout << std::format("traces: {}\n", dir.string()) << std::flush;
