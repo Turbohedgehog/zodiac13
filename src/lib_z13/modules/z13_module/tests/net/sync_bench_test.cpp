@@ -38,6 +38,8 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/settings/config.h>
+#include <lib_core/state/rollback.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/pose_smoothing.h>
 
@@ -57,6 +59,7 @@
 namespace z13::net {
 namespace {
 
+namespace ft = z13::flecs_tools;
 using z13::fbs::input::Keycode;
 using z13::gameplay::LookAngles;
 using z13::testing::kConnectArg;
@@ -73,6 +76,7 @@ using z13::testing::Z13TestWorld;
 constexpr std::string_view kOutputDirEnv = "Z13_SYNC_BENCH_DIR";
 constexpr std::string_view kDefaultOutputDirName = "z13_sync_bench";
 constexpr std::string_view kSummaryFileName = "summary.csv";
+constexpr std::string_view kCostFileName = "cost.csv";
 // Lets the session settle (spawn, clock sync) before A starts moving.
 constexpr uint64_t kSettleTicks = 60;
 // B gets this long after A stops to converge.
@@ -111,9 +115,17 @@ struct SmoothingVariant {
 
 using Trajectory = std::vector<Eigen::Matrix4f>;
 
+// What a variant costs, per second of the scenario.
+struct BenchCost {
+  double uplink_bytes {};    // everything the clients sent the server
+  double rollbacks {};       // B's
+  double replayed_ticks {};  // B's
+};
+
 struct BenchRun {
   Trajectory truth;     // A as A sees itself
   Trajectory observed;  // A as B simulates it
+  BenchCost cost;
 };
 
 std::vector<NetProfile> NetProfiles() {
@@ -150,6 +162,7 @@ std::vector<SmoothingVariant> SmoothingVariants() {
   return {
       {.name = "raw"},
       {.name = "s50", .smooth_time_seconds = 0.05f},
+      {.name = "s75", .smooth_time_seconds = 0.075f},
       {.name = "s100", .smooth_time_seconds = 0.1f},
       {.name = "s150", .smooth_time_seconds = 0.15f},
   };
@@ -238,6 +251,8 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
   }
 
   BenchRun run;
+  const uint64_t uplink_before = network->TrafficTo(z13::kDefaultServerPort).bytes;
+  const ft::RollbackMetrics rollbacks_before = client_b.World().get<ft::RollbackMetrics>();
   std::set<Keycode> held;
   const auto sample = [&] {
     Sample(client_a, a_id, run.truth);
@@ -264,6 +279,13 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
   for (int t = 0; t < kTailTicks; ++t) {
     step();
   }
+  const double seconds = static_cast<double>(run.truth.size()) * kNetTestDeltaTime;
+  const ft::RollbackMetrics& rollbacks = client_b.World().get<ft::RollbackMetrics>();
+  run.cost = {
+      .uplink_bytes = static_cast<double>(network->TrafficTo(z13::kDefaultServerPort).bytes - uplink_before) / seconds,
+      .rollbacks = static_cast<double>(rollbacks.rollbacks - rollbacks_before.rollbacks) / seconds,
+      .replayed_ticks = static_cast<double>(rollbacks.replayed_ticks - rollbacks_before.replayed_ticks) / seconds,
+  };
   return run;
 }
 
@@ -317,6 +339,8 @@ void RunScenario(const Scenario& scenario) {
   std::filesystem::create_directories(dir);
   std::ofstream summary(dir / kSummaryFileName);
   summary << kSummaryHeader;
+  std::ofstream costs(dir / kCostFileName);
+  costs << "profile,tuning,uplink_bytes_per_s,rollbacks_per_s,replayed_ticks_per_s\n";
   const std::string columns =
       std::format("{:>4} {:>6} {:>6} {:>5} {:>6} {:>5}", "lag", "rms", "offpth", "path", "accel", "stall");
   std::cout << std::format(
@@ -344,8 +368,12 @@ void RunScenario(const Scenario& scenario) {
       const TrackingMetrics reference = z13::testing::MeasureTracking(truth_position, truth_position, 0);
       const TrackingMetrics look_reference = z13::testing::MeasureTracking(truth_look, truth_look, 0);
       std::cout << std::format(
-          "{:<26}|          truth accel {:.3f}                    |      truth accel {:.3f}\n", "", reference.rms_acceleration,
-          look_reference.rms_acceleration);
+          "{:<26}| A's accel {:.3f} / {:.3f}; uplink {:.0f} B/s, B rollbacks {:.1f}/s replaying {:.0f} ticks/s\n", "",
+          reference.rms_acceleration, look_reference.rms_acceleration, run->cost.uplink_bytes, run->cost.rollbacks,
+          run->cost.replayed_ticks);
+      costs << std::format(
+          "{},{},{},{},{}\n", profile.name, variant.name, run->cost.uplink_bytes, run->cost.rollbacks,
+          run->cost.replayed_ticks);
     }
   }
   std::cout << std::format("traces: {}\n", dir.string()) << std::flush;

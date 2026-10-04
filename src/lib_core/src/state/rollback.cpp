@@ -101,6 +101,7 @@ void ApplyPendingRollback(flecs::world& world) {
   ++metrics.rollbacks;
   metrics.last_depth_ticks = depth;
   metrics.max_depth_ticks = std::max(metrics.max_depth_ticks, depth);
+  metrics.replayed_ticks += depth;
 
   // The clock is state, so the restore moved it back already; the next frame's increment
   // lands on the first replayed tick. Nothing to replay when the snapshot is the target.

@@ -36,6 +36,7 @@
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
+#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -64,12 +65,22 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint32_t kClientAId = 1;
 
-Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+Z13TestWorld MakeServer(
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
 }
 
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+Z13TestWorld MakeClient(
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+  return Z13TestWorld(
+      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+}
+
+// Observers predict a held key as held, so they move with it on the same tick.
+z13::Settings HoldPrediction() {
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->remote_input_prediction = z13::fbs::net::RemoteInputPrediction::Hold;
+  return settings;
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -146,8 +157,9 @@ Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
 
 TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   auto network = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server = MakeServer(network);
-  Z13TestWorld client_a = MakeClient(network);
+  const z13::Settings settings = HoldPrediction();
+  Z13TestWorld server = MakeServer(network, settings);
+  Z13TestWorld client_a = MakeClient(network, settings);
 
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
@@ -158,7 +170,7 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
     return Position(server, kClientAId).x() - spawn_x > 0.01f;
   })) << "the held command never took effect on the server";
 
-  Z13TestWorld client_b = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network, settings);
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_b);
   }));
