@@ -26,11 +26,13 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
+#include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/net.h>
@@ -221,6 +223,30 @@ TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
   EXPECT_EQ(session.B().World().get<StateDigests>().resyncs, 0u);
   EXPECT_LT((session.PositionOfA(session.B()) - session.PositionOfA(session.A())).norm(), kTestEpsilon);
   EXPECT_LT((session.PositionOfA(session.Server()) - session.PositionOfA(session.A())).norm(), kTestEpsilon);
+}
+
+// The renderer smooths everything but these (EnvironmentRenderSystem::ChaseDrawnPoses).
+TEST(RemotePredictionTest, OnlyTheLocalPlayerAndItsBrushAreOwn) {
+  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  ASSERT_TRUE(session.Connect());
+  const auto tick = [&session] { session.Tick(); };
+  z13::testing::EnterBuildMode(session.A(), tick);
+  z13::testing::EnterBuildMode(session.B(), tick);
+  flecs::world a_world = session.A().World();
+  const auto brushes = [&a_world] { return a_world.count<z13::building::Brush>(); };
+  for (int t = 0; t < kMaxLagTicks && brushes() < 2; ++t) {
+    session.Tick();
+  }
+  ASSERT_EQ(brushes(), 2) << "A never saw B's brush";
+
+  const auto own = z13::HasInAncestry<z13::input::CurrentActionListenerTag>;
+  a_world.each([&](flecs::entity brush, const z13::building::Brush&) {
+    const flecs::entity player = brush.parent();
+    ASSERT_TRUE(player.has<z13::gameplay::Player>());
+    const bool is_a = player.get<z13::gameplay::Player>().id == session.AId();
+    EXPECT_EQ(own(player), is_a) << player.name();
+    EXPECT_EQ(own(brush), is_a) << "brush of " << player.name();
+  });
 }
 
 // Kept while a rollback may still cross the leave, dropped once none can.

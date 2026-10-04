@@ -37,7 +37,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
-#include <lib_core/utils/pose_smoothing.h>
+#include <lib_core/utils/drawn_poses.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -80,10 +80,10 @@ void RegisterComponents(flecs::world world) {
                                          z13::VisualSmoothing>(world);
 }
 
-// Where everything not the local player's own is drawn, chasing its simulated transform in
-// real time so rollback corrections glide in. Own entities are drawn as simulated.
-struct DrawnPoses {
-  std::unordered_map<flecs::entity_t, z13::math::SmoothedPose> by_entity;
+// Everything not the local player's own chases its simulated transform in real time, so
+// rollback corrections glide in.
+struct SmoothedDrawing {
+  z13::DrawnPoses poses;
   std::optional<std::chrono::steady_clock::time_point> last_frame;
 };
 
@@ -219,48 +219,22 @@ AvatarModel LoadAvatar(const Lighting& lighting) {
 using RemotePlayerQuery = flecs::query<const gameplay::Player, const Eigen::Matrix4f>;
 using DrawnQuery = flecs::query<const Eigen::Matrix4f>;
 
-bool IsOwn(flecs::entity e) {
-  for (flecs::entity current = e; current; current = current.parent()) {
-    if (current.has<z13::input::CurrentActionListenerTag>()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Rebuilt every frame, so entities that are gone or became own drop out.
-void ChaseDrawnPoses(DrawnPoses& drawn, const VisualSmoothing& settings, const DrawnQuery& drawn_query) {
+void ChaseDrawnPoses(SmoothedDrawing& drawing, const VisualSmoothing& settings, const DrawnQuery& drawn_query) {
   const auto now = std::chrono::steady_clock::now();
   const float delta_seconds =
-      drawn.last_frame ? std::chrono::duration<float>(now - *drawn.last_frame).count() : 0.f;
-  drawn.last_frame = now;
+      drawing.last_frame ? std::chrono::duration<float>(now - *drawing.last_frame).count() : 0.f;
+  drawing.last_frame = now;
   const z13::math::PoseSmoothingParams params {
       .smooth_time_seconds = settings.smooth_time_seconds,
       .snap_distance = settings.snap_distance,
       .snap_angle_rad = z13::math::ToRadians(settings.snap_angle_deg),
   };
-
-  std::unordered_map<flecs::entity_t, z13::math::SmoothedPose> next;
-  drawn_query.each([&](flecs::entity e, const Eigen::Matrix4f& transform) {
-    if (IsOwn(e)) {
-      return;
-    }
-    const auto previous = drawn.by_entity.find(e.id());
-    z13::math::SmoothedPose pose =
-        previous != drawn.by_entity.end() ? previous->second : z13::math::PoseAt(transform);
-    z13::math::ChasePose(pose, transform, delta_seconds, params);
-    next.emplace(e.id(), pose);
-  });
-  drawn.by_entity = std::move(next);
-}
-
-Eigen::Matrix4f DrawnTransform(const DrawnPoses& drawn, flecs::entity e, const Eigen::Matrix4f& transform) {
-  const auto found = drawn.by_entity.find(e.id());
-  return found != drawn.by_entity.end() ? z13::math::DrawnTransform(found->second, transform) : transform;
+  z13::ChaseDrawnPoses(
+      drawing.poses, drawn_query, delta_seconds, params, z13::HasInAncestry<z13::input::CurrentActionListenerTag>);
 }
 
 // Every avatar shares the one model; only its transform and tint change per player.
-void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const DrawnPoses& drawn) {
+void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn) {
   if (!world.has<AvatarModel>()) {
     return;
   }
@@ -269,7 +243,7 @@ void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remot
     return;
   }
   remote_players.each([&avatar, &drawn](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
-    avatar.res->model->transform = EigenToRaylibMatrix(DrawnTransform(drawn, e, transform));
+    avatar.res->model->transform = EigenToRaylibMatrix(z13::DrawnTransform(drawn, e, transform));
     DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player.id)));
   });
 }
@@ -345,7 +319,7 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::VisualSmoothing>({});
   // Shared by the closures below; lives as long as the world.
   auto block_models = std::make_shared<BlockModels>();
-  auto drawn_poses = std::make_shared<DrawnPoses>();
+  auto drawing = std::make_shared<SmoothedDrawing>();
 
   // RaylibData is set right after InitWindow, so a live GL context is guaranteed.
   world.observer<RaylibData>("EnvironmentRenderSystem::LoadEnvironment")
@@ -440,8 +414,8 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::input::CurrentActionListenerTag>()
-      .each([drawn_poses, drawn_query](flecs::iter&, size_t, const VisualSmoothing& settings) {
-        ChaseDrawnPoses(*drawn_poses, settings, drawn_query);
+      .each([drawing, drawn_query](flecs::iter&, size_t, const VisualSmoothing& settings) {
+        ChaseDrawnPoses(*drawing, settings, drawn_query);
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
@@ -449,7 +423,7 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<BuildingBlock>()
-      .each([world, block_query, block_models, remote_player_query, drawn_poses](
+      .each([world, block_query, block_models, remote_player_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
@@ -479,14 +453,14 @@ void RegisterSystems(flecs::world world) {
         }
 
         block_query.each(
-            [block_models, &drawn_poses](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
+            [block_models, &drawing](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
               const auto it = block_models->find(e.id());
               if (it != block_models->end() && it->second.model->meshCount > 0) {
-                it->second.model->transform = EigenToRaylibMatrix(DrawnTransform(*drawn_poses, e, transform));
+                it->second.model->transform = EigenToRaylibMatrix(z13::DrawnTransform(drawing->poses, e, transform));
                 DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
               }
             });
-        DrawRemotePlayers(world, remote_player_query, *drawn_poses);
+        DrawRemotePlayers(world, remote_player_query, drawing->poses);
 
         EndScene3D();
       });
