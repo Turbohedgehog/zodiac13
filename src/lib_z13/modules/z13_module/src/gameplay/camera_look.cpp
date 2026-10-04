@@ -28,23 +28,42 @@ namespace {
 constexpr float kHalfTurnDeg = 180.f;
 constexpr float kFullTurnDeg = 360.f;
 
+// Wraps yaw, not clamps -- a clamp would block turning all the way around at +-180 deg.
+// An in-range angle is kept as is, so a canonical value stays bit-exact.
+LookAngles Normalized(LookAngles look) {
+  if (look.yaw_deg <= -kHalfTurnDeg || look.yaw_deg > kHalfTurnDeg) {
+    look.yaw_deg = std::fmod(look.yaw_deg + kHalfTurnDeg, kFullTurnDeg);
+    if (look.yaw_deg < 0.f) {
+      look.yaw_deg += kFullTurnDeg;
+    }
+    look.yaw_deg -= kHalfTurnDeg;
+  }
+  look.pitch_deg = std::clamp(look.pitch_deg, -kMaxPitchDeg, kMaxPitchDeg);
+  return look;
+}
+
 }  // namespace
+
+LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg) {
+  look.yaw_deg += yaw_delta_deg;
+  look.pitch_deg -= pitch_delta_deg;
+  return Normalized(look);
+}
+
+LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform) {
+  const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
+  return {
+      .yaw_deg = z13::math::ToDegrees(std::atan2(forward.y(), forward.x())),
+      .pitch_deg = z13::math::ToDegrees(-std::asin(std::clamp(forward.z(), -1.f, 1.f))),
+  };
+}
 
 void ApplyCameraMove(
     const CameraMoveAxes& axes,
     float delta_time,
     LookAngles& look,
     Eigen::Matrix4f& transform) {
-  look.yaw_deg += axes.yaw_delta_deg;
-  look.pitch_deg -= axes.pitch_delta_deg;
-  // Wrap into (-180:180], not clamp -- a clamp would block turning all the
-  // way around at +-180 deg.
-  look.yaw_deg = std::fmod(look.yaw_deg + kHalfTurnDeg, kFullTurnDeg);
-  if (look.yaw_deg < 0.f) {
-    look.yaw_deg += kFullTurnDeg;
-  }
-  look.yaw_deg -= kHalfTurnDeg;
-  look.pitch_deg = std::clamp(look.pitch_deg, -kMaxPitchDeg, kMaxPitchDeg);
+  look = Normalized(axes.look);
 
   auto rotation =
       Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *

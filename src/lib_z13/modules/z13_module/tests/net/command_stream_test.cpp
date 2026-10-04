@@ -319,6 +319,78 @@ TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
   EXPECT_GT(client_a.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "no rollbacks exercised";
 }
 
+float Pitch(Z13TestWorld& world, uint32_t player_id) {
+  const flecs::entity player = world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+  EXPECT_TRUE(player) << "no player " << player_id;
+  return player ? player.get<z13::gameplay::LookAngles>().pitch_deg : 0.f;
+}
+
+z13::input::MouseMoveEvent LookVertically(int delta) {
+  z13::input::MouseMoveEvent look;
+  look.delta = {.x = 0, .y = delta};
+  return look;
+}
+
+// Look actions carry absolute angles, so an observer holding the last one may lag a
+// remote player's look, never overshoot it.
+TEST(CommandStreamTest, ObserverNeverOvershootsARemoteLook) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  network->SetFaultConfig({.drop_probability = 0., .min_delay_ticks = 2, .max_delay_ticks = 4});
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client_a) && IsConnected(client_b);
+  }));
+
+  const uint32_t a_id = *client_a.World().get<z13::gameplay::LocalPlayer>().id;
+  constexpr int kSweepTicks = 30;
+  constexpr int kSweeps = 4;
+  constexpr int kStillTicks = 40;
+  constexpr int kLookDelta = 6;
+  float lowest = Pitch(client_a, a_id);
+  float highest = lowest;
+  for (int tick = 0; tick < kSweepTicks * kSweeps + kStillTicks; ++tick) {
+    if (tick < kSweepTicks * kSweeps) {
+      client_a.EmitInput(LookVertically((tick / kSweepTicks) % 2 == 0 ? kLookDelta : -kLookDelta));
+    }
+    RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+    lowest = std::min(lowest, Pitch(client_a, a_id));
+    highest = std::max(highest, Pitch(client_a, a_id));
+    const float seen = Pitch(client_b, a_id);
+    EXPECT_GE(seen, lowest - z13::testing::kTestEpsilon) << "overshoot at tick " << tick;
+    EXPECT_LE(seen, highest + z13::testing::kTestEpsilon) << "overshoot at tick " << tick;
+  }
+  EXPECT_NE(highest, lowest) << "the look never moved";
+  EXPECT_NEAR(Pitch(client_b, a_id), Pitch(client_a, a_id), z13::testing::kTestEpsilon);
+}
+
+// A look value has no neutral 0: pausing must keep the angle, not turn the player to 0.
+TEST(CommandStreamTest, PausingKeepsTheLookAngle) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
+  const uint32_t a_id = *client_a.World().get<z13::gameplay::LocalPlayer>().id;
+
+  constexpr int kLookTicks = 10;
+  constexpr int kLookDelta = 6;
+  constexpr int kPausedTicks = 30;
+  for (int tick = 0; tick < kLookTicks; ++tick) {
+    client_a.EmitInput(LookVertically(kLookDelta));
+    RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 1, [] { return false; });
+  }
+  const float looked = Pitch(client_a, a_id);
+  ASSERT_NE(looked, 0.f);
+
+  client_a.World().add<z13::gameplay::Pause>();
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kPausedTicks, [] { return false; });
+
+  EXPECT_FLOAT_EQ(Pitch(client_a, a_id), looked);
+  EXPECT_FLOAT_EQ(Pitch(server, a_id), looked);
+}
+
 TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
