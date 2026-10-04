@@ -48,6 +48,7 @@ static constexpr std::string_view kDefaultActionGroupName = "DefaultGroup";
 static constexpr std::string_view kEmptyDisplayTextName = "display_text";
 static constexpr std::string_view kEmptyDisplayText = "";
 static constexpr std::string_view kDefaultKeycodes = "default_keycodes";
+static constexpr std::string_view kAbsoluteAttributeName = "absolute";
 static constexpr std::string_view kDefaultKeycodesSeparators = " ,;";
 
 namespace {
@@ -325,7 +326,9 @@ std::expected<void, std::string> InputConfigLoader::AppendFlatbufActionsFromBina
       auto value_group = group_name;
       auto display_text = kEmptyDisplayText;
       std::vector<z13::fbs::input::Keycode> default_keycodes;
+      bool absolute {};
       if (const auto* value_attributes = value->attributes()) {
+        absolute = value_attributes->LookupByKey(kAbsoluteAttributeName) != nullptr;
         if (const auto* value_group_name = value_attributes->LookupByKey(kActionGroupAttributeName)) {
           value_group = value_group_name->value()->string_view();
         }
@@ -350,6 +353,7 @@ std::expected<void, std::string> InputConfigLoader::AppendFlatbufActionsFromBina
           .group_name = value_group,
           .display_text = display_text,
           .default_keycodes = default_keycodes,
+          .absolute = absolute,
           .enum_value = value->value(),
           .id = action_map.action_map.size(),
         }

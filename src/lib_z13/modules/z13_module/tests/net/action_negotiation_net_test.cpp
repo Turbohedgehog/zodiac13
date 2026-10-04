@@ -59,6 +59,7 @@ using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::KeyDown;
+using z13::testing::KeyUp;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
@@ -181,8 +182,12 @@ TEST(ActionNegotiationNetTest, AClientWithShiftedLocalIdsStillDrivesItsPlayerOnE
     return Position(server, kClientAId).x() - spawn_x > 0.5f && Position(client_b, kClientAId).x() - spawn_x > 0.5f;
   })) << "the client's key press did not move its player on the server and the other client";
 
-  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 10, [] { return false; });
-  EXPECT_NEAR(Position(client_a, kClientAId).x(), Position(server, kClientAId).x(), 0.5f);
+  // Observers lag a held key (neutral prediction), so compare once it is released.
+  constexpr int kSettleTicks = 30;
+  client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
+  EXPECT_NEAR(Position(client_a, kClientAId).x(), Position(server, kClientAId).x(), z13::testing::kTestEpsilon);
+  EXPECT_NEAR(Position(client_b, kClientAId).x(), Position(server, kClientAId).x(), z13::testing::kTestEpsilon);
 }
 
 TEST(ActionNegotiationNetTest, ADifferentEnumValueForTheSameActionStillJoins) {

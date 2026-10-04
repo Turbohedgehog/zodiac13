@@ -132,46 +132,46 @@ TEST(CameraLook, NoMoveInputLeavesPositionUnchanged) {
   EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(1.f, 2.f, 3.f), 1e-4f));
 }
 
-TEST(CameraLook, MouseLookAccumulatesIntoYawAndPitch) {
-  LookAngles look;
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
-  axes.yaw_delta_deg = 30.f;
-  axes.pitch_delta_deg = 10.f;
-
-  ApplyCameraMove(axes, kDeltaTime, look, transform);
+TEST(CameraLook, TurnLookAddsYawAndSubtractsPitch) {
+  const LookAngles look = TurnLook({}, 30.f, 10.f);
 
   EXPECT_FLOAT_EQ(look.yaw_deg, 30.f);
   EXPECT_FLOAT_EQ(look.pitch_deg, -10.f);
 }
 
 TEST(CameraLook, YawWrapsIntoHalfTurnRangeInsteadOfClamping) {
-  LookAngles look;
-  look.yaw_deg = 170.f;
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
-  axes.yaw_delta_deg = 20.f;  // 170 + 20 = 190, should wrap to -170, not clamp at 180
-
-  ApplyCameraMove(axes, kDeltaTime, look, transform);
-
-  EXPECT_NEAR(look.yaw_deg, -170.f, 1e-3f);
+  // 170 + 20 = 190, should wrap to -170, not clamp at 180.
+  EXPECT_NEAR(TurnLook({.yaw_deg = 170.f}, 20.f, 0.f).yaw_deg, -170.f, 1e-3f);
 }
 
 TEST(CameraLook, PitchClampsAtLookLimits) {
+  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, 200.f).pitch_deg, -kMaxPitchDeg);
+  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, -200.f).pitch_deg, kMaxPitchDeg);
+}
+
+TEST(CameraLook, CameraMoveSetsTheLookAnglesItIsGiven) {
+  LookAngles look {.yaw_deg = 45.f, .pitch_deg = 20.f};
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  CameraMoveAxes axes;
+  axes.absolute_look = {.yaw_deg = 10.f, .pitch_deg = -5.f};
+
+  ApplyCameraMove(axes, kDeltaTime, look, transform);
+
+  EXPECT_FLOAT_EQ(look.yaw_deg, 10.f);
+  EXPECT_FLOAT_EQ(look.pitch_deg, -5.f);
+}
+
+TEST(CameraLook, LookAnglesFromTransformRecoversTheAngles) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   CameraMoveAxes axes;
-  axes.pitch_delta_deg = 200.f;  // far beyond the limit in either direction
-
+  axes.absolute_look = {.yaw_deg = 60.f, .pitch_deg = -30.f};
   ApplyCameraMove(axes, kDeltaTime, look, transform);
-  EXPECT_FLOAT_EQ(look.pitch_deg, -kMaxPitchDeg);
 
-  look = {};
-  transform = Eigen::Matrix4f::Identity();
-  axes.pitch_delta_deg = -200.f;
+  const LookAngles recovered = LookAnglesFromTransform(transform);
 
-  ApplyCameraMove(axes, kDeltaTime, look, transform);
-  EXPECT_FLOAT_EQ(look.pitch_deg, kMaxPitchDeg);
+  EXPECT_NEAR(recovered.yaw_deg, 60.f, 1e-3f);
+  EXPECT_NEAR(recovered.pitch_deg, -30.f, 1e-3f);
 }
 
 TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
@@ -179,11 +179,12 @@ TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 
   CameraMoveAxes turn;
-  turn.yaw_delta_deg = 90.f;
+  turn.absolute_look.yaw_deg = 90.f;
   ApplyCameraMove(turn, kDeltaTime, look, transform);
 
   CameraMoveAxes move;
   move.forward = 1.f;
+  move.absolute_look = look;
   ApplyCameraMove(move, kDeltaTime, look, transform);
 
   // Facing +90 deg yaw turns the forward axis from +X to +Y.

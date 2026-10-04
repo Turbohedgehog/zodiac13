@@ -111,29 +111,42 @@ void AdvanceRecordedValues(
   state.synced_tick = clock.tick;
 }
 
+bool IsUnconfirmed(
+    uint32_t player_id, uint64_t tick, const z13::gameplay::LocalPlayer& local_player,
+    const z13::gameplay::ConfirmedInputTicks& confirmed) {
+  if (local_player.id == player_id) {
+    return false;
+  }
+  const auto found = confirmed.by_player.find(player_id);
+  return found != confirmed.by_player.end() && tick > found->second;
+}
+
 // Unknown actions are zeroed too, or a fresh local value would leak through as prediction.
 void InjectRecordedActionValues(
     flecs::iter& it, size_t i, const z13::gameplay::Player& player,
     z13::input::ActionListener& action_listener, const z13::gameplay::RemoteActionState& state,
-    const z13::input::ActionMap& action_map) {
+    const z13::input::ActionMap& action_map, const ft::SimulationClock& clock,
+    const z13::gameplay::LocalPlayer& local_player, const z13::gameplay::ConfirmedInputTicks& confirmed) {
   if (!IsLogDriven(it.world(), it.entity(i))) {
     return;
   }
 
+  const bool unconfirmed = IsUnconfirmed(player.id, clock.tick, local_player, confirmed);
   for (const auto& action_info : action_map.action_map.get<z13::input::ActionMap::IdTag>()) {
     const auto found = state.current_values.find({player.id, action_info.id});
-    action_listener.action_values[action_info.id].current_value =
-        found != state.current_values.end() ? found->second : 0.f;
+    const bool released = found == state.current_values.end() || (unconfirmed && !action_info.absolute);
+    action_listener.action_values[action_info.id].current_value = released ? 0.f : found->second;
   }
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<z13::gameplay::RemoteActionState>(world);
+  z13::flecs_tools::RegisterComponents<z13::gameplay::RemoteActionState, z13::gameplay::ConfirmedInputTicks>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<z13::gameplay::RemoteActionState>({});
+  world.set<z13::gameplay::ConfirmedInputTicks>({});
 
   world.system<
       const ft::SimulationClock, const z13::gameplay::PlayerActionLog, z13::gameplay::RemoteActionState>(
@@ -144,7 +157,8 @@ void RegisterSystems(flecs::world world) {
 
   world.system<
       const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::RemoteActionState,
-      const z13::input::ActionMap>(
+      const z13::input::ActionMap, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
+      const z13::gameplay::ConfirmedInputTicks>(
       "Replay::InjectRecordedActionValues")
       .kind<z13::input::RemoteActionFramePhase>()
       .each(InjectRecordedActionValues);

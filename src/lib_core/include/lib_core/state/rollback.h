@@ -56,6 +56,7 @@ struct RollbackMetrics {
   uint64_t rollbacks {};
   uint64_t last_depth_ticks {};
   uint64_t max_depth_ticks {};
+  uint64_t replayed_ticks {};
 };
 
 // Positive: extra live ticks next frame; negative: frames to skip.

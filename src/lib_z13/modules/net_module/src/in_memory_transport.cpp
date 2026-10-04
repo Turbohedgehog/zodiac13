@@ -16,7 +16,9 @@
 
 #include <net_module/in_memory_transport.h>
 
+#include <algorithm>
 #include <format>
+#include <map>
 #include <optional>
 #include <ranges>
 #include <random>
@@ -110,8 +112,15 @@ class InMemoryNetworkState {
     if (channel == Channel::kUnreliable && RollDrop()) {
       return;
     }
+    uint64_t deliver_at_tick = current_tick_ + SampleDelayTicks();
+    // Like ENet's reliable channel, never overtakes an earlier reliable packet to the same peer.
+    if (channel == Channel::kReliable) {
+      uint64_t& last = last_reliable_delivery_[{destination, destination_connection}];
+      deliver_at_tick = std::max(deliver_at_tick, last);
+      last = deliver_at_tick;
+    }
     pending_packets_.push_back({
-        .deliver_at_tick = current_tick_ + SampleDelayTicks(),
+        .deliver_at_tick = deliver_at_tick,
         .destination = destination,
         .destination_connection = destination_connection,
         .channel = channel,
@@ -163,6 +172,7 @@ class InMemoryNetworkState {
 
   std::vector<PendingConnect> pending_connects_;
   std::vector<PendingPacket> pending_packets_;
+  std::map<std::pair<TransportId, ConnectionId>, uint64_t> last_reliable_delivery_;
   std::vector<PendingDisconnect> pending_disconnects_;
 };
 

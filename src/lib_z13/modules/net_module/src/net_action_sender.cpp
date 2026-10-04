@@ -46,6 +46,7 @@
 #include <net_module/state_digest.h>
 
 #include "net_session.h"
+#include "remote_input.h"
 #include "scheduled_commands.h"
 
 namespace z13::net {
@@ -78,14 +79,16 @@ std::expected<std::vector<ScheduledCommand>, std::string> ToWire(
   return scheduled;
 }
 
-std::expected<fbn::CommandBatchT, std::string> ToBatch(const std::vector<ScheduledCommand>& scheduled) {
-  uint64_t base_tick = scheduled.front().apply_tick;
+std::expected<fbn::CommandBatchT, std::string> ToBatch(
+    const std::vector<ScheduledCommand>& scheduled, uint64_t through_tick) {
+  uint64_t base_tick = scheduled.empty() ? through_tick : scheduled.front().apply_tick;
   for (const ScheduledCommand& command : scheduled) {
     base_tick = std::min(base_tick, command.apply_tick);
   }
 
   fbn::CommandBatchT batch;
   batch.base_tick = base_tick;
+  batch.through_tick = through_tick;
   for (const ScheduledCommand& command : scheduled) {
     const uint64_t delta = command.apply_tick - batch.base_tick;
     if (delta > std::numeric_limits<uint8_t>::max()) {
@@ -155,19 +158,28 @@ NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id,
   sequenced.player_id = player_id;
   sequenced.base_tick = batch.base_tick;
   sequenced.commands = std::move(batch.commands);
+  sequenced.through_tick = batch.through_tick;
   envelope.body.Set(std::move(sequenced));
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
-    const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing) {
+    const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
+    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
   // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
   // nothing after it may be, so the client can take the server's queue as-is.
   if (digests.awaiting_resync) {
     return;
   }
-  if (clock.tick % it.world().get<NetTuning>().send_interval_ticks != 0 || outgoing.records.empty()) {
+  const auto& tuning = it.world().get<NetTuning>();
+  if (clock.tick % tuning.send_interval_ticks != 0) {
+    return;
+  }
+  // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
+  const bool heartbeat = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral &&
+      HoldsReleasableAction(last_recorded.values, action_map);
+  if (outgoing.records.empty() && !heartbeat) {
     return;
   }
   const bool is_server = it.world().has<ServerRole>();
@@ -179,10 +191,8 @@ void SendPendingCommands(
   const auto scheduled = ToWire(outgoing.records);
   outgoing.records.clear();
   outgoing.applied_count = 0;
-  if (scheduled && scheduled->empty()) {
-    return;
-  }
-  auto batch = scheduled.and_then(ToBatch);
+  auto batch = scheduled.and_then(
+      [&clock](const std::vector<ScheduledCommand>& commands) { return ToBatch(commands, clock.tick); });
   if (!batch) {
     log_error("NetActionSender: dropping a batch: {}", batch.error());
     return;
@@ -206,7 +216,8 @@ void RegisterSystems(flecs::world world) {
 
   world.system<
       NetSession, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
-      const StateDigests, z13::gameplay::OutgoingCommands>(
+      const StateDigests, z13::gameplay::OutgoingCommands, const z13::gameplay::LastRecordedActionValues,
+      const z13::input::ActionMap>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)
       .without<ft::ReplayInProgress>()

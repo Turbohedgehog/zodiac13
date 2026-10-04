@@ -26,8 +26,8 @@ enum Action : int16 (action, action_group: "Control") {
   JUMP (display_text: "Move Jump", default_keycodes: "KEY_SPACE"),
   CROUCH (display_text: "Move Crouch", default_keycodes: "KEY_LCTRL"),
   ACTION_1 (display_text: "Action 1", default_keycodes: "MOUSE_BUTTON_LEFT"),
-  VERTICAL_LOOK,
-  HORIZONTAL_LOOK,
+  VERTICAL_LOOK (absolute),
+  HORIZONTAL_LOOK (absolute),
   SAVE_SCENE (display_text: "Quick save", default_keycodes: "KEY_F5"),
   LOAD_SCENE (display_text: "Quick load", default_keycodes: "KEY_F9"),
 }

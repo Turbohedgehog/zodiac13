@@ -36,6 +36,7 @@
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
+#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -64,12 +65,22 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint32_t kClientAId = 1;
 
-Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+Z13TestWorld MakeServer(
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
 }
 
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+Z13TestWorld MakeClient(
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+  return Z13TestWorld(
+      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+}
+
+// Observers predict a held key as held, so they move with it on the same tick.
+z13::Settings HoldPrediction() {
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->remote_input_prediction = z13::fbs::net::RemoteInputPrediction::Hold;
+  return settings;
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -144,10 +155,17 @@ Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
   return player ? z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) : Eigen::Vector3f::Zero();
 }
 
+// Welcome's snapshot is the newest one past the late-command window. B joins so that it was
+// taken mid-hold and the held key's next reassert is far off: only held_values tell B W is down.
 TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
+  constexpr double kSnapshotIntervalSeconds = 5.;
+  constexpr double kSnapshotRetentionSeconds = 10.;
   auto network = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server = MakeServer(network);
-  Z13TestWorld client_a = MakeClient(network);
+  z13::Settings settings = HoldPrediction();
+  settings.core->snapshot_interval_seconds = kSnapshotIntervalSeconds;
+  settings.core->snapshot_retention_seconds = kSnapshotRetentionSeconds;
+  Z13TestWorld server = MakeServer(network, settings);
+  Z13TestWorld client_a = MakeClient(network, settings);
 
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
@@ -158,7 +176,15 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
     return Position(server, kClientAId).x() - spawn_x > 0.01f;
   })) << "the held command never took effect on the server";
 
-  Z13TestWorld client_b = MakeClient(network);
+  const uint64_t interval_ticks = SnapshotIntervalTicks(server);
+  const uint64_t join_offset = kTuning.max_late_ticks + 2;
+  const uint64_t pressed_by = server.World().get<ft::SimulationClock>().tick;
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 3 * interval_ticks, [&] {
+    const uint64_t tick = server.World().get<ft::SimulationClock>().tick;
+    return tick > pressed_by + interval_ticks + join_offset && tick % interval_ticks == join_offset;
+  }));
+
+  Z13TestWorld client_b = MakeClient(network, settings);
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return IsConnected(client_b);
   }));
@@ -310,13 +336,88 @@ TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
     if (tick % 3 == 0) {
       client_b.EmitInput(look);
     }
+    const uint64_t clock_before = client_a.World().get<ft::SimulationClock>().tick;
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+    // A clock catch-up runs an extra tick in the frame; only rollbacks must not move the camera.
+    const uint64_t ticks_run = client_a.World().get<ft::SimulationClock>().tick - clock_before;
     const Eigen::Vector3f current = Position(client_a, own_id);
-    EXPECT_LE((current - previous).norm(), max_step) << "own camera jumped at tick " << tick << ": ("
-        << previous.transpose() << ") -> (" << current.transpose() << ")";
+    EXPECT_LE((current - previous).norm(), max_step * static_cast<float>(std::max<uint64_t>(ticks_run, 1)))
+        << "own camera jumped at tick " << tick << ": (" << previous.transpose() << ") -> (" << current.transpose()
+        << ")";
     previous = current;
   }
   EXPECT_GT(client_a.World().get<ft::RollbackMetrics>().rollbacks, rollbacks_before) << "no rollbacks exercised";
+}
+
+float Pitch(Z13TestWorld& world, uint32_t player_id) {
+  const flecs::entity player = world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+  EXPECT_TRUE(player) << "no player " << player_id;
+  return player ? player.get<z13::gameplay::LookAngles>().pitch_deg : 0.f;
+}
+
+z13::input::MouseMoveEvent LookVertically(int delta) {
+  z13::input::MouseMoveEvent look;
+  look.delta = {.x = 0, .y = delta};
+  return look;
+}
+
+// An observer may lag a remote player's look, never overshoot it.
+TEST(CommandStreamTest, ObserverNeverOvershootsARemoteLook) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  network->SetFaultConfig({.drop_probability = 0., .min_delay_ticks = 2, .max_delay_ticks = 4});
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return IsConnected(client_a) && IsConnected(client_b);
+  }));
+
+  const uint32_t a_id = *client_a.World().get<z13::gameplay::LocalPlayer>().id;
+  constexpr int kSweepTicks = 30;
+  constexpr int kSweeps = 4;
+  constexpr int kStillTicks = 40;
+  constexpr int kLookDelta = 6;
+  float lowest = Pitch(client_a, a_id);
+  float highest = lowest;
+  for (int tick = 0; tick < kSweepTicks * kSweeps + kStillTicks; ++tick) {
+    if (tick < kSweepTicks * kSweeps) {
+      client_a.EmitInput(LookVertically((tick / kSweepTicks) % 2 == 0 ? kLookDelta : -kLookDelta));
+    }
+    RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, 1, [] { return false; });
+    lowest = std::min(lowest, Pitch(client_a, a_id));
+    highest = std::max(highest, Pitch(client_a, a_id));
+    const float seen = Pitch(client_b, a_id);
+    EXPECT_GE(seen, lowest - z13::testing::kTestEpsilon) << "overshoot at tick " << tick;
+    EXPECT_LE(seen, highest + z13::testing::kTestEpsilon) << "overshoot at tick " << tick;
+  }
+  EXPECT_NE(highest, lowest) << "the look never moved";
+  EXPECT_NEAR(Pitch(client_b, a_id), Pitch(client_a, a_id), z13::testing::kTestEpsilon);
+}
+
+// A look value has no neutral 0: pausing must keep the angle, not turn the player to 0.
+TEST(CommandStreamTest, PausingKeepsTheLookAngle) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
+  const uint32_t a_id = *client_a.World().get<z13::gameplay::LocalPlayer>().id;
+
+  constexpr int kLookTicks = 10;
+  constexpr int kLookDelta = 6;
+  constexpr int kPausedTicks = 30;
+  for (int tick = 0; tick < kLookTicks; ++tick) {
+    client_a.EmitInput(LookVertically(kLookDelta));
+    RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 1, [] { return false; });
+  }
+  const float looked = Pitch(client_a, a_id);
+  ASSERT_NE(looked, 0.f);
+
+  client_a.World().add<z13::gameplay::Pause>();
+  RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kPausedTicks, [] { return false; });
+
+  EXPECT_FLOAT_EQ(Pitch(client_a, a_id), looked);
+  EXPECT_FLOAT_EQ(Pitch(server, a_id), looked);
 }
 
 TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {

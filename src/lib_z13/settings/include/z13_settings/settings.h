@@ -42,6 +42,13 @@ struct ConnectTimeout : ConnectTimeoutConfig {
   explicit ConnectTimeout(const ConnectTimeoutConfig& values) : ConnectTimeoutConfig(values) {}
 };
 
+struct VisualSmoothing : fbs::settings::VisualSmoothingT {
+  using Singleton = void;
+
+  VisualSmoothing() = default;
+  explicit VisualSmoothing(const fbs::settings::VisualSmoothingT& values) : fbs::settings::VisualSmoothingT(values) {}
+};
+
 // The part of Settings a client takes from the server it joins: peers must tick alike.
 struct SessionSettings {
   double fps {};
@@ -68,8 +75,8 @@ std::expected<void, std::string> AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning and ConnectTimeout singletons; the core part goes through
-// Config::SetCoreSettings before the world is created.
+// Sets the world's NetTuning, PhysicsTuning, ConnectTimeout and VisualSmoothing singletons; the
+// core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13
