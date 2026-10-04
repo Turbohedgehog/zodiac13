@@ -20,7 +20,7 @@
 
 namespace z13::net {
 
-bool RecordLess(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b);
+using z13::gameplay::RecordLess;
 
 void QueueInOrder(z13::gameplay::ScheduledCommands& queue, const z13::gameplay::PlayerActionRecord& record);
 

@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -60,6 +61,11 @@ struct PlayerActionRecord {
   z13::input::ActionInfo::IdType action_id {};
   float value {};
 };
+
+// The (tick, player_id, action_id) order every participant derives itself.
+inline bool RecordLess(const PlayerActionRecord& a, const PlayerActionRecord& b) {
+  return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
+}
 
 struct OutgoingCommands {
   using Singleton = void;

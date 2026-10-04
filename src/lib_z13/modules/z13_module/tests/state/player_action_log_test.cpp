@@ -16,8 +16,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <vector>
 
 #include <lib_core/state/world_snapshot_history.h>
@@ -128,6 +130,30 @@ TEST(PlayerActionLogTest, RetainedSinceTickTracksTheRetentionWindow) {
   const uint64_t current_tick = test_world.World().get<ft::SimulationClock>().tick;
   const uint64_t retained_since = test_world.World().get<PlayerActionLog>().retained_since_tick;
   EXPECT_EQ(retained_since, current_tick - retention_ticks);
+}
+
+// A remote player's press, never reasserted locally, outlives the window while held only.
+TEST(PlayerActionLogTest, PrunedHeldValueIsCarriedToTheOldestKeptTick) {
+  constexpr uint32_t kRemotePlayerId = 99;
+  constexpr uint32_t kHeldActionId = 1;
+  constexpr uint32_t kReleasedActionId = 2;
+  Z13TestWorld test_world;
+  const uint64_t retention_ticks = RoundTicks(test_world.Config().GetSnapshotRetentionSeconds(), test_world.Config().GetFPS());
+  auto& log = test_world.World().get_mut<PlayerActionLog>().log;
+  log.Push({.tick = 0, .player_id = kRemotePlayerId, .action_id = kHeldActionId, .value = 1.f});
+  log.Push({.tick = 0, .player_id = kRemotePlayerId, .action_id = kReleasedActionId, .value = 1.f});
+  log.Push({.tick = 1, .player_id = kRemotePlayerId, .action_id = kReleasedActionId, .value = 0.f});
+
+  Frames(test_world, retention_ticks * 2);
+
+  std::vector<PlayerActionRecord> remote;
+  std::ranges::copy_if(Records(test_world), std::back_inserter(remote), [](const PlayerActionRecord& record) {
+    return record.player_id == kRemotePlayerId;
+  });
+  ASSERT_EQ(remote.size(), 1u);
+  EXPECT_EQ(remote.front().action_id, kHeldActionId);
+  EXPECT_EQ(remote.front().value, 1.f);
+  EXPECT_EQ(remote.front().tick, test_world.World().get<PlayerActionLog>().retained_since_tick);
 }
 
 TEST(PlayerActionLogTest, HeldActionIsReassertedAtTheSnapshotIntervalBoundary) {

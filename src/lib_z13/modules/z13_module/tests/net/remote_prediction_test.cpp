@@ -192,8 +192,7 @@ TEST(RemotePredictionTest, NeutralPredictionKeepsALongHoldMoving) {
   EXPECT_LT((neutral.b_final - neutral.a_final).norm(), kTestEpsilon);
 }
 
-// Without confirmations through the wait, the server would stand A still for all of it:
-// too deep to replay, and the press itself may have aged out of the log.
+// Without confirmations through the wait, the server would stand A still for all of it.
 TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
   RemotePredictionSession session(RemoteInputPrediction::Neutral);
   ASSERT_TRUE(session.Connect());
