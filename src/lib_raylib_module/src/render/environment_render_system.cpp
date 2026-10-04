@@ -76,7 +76,8 @@ constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BuildingBlock>(world);
+  z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BuildingBlock,
+                                         z13::VisualSmoothing>(world);
 }
 
 // Where everything not the local player's own is drawn, chasing its simulated transform in
@@ -340,6 +341,8 @@ void EndScene3D() {
 }
 
 void RegisterSystems(flecs::world world) {
+  // The launcher overwrites this with the loaded settings (z13::InstallSettings).
+  world.set<z13::VisualSmoothing>({});
   // Shared by the closures below; lives as long as the world.
   auto block_models = std::make_shared<BlockModels>();
   auto drawn_poses = std::make_shared<DrawnPoses>();
