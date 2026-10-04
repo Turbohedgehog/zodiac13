@@ -26,7 +26,8 @@
 namespace z13::net {
 
 // Delay is sampled uniformly from [min_delay_ticks, max_delay_ticks] per packet, which
-// gives reordering/jitter without a separate flag.
+// gives jitter without a separate flag. As over ENet, reliable packets keep their order and
+// an unreliable one overtaken by a newer one is dropped.
 struct FaultConfig {
   double drop_probability {};
   uint32_t min_delay_ticks {};

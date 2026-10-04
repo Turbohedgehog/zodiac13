@@ -16,9 +16,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <lib_core/settings/config.h>
 #include <net_module/in_memory_transport.h>
@@ -148,6 +151,38 @@ TEST(InMemoryTransportTest, FaultConfigDropsUnreliablePacketsAndKeepsReliableOne
   client->Send(client_side_server, Channel::kReliable, ToBytes("kept"));
   network.Tick();
   EXPECT_EQ(server->Service().size(), 1u);
+}
+
+TEST(InMemoryTransportTest, OvertakenUnreliablePacketsAreDroppedNotReordered) {
+  constexpr int kPackets = 50;
+  constexpr uint32_t kMaxDelayTicks = 5;
+  InMemoryNetwork network(/*seed=*/7);
+  network.SetFaultConfig({.max_delay_ticks = kMaxDelayTicks});
+  auto server = MustCreateServer(network, kPort);
+  auto client = CreateInMemoryClientTransport(network, kPort);
+  std::vector<TransportEvent> connected;
+  while (connected.empty()) {
+    network.Tick();
+    connected = client->Service();
+  }
+  const ConnectionId client_side_server = connected.at(0).connection;
+  server->Service();
+
+  std::vector<int> received;
+  for (int i = 0; i < kPackets + static_cast<int>(kMaxDelayTicks); ++i) {
+    if (i < kPackets) {
+      client->Send(client_side_server, Channel::kUnreliable, ToBytes(std::to_string(i)));
+    }
+    network.Tick();
+    for (const TransportEvent& event : server->Service()) {
+      received.push_back(std::stoi(ToString(event.data)));
+    }
+  }
+
+  EXPECT_EQ(std::ranges::adjacent_find(received, std::greater_equal<>()), received.end())
+      << "an unreliable packet arrived after a newer one";
+  EXPECT_LT(received.size(), static_cast<size_t>(kPackets)) << "the jitter never reordered anything, so it proves nothing";
+  EXPECT_FALSE(received.empty());
 }
 
 TEST(InMemoryTransportTest, DestroyingATransportLeavesPendingDeliveriesHarmless) {
