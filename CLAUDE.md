@@ -43,6 +43,7 @@ Each gameplay/render module (`bullet_module`, `raylib_module`, `z13_module`) is 
 - Avoid raw pointers where possible; prefer references, smart pointers (`std::unique_ptr`/`std::shared_ptr`), or non-owning views instead.
 - Avoid static variables.
 - Avoid exceptions for error handling; prefer `std::expected` instead.
+- Log as little as possible inside helper functions: return failures through `std::expected` and let the business-logic caller (system, observer, handler) log once. This keeps logging in few places, so adding another sink (file, network, console) touches little code.
 - Don't signal "no value" with a sentinel (`-1`, `0`, an empty string, ...); use `std::optional` instead, so absence can't be confused with a real value.
 - Default member initializers: use brace-init (`int x {};`, `bool y {};`) instead of `= 0`/`= false`; for Eigen members use `Type::Zero()` instead of `{0.f, 0.f}`.
 - Don't expose `void*` or raw-pointer-plus-count pairs in APIs. Forward-declare the concrete type instead of erasing it to `void*`, and return a standard container/view (e.g. `const std::vector<T>&`, `std::span<T>`) instead of a pointer-and-length out-parameter.
