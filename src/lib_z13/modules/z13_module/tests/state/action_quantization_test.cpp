@@ -99,7 +99,6 @@ TEST(ActionQuantizationTest, LivePlayUsesTheLoggedValue) {
   EXPECT_NE(live, 0.f);
 }
 
-// The look value is an absolute angle, so the turn is how far it moved.
 TEST(ActionQuantizationTest, SlowMouseMovementIsNotRoundedAway) {
   Z13TestWorld test_world;
   constexpr float kDegreesPerPixel = 0.003f;  // under half a quantum per tick

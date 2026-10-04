@@ -153,7 +153,7 @@ TEST(CameraLook, CameraMoveSetsTheLookAnglesItIsGiven) {
   LookAngles look {.yaw_deg = 45.f, .pitch_deg = 20.f};
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   CameraMoveAxes axes;
-  axes.look = {.yaw_deg = 10.f, .pitch_deg = -5.f};
+  axes.absolute_look = {.yaw_deg = 10.f, .pitch_deg = -5.f};
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
@@ -165,7 +165,7 @@ TEST(CameraLook, LookAnglesFromTransformRecoversTheAngles) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   CameraMoveAxes axes;
-  axes.look = {.yaw_deg = 60.f, .pitch_deg = -30.f};
+  axes.absolute_look = {.yaw_deg = 60.f, .pitch_deg = -30.f};
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
   const LookAngles recovered = LookAnglesFromTransform(transform);
@@ -179,12 +179,12 @@ TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 
   CameraMoveAxes turn;
-  turn.look.yaw_deg = 90.f;
+  turn.absolute_look.yaw_deg = 90.f;
   ApplyCameraMove(turn, kDeltaTime, look, transform);
 
   CameraMoveAxes move;
   move.forward = 1.f;
-  move.look = look;
+  move.absolute_look = look;
   ApplyCameraMove(move, kDeltaTime, look, transform);
 
   // Facing +90 deg yaw turns the forward axis from +X to +Y.

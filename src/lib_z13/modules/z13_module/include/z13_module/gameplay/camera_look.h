@@ -37,8 +37,7 @@ struct CameraMoveAxes {
   float left {};
   float up {};
   float down {};
-  // Absolute angles: look actions carry where the player looks, not how far it turned.
-  LookAngles look;
+  LookAngles absolute_look;
 };
 
 constexpr float kCameraVelocity = 30.f;
@@ -50,7 +49,7 @@ LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg)
 // The angles `transform` faces, for a player without LookAngles yet.
 LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform);
 
-// Sets `look` to the axes' angles and applies the move axes to `transform`, scaled by
+// Sets `look` to `axes.absolute_look` and applies the move axes to `transform`, scaled by
 // `delta_time`. `transform`'s rotation block is fully overwritten from `look`.
 void ApplyCameraMove(
     const CameraMoveAxes& axes,

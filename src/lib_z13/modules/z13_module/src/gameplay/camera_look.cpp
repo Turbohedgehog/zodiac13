@@ -28,8 +28,8 @@ namespace {
 constexpr float kHalfTurnDeg = 180.f;
 constexpr float kFullTurnDeg = 360.f;
 
-// Wraps yaw, not clamps -- a clamp would block turning all the way around at +-180 deg.
-// An in-range angle is kept as is, so a canonical value stays bit-exact.
+// Wraps yaw rather than clamping it, so turning past +-180 deg works; an in-range angle is
+// left untouched, so a canonical value stays bit-exact.
 LookAngles Normalized(LookAngles look) {
   if (look.yaw_deg <= -kHalfTurnDeg || look.yaw_deg > kHalfTurnDeg) {
     look.yaw_deg = std::fmod(look.yaw_deg + kHalfTurnDeg, kFullTurnDeg);
@@ -63,7 +63,7 @@ void ApplyCameraMove(
     float delta_time,
     LookAngles& look,
     Eigen::Matrix4f& transform) {
-  look = Normalized(axes.look);
+  look = Normalized(axes.absolute_look);
 
   auto rotation =
       Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
