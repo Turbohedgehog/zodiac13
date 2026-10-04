@@ -111,7 +111,7 @@ void ApplyMoveActionListener(
       .left = value_of(move_action_ids.move_left_id),
       .up = value_of(move_action_ids.move_up_id),
       .down = value_of(move_action_ids.move_down_id),
-      .look = {
+      .absolute_look = {
           .yaw_deg = value_of(move_action_ids.horizontal_look_id),
           .pitch_deg = value_of(move_action_ids.vertical_look_id),
       },
@@ -364,10 +364,8 @@ float WholeActionSteps(float value) {
   return std::nearbyint(value * z13::gameplay::kActionValueScale) / z13::gameplay::kActionValueScale;
 }
 
-// Look actions carry absolute angles, which have no neutral value, so the target is written
-// every frame -- paused too (dropping the mouse delta): a look value left at the cleared 0
-// would turn the player. What the recorder would round off stays for the next frame, or slow
-// mouse movement is lost.
+// An angle has no neutral 0, so the target is written every frame, paused too. The sub-step
+// remainder carries over, or slow mouse movement would be lost.
 void CalculateLookValues(
     flecs::entity e,
     z13::input::InputState& input_state,

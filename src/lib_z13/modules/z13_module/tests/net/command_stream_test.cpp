@@ -331,8 +331,7 @@ z13::input::MouseMoveEvent LookVertically(int delta) {
   return look;
 }
 
-// Look actions carry absolute angles, so an observer holding the last one may lag a
-// remote player's look, never overshoot it.
+// An observer may lag a remote player's look, never overshoot it.
 TEST(CommandStreamTest, ObserverNeverOvershootsARemoteLook) {
   auto network = std::make_shared<InMemoryNetwork>();
   network->SetFaultConfig({.drop_probability = 0., .min_delay_ticks = 2, .max_delay_ticks = 4});
