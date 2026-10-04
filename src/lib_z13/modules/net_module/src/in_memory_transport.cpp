@@ -48,6 +48,8 @@ struct PendingPacket {
   ConnectionId destination_connection = kInvalidConnectionId;
   Channel channel {};
   std::vector<std::byte> data;
+  // Unreliable only: like ENet, a packet older than one already delivered is dropped.
+  std::optional<uint64_t> unreliable_sequence;
 };
 struct PendingDisconnect {
   uint64_t deliver_at_tick {};
@@ -113,11 +115,14 @@ class InMemoryNetworkState {
       return;
     }
     uint64_t deliver_at_tick = current_tick_ + SampleDelayTicks();
+    std::optional<uint64_t> unreliable_sequence;
     // Like ENet's reliable channel, never overtakes an earlier reliable packet to the same peer.
     if (channel == Channel::kReliable) {
       uint64_t& last = last_reliable_delivery_[{destination, destination_connection}];
       deliver_at_tick = std::max(deliver_at_tick, last);
       last = deliver_at_tick;
+    } else {
+      unreliable_sequence = next_unreliable_sequence_[{destination, destination_connection}]++;
     }
     pending_packets_.push_back({
         .deliver_at_tick = deliver_at_tick,
@@ -125,12 +130,27 @@ class InMemoryNetworkState {
         .destination_connection = destination_connection,
         .channel = channel,
         .data = std::move(data),
+        .unreliable_sequence = unreliable_sequence,
     });
   }
 
   TrafficStats TrafficTo(TransportId destination) const {
     const auto it = traffic_to_.find(destination);
     return it != traffic_to_.end() ? it->second : TrafficStats {};
+  }
+
+  // Records the delivery; false for a packet that something newer has overtaken.
+  bool IsUnreliableInOrder(const PendingPacket& packet) {
+    if (!packet.unreliable_sequence) {
+      return true;
+    }
+    const auto [last, inserted] = last_unreliable_delivered_.try_emplace(
+        {packet.destination, packet.destination_connection}, *packet.unreliable_sequence);
+    if (!inserted && *packet.unreliable_sequence <= last->second) {
+      return false;
+    }
+    last->second = *packet.unreliable_sequence;
+    return true;
   }
 
   void QueueDisconnect(TransportId destination, ConnectionId destination_connection) {
@@ -173,6 +193,8 @@ class InMemoryNetworkState {
   std::vector<PendingConnect> pending_connects_;
   std::vector<PendingPacket> pending_packets_;
   std::map<std::pair<TransportId, ConnectionId>, uint64_t> last_reliable_delivery_;
+  std::map<std::pair<TransportId, ConnectionId>, uint64_t> next_unreliable_sequence_;
+  std::map<std::pair<TransportId, ConnectionId>, uint64_t> last_unreliable_delivered_;
   std::vector<PendingDisconnect> pending_disconnects_;
 };
 
@@ -259,7 +281,7 @@ void InMemoryNetworkState::Tick() {
 
   for (auto& pending : TakeDue(pending_packets_, now)) {
     const auto it = transports_.find(pending.destination);
-    if (it == transports_.end()) {
+    if (it == transports_.end() || !IsUnreliableInOrder(pending)) {
       continue;
     }
     it->second->QueueEvent({
