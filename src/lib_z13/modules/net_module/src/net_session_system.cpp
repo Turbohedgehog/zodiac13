@@ -733,8 +733,16 @@ void PruneSessionHistory(flecs::world world, uint64_t now, std::vector<Scheduled
   if (!retention_ticks) {
     return;
   }
-  std::erase_if(history, [now, retention_ticks = *retention_ticks](const ScheduledSessionDelta& item) {
-    return item.apply_tick + retention_ticks < now;
+  auto& confirmed = world.get_mut<z13::gameplay::ConfirmedInputTicks>().by_player;
+  std::erase_if(history, [&confirmed, now, retention_ticks = *retention_ticks](const ScheduledSessionDelta& item) {
+    if (item.apply_tick + retention_ticks >= now) {
+      return false;
+    }
+    // Not at the leave itself: a rollback across it must still see the player's confirmed tick.
+    if (const auto* left = std::get_if<fbn::PlayerLeftT>(&item.delta)) {
+      confirmed.erase(left->player_id);
+    }
+    return true;
   });
 }
 

@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -31,6 +32,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/net.h>
+#include <z13/components/player_action.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/settings.h>
@@ -186,6 +188,37 @@ TEST(RemotePredictionTest, NeutralPredictionKeepsALongHoldMoving) {
   ASSERT_TRUE(neutral.metrics.path_ratio);
   EXPECT_NEAR(*neutral.metrics.path_ratio, 1.f, kTestEpsilon);
   EXPECT_LT((neutral.b_final - neutral.a_final).norm(), kTestEpsilon);
+}
+
+// Kept while a rollback may still cross the leave, dropped once none can.
+TEST(RemotePredictionTest, ADepartedPlayersConfirmedTickOutlivesTheRollbackWindowOnly) {
+  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  ASSERT_TRUE(session.Connect());
+  const uint32_t a_id = session.AId();
+  const auto confirmed = [&session, a_id] {
+    return session.Server().World().get<z13::gameplay::ConfirmedInputTicks>().by_player.contains(a_id);
+  };
+  session.A().EmitInput(KeyDown(Keycode::KEY_W));
+  for (int tick = 0; tick < kMaxLagTicks && !confirmed(); ++tick) {
+    session.Tick();
+  }
+  ASSERT_TRUE(confirmed()) << "A's input never got a confirmed tick on the server";
+
+  session.A().World().remove<z13::gameplay::Gameplay>();
+  int ticks = 0;
+  while (session.Server().World().lookup(z13::gameplay::PlayerEntityName(a_id).c_str()) && ticks < kMaxNetTestTicks) {
+    session.Tick();
+    ++ticks;
+  }
+  ASSERT_FALSE(session.Server().World().lookup(z13::gameplay::PlayerEntityName(a_id).c_str())) << "A never left";
+  EXPECT_TRUE(confirmed()) << "dropped while a rollback could still cross the leave";
+
+  const uint64_t retention_ticks = static_cast<uint64_t>(std::llround(
+      session.Server().Config().GetSnapshotRetentionSeconds() * session.Server().Config().GetFPS()));
+  for (uint64_t tick = 0; tick <= retention_ticks + 1; ++tick) {
+    session.Tick();
+  }
+  EXPECT_FALSE(confirmed());
 }
 
 }  // namespace

@@ -155,9 +155,15 @@ Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
   return player ? z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) : Eigen::Vector3f::Zero();
 }
 
+// Welcome's snapshot is the newest one past the late-command window. B joins so that it was
+// taken mid-hold and the held key's next reassert is far off: only held_values tell B W is down.
 TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
+  constexpr double kSnapshotIntervalSeconds = 5.;
+  constexpr double kSnapshotRetentionSeconds = 10.;
   auto network = std::make_shared<InMemoryNetwork>();
-  const z13::Settings settings = HoldPrediction();
+  z13::Settings settings = HoldPrediction();
+  settings.core->snapshot_interval_seconds = kSnapshotIntervalSeconds;
+  settings.core->snapshot_retention_seconds = kSnapshotRetentionSeconds;
   Z13TestWorld server = MakeServer(network, settings);
   Z13TestWorld client_a = MakeClient(network, settings);
 
@@ -169,6 +175,14 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return Position(server, kClientAId).x() - spawn_x > 0.01f;
   })) << "the held command never took effect on the server";
+
+  const uint64_t interval_ticks = SnapshotIntervalTicks(server);
+  const uint64_t join_offset = kTuning.max_late_ticks + 2;
+  const uint64_t pressed_by = server.World().get<ft::SimulationClock>().tick;
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 3 * interval_ticks, [&] {
+    const uint64_t tick = server.World().get<ft::SimulationClock>().tick;
+    return tick > pressed_by + interval_ticks + join_offset && tick % interval_ticks == join_offset;
+  }));
 
   Z13TestWorld client_b = MakeClient(network, settings);
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
