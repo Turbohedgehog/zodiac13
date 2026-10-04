@@ -35,7 +35,7 @@ std::unique_ptr<fbs_state::WorldSnapshotT> OneEntitySnapshot(const std::string& 
   component->value = {1, 2, 3};
   auto entity = std::make_unique<fbs_state::EntitySnapshotT>();
   entity->name = name;
-  entity->tags = {"z13::StateEntity"};
+  entity->tags.emplace_back(std::make_unique<fbs_state::TagT>())->name = "z13::StateEntity";
   entity->components.push_back(std::move(component));
   auto snapshot = std::make_unique<fbs_state::WorldSnapshotT>();
   snapshot->entities.push_back(std::move(entity));

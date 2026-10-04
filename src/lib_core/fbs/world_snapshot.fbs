@@ -19,18 +19,23 @@
 namespace z13.fbs.state;
 
 table ComponentValue {
-  type: string;   // component full path
+  type: string (shared);   // component full path
   value: [ubyte]; // EncodeValue bytes (lib_core/component_codec.h)
 }
 
+// A table, not a bare string: only a string field can be (shared).
+table Tag {
+  name: string (shared);
+}
+
 table Relationship {
-  relation: string;
-  target: string;
+  relation: string (shared);
+  target: string (shared);
 }
 
 table EntitySnapshot {
   name: string;
-  tags: [string];
+  tags: [Tag];
   components: [ComponentValue];
   relationships: [Relationship];
 }

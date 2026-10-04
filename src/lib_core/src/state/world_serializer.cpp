@@ -399,7 +399,9 @@ fbs::state::WorldSnapshotT ToFlatbuffer(const WorldSnapshot& snapshot) {
   for (const EntitySnapshot& entity : snapshot.entities) {
     auto& flat_entity = *flat.entities.emplace_back(std::make_unique<fbs::state::EntitySnapshotT>());
     flat_entity.name = entity.name;
-    flat_entity.tags = entity.tags;
+    for (const std::string& tag : entity.tags) {
+      flat_entity.tags.emplace_back(std::make_unique<fbs::state::TagT>())->name = tag;
+    }
     for (const ComponentValue& component : entity.components) {
       auto& flat_component = *flat_entity.components.emplace_back(std::make_unique<fbs::state::ComponentValueT>());
       flat_component.type = component.type;
@@ -420,7 +422,9 @@ WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& flat) {
   for (const auto& flat_entity : flat.entities) {
     EntitySnapshot& entity = snapshot.entities.emplace_back();
     entity.name = flat_entity->name;
-    entity.tags = flat_entity->tags;
+    for (const auto& flat_tag : flat_entity->tags) {
+      entity.tags.push_back(flat_tag->name);
+    }
     for (const auto& flat_component : flat_entity->components) {
       entity.components.push_back({.type = flat_component->type, .value = flat_component->value});
     }
