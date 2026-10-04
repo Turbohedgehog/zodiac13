@@ -23,7 +23,7 @@ namespace z13.fbs.net;
 // What an observer assumes a remote player does on ticks whose input hasn't arrived yet.
 enum RemoteInputPrediction : ubyte {
   Hold,     // keeps the last value
-  Neutral,  // releases everything but absolute actions; senders mark how far their input is confirmed
+  Neutral,  // releases all but absolute actions; batches carry through_tick
 }
 
 table NetTuning {

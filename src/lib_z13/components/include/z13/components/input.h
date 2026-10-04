@@ -114,8 +114,7 @@ struct ActionInfo {
   const std::string_view group_name;
   const std::string_view display_text;
   const std::vector<z13::fbs::input::Keycode> default_keycodes;
-  // The schema's `absolute` attribute: the value is a state to keep, not an input to release.
-  const bool absolute {};
+  const bool absolute {};  // see common.fbs
   const EnumValueType enum_value {};
   const IdType id {};
 };

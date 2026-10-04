@@ -75,8 +75,8 @@ std::expected<void, std::string> AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning, ConnectTimeout and VisualSmoothing singletons; the core part goes through
-// Config::SetCoreSettings before the world is created.
+// Sets the world's NetTuning, PhysicsTuning, ConnectTimeout and VisualSmoothing singletons; the
+// core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13

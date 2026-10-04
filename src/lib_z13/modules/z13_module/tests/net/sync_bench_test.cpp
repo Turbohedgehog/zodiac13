@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-// A bench, not a test: how smoothly and faithfully client B replays client A's movement
-// and look, per network profile and tuning variant. Disabled; run it with
+// A bench, not a test (see docs/remote-sync-research.md). Run it with
 //   z13_test_runner --gtest_also_run_disabled_tests --gtest_filter='SyncBench.*'
-// It prints a table per scenario and writes a summary and per-tick CSVs to
-// $Z13_SYNC_BENCH_DIR/<scenario> (default: <temp>/z13_sync_bench).
+// CSVs go to $Z13_SYNC_BENCH_DIR/<scenario> (default: <temp>/z13_sync_bench).
 
 #include <gtest/gtest.h>
 

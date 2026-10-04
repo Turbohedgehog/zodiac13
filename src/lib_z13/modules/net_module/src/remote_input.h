@@ -18,9 +18,17 @@
 
 #include <cstdint>
 
+#include <boost/container/flat_map.hpp>
 #include <flecs.h>
 
+#include <z13/components/input.h>
+
 namespace z13::net {
+
+using ActionValues = boost::container::flat_map<z13::input::ActionInfo::IdType, float>;
+
+// Whether any of `values` is a held action Neutral prediction would release (not `absolute`).
+bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionMap& action_map);
 
 // Under RemoteInputPrediction::Neutral, records that `player_id`'s input up to `through_tick`
 // has arrived, and replays the ticks that were predicted released while the player held an

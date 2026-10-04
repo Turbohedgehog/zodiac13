@@ -46,6 +46,7 @@
 #include <net_module/state_digest.h>
 
 #include "net_session.h"
+#include "remote_input.h"
 #include "scheduled_commands.h"
 
 namespace z13::net {
@@ -162,17 +163,6 @@ NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id,
   return session.Broadcast(Channel::kReliable, envelope);
 }
 
-// Under Neutral prediction, observers release a held action at the last confirmed tick, so
-// holding one is worth a batch even with nothing changed.
-bool HoldsReleasableAction(
-    const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
-  const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
-  return std::ranges::any_of(last_recorded.values, [&by_id](const auto& entry) {
-    const auto info = by_id.find(entry.first);
-    return entry.second != 0.f && info != by_id.end() && !info->absolute;
-  });
-}
-
 void SendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
     const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
@@ -186,8 +176,9 @@ void SendPendingCommands(
   if (clock.tick % tuning.send_interval_ticks != 0) {
     return;
   }
+  // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
   const bool heartbeat = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral &&
-      HoldsReleasableAction(last_recorded, action_map);
+      HoldsReleasableAction(last_recorded.values, action_map);
   if (outgoing.records.empty() && !heartbeat) {
     return;
   }
