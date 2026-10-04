@@ -187,8 +187,7 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
 
   BenchRun run;
   std::set<Keycode> held;
-  const auto step = [&] {
-    tick(1);
+  const auto sample = [&] {
     Sample(client_a, a_id, run.truth);
     Sample(client_b, a_id, run.observed);
   };
@@ -203,6 +202,11 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
       }
       step();
     }
+  const auto step = [&] {
+    tick(1);
+    sample();
+  };
+  sample();
   }
   UpdateHeldKeys(client_a, held, {});
   for (int t = 0; t < kTailTicks; ++t) {
