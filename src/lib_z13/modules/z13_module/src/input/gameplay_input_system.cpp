@@ -94,14 +94,8 @@ void ApplyMoveActionListener(
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
 
-  // Seed LookAngles from the transform once, on the entity's first frame here, so a
-  // non-identity spawn rotation isn't discarded by ApplyCameraMove's accumulation.
   if (!e.has<LookAngles>()) {
-    const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
-    LookAngles initial;
-    initial.pitch_deg = z13::math::ToDegrees(-std::asin(std::clamp(forward.z(), -1.f, 1.f)));
-    initial.yaw_deg = z13::math::ToDegrees(std::atan2(forward.y(), forward.x()));
-    e.set(initial);
+    e.set(z13::gameplay::LookAnglesFromTransform(transform));
   }
   auto& look = e.ensure<LookAngles>();
 
@@ -117,8 +111,10 @@ void ApplyMoveActionListener(
       .left = value_of(move_action_ids.move_left_id),
       .up = value_of(move_action_ids.move_up_id),
       .down = value_of(move_action_ids.move_down_id),
-      .yaw_delta_deg = value_of(move_action_ids.horizontal_look_id),
-      .pitch_delta_deg = value_of(move_action_ids.vertical_look_id),
+      .look = {
+          .yaw_deg = value_of(move_action_ids.horizontal_look_id),
+          .pitch_deg = value_of(move_action_ids.vertical_look_id),
+      },
   };
 
   z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
@@ -368,20 +364,41 @@ float WholeActionSteps(float value) {
   return std::nearbyint(value * z13::gameplay::kActionValueScale) / z13::gameplay::kActionValueScale;
 }
 
+// Look actions carry absolute angles, which have no neutral value, so the target is written
+// every frame -- paused too (dropping the mouse delta): a look value left at the cleared 0
+// would turn the player. What the recorder would round off stays for the next frame, or slow
+// mouse movement is lost.
+void CalculateLookValues(
+    flecs::entity e,
+    z13::input::InputState& input_state,
+    const MoveActionIds& move_action_ids,
+    z13::input::ActionListener& action_listener,
+    const Eigen::Matrix4f& transform) {
+  float yaw_delta_deg = 0.f;
+  float pitch_delta_deg = 0.f;
+  if (e.world().has<z13::gameplay::Pause>()) {
+    input_state.mouse_yaw_delta_deg = 0.f;
+    input_state.mouse_pitch_delta_deg = 0.f;
+  } else {
+    yaw_delta_deg = WholeActionSteps(input_state.mouse_yaw_delta_deg);
+    pitch_delta_deg = WholeActionSteps(input_state.mouse_pitch_delta_deg);
+    input_state.mouse_yaw_delta_deg -= yaw_delta_deg;
+    input_state.mouse_pitch_delta_deg -= pitch_delta_deg;
+  }
+
+  const LookAngles* current = e.try_get<LookAngles>();
+  const LookAngles target = z13::gameplay::TurnLook(
+      current ? *current : z13::gameplay::LookAnglesFromTransform(transform), yaw_delta_deg, pitch_delta_deg);
+  action_listener.action_values[move_action_ids.horizontal_look_id].current_value =
+      z13::gameplay::CanonicalActionValue(target.yaw_deg);
+  action_listener.action_values[move_action_ids.vertical_look_id].current_value =
+      z13::gameplay::CanonicalActionValue(target.pitch_deg);
+}
+
 void CalculateInputValues(
     z13::input::InputState& input_state,
     const z13::input::InputConfig& input_config,
-    const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener) {
-  // Fold in the mouse-look delta here, since this phase reliably runs after Clear. What the
-  // recorder would round off stays for the next frame, or slow mouse movement is lost.
-  const float yaw_deg = WholeActionSteps(input_state.mouse_yaw_delta_deg);
-  const float pitch_deg = WholeActionSteps(input_state.mouse_pitch_delta_deg);
-  action_listener.action_values[move_action_ids.horizontal_look_id] += yaw_deg;
-  action_listener.action_values[move_action_ids.vertical_look_id] += pitch_deg;
-  input_state.mouse_yaw_delta_deg -= yaw_deg;
-  input_state.mouse_pitch_delta_deg -= pitch_deg;
-
   const auto& action_group_key_codes = input_config.keycode_binding.get<z13::input::InputConfig::ActionGroupKeycodeIdTag>();
   const auto& key_codes = input_config.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();
   for (size_t key_idx = 0; key_idx < input_state.input_state.size(); ++key_idx) {
@@ -506,7 +523,16 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::input::ClearActionFramePhase>()
       .each(ClearActionListenerCurrentState);
 
-  world.system<z13::input::InputState, z13::input::InputConfig, const MoveActionIds, z13::input::ActionListener>(
+  world.system<z13::input::InputState, const MoveActionIds, z13::input::ActionListener, const Eigen::Matrix4f>(
+      "gameplay_input_system::CalculateLookValues")
+      .kind<z13::input::CalculateActionFramePhase>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .read<z13::gameplay::Pause>()
+      .read<LookAngles>()
+      .each(CalculateLookValues);
+
+  world.system<z13::input::InputState, z13::input::InputConfig, z13::input::ActionListener>(
       "gameplay_input_system::CalculateInputValues")
       .kind<z13::input::CalculateActionFramePhase>()
       // Paused input stays zero, so the recorder sees held keys released.

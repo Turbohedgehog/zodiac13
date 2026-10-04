@@ -99,18 +99,20 @@ TEST(ActionQuantizationTest, LivePlayUsesTheLoggedValue) {
   EXPECT_NE(live, 0.f);
 }
 
+// The look value is an absolute angle, so the turn is how far it moved.
 TEST(ActionQuantizationTest, SlowMouseMovementIsNotRoundedAway) {
   Z13TestWorld test_world;
   constexpr float kDegreesPerPixel = 0.003f;  // under half a quantum per tick
   constexpr int kTicks = 20;
   SetSensitivity(test_world, kDegreesPerPixel);
+  const float start = LiveValue(test_world, HorizontalLookId(test_world));
 
-  float turned = 0.f;
+  float looked = start;
   for (int i = 0; i < kTicks; ++i) {
-    turned += MoveMouse(test_world, -1);
+    looked = MoveMouse(test_world, -1);
   }
 
-  EXPECT_NEAR(turned, kDegreesPerPixel * kTicks, 1.f / kActionValueScale);
+  EXPECT_NEAR(looked - start, kDegreesPerPixel * kTicks, 1.f / kActionValueScale);
 }
 
 TEST(ActionQuantizationTest, AStillMouseLeavesNoRemainderBehind) {
@@ -118,11 +120,11 @@ TEST(ActionQuantizationTest, AStillMouseLeavesNoRemainderBehind) {
   constexpr float kDegreesPerPixel = 0.0025f;
   constexpr int kStillTicks = 5;
   SetSensitivity(test_world, kDegreesPerPixel);
-  MoveMouse(test_world, 2);  // half a step
+  const float looked = MoveMouse(test_world, 2);  // half a step
 
   for (int i = 0; i < kStillTicks; ++i) {
     test_world.Tick(kTestDeltaTime);
-    EXPECT_EQ(LiveValue(test_world, HorizontalLookId(test_world)), 0.f) << "tick " << i;
+    EXPECT_EQ(LiveValue(test_world, HorizontalLookId(test_world)), looked) << "tick " << i;
   }
 }
 
