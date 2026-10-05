@@ -125,5 +125,26 @@ TEST(ConfigTest, ServerAndConnectTogetherIsRejected) {
   EXPECT_FALSE(ParseArgs({"--server", "--connect", "example.com"}).result.has_value());
 }
 
+TEST(ConfigTest, StationFlagIsRecognizedAlone) {
+  const auto parsed = ParseArgs({"--station"});
+
+  EXPECT_TRUE(parsed.result.has_value());
+  EXPECT_TRUE(parsed.config.IsStation());
+  EXPECT_FALSE(ParseArgs({}).config.IsStation());
+}
+
+TEST(ConfigTest, StationWithServerIsAccepted) {
+  const auto parsed = ParseArgs({"--server", "--station"});
+
+  EXPECT_TRUE(parsed.result.has_value());
+  EXPECT_TRUE(parsed.config.IsServer());
+  EXPECT_TRUE(parsed.config.IsStation());
+}
+
+// A client takes the mode from the server it joins.
+TEST(ConfigTest, StationAndConnectTogetherIsRejected) {
+  EXPECT_FALSE(ParseArgs({"--station", "--connect", "example.com"}).result.has_value());
+}
+
 }  // namespace
 }  // namespace z13

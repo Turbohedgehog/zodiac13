@@ -33,6 +33,7 @@
 #include <raymath.h>
 #include <rlgl.h>
 
+#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
@@ -45,6 +46,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
+#include <z13/components/station.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
@@ -159,6 +161,20 @@ RenderModel LoadSpaceship(const Lighting& lighting) {
   auto res = std::make_shared<ModelResources>();
   res->model = MakeManagedModel(model, borrowed_shader_id);
   return RenderModel{.res = std::move(res)};
+}
+
+// The ship belongs to the ordinary scene alone, so a station game never parses its model.
+// Waits out a pending restore: a joining client has Gameplay a frame before Welcome's mode.
+void ReconcileSpaceship(flecs::world world, const Lighting& lighting) {
+  if (z13::flecs_tools::IsCatchingUp(world)) {
+    return;
+  }
+  const bool wanted = world.has<gameplay::Gameplay>() && !world.has<z13::station::StationMode>();
+  if (wanted && !world.has<RenderModel>()) {
+    world.set<RenderModel>(LoadSpaceship(lighting));
+  } else if (!wanted && world.has<RenderModel>()) {
+    world.remove<RenderModel>();
+  }
 }
 
 // UnloadModel frees mesh arrays with RL_FREE, so they must come from MemAlloc.
@@ -327,7 +343,6 @@ void RegisterSystems(flecs::world world) {
       .yield_existing()
       .each([world](RaylibData&) {
         Lighting lighting = LoadLighting();
-        world.set<RenderModel>(LoadSpaceship(lighting));
         world.set<AvatarModel>(LoadAvatar(lighting));
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
@@ -335,6 +350,14 @@ void RegisterSystems(flecs::world world) {
 
   // Everything below runs in the Render phase, ahead of Draw (systems in one phase run
   // in registration order), so the scene is synced with this frame's final state.
+  world.system<const Lighting>("EnvironmentRenderSystem::ReconcileSpaceship")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .read<gameplay::Gameplay>()
+      .read<z13::station::StationMode>()
+      .write<RenderModel>()
+      .each([](flecs::iter& it, size_t, const Lighting& lighting) { ReconcileSpaceship(it.world(), lighting); });
+
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
       .kind<Render>()
       .tick_source<RenderGate>()

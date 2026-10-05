@@ -55,12 +55,20 @@ void ValidateGameplay() {
 }
 
 void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
-  const flecs::world world = it.world();
+  flecs::world world = it.world();
   if (world.has<z13::net::ClientRole>()) {
     // A client's scene/IdCounters/LocalPlayer.id all come from Welcome/Resync's snapshot,
     // applied before Gameplay was added -- nothing to spawn here.
     log_info("~~~~ gameplay::OnInit (client)");
     return;
+  }
+
+  // Immediate, so SpawnPlayer below sees what the observers add.
+  {
+    const z13::ImmediateScope immediate(world);
+    const flecs::entity target = world.entity().add<PopulateSceneEvent>();
+    world.event<PopulateSceneEvent>().id<PopulateSceneEvent>().entity(target).emit();
+    target.destruct();
   }
 
   // Single-player and the server both play as id 0.

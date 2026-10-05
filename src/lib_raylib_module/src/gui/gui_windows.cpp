@@ -26,6 +26,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
+#include <z13/components/station.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -250,9 +251,10 @@ class MainMenuWindow : public Window {
     }
 
     if (ImGui::Button("Start Game", kButtonSize)) {
-      World().set<z13::net::ConnectionStatus>({});
-      World().add<z13::gameplay::Gameplay>();
-      RequestCloseMenu();
+      StartSinglePlayer(/*station=*/false);
+    }
+    if (ImGui::Button("Station", kButtonSize)) {
+      StartSinglePlayer(/*station=*/true);
     }
     if (ImGui::Button("Start Server...", kButtonSize)) {
       RequestPush(MakeStartServerWindow(World()));
@@ -266,6 +268,18 @@ class MainMenuWindow : public Window {
     if (ImGui::Button("Exit", kButtonSize)) {
       World().add<RaylibWindowClosed>();
     }
+  }
+
+ private:
+  void StartSinglePlayer(bool station) {
+    World().set<z13::net::ConnectionStatus>({});
+    if (station) {
+      World().add<z13::station::StationMode>();
+    } else {
+      World().remove<z13::station::StationMode>();
+    }
+    World().add<z13::gameplay::Gameplay>();
+    RequestCloseMenu();
   }
 };
 

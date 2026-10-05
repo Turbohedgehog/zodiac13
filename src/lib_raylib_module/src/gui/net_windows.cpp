@@ -28,6 +28,7 @@
 #include <lib_core/utils/endpoint.h>
 
 #include <z13/components/net.h>
+#include <z13/components/station.h>
 
 #include "gui_widgets.h"
 
@@ -52,6 +53,7 @@ class StartServerWindow : public Window {
   void DrawBody() override {
     ImGui::SetNextItemWidth(kAddressFieldWidth);
     ImGui::InputText("Port", &port_, ImGuiInputTextFlags_CharsDecimal);
+    ImGui::Checkbox("Station", &station_);
 
     const auto port = z13::ParsePort(port_);
     if (!port) {
@@ -62,6 +64,11 @@ class StartServerWindow : public Window {
 
     ImGui::BeginDisabled(!port);
     if (ImGui::Button("Start", kButtonSize)) {
+      if (station_) {
+        World().add<z13::station::StationMode>();
+      } else {
+        World().remove<z13::station::StationMode>();
+      }
       World().entity().set<z13::net::StartServerRequest>({.port = *port});
       submitted_ = true;
     }
@@ -73,6 +80,7 @@ class StartServerWindow : public Window {
 
  private:
   std::string port_;
+  bool station_ {};
   bool submitted_ {};
 };
 

@@ -29,6 +29,7 @@ namespace {
 constexpr std::string_view kQuickSavePathOption = "quick-save-path";
 constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
+constexpr std::string_view kStationOption = "station";
 
 }  // namespace
 
@@ -43,12 +44,15 @@ Config::Config() {
        std::format("Run as a server (no rendering) on an optional port (default: {}); "
                     "mutually exclusive with --connect", kDefaultServerPort).c_str())
       (kConnectOption.data(), po::value<std::string>(),
-       "Join host[:port] on startup instead of showing the main menu");
+       "Join host[:port] on startup instead of showing the main menu")
+      (kStationOption.data(), po::bool_switch(&station_),
+       "Start in station-building mode (with --server, host it); a client gets the mode from the server");
 }
 
 void Config::Clear() {
   variables_map_ = boost::program_options::variables_map();
   server_ = false;
+  station_ = false;
   port_ = kDefaultServerPort;
   connect_endpoint_.reset();
 }
@@ -81,6 +85,10 @@ std::expected<void, std::string> Config::ValidateAndApplyArguments() {
 
   if (server_ && variables_map_.count(kConnectOption.data()) > 0) {
     return std::unexpected(std::format("--{} and --{} cannot be used together", kServerOption, kConnectOption));
+  }
+
+  if (station_ && variables_map_.count(kConnectOption.data()) > 0) {
+    return std::unexpected(std::format("--{} and --{} cannot be used together", kStationOption, kConnectOption));
   }
 
   if (variables_map_.count(kConnectOption.data()) > 0) {
@@ -179,6 +187,10 @@ std::optional<std::filesystem::path> Config::GetQuickSavePath() const {
 
 bool Config::IsServer() const {
   return server_;
+}
+
+bool Config::IsStation() const {
+  return station_;
 }
 
 uint16_t Config::GetPort() const {

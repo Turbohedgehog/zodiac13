@@ -34,6 +34,7 @@
 #include <bullet_module/bullet_module_factory.h>
 #include <net_module/in_memory_transport.h>
 #include <net_module/net_module_factory.h>
+#include <station_module/station_module_factory.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/input_event_emitter.h>
@@ -51,6 +52,7 @@ constexpr std::string_view kSkipMainMenuArg = "--skip-main-menu";
 constexpr std::string_view kQuickSavePathArg = "--quick-save-path";
 constexpr std::string_view kServerArg = "--server";
 constexpr std::string_view kConnectArg = "--connect";
+constexpr std::string_view kStationArg = "--station";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
@@ -139,6 +141,7 @@ class Z13TestWorld {
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
     core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
+    core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
 
     auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
     net_factory->SetTransportFactories(

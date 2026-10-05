@@ -61,6 +61,8 @@ class Config {
   // --connect. PORT defaults to kDefaultServerPort when omitted.
   bool IsServer() const;
   uint16_t GetPort() const;
+  // --station: start in station-building mode; mutually exclusive with --connect.
+  bool IsStation() const;
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
@@ -81,6 +83,7 @@ class Config {
   std::optional<double> fps_override_;
   bool skip_main_menu_ {false};
   bool server_ {false};
+  bool station_ {false};
   uint16_t port_ {kDefaultServerPort};
   std::optional<Endpoint> connect_endpoint_;
 };

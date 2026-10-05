@@ -25,7 +25,8 @@ namespace z13::gameplay {
 
 std::string PlayerEntityName(uint32_t id);
 
-// Deterministic per-player spawn offset along X, so two players' octahedra never overlap.
+// Deterministic per-player spawn offset along X, so two players' octahedra never overlap;
+// used when the scene has no SpawnPoint.
 constexpr float kSpawnSpacing = 3.f;
 
 // No input/locality components -- those are attached separately (see LocalPlayer).

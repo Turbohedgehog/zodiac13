@@ -26,6 +26,7 @@
 #include <z13/components/bootstrap.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
+#include <z13/components/station.h>
 
 namespace z13::bootstrap {
 
@@ -45,6 +46,8 @@ void RegisterComponents(flecs::world world) {
   world.component<z13::net::JoinRequest>();
   world.component<z13::net::LeaveRequest>();
   z13::flecs_tools::RegisterComponent<z13::net::ConnectionStatus>(world);
+  z13::flecs_tools::RegisterComponents<z13::station::StationMode, z13::station::SpawnPoint>(world);
+  world.component<z13::gameplay::PopulateSceneEvent>();
 }
 
 void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
@@ -55,6 +58,7 @@ void OnLoadConfig(flecs::entity e, const LoadConfigEvent&) {
 
 // --server skips the main menu: net_module opens the transport and starts Gameplay.
 // --connect keeps the menu (Pause) up until Welcome/Rejected resolves the JoinRequest.
+// --station sets the mode before either kind of host starts its scene.
 void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
   flecs::world world = e.world();
   const auto config = z13::GetCoreConfig(world);
@@ -64,12 +68,16 @@ void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
     return;
   }
 
+  if (config->get().IsStation()) {
+    world.add<z13::station::StationMode>();
+  }
+
   if (config->get().IsServer()) {
     world.entity().set<z13::net::StartServerRequest>({.port = config->get().GetPort()});
   } else if (const auto endpoint = config->get().GetConnectEndpoint()) {
     world.add<z13::gameplay::Pause>();
     world.entity().set<z13::net::JoinRequest>({.endpoint = *endpoint});
-  } else if (config->get().SkipMainMenu()) {
+  } else if (config->get().SkipMainMenu() || config->get().IsStation()) {
     world.add<z13::gameplay::Gameplay>();
   } else {
     world.add<z13::gameplay::Pause>();

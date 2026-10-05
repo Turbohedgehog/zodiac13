@@ -3,7 +3,7 @@
 # "runtime" component is packaged; the SDK installs (headers, static libs) stay out.
 
 set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
-set(Z13_PLUGINS z13_module bullet_module net_module raylib_module test_dll_module)
+set(Z13_PLUGINS z13_module bullet_module station_module net_module raylib_module test_dll_module)
 
 find_package(flecs CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)

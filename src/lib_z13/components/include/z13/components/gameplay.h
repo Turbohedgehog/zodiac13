@@ -29,6 +29,10 @@ struct PreUpdatePhase {};
 struct UpdatePhase {};
 struct PostUpdatePhase {};
 
+// Emitted while a new scene starts on a host (not a client), before the local player
+// spawns, so other modules can add scene content such as spawn points.
+struct PopulateSceneEvent {};
+
 // Runtime singleton marking an initialized gameplay; holds no world state.
 struct Gameplay {
   using Singleton = void;
