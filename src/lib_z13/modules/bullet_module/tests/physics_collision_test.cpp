@@ -245,7 +245,6 @@ TEST(PhysicsBodySyncTest, SyncIsIdempotentAcrossFrames) {
   EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
 }
 
-// Unchanged blocks skip the sync, so a recreated PhysicsWorld must still get their bodies.
 TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsBodiesOfUnchangedBlocks) {
   z13::testing::Z13TestWorld test_world;
   SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
@@ -260,7 +259,6 @@ TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsBodiesOfUnchangedBlocks) {
   EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
 }
 
-// A block placed in the same frame must not narrow that sync to its own table.
 TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsAllBodiesWhenABlockIsAddedTheSameFrame) {
   z13::testing::Z13TestWorld test_world;
   SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));

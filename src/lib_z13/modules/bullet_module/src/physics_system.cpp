@@ -108,10 +108,8 @@ void SyncBlockTables(
   });
 }
 
-// Bodies are derived from block components, not from add/remove events, so restored or
-// edited state is picked up too. Change detection limits the work to the frames and
-// tables where blocks changed; a body count still off from the block count afterwards
-// (e.g. a fresh PhysicsWorld) forces a full pass.
+// Syncs only changed block tables; a body count still off afterwards (e.g. a fresh
+// PhysicsWorld) forces a full pass.
 void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, const BlockQuery& blocks) {
   // Checked before count(): iterating the query resets its changed state.
   if (blocks.changed()) {
