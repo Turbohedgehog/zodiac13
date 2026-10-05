@@ -21,7 +21,6 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
-#include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -42,24 +41,11 @@ void RegisterPipeline(flecs::world world) {
   world.get_alive(flecs::OnValidate).add(flecs::Phase).depends_on<PostUpdatePhase>();
 }
 
-void UpdateGameplay() {
-  // log_info("UpdateGameplay()");
-}
-
-void OnGameplay() {
-  // log_info("Gameplay()");
-}
-
-void ValidateGameplay() {
-  // log_info("ValidateGameplay()");
-}
-
 void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   flecs::world world = it.world();
   if (world.has<z13::net::ClientRole>()) {
     // A client's scene/IdCounters/LocalPlayer.id all come from Welcome/Resync's snapshot,
     // applied before Gameplay was added -- nothing to spawn here.
-    log_info("~~~~ gameplay::OnInit (client)");
     return;
   }
 
@@ -80,8 +66,6 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   // Callers expect the local player ready right after this observer runs, before any
   // progress() -- the per-frame re-derivation in gameplay_input_system.cpp is too late.
   EnsureLocalPlayerReady(world);
-
-  log_info("~~~~ gameplay::OnInit");
 }
 
 // Only single-player freezes; runs in PreFrame so a frozen world can thaw.
@@ -131,18 +115,6 @@ void RegisterSystems(flecs::world world) {
     .read<z13::net::ClientRole>()
     .write<z13::flecs_tools::SimulationFrozen>()
     .run(SyncSimulationFrozen);
-
-  world.system("UpdateGameplaySystem")
-    .kind<UpdatePhase>()
-    .each(UpdateGameplay);
-
-  world.system("OnGameplaySystem")
-    .kind<UpdatePhase>()
-    .each(OnGameplay);
-
-  world.system("ValidateGameplaySystem")
-    .kind(flecs::OnValidate)
-    .each(ValidateGameplay);
 }
 
 }  // namespace

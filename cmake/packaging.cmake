@@ -2,8 +2,7 @@
 # the shared flecs, spdlog and fmt, found through $ORIGIN instead of the build tree's absolute RUNPATH. Only the
 # "runtime" component is packaged; the SDK installs (headers, static libs) stay out.
 
-set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
-set(Z13_PLUGINS z13_module bullet_module station_module net_module raylib_module test_dll_module)
+# Z13_BIN_DIR and Z13_PLUGINS come from plugins.cmake.
 
 find_package(flecs CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
