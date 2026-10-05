@@ -28,6 +28,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/fnv_hash.h>
 
 #include <z13/components/gameplay.h>
 
@@ -40,13 +41,9 @@ namespace {
 namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 
-// FNV-1a: std::hash may differ between the participants' standard libraries.
-constexpr uint64_t kFnvOffsetBasis = 14695981039346656037ull;
-constexpr uint64_t kFnvPrime = 1099511628211ull;
-
 uint64_t HashNames(const std::vector<std::string>& names) {
   uint64_t hash = kFnvOffsetBasis;
-  const auto mix = [&hash](char c) { hash = (hash ^ static_cast<uint8_t>(c)) * kFnvPrime; };
+  const auto mix = [&hash](char c) { hash = FnvMix(hash, static_cast<uint8_t>(c)); };
   for (const std::string& name : names) {
     std::ranges::for_each(name, mix);
     mix('\0');

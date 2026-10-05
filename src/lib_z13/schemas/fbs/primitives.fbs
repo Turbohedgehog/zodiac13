@@ -1,0 +1,85 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The station's block palette (assets/station/palette.json); see
+// docs/station-primitives-plan.md. Sizes are in grid cells, X×Y×Z with Z up.
+
+namespace z13.fbs.station;
+
+struct Cells {
+  x: ushort;
+  y: ushort;
+  z: ushort;
+}
+
+struct Rgba {
+  r: ubyte;
+  g: ubyte;
+  b: ubyte;
+  a: ubyte;
+}
+
+// A full cuboid.
+table Box {}
+
+// Slope rising along +X: full bottom, full face at the far X end.
+table Wedge {}
+
+// The outer corner of two wedges: full bottom, apex above the far X/Y corner.
+table CornerWedge {}
+
+// A frame around a centered opening at the bottom, filled by a closed door leaf.
+table DoorFrame {
+  opening_width: ushort;
+  opening_height: ushort;
+}
+
+union Shape { Box, Wedge, CornerWedge, DoorFrame }
+
+enum PrimitiveFlags : uint (bit_flags) {
+  Solid,
+  GasSealing,
+  Transparent,
+  Hidden,
+  Climbable,
+  Spawn,
+}
+
+// Two-color checker with one square per grid cell.
+table Checker {
+  first: Rgba;
+  second: Rgba;
+}
+
+table Primitive {
+  // Stable: block state stores it, so reordering the palette keeps saves valid.
+  id: uint;
+  name: string;
+  shape: Shape;
+  // Equal for a fixed-size primitive; a stretchable one spans this range.
+  min_size: Cells;
+  max_size: Cells;
+  material: Checker;
+  flags: PrimitiveFlags;
+}
+
+table Palette {
+  // Largest extent of a primitive along any axis (64 m at 0.25 m cells).
+  max_size_cells: ushort = 256;
+  primitives: [Primitive];
+}
+
+root_type Palette;

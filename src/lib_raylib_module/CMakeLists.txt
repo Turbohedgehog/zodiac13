@@ -78,12 +78,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # raylib_module.dll; the exe loads it with LOAD_WITH_ALTERED_SEARCH_PATH, so the
 # whole chain resolves from bin/modules/raylib/.
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-        ${CMAKE_SOURCE_DIR}/assets
-        $<TARGET_FILE_DIR:zodiac13>/assets
-)
-
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
 
 install(TARGETS ${PROJECT_NAME}

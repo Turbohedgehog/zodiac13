@@ -1,0 +1,109 @@
+{
+  "max_size_cells": 256,
+  "primitives": [
+    {
+      "id": 1,
+      "name": "Floor",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 1},
+      "max_size": {"x": 256, "y": 256, "z": 1},
+      "material": {
+        "first": {"r": 150, "g": 150, "b": 155, "a": 255},
+        "second": {"r": 125, "g": 125, "b": 130, "a": 255}
+      },
+      "flags": "Solid GasSealing"
+    },
+    {
+      "id": 2,
+      "name": "Wall",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 1},
+      "max_size": {"x": 256, "y": 1, "z": 256},
+      "material": {
+        "first": {"r": 200, "g": 200, "b": 205, "a": 255},
+        "second": {"r": 175, "g": 175, "b": 180, "a": 255}
+      },
+      "flags": "Solid GasSealing"
+    },
+    {
+      "id": 3,
+      "name": "Door",
+      "shape_type": "DoorFrame",
+      "shape": {"opening_width": 4, "opening_height": 8},
+      "min_size": {"x": 6, "y": 1, "z": 10},
+      "max_size": {"x": 6, "y": 1, "z": 10},
+      "material": {
+        "first": {"r": 70, "g": 110, "b": 170, "a": 255},
+        "second": {"r": 55, "g": 90, "b": 145, "a": 255}
+      },
+      "flags": "Solid GasSealing"
+    },
+    {
+      "id": 4,
+      "name": "Window",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 1},
+      "max_size": {"x": 256, "y": 1, "z": 256},
+      "material": {
+        "first": {"r": 170, "g": 215, "b": 235, "a": 90},
+        "second": {"r": 150, "g": 195, "b": 220, "a": 90}
+      },
+      "flags": "Solid GasSealing Transparent"
+    },
+    {
+      "id": 5,
+      "name": "Slope",
+      "shape_type": "Wedge",
+      "shape": {},
+      "min_size": {"x": 4, "y": 4, "z": 4},
+      "max_size": {"x": 4, "y": 4, "z": 4},
+      "material": {
+        "first": {"r": 165, "g": 160, "b": 150, "a": 255},
+        "second": {"r": 140, "g": 135, "b": 125, "a": 255}
+      },
+      "flags": "Solid GasSealing"
+    },
+    {
+      "id": 6,
+      "name": "CornerSlope",
+      "shape_type": "CornerWedge",
+      "shape": {},
+      "min_size": {"x": 4, "y": 4, "z": 4},
+      "max_size": {"x": 4, "y": 4, "z": 4},
+      "material": {
+        "first": {"r": 165, "g": 160, "b": 150, "a": 255},
+        "second": {"r": 140, "g": 135, "b": 125, "a": 255}
+      },
+      "flags": "Solid GasSealing"
+    },
+    {
+      "id": 7,
+      "name": "HiddenDoor",
+      "shape_type": "DoorFrame",
+      "shape": {"opening_width": 4, "opening_height": 8},
+      "min_size": {"x": 6, "y": 1, "z": 10},
+      "max_size": {"x": 6, "y": 1, "z": 10},
+      "material": {
+        "first": {"r": 200, "g": 200, "b": 205, "a": 255},
+        "second": {"r": 175, "g": 175, "b": 180, "a": 255}
+      },
+      "flags": "Solid GasSealing Hidden"
+    },
+    {
+      "id": 8,
+      "name": "SpawnPoint",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 4, "y": 4, "z": 1},
+      "max_size": {"x": 4, "y": 4, "z": 1},
+      "material": {
+        "first": {"r": 80, "g": 190, "b": 90, "a": 255},
+        "second": {"r": 60, "g": 160, "b": 70, "a": 255}
+      },
+      "flags": "Spawn"
+    }
+  ]
+}
