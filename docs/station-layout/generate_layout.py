@@ -2,7 +2,8 @@
 """Draws the test station's decks as text and estimates its load.
 
 One character is 1 m (4 grid cells). Run from this directory: writes deck-*.txt,
-section.txt and stats.txt next to itself.
+section.txt, stats.txt and the station's blocks (station-blocks-*.txt, for the load
+bench) next to itself.
 """
 
 from pathlib import Path
@@ -11,6 +12,8 @@ WIDTH, DEPTH = 97, 49  # hull 96 x 48 m
 CELLS_PER_M = 4
 DECK_PITCH_M = 4  # floor slab + 3.5 m room + ceiling slab
 ROOM_HEIGHT_CELLS = 14
+DECK_PITCH_CELLS = DECK_PITCH_M * CELLS_PER_M
+SLAB_CELLS = 1
 WEDGES_PER_STAIRWELL = 8  # two 2 m wide flights of 1.75 m, 1 m wedges
 CABIN_WIDTH_M = 3  # single cabins, 3 x 4 m
 PANEL_M = 4  # realistic estimate: walls and windows in panels up to 4 m, slabs up to 4 x 4 m
@@ -314,37 +317,141 @@ def command(number):
     return deck
 
 
-def run_lengths(grid, chars):
-    """Maximal straight runs of `chars` at least 2 long, horizontal and vertical."""
-    lengths = []
-    lines = ["".join(row) for row in grid]
-    lines += ["".join(grid[y][x] for y in range(DEPTH)) for x in range(WIDTH)]
-    for line in lines:
-        lengths += [len(run) for run in "".join(c if c in chars else " " for c in line).split() if len(run) >= 2]
-    return lengths
+def runs(grid, chars):
+    """Maximal straight runs of `chars` at least 2 long, horizontal and vertical, as (x0, y0, x1, y1)."""
+    found = []
+    for y, row in enumerate(grid):
+        x = 0
+        while x < WIDTH:
+            end = x
+            while end < WIDTH and row[end] in chars:
+                end += 1
+            if end - x >= 2:
+                found.append((x, y, end - 1, y))
+            x = max(end, x + 1)
+    for x in range(WIDTH):
+        y = 0
+        while y < DEPTH:
+            end = y
+            while end < DEPTH and grid[end][x] in chars:
+                end += 1
+            if end - y >= 2:
+                found.append((x, y, x, end - 1))
+            y = max(end, y + 1)
+    return found
 
 
-def door_count(grid):
-    """Doors are connected groups of door cells, whatever their width."""
+def door_boxes(grid):
+    """Doors are connected groups of door cells, whatever their width: one box each."""
     seen = set()
-    count = 0
+    boxes = []
     for y in range(DEPTH):
         for x in range(WIDTH):
-            if grid[y][x] in DOORS and (x, y) not in seen:
-                count += 1
-                stack = [(x, y)]
-                while stack:
-                    cx, cy = stack.pop()
-                    if (cx, cy) in seen or not (0 <= cx < WIDTH and 0 <= cy < DEPTH) or grid[cy][cx] not in DOORS:
-                        continue
-                    seen.add((cx, cy))
-                    stack += [(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)]
-    return count
+            if grid[y][x] not in DOORS or (x, y) in seen:
+                continue
+            cells = []
+            stack = [(x, y)]
+            while stack:
+                cx, cy = stack.pop()
+                if (cx, cy) in seen or not (0 <= cx < WIDTH and 0 <= cy < DEPTH) or grid[cy][cx] not in DOORS:
+                    continue
+                seen.add((cx, cy))
+                cells.append((cx, cy))
+                stack += [(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)]
+            xs = [c[0] for c in cells]
+            ys = [c[1] for c in cells]
+            boxes.append((min(xs), min(ys), max(xs), max(ys)))
+    return boxes
 
 
-def blocks(lengths, panel=None):
-    """One block per run, or per `panel` metres of it."""
-    return sum(-(-length // panel) if panel else 1 for length in lengths)
+def split(x0, y0, x1, y1, panel):
+    """A rectangle cut into pieces at most `panel` metres along each side."""
+    if not panel:
+        return [(x0, y0, x1, y1)]
+    return [(px, py, min(px + panel - 1, x1), min(py + panel - 1, y1))
+            for py in range(y0, y1 + 1, panel) for px in range(x0, x1 + 1, panel)]
+
+
+def rectangles(mask):
+    """Covers the True cells of `mask` with rectangles: row runs merged down while they repeat."""
+    open_runs = {}
+    found = []
+    for y in range(len(mask) + 1):
+        row_runs = set()
+        if y < len(mask):
+            x = 0
+            while x < len(mask[y]):
+                if mask[y][x]:
+                    end = x
+                    while end < len(mask[y]) and mask[y][end]:
+                        end += 1
+                    row_runs.add((x, end - 1))
+                    x = end
+                else:
+                    x += 1
+        for run, top in list(open_runs.items()):
+            if run not in row_runs:
+                found.append((run[0], top, run[1], y - 1))
+                del open_runs[run]
+        for run in row_runs:
+            open_runs.setdefault(run, y)
+    return found
+
+
+STAIR_OPENINGS = ((7, 13, 15, 21), (81, 27, 89, 35))
+SHAFT_OPENING = (47, 18, 49, 21)
+
+
+def slab_mask(decks, index):
+    """The floor of deck `index` (the roof when index == len(decks)): open over stairs and the shaft."""
+    mask = [[True] * WIDTH for _ in range(DEPTH)]
+    holes = []
+    if 0 < index < len(decks):
+        holes.append(SHAFT_OPENING)
+        if not (decks[index - 1].sealed and not decks[index].sealed):
+            holes += STAIR_OPENINGS
+    for x0, y0, x1, y1 in holes:
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                mask[y][x] = False
+    return mask
+
+
+def to_cells(kind, x0, y0, x1, y1, z0, height):
+    return (kind, x0 * CELLS_PER_M, y0 * CELLS_PER_M, z0, (x1 - x0 + 1) * CELLS_PER_M, (y1 - y0 + 1) * CELLS_PER_M, height)
+
+
+def station_blocks(decks, panel=None):
+    """Every block of the station in grid cells: one per straight run, or panels of at most `panel` metres."""
+    blocks = []
+    wall_height = DECK_PITCH_CELLS - SLAB_CELLS
+    for index in range(len(decks) + 1):
+        z_slab = index * DECK_PITCH_CELLS
+        for rect in rectangles(slab_mask(decks, index)):
+            blocks += [to_cells("slab", *piece, z_slab, SLAB_CELLS) for piece in split(*rect, panel)]
+    for deck in decks:
+        z_wall = (deck.number - 1) * DECK_PITCH_CELLS + SLAB_CELLS
+        for kind, chars in (("wall", WALL), ("window", WINDOW)):
+            for run in runs(deck.grid, chars):
+                blocks += [to_cells(kind, *piece, z_wall, wall_height) for piece in split(*run, panel)]
+        blocks += [to_cells("door", *box, z_wall, wall_height) for box in door_boxes(deck.grid)]
+        for x0, y0, x1, _ in STAIR_OPENINGS:  # two flights of 2 m wide 1 m wedges per stairwell
+            for flight_x in (x0, x1 - 1):
+                for step in range(WEDGES_PER_STAIRWELL // 4):
+                    for w in range(2):
+                        cell_z = z_wall + step * CELLS_PER_M
+                        blocks.append(to_cells("wedge", flight_x + w, y0 + step, flight_x + w, y0 + step,
+                                               cell_z, CELLS_PER_M))
+    return blocks
+
+
+def write_blocks(path, blocks, variant):
+    header = [
+        f"# Блоки тестовой станции ({variant}), генерирует generate_layout.py.",
+        "# kind x0 y0 z0 sx sy sz — угол и размер в ячейках сетки 0,25 м; z — вверх.",
+    ]
+    body = [" ".join(str(v) for v in block) for block in blocks]
+    path.write_text("\n".join(header + body) + "\n", encoding="utf-8")
 
 
 def interior_m2(deck):
@@ -419,49 +526,33 @@ def main():
         campus, science, command,
     ]
     decks = [build(number) for number, build in enumerate(builders, start=1)]
-    keys = ("berths", "rooms", "walls", "windows", "doors", "slabs", "wedges", "air_cells", "walls_p", "windows_p", "slabs_p")
-    total = dict.fromkeys(keys, 0)
     lines = ["Оценка нагрузки тестовой станции (генерируется generate_layout.py).", ""]
     for old in OUT.glob("deck-*.txt"):
         old.unlink()
+    berths = rooms = doors = air_cells = 0
     for deck in decks:
         (OUT / f"deck-{deck.number}.txt").write_text(render(deck), encoding="utf-8")
-        walls = run_lengths(deck.grid, WALL)
-        windows = run_lengths(deck.grid, WINDOW)
         area = interior_m2(deck)
-        deck_stats = {
-            "berths": deck.berths,
-            "rooms": len(deck.rooms),
-            "walls": blocks(walls),
-            "windows": blocks(windows),
-            "doors": door_count(deck.grid),
-            "slabs": len(deck.rooms) * 2,
-            "wedges": deck.stairwells * WEDGES_PER_STAIRWELL,
-            "air_cells": area * CELLS_PER_M * CELLS_PER_M * ROOM_HEIGHT_CELLS,
-            "walls_p": blocks(walls, PANEL_M),
-            "windows_p": blocks(windows, PANEL_M),
-            "slabs_p": 2 * -(-area // (PANEL_M * PANEL_M)),
-        }
-        for key in keys:
-            total[key] += deck_stats[key]
+        deck_doors = len(door_boxes(deck.grid))
+        deck_air = area * CELLS_PER_M * CELLS_PER_M * ROOM_HEIGHT_CELLS
+        berths += deck.berths
+        rooms += len(deck.rooms)
+        doors += deck_doors
+        air_cells += deck_air
         lines.append(
-            f"Палуба {deck.number} ({deck.name}): мест {deck_stats['berths']}, помещений {deck_stats['rooms']}, "
-            f"дверей {deck_stats['doors']}, "
-            f"площадь {area} м², ячеек воздуха {deck_stats['air_cells']:_}".replace("_", " "))
-
-    fixed = total["doors"] + total["wedges"]
-    minimal = total["walls"] + total["windows"] + total["slabs"] + fixed
-    panels = total["walls_p"] + total["windows_p"] + total["slabs_p"] + fixed
-    lines += [
-        "",
-        f"Одноместных кают: {total['berths']}. Помещений {total['rooms']}, дверей {total['doors']}, "
-        f"клиньев {total['wedges']}.",
-        f"Блоков, если каждый прямой отрезок — один блок: {minimal} "
-        f"(стен {total['walls']}, окон {total['windows']}, плит {total['slabs']}).",
-        f"Блоков панелями до {PANEL_M} м и плитами до {PANEL_M}×{PANEL_M} м: {panels} "
-        f"(стен {total['walls_p']}, окон {total['windows_p']}, плит {total['slabs_p']}).",
-        f"Ячеек воздуха (шаг 0,25 м): {total['air_cells']:_}.".replace("_", " "),
-    ]
+            f"Палуба {deck.number} ({deck.name}): мест {deck.berths}, помещений {len(deck.rooms)}, "
+            f"дверей {deck_doors}, площадь {area} м², ячеек воздуха {deck_air:_}".replace("_", " "))
+    lines += ["", f"Одноместных кают: {berths}. Помещений {rooms}, дверей {doors}.",
+              f"Ячеек воздуха (шаг 0,25 м): {air_cells:_}.".replace("_", " ")]
+    for variant, panel, file_name in (("отрезок — блок", None, "station-blocks-runs.txt"),
+                                      (f"панели до {PANEL_M} м", PANEL_M, "station-blocks-panels.txt")):
+        blocks = station_blocks(decks, panel)
+        write_blocks(OUT / file_name, blocks, variant)
+        kinds = {kind: sum(1 for block in blocks if block[0] == kind)
+                 for kind in ("wall", "window", "door", "slab", "wedge")}
+        lines.append(
+            f"Блоков ({variant}, {file_name}): {len(blocks)} — стен {kinds['wall']}, окон {kinds['window']}, "
+            f"дверей {kinds['door']}, плит {kinds['slab']}, клиньев {kinds['wedge']}.")
     (OUT / "stats.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (OUT / "section.txt").write_text(render_section(decks), encoding="utf-8")
     print("\n".join(lines))

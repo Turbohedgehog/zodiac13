@@ -21,6 +21,10 @@ file(
   ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.cpp
 )
 
+if(NOT Z13_BUILD_BENCHMARKS)
+  list(FILTER PROJECT_SOURCE_FILES EXCLUDE REGEX "/tests/bench/")
+endif()
+
 # Standalone DLL exercising lib_core and lib_z13.
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
@@ -54,6 +58,11 @@ target_link_libraries(
   GTest::gmock
   reflectcpp::reflectcpp
 )
+
+if(Z13_BUILD_BENCHMARKS)
+  # StationLoadBench reads the station the layout generator wrote.
+  target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_STATION_LAYOUT_DIR="${CMAKE_SOURCE_DIR}/docs/station-layout")
+endif()
 
 # Windows finds the plugin DLLs only next to the exe; ELF finds them by build-tree RPATH.
 if(WIN32)

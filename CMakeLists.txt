@@ -47,6 +47,9 @@ set(PROJECT_VERSION 0.2.0 CACHE PATH "Z13 version" FORCE)
 #     message(STATUS "=== ${_variableName}=${${_variableName}}")
 # endforeach()
 
+# Benchmarks (tests/bench/) run for minutes and only matter when measuring: `make.py --bench`.
+option(Z13_BUILD_BENCHMARKS "Build the benchmark tests under tests/bench/" OFF)
+
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

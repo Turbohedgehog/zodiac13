@@ -10,7 +10,8 @@
 - Run tests: `ctest --test-dir build` (or run `bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
 - `triplets/` overrides the built-in `x64-linux`/`arm64-linux` so flecs, spdlog and fmt are shared libraries there, as on `x64-windows`, and `lib_core` is itself shared (`z13_core`, next to the executable): every plugin must see the same flecs and spdlog process state, and links one copy instead of its own. A dependency with process-wide state that plugins share must be shared too; CI's `.github/scripts/check_duplicated_state.py` fails on data defined in more than one binary (known constants are allowed there, each with a reason). `z13_plugin_smoke` (ctest `PluginSmoke`) loads the server plugins the launcher's way to check this. Editing a triplet changes every port's ABI hash, i.e. rebuilds all dependencies; per-port build flags go in an overlay port (`ports/`).
 - ARM Linux in CI: `arm64-linux` builds natively on `ubuntu-24.04-arm`. 32-bit ARM (`arm-linux-gnueabihf`) is not supported: vcpkg marks `raylib` as `!arm32`.
-- `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration).
+- `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration); it caps jobs at 3 inside PRoot (`-j` overrides). `--bench` also builds the benchmarks under `*/tests/bench/` (CMake option `Z13_BUILD_BENCHMARKS`, off by default, so CI and plain builds skip them).
+- `python3 z13.py` runs what was built: the game (default, `--game`), a dedicated server (`--server [PORT]`), the tests (`--tests`, with `--filter` for a gtest filter) or the benchmarks (`--bench [--filter ...]`); arguments after `--` pass through.
 
 ## Codebase map
 
