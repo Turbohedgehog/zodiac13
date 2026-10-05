@@ -244,6 +244,7 @@ FlatBuffers (`schemas/fbs/net.fbs`, уже подключённый генера
 - **Обновить зависимости до последних версий.** Версии закреплены `overrides` в `vcpkg.json` и baseline в `vcpkg-configuration.json` (flecs 4.1.6, Bullet 3.25, raylib 6.0, reflect-cpp 0.25, FlatBuffers 25.12.19 и др.). Поднять baseline и overrides, проверить сборку на всех платформах CI, `CrossPlatformStateTest` (Bullet, флаги FP) и `check_duplicated_state.py`; новый flecs — заодно проверить C1116 для модулей C++20.
 - **Отставание чужого.** Перелёт и рывки чужого игрока устранены (абсолютные углы обзора, нейтральное предсказание чужого ввода, сглаживание в рендере; [remote-sync-research.md](remote-sync-research.md)), но наблюдатель видит его с отставанием ~0,3 с при задержке 3–6 тиков. Сократить его могут подсказки по unreliable — этап 2 [action-delivery-plan.md](action-delivery-plan.md).
 - **Пульс после `ResyncRequest` не проверен.** Пока клиент ждёт `Resync`, он шлёт пустой подтверждающий пакет каждый интервал отправки (нейтральное предсказание). Как сервер и ресинхронизирующийся клиент обрабатывают пакет, ушедший после запроса, проверено только рассуждением, тестом не покрыто.
+- **Сетевой код разросся** (`net_session_system.cpp` — 1186 строк, режимы предсказания, ожидание `Resync`, отложенные откаты). План упрощения — [net-simplification-plan.md](net-simplification-plan.md).
 - **Цикл ожидания в тесте `InMemoryNetwork` без границы.** `while (connected.empty())` в `in_memory_transport_test.cpp` повиснет, если соединение так и не установится; ограничить числом шагов.
 
 ## Риски и заметки
