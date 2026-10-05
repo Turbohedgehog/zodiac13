@@ -182,6 +182,10 @@ def cabin_wing(deck, x0, x1, band, passages, shared=(), layout=None, width=CABIN
     deck.rooms.append("КАЮТЫ")
 
 
+# Ladders between decks, in the tech rooms at both ends of the station.
+LADDER_HATCHES = ((2, 3, 3, 4), (93, 3, 94, 4), (2, 44, 3, 45), (93, 44, 94, 45))
+
+
 def service_tunnels(deck):
     """1 m tunnels along the north and south hull, behind a wall, with hidden doors into service rooms.
 
@@ -204,8 +208,8 @@ def service_tunnels(deck):
                 deck.put((rx0 + rx1) // 2, inner, HIDDEN)
     for x0, y_wall in ((0, 20), (0, 28), (90, 20), (90, 28)):  # tech rooms into the end airlocks
         deck.put(x0 + 3, y_wall, HIDDEN)
-    for x, y in ((2, 3), (93, 3), (2, 44), (93, 44)):  # ladders between decks
-        deck.fill(x, y, x + 1, y + 1, SEALED if deck.sealed else LADDER)
+    for x0, y0, x1, y1 in LADDER_HATCHES:
+        deck.fill(x0, y0, x1, y1, SEALED if deck.sealed else LADDER)
 
 
 def north_rooms(deck, rooms):
@@ -409,7 +413,7 @@ def slab_mask(decks, index):
     if 0 < index < len(decks):
         holes.append(SHAFT_OPENING)
         if not (decks[index - 1].sealed and not decks[index].sealed):
-            holes += STAIR_OPENINGS
+            holes += STAIR_OPENINGS + LADDER_HATCHES
     for x0, y0, x1, y1 in holes:
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
