@@ -92,32 +92,34 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
   });
 }
 
-// Bodies are derived from block components, not from add/remove events, so restored or
-// edited state is picked up too. Change detection limits the work to the frames and
-// tables where blocks changed; a body count off from the block count (e.g. a fresh
-// PhysicsWorld) forces a full pass.
-void SyncBlockBodies(flecs::iter& it, PhysicsWorld& physics_world, const BlockQuery& blocks) {
-  bool full_pass = false;
-  // Checked before count(): iterating the query resets its changed state.
-  if (!blocks.changed()) {
-    if (static_cast<size_t>(blocks.count()) == physics_world.BodyCount()) {
-      return;
-    }
-    full_pass = true;
-  }
-
-  ReleaseOrphanBodies(it.world(), physics_world);
-  blocks.run([&physics_world, full_pass](flecs::iter& block_it) {
-    while (block_it.next()) {
-      if (!full_pass && !block_it.changed()) {
+void SyncBlockTables(
+    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, bool changed_only) {
+  ReleaseOrphanBodies(world, physics_world);
+  blocks.run([&physics_world, changed_only](flecs::iter& it) {
+    while (it.next()) {
+      if (changed_only && !it.changed()) {
         continue;
       }
-      const auto transforms = block_it.field<const Eigen::Matrix4f>(1);
-      for (const size_t i : block_it) {
-        SyncBlockBody(block_it.entity(i), transforms[i], physics_world);
+      const auto transforms = it.field<const Eigen::Matrix4f>(1);
+      for (const size_t i : it) {
+        SyncBlockBody(it.entity(i), transforms[i], physics_world);
       }
     }
   });
+}
+
+// Bodies are derived from block components, not from add/remove events, so restored or
+// edited state is picked up too. Change detection limits the work to the frames and
+// tables where blocks changed; a body count still off from the block count afterwards
+// (e.g. a fresh PhysicsWorld) forces a full pass.
+void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, const BlockQuery& blocks) {
+  // Checked before count(): iterating the query resets its changed state.
+  if (blocks.changed()) {
+    SyncBlockTables(world, blocks, physics_world, /*changed_only=*/true);
+  }
+  if (static_cast<size_t>(blocks.count()) != physics_world.BodyCount()) {
+    SyncBlockTables(world, blocks, physics_world, /*changed_only=*/false);
+  }
 }
 
 btVector3 ToBtVector(const Eigen::Vector3f& vector) {
@@ -199,7 +201,7 @@ void RegisterSystems(flecs::world world) {
       .read<z13::building::BasicBlock>()
       .write<RigidBody>()
       .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world) {
-        SyncBlockBodies(it, physics_world, blocks);
+        SyncBlockBodies(it.world(), physics_world, blocks);
       });
 
   // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.

@@ -260,6 +260,20 @@ TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsBodiesOfUnchangedBlocks) {
   EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
 }
 
+// A block placed in the same frame must not narrow that sync to its own table.
+TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsAllBodiesWhenABlockIsAddedTheSameFrame) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+
+  test_world.World().remove<PhysicsWorld>();
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kFarX, 0.f, 0.f));
+  test_world.Tick(kTestDeltaTime);
+
+  EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 2u);
+}
+
 // Block bodies are static and asleep, so stepping skips their AABBs (see PhysicsWorld::State).
 TEST(PhysicsBodySyncTest, BlockBodiesAreStaticAndAsleep) {
   z13::testing::Z13TestWorld test_world;
