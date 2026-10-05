@@ -66,7 +66,7 @@ std::expected<Shape, std::string> ToShape(const fbs_station::ShapeUnion& shape) 
   return Error("no shape");
 }
 
-std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT& source) {
+std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT& source, int max_size_cells) {
   if (source.name.empty()) {
     return Error("no name");
   }
@@ -90,8 +90,8 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
       .material = {.first = ToRgba(*source.material->first), .second = ToRgba(*source.material->second)},
       .flags = source.flags,
   };
-  if ((primitive.min_size.array() < 1).any() || (primitive.max_size.array() > kMaxSizeCells).any()) {
-    return Error(std::format("sizes must be 1..{} cells", kMaxSizeCells));
+  if ((primitive.min_size.array() < 1).any() || (primitive.max_size.array() > max_size_cells).any()) {
+    return Error(std::format("sizes must be 1..{} cells", max_size_cells));
   }
   if ((primitive.min_size.array() > primitive.max_size.array()).any()) {
     return Error("min_size above max_size");
@@ -140,11 +140,11 @@ std::expected<Palette, std::string> ParsePalette(std::string_view json) {
     return Error("palette: no primitives");
   }
 
-  Palette palette;
+  Palette palette {.max_size_cells = source.max_size_cells};
   std::unordered_set<uint32_t> ids;
   std::unordered_set<std::string> names;
   for (const auto& entry : source.primitives) {
-    auto primitive = ToPrimitive(*entry);
+    auto primitive = ToPrimitive(*entry, palette.max_size_cells);
     if (!primitive) {
       return Error(std::format("palette: primitive {} '{}': {}", entry->id, entry->name, primitive.error()));
     }

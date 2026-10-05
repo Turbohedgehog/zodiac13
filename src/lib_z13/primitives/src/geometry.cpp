@@ -119,6 +119,7 @@ Eigen::Vector2f CellUv(const Eigen::Vector3f& position, const Eigen::Vector3f& n
 
 }  // namespace
 
+// Temporary: shapes are built in code until they come from models in a later stage.
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& shape, const Eigen::Vector3i& size) {
   if ((size.array() < 1).any()) {
     return std::unexpected(std::format("size {}x{}x{} has an empty axis", size.x(), size.y(), size.z()));

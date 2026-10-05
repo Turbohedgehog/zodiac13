@@ -33,6 +33,7 @@ namespace z13::primitives {
 
 using PrimitiveFlags = fbs::station::PrimitiveFlags;
 
+// Temporary: a fixed set of shapes, to be replaced by data/models in a later stage.
 enum class ShapeKind : uint8_t { kBox, kWedge, kCornerWedge, kDoorFrame };
 
 struct Shape {
@@ -62,6 +63,7 @@ struct Primitive {
 };
 
 struct Palette {
+  int max_size_cells {};
   std::vector<Primitive> primitives;
   // Of the palette's content, not its JSON text; peers compare it to agree on one palette.
   uint64_t hash {};
@@ -75,11 +77,8 @@ struct BlockPalette {
   Palette palette;
 };
 
-// Largest extent of a primitive along any axis (64 m at 0.25 m cells).
-inline constexpr int kMaxSizeCells = 256;
-
 // Parses palette JSON (primitives.fbs) and rejects duplicate ids or names, size limits
-// outside 1..kMaxSizeCells or min above max, stretchable door frames, and shapes that
+// outside 1..max_size_cells or min above max, stretchable door frames, and shapes that
 // can't be built at those sizes.
 std::expected<Palette, std::string> ParsePalette(std::string_view json);
 

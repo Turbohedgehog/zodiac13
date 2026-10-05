@@ -77,6 +77,8 @@ table Primitive {
 }
 
 table Palette {
+  // Largest extent of a primitive along any axis (64 m at 0.25 m cells).
+  max_size_cells: ushort = 256;
   primitives: [Primitive];
 }
 

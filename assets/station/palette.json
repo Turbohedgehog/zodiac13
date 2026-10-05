@@ -1,4 +1,5 @@
 {
+  "max_size_cells": 256,
   "primitives": [
     {
       "id": 1,

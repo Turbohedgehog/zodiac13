@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <span>
 
 namespace z13 {
@@ -31,10 +32,9 @@ constexpr uint64_t FnvMix(uint64_t hash, uint8_t byte) {
 }
 
 inline uint64_t FnvHash(std::span<const std::byte> bytes, uint64_t hash = kFnvOffsetBasis) {
-  for (const std::byte byte : bytes) {
-    hash = FnvMix(hash, static_cast<uint8_t>(byte));
-  }
-  return hash;
+  return std::accumulate(bytes.begin(), bytes.end(), hash, [](uint64_t mixed, std::byte byte) {
+    return FnvMix(mixed, static_cast<uint8_t>(byte));
+  });
 }
 
 }  // namespace z13

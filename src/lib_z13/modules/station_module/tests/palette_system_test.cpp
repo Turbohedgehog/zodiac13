@@ -29,8 +29,10 @@ namespace {
 
 using z13::primitives::BlockPalette;
 
+const std::filesystem::path kShippedPalettePath = std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json";
+
 TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
-  std::ifstream stream(std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json");
+  std::ifstream stream(kShippedPalettePath);
   std::ostringstream shipped;
   shipped << stream.rdbuf();
   const auto expected = z13::primitives::ParsePalette(shipped.str());
