@@ -245,6 +245,21 @@ TEST(PhysicsBodySyncTest, SyncIsIdempotentAcrossFrames) {
   EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
 }
 
+// Block bodies are static and asleep, so stepping skips their AABBs (see PhysicsWorld::State).
+TEST(PhysicsBodySyncTest, BlockBodiesAreStaticAndAsleep) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+
+  btDiscreteDynamicsWorld& dynamics_world = test_world.World().get_mut<PhysicsWorld>().DynamicsWorld();
+  EXPECT_FALSE(dynamics_world.getForceUpdateAllAabbs());
+  const btCollisionObjectArray& bodies = dynamics_world.getCollisionObjectArray();
+  ASSERT_EQ(bodies.size(), 1);
+  EXPECT_TRUE(bodies[0]->isStaticObject());
+  EXPECT_FALSE(bodies[0]->isActive());
+}
+
 // Placing and destroying blocks through the real pipeline: the block, its body and
 // what later systems see must all go away in the frame the block is destroyed.
 class BlockDestroyTest : public ::testing::Test {
