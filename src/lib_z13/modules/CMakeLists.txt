@@ -4,4 +4,5 @@ project(z13_modules)
 
 add_subdirectory(z13_module)
 add_subdirectory(bullet_module)
+add_subdirectory(station_module)
 add_subdirectory(net_module)

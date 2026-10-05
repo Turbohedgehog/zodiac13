@@ -361,6 +361,19 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
     e.destruct();
   }
 
+  // Value singletons the snapshot lacks are kept, but a tag's presence is its value: one
+  // the snapshot lacks was unset there (e.g. StationMode).
+  std::vector<flecs::entity> stale_singleton_tags;
+  world.query_builder().with<StateComponent>().with(flecs::Singleton).build().each([&](flecs::entity component) {
+    const auto* info = component.try_get<flecs::Component>();
+    if (info != nullptr && info->size == 0 && StateEntityFilter(component) && !names.contains(PathOf(component))) {
+      stale_singleton_tags.push_back(component);
+    }
+  });
+  for (const flecs::entity component : stale_singleton_tags) {
+    component.remove(component);
+  }
+
   if (auto applied = ApplyWorld(world, snapshot); !applied) {
     return applied;
   }

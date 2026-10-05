@@ -29,13 +29,14 @@ namespace {
 constexpr std::string_view kQuickSavePathOption = "quick-save-path";
 constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
+constexpr std::string_view kStationOption = "station";
 
 }  // namespace
 
 Config::Config() {
   options_description_.add_options()
       ("help,h", "Show help message")
-      ("skip-main-menu", po::bool_switch(&skip_main_menu_),
+      ("skip-main-menu", po::bool_switch(&command_line_.skip_main_menu),
        "Start gameplay immediately, skipping the main menu")
       (kQuickSavePathOption.data(), po::value<std::string>(),
        "Quick save file (default: the game data directory)")
@@ -43,14 +44,14 @@ Config::Config() {
        std::format("Run as a server (no rendering) on an optional port (default: {}); "
                     "mutually exclusive with --connect", kDefaultServerPort).c_str())
       (kConnectOption.data(), po::value<std::string>(),
-       "Join host[:port] on startup instead of showing the main menu");
+       "Join host[:port] on startup instead of showing the main menu")
+      (kStationOption.data(), po::bool_switch(&command_line_.station),
+       "Start in station-building mode (with --server, host it); a client gets the mode from the server");
 }
 
 void Config::Clear() {
   variables_map_ = boost::program_options::variables_map();
-  server_ = false;
-  port_ = kDefaultServerPort;
-  connect_endpoint_.reset();
+  command_line_ = {};
 }
 
 boost::program_options::options_description& Config::GetOptionsDescription() {
@@ -70,17 +71,21 @@ std::expected<void, std::string> Config::ParseCommandLineArguments(int argc, cha
 
 std::expected<void, std::string> Config::ValidateAndApplyArguments() {
   if (variables_map_.count(kServerOption.data()) > 0) {
-    server_ = true;
+    command_line_.server = true;
     const int raw_port = variables_map_[kServerOption.data()].as<int>();
     if (raw_port < kMinPort || raw_port > kMaxPort) {
       return std::unexpected(std::format("--{} port must be between {} and {}, got {}",
                                           kServerOption, kMinPort, kMaxPort, raw_port));
     }
-    port_ = static_cast<uint16_t>(raw_port);
+    command_line_.port = static_cast<uint16_t>(raw_port);
   }
 
-  if (server_ && variables_map_.count(kConnectOption.data()) > 0) {
+  if (command_line_.server && variables_map_.count(kConnectOption.data()) > 0) {
     return std::unexpected(std::format("--{} and --{} cannot be used together", kServerOption, kConnectOption));
+  }
+
+  if (command_line_.station && variables_map_.count(kConnectOption.data()) > 0) {
+    return std::unexpected(std::format("--{} and --{} cannot be used together", kStationOption, kConnectOption));
   }
 
   if (variables_map_.count(kConnectOption.data()) > 0) {
@@ -88,7 +93,7 @@ std::expected<void, std::string> Config::ValidateAndApplyArguments() {
     if (!endpoint) {
       return std::unexpected(std::format("--{}: {}", kConnectOption, endpoint.error()));
     }
-    connect_endpoint_ = *endpoint;
+    command_line_.connect_endpoint = *endpoint;
   }
 
   return {};
@@ -166,7 +171,7 @@ void Config::OverrideFps(std::optional<double> fps) {
 }
 
 bool Config::SkipMainMenu() const {
-  return skip_main_menu_;
+  return command_line_.skip_main_menu;
 }
 
 std::optional<std::filesystem::path> Config::GetQuickSavePath() const {
@@ -178,15 +183,19 @@ std::optional<std::filesystem::path> Config::GetQuickSavePath() const {
 }
 
 bool Config::IsServer() const {
-  return server_;
+  return command_line_.server;
+}
+
+bool Config::IsStation() const {
+  return command_line_.station;
 }
 
 uint16_t Config::GetPort() const {
-  return port_;
+  return command_line_.port;
 }
 
 std::optional<Endpoint> Config::GetConnectEndpoint() const {
-  return connect_endpoint_;
+  return command_line_.connect_endpoint;
 }
 
 std::ostream& operator<<(std::ostream& os, const Config& person) {

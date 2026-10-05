@@ -61,6 +61,8 @@ class Config {
   // --connect. PORT defaults to kDefaultServerPort when omitted.
   bool IsServer() const;
   uint16_t GetPort() const;
+  // --station: start in station-building mode; mutually exclusive with --connect.
+  bool IsStation() const;
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
@@ -79,10 +81,15 @@ class Config {
   CoreSettings core_settings_;
   std::vector<SchemaOptions> schema_options_;
   std::optional<double> fps_override_;
-  bool skip_main_menu_ {false};
-  bool server_ {false};
-  uint16_t port_ {kDefaultServerPort};
-  std::optional<Endpoint> connect_endpoint_;
+  // Everything the last parse produced; Clear() resets it as one.
+  struct CommandLine {
+    bool skip_main_menu {false};
+    bool server {false};
+    bool station {false};
+    uint16_t port {kDefaultServerPort};
+    std::optional<Endpoint> connect_endpoint;
+  };
+  CommandLine command_line_;
 };
 
 }  // namespace z13
