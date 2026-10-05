@@ -152,6 +152,9 @@ class PhysicsWorld::State {
   State()
       : dispatcher_(&collision_config_),
         dynamics_world_(&dispatcher_, &broadphase_, &solver_, &collision_config_) {
+    // Every body is a static block, which Bullet keeps asleep: its AABB changes only when
+    // SyncBody re-adds it, so stepping needn't recompute thousands of them each tick.
+    dynamics_world_.setForceUpdateAllAabbs(false);
   }
 
   btDiscreteDynamicsWorld& DynamicsWorld() { return dynamics_world_; }
