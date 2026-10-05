@@ -86,6 +86,19 @@ add_custom_target(z13_config ALL
     COMMENT "Copying config/ -> bin/config/"
     VERBATIM
 )
+# assets/ likewise: the renderer and station_module (its block palette) both read it.
+add_custom_target(z13_assets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+            ${CMAKE_SOURCE_DIR}/assets
+            ${CMAKE_SOURCE_DIR}/bin/assets
+    COMMENT "Copying assets/ -> bin/assets/"
+    VERBATIM
+)
+add_dependencies(station_module z13_assets)
+add_dependencies(raylib_module z13_assets)
+add_dependencies(z13_tests z13_assets)
+add_dependencies(z13_plugin_smoke z13_assets)
+
 # The exe loads these DLLs at runtime (not linked), so make building it also
 # build them — otherwise `--target zodiac13` / the IDE build produces a useless exe.
 include(cmake/plugins.cmake)

@@ -55,10 +55,14 @@ target_link_libraries(
   zodiac13::net_module
   zodiac13::z13_launcher
   zodiac13::z13_settings
+  zodiac13::z13_primitives
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp
 )
+
+# The palette tests read the shipped palette from the source tree.
+target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_SOURCE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 
 if(Z13_BUILD_BENCHMARKS)
   # StationLoadBench reads the station the layout generator wrote.

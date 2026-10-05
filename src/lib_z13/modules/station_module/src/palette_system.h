@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
-
-#include "construction_site_system.h"
-#include "palette_system.h"
+#include <lib_core/world/core_types.h>
 
 namespace z13::station {
 
-StationModule::StationModule(flecs::world& world) {
-  PaletteSystem::Register(world);
-  ConstructionSiteSystem::Register(world);
-}
+// Loads assets/station/palette.json into the BlockPalette singleton.
+class PaletteSystem {
+ public:
+  static void Register(flecs::world& world);
+};
 
 }  // namespace z13::station
