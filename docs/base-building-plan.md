@@ -99,7 +99,7 @@
 
 ## Порядок работ (одна ветка на этап)
 
-1–3. **Сетка, палитра и оболочки** — по [station-primitives-plan.md](station-primitives-plan.md): мелкая сетка, примитивы станции из FlatBuffers-описания, меш и оболочка строятся по форме в коде (`f/primitive-data`, `f/block-grid`, `f/build-palette-ui`, `f/station-primitives`). Оболочки из fbx — позже, для произвольных моделей.
+1–3. **Сетка, палитра и оболочки** — по [station-primitives-plan.md](station-primitives-plan.md): мелкая сетка, примитивы станции из FlatBuffers-описания, меш и оболочка строятся по форме в коде (`f/station-mode`, `f/primitive-data`, `f/block-grid`, `f/build-palette-ui`, `f/build-cut`, `f/station-primitives`). Оболочки из fbx — позже, для произвольных моделей.
 4. **`f/build-tools`** (~900): вращение, дублирование, выделение, линия/плоскость, снос выделения, пачка как одна команда; общая `ValidateBuild`, лимит `max_base_blocks` в настройках и в `Welcome`; сетевая проверка (несколько клиентов, конфликт ячейки).
 5. **`f/build-undo`** (~700): записи изменений `{ячейка, было, стало}`, `Do`/`Undo` по ним, стеки `undo`/`redo` на игроке с глубиной `undo_depth`, `RequestUndo`/`RequestRedo` через серверную последовательность, составные команды. Тесты: цикл do/undo/redo, пачка с частично занятыми ячейками, конфликт с чужим изменением, откат мира с `Undo` внутри (`StateDigest` совпал), сохранение стека.
 6–9. **Двери, помещения, газ, гравитация** — по [station-systems-plan.md](station-systems-plan.md), вместе с рендером, электричеством и взаимодействием.
