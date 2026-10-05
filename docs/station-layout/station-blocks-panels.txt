@@ -1,5 +1,5 @@
-# Блоки тестовой станции (панели до 4 м), генерирует generate_layout.py.
-# kind x0 y0 z0 sx sy sz — угол и размер в ячейках сетки 0,25 м; z — вверх.
+# Test station blocks (panels up to 4 m), written by generate_layout.py.
+# kind x0 y0 z0 sx sy sz - corner and size in 0.25 m grid cells; z is up.
 slab 0 0 0 16 16 1
 slab 16 0 0 16 16 1
 slab 32 0 0 16 16 1

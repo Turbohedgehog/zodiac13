@@ -1,16 +1,16 @@
-Оценка нагрузки тестовой станции (генерируется generate_layout.py).
+Test station load estimate (written by generate_layout.py).
 
-Палуба 1 (Запечатанная палуба Σ): мест 0, помещений 24, дверей 39, площадь 3820 м², ячеек воздуха 855 680
-Палуба 2 (Запечатанная палуба Ω): мест 0, помещений 24, дверей 39, площадь 3820 м², ячеек воздуха 855 680
-Палуба 3 (Инженерная палуба): мест 0, помещений 23, дверей 33, площадь 3862 м², ячеек воздуха 865 088
-Палуба 4 (Палуба охраны и складов): мест 17, помещений 48, дверей 53, площадь 3661 м², ячеек воздуха 820 064
-Палуба 5 (Жилая палуба А): мест 115, помещений 143, дверей 149, площадь 2979 м², ячеек воздуха 667 296
-Палуба 6 (Жилая палуба Б): мест 115, помещений 143, дверей 149, площадь 2979 м², ячеек воздуха 667 296
-Палуба 7 (Палуба кампуса): мест 0, помещений 25, дверей 32, площадь 3888 м², ячеек воздуха 870 912
-Палуба 8 (Научная палуба): мест 0, помещений 24, дверей 31, площадь 3911 м², ячеек воздуха 876 064
-Палуба 9 (Командная палуба): мест 13, помещений 36, дверей 43, площадь 3721 м², ячеек воздуха 833 504
+Deck 1 (Sealed deck Sigma): berths 0, rooms 24, doors 39, area 3820 m2, air cells 855,680
+Deck 2 (Sealed deck Omega): berths 0, rooms 24, doors 39, area 3820 m2, air cells 855,680
+Deck 3 (Engineering deck): berths 0, rooms 23, doors 33, area 3862 m2, air cells 865,088
+Deck 4 (Security & storage deck): berths 17, rooms 48, doors 53, area 3661 m2, air cells 820,064
+Deck 5 (Habitat deck A): berths 115, rooms 143, doors 149, area 2979 m2, air cells 667,296
+Deck 6 (Habitat deck B): berths 115, rooms 143, doors 149, area 2979 m2, air cells 667,296
+Deck 7 (Campus deck): berths 0, rooms 25, doors 32, area 3888 m2, air cells 870,912
+Deck 8 (Science deck): berths 0, rooms 24, doors 31, area 3911 m2, air cells 876,064
+Deck 9 (Command deck): berths 13, rooms 36, doors 43, area 3721 m2, air cells 833,504
 
-Одноместных кают: 260. Помещений 490, дверей 568.
-Ячеек воздуха (шаг 0,25 м): 7 311 584.
-Блоков (отрезок — блок, station-blocks-runs.txt): 1892 — стен 1050, окон 5, дверей 568, плит 125, клиньев 144.
-Блоков (панели до 4 м, station-blocks-panels.txt): 7493 — стен 3057, окон 41, дверей 568, плит 3683, клиньев 144.
+Single cabins: 260. Rooms 490, doors 568.
+Air cells (0.25 m grid): 7,311,584.
+Blocks (one block per straight run, station-blocks-runs.txt): 1892 - walls 1050, windows 5, doors 568, slabs 125, wedges 144.
+Blocks (panels up to 4 m, station-blocks-panels.txt): 7493 - walls 3057, windows 41, doors 568, slabs 3683, wedges 144.
