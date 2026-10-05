@@ -6,6 +6,7 @@
 - Configure + build (Linux, Ninja generator, already the default): `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)`.
 - Build a single target (faster iteration): `cmake --build build --target <target>` (e.g. `raylib_module`).
 - If running inside PRoot (check `uname -a` for `PRoot-Distro` in the kernel string), cap parallel build jobs at 2-3 (e.g. `-j3`) instead of `-j$(nproc)` — higher counts have hung the session before. `-j3` was verified safe (incremental and full clean rebuilds, no hang) on 2026-09-16.
+- A full vcpkg rebuild inside PRoot (e.g. after a triplet change) ignores `-jN` for ports: also set `VCPKG_MAX_CONCURRENCY`; only `-j1` with `VCPKG_MAX_CONCURRENCY=1` completed without hanging. Launch it detached (`setsid -f bash -c '...' > log 2>&1 < /dev/null`) and read the log, since a long foreground or background tool call gets killed with the build. GitHub downloads drop intermittently: retry configure. Never `pkill -f` a pattern that also appears in your own command line — it kills the calling shell.
 - `ccache` is auto-detected by `CMakeLists.txt` (`CMAKE_CXX_COMPILER_LAUNCHER`) when installed — install it (`apt install ccache`) to speed up rebuilds.
 - Run tests: `ctest --test-dir build` (or run `bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
 - `triplets/` overrides the built-in `x64-linux`/`arm64-linux` so flecs, spdlog and fmt are shared libraries there, as on `x64-windows`, and `lib_core` is itself shared (`z13_core`, next to the executable): every plugin must see the same flecs and spdlog process state, and links one copy instead of its own. A dependency with process-wide state that plugins share must be shared too; CI's `.github/scripts/check_duplicated_state.py` fails on data defined in more than one binary (known constants are allowed there, each with a reason). `z13_plugin_smoke` (ctest `PluginSmoke`) loads the server plugins the launcher's way to check this. Editing a triplet changes every port's ABI hash, i.e. rebuilds all dependencies; per-port build flags go in an overlay port (`ports/`).
@@ -33,6 +34,10 @@ Each gameplay/render module (`bullet_module`, `raylib_module`, `z13_module`) is 
 - For per-entity state that wraps a native/engine object (a Bullet body, a GPU model, ...): make the component an empty tag, and own the actual object in a side table (`std::unordered_map<flecs::entity_t, T>`) kept by the owning singleton/system. `unordered_map` is node-based, so an element's address stays stable across insert/erase of other entries — no smart pointer needed even though the object itself can't move. See `bullet_module`'s `RigidBody` tag + `PhysicsWorld`'s internal `bodies` table, and `raylib_module`'s `BuildingBlock` tag + `EnvironmentRenderSystem`'s `BlockModels` table, for the pattern.
 - Where a stable-address pImpl is still needed (the singleton exemption above), name the backing struct `State` (not `Impl`) and its handle member `state_`; the handle itself must be `shared_ptr`, not `unique_ptr` — flecs can in principle duplicate a component, and `unique_ptr` wouldn't tolerate that.
 - State that must survive save/load or a network restore is marked inside the component struct with independent nested properties: `using State = void;` (empty structs become state tags) and, for singletons, `using Singleton = void;` (a nested type doesn't affect reflect-cpp; a C++ base class would break it). Register through `RegisterComponent<T>`/`RegisterComponents<...>` (`lib_core/state/world_state.h`), which applies the properties (reflect-cpp meta is built only for `State` components, so `Singleton`-only ones may hold `std::optional`, paths, etc.); new properties are added the same way. A singleton that belongs to one network session (queues, logs, clock sync, ...) also declares `using SessionScoped = void;`: `ResetSessionScopedComponents` resets all of them when a session starts or ends, so no reset list has to be maintained by hand. State components live on entities tagged `StateEntity`; a singleton with both properties on its component entity. Unmarked components, and singletons without `State`, are never state. Everything derived from state (native objects, side tables, helper entities) is rebuilt by systems that compare against those components every frame, not by `OnAdd`/`OnRemove`/`OnSet` observers; observers are for external events (input, save/load requests, lifecycle). Register through the helpers, not raw `.member()` chains: inside an observer flecs defers commands and each `.member()` overwrites the previous one (the helpers use `ImmediateScope`). A system that creates/destroys entities other systems read later in the frame declares `.write<...>()`, and one that checks components inside its body (`has<>`) declares `.read<...>()`; otherwise flecs defers the merge to the next frame.
+- An observer that reads a component's *value* listens on `flecs::OnSet`, not `OnAdd`: `.set<T>(v)` adds a default-constructed `T` (firing `OnAdd`) before assigning `v`.
+- A system's `.immediate()` flag doesn't suspend command deferral; to create something and read it back in the same callback (e.g. spawn, then `CaptureState`), wrap it in `ImmediateScope`.
+- `world.progress()` can't nest, so nothing called from a system may tick the world itself: re-simulating ticks goes through `RequestRollback`/`DeferRollback` (`lib_core/state/rollback.h`), which `TickWorld` applies between frames. A restore applies a snapshot captured earlier — don't let other deltas land on the same world while one is pending, or they're pruned as stale.
+- Before reasoning about when a system runs, check its real schedule: `ecs_log_set_level(1)` around one `progress()` prints it; ids (and so tie order) differ between Debug and Release.
 - Access a singleton component (`.add(flecs::Singleton)`) as a query/observer term directly — add it to the system's/observer's type list and take it as a parameter — rather than calling `world.ensure<T>()`/`get_mut<T>()` inside the callback body.
 
 ## Code style
@@ -45,14 +50,27 @@ Each gameplay/render module (`bullet_module`, `raylib_module`, `z13_module`) is 
 - Avoid exceptions for error handling; prefer `std::expected` instead.
 - Log as little as possible inside helper functions: return failures through `std::expected` and let the business-logic caller (system, observer, handler) log once. This keeps logging in few places, so adding another sink (file, network, console) touches little code.
 - Don't signal "no value" with a sentinel (`-1`, `0`, an empty string, ...); use `std::optional` instead, so absence can't be confused with a real value.
-- Default member initializers: use brace-init (`int x {};`, `bool y {};`) instead of `= 0`/`= false`; for Eigen members use `Type::Zero()` instead of `{0.f, 0.f}`.
+- One non-trivial class per `.h`/`.cpp` pair; don't pile helper classes into one file's anonymous namespace.
+- Reference members are `std::reference_wrapper`, not `T&`.
+- Library code (`lib_core`, module libraries) returns errors through `std::expected`; only systems, observers and the launcher log them.
+- Default member initializers (every member, pointers included: `ecs_world_t* world_ {};`): use brace-init (`int x {};`, `bool y {};`) instead of `= 0`/`= false`; for Eigen members use `Type::Zero()` instead of `{0.f, 0.f}`.
 - Don't expose `void*` or raw-pointer-plus-count pairs in APIs. Forward-declare the concrete type instead of erasing it to `void*`, and return a standard container/view (e.g. `const std::vector<T>&`, `std::span<T>`) instead of a pointer-and-length out-parameter.
 - Group related scalar fields that travel together (e.g. width/height, x/y) into a single `Eigen::Vector2i`/`Eigen::Vector2f` rather than separate members.
-- Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`.
+- Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`, also between stacked empty `case` labels.
 - Prefer `std::format` over `snprintf`/manual char buffers or string concatenation (`+`) for building strings.
 - Represent filesystem paths as named `std::filesystem::path` constants, not bare string literals passed inline.
 - Avoid magic numbers; give them a named `constexpr` constant.
 - Always use braces for `if`/loop bodies, even single-statement ones.
+
+## Working in this repo
+
+- Comment-only edits need no rebuild or test run.
+- Before committing, scan the added comments (`git diff main -U0 | grep '^+\s*//'`) and delete those that restate a name or the code; comments running long has been the most frequent review remark.
+- For a sweep over many files (renames, comment trimming), take the whole diff/grep once and read the targets together, then edit straight through the list.
+- Some files are CRLF on purpose (e.g. `vcpkg.json`): edit them with the Edit tool or open them with `newline=''`; a text-mode Python rewrite turns them into a whole-file diff. Check `git diff --stat` for unexpected sizes.
+- Render-side mechanisms (smoothing, effects) work for every rendered entity with the relevant component, keyed per entity in a side table — not special-cased for today's brush or camera; more meshes and animations are coming.
+- Pre-alpha: changing the save/snapshot format needs no migration of player data; only regenerate saves checked into the repo or tests.
+- Tests reuse the project's registration helpers (`RegisterComponent`, `RegisterComponentMeta`) and say why when they can't.
 
 ## Comments
 
