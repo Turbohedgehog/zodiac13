@@ -245,6 +245,21 @@ TEST(PhysicsBodySyncTest, SyncIsIdempotentAcrossFrames) {
   EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
 }
 
+// Unchanged blocks skip the sync, so a recreated PhysicsWorld must still get their bodies.
+TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsBodiesOfUnchangedBlocks) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  // The second tick syncs the table the block moved to when it got RigidBody.
+  test_world.Tick(kTestDeltaTime);
+  test_world.Tick(kTestDeltaTime);
+
+  test_world.World().remove<PhysicsWorld>();
+  test_world.Tick(kTestDeltaTime);
+
+  EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 1u);
+  EXPECT_GT(SettlePlayerAt(test_world, kBlockX + kInsideOffset).x(), kBlockX + kInsideOffset);
+}
+
 // Block bodies are static and asleep, so stepping skips their AABBs (see PhysicsWorld::State).
 TEST(PhysicsBodySyncTest, BlockBodiesAreStaticAndAsleep) {
   z13::testing::Z13TestWorld test_world;
