@@ -6,10 +6,10 @@
 
 ## Стенд
 
-`SyncBench` (`z13_module/tests/net/sync_bench_test.cpp`), выключен по умолчанию:
+`SyncBench` (`z13_module/tests/bench/sync_bench_test.cpp`) собирается только с бенчмарками (`python3 make.py --bench`) и запускается отдельно:
 
 ```
-bin/tests/z13_test_runner --gtest_also_run_disabled_tests --gtest_filter='SyncBench.*'
+python3 z13.py --bench --filter 'SyncBench.*'
 ```
 
 Сервер и клиенты A и B на `InMemoryNetwork`. A выполняет сценарий, B смотрит. Эталон — поза A у самого A.
