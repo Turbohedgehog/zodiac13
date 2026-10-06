@@ -34,6 +34,7 @@
 #include <z13/components/station.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
+#include <z13_settings/building_tuning.h>
 
 #include "build_action_ids.h"
 #include "station_build_phase.h"
@@ -52,17 +53,13 @@ using z13::station::BrushDrag;
 using z13::station::BuildPermission;
 using z13::station::StationMode;
 
-// The first brush, before any pick: a 2 m square wall panel.
-constexpr uint32_t kDefaultBrushType = 2;
-// A picked primitive spans 2 m along each axis it stretches along, until a drag resizes it.
-constexpr int kDefaultBrushWidthCells = 8;
-
 // Every station player may build for now (a sandbox). Granted once, with the brush, so
 // it can be taken away.
-void EnsureBlockBrush(flecs::entity player, const z13::gameplay::Player&) {
+void EnsureBlockBrush(flecs::entity player, const z13::gameplay::Player&, const BuildingTuning& tuning) {
+  const int width = tuning.default_brush_width_cells;
   player
       .set(BlockBrush {
-          .spec = {.type_id = kDefaultBrushType, .size = {kDefaultBrushWidthCells, 1, kDefaultBrushWidthCells}},
+          .spec = {.type_id = tuning.default_brush_type, .size = {width, 1, width}},
       })
       .add<BuildPermission>();
 }
@@ -71,8 +68,8 @@ void DropBrushDrag(flecs::entity player, const BrushDrag&) {
   player.remove<BrushDrag>();
 }
 
-Eigen::Vector3i DefaultSize(const Primitive& primitive) {
-  return Eigen::Vector3i::Constant(kDefaultBrushWidthCells).cwiseMax(primitive.min_size).cwiseMin(primitive.max_size);
+Eigen::Vector3i DefaultSize(const Primitive& primitive, int width_cells) {
+  return Eigen::Vector3i::Constant(width_cells).cwiseMax(primitive.min_size).cwiseMin(primitive.max_size);
 }
 
 // A step through the palette from `current` (the first primitive if it isn't there).
@@ -110,12 +107,12 @@ std::optional<uint32_t> PickedType(
 
 void ApplyBrushActions(
     BlockBrush& brush, const z13::input::ActionListener& listener, const BuildActionIds& ids,
-    const BlockPalette& palette) {
+    const BlockPalette& palette, const BuildingTuning& tuning) {
   BlockSpec spec = brush.spec;
   if (const auto type = PickedType(listener, ids, palette.palette, spec.type_id); type && *type != spec.type_id) {
     if (const auto primitive = palette.palette.Find(*type)) {
       spec.type_id = *type;
-      spec.size = DefaultSize(primitive->get());
+      spec.size = DefaultSize(primitive->get(), tuning.default_brush_width_cells);
     }
   }
 
@@ -140,7 +137,7 @@ void RegisterSystems(flecs::world world) {
       .write<BrushDrag>()
       .each(DropBrushDrag);
 
-  world.system<const z13::gameplay::Player>("BrushSystem::EnsureBlockBrush")
+  world.system<const z13::gameplay::Player, const BuildingTuning>("BrushSystem::EnsureBlockBrush")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .without<BlockBrush>()
@@ -148,8 +145,8 @@ void RegisterSystems(flecs::world world) {
       .write<BuildPermission>()
       .each(EnsureBlockBrush);
 
-  world.system<BlockBrush, const z13::input::ActionListener, const BuildActionIds, const BlockPalette>(
-           "BrushSystem::ApplyBrushActions")
+  world.system<BlockBrush, const z13::input::ActionListener, const BuildActionIds, const BlockPalette,
+               const BuildingTuning>("BrushSystem::ApplyBrushActions")
       .kind<StationBuildPhase>()
       // No BuildingTool term: the palette window's pick also lands with the tool put away;
       // the keys' Building group only routes input while it is out.

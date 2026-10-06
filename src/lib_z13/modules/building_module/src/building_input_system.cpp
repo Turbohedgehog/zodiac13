@@ -89,7 +89,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.destroy_block = find_action_id(z13::fbs::building::Action::DESTROY_BLOK);
   build_action_ids.previous_primitive = find_action_id(z13::fbs::building::Action::PREVIOUS_PRIMITIVE);
   build_action_ids.next_primitive = find_action_id(z13::fbs::building::Action::NEXT_PRIMITIVE);
-  constexpr std::array<z13::fbs::building::Action, kPaletteSlots> kSlotActions {
+  constexpr std::array kSlotActions {
       z13::fbs::building::Action::SELECT_SLOT_1, z13::fbs::building::Action::SELECT_SLOT_2,
       z13::fbs::building::Action::SELECT_SLOT_3, z13::fbs::building::Action::SELECT_SLOT_4,
       z13::fbs::building::Action::SELECT_SLOT_5, z13::fbs::building::Action::SELECT_SLOT_6,

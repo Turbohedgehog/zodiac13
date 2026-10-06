@@ -29,4 +29,8 @@ table BuildingTuning {
   spawn_height_above_marker: float = 1 (min: 0, cli);
   // Cells kept free above a spawn marker: past the head of a player at the spawn height.
   spawn_clearance_cells: int32 = 8 (min: 1, max: 64, cli);
+  // The palette primitive a player's brush starts with: a wall panel.
+  default_brush_type: uint32 = 2 (min: 1, cli);
+  // Cells a picked primitive spans along each axis it stretches along, until a drag resizes it.
+  default_brush_width_cells: int32 = 8 (min: 1, max: 256, cli);
 }
