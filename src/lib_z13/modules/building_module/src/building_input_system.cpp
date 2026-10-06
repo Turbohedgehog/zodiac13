@@ -45,6 +45,7 @@ namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 constexpr std::string_view kBuildingActionGroup = "Building";
+constexpr float kHeldActionValue = 0.5f;
 
 void OnAppendInputSchema(
     flecs::iter it,
@@ -101,6 +102,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.rotate_around_y = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Y);
   build_action_ids.rotate_around_x = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_X);
   build_action_ids.select_primitive = find_action_id(z13::fbs::building::Action::SELECT_PRIMITIVE);
+  build_action_ids.show_palette = find_action_id(z13::fbs::building::Action::SHOW_PALETTE);
   build_action_ids.cancel_brush_drag = find_action_id(z13::fbs::building::Action::CANCEL_BRUSH_DRAG);
 }
 
@@ -183,6 +185,33 @@ void CancelPausedBrushDrag(z13::input::ActionListener& action_listener, const Bu
   }
 }
 
+// The palette shows while its key is held with the brush out; the local player's input
+// alone decides, since the cursor is the local machine's.
+void SyncFreeCursor(flecs::entity e, const z13::input::ActionListener& action_listener, const BuildActionIds& ids) {
+  const auto value = ids.show_palette ? action_listener.Value(*ids.show_palette) : std::nullopt;
+  const bool held = value && value->current_value >= kHeldActionValue && e.has<BuildingTool>();
+  flecs::world world = e.world();
+  if (held && !world.has<z13::gameplay::FreeCursor>()) {
+    world.add<z13::gameplay::FreeCursor>();
+  } else if (!held && world.has<z13::gameplay::FreeCursor>()) {
+    world.remove<z13::gameplay::FreeCursor>();
+  }
+}
+
+// Clicks pick from the palette, so they build nothing; the release that ending a drag
+// would read as is cancelled, like a pause's.
+void SuppressBuildingWhileCursorFree(
+    flecs::entity e, z13::input::ActionListener& action_listener, const BuildActionIds& ids) {
+  for (const auto& action_id : {ids.build_block, ids.destroy_block}) {
+    if (action_id) {
+      action_listener.action_values[*action_id].current_value = 0.f;
+    }
+  }
+  if (e.has<z13::station::BrushDrag>() && ids.cancel_brush_drag) {
+    action_listener.action_values[*ids.cancel_brush_drag].current_value = 1.f;
+  }
+}
+
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<BuildActionIds, z13::station::PaletteChoice>(world);
 }
@@ -214,6 +243,23 @@ void RegisterSystems(flecs::world world) {
       .without<z13::gameplay::Pause>()
       .without<z13::flecs_tools::ReplayInProgress>()
       .each(SendPaletteChoice);
+
+  world.system<const z13::input::ActionListener, const BuildActionIds>("gameplay_input_system::SyncFreeCursor")
+      .kind<z13::input::CalculateActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .with<z13::station::StationMode>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .write<z13::gameplay::FreeCursor>()
+      .each(SyncFreeCursor);
+
+  world.system<z13::input::ActionListener, const BuildActionIds>(
+           "gameplay_input_system::SuppressBuildingWhileCursorFree")
+      .kind<z13::input::CalculateActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .with<z13::gameplay::FreeCursor>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .read<z13::station::BrushDrag>()
+      .each(SuppressBuildingWhileCursorFree);
 
   world.system<z13::input::ActionListener, const BuildActionIds>("gameplay_input_system::CancelPausedBrushDrag")
       .kind<z13::input::CalculateActionFramePhase>()

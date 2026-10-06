@@ -51,7 +51,6 @@ void PaletteWindow::DrawBody() {
     const std::string label = slot < kNumberedSlots ? std::format("{}  {}", slot + 1, primitive.name) : primitive.name;
     if (ImGui::Button(label.c_str(), kButtonSize)) {
       World().set(z13::station::PaletteChoice {.slot = slot});
-      RequestCloseMenu();
     }
   }
 }

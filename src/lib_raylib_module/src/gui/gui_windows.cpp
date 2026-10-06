@@ -33,7 +33,6 @@
 #include "gui_keybindings.h"
 #include "gui_widgets.h"
 #include "net_windows.h"
-#include "palette_window.h"
 
 namespace z13::raylib::gui {
 
@@ -214,9 +213,6 @@ class GameplayPauseMenuWindow : public Window {
   void DrawBody() override {
     if (ImGui::Button("Resume", kButtonSize)) {
       RequestCloseMenu();
-    }
-    if (World().has<z13::station::StationMode>() && ImGui::Button("Block palette...", kButtonSize)) {
-      RequestPush(MakePaletteWindow(World()));
     }
     if (ImGui::Button("Settings...", kButtonSize)) {
       RequestPush(std::make_shared<InputSettingsWindow>(World()));

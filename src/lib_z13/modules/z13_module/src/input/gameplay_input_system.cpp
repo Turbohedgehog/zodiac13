@@ -374,7 +374,7 @@ void CalculateLookValues(
     const Eigen::Matrix4f& transform) {
   float yaw_delta_deg = 0.f;
   float pitch_delta_deg = 0.f;
-  if (e.world().has<z13::gameplay::Pause>()) {
+  if (e.world().has<z13::gameplay::Pause>() || e.world().has<z13::gameplay::FreeCursor>()) {
     input_state.mouse_yaw_delta_deg = 0.f;
     input_state.mouse_pitch_delta_deg = 0.f;
   } else {
@@ -457,6 +457,7 @@ void RegisterSystems(flecs::world world) {
       .event<z13::input::SystemInputEventType>()
       // Menu mouse motion must not turn the camera on resume.
       .without<z13::gameplay::Pause>()
+      .without<z13::gameplay::FreeCursor>()
       .each(OnMouseMove);
 
   world.observer<
@@ -527,6 +528,7 @@ void RegisterSystems(flecs::world world) {
       .without<z13::flecs_tools::ReplayInProgress>()
       .with<z13::input::CurrentActionListenerTag>()
       .read<z13::gameplay::Pause>()
+      .read<z13::gameplay::FreeCursor>()
       .read<LookAngles>()
       .each(CalculateLookValues);
 

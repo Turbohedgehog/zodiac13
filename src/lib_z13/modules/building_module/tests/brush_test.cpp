@@ -183,6 +183,44 @@ TEST(BrushTest, ADragSizesTheWallAndTheNextClickRepeatsIt) {
   EXPECT_EQ(walls[1].spec.size, Eigen::Vector3i(4, 1, 8));
 }
 
+TEST(BrushTest, ASecondBlockClickedAtTheSameAimRestsAgainstTheFirst) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  test_world.World().set(PaletteChoice {.slot = kSlopeSlot});
+  Ticks(test_world, 2);
+
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+  ASSERT_EQ(BlocksOfType(test_world.World(), kSlopeId).size(), 1u);
+  const auto preview = PreviewOf(player);
+  ASSERT_TRUE(preview.has_value());
+  EXPECT_TRUE(preview->valid);
+
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+  EXPECT_EQ(BlocksOfType(test_world.World(), kSlopeId).size(), 2u);
+}
+
+TEST(BrushTest, HoldingThePaletteKeyFreesTheCursorAndClicksBuildNothing) {
+  Z13TestWorld test_world = StationWorld();
+  LocalBuilder(test_world);
+  EXPECT_FALSE(test_world.World().has<z13::gameplay::FreeCursor>());
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_B));
+  Ticks(test_world, 2);
+  EXPECT_TRUE(test_world.World().has<z13::gameplay::FreeCursor>());
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+  EXPECT_TRUE(BlocksOfType(test_world.World(), kWallId).empty());
+
+  test_world.EmitInput(z13::testing::KeyUp(Keycode::KEY_B));
+  Ticks(test_world, 2);
+  EXPECT_FALSE(test_world.World().has<z13::gameplay::FreeCursor>());
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
+}
+
 TEST(BrushTest, ThePaletteWindowsPickLandsWithTheToolPutAway) {
   Z13TestWorld test_world = StationWorld();
   test_world.Tick();

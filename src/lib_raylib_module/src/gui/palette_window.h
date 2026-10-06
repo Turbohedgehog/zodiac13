@@ -22,8 +22,8 @@
 
 namespace z13::raylib::gui {
 
-// The station's block palette: picking a primitive sets the local player's PaletteChoice
-// and resumes the game.
+// The station's block palette, shown while its key is held (FreeCursor): picking a
+// primitive sets the local player's PaletteChoice.
 class PaletteWindow : public Window {
  public:
   explicit PaletteWindow(flecs::world world);

@@ -164,6 +164,11 @@ zkey::Keycode MouseButtonToKeycode(Uint8 sdl_button) {
   }
 }
 
+// Relative-mouse look during gameplay; a free cursor while paused or while the GUI wants it.
+bool CursorShown(flecs::world world) {
+  return world.has<z13::gameplay::Pause>() || world.has<z13::gameplay::FreeCursor>();
+}
+
 void ReadInput(flecs::world world, SdlPlatform& platform) {
   // Pump here rather than in a separate system: same-phase order isn't
   // guaranteed, and a separate PumpEvents could run after this, one tick late.
@@ -243,8 +248,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
   }
   world.set<RaylibInputFrame>(frame);
 
-  // Relative-mouse look during gameplay; free cursor while paused.
-  platform.SetRelativeMouse(!world.has<z13::gameplay::Pause>());
+  platform.SetRelativeMouse(!CursorShown(world));
 }
 
 void RegisterComponents(flecs::world world) {
@@ -271,7 +275,7 @@ void CreateDefaults(flecs::world world) {
   if (!platform.IsReady()) {
     return;
   }
-  platform.SetRelativeMouse(!world.has<z13::gameplay::Pause>());
+  platform.SetRelativeMouse(!CursorShown(world));
 }
 
 }  // namespace

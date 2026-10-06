@@ -38,6 +38,7 @@
 #include <raylib_module/raylib_components.h>
 
 #include "gui_windows.h"
+#include "palette_window.h"
 #include "platform/sdl_platform.h"
 
 namespace z13::raylib {
@@ -163,6 +164,8 @@ void RegisterSystems(flecs::world world) {
         }
         if (!stack.windows.empty()) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
+        } else if (world.has<gameplay::FreeCursor>()) {
+          gui::MakePaletteWindow(world)->Draw();
         }
         EndImGuiFrame();
       });
