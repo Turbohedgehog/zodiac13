@@ -50,19 +50,24 @@ Each gameplay/render module (`bullet_module`, `station_module`, `raylib_module`,
 - String constants: declare as `constexpr std::string_view`, not `const char*`. When a C API (raylib/SDL/ImGui/flecs/...) needs a null-terminated `const char*`, call `.data()` on a `string_view` that's known to span a whole string literal (safe: the literal's own `\0` is the next byte) — never on a `string_view` that could be a substring or come from arbitrary input. For a `string_view` *parameter* (any caller, not just literals), materialize an owning `std::string` first and pass `.c_str()`. Fixed third-party callback signatures (e.g. `raylib::TraceLogCallback`) keep `const char*` as-is — they can't be changed.
 - Avoid raw pointers where possible; prefer references, smart pointers (`std::unique_ptr`/`std::shared_ptr`), or non-owning views instead.
 - Avoid static variables.
-- Avoid exceptions for error handling; prefer `std::expected` instead.
+- Avoid exceptions for error handling; prefer `std::expected` instead. A result without a value is `z13::Status` (`lib_core/utils/status.h`), not a spelled-out `std::expected<void, std::string>`; a type repeated across the codebase likewise gets one shared alias.
 - Log as little as possible inside helper functions: return failures through `std::expected` and let the business-logic caller (system, observer, handler) log once. This keeps logging in few places, so adding another sink (file, network, console) touches little code.
 - Don't signal "no value" with a sentinel (`-1`, `0`, an empty string, ...); use `std::optional` instead, so absence can't be confused with a real value.
-- One non-trivial class per `.h`/`.cpp` pair; don't pile helper classes into one file's anonymous namespace.
+- One non-trivial class per `.h`/`.cpp` pair; don't pile helper classes into one file's anonymous namespace. A pImpl `State` gets its own `x_state.h`/`.cpp` too, and no struct is declared inside a class or function: make it a namespace-level type in a header.
 - Reference members are `std::reference_wrapper`, not `T&`.
 - Library code (`lib_core`, module libraries) returns errors through `std::expected`; only systems, observers and the launcher log them.
 - Default member initializers (every member, pointers included: `ecs_world_t* world_ {};`): use brace-init (`int x {};`, `bool y {};`) instead of `= 0`/`= false`; for Eigen members use `Type::Zero()` instead of `{0.f, 0.f}`.
 - Don't expose `void*` or raw-pointer-plus-count pairs in APIs. Forward-declare the concrete type instead of erasing it to `void*`, and return a standard container/view (e.g. `const std::vector<T>&`, `std::span<T>`) instead of a pointer-and-length out-parameter.
 - Group related scalar fields that travel together (e.g. width/height, x/y) into a single `Eigen::Vector2i`/`Eigen::Vector2f` rather than separate members.
+- Fields repeated across components or types go into one shared struct both hold (`BlockSpec` in `Block` and `BlockBrush`). A map key is a struct with named fields and a hash functor, never a `std::tuple`; a key or helper two modules need is defined once in a shared library.
+- A small closed set of values (orientations, modes) is an `enum class` naming every value, not an integer with a count and `IsValid...()` checks: an invalid value then doesn't compile, and the snapshot codec rejects unknown constants.
+- Don't reset, copy or compare an object member by member (`a_.clear(); b_.clear();`); reassign or compare the whole object, so a new member can't be forgotten.
+- Prefer std algorithms and ranges (`std::accumulate`, `std::ranges::transform`, ...) over hand-written loops, and Eigen over home-made matrix/vector types.
+- Namespaces are named by domain (`z13::building::primitives`, not `z13::primitives`).
 - Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`, also between stacked empty `case` labels.
 - Prefer `std::format` over `snprintf`/manual char buffers or string concatenation (`+`) for building strings.
 - Represent filesystem paths as named `std::filesystem::path` constants, not bare string literals passed inline.
-- Avoid magic numbers; give them a named `constexpr` constant.
+- Avoid magic numbers; give them a named `constexpr` constant. Numbers that tune behaviour (reach distances, clearances, chunk sizes) aren't constants: they go into a settings.json table (FlatBuffers schema with `min`/`max`/`cli`, cross-field rules in `ValidateSettings`), are sent to clients in `Welcome` like `PhysicsTuning`, and are read by systems as a singleton term.
 - Always use braces for `if`/loop bodies, even single-statement ones.
 
 ## Working in this repo
