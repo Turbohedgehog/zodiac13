@@ -72,6 +72,8 @@ constexpr float kSpaceshipPitchDegrees = 90.f;  // about world +X (FBX Y-up -> Z
 constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientation)
 
 constexpr ::Color kBrushPreviewTint {255, 255, 255, 128};
+constexpr ::Color kValidBuildTint {120, 255, 120, 128};
+constexpr ::Color kRefusedBuildTint {255, 90, 90, 128};
 
 constexpr float kAvatarRadius = 0.5f;
 constexpr float kMaxColorChannel = 255.f;
@@ -292,18 +294,21 @@ void DrawBlock(BlockMeshes& meshes, const z13::station::Block& block, BlockMeshe
   DrawModel(*model, Vector3Zero(), 1.f, tint);
 }
 
-// What a build would place: the owner's BlockBrush in station mode, else the ship
-// scene's cube, snapped around the brush the same way the build snaps it.
+// What a build would place: in station mode the brush's BrushPreview, green if it would
+// be accepted, else the ship scene's cube, snapped around the brush as the build snaps it.
 void DrawBrushPreview(
     const flecs::world& world, flecs::entity brush, const Eigen::Matrix4f& transform, BlockMeshes& meshes,
     BlockMeshes::OptionalPalette palette) {
+  if (world.has<z13::station::StationMode>()) {
+    if (brush.has<z13::station::BrushPreview>()) {
+      const auto& preview = brush.get<z13::station::BrushPreview>();
+      DrawBlock(meshes, preview.block, palette, preview.valid ? kValidBuildTint : kRefusedBuildTint);
+    }
+    return;
+  }
   const Eigen::Vector3f point = z13::math::ExtractTranslation<float>(transform) / z13::station::kCellSize;
-  const flecs::entity owner = brush.parent();
-  const z13::station::BlockSpec spec =
-      world.has<z13::station::StationMode>() && owner && owner.has<z13::station::BlockBrush>()
-          ? owner.get<z13::station::BlockBrush>().spec
-          : z13::station::CubeSpec();
-  DrawBlock(meshes, z13::building::primitives::PlaceCentredOn(point, spec), palette, kBrushPreviewTint);
+  DrawBlock(meshes, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), palette,
+            kBrushPreviewTint);
 }
 
 void DrawBlocks(
@@ -418,6 +423,7 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
+      .read<z13::station::BrushPreview>()
       .each([world, block_query, brush_query, remote_player_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {

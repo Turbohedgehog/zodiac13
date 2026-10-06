@@ -14,25 +14,16 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
-namespace z13::building {
+#include <flecs.h>
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
+#include "gui_windows.h"
 
-struct BuildingTool {
-  using State = void;
-};
+namespace z13::raylib::gui {
 
-struct Brush {
-  float distance {};
-};
+// The station's block palette: picking a primitive sets the local player's PaletteChoice
+// and resumes the game.
+WindowPtr MakePaletteWindow(flecs::world world);
 
-// Station mode: the build key went down, so a drag starts at the brush.
-struct RequestBrushDrag {};
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
-
-}  // namespace z13::building
+}  // namespace z13::raylib::gui

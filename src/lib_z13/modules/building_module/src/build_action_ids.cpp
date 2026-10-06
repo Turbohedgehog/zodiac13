@@ -14,25 +14,18 @@
  * limitations under the License.
  */
 
- #pragma once
+#include "build_action_ids.h"
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
+bool IsSwitchedOn(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id) {
+  const std::optional<z13::input::ActionValueHolder> value = action_id ? listener.Value(*action_id) : std::nullopt;
+  return value && value->IsSwitchedOn();
+}
 
-struct BuildingTool {
-  using State = void;
-};
-
-struct Brush {
-  float distance {};
-};
-
-// Station mode: the build key went down, so a drag starts at the brush.
-struct RequestBrushDrag {};
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
+bool IsSwitchedOff(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id) {
+  const std::optional<z13::input::ActionValueHolder> value = action_id ? listener.Value(*action_id) : std::nullopt;
+  return value && value->IsSwitchedOff();
+}
 
 }  // namespace z13::building

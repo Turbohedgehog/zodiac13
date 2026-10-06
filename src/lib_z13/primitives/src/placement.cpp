@@ -61,6 +61,28 @@ Turn TurnOf(Orientation orientation) {
   return {Axis::kPosX, Axis::kPosZ};
 }
 
+Eigen::Matrix3i QuarterTurnMatrix(TurnAxis axis) {
+  Eigen::Matrix3i turn;
+  switch (axis) {
+    case TurnAxis::kX:
+      turn << 1, 0, 0, 0, 0, -1, 0, 1, 0;
+      return turn;
+    case TurnAxis::kY:
+      turn << 0, 0, 1, 0, 1, 0, -1, 0, 0;
+      return turn;
+    case TurnAxis::kZ:
+      turn << 0, -1, 0, 1, 0, 0, 0, 0, 1;
+      return turn;
+  }
+  return Eigen::Matrix3i::Identity();
+}
+
+Orientation OrientationOf(const Eigen::Matrix3i& matrix) {
+  const auto found = std::ranges::find_if(
+      kOrientations, [&matrix](Orientation candidate) { return OrientationMatrix(candidate) == matrix; });
+  return found != kOrientations.end() ? *found : Orientation {};
+}
+
 Eigen::Vector3i Direction(Axis axis) {
   switch (axis) {
     case Axis::kPosX: return Eigen::Vector3i::UnitX();
@@ -86,10 +108,11 @@ Eigen::Matrix3i OrientationMatrix(Orientation orientation) {
 }
 
 Orientation InverseOrientation(Orientation orientation) {
-  const Eigen::Matrix3i inverse = OrientationMatrix(orientation).transpose();
-  const auto found = std::ranges::find_if(
-      kOrientations, [&inverse](Orientation candidate) { return OrientationMatrix(candidate) == inverse; });
-  return found != kOrientations.end() ? *found : Orientation {};
+  return OrientationOf(OrientationMatrix(orientation).transpose());
+}
+
+Orientation QuarterTurn(Orientation orientation, TurnAxis axis) {
+  return OrientationOf(QuarterTurnMatrix(axis) * OrientationMatrix(orientation));
 }
 
 bool CellBox::Contains(const Eigen::Vector3i& cell) const {
@@ -116,6 +139,25 @@ z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::stat
   const Eigen::Vector3i extent = OrientationMatrix(spec.orientation).cwiseAbs() * spec.size;
   const Eigen::Vector3f lowest = point - extent.cast<float>() / 2.f;
   return {.spec = spec, .cell = lowest.array().round().cast<int>()};
+}
+
+z13::station::Block DraggedBlock(
+    const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
+    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size) {
+  // A permutation: world extent = axes * own size, own size = axes^T * world extent.
+  const Eigen::Matrix3i axes = OrientationMatrix(brush.orientation).cwiseAbs();
+  const Eigen::Vector3i delta = to_cell - from_cell;
+  const Eigen::Vector3i wanted = (delta.array() != 0).select(delta.cwiseAbs(), axes * brush.size);
+  const Eigen::Vector3i size = (axes.transpose() * wanted).cwiseMax(min_size).cwiseMin(max_size);
+  const Eigen::Vector3i extent = axes * size;
+
+  const z13::station::BlockSpec spec {.type_id = brush.type_id, .size = size, .orientation = brush.orientation};
+  const Eigen::Vector3f from_centre = from_cell.cast<float>() + Eigen::Vector3f::Constant(0.5f);
+  const Eigen::Vector3i centred = PlaceCentredOn(from_centre, spec).cell;
+  const Eigen::Vector3i backwards = from_cell - extent + Eigen::Vector3i::Ones();
+  const Eigen::Vector3i cell =
+      (delta.array() > 0).select(from_cell, (delta.array() < 0).select(backwards, centred));
+  return {.spec = spec, .cell = cell};
 }
 
 Eigen::Isometry3f WorldPose(const CellPose& pose, float cell_size) {

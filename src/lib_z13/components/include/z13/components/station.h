@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include <Eigen/Dense>
 
@@ -70,6 +71,8 @@ struct BlockSpec {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Ones();
   Orientation orientation {};
+
+  bool operator==(const BlockSpec&) const = default;
 };
 
 inline BlockSpec CubeSpec() {
@@ -87,6 +90,30 @@ struct Block {
 struct BlockBrush {
   using State = void;
   BlockSpec spec;
+};
+
+// A player dragging out a block: the brush's cell where the drag began.
+struct BrushDrag {
+  using State = void;
+  Eigen::Vector3i anchor_cell = Eigen::Vector3i::Zero();
+};
+
+// The right to build and destroy blocks; every station player gets it for now.
+struct BuildPermission {
+  using State = void;
+};
+
+// What a brush's build would place right now and whether it would be accepted; derived
+// every frame on the brush entity, never state.
+struct BrushPreview {
+  Block block;
+  bool valid {};
+};
+
+// The local player's pick in the palette window, until it is sent as an action.
+struct PaletteChoice {
+  using Singleton = void;
+  std::optional<uint32_t> type_id;
 };
 
 // A spot SpawnPlayer puts players on, with their facing.

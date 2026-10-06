@@ -17,6 +17,7 @@
 #include "building_input_system.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 
 #include <flecs.h>
@@ -32,9 +33,11 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/building.h>
+#include <z13/components/station.h>
 #include <z13_module/input/input_config_loader.h>
+#include <lib_core/state/rollback.h>
 
-#include <building_generated.h>
+#include "build_action_ids.h"
 
 namespace z13::building {
 
@@ -42,14 +45,6 @@ namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 constexpr std::string_view kBuildingActionGroup = "Building";
-
-struct BuildActionIds {
-  using Singleton = void;
-  using IdType = z13::input::ActionInfo::IdType;
-  std::optional<IdType> toggle_building_mode;
-  std::optional<IdType> build_block;
-  std::optional<IdType> destroy_block;
-};
 
 void OnAppendInputSchema(
     flecs::iter it,
@@ -92,14 +87,20 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.toggle_building_mode = find_action_id(z13::fbs::building::Action::TOGGLE_BUILDING_MODE);
   build_action_ids.build_block = find_action_id(z13::fbs::building::Action::BUILD_BLOCK);
   build_action_ids.destroy_block = find_action_id(z13::fbs::building::Action::DESTROY_BLOK);
-}
-
-bool IsSwitchedOn(
-    const z13::input::ActionListener& action_listener,
-    const std::optional<z13::input::ActionInfo::IdType>& action_id) {
-  const std::optional<z13::input::ActionValueHolder> value =
-      action_id ? action_listener.Value(*action_id) : std::nullopt;
-  return value && value->IsSwitchedOn();
+  build_action_ids.previous_primitive = find_action_id(z13::fbs::building::Action::PREVIOUS_PRIMITIVE);
+  build_action_ids.next_primitive = find_action_id(z13::fbs::building::Action::NEXT_PRIMITIVE);
+  constexpr std::array<z13::fbs::building::Action, kPaletteSlots> kSlotActions {
+      z13::fbs::building::Action::SELECT_SLOT_1, z13::fbs::building::Action::SELECT_SLOT_2,
+      z13::fbs::building::Action::SELECT_SLOT_3, z13::fbs::building::Action::SELECT_SLOT_4,
+      z13::fbs::building::Action::SELECT_SLOT_5, z13::fbs::building::Action::SELECT_SLOT_6,
+      z13::fbs::building::Action::SELECT_SLOT_7, z13::fbs::building::Action::SELECT_SLOT_8,
+      z13::fbs::building::Action::SELECT_SLOT_9,
+  };
+  std::ranges::transform(kSlotActions, build_action_ids.select_slot.begin(), find_action_id);
+  build_action_ids.rotate_around_z = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Z);
+  build_action_ids.rotate_around_y = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Y);
+  build_action_ids.rotate_around_x = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_X);
+  build_action_ids.select_primitive = find_action_id(z13::fbs::building::Action::SELECT_PRIMITIVE);
 }
 
 void ToggleBuildingMode(flecs::entity e) {
@@ -142,7 +143,14 @@ void ApplyBuildActionListener(
     return;
   }
 
-  if (IsSwitchedOn(action_listener, build_action_ids.build_block)) {
+  // Station blocks are placed on release, so a drag in between can size them.
+  if (!e.world().has<z13::station::StationMode>()) {
+    if (IsSwitchedOn(action_listener, build_action_ids.build_block)) {
+      e.add<RequestBuildBlock>();
+    }
+  } else if (IsSwitchedOn(action_listener, build_action_ids.build_block)) {
+    e.add<RequestBrushDrag>();
+  } else if (IsSwitchedOff(action_listener, build_action_ids.build_block) && e.has<z13::station::BrushDrag>()) {
     e.add<RequestBuildBlock>();
   }
 
@@ -151,11 +159,25 @@ void ApplyBuildActionListener(
   }
 }
 
+// Sent as an action, so the pick reaches the server and replays like a key press.
+void SendPaletteChoice(
+    z13::input::ActionListener& action_listener, const BuildActionIds& build_action_ids,
+    z13::station::PaletteChoice& choice) {
+  if (!choice.type_id || !build_action_ids.select_primitive) {
+    return;
+  }
+  action_listener.action_values[*build_action_ids.select_primitive].current_value =
+      static_cast<float>(*choice.type_id);
+  choice.type_id.reset();
+}
+
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<BuildActionIds>(world);
+  z13::flecs_tools::RegisterComponents<BuildActionIds, z13::station::PaletteChoice>(world);
 }
 
 void RegisterSystems(flecs::world world) {
+  world.set<z13::station::PaletteChoice>({});
+
   world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
@@ -167,8 +189,19 @@ void RegisterSystems(flecs::world world) {
 
   world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
+      .read<z13::station::StationMode>()
+      .read<z13::station::BrushDrag>()
       .write<BuildingTool>()
       .each(ApplyBuildActionListener);
+
+  // After CalculateInputValues (same phase, registered earlier), before the recorder logs the frame.
+  world.system<z13::input::ActionListener, const BuildActionIds, z13::station::PaletteChoice>(
+           "gameplay_input_system::SendPaletteChoice")
+      .kind<z13::input::CalculateActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .without<z13::gameplay::Pause>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .each(SendPaletteChoice);
 
   world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
       .event<z13::input::AppendInputSchema>()

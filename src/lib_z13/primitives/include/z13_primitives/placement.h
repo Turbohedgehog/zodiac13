@@ -45,6 +45,11 @@ inline constexpr std::array<z13::station::Orientation, kOrientationCount> kOrien
 Eigen::Matrix3i OrientationMatrix(z13::station::Orientation orientation);
 z13::station::Orientation InverseOrientation(z13::station::Orientation orientation);
 
+enum class TurnAxis : uint8_t { kX, kY, kZ };
+
+// `orientation` turned a further 90° counterclockwise around the world `axis`.
+z13::station::Orientation QuarterTurn(z13::station::Orientation orientation, TurnAxis axis);
+
 // The cells [min, min + extent).
 struct CellBox {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();
@@ -67,6 +72,14 @@ CellPose PoseOf(const z13::station::Block& block);
 // The block of `spec` whose occupied cells are centred on `point` (in cells), rounded to
 // the grid.
 z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::station::BlockSpec& spec);
+
+// The block a drag from `from_cell` to `to_cell` places: along each world axis the drag
+// moved, it spans as many cells as the drag moved, from `from_cell` towards `to_cell`;
+// along the others it keeps `brush`'s size, centred on `from_cell`. The size is then held
+// within [min_size, max_size] along the primitive's own axes.
+z13::station::Block DraggedBlock(
+    const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
+    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size);
 
 // The pose in meters: rotation, then the origin scaled by `cell_size`. Geometry built in
 // cells must be scaled by `cell_size` before it.

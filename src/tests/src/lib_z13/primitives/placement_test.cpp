@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -78,6 +79,60 @@ TEST(PlacementTest, PlaceCentredOnSnapsTheTurnedExtentAroundThePoint) {
       PlaceCentredOn({10.2f, 0.9f, -0.4f}, {.size = {4, 2, 1}, .orientation = Orientation::kFacePosYUpPosZ});
   EXPECT_EQ(OccupiedCells(block).extent, Eigen::Vector3i(2, 4, 1));
   EXPECT_EQ(block.cell, Eigen::Vector3i(9, -1, -1));
+}
+
+TEST(PlacementTest, QuarterTurnsReachEveryOrientationAndFourMakeAFullTurn) {
+  std::vector<Orientation> reached {Orientation {}};
+  for (size_t i = 0; i < reached.size(); ++i) {
+    for (const TurnAxis axis : {TurnAxis::kX, TurnAxis::kY, TurnAxis::kZ}) {
+      Orientation turned = reached[i];
+      for (int quarter = 0; quarter < 4; ++quarter) {
+        turned = QuarterTurn(turned, axis);
+        if (std::ranges::find(reached, turned) == reached.end()) {
+          reached.push_back(turned);
+        }
+      }
+      EXPECT_EQ(turned, reached[i]);
+    }
+  }
+  EXPECT_EQ(reached.size(), kOrientationCount);
+  EXPECT_EQ(QuarterTurn(Orientation {}, TurnAxis::kZ), Orientation::kFacePosYUpPosZ);
+}
+
+// A wall panel: stretches along its own X and Z, one cell thick.
+const z13::station::BlockSpec kPanel {.type_id = 2, .size = {8, 1, 8}};
+const Eigen::Vector3i kPanelMin {1, 1, 1};
+const Eigen::Vector3i kPanelMax {256, 1, 256};
+
+TEST(PlacementTest, ADragSpansTheCellsItMovedAndKeepsTheBrushSizeElsewhere) {
+  const Block forward = DraggedBlock({0, 0, 0}, {5, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  EXPECT_EQ(forward.spec.size, Eigen::Vector3i(5, 1, 8));
+  EXPECT_EQ(forward.cell, Eigen::Vector3i(0, 0, -4));
+
+  const Block backward = DraggedBlock({0, 0, 0}, {-3, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  EXPECT_EQ(backward.spec.size, Eigen::Vector3i(3, 1, 8));
+  EXPECT_EQ(OccupiedCells(backward).End().x(), 1);
+
+  const Block click = DraggedBlock({0, 0, 0}, {0, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  EXPECT_EQ(click.spec.size, kPanel.size);
+}
+
+TEST(PlacementTest, ADragStaysWithinTheSizeLimits) {
+  const Block thick = DraggedBlock({0, 0, 0}, {0, 4, 0}, kPanel, kPanelMin, kPanelMax);
+  EXPECT_EQ(thick.spec.size, Eigen::Vector3i(8, 1, 8));
+
+  const z13::station::BlockSpec door {.type_id = 3, .size = {6, 1, 10}};
+  const Block fixed = DraggedBlock({0, 0, 0}, {20, 0, 20}, door, door.size, door.size);
+  EXPECT_EQ(fixed.spec.size, door.size);
+  EXPECT_EQ(fixed.cell, Eigen::Vector3i(0, 0, 0));
+}
+
+// Turned to face +Y, the panel's own X runs along the world Y the drag moves along.
+TEST(PlacementTest, ADragSizesATurnedBrushAlongItsOwnAxes) {
+  const z13::station::BlockSpec turned {.type_id = 2, .size = {8, 1, 8}, .orientation = Orientation::kFacePosYUpPosZ};
+  const Block block = DraggedBlock({0, 0, 0}, {0, 6, 0}, turned, kPanelMin, kPanelMax);
+  EXPECT_EQ(block.spec.size, Eigen::Vector3i(6, 1, 8));
+  EXPECT_EQ(OccupiedCells(block).extent, Eigen::Vector3i(1, 6, 8));
 }
 
 TEST(PlacementTest, CellBoxesOverlapOnlyWhenTheyShareACell) {

@@ -14,25 +14,17 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
+
+#include <lib_core/world/core_types.h>
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
-
-struct BuildingTool {
-  using State = void;
+// Station-mode brush: gives each player a BlockBrush and BuildPermission, applies the pick
+// and turn actions to the brush, and drops a drag once the building tool is put away.
+class BrushSystem {
+ public:
+  static void Register(flecs::world& world);
 };
-
-struct Brush {
-  float distance {};
-};
-
-// Station mode: the build key went down, so a drag starts at the brush.
-struct RequestBrushDrag {};
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
 
 }  // namespace z13::building

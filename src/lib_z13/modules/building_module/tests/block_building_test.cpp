@@ -37,6 +37,7 @@
 #include <z13_primitives/placement.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
+#include "support/station_builders.h"
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/world_json_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -56,8 +57,12 @@ using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
 using z13::testing::kStationArg;
+using z13::testing::AddBuilder;
+using z13::testing::BlocksOfType;
+using z13::testing::Facing;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
+using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
@@ -71,26 +76,6 @@ const Eigen::Vector3i kPanelSize {8, 1, 8};
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 constexpr uint32_t kBuilderId = 7;
 
-Z13TestWorld StationWorld() {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kStationArg)});
-}
-
-Eigen::Matrix4f Facing(const Eigen::Vector3f& position, const Eigen::Vector3f& forward) {
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  transform.block<3, 3>(0, 0) =
-      Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitX(), forward.normalized()).toRotationMatrix();
-  z13::math::SetTranslation(position, transform);
-  return transform;
-}
-
-flecs::entity AddBuilder(Z13TestWorld& test_world, uint32_t id, const Eigen::Matrix4f& transform) {
-  flecs::entity builder = z13::gameplay::SpawnPlayer(test_world.World(), id).set(transform);
-  builder.add<z13::building::BuildingTool>();
-  // The brush and the BlockBrush appear on the first frame.
-  test_world.Tick();
-  return builder;
-}
-
 void Request(Z13TestWorld& test_world, std::vector<flecs::entity> builders, bool build) {
   for (flecs::entity builder : builders) {
     if (build) {
@@ -100,16 +85,6 @@ void Request(Z13TestWorld& test_world, std::vector<flecs::entity> builders, bool
     }
   }
   test_world.Tick();
-}
-
-std::vector<Block> BlocksOfType(flecs::world world, uint32_t type_id) {
-  std::vector<Block> blocks;
-  world.query_builder<const Block>().build().each([&](const Block& block) {
-    if (block.spec.type_id == type_id) {
-      blocks.push_back(block);
-    }
-  });
-  return blocks;
 }
 
 TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {

@@ -34,6 +34,22 @@ enum Action : int16 (action, action_group: "Building") {
   TOGGLE_BUILDING_MODE (display_text: "Toggle building mode", default_keycodes: "KEY_TAB", action_group: "Control"),
   BUILD_BLOCK (display_text: "Test block build", default_keycodes: "MOUSE_BUTTON_LEFT"),
   DESTROY_BLOK (display_text: "Test block destroy", default_keycodes: "MOUSE_BUTTON_RIGHT"),
+  PREVIOUS_PRIMITIVE (display_text: "Previous primitive", default_keycodes: "KEY_Q"),
+  NEXT_PRIMITIVE (display_text: "Next primitive", default_keycodes: "KEY_E"),
+  SELECT_SLOT_1 (display_text: "Primitive 1", default_keycodes: "KEY_1"),
+  SELECT_SLOT_2 (display_text: "Primitive 2", default_keycodes: "KEY_2"),
+  SELECT_SLOT_3 (display_text: "Primitive 3", default_keycodes: "KEY_3"),
+  SELECT_SLOT_4 (display_text: "Primitive 4", default_keycodes: "KEY_4"),
+  SELECT_SLOT_5 (display_text: "Primitive 5", default_keycodes: "KEY_5"),
+  SELECT_SLOT_6 (display_text: "Primitive 6", default_keycodes: "KEY_6"),
+  SELECT_SLOT_7 (display_text: "Primitive 7", default_keycodes: "KEY_7"),
+  SELECT_SLOT_8 (display_text: "Primitive 8", default_keycodes: "KEY_8"),
+  SELECT_SLOT_9 (display_text: "Primitive 9", default_keycodes: "KEY_9"),
+  ROTATE_AROUND_Z (display_text: "Turn the brush around Z", default_keycodes: "KEY_R"),
+  ROTATE_AROUND_Y (display_text: "Turn the brush around Y", default_keycodes: "KEY_F"),
+  ROTATE_AROUND_X (display_text: "Turn the brush around X", default_keycodes: "KEY_G"),
+  // Its value is the primitive id picked in the palette window, for one frame.
+  SELECT_PRIMITIVE (display_text: "Primitive from the palette window"),
 }
 
 root_type Block;
