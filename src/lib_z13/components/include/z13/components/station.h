@@ -96,10 +96,12 @@ struct BlockBrush {
   BlockSpec spec;
 };
 
-// A player dragging out a block: the brush's cell where the drag began.
+// A player dragging out a block: the brush's cell where the drag began, and the normal of
+// the face it was aimed at (zero in free space).
 struct BrushDrag {
   using State = void;
   Eigen::Vector3i anchor_cell = Eigen::Vector3i::Zero();
+  Eigen::Vector3i anchor_normal = Eigen::Vector3i::Zero();
 };
 
 // The right to build and destroy blocks; every station player gets it for now.

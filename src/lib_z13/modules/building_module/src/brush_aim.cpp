@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include <z13_primitives/placement.h>
 
@@ -36,9 +37,47 @@ Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen
   return hit ? Aim {.eye = eye, .point = hit->point, .normal = hit->normal} : Aim {.eye = eye, .point = reach};
 }
 
+namespace {
+
+// How far along the face a block may slide to clear what it would sink into.
+constexpr int kMaxSlideCells = 8;
+
+// `block` moved along its face (the axes `normal` is zero on) to the nearest place on free
+// cells; unchanged when it is free already or nothing near is.
+Block SlidAlongFace(const Block& block, const Eigen::Vector3i& normal, const grid::BlockIndex& index) {
+  if (!index.Overlaps(OccupiedCells(block))) {
+    return block;
+  }
+  const Eigen::Vector3i along = (normal.array() == 0).cast<int>();
+  std::optional<Block> best;
+  int best_distance = 0;
+  for (int ring = 1; ring <= kMaxSlideCells && !best; ++ring) {
+    for (int x = -ring; x <= ring; ++x) {
+      for (int y = -ring; y <= ring; ++y) {
+        for (int z = -ring; z <= ring; ++z) {
+          const Eigen::Vector3i shift {x, y, z};
+          if (shift.cwiseAbs().maxCoeff() != ring || (shift.array() * (1 - along.array())).any()) {
+            continue;
+          }
+          Block moved = block;
+          moved.cell += shift;
+          const int distance = static_cast<int>(shift.squaredNorm());
+          if ((!best || distance < best_distance) && !index.Overlaps(OccupiedCells(moved))) {
+            best = moved;
+            best_distance = distance;
+          }
+        }
+      }
+    }
+  }
+  return best.value_or(block);
+}
+
+}  // namespace
+
 Block BlockAt(const Aim& aim, const BlockSpec& spec, const grid::BlockIndex& index) {
   if (!aim.normal.isZero()) {
-    return z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec);
+    return SlidAlongFace(z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec), aim.normal, index);
   }
   // One cell per step: a block never jumps over the blocks it would sink into.
   const Eigen::Vector3f back = aim.eye - aim.point;

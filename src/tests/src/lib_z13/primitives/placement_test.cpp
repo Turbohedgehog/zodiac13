@@ -92,6 +92,17 @@ TEST(PlacementTest, PlaceOnFaceRestsTheBlockOutsideTheFace) {
   EXPECT_FALSE(OccupiedCells(west).Overlaps(OccupiedCells(east)));
 }
 
+TEST(PlacementTest, ADragThatStartedOnAFaceStaysOutsideIt) {
+  const z13::station::BlockSpec spec {.size = {4, 4, 4}};
+  const Eigen::Vector3i limits {4, 4, 4};
+  // From the empty cell above a floor whose top is z = 0, without moving along Z.
+  const Block above = DraggedBlock({3, 3, 0}, {3, 3, 0}, spec, limits, limits, {0, 0, 1});
+  EXPECT_EQ(above.cell.z(), 0);
+  // From the empty cell under a ceiling whose underside is z = 0.
+  const Block below = DraggedBlock({3, 3, -1}, {3, 3, -1}, spec, limits, limits, {0, 0, -1});
+  EXPECT_EQ(below.cell.z(), -4);
+}
+
 TEST(PlacementTest, QuarterTurnsReachEveryOrientationAndFourMakeAFullTurn) {
   std::vector<Orientation> reached {Orientation {}};
   for (size_t i = 0; i < reached.size(); ++i) {

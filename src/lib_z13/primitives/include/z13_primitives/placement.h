@@ -80,11 +80,13 @@ z13::station::Block PlaceOnFace(
 
 // The block a drag from `from_cell` to `to_cell` places: along each world axis the drag
 // moved, it spans as many cells as the drag moved, from `from_cell` towards `to_cell`;
-// along the others it keeps `brush`'s size, centred on `from_cell`. The size is then held
-// within [min_size, max_size] along the primitive's own axes.
+// along the others it keeps `brush`'s size, centred on `from_cell`, except along the axis
+// of `from_normal` (the face the drag started on), where it stays outside that face. The
+// size is then held within [min_size, max_size] along the primitive's own axes.
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
-    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size);
+    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size,
+    const Eigen::Vector3i& from_normal = Eigen::Vector3i::Zero());
 
 // The pose in meters: rotation, then the origin scaled by `cell_size`. Geometry built in
 // cells must be scaled by `cell_size` before it.

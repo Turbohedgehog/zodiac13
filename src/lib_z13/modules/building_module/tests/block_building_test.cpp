@@ -260,7 +260,10 @@ TEST(BlockBuildingTest, TwoClientsBuildingTheSameSpotConverge) {
   client_b.EmitInput(z13::testing::MouseUp(Keycode::MOUSE_BUTTON_LEFT));
   all(kSettleTicks);
 
-  EXPECT_EQ(BlocksOfType(server.World(), kWallId).size(), 1u);
+  const auto walls = BlocksOfType(server.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_a));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));
 }

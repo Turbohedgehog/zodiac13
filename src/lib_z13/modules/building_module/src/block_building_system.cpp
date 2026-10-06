@@ -102,21 +102,21 @@ std::optional<Aim> FindAim(flecs::entity player, const BlockIndex& index) {
   return aim;
 }
 
-std::optional<Eigen::Vector3i> DragAnchor(flecs::entity player) {
-  return player.has<BrushDrag>() ? std::optional(player.get<BrushDrag>().anchor_cell) : std::nullopt;
+std::optional<BrushDrag> DragOf(flecs::entity player) {
+  return player.has<BrushDrag>() ? std::optional(player.get<BrushDrag>()) : std::nullopt;
 }
 
 // What a build would place with the brush aimed at `aim`: the block dragged out from
-// `drag_anchor`, or without a drag the brush's block where it can rest (see BlockAt).
-Block BrushBlock(const std::optional<Eigen::Vector3i>& drag_anchor, const BlockSpec& spec, const Aim& aim,
+// `drag`, or without one (or before it moved) the brush's block where it can rest (see BlockAt).
+Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, const Aim& aim,
                  const Palette& palette, const BlockIndex& index) {
-  if (!drag_anchor) {
+  if (!drag || drag->anchor_cell == aim.Cell()) {
     return BlockAt(aim, spec, index);
   }
   const auto primitive = palette.Find(spec.type_id);
   return z13::building::primitives::DraggedBlock(
-      *drag_anchor, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
-      primitive ? primitive->get().max_size : spec.size);
+      drag->anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
+      primitive ? primitive->get().max_size : spec.size, drag->anchor_normal);
 }
 
 Status CheckPermission(flecs::entity player) {
@@ -154,7 +154,7 @@ std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counter
 void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BlockIndex& index) {
   player.remove<RequestBrushDrag>();
   if (const auto aim = FindAim(player, index)) {
-    player.set(BrushDrag {.anchor_cell = aim->Cell()});
+    player.set(BrushDrag {.anchor_cell = aim->Cell(), .anchor_normal = aim->normal});
   }
 }
 
@@ -165,13 +165,13 @@ void ProcessBuildRequest(
     std::vector<CellBox>& spawn_clearances) {
   player.remove<z13::building::RequestBuildBlock>();
   const auto aim = FindAim(player, index);
-  const auto drag_anchor = DragAnchor(player);
+  const auto drag = DragOf(player);
   player.remove<BrushDrag>();
   if (!aim) {
     return;
   }
 
-  const Block block = BrushBlock(drag_anchor, brush.spec, *aim, palette.palette, index);
+  const Block block = BrushBlock(drag, brush.spec, *aim, palette.palette, index);
   const auto valid = CheckPermission(player).and_then([&] {
     return ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning);
   });
@@ -188,7 +188,7 @@ void ProcessBuildRequest(
   if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
     spawn_clearances.push_back(SpawnClearance(block, tuning));
   }
-  if (drag_anchor) {
+  if (drag) {
     brush.spec = block.spec;
   }
 }
@@ -262,7 +262,7 @@ void UpdateBrushPreview(
   if (!aim) {
     return;
   }
-  const Block block = BrushBlock(DragAnchor(owner), owner.get<BlockBrush>().spec, *aim, palette.palette, index);
+  const Block block = BrushBlock(DragOf(owner), owner.get<BlockBrush>().spec, *aim, palette.palette, index);
   const bool valid = CheckPermission(owner) &&
                      ValidateBuild(block, palette.palette, index, PlayerSpheres(players),
                                    SpawnClearances(spawn_blocks, tuning), tuning);

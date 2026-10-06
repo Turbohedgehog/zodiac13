@@ -37,8 +37,8 @@ struct Aim {
 // Aims the ray from `eye` to `reach` at `index`.
 Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen::Vector3f& reach);
 
-// The block of `spec` resting on the aimed face, or centred on the free point; a free block
-// that would sink into others is drawn back along the ray until it clears them.
+// The block of `spec` resting on the aimed face, slid along it off what it would sink into,
+// or centred on the free point and then drawn back along the ray until it clears others.
 z13::station::Block BlockAt(const Aim& aim, const z13::station::BlockSpec& spec, const grid::BlockIndex& index);
 
 }  // namespace z13::building

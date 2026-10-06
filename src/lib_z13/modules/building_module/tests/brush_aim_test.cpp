@@ -57,6 +57,20 @@ TEST(BrushAimTest, AFreeBlockThatWouldSinkIntoTheFloorIsDrawnBackAlongTheRay) {
   EXPECT_FALSE(index.Overlaps(OccupiedCells(block)));
 }
 
+TEST(BrushAimTest, ABlockBesideAnotherNearTheFloorSlidesUpOutOfTheFloor) {
+  BlockIndex index = Floor();
+  constexpr grid::BlockId kFirst = 2;
+  index.Insert(kFirst, {.min = {8, 0, 0}, .extent = {4, 4, 4}});
+  // A ray at the first block's -X face, 0.5 cells above the floor: centred there, the block sinks into it.
+  const Aim aim = AimAt(index, {0.5f, 2.5f, 0.5f}, {12.5f, 2.5f, 0.5f});
+  ASSERT_EQ(aim.normal, Eigen::Vector3i(-1, 0, 0));
+
+  const auto block = BlockAt(aim, kWedge, index);
+
+  EXPECT_FALSE(index.Overlaps(OccupiedCells(block)));
+  EXPECT_EQ(OccupiedCells(block).End().x(), 8);
+}
+
 TEST(BrushAimTest, AFreeBlockInOpenSpaceIsCentredOnTheReach) {
   const BlockIndex index = Floor();
   const Aim aim = AimAt(index, {0.5f, 0.5f, 20.f}, {10.5f, 0.5f, 20.f});

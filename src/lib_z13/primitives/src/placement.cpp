@@ -156,7 +156,7 @@ z13::station::Block PlaceOnFace(
 
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
-    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size) {
+    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal) {
   // A permutation: world extent = axes * own size, own size = axes^T * world extent.
   const Eigen::Matrix3i axes = OrientationMatrix(brush.orientation).cwiseAbs();
   const Eigen::Vector3i delta = to_cell - from_cell;
@@ -168,8 +168,9 @@ z13::station::Block DraggedBlock(
   const Eigen::Vector3f from_centre = from_cell.cast<float>() + Eigen::Vector3f::Constant(0.5f);
   const Eigen::Vector3i centred = PlaceCentredOn(from_centre, spec).cell;
   const Eigen::Vector3i backwards = from_cell - extent + Eigen::Vector3i::Ones();
+  const Eigen::Vector3i heading = (delta.array() != 0).select(delta, from_normal);
   const Eigen::Vector3i cell =
-      (delta.array() > 0).select(from_cell, (delta.array() < 0).select(backwards, centred));
+      (heading.array() > 0).select(from_cell, (heading.array() < 0).select(backwards, centred));
   return {.spec = spec, .cell = cell};
 }
 
