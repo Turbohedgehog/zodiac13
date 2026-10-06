@@ -47,6 +47,8 @@ Settings ServerSettings() {
   settings.net->send_interval_ticks = 5;
   settings.physics->player_collider_radius = 0.25f;
   settings.physics->max_sweep_iterations = 5;
+  settings.building->destroy_reach_distance = 3.f;
+  settings.building->spawn_clearance_cells = 12;
   return settings;
 }
 
@@ -77,6 +79,7 @@ TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndTuning) {
   EXPECT_EQ(client.Config().GetFPS(), server_settings.core->fps);
   EXPECT_EQ(client.World().get<NetTuning>(), *server_settings.net);
   EXPECT_EQ(client.World().get<PhysicsTuning>(), *server_settings.physics);
+  EXPECT_EQ(client.World().get<BuildingTuning>(), *server_settings.building);
   EXPECT_EQ(client.Config().GetCoreSettings().fps, CoreSettings {}.fps) << "the configured rate stays as it was";
   EXPECT_EQ(server.World().get<NetTuning>(), *server_settings.net) << "the server keeps its own";
 }
@@ -96,6 +99,7 @@ TEST(SessionSettingsTest, LeavingGivesTheClientItsOwnSettingsBack) {
   EXPECT_EQ(client.Config().GetFPS(), CoreSettings {}.fps);
   EXPECT_EQ(client.World().get<NetTuning>(), NetTuning {});
   EXPECT_EQ(client.World().get<PhysicsTuning>(), PhysicsTuning {});
+  EXPECT_EQ(client.World().get<BuildingTuning>(), BuildingTuning {});
 }
 
 TEST(SessionSettingsTest, ClientRefusesServerSettingsItsHistoryCannotCover) {

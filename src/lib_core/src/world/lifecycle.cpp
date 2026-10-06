@@ -23,6 +23,7 @@
 
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/phase_order.h>
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
@@ -64,7 +65,7 @@ void InitLifecycle(flecs::world& world) {
   world.set<LifecycleCallbacks>({});
 }
 
-std::expected<void, std::string> RunLifecycle(flecs::world& world) {
+Status RunLifecycle(flecs::world& world) {
   RunStage(world, LifecycleStage::kRegisterComponents);
   RunStage(world, LifecycleStage::kInitPhases);
   if (auto linearized = LinearizePhases(world); !linearized) {

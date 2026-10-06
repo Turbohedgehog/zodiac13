@@ -100,16 +100,11 @@ void Request(Z13TestWorld& test_world, std::vector<flecs::entity> builders, bool
 std::vector<Block> BlocksOfType(flecs::world world, uint32_t type_id) {
   std::vector<Block> blocks;
   world.query_builder<const Block>().build().each([&](const Block& block) {
-    if (block.type_id == type_id) {
+    if (block.spec.type_id == type_id) {
       blocks.push_back(block);
     }
   });
   return blocks;
-}
-
-z13::primitives::CellBox Occupied(const Block& block) {
-  return z13::primitives::Placement {.cell = block.cell, .size = block.size, .orientation = block.orientation}
-      .Occupied();
 }
 
 TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {
@@ -120,10 +115,10 @@ TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {
 
   const auto walls = BlocksOfType(test_world.World(), kWallId);
   ASSERT_EQ(walls.size(), 1u);
-  EXPECT_EQ(walls[0].size, kPanelSize);
+  EXPECT_EQ(walls[0].spec.size, kPanelSize);
   // The brush sits 5 m ahead of the builder.
   const Eigen::Vector3f brush = (kBuilderPosition + Eigen::Vector3f(5.f, 0.f, 0.f)) / kCellSize;
-  EXPECT_TRUE(Occupied(walls[0]).Contains(brush.array().floor().cast<int>()));
+  EXPECT_TRUE(z13::building::primitives::OccupiedCells(walls[0]).Contains(brush.array().floor().cast<int>()));
 }
 
 // Same tick, same cells: the lower player id builds, the other is refused.
@@ -174,7 +169,7 @@ TEST(BlockBuildingTest, ASpawnPointBuiltThisTickKeepsItsSpaceClear) {
       AddBuilder(test_world, kBuilderId, Facing({0.f, 5.f, 1.25f}, Eigen::Vector3f::UnitX()));
   const flecs::entity wall_builder =
       AddBuilder(test_world, kBuilderId + 1, Facing({0.f, 5.f, 2.5f}, Eigen::Vector3f::UnitX()));
-  marker_builder.set(BlockBrush {.type_id = kSpawnPointId, .size = {4, 4, 1}});
+  marker_builder.set(BlockBrush {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}});
 
   Request(test_world, {wall_builder, marker_builder}, /*build=*/true);
 
@@ -185,7 +180,7 @@ TEST(BlockBuildingTest, ASpawnPointBuiltThisTickKeepsItsSpaceClear) {
 flecs::entity AddSpawnBlock(flecs::world world, const std::string& name, const Eigen::Vector3i& cell) {
   return world.entity(name.c_str())
       .add<z13::flecs_tools::StateEntity>()
-      .set(Block {.type_id = kSpawnPointId, .cell = cell, .size = {4, 4, 1}})
+      .set(Block {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}, .cell = cell})
       .set(SpawnPoint {});
 }
 

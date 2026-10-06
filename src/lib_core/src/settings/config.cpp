@@ -15,6 +15,7 @@
  */
 
 #include <lib_core/settings/config.h>
+#include <lib_core/utils/status.h>
 
 #include <format>
 #include <string>
@@ -58,7 +59,7 @@ boost::program_options::options_description& Config::GetOptionsDescription() {
   return options_description_;
 }
 
-std::expected<void, std::string> Config::ParseCommandLineArguments(int argc, char *argv[]) {
+Status Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
   try {
     po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
@@ -69,7 +70,7 @@ std::expected<void, std::string> Config::ParseCommandLineArguments(int argc, cha
   return ValidateAndApplyArguments();
 }
 
-std::expected<void, std::string> Config::ValidateAndApplyArguments() {
+Status Config::ValidateAndApplyArguments() {
   if (variables_map_.count(kServerOption.data()) > 0) {
     command_line_.server = true;
     const int raw_port = variables_map_[kServerOption.data()].as<int>();
@@ -123,7 +124,7 @@ void Config::SetCoreSettings(const CoreSettings& settings) {
   core_settings_ = settings;
 }
 
-std::expected<void, std::string> Config::AddSchemaOptions(
+Status Config::AddSchemaOptions(
     const reflection::Schema& schema, const reflection::Object& root) {
   auto collected = schema::CollectCliOptions(schema, root);
   if (!collected) {
@@ -145,7 +146,7 @@ std::expected<void, std::string> Config::AddSchemaOptions(
   return {};
 }
 
-std::expected<void, std::string> Config::ApplySchemaOverrides(
+Status Config::ApplySchemaOverrides(
     const reflection::Object& root, flatbuffers::Table& table) const {
   for (const SchemaOptions& registered : schema_options_) {
     if (registered.root != &root) {

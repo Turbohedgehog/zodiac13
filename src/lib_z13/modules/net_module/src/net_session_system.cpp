@@ -211,6 +211,7 @@ NetSession::Result SendWelcome(
   welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
   welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
   welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
+  welcome.building = std::make_unique<fbs::building::BuildingTuningT>(world.get<z13::BuildingTuning>());
   if (auto filled = FillCatchUp(world, welcome); !filled) {
     return filled;
   }
@@ -305,7 +306,7 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
 
 // Peers must place blocks from the same palette; neither having one also agrees.
 std::optional<uint64_t> PaletteHash(flecs::world world) {
-  if (const auto* palette = world.try_get<z13::primitives::BlockPalette>()) {
+  if (const auto* palette = world.try_get<z13::building::primitives::BlockPalette>()) {
     return palette->palette.hash;
   }
   return std::nullopt;
@@ -546,15 +547,21 @@ struct AdoptedSettings {
   using Singleton = void;
   NetTuning own_net;
   z13::PhysicsTuning own_physics;
+  z13::BuildingTuning own_building;
 };
 
 void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& session) {
   if (!world.has<AdoptedSettings>()) {
-    world.set<AdoptedSettings>({.own_net = world.get<NetTuning>(), .own_physics = world.get<z13::PhysicsTuning>()});
+    world.set<AdoptedSettings>({
+        .own_net = world.get<NetTuning>(),
+        .own_physics = world.get<z13::PhysicsTuning>(),
+        .own_building = world.get<z13::BuildingTuning>(),
+    });
   }
   z13::OverrideCoreFps(world, session.fps);
   world.set(NetTuning(session.net));
   world.set(z13::PhysicsTuning(session.physics));
+  world.set(z13::BuildingTuning(session.building));
 }
 
 void RestoreOwnSettings(flecs::world world) {
@@ -565,6 +572,7 @@ void RestoreOwnSettings(flecs::world world) {
   world.remove<AdoptedSettings>();
   world.set(own.own_net);
   world.set(own.own_physics);
+  world.set(own.own_building);
   z13::OverrideCoreFps(world, std::nullopt);
 }
 
@@ -642,14 +650,16 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
 
 // Validated together with this client's own retention: a server's windows must still fit its history.
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(flecs::world world, const fbn::WelcomeT& welcome) {
-  if (!welcome.tuning || !welcome.physics) {
+  if (!welcome.tuning || !welcome.physics || !welcome.building) {
     return std::unexpected("server sent no settings");
   }
-  const z13::SessionSettings session {.fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics};
+  const z13::SessionSettings session {
+      .fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics, .building = *welcome.building};
   z13::Settings own = z13::MakeSettings();
   *own.core = world.get<z13::ActiveCoreSettings>();
   *own.net = world.get<NetTuning>();
   *own.physics = world.get<z13::PhysicsTuning>();
+  *own.building = world.get<z13::BuildingTuning>();
   if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
     return std::unexpected(std::format("unusable server settings ({})", valid.error()));
   }

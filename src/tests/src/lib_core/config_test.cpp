@@ -16,13 +16,13 @@
 
 #include <gtest/gtest.h>
 
-#include <expected>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 namespace {
@@ -38,7 +38,7 @@ constexpr std::string_view kEmptyHostEndpoint = ":80";
 
 struct ParsedConfig {
   Config config;
-  std::expected<void, std::string> result;
+  Status result;
 };
 
 // argv[0] is the (unused) program name boost::program_options expects.

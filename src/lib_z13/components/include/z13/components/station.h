@@ -36,23 +36,58 @@ struct StationMode {
   using Singleton = void;
 };
 
-// A palette primitive placed on the grid. `size` is along the primitive's own axes;
-// `orientation` (one of z13_primitives' 24) turns it, and `cell` is the lowest corner of
-// the cells it then occupies.
+// The 24 turns that map the grid onto itself, named by where the primitive's +X faces and
+// where its +Z points. The identity comes first.
+enum class Orientation : uint8_t {
+  kFacePosXUpPosZ,
+  kFacePosXUpNegZ,
+  kFacePosXUpPosY,
+  kFacePosXUpNegY,
+  kFaceNegXUpPosZ,
+  kFaceNegXUpNegZ,
+  kFaceNegXUpPosY,
+  kFaceNegXUpNegY,
+  kFacePosYUpPosZ,
+  kFacePosYUpNegZ,
+  kFacePosYUpPosX,
+  kFacePosYUpNegX,
+  kFaceNegYUpPosZ,
+  kFaceNegYUpNegZ,
+  kFaceNegYUpPosX,
+  kFaceNegYUpNegX,
+  kFacePosZUpPosX,
+  kFacePosZUpNegX,
+  kFacePosZUpPosY,
+  kFacePosZUpNegY,
+  kFaceNegZUpPosX,
+  kFaceNegZUpNegX,
+  kFaceNegZUpPosY,
+  kFaceNegZUpNegY,
+};
+
+// Which palette primitive, how large along its own axes, and how it is turned.
+struct BlockSpec {
+  uint32_t type_id {};
+  Eigen::Vector3i size = Eigen::Vector3i::Ones();
+  Orientation orientation {};
+};
+
+// The ship scene's building cube.
+inline BlockSpec CubeSpec() {
+  return {.type_id = kCubePrimitiveId, .size = Eigen::Vector3i::Constant(kCubeEdgeCells)};
+}
+
+// A primitive placed on the grid; `cell` is the lowest corner of the cells it occupies.
 struct Block {
   using State = void;
-  uint32_t type_id {};
+  BlockSpec spec;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
-  Eigen::Vector3i size = Eigen::Vector3i::Ones();
-  uint8_t orientation {};
 };
 
 // What a player's next build places, at the brush.
 struct BlockBrush {
   using State = void;
-  uint32_t type_id {};
-  Eigen::Vector3i size = Eigen::Vector3i::Ones();
-  uint8_t orientation {};
+  BlockSpec spec;
 };
 
 // A spot SpawnPlayer puts players on, with their facing.

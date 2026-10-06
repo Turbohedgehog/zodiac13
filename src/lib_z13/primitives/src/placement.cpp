@@ -17,66 +17,79 @@
 #include <z13_primitives/placement.h>
 
 #include <algorithm>
-#include <array>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 
 namespace {
 
-constexpr int kAxes = 3;
-constexpr int kSignCombinations = 8;
+using z13::station::Orientation;
 
-// Row-major signed permutation matrices.
-using IntMatrix = std::array<int8_t, kAxes * kAxes>;
+enum class Axis : uint8_t { kPosX, kNegX, kPosY, kNegY, kPosZ, kNegZ };
 
-constexpr int Determinant(const IntMatrix& m) {
-  return m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) +
-         m[2] * (m[3] * m[7] - m[4] * m[6]);
+struct Turn {
+  Axis face {};
+  Axis up {};
+};
+
+Turn TurnOf(Orientation orientation) {
+  switch (orientation) {
+    case Orientation::kFacePosXUpPosZ: return {Axis::kPosX, Axis::kPosZ};
+    case Orientation::kFacePosXUpNegZ: return {Axis::kPosX, Axis::kNegZ};
+    case Orientation::kFacePosXUpPosY: return {Axis::kPosX, Axis::kPosY};
+    case Orientation::kFacePosXUpNegY: return {Axis::kPosX, Axis::kNegY};
+    case Orientation::kFaceNegXUpPosZ: return {Axis::kNegX, Axis::kPosZ};
+    case Orientation::kFaceNegXUpNegZ: return {Axis::kNegX, Axis::kNegZ};
+    case Orientation::kFaceNegXUpPosY: return {Axis::kNegX, Axis::kPosY};
+    case Orientation::kFaceNegXUpNegY: return {Axis::kNegX, Axis::kNegY};
+    case Orientation::kFacePosYUpPosZ: return {Axis::kPosY, Axis::kPosZ};
+    case Orientation::kFacePosYUpNegZ: return {Axis::kPosY, Axis::kNegZ};
+    case Orientation::kFacePosYUpPosX: return {Axis::kPosY, Axis::kPosX};
+    case Orientation::kFacePosYUpNegX: return {Axis::kPosY, Axis::kNegX};
+    case Orientation::kFaceNegYUpPosZ: return {Axis::kNegY, Axis::kPosZ};
+    case Orientation::kFaceNegYUpNegZ: return {Axis::kNegY, Axis::kNegZ};
+    case Orientation::kFaceNegYUpPosX: return {Axis::kNegY, Axis::kPosX};
+    case Orientation::kFaceNegYUpNegX: return {Axis::kNegY, Axis::kNegX};
+    case Orientation::kFacePosZUpPosX: return {Axis::kPosZ, Axis::kPosX};
+    case Orientation::kFacePosZUpNegX: return {Axis::kPosZ, Axis::kNegX};
+    case Orientation::kFacePosZUpPosY: return {Axis::kPosZ, Axis::kPosY};
+    case Orientation::kFacePosZUpNegY: return {Axis::kPosZ, Axis::kNegY};
+    case Orientation::kFaceNegZUpPosX: return {Axis::kNegZ, Axis::kPosX};
+    case Orientation::kFaceNegZUpNegX: return {Axis::kNegZ, Axis::kNegX};
+    case Orientation::kFaceNegZUpPosY: return {Axis::kNegZ, Axis::kPosY};
+    case Orientation::kFaceNegZUpNegY: return {Axis::kNegZ, Axis::kNegY};
+  }
+  return {Axis::kPosX, Axis::kPosZ};
 }
 
-// Every signed permutation with determinant +1, permutations in lexicographic order and
-// then sign patterns, so the identity comes first and the numbering never changes.
-consteval std::array<IntMatrix, kOrientationCount> MakeRotations() {
-  std::array<IntMatrix, kOrientationCount> rotations {};
-  std::array<int, kAxes> permutation {0, 1, 2};
-  size_t count = 0;
-  do {
-    for (int signs = 0; signs < kSignCombinations; ++signs) {
-      IntMatrix m {};
-      for (int row = 0; row < kAxes; ++row) {
-        m[row * kAxes + permutation[row]] = static_cast<int8_t>((signs >> row) & 1 ? -1 : 1);
-      }
-      if (Determinant(m) == 1) {
-        rotations[count++] = m;
-      }
-    }
-  } while (std::next_permutation(permutation.begin(), permutation.end()));
-  return rotations;
+Eigen::Vector3i Direction(Axis axis) {
+  switch (axis) {
+    case Axis::kPosX: return Eigen::Vector3i::UnitX();
+    case Axis::kNegX: return -Eigen::Vector3i::UnitX();
+    case Axis::kPosY: return Eigen::Vector3i::UnitY();
+    case Axis::kNegY: return -Eigen::Vector3i::UnitY();
+    case Axis::kPosZ: return Eigen::Vector3i::UnitZ();
+    case Axis::kNegZ: return -Eigen::Vector3i::UnitZ();
+  }
+  return Eigen::Vector3i::Zero();
 }
-
-constexpr std::array<IntMatrix, kOrientationCount> kRotations = MakeRotations();
 
 }  // namespace
 
-Eigen::Matrix3i OrientationMatrix(uint8_t orientation) {
-  const IntMatrix& m = kRotations[orientation];
+// +Y follows from +X and +Z, as in any right-handed frame.
+Eigen::Matrix3i OrientationMatrix(Orientation orientation) {
+  const Turn turn = TurnOf(orientation);
+  const Eigen::Vector3i face = Direction(turn.face);
+  const Eigen::Vector3i up = Direction(turn.up);
   Eigen::Matrix3i matrix;
-  for (int row = 0; row < kAxes; ++row) {
-    for (int column = 0; column < kAxes; ++column) {
-      matrix(row, column) = m[row * kAxes + column];
-    }
-  }
+  matrix << face, up.cross(face), up;
   return matrix;
 }
 
-uint8_t InverseOrientation(uint8_t orientation) {
+Orientation InverseOrientation(Orientation orientation) {
   const Eigen::Matrix3i inverse = OrientationMatrix(orientation).transpose();
-  for (uint8_t candidate = 0; candidate < kOrientationCount; ++candidate) {
-    if (OrientationMatrix(candidate) == inverse) {
-      return candidate;
-    }
-  }
-  return 0;
+  const auto found = std::ranges::find_if(
+      kOrientations, [&inverse](Orientation candidate) { return OrientationMatrix(candidate) == inverse; });
+  return found != kOrientations.end() ? *found : Orientation {};
 }
 
 bool CellBox::Contains(const Eigen::Vector3i& cell) const {
@@ -87,23 +100,22 @@ bool CellBox::Overlaps(const CellBox& other) const {
   return (min.array() < other.End().array()).all() && (other.min.array() < End().array()).all();
 }
 
-CellBox Placement::Occupied() const {
-  return {.min = cell, .extent = OrientationMatrix(orientation).cwiseAbs() * size};
+CellBox OccupiedCells(const z13::station::Block& block) {
+  return {.min = block.cell, .extent = OrientationMatrix(block.spec.orientation).cwiseAbs() * block.spec.size};
 }
 
 // The rotated frame spans [rotation * 0, rotation * size] per axis in some order; shifting
 // its lowest corner onto `cell` gives the origin.
-CellPose Placement::Pose() const {
-  const Eigen::Matrix3i rotation = OrientationMatrix(orientation);
-  const Eigen::Vector3i rotated_size = rotation * size;
-  return {.rotation = rotation, .origin = cell - rotated_size.cwiseMin(Eigen::Vector3i::Zero())};
+CellPose PoseOf(const z13::station::Block& block) {
+  const Eigen::Matrix3i rotation = OrientationMatrix(block.spec.orientation);
+  const Eigen::Vector3i rotated_size = rotation * block.spec.size;
+  return {.rotation = rotation, .origin = block.cell - rotated_size.cwiseMin(Eigen::Vector3i::Zero())};
 }
 
-Placement PlaceCentredOn(const Eigen::Vector3f& point, const Eigen::Vector3i& size, uint8_t orientation) {
-  const Eigen::Vector3i extent = OrientationMatrix(orientation).cwiseAbs() * size;
+z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::station::BlockSpec& spec) {
+  const Eigen::Vector3i extent = OrientationMatrix(spec.orientation).cwiseAbs() * spec.size;
   const Eigen::Vector3f lowest = point - extent.cast<float>() / 2.f;
-  const Eigen::Vector3i cell = lowest.array().round().cast<int>();
-  return {.cell = cell, .size = size, .orientation = orientation};
+  return {.spec = spec, .cell = lowest.array().round().cast<int>()};
 }
 
 Eigen::Isometry3f WorldPose(const CellPose& pose, float cell_size) {
@@ -113,4 +125,4 @@ Eigen::Isometry3f WorldPose(const CellPose& pose, float cell_size) {
   return world;
 }
 
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

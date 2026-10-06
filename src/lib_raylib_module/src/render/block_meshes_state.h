@@ -17,34 +17,35 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 
 #include <raylib.h>
 
 #include <z13_primitives/geometry.h>
 
+#include "block_meshes.h"
+
 namespace z13::raylib {
 
-// Models of placed primitives, one per (type, size) shared by every block of that shape,
-// each with its checker texture. Singleton exempt from the "no pointers" rule (see
-// CLAUDE.md); never state.
-class BlockMeshes {
+struct CachedBlockModel {
+  std::shared_ptr<::Model> model;
+  bool used {};
+};
+
+class BlockMeshes::State {
  public:
-  using Singleton = void;
-  using OptionalPalette = z13::building::primitives::OptionalPalette;
+  explicit State(::Shader lighting_shader) : lighting_shader_(lighting_shader) {}
 
-  // `lighting_shader` is borrowed by every model's material; id 0 keeps raylib's default.
-  explicit BlockMeshes(::Shader lighting_shader = {});
-
-  // Built on first use; a type the palette lacks gets a grey box.
   std::shared_ptr<::Model> Get(const z13::building::primitives::BlockShapeKey& shape, OptionalPalette palette);
-
-  // Frees the models no Get() asked for since the previous call.
   void ReleaseUnused();
 
  private:
-  class State;
+  std::shared_ptr<::Model> Build(const z13::building::primitives::BlockShapeKey& shape, OptionalPalette palette) const;
 
-  std::shared_ptr<State> state_;
+  ::Shader lighting_shader_ {};
+  std::unordered_map<z13::building::primitives::BlockShapeKey, CachedBlockModel,
+                     z13::building::primitives::BlockShapeKeyHash>
+      models_;
 };
 
 }  // namespace z13::raylib

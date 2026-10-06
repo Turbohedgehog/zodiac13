@@ -28,6 +28,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
 #include <z13_primitives/palette.h>
+#include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
 
@@ -48,24 +49,24 @@ void PopulateConstructionSite(flecs::entity e, z13::gameplay::PopulateSceneEvent
   if (!world.has<StationMode>()) {
     return;
   }
-  const auto* palette = world.try_get<z13::primitives::BlockPalette>();
+  const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
   if (palette == nullptr) {
     log_error("station: no block palette to build the construction site from");
     return;
   }
+  const auto& tuning = world.get<BuildingTuning>();
   // Observers defer commands; SpawnPlayer, right after this event, must see the spawn point.
   const z13::ImmediateScope immediate(world);
 
   CreateBlock(world, std::string {"StationFloor"},
-              {.type_id = kFloorPrimitiveId,
-               .cell = {-kFloorHalfWidthCells, -kFloorHalfWidthCells, -1},
-               .size = {2 * kFloorHalfWidthCells, 2 * kFloorHalfWidthCells, 1}},
-              palette->palette);
+              {.spec = {.type_id = kFloorPrimitiveId, .size = {2 * kFloorHalfWidthCells, 2 * kFloorHalfWidthCells, 1}},
+               .cell = {-kFloorHalfWidthCells, -kFloorHalfWidthCells, -1}},
+              palette->palette, tuning);
   CreateBlock(world, std::string {"StationSpawnPoint"},
-              {.type_id = kSpawnPointPrimitiveId,
-               .cell = {-kSpawnMarkerHalfWidthCells, -kSpawnMarkerHalfWidthCells, 0},
-               .size = {2 * kSpawnMarkerHalfWidthCells, 2 * kSpawnMarkerHalfWidthCells, 1}},
-              palette->palette);
+              {.spec = {.type_id = kSpawnPointPrimitiveId,
+                        .size = {2 * kSpawnMarkerHalfWidthCells, 2 * kSpawnMarkerHalfWidthCells, 1}},
+               .cell = {-kSpawnMarkerHalfWidthCells, -kSpawnMarkerHalfWidthCells, 0}},
+              palette->palette, tuning);
 }
 
 void RegisterSystems(flecs::world world) {

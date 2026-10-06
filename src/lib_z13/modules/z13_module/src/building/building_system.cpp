@@ -129,12 +129,9 @@ flecs::entity SpawnCube(flecs::world world, z13::gameplay::IdCounters& counters,
     name = std::format("Block_{}", ++counters.last_block_id);
   } while (world.lookup(name.c_str()));
 
-  const auto placement = z13::primitives::PlaceCentredOn(
-      center / z13::station::kCellSize, Eigen::Vector3i::Constant(z13::station::kCubeEdgeCells), 0);
   return world.entity(name.c_str())
       .add<z13::flecs_tools::StateEntity>()
-      .set(z13::station::Block {
-          .type_id = z13::station::kCubePrimitiveId, .cell = placement.cell, .size = placement.size});
+      .set(z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec()));
 }
 
 // The ship scene's free building: a cube at the brush, overlaps allowed. Station mode

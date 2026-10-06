@@ -34,6 +34,7 @@
 #include <z13/components/station.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
+#include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
 #include "block_index.h"
@@ -46,10 +47,10 @@ struct StationBuildPhase {};
 
 namespace {
 
-using z13::primitives::BlockPalette;
-
-// Same reach as the ship scene's destroy raycast.
-constexpr float kDestroyReachDistance = 5.f;
+using z13::building::primitives::BlockPalette;
+using z13::building::primitives::CellBox;
+using z13::building::primitives::OccupiedCells;
+using z13::building::primitives::PlaceCentredOn;
 
 // Until the palette UI (f/build-palette-ui) lets players pick: a 2 m square wall panel.
 constexpr uint32_t kDefaultBrushType = 2;
@@ -65,29 +66,25 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<BlockIndex>(world);
-}
-
-z13::primitives::Placement PlacementOf(const Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
+  z13::flecs_tools::RegisterComponents<BlockIndex, BuildingTuning>(world);
 }
 
 void EnsureBlockBrush(flecs::entity player, const z13::gameplay::Player&) {
   player.set(BlockBrush {
-      .type_id = kDefaultBrushType,
-      .size = {kDefaultBrushWidthCells, 1, kDefaultBrushWidthCells},
+      .spec = {.type_id = kDefaultBrushType, .size = {kDefaultBrushWidthCells, 1, kDefaultBrushWidthCells}},
   });
 }
 
-void RebuildIndex(const BlockQuery& blocks, BlockIndex& index) {
-  index.Clear();
-  blocks.each([&index](flecs::entity e, const Block& block) { index.Insert(e.id(), PlacementOf(block).Occupied()); });
+void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning) {
+  index = BlockIndex(tuning.index_chunk_cells);
+  blocks.each([&index](flecs::entity e, const Block& block) { index.Insert(e.id(), OccupiedCells(block)); });
 }
 
 // Checked before count(): iterating the query resets its changed state.
-void SyncBlockIndex(const BlockQuery& blocks, BlockIndex& index) {
-  if (blocks.changed() || static_cast<size_t>(blocks.count()) != index.Size()) {
-    RebuildIndex(blocks, index);
+void SyncBlockIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning) {
+  if (blocks.changed() || static_cast<size_t>(blocks.count()) != index.Size() ||
+      index.ChunkCells() != tuning.index_chunk_cells) {
+    RebuildIndex(blocks, index, tuning);
   }
 }
 
@@ -109,9 +106,11 @@ std::vector<PlayerSphere> PlayerSpheres(const PlayerQuery& players) {
   return spheres;
 }
 
-std::vector<z13::primitives::CellBox> SpawnClearances(const SpawnBlockQuery& spawn_blocks) {
-  std::vector<z13::primitives::CellBox> clearances;
-  spawn_blocks.each([&clearances](const Block& marker) { clearances.push_back(SpawnClearance(marker)); });
+std::vector<CellBox> SpawnClearances(const SpawnBlockQuery& spawn_blocks, const BuildingTuning& tuning) {
+  std::vector<CellBox> clearances;
+  spawn_blocks.each([&clearances, &tuning](const Block& marker) {
+    clearances.push_back(SpawnClearance(marker, tuning));
+  });
   return clearances;
 }
 
@@ -126,44 +125,46 @@ std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counter
 
 void ProcessBuildRequest(
     flecs::entity player, const BlockBrush& brush, BlockIndex& index, z13::gameplay::IdCounters& counters,
-    const BlockPalette& palette, const PlayerQuery& players, std::vector<z13::primitives::CellBox>& spawn_clearances) {
+    const BlockPalette& palette, const BuildingTuning& tuning, const PlayerQuery& players,
+    std::vector<CellBox>& spawn_clearances) {
   player.remove<z13::building::RequestBuildBlock>();
   const auto brush_position = FindBrushPosition(player);
-  if (!brush_position || !z13::primitives::IsValidOrientation(brush.orientation)) {
+  if (!brush_position) {
     return;
   }
 
-  const auto placement =
-      z13::primitives::PlaceCentredOn(*brush_position / kCellSize, brush.size, brush.orientation);
-  const Block block {
-      .type_id = brush.type_id, .cell = placement.cell, .size = placement.size, .orientation = placement.orientation};
-  const auto valid = ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances);
+  const Block block = PlaceCentredOn(*brush_position / kCellSize, brush.spec);
+  const auto valid = ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning);
   if (!valid) {
     log_debug("station: build refused: {}", valid.error());
     return;
   }
 
   flecs::world world = player.world();
-  const flecs::entity created = CreateBlock(world, NextBlockName(world, counters), block, palette.palette);
+  const flecs::entity created = CreateBlock(world, NextBlockName(world, counters), block, palette.palette, tuning);
   // Now, not at the next sync: a later request this same tick must see these cells taken.
-  index.Insert(created.id(), placement.Occupied());
-  const auto primitive = palette.palette.Find(block.type_id);
-  if (primitive && primitive->get().Has(z13::primitives::PrimitiveFlags::Spawn)) {
-    spawn_clearances.push_back(SpawnClearance(block));
+  index.Insert(created.id(), OccupiedCells(block));
+  const auto primitive = palette.palette.Find(block.spec.type_id);
+  if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
+    spawn_clearances.push_back(SpawnClearance(block, tuning));
   }
 }
 
 // A run() rather than each(), like ProcessDestroyRequests: a spawn point built by one
 // request keeps its clearance free for the requests after it in the same tick.
 void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
-  std::vector<z13::primitives::CellBox> spawn_clearances = SpawnClearances(spawn_blocks);
+  std::optional<std::vector<CellBox>> spawn_clearances;
   while (it.next()) {
     const auto brushes = it.field<const BlockBrush>(2);
     auto& index = it.field<BlockIndex>(3)[0];
     auto& counters = it.field<z13::gameplay::IdCounters>(4)[0];
     const auto& palette = it.field<const BlockPalette>(5)[0];
+    const auto& tuning = it.field<const BuildingTuning>(6)[0];
+    if (!spawn_clearances) {
+      spawn_clearances = SpawnClearances(spawn_blocks, tuning);
+    }
     for (const size_t i : it) {
-      ProcessBuildRequest(it.entity(i), brushes[i], index, counters, palette, players, spawn_clearances);
+      ProcessBuildRequest(it.entity(i), brushes[i], index, counters, palette, tuning, players, *spawn_clearances);
     }
   }
 }
@@ -176,6 +177,7 @@ void ProcessDestroyRequests(flecs::iter& it) {
     const auto transforms = it.field<const Eigen::Matrix4f>(2);
     auto& index = it.field<BlockIndex>(3)[0];
     const auto& palette = it.field<const BlockPalette>(4)[0];
+    const auto& tuning = it.field<const BuildingTuning>(5)[0];
     for (const size_t i : it) {
       flecs::entity player = it.entity(i);
       player.remove<z13::building::RequestDestroyBlock>();
@@ -183,7 +185,7 @@ void ProcessDestroyRequests(flecs::iter& it) {
       const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transforms[i]);
       const Eigen::Vector3f forward = transforms[i].block<3, 3>(0, 0).col(0);
       const auto hit =
-          index.Raycast(origin / kCellSize, (origin + forward * kDestroyReachDistance) / kCellSize);
+          index.Raycast(origin / kCellSize, (origin + forward * tuning.destroy_reach_distance) / kCellSize);
       if (!hit) {
         continue;
       }
@@ -217,11 +219,13 @@ void RegisterSystems(flecs::world world) {
       .each(EnsureBlockBrush);
 
   const BlockQuery blocks = world.query_builder<const Block>("BlockBuildingSystem::BlockQuery").detect_changes().build();
-  world.system<BlockIndex>("BlockBuildingSystem::SyncBlockIndex")
+  world.system<BlockIndex, const BuildingTuning>("BlockBuildingSystem::SyncBlockIndex")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .read<Block>()
-      .each([blocks](flecs::iter&, size_t, BlockIndex& index) { SyncBlockIndex(blocks, index); });
+      .each([blocks](flecs::iter&, size_t, BlockIndex& index, const BuildingTuning& tuning) {
+        SyncBlockIndex(blocks, index, tuning);
+      });
 
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>("BlockBuildingSystem::Players")
@@ -232,7 +236,8 @@ void RegisterSystems(flecs::world world) {
 
   // Same-tick requests compete, so they go in player id order (see CompareByPlayerId).
   world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, const BlockBrush, BlockIndex,
-               z13::gameplay::IdCounters, const BlockPalette>("BlockBuildingSystem::ProcessBuildRequests")
+               z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>(
+      "BlockBuildingSystem::ProcessBuildRequests")
       .kind<StationBuildPhase>()
       .term_at(3).inout()
       .term_at(4).inout()
@@ -243,7 +248,7 @@ void RegisterSystems(flecs::world world) {
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
   world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, BlockIndex,
-               const BlockPalette>("BlockBuildingSystem::ProcessDestroyRequests")
+               const BlockPalette, const BuildingTuning>("BlockBuildingSystem::ProcessDestroyRequests")
       .kind<StationBuildPhase>()
       .term_at(3).inout()
       .with<StationMode>()

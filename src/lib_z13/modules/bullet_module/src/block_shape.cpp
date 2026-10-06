@@ -28,7 +28,7 @@ constexpr size_t kBoxCorners = 8;
 // Bullet pads hulls by their margin; kept small so slopes sit where the mesh is drawn.
 constexpr float kHullMargin = 1e-3f;
 
-bool IsAxisAlignedBox(const z13::primitives::ConvexSolid& solid, const Eigen::AlignedBox3f& bounds) {
+bool IsAxisAlignedBox(const z13::building::primitives::ConvexSolid& solid, const Eigen::AlignedBox3f& bounds) {
   if (solid.vertices.size() != kBoxCorners) {
     return false;
   }
@@ -43,8 +43,8 @@ btVector3 ToBt(const Eigen::Vector3f& v) {
 
 }  // namespace
 
-BlockShape::BlockShape(std::span<const z13::primitives::ConvexSolid> solids) {
-  for (const z13::primitives::ConvexSolid& solid : solids) {
+BlockShape::BlockShape(std::span<const z13::building::primitives::ConvexSolid> solids) {
+  for (const z13::building::primitives::ConvexSolid& solid : solids) {
     Eigen::AlignedBox3f bounds;
     for (const Eigen::Vector3f& vertex : solid.vertices) {
       bounds.extend(vertex);

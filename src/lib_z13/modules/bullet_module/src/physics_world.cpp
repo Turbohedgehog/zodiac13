@@ -59,11 +59,12 @@ flecs::entity_t ToEntity(const void* user_pointer) {
 // shape/motion_state/body that direct field access could invalidate.
 class BulletBody {
  public:
-  BulletBody(flecs::entity_t entity, const btTransform& transform, BodyShapeKey key, std::shared_ptr<BlockShape> shape);
+  BulletBody(
+      flecs::entity_t entity, const btTransform& transform, BlockShapeKey key, std::shared_ptr<BlockShape> shape);
 
   btRigidBody& Body() { return body_; }
 
-  bool Matches(const BodyShapeKey& key, const btTransform& transform) const {
+  bool Matches(const BlockShapeKey& key, const btTransform& transform) const {
     const btTransform& current = body_.getWorldTransform();
     return key == key_ && (current.getOrigin() - transform.getOrigin()).length() <= z13::math::kEpsilon &&
            current.getRotation().angleShortestPath(transform.getRotation()) <= z13::math::kEpsilon;
@@ -72,30 +73,20 @@ class BulletBody {
  private:
   // Declaration order matters: members are destroyed in reverse, and body_
   // depends on shape_/motion_state_ still being alive to tear down.
-  BodyShapeKey key_;
+  BlockShapeKey key_;
   std::shared_ptr<BlockShape> shape_;
   btDefaultMotionState motion_state_;
   btRigidBody body_;
 };
 
 BulletBody::BulletBody(
-    flecs::entity_t entity, const btTransform& transform, BodyShapeKey key, std::shared_ptr<BlockShape> shape)
+    flecs::entity_t entity, const btTransform& transform, BlockShapeKey key, std::shared_ptr<BlockShape> shape)
     : key_(std::move(key)),
       shape_(std::move(shape)),
       motion_state_(transform),
       body_(MakeStaticBodyInfo(motion_state_, shape_->Shape())) {
   body_.setUserPointer(ToUserPointer(entity));
 }
-
-struct BodyShapeKeyHash {
-  size_t operator()(const BodyShapeKey& key) const {
-    size_t hash = std::hash<uint32_t> {}(key.type_id);
-    for (const int extent : key.size) {
-      hash = hash * 31 + std::hash<int> {}(extent);
-    }
-    return hash;
-  }
-};
 
 // m_normalWorldOnB points from object B to object A; push the probe out
 // along it (or against it, if Bullet handed the probe to us as B).
@@ -179,7 +170,7 @@ class PhysicsWorld::State {
   size_t BodyCount() const { return bodies_.size(); }
 
   void SyncBody(
-      flecs::entity_t entity, const BodyShapeKey& key, const btTransform& transform, const SolidsBuilder& solids) {
+      flecs::entity_t entity, const BlockShapeKey& key, const btTransform& transform, const SolidsBuilder& solids) {
     if (const auto existing = bodies_.find(entity); existing != bodies_.end()) {
       if (existing->second.Matches(key, transform)) {
         return;
@@ -210,7 +201,7 @@ class PhysicsWorld::State {
   }
 
  private:
-  std::shared_ptr<BlockShape> SharedShape(const BodyShapeKey& key, const SolidsBuilder& solids) {
+  std::shared_ptr<BlockShape> SharedShape(const BlockShapeKey& key, const SolidsBuilder& solids) {
     std::weak_ptr<BlockShape>& cached = shapes_[key];
     if (auto shape = cached.lock()) {
       return shape;
@@ -232,7 +223,7 @@ class PhysicsWorld::State {
   // cross-pointers into it) stable across insert/erase of other bodies.
   std::unordered_map<flecs::entity_t, BulletBody> bodies_;
   // Weak: a shape goes with the last body using it.
-  std::unordered_map<BodyShapeKey, std::weak_ptr<BlockShape>, BodyShapeKeyHash> shapes_;
+  std::unordered_map<BlockShapeKey, std::weak_ptr<BlockShape>, z13::building::primitives::BlockShapeKeyHash> shapes_;
 
   btDiscreteDynamicsWorld dynamics_world_;
 };
@@ -245,7 +236,7 @@ btDiscreteDynamicsWorld& PhysicsWorld::DynamicsWorld() {
 }
 
 void PhysicsWorld::SyncBody(
-    flecs::entity_t entity, const BodyShapeKey& shape, const btTransform& transform, const SolidsBuilder& solids) {
+    flecs::entity_t entity, const BlockShapeKey& shape, const btTransform& transform, const SolidsBuilder& solids) {
   state_->SyncBody(entity, shape, transform, solids);
 }
 

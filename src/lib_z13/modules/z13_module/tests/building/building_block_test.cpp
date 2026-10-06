@@ -79,7 +79,7 @@ TEST(BuildingBlockTest, BuildBlockSpawnsBlockAtBrushPosition) {
   test_world.World().query_builder<const z13::station::Block>()
       .build()
       .each([&](const z13::station::Block& block) {
-        EXPECT_EQ(block.type_id, z13::station::kCubePrimitiveId);
+        EXPECT_EQ(block.spec.type_id, z13::station::kCubePrimitiveId);
         EXPECT_LE((z13::testing::BlockCenter(block) - brush_position).cwiseAbs().maxCoeff(),
                   z13::station::kCellSize / 2.f + z13::testing::kTestEpsilon);
       });

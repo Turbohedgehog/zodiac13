@@ -24,25 +24,18 @@ namespace z13::station {
 
 namespace {
 
-// How far above the marker's top players appear, so they drop onto it.
-constexpr float kSpawnHeightAboveMarker = 1.f;
-// 2 m: the spawn height plus a player's collider.
-constexpr int kSpawnClearanceCells = 8;
-static_assert(static_cast<float>(kSpawnClearanceCells) * kCellSize > kSpawnHeightAboveMarker);
-
-z13::primitives::Placement PlacementOf(const Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-}
+using z13::building::primitives::CellBox;
+using z13::building::primitives::OccupiedCells;
+using z13::building::primitives::OrientationMatrix;
 
 // Upright whatever the marker's turn: only its +X, flattened, sets the facing. Built from
 // integers, not trig, so every platform gets the same bits.
-Eigen::Matrix4f SpawnTransform(const Block& block) {
-  const z13::primitives::Placement placement = PlacementOf(block);
-  const z13::primitives::CellBox cells = placement.Occupied();
+Eigen::Matrix4f SpawnTransform(const Block& block, float height_above_marker) {
+  const CellBox cells = OccupiedCells(block);
   const Eigen::Vector3f center = (cells.min + cells.End()).cast<float>() / 2.f * kCellSize;
   const float top = static_cast<float>(cells.End().z()) * kCellSize;
 
-  Eigen::Vector3i forward = placement.Pose().rotation.col(0);
+  Eigen::Vector3i forward = OrientationMatrix(block.spec.orientation).col(0);
   forward.z() = 0;
   if (forward.isZero()) {
     forward = Eigen::Vector3i::UnitX();
@@ -50,26 +43,27 @@ Eigen::Matrix4f SpawnTransform(const Block& block) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   transform.block<3, 1>(0, 0) = forward.cast<float>();
   transform.block<3, 1>(0, 1) = Eigen::Vector3f(static_cast<float>(-forward.y()), static_cast<float>(forward.x()), 0.f);
-  transform.block<3, 1>(0, 3) = Eigen::Vector3f(center.x(), center.y(), top + kSpawnHeightAboveMarker);
+  transform.block<3, 1>(0, 3) = Eigen::Vector3f(center.x(), center.y(), top + height_above_marker);
   return transform;
 }
 
 }  // namespace
 
-z13::primitives::CellBox SpawnClearance(const Block& marker) {
-  const z13::primitives::CellBox cells = PlacementOf(marker).Occupied();
+CellBox SpawnClearance(const Block& marker, const BuildingTuning& tuning) {
+  const CellBox cells = OccupiedCells(marker);
   return {
       .min = {cells.min.x(), cells.min.y(), cells.End().z()},
-      .extent = {cells.extent.x(), cells.extent.y(), kSpawnClearanceCells},
+      .extent = {cells.extent.x(), cells.extent.y(), tuning.spawn_clearance_cells},
   };
 }
 
 flecs::entity CreateBlock(
-    flecs::world world, const std::string& name, const Block& block, const z13::primitives::Palette& palette) {
+    flecs::world world, const std::string& name, const Block& block, const z13::building::primitives::Palette& palette,
+    const BuildingTuning& tuning) {
   flecs::entity entity = world.entity(name.c_str()).add<z13::flecs_tools::StateEntity>().set(block);
-  const auto primitive = palette.Find(block.type_id);
-  if (primitive && primitive->get().Has(z13::primitives::PrimitiveFlags::Spawn)) {
-    entity.set(SpawnPoint {.transform = SpawnTransform(block)});
+  const auto primitive = palette.Find(block.spec.type_id);
+  if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
+    entity.set(SpawnPoint {.transform = SpawnTransform(block, tuning.spawn_height_above_marker)});
   }
   return entity;
 }

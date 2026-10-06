@@ -29,7 +29,7 @@
 
 #include <primitives_generated.h>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 
 using PrimitiveFlags = fbs::station::PrimitiveFlags;
 
@@ -82,4 +82,4 @@ struct BlockPalette {
 // can't be built at those sizes.
 std::expected<Palette, std::string> ParsePalette(std::string_view json);
 
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

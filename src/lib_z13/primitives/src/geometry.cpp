@@ -19,9 +19,11 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <functional>
+#include <numeric>
 #include <utility>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 
 namespace {
 
@@ -158,4 +160,29 @@ Mesh BuildMesh(std::span<const ConvexSolid> solids) {
   return mesh;
 }
 
-}  // namespace z13::primitives
+size_t BlockShapeKeyHash::operator()(const BlockShapeKey& key) const {
+  constexpr size_t kMultiplier = 31;
+  return std::accumulate(key.size.begin(), key.size.end(), std::hash<uint32_t> {}(key.type_id),
+                         [](size_t hash, int extent) { return hash * kMultiplier + std::hash<int> {}(extent); });
+}
+
+std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKey& shape) {
+  const auto primitive = palette ? palette->get().Find(shape.type_id) : std::nullopt;
+  const Shape box {.kind = ShapeKind::kBox};
+  auto solids = BuildSolids(primitive ? primitive->get().shape : box, shape.size);
+  if (!solids) {
+    solids = BuildSolids(box, shape.size);
+  }
+  return solids.value_or(std::vector<ConvexSolid> {});
+}
+
+std::vector<ConvexSolid> Scaled(std::vector<ConvexSolid> solids, float factor) {
+  std::ranges::for_each(solids, [factor](ConvexSolid& solid) {
+    std::ranges::transform(solid.vertices, solid.vertices.begin(), [factor](const Eigen::Vector3f& vertex) {
+      return Eigen::Vector3f(vertex * factor);
+    });
+  });
+  return solids;
+}
+
+}  // namespace z13::building::primitives

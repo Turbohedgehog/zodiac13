@@ -96,6 +96,11 @@ TEST(SettingsLoaderTest, InvertedConnectTimeoutIsRejected) {
   EXPECT_FALSE(ParseSettings(R"({"connect_timeout": {"min_timeout_ms": 5000, "max_timeout_ms": 1000}})").has_value());
 }
 
+TEST(SettingsLoaderTest, SpawnClearanceBelowTheSpawnHeightIsRejected) {
+  EXPECT_FALSE(ParseSettings(R"({"building": {"spawn_height_above_marker": 2.0}})").has_value());
+  EXPECT_TRUE(ParseSettings(R"({"building": {"spawn_height_above_marker": 1.5}})").has_value());
+}
+
 TEST(SettingsLoaderTest, RetentionShorterThanTheLateWindowIsRejected) {
   // 96 late ticks at 60 fps plus a 1s interval need 2.6s of history.
   EXPECT_FALSE(ParseSettings(R"({"core": {"snapshot_retention_seconds": 2}})").has_value());

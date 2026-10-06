@@ -296,7 +296,7 @@ TEST(PhysicsBodySyncTest, SlopeCollidesByItsShape) {
   const Eigen::Vector3f clear_of_the_slope {0.1f, 0.5f, 0.9f};
   z13::testing::Z13TestWorld test_world;
   flecs::entity player = test_world.Player();
-  test_world.World().entity().set(z13::station::Block {.type_id = kSlopeId, .size = {4, 4, 4}});
+  test_world.World().entity().set(z13::station::Block {.spec = {.type_id = kSlopeId, .size = {4, 4, 4}}});
   test_world.Tick(kTestDeltaTime);
 
   player.set(TranslatedIdentity(clear_of_the_slope.x(), clear_of_the_slope.y(), clear_of_the_slope.z()));

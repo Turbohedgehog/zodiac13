@@ -26,7 +26,7 @@
 
 #include <z13_primitives/geometry.h>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 namespace {
 
 constexpr float kTolerance = 1e-4f;
@@ -158,4 +158,4 @@ TEST(PrimitiveGeometryTest, RejectsADoorOpeningThatDoesNotFit) {
 }
 
 }  // namespace
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

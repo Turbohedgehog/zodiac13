@@ -23,18 +23,19 @@ namespace z13::station {
 
 namespace {
 
-constexpr int kChunkCells = 16;
-
 // Prime multipliers spreading neighbouring chunks across buckets.
 constexpr size_t kHashY = 73856093;
 constexpr size_t kHashZ = 19349663;
 
-// Floor division, so negative cells land in the chunk below zero.
-Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell) {
-  return cell.unaryExpr([](int c) { return c >= 0 ? c / kChunkCells : -((-c - 1) / kChunkCells) - 1; });
+}  // namespace
+
+BlockIndex::BlockIndex(int chunk_cells) : chunk_cells_(chunk_cells) {
 }
 
-}  // namespace
+// Floor division, so negative cells land in the chunk below zero.
+Eigen::Vector3i BlockIndex::ChunkOf(const Eigen::Vector3i& cell) const {
+  return cell.unaryExpr([this](int c) { return c >= 0 ? c / chunk_cells_ : -((-c - 1) / chunk_cells_) - 1; });
+}
 
 size_t BlockIndex::ChunkHash::operator()(const Eigen::Vector3i& chunk) const {
   return static_cast<size_t>(chunk.x()) ^ (static_cast<size_t>(chunk.y()) * kHashY) ^
@@ -42,7 +43,7 @@ size_t BlockIndex::ChunkHash::operator()(const Eigen::Vector3i& chunk) const {
 }
 
 template <class Visit>
-void BlockIndex::ForEachChunk(const z13::primitives::CellBox& cells, Visit visit) const {
+void BlockIndex::ForEachChunk(const z13::building::primitives::CellBox& cells, Visit visit) const {
   const Eigen::Vector3i first = ChunkOf(cells.min);
   const Eigen::Vector3i last = ChunkOf(cells.End() - Eigen::Vector3i::Ones());
   for (int x = first.x(); x <= last.x(); ++x) {
@@ -54,12 +55,7 @@ void BlockIndex::ForEachChunk(const z13::primitives::CellBox& cells, Visit visit
   }
 }
 
-void BlockIndex::Clear() {
-  boxes_.clear();
-  chunks_.clear();
-}
-
-void BlockIndex::Insert(flecs::entity_t block, const z13::primitives::CellBox& cells) {
+void BlockIndex::Insert(flecs::entity_t block, const z13::building::primitives::CellBox& cells) {
   Erase(block);
   if ((cells.extent.array() < 1).any()) {
     return;
@@ -97,7 +93,7 @@ std::optional<flecs::entity_t> BlockIndex::At(const Eigen::Vector3i& cell) const
   return hit != bucket->second.end() ? std::optional(*hit) : std::nullopt;
 }
 
-bool BlockIndex::Overlaps(const z13::primitives::CellBox& cells) const {
+bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const {
   bool overlaps = false;
   ForEachChunk(cells, [this, &cells, &overlaps](const Eigen::Vector3i& chunk) {
     const auto bucket = chunks_.find(chunk);

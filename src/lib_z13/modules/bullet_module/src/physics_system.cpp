@@ -42,6 +42,7 @@
 #include <z13_primitives/geometry.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
+#include <z13_settings/building_tuning.h>
 #include <z13_settings/physics_tuning.h>
 
 namespace z13::bullet_module {
@@ -59,15 +60,13 @@ namespace {
 
 constexpr int kMaxSubSteps = 10;
 
-// How far along the player's forward axis DestroyBlock's raycast reaches.
-constexpr float kDestroyReachDistance = 5.f;
-
 void RegisterPipeline(flecs::world world) {
   world.component<PhysicsStepPhase>().add(flecs::Phase).depends_on<z13::gameplay::PreUpdatePhase>();
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning>(world);
+  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning, z13::BuildingTuning>(
+      world);
 }
 
 // Only term is a singleton, so $this is empty and the entity-taking .each()
@@ -77,14 +76,12 @@ void StepPhysicsWorld(flecs::iter& it, size_t, PhysicsWorld& physics_world) {
 }
 
 using BlockQuery = flecs::query<const z13::station::Block>;
-using OptionalPalette = std::optional<std::reference_wrapper<const z13::primitives::Palette>>;
-
-z13::primitives::Placement PlacementOf(const z13::station::Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-}
+using z13::building::primitives::BlockPalette;
+using z13::building::primitives::OptionalPalette;
 
 btTransform BlockTransform(const z13::station::Block& block) {
-  const Eigen::Isometry3f pose = z13::primitives::WorldPose(PlacementOf(block).Pose(), z13::station::kCellSize);
+  const Eigen::Isometry3f pose =
+      z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
   const Eigen::Matrix3f& r = pose.linear();
   btTransform transform;
   transform.setBasis(btMatrix3x3(r(0, 0), r(0, 1), r(0, 2), r(1, 0), r(1, 1), r(1, 2), r(2, 0), r(2, 1), r(2, 2)));
@@ -92,31 +89,13 @@ btTransform BlockTransform(const z13::station::Block& block) {
   return transform;
 }
 
-// Without a palette or a known type the block still collides, as a plain box.
-std::vector<z13::primitives::ConvexSolid> BlockSolids(const z13::station::Block& block, OptionalPalette palette) {
-  const auto primitive = palette ? palette->get().Find(block.type_id) : std::nullopt;
-  z13::primitives::Shape shape {.kind = z13::primitives::ShapeKind::kBox};
-  if (primitive) {
-    shape = primitive->get().shape;
-  }
-  auto solids = z13::primitives::BuildSolids(shape, block.size);
-  if (!solids) {
-    solids = z13::primitives::BuildSolids({.kind = z13::primitives::ShapeKind::kBox}, block.size);
-  }
-  std::vector<z13::primitives::ConvexSolid> scaled = solids.value_or(std::vector<z13::primitives::ConvexSolid> {});
-  for (z13::primitives::ConvexSolid& solid : scaled) {
-    for (Eigen::Vector3f& vertex : solid.vertices) {
-      vertex *= z13::station::kCellSize;
-    }
-  }
-  return scaled;
-}
-
 void SyncBlockBody(
     flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world, OptionalPalette palette) {
-  physics_world.SyncBody(
-      e.id(), {.type_id = block.type_id, .size = block.size}, BlockTransform(block),
-      [&block, palette]() { return BlockSolids(block, palette); });
+  const BlockShapeKey shape {.type_id = block.spec.type_id, .size = block.spec.size};
+  physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
+    return z13::building::primitives::Scaled(
+        z13::building::primitives::BlockSolids(palette, shape), z13::station::kCellSize);
+  });
   if (!e.has<RigidBody>()) {
     e.add<RigidBody>();
   }
@@ -197,7 +176,7 @@ void ResolvePlayerCollision(
 
 void ProcessDestroyBlockRequest(
     flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player&,
-    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world) {
+    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning) {
   // Station mode destroys through station_module's cell index instead.
   if (player.world().has<z13::station::StationMode>()) {
     return;
@@ -206,7 +185,7 @@ void ProcessDestroyBlockRequest(
 
   const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transform);
   const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
-  const Eigen::Vector3f target = origin + forward * kDestroyReachDistance;
+  const Eigen::Vector3f target = origin + forward * tuning.destroy_reach_distance;
 
   const auto hit = physics_world.RaycastEntity(
       btVector3(origin.x(), origin.y(), origin.z()), btVector3(target.x(), target.y(), target.z()));
@@ -243,11 +222,11 @@ void RegisterSystems(flecs::world world) {
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
-  world.system<PhysicsWorld, const z13::primitives::BlockPalette*>("PhysicsSystem::SyncBlockBodies")
+  world.system<PhysicsWorld, const BlockPalette*>("PhysicsSystem::SyncBlockBodies")
       .kind<z13::gameplay::PostUpdatePhase>()
       .read<z13::station::Block>()
       .write<RigidBody>()
-      .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world, const z13::primitives::BlockPalette* palette) {
+      .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
         SyncBlockBodies(
             it.world(), physics_world, blocks,
             palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
@@ -266,8 +245,8 @@ void RegisterSystems(flecs::world world) {
 
   // After ResolvePlayerCollision in the same phase, so the raycast sees the final player
   // transform; a later phase would run after rendering. write<> merges the destroy early.
-  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, PhysicsWorld>(
-           "PhysicsSystem::ProcessDestroyBlockRequest")
+  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, PhysicsWorld,
+               const z13::BuildingTuning>("PhysicsSystem::ProcessDestroyBlockRequest")
       .kind<z13::gameplay::PostUpdatePhase>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::station::StationMode>()

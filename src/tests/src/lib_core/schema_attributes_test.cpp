@@ -30,6 +30,7 @@
 #include <lib_core/settings/config.h>
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/world/core.h>
+#include <lib_core/utils/status.h>
 #include <z13_settings/settings.h>
 
 // The attribute machinery is generic; the game's settings schema is simply the richest
@@ -138,7 +139,7 @@ class RuntimeSchemaTest : public ::testing::Test {
     schema_ = reflection::GetSchema(binary_schema_.data());
   }
 
-  std::expected<void, std::string> Validate(const std::string& json) {
+  Status Validate(const std::string& json) {
     flatbuffers::Parser data_parser;
     if (!data_parser.Deserialize(binary_schema_.data(), binary_schema_.size())) {
       return std::unexpected("cannot load the schema");
@@ -312,7 +313,7 @@ TEST(SchemaCliTest, CoreReportsAFailedRegistration) {
   std::string program = "z13_test";
   char* argv[] = {program.data()};
 
-  Core core(1, argv, [](Config&) -> std::expected<void, std::string> { return std::unexpected("no options today"); });
+  Core core(1, argv, [](Config&) -> Status { return std::unexpected("no options today"); });
 
   ASSERT_TRUE(core.GetConfigError().has_value());
   EXPECT_EQ(*core.GetConfigError(), "no options today");

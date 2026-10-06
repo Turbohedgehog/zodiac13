@@ -280,18 +280,15 @@ void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
 using BlockQuery = flecs::query<const z13::station::Block>;
 using BrushQuery = flecs::query<const z13::building::Brush, const Eigen::Matrix4f>;
 
-z13::primitives::Placement PlacementOf(const z13::station::Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-}
-
-void DrawBlock(
-    BlockMeshes& meshes, uint32_t type_id, const z13::primitives::Placement& placement,
-    BlockMeshes::OptionalPalette palette, ::Color tint) {
-  const std::shared_ptr<::Model> model = meshes.Get(type_id, placement.size, palette);
+void DrawBlock(BlockMeshes& meshes, const z13::station::Block& block, BlockMeshes::OptionalPalette palette,
+               ::Color tint) {
+  const std::shared_ptr<::Model> model =
+      meshes.Get({.type_id = block.spec.type_id, .size = block.spec.size}, palette);
   if (model->meshCount == 0) {
     return;
   }
-  const Eigen::Isometry3f pose = z13::primitives::WorldPose(placement.Pose(), z13::station::kCellSize);
+  const Eigen::Isometry3f pose =
+      z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
   model->transform = EigenToRaylibMatrix(Eigen::Matrix4f(pose.matrix()));
   DrawModel(*model, Vector3Zero(), 1.f, tint);
 }
@@ -303,27 +300,20 @@ void DrawBrushPreview(
     BlockMeshes::OptionalPalette palette) {
   const Eigen::Vector3f point = z13::math::ExtractTranslation<float>(transform) / z13::station::kCellSize;
   const flecs::entity owner = brush.parent();
-  if (world.has<z13::station::StationMode>() && owner && owner.has<z13::station::BlockBrush>()) {
-    const auto& block_brush = owner.get<z13::station::BlockBrush>();
-    if (z13::primitives::IsValidOrientation(block_brush.orientation)) {
-      DrawBlock(meshes, block_brush.type_id,
-                z13::primitives::PlaceCentredOn(point, block_brush.size, block_brush.orientation), palette,
-                kBrushPreviewTint);
-    }
-    return;
-  }
-  DrawBlock(meshes, z13::station::kCubePrimitiveId,
-            z13::primitives::PlaceCentredOn(point, Eigen::Vector3i::Constant(z13::station::kCubeEdgeCells), 0),
-            palette, kBrushPreviewTint);
+  const z13::station::BlockSpec spec =
+      world.has<z13::station::StationMode>() && owner && owner.has<z13::station::BlockBrush>()
+          ? owner.get<z13::station::BlockBrush>().spec
+          : z13::station::CubeSpec();
+  DrawBlock(meshes, z13::building::primitives::PlaceCentredOn(point, spec), palette, kBrushPreviewTint);
 }
 
 void DrawBlocks(
     const flecs::world& world, const BlockQuery& blocks, const BrushQuery& brushes, BlockMeshes& meshes) {
-  const auto* palette_component = world.try_get<z13::primitives::BlockPalette>();
+  const auto* palette_component = world.try_get<z13::building::primitives::BlockPalette>();
   const BlockMeshes::OptionalPalette palette =
       palette_component != nullptr ? BlockMeshes::OptionalPalette(palette_component->palette) : std::nullopt;
   blocks.each([&meshes, palette](const z13::station::Block& block) {
-    DrawBlock(meshes, block.type_id, PlacementOf(block), palette, WHITE);
+    DrawBlock(meshes, block, palette, WHITE);
   });
   brushes.each([&world, &meshes, palette](
                    flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {

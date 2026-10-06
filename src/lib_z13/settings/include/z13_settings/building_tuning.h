@@ -14,22 +14,18 @@
  * limitations under the License.
  */
 
-#include "block_meshes.h"
+#pragma once
 
-#include "block_meshes_state.h"
+#include <building_tuning_generated.h>
 
-namespace z13::raylib {
+namespace z13 {
 
-BlockMeshes::BlockMeshes(::Shader lighting_shader) : state_(std::make_shared<State>(lighting_shader)) {
-}
+// The world's copy of the building tuning (schemas/fbs/building_tuning.fbs), a runtime singleton.
+struct BuildingTuning : fbs::building::BuildingTuningT {
+  using Singleton = void;
 
-std::shared_ptr<::Model> BlockMeshes::Get(
-    const z13::building::primitives::BlockShapeKey& shape, OptionalPalette palette) {
-  return state_->Get(shape, palette);
-}
+  BuildingTuning() = default;
+  explicit BuildingTuning(const fbs::building::BuildingTuningT& values) : fbs::building::BuildingTuningT(values) {}
+};
 
-void BlockMeshes::ReleaseUnused() {
-  state_->ReleaseUnused();
-}
-
-}  // namespace z13::raylib
+}  // namespace z13

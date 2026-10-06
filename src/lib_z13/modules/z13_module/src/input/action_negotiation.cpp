@@ -28,6 +28,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::gameplay::input {
 
 namespace {
@@ -141,7 +143,7 @@ std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
   return ids;
 }
 
-std::expected<void, std::string> AdoptActionIds(flecs::world world, std::span<const uint32_t> ids) {
+Status AdoptActionIds(flecs::world world, std::span<const uint32_t> ids) {
   auto& action_map = world.get_mut<ActionMap>();
   if (ids.size() != action_map.action_map.size()) {
     return std::unexpected(std::format(

@@ -29,13 +29,14 @@
 
 #include <flecs.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::flecs_tools::codec {
 
 // Primitives are copied as-is: every supported platform is little-endian.
 static_assert(std::endian::native == std::endian::little);
 
 using Error = std::unexpected<std::string>;
-using Status = std::expected<void, std::string>;
 
 // A value's memory, exactly its type's size.
 using ValueBytes = std::span<std::byte>;

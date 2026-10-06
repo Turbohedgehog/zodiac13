@@ -15,6 +15,7 @@
  */
 
 #include <lib_core/world/phase_order.h>
+#include <lib_core/utils/status.h>
 
 #include <array>
 #include <cstddef>
@@ -86,7 +87,7 @@ std::vector<flecs::entity_t> SortPhases(
 
 }  // namespace
 
-std::expected<void, std::string> LinearizePhases(flecs::world& world) {
+Status LinearizePhases(flecs::world& world) {
   // OnStart stays out: the pipeline skips anything that depends on it.
   std::map<flecs::entity_t, std::string> paths;
   world.query_builder().with(flecs::Phase).build().each([&paths](flecs::entity phase) {

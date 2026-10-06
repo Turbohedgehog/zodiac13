@@ -29,6 +29,8 @@
 #include <net_module/protocol.h>
 #include <net_module/transport.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::net {
 
 // The live Transport plus connection/player bookkeeping, as a singleton exempt from the
@@ -39,7 +41,7 @@ class NetSession {
   using Singleton = void;
   // Every call below needs an open session. On a closed one they report instead of
   // quietly doing nothing, so a sequencing bug surfaces at ServiceNetSession.
-  using Result = std::expected<void, std::string>;
+  using Result = Status;
 
   void Open(std::unique_ptr<Transport> transport);
   bool IsOpen() const;

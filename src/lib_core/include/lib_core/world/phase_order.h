@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include <expected>
 #include <string>
 
 #include <flecs.h>
+
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
@@ -30,6 +31,6 @@ namespace z13 {
 // Like flecs' own builtin phases, each phase then depends only on its own hidden anchor
 // (anchors form the chain), so disabling a phase stops just that phase's systems.
 // Fails on a DependsOn cycle, leaving the order as declared.
-std::expected<void, std::string> LinearizePhases(flecs::world& world);
+Status LinearizePhases(flecs::world& world);
 
 }  // namespace z13

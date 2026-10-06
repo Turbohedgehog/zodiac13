@@ -26,6 +26,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/world_state_requests.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/status.h>
 
 namespace z13::flecs_tools {
 
@@ -34,7 +35,7 @@ bool IsStateSingleton(flecs::entity component) {
          component.has(flecs::Singleton);
 }
 
-std::expected<void, std::string> ValidateStateComponents(flecs::world& world) {
+Status ValidateStateComponents(flecs::world& world) {
   std::string errors;
   world.query_builder().with<StateComponent>().build().each([&](flecs::entity component) {
     const auto* info = component.try_get<flecs::Component>();

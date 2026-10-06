@@ -17,7 +17,10 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <expected>
+#include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -28,7 +31,7 @@
 
 // Geometry of a primitive in its own frame, in cells: it spans [0, size] on each axis,
 // Z up. The caller scales by the cell size and applies the block's placement.
-namespace z13::primitives {
+namespace z13::building::primitives {
 
 // Opening a door removes only its leaf's collision.
 enum class PartRole : uint8_t { kBody, kDoorLeaf };
@@ -53,4 +56,24 @@ std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& sh
 
 Mesh BuildMesh(std::span<const ConvexSolid> solids);
 
-}  // namespace z13::primitives
+// Blocks of one primitive at one size share their geometry, so caches are keyed by this.
+struct BlockShapeKey {
+  uint32_t type_id {};
+  Eigen::Vector3i size = Eigen::Vector3i::Zero();
+
+  bool operator==(const BlockShapeKey&) const = default;
+};
+
+struct BlockShapeKeyHash {
+  size_t operator()(const BlockShapeKey& key) const;
+};
+
+using OptionalPalette = std::optional<std::reference_wrapper<const Palette>>;
+
+// The primitive's solids; a type the palette lacks, or no palette, gives a plain box so the
+// block still collides and draws.
+std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKey& shape);
+
+std::vector<ConvexSolid> Scaled(std::vector<ConvexSolid> solids, float factor);
+
+}  // namespace z13::building::primitives

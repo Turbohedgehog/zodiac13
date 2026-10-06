@@ -23,16 +23,18 @@
 #include <z13/components/station.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
+#include <z13_settings/building_tuning.h>
 
 namespace z13::station {
 
 // A state entity for `block`; a primitive with the Spawn flag also makes it a SpawnPoint,
 // facing the primitive's +X.
 flecs::entity CreateBlock(
-    flecs::world world, const std::string& name, const Block& block, const z13::primitives::Palette& palette);
+    flecs::world world, const std::string& name, const Block& block, const z13::building::primitives::Palette& palette,
+    const BuildingTuning& tuning);
 
 // The cells above a spawn marker kept free so players appear in the open: its footprint,
 // up past the head of a player at the spawn height.
-z13::primitives::CellBox SpawnClearance(const Block& marker);
+z13::building::primitives::CellBox SpawnClearance(const Block& marker, const BuildingTuning& tuning);
 
 }  // namespace z13::station

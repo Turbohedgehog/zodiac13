@@ -32,6 +32,7 @@ target_link_libraries(
   PUBLIC
   Eigen3::Eigen
   zodiac13::fbs_schemas
+  zodiac13::components
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

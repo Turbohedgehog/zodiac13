@@ -78,8 +78,8 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world, uint32_t id) {
 bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {
   bool above = true;
   world.World().query_builder<const z13::station::Block>().build().each([&](const z13::station::Block& block) {
-    const z13::primitives::Placement placement {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-    const float top = static_cast<float>(placement.Occupied().End().z()) * z13::station::kCellSize;
+    const auto cells = z13::building::primitives::OccupiedCells(block);
+    const float top = static_cast<float>(cells.End().z()) * z13::station::kCellSize;
     above = above && top < position.z();
   });
   return above;

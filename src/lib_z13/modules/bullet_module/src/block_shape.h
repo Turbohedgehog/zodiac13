@@ -30,7 +30,7 @@ namespace z13::bullet_module {
 // margin outside), anything else as a convex hull.
 class BlockShape {
  public:
-  explicit BlockShape(std::span<const z13::primitives::ConvexSolid> solids);
+  explicit BlockShape(std::span<const z13::building::primitives::ConvexSolid> solids);
   BlockShape(const BlockShape&) = delete;
   BlockShape& operator=(const BlockShape&) = delete;
 

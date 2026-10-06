@@ -35,6 +35,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_core/utils/status.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -54,7 +55,7 @@ struct QuickSaveActionIds {
   std::optional<IdType> load;
 };
 
-std::expected<void, std::string> WriteFile(const std::filesystem::path& path, std::string_view text) {
+Status WriteFile(const std::filesystem::path& path, std::string_view text) {
   std::error_code error;
   std::filesystem::create_directories(path.parent_path(), error);
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
@@ -95,7 +96,7 @@ void QuickLoad(flecs::world world, const std::filesystem::path& path) {
   }
 
   z13::flecs_tools::RequestLoadWorldState(
-      world, std::move(*json), [path](const std::expected<void, std::string>& result) {
+      world, std::move(*json), [path](const Status& result) {
         if (result) {
           log_info("Quick load restored from {}", path.string());
         } else {

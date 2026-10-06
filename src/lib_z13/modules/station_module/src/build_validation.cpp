@@ -21,17 +21,17 @@
 
 #include <z13_primitives/placement.h>
 
+#include <lib_core/utils/status.h>
+
 #include "block_entities.h"
 
 namespace z13::station {
 
 namespace {
 
-z13::primitives::Placement PlacementOf(const Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-}
+using z13::building::primitives::CellBox;
 
-bool Intersects(const PlayerSphere& player, const z13::primitives::CellBox& cells) {
+bool Intersects(const PlayerSphere& player, const CellBox& cells) {
   const Eigen::Vector3f min = cells.min.cast<float>() * kCellSize;
   const Eigen::Vector3f max = cells.End().cast<float>() * kCellSize;
   const Eigen::Vector3f closest = player.center.cwiseMax(min).cwiseMin(max);
@@ -40,43 +40,40 @@ bool Intersects(const PlayerSphere& player, const z13::primitives::CellBox& cell
 
 }  // namespace
 
-std::expected<void, std::string> ValidateBuild(
-    const Block& block, const z13::primitives::Palette& palette, const BlockIndex& index,
-    std::span<const PlayerSphere> players, std::span<const z13::primitives::CellBox> spawn_clearances) {
-  const auto primitive = palette.Find(block.type_id);
+Status ValidateBuild(
+    const Block& block, const z13::building::primitives::Palette& palette, const BlockIndex& index,
+    std::span<const PlayerSphere> players, std::span<const CellBox> spawn_clearances, const BuildingTuning& tuning) {
+  const BlockSpec& spec = block.spec;
+  const auto primitive = palette.Find(spec.type_id);
   if (!primitive) {
-    return std::unexpected(std::format("unknown primitive {}", block.type_id));
-  }
-  if (!z13::primitives::IsValidOrientation(block.orientation)) {
-    return std::unexpected(std::format("orientation {} out of range", block.orientation));
+    return std::unexpected(std::format("unknown primitive {}", spec.type_id));
   }
   const auto& limits = primitive->get();
-  if ((block.size.array() < limits.min_size.array()).any() || (block.size.array() > limits.max_size.array()).any()) {
+  if ((spec.size.array() < limits.min_size.array()).any() || (spec.size.array() > limits.max_size.array()).any()) {
     return std::unexpected(std::format(
-        "size {}x{}x{} outside the limits of '{}'", block.size.x(), block.size.y(), block.size.z(), limits.name));
+        "size {}x{}x{} outside the limits of '{}'", spec.size.x(), spec.size.y(), spec.size.z(), limits.name));
   }
 
-  const z13::primitives::CellBox cells = PlacementOf(block).Occupied();
+  const CellBox cells = z13::building::primitives::OccupiedCells(block);
   if (index.Overlaps(cells)) {
     return std::unexpected(std::string {"cells are taken"});
   }
   if (std::ranges::any_of(players, [&cells](const PlayerSphere& player) { return Intersects(player, cells); })) {
     return std::unexpected(std::string {"a player is in the way"});
   }
-  if (std::ranges::any_of(
-          spawn_clearances, [&cells](const z13::primitives::CellBox& clearance) { return clearance.Overlaps(cells); })) {
+  if (std::ranges::any_of(spawn_clearances, [&cells](const CellBox& clearance) { return clearance.Overlaps(cells); })) {
     return std::unexpected(std::string {"players spawn there"});
   }
-  if (limits.Has(z13::primitives::PrimitiveFlags::Spawn) && index.Overlaps(SpawnClearance(block))) {
+  if (limits.Has(z13::building::primitives::PrimitiveFlags::Spawn) && index.Overlaps(SpawnClearance(block, tuning))) {
     return std::unexpected(std::string {"no room above the spawn point"});
   }
   return {};
 }
 
-std::expected<void, std::string> ValidateDestroy(
-    const Block& block, const z13::primitives::Palette& palette, int spawn_points) {
-  const auto primitive = palette.Find(block.type_id);
-  if (primitive && primitive->get().Has(z13::primitives::PrimitiveFlags::Spawn) && spawn_points <= 1) {
+Status ValidateDestroy(
+    const Block& block, const z13::building::primitives::Palette& palette, int spawn_points) {
+  const auto primitive = palette.Find(block.spec.type_id);
+  if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn) && spawn_points <= 1) {
     return std::unexpected(std::string {"the last spawn point"});
   }
   return {};

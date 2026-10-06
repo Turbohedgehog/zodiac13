@@ -26,20 +26,14 @@ namespace z13::testing {
 // The ship scene's building cube, in meters.
 inline constexpr float kCubeEdge = static_cast<float>(z13::station::kCubeEdgeCells) * z13::station::kCellSize;
 
-inline z13::primitives::Placement PlacementOf(const z13::station::Block& block) {
-  return {.cell = block.cell, .size = block.size, .orientation = block.orientation};
-}
-
 // A cube snapped around `center`, as the ship scene's building places it.
 inline z13::station::Block CubeAt(const Eigen::Vector3f& center) {
-  const auto placement = z13::primitives::PlaceCentredOn(
-      center / z13::station::kCellSize, Eigen::Vector3i::Constant(z13::station::kCubeEdgeCells), 0);
-  return {.type_id = z13::station::kCubePrimitiveId, .cell = placement.cell, .size = placement.size};
+  return z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec());
 }
 
 // The middle of the cells a block occupies, in meters.
 inline Eigen::Vector3f BlockCenter(const z13::station::Block& block) {
-  const z13::primitives::CellBox cells = PlacementOf(block).Occupied();
+  const z13::building::primitives::CellBox cells = z13::building::primitives::OccupiedCells(block);
   return (cells.min + cells.End()).cast<float>() / 2.f * z13::station::kCellSize;
 }
 

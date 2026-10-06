@@ -34,6 +34,7 @@
 #include <flatbuffers/flatbuffers.h>
 
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/status.h>
 #include <z13_settings/environment.h>
 #include <z13/components/input.h>
 
@@ -123,7 +124,7 @@ std::expected<bool, std::string> InputConfigLoader::LoadConfig(
   return LoadConfigFromJson(json_input, input_config, action_map).transform([] { return true; });
 }
 
-std::expected<void, std::string> InputConfigLoader::LoadConfigFromJson(
+Status InputConfigLoader::LoadConfigFromJson(
     const std::string& json_input,
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
@@ -250,7 +251,7 @@ std::expected<std::string, std::string> InputConfigLoader::SerializeConfig(
   return json_output;
 }
 
-std::expected<void, std::string> InputConfigLoader::SaveConfig(
+Status InputConfigLoader::SaveConfig(
     const z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map) {
   const auto json_output = SerializeConfig(input_config, action_map);
@@ -289,7 +290,7 @@ void InputConfigLoader::Clear(z13::input::InputConfig& input_config) {
   input_config = z13::input::InputConfig();
 }
 
-std::expected<void, std::string> InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
+Status InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
     const z13::input::FlatbufferBinarySchema& lookup_actions,
     z13::input::ActionMap& action_map) {
 

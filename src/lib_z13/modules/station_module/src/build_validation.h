@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <expected>
 #include <span>
 #include <string>
 
@@ -24,6 +23,9 @@
 
 #include <z13/components/station.h>
 #include <z13_primitives/palette.h>
+#include <z13_settings/building_tuning.h>
+
+#include <lib_core/utils/status.h>
 
 #include "block_index.h"
 
@@ -38,12 +40,13 @@ struct PlayerSphere {
 
 // A known primitive within its size limits, on free cells, clear of every player and of
 // the space above spawn points (`spawn_clearances`); a new spawn point needs that space free.
-std::expected<void, std::string> ValidateBuild(
-    const Block& block, const z13::primitives::Palette& palette, const BlockIndex& index,
-    std::span<const PlayerSphere> players, std::span<const z13::primitives::CellBox> spawn_clearances);
+Status ValidateBuild(
+    const Block& block, const z13::building::primitives::Palette& palette, const BlockIndex& index,
+    std::span<const PlayerSphere> players, std::span<const z13::building::primitives::CellBox> spawn_clearances,
+    const BuildingTuning& tuning);
 
 // The last spawn point stays, or new players would have nowhere to appear.
-std::expected<void, std::string> ValidateDestroy(
-    const Block& block, const z13::primitives::Palette& palette, int spawn_points);
+Status ValidateDestroy(
+    const Block& block, const z13::building::primitives::Palette& palette, int spawn_points);
 
 }  // namespace z13::station

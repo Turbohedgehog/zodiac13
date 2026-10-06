@@ -27,7 +27,7 @@
 namespace z13::station {
 namespace {
 
-using z13::primitives::BlockPalette;
+using z13::building::primitives::BlockPalette;
 
 const std::filesystem::path kShippedPalettePath = std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json";
 
@@ -35,7 +35,7 @@ TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
   std::ifstream stream(kShippedPalettePath);
   std::ostringstream shipped;
   shipped << stream.rdbuf();
-  const auto expected = z13::primitives::ParsePalette(shipped.str());
+  const auto expected = z13::building::primitives::ParsePalette(shipped.str());
   ASSERT_TRUE(expected.has_value()) << expected.error();
 
   z13::testing::Z13TestWorld test_world;

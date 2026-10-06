@@ -22,6 +22,8 @@
 
 #include <z13/components/input.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::gameplay::input {
 
 class InputConfigLoader {
@@ -31,18 +33,18 @@ class InputConfigLoader {
       z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   // Parses a config JSON; actions it doesn't mention get their default bindings, except
   // those saved as KEY_UNKNOWN (unbound on purpose).
-  static std::expected<void, std::string> LoadConfigFromJson(
+  static Status LoadConfigFromJson(
       const std::string& json_input,
       z13::input::InputConfig& input_config,
       const z13::input::ActionMap& action_map);
   // The config as JSON; an action without keys is written as KEY_UNKNOWN (unbound on purpose).
   static std::expected<std::string, std::string> SerializeConfig(
       const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
-  static std::expected<void, std::string> SaveConfig(
+  static Status SaveConfig(
       const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void SetDefaults(z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map);
   static void Clear(z13::input::InputConfig& input_config);
-  static std::expected<void, std::string> AppendFlatbufActionsFromBinarySchema(
+  static Status AppendFlatbufActionsFromBinarySchema(
       const z13::input::FlatbufferBinarySchema& binary_schema,
       z13::input::ActionMap& action_map);
   static std::optional<z13::input::ActionInfo::IdType> FindActionId(

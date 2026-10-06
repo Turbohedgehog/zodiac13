@@ -25,6 +25,7 @@
 #include <flatbuffers/reflection.h>
 
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
@@ -32,7 +33,7 @@ namespace {
 
 constexpr int kJsonIndentStep = 2;
 
-std::expected<void, std::string> WriteSettings(const std::filesystem::path& path, const Settings& settings) {
+Status WriteSettings(const std::filesystem::path& path, const Settings& settings) {
   const auto json = SerializeSettings(settings);
   if (!json) {
     return std::unexpected(json.error());

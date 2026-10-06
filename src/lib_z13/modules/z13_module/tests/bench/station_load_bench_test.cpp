@@ -145,9 +145,8 @@ void PlaceStation(Z13TestWorld& world, const std::vector<Box>& boxes, int copies
       w.entity(std::format("Block_{}", ++counters.last_block_id).c_str())
           .add<ft::StateEntity>()
           .set(z13::station::Block {
-              .type_id = box.size.z() == 1 ? kFloorPrimitiveId : kWallPrimitiveId,
+              .spec = {.type_id = box.size.z() == 1 ? kFloorPrimitiveId : kWallPrimitiveId, .size = box.size},
               .cell = origin_cell + box.min,
-              .size = box.size,
           });
     }
   }

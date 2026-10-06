@@ -1,0 +1,32 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The "building" table of settings.json, also what a server sends in Welcome.
+
+include "attributes.fbs";
+
+namespace z13.fbs.building;
+
+table BuildingTuning {
+  // How far along the player's forward axis a destroy raycast reaches, in meters.
+  destroy_reach_distance: float = 5 (min: "0.01", cli);
+  // Edge of the chunks the station's block index files blocks by.
+  index_chunk_cells: int32 = 16 (min: 1, max: 1024, cli);
+  // How far above a spawn marker's top players appear, in meters, so they drop onto it.
+  spawn_height_above_marker: float = 1 (min: 0, cli);
+  // Cells kept free above a spawn marker: past the head of a player at the spawn height.
+  spawn_clearance_cells: int32 = 8 (min: 1, max: 64, cli);
+}

@@ -14,22 +14,14 @@
  * limitations under the License.
  */
 
-#include "block_meshes.h"
+#pragma once
 
-#include "block_meshes_state.h"
+#include <expected>
+#include <string>
 
-namespace z13::raylib {
+namespace z13 {
 
-BlockMeshes::BlockMeshes(::Shader lighting_shader) : state_(std::make_shared<State>(lighting_shader)) {
-}
+// Success, or why not: what an operation with no value of its own returns.
+using Status = std::expected<void, std::string>;
 
-std::shared_ptr<::Model> BlockMeshes::Get(
-    const z13::building::primitives::BlockShapeKey& shape, OptionalPalette palette) {
-  return state_->Get(shape, palette);
-}
-
-void BlockMeshes::ReleaseUnused() {
-  state_->ReleaseUnused();
-}
-
-}  // namespace z13::raylib
+}  // namespace z13

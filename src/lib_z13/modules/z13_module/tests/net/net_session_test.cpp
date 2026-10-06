@@ -133,7 +133,7 @@ std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWor
 fbs::net::ClientHelloT HelloWithoutActions(flecs::world server) {
   fbs::net::ClientHelloT hello;
   hello.version = kProtocolVersion;
-  hello.palette_hash = server.get<z13::primitives::BlockPalette>().palette.hash;
+  hello.palette_hash = server.get<z13::building::primitives::BlockPalette>().palette.hash;
   return hello;
 }
 

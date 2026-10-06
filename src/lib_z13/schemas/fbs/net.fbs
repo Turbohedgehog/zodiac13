@@ -21,6 +21,7 @@
 
 include "net_tuning.fbs";
 include "physics_tuning.fbs";
+include "building_tuning.fbs";
 include "world_snapshot.fbs";
 
 namespace z13.fbs.net;
@@ -99,6 +100,7 @@ table Welcome {
   fps: double;
   tuning: NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
+  building: z13.fbs.building.BuildingTuning;
 }
 
 table Rejected {

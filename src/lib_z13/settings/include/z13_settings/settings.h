@@ -23,8 +23,10 @@
 
 #include <lib_core/settings/config.h>
 #include <lib_core/settings/core_settings.h>
+#include <lib_core/utils/status.h>
 #include <settings_generated.h>
 
+#include "building_tuning.h"
 #include "net_tuning.h"
 #include "physics_tuning.h"
 
@@ -54,6 +56,7 @@ struct SessionSettings {
   double fps {};
   fbs::net::NetTuningT net;
   fbs::physics::PhysicsTuningT physics;
+  fbs::building::BuildingTuningT building;
 
   bool operator==(const SessionSettings&) const = default;
 };
@@ -68,15 +71,15 @@ Settings WithSession(Settings settings, const SessionSettings& session);
 
 // The ranges the schema declares (min/max), plus what a range cannot say: fields that must
 // agree with each other (e.g. the retained history must cover the late-command window).
-std::expected<void, std::string> ValidateSettings(const Settings& settings);
+Status ValidateSettings(const Settings& settings);
 
 // Call before the command line is parsed.
-std::expected<void, std::string> AddSettingsOptions(Config& config);
+Status AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning, ConnectTimeout and VisualSmoothing singletons; the
-// core part goes through Config::SetCoreSettings before the world is created.
+// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout and VisualSmoothing
+// singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13

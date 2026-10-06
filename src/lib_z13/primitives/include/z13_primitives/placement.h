@@ -16,24 +16,34 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include <Eigen/Dense>
 
-// Placing a primitive on the grid: which cells it occupies and where its own frame (see
-// geometry.h) lands, in cells.
-namespace z13::primitives {
+#include <z13/components/station.h>
 
-// The rotations that map the grid onto itself; 0 is the identity.
-inline constexpr uint8_t kOrientationCount = 24;
+// Placing a block on the grid: which cells it occupies and where its primitive's own frame
+// (see geometry.h) lands, in cells.
+namespace z13::building::primitives {
 
-constexpr bool IsValidOrientation(uint8_t orientation) {
-  return orientation < kOrientationCount;
+inline constexpr size_t kOrientationCount = 24;
+static_assert(static_cast<size_t>(z13::station::Orientation::kFaceNegZUpNegY) + 1 == kOrientationCount);
+
+consteval std::array<z13::station::Orientation, kOrientationCount> AllOrientations() {
+  std::array<z13::station::Orientation, kOrientationCount> all {};
+  for (size_t i = 0; i < kOrientationCount; ++i) {
+    all[i] = static_cast<z13::station::Orientation>(i);
+  }
+  return all;
 }
 
-// `orientation` must be valid.
-Eigen::Matrix3i OrientationMatrix(uint8_t orientation);
-uint8_t InverseOrientation(uint8_t orientation);
+inline constexpr std::array<z13::station::Orientation, kOrientationCount> kOrientations = AllOrientations();
+
+// Columns: where the primitive's +X, +Y and +Z point.
+Eigen::Matrix3i OrientationMatrix(z13::station::Orientation orientation);
+z13::station::Orientation InverseOrientation(z13::station::Orientation orientation);
 
 // The cells [min, min + extent).
 struct CellBox {
@@ -51,22 +61,15 @@ struct CellPose {
   Eigen::Vector3i origin = Eigen::Vector3i::Zero();
 };
 
-// A primitive of `size` turned by `orientation`, with `cell` the lowest occupied corner.
-struct Placement {
-  Eigen::Vector3i cell = Eigen::Vector3i::Zero();
-  Eigen::Vector3i size = Eigen::Vector3i::Ones();
-  uint8_t orientation {};
+CellBox OccupiedCells(const z13::station::Block& block);
+CellPose PoseOf(const z13::station::Block& block);
 
-  CellBox Occupied() const;
-  CellPose Pose() const;
-};
-
-// The placement of `size`/`orientation` whose occupied cells are centred on `point`
-// (in cells), rounded to the grid.
-Placement PlaceCentredOn(const Eigen::Vector3f& point, const Eigen::Vector3i& size, uint8_t orientation);
+// The block of `spec` whose occupied cells are centred on `point` (in cells), rounded to
+// the grid.
+z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::station::BlockSpec& spec);
 
 // The pose in meters: rotation, then the origin scaled by `cell_size`. Geometry built in
 // cells must be scaled by `cell_size` before it.
 Eigen::Isometry3f WorldPose(const CellPose& pose, float cell_size);
 
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

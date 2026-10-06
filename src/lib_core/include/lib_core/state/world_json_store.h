@@ -23,6 +23,7 @@
 #include <flecs.h>
 
 #include <lib_core/state/world_serializer.h>
+#include <lib_core/utils/status.h>
 
 namespace z13::flecs_tools {
 
@@ -43,7 +44,7 @@ class WorldJsonStore {
 
   // Parses and validates `json` before touching the world (see RestoreWorld). Must be
   // called between frames; from inside a frame use RequestLoadWorldState.
-  static std::expected<void, std::string> Load(flecs::world& world, std::string_view json);
+  static Status Load(flecs::world& world, std::string_view json);
 };
 
 }  // namespace z13::flecs_tools
