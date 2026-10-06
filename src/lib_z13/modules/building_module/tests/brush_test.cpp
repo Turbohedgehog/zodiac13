@@ -223,7 +223,10 @@ TEST(BrushTest, ThePreviewShowsWhetherTheBuildWouldBeAccepted) {
   builder.add<RequestBuildBlock>();
   test_world.Tick();
   ASSERT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
-  // The same spot is taken now.
+  // The brush aims at the first block's face now, so the preview rests against it.
+  EXPECT_TRUE(PreviewOf(builder)->valid);
+  builder.remove<z13::station::BuildPermission>();
+  test_world.Tick();
   EXPECT_FALSE(PreviewOf(builder)->valid);
 }
 

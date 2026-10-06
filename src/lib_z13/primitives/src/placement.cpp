@@ -141,6 +141,19 @@ z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::stat
   return {.spec = spec, .cell = lowest.array().round().cast<int>()};
 }
 
+z13::station::Block PlaceOnFace(
+    const Eigen::Vector3f& point, const Eigen::Vector3i& normal, const z13::station::BlockSpec& spec) {
+  const Eigen::Vector3i extent = OrientationMatrix(spec.orientation).cwiseAbs() * spec.size;
+  Eigen::Vector3i cell = PlaceCentredOn(point, spec).cell;
+  const Eigen::Vector3i face = point.array().round().cast<int>();
+  for (int axis = 0; axis < 3; ++axis) {
+    if (normal[axis] != 0) {
+      cell[axis] = normal[axis] > 0 ? face[axis] : face[axis] - extent[axis];
+    }
+  }
+  return {.spec = spec, .cell = cell};
+}
+
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
     const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size) {

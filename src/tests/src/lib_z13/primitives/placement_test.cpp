@@ -81,6 +81,17 @@ TEST(PlacementTest, PlaceCentredOnSnapsTheTurnedExtentAroundThePoint) {
   EXPECT_EQ(block.cell, Eigen::Vector3i(9, -1, -1));
 }
 
+TEST(PlacementTest, PlaceOnFaceRestsTheBlockOutsideTheFace) {
+  const z13::station::BlockSpec spec {.size = {4, 2, 1}};
+  // Against a +X face at x = 10: the block starts there, centred across it.
+  const Block east = PlaceOnFace({10.f, 0.9f, 3.f}, {1, 0, 0}, spec);
+  EXPECT_EQ(east.cell, Eigen::Vector3i(10, 0, 3));
+  // Against a -X face: it ends there.
+  const Block west = PlaceOnFace({10.f, 0.9f, 3.f}, {-1, 0, 0}, spec);
+  EXPECT_EQ(west.cell, Eigen::Vector3i(6, 0, 3));
+  EXPECT_FALSE(OccupiedCells(west).Overlaps(OccupiedCells(east)));
+}
+
 TEST(PlacementTest, QuarterTurnsReachEveryOrientationAndFourMakeAFullTurn) {
   std::vector<Orientation> reached {Orientation {}};
   for (size_t i = 0; i < reached.size(); ++i) {

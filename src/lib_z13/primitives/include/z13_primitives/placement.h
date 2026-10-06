@@ -73,6 +73,11 @@ CellPose PoseOf(const z13::station::Block& block);
 // the grid.
 z13::station::Block PlaceCentredOn(const Eigen::Vector3f& point, const z13::station::BlockSpec& spec);
 
+// The block of `spec` resting against the face at `point` (in cells) whose outward normal
+// is `normal`: centred on `point` across the face, outside the face along it.
+z13::station::Block PlaceOnFace(
+    const Eigen::Vector3f& point, const Eigen::Vector3i& normal, const z13::station::BlockSpec& spec);
+
 // The block a drag from `from_cell` to `to_cell` places: along each world axis the drag
 // moved, it spans as many cells as the drag moved, from `from_cell` towards `to_cell`;
 // along the others it keeps `brush`'s size, centred on `from_cell`. The size is then held

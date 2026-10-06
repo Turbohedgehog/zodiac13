@@ -39,6 +39,7 @@
 #include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
+#include "brush_aim.h"
 #include "build_validation.h"
 #include "station_build_phase.h"
 
@@ -87,34 +88,34 @@ void SyncBlockIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingT
   }
 }
 
-std::optional<Eigen::Vector3f> FindBrushPosition(flecs::entity player) {
-  std::optional<Eigen::Vector3f> position;
-  player.children([&position](flecs::entity child) {
-    if (!position && child.has<z13::building::Brush>() && child.has<Eigen::Matrix4f>()) {
-      position = z13::math::ExtractTranslation<float>(child.get<Eigen::Matrix4f>());
+std::optional<Aim> FindAim(flecs::entity player, const BlockIndex& index) {
+  std::optional<Aim> aim;
+  player.children([&aim, player, &index](flecs::entity child) {
+    if (aim || !child.has<z13::building::Brush>() || !child.has<Eigen::Matrix4f>() ||
+        !player.has<Eigen::Matrix4f>()) {
+      return;
     }
+    const Eigen::Vector3f eye = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) / kCellSize;
+    const Eigen::Vector3f reach = z13::math::ExtractTranslation<float>(child.get<Eigen::Matrix4f>()) / kCellSize;
+    aim = AimAt(index, eye, reach);
   });
-  return position;
-}
-
-Eigen::Vector3i CellAt(const Eigen::Vector3f& position) {
-  return (position / kCellSize).array().floor().cast<int>();
+  return aim;
 }
 
 std::optional<Eigen::Vector3i> DragAnchor(flecs::entity player) {
   return player.has<BrushDrag>() ? std::optional(player.get<BrushDrag>().anchor_cell) : std::nullopt;
 }
 
-// What a build would place with the brush at `brush_position`: the block dragged out from
-// `drag_anchor`, or without a drag the brush's block centred on the brush.
-Block BrushBlock(const std::optional<Eigen::Vector3i>& drag_anchor, const BlockSpec& spec,
-                 const Eigen::Vector3f& brush_position, const Palette& palette) {
+// What a build would place with the brush aimed at `aim`: the block dragged out from
+// `drag_anchor`, or without a drag the brush's block where it can rest (see BlockAt).
+Block BrushBlock(const std::optional<Eigen::Vector3i>& drag_anchor, const BlockSpec& spec, const Aim& aim,
+                 const Palette& palette, const BlockIndex& index) {
   if (!drag_anchor) {
-    return z13::building::primitives::PlaceCentredOn(brush_position / kCellSize, spec);
+    return BlockAt(aim, spec, index);
   }
   const auto primitive = palette.Find(spec.type_id);
   return z13::building::primitives::DraggedBlock(
-      *drag_anchor, CellAt(brush_position), spec, primitive ? primitive->get().min_size : spec.size,
+      *drag_anchor, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
       primitive ? primitive->get().max_size : spec.size);
 }
 
@@ -150,10 +151,10 @@ std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counter
   return name;
 }
 
-void StartBrushDrag(flecs::entity player, RequestBrushDrag) {
+void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BlockIndex& index) {
   player.remove<RequestBrushDrag>();
-  if (const auto brush_position = FindBrushPosition(player)) {
-    player.set(BrushDrag {.anchor_cell = CellAt(*brush_position)});
+  if (const auto aim = FindAim(player, index)) {
+    player.set(BrushDrag {.anchor_cell = aim->Cell()});
   }
 }
 
@@ -163,18 +164,17 @@ void ProcessBuildRequest(
     const BlockPalette& palette, const BuildingTuning& tuning, const PlayerQuery& players,
     std::vector<CellBox>& spawn_clearances) {
   player.remove<z13::building::RequestBuildBlock>();
-  const auto brush_position = FindBrushPosition(player);
+  const auto aim = FindAim(player, index);
   const auto drag_anchor = DragAnchor(player);
   player.remove<BrushDrag>();
-  if (!brush_position) {
+  if (!aim) {
     return;
   }
 
-  const Block block = BrushBlock(drag_anchor, brush.spec, *brush_position, palette.palette);
-  auto valid = CheckPermission(player);
-  if (valid) {
-    valid = ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning);
-  }
+  const Block block = BrushBlock(drag_anchor, brush.spec, *aim, palette.palette, index);
+  const auto valid = CheckPermission(player).and_then([&] {
+    return ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning);
+  });
   if (!valid) {
     log_debug("station: build refused: {}", valid.error());
     return;
@@ -252,14 +252,17 @@ void ProcessDestroyRequests(flecs::iter& it) {
 }
 
 void UpdateBrushPreview(
-    flecs::entity brush, const Eigen::Matrix4f& transform, const BlockIndex& index, const BlockPalette& palette,
-    const BuildingTuning& tuning, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
+    flecs::entity brush, const BlockIndex& index, const BlockPalette& palette, const BuildingTuning& tuning,
+    const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
   const flecs::entity owner = brush.parent();
   if (!owner || !owner.has<BlockBrush>()) {
     return;
   }
-  const Block block = BrushBlock(DragAnchor(owner), owner.get<BlockBrush>().spec,
-                                 z13::math::ExtractTranslation<float>(transform), palette.palette);
+  const auto aim = FindAim(owner, index);
+  if (!aim) {
+    return;
+  }
+  const Block block = BrushBlock(DragAnchor(owner), owner.get<BlockBrush>().spec, *aim, palette.palette, index);
   const bool valid = CheckPermission(owner) &&
                      ValidateBuild(block, palette.palette, index, PlayerSpheres(players),
                                    SpawnClearances(spawn_blocks, tuning), tuning);
@@ -282,7 +285,7 @@ void RegisterSystems(flecs::world world) {
         SyncBlockIndex(blocks, index, tuning);
       });
 
-  world.system<RequestBrushDrag>("BlockBuildingSystem::StartBrushDrag")
+  world.system<RequestBrushDrag, const BlockIndex>("BlockBuildingSystem::StartBrushDrag")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .write<BrushDrag>()
@@ -331,9 +334,9 @@ void RegisterSystems(flecs::world world) {
       .read<BrushDrag>()
       .read<BuildPermission>()
       .write<BrushPreview>()
-      .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f& transform, const BlockIndex& index,
+      .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockIndex& index,
                                     const BlockPalette& palette, const BuildingTuning& tuning) {
-        UpdateBrushPreview(brush, transform, index, palette, tuning, players, spawn_blocks);
+        UpdateBrushPreview(brush, index, palette, tuning, players, spawn_blocks);
       });
 }
 

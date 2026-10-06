@@ -101,17 +101,32 @@ TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {
   EXPECT_TRUE(z13::building::primitives::OccupiedCells(walls[0]).Contains(brush.array().floor().cast<int>()));
 }
 
-// Same tick, same cells: the lower player id builds, the other is refused.
-TEST(BlockBuildingTest, OverlappingBuildsAreRefused) {
+TEST(BlockBuildingTest, BuildRestsAgainstTheFaceInSight) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
+  Request(test_world, {builder}, /*build=*/true);
+  const auto first = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(first.size(), 1u);
+
+  Request(test_world, {builder}, /*build=*/true);
+
+  // The ray meets the first panel, so the second is not placed over it.
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 2u);
+}
+
+// Same tick, same aim: the lower player id builds first, the other rests against its face.
+TEST(BlockBuildingTest, SameTickBuildsDoNotOverlap) {
   Z13TestWorld test_world = StationWorld();
   const Eigen::Matrix4f transform = Facing(kBuilderPosition, Eigen::Vector3f::UnitX());
   const flecs::entity first = AddBuilder(test_world, kBuilderId, transform);
   const flecs::entity second = AddBuilder(test_world, kBuilderId + 1, transform);
 
   Request(test_world, {second, first}, /*build=*/true);
-  Request(test_world, {first}, /*build=*/true);
 
-  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
+  const auto walls = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
 }
 
 TEST(BlockBuildingTest, DestroyRemovesTheWholeBlockInSight) {
@@ -203,7 +218,11 @@ TEST(BlockBuildingTest, RestoredBlocksTakeTheirCellsAgain) {
   const flecs::entity restored_builder = test_world.World().lookup(z13::gameplay::PlayerEntityName(kBuilderId).c_str());
   Request(test_world, {restored_builder}, /*build=*/true);
 
-  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
+  // The brush aims at the restored block's face, so the new one rests against it.
+  const auto walls = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
 }
 
 std::string Checkpoint(Z13TestWorld& test_world) {
