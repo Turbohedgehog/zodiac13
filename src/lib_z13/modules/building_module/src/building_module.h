@@ -18,13 +18,11 @@
 
 #include <lib_core/world/core_types.h>
 
-namespace z13::station {
+namespace z13::building {
 
-// Station-mode building on the grid: keeps the BlockIndex, places the player's BlockBrush
-// at the brush and removes the block a player looks at, through ValidateBuild.
-class BlockBuildingSystem {
+class BuildingModule {
  public:
-  static void Register(flecs::world& world);
+  explicit BuildingModule(flecs::world& world);
 };
 
-}  // namespace z13::station
+}  // namespace z13::building

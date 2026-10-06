@@ -29,9 +29,9 @@
 #include <z13_module/gameplay/camera_look.h>
 #include <lib_core/utils/math.h>
 
-#include "../support/block_test_helpers.h"
-#include "../support/building_test_helpers.h"
-#include "../support/z13_test_world.h"
+#include "../../z13_module/tests/support/block_test_helpers.h"
+#include "../../z13_module/tests/support/building_test_helpers.h"
+#include "../../z13_module/tests/support/z13_test_world.h"
 
 // Exercises the real build/destroy pipeline end to end (mouse click -> flecs
 // input events -> BuildingInputSystem -> BuildingSystem -> bullet_module)

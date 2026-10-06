@@ -135,7 +135,7 @@ flecs::entity SpawnCube(flecs::world world, z13::gameplay::IdCounters& counters,
 }
 
 // The ship scene's free building: a cube at the brush, overlaps allowed. Station mode
-// builds through station_module instead and leaves the request to it.
+// builds through BlockBuildingSystem instead and leaves the request to it.
 void ProcessBuildBlockRequest(
     flecs::entity player, RequestBuildBlock, const z13::gameplay::Player&, z13::gameplay::IdCounters& counters) {
   if (player.world().has<z13::station::StationMode>()) {
@@ -199,7 +199,7 @@ void RegisterSystems(flecs::world world) {
     .each(ProcessBuildBlockRequest);
 
   // RequestDestroyBlock itself is handled in bullet_module (raycast against
-  // PhysicsWorld's block bodies), or in station_module in station mode.
+  // PhysicsWorld's block bodies), or in BlockBuildingSystem in station mode.
 }
 
 }  // namespace

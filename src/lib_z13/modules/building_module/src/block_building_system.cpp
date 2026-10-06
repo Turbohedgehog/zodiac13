@@ -32,21 +32,27 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
+#include <z13_grid/block_index.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
-#include "block_index.h"
 #include "build_validation.h"
 
-namespace z13::station {
+namespace z13::building {
 
 // Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
 struct StationBuildPhase {};
 
 namespace {
 
+using z13::building::grid::BlockIndex;
+using z13::station::Block;
+using z13::station::BlockBrush;
+using z13::station::kCellSize;
+using z13::station::SpawnPoint;
+using z13::station::StationMode;
 using z13::building::primitives::BlockPalette;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::OccupiedCells;
@@ -268,4 +274,4 @@ void BlockBuildingSystem::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);
 }
 
-}  // namespace z13::station
+}  // namespace z13::building

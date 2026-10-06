@@ -43,8 +43,13 @@
 
 // Station-mode building through the real pipeline. Builders are extra players driven by
 // their transform and request tags, so they can look anywhere without mouse input.
-namespace z13::station {
+namespace z13::building {
 namespace {
+
+using z13::station::Block;
+using z13::station::BlockBrush;
+using z13::station::SpawnPoint;
+using z13::station::kCellSize;
 
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
@@ -267,4 +272,4 @@ TEST(BlockBuildingTest, TwoClientsBuildingTheSameSpotConverge) {
 }
 
 }  // namespace
-}  // namespace z13::station
+}  // namespace z13::building

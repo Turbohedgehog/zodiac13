@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "block_index.h"
+#include <z13_grid/block_index.h>
 
 #include <algorithm>
 #include <limits>
 
-namespace z13::station {
+namespace z13::building::grid {
 
 namespace {
 
@@ -55,7 +55,7 @@ void BlockIndex::ForEachChunk(const z13::building::primitives::CellBox& cells, V
   }
 }
 
-void BlockIndex::Insert(flecs::entity_t block, const z13::building::primitives::CellBox& cells) {
+void BlockIndex::Insert(BlockId block, const z13::building::primitives::CellBox& cells) {
   Erase(block);
   if ((cells.extent.array() < 1).any()) {
     return;
@@ -64,7 +64,7 @@ void BlockIndex::Insert(flecs::entity_t block, const z13::building::primitives::
   ForEachChunk(cells, [this, block](const Eigen::Vector3i& chunk) { chunks_[chunk].push_back(block); });
 }
 
-void BlockIndex::Erase(flecs::entity_t block) {
+void BlockIndex::Erase(BlockId block) {
   const auto it = boxes_.find(block);
   if (it == boxes_.end()) {
     return;
@@ -82,12 +82,12 @@ void BlockIndex::Erase(flecs::entity_t block) {
   boxes_.erase(it);
 }
 
-std::optional<flecs::entity_t> BlockIndex::At(const Eigen::Vector3i& cell) const {
+std::optional<BlockId> BlockIndex::At(const Eigen::Vector3i& cell) const {
   const auto bucket = chunks_.find(ChunkOf(cell));
   if (bucket == chunks_.end()) {
     return std::nullopt;
   }
-  const auto hit = std::ranges::find_if(bucket->second, [this, &cell](flecs::entity_t block) {
+  const auto hit = std::ranges::find_if(bucket->second, [this, &cell](BlockId block) {
     return boxes_.at(block).Contains(cell);
   });
   return hit != bucket->second.end() ? std::optional(*hit) : std::nullopt;
@@ -101,13 +101,13 @@ bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const
       return;
     }
     overlaps = std::ranges::any_of(
-        bucket->second, [this, &cells](flecs::entity_t block) { return boxes_.at(block).Overlaps(cells); });
+        bucket->second, [this, &cells](BlockId block) { return boxes_.at(block).Overlaps(cells); });
   });
   return overlaps;
 }
 
 // Steps cell by cell along the segment (Amanatides & Woo).
-std::optional<flecs::entity_t> BlockIndex::Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
+std::optional<BlockId> BlockIndex::Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
   const Eigen::Vector3f direction = to - from;
   if (direction.isZero()) {
     return At(from.array().floor().cast<int>());
@@ -141,4 +141,4 @@ std::optional<flecs::entity_t> BlockIndex::Raycast(const Eigen::Vector3f& from, 
   return std::nullopt;
 }
 
-}  // namespace z13::station
+}  // namespace z13::building::grid

@@ -23,8 +23,8 @@
 #include <z13/components/input.h>
 #include <z13/components/station.h>
 
-#include "../support/building_test_helpers.h"
-#include "../support/z13_test_world.h"
+#include "../../z13_module/tests/support/building_test_helpers.h"
+#include "../../z13_module/tests/support/z13_test_world.h"
 
 // The brush and the Building input group are derived from the BuildingTool tag
 // by systems, so they must follow the tag however it changes -- toggled from

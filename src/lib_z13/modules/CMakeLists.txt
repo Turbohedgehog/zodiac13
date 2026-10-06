@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(z13_modules)
 
 add_subdirectory(z13_module)
+add_subdirectory(building_module)
 add_subdirectory(bullet_module)
 add_subdirectory(station_module)
 add_subdirectory(net_module)

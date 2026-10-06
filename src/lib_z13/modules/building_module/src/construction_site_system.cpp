@@ -32,9 +32,11 @@
 
 #include "block_entities.h"
 
-namespace z13::station {
+namespace z13::building {
 
 namespace {
+
+using z13::station::StationMode;
 
 // assets/station/palette.json
 constexpr uint32_t kFloorPrimitiveId = 1;
@@ -81,4 +83,4 @@ void ConstructionSiteSystem::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);
 }
 
-}  // namespace z13::station
+}  // namespace z13::building

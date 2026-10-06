@@ -31,6 +31,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/world/core.h>
 
+#include <building_module/building_module_factory.h>
 #include <bullet_module/bullet_module_factory.h>
 #include <net_module/in_memory_transport.h>
 #include <net_module/net_module_factory.h>
@@ -140,6 +141,7 @@ class Z13TestWorld {
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);
+    core.RegisterModuleFactory(std::make_shared<z13::building::BuildingModuleFactory>());
     core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
     core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
 

@@ -35,7 +35,6 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_primitives
   zodiac13::z13_settings
   Boost::dll
 )
@@ -62,7 +61,6 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_primitives
   zodiac13::z13_settings
   Boost::dll
 )
