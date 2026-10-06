@@ -31,7 +31,7 @@ inline z13::station::Block CubeAt(const Eigen::Vector3f& center) {
   return z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec());
 }
 
-// The middle of the cells a block occupies, in meters.
+// In meters.
 inline Eigen::Vector3f BlockCenter(const z13::station::Block& block) {
   const z13::building::primitives::CellBox cells = z13::building::primitives::OccupiedCells(block);
   return (cells.min + cells.End()).cast<float>() / 2.f * z13::station::kCellSize;

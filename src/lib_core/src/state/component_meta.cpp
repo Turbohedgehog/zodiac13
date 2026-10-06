@@ -39,8 +39,6 @@ namespace {
 constexpr std::string_view kMatrix4fName = "Matrix4f";
 constexpr std::string_view kVector3iName = "Vector3i";
 
-// A fixed-size Eigen type as an opaque array of its scalars, in storage order.
-// The flecs primitive for each scalar an Eigen type here holds.
 template <class Scalar>
 flecs::entity_t ScalarKind();
 
@@ -54,6 +52,7 @@ flecs::entity_t ScalarKind<int32_t>() {
   return flecs::I32;
 }
 
+// A fixed-size Eigen type as an opaque array of its scalars, in storage order.
 template <class T, class Scalar>
 void RegisterEigenArray(flecs::world& world, std::string_view name) {
   constexpr auto kCount = static_cast<int32_t>(T::SizeAtCompileTime);

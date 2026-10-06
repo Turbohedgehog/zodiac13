@@ -21,7 +21,6 @@
 
 namespace z13 {
 
-// Success, or why not: what an operation with no value of its own returns.
 using Status = std::expected<void, std::string>;
 
 }  // namespace z13

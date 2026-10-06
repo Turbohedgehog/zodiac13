@@ -51,7 +51,7 @@ using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-// The construction site: a floor and a spawn marker on it.
+// A floor and a spawn marker.
 constexpr int kSiteBlocks = 2;
 
 int SpawnPoints(Z13TestWorld& world) {

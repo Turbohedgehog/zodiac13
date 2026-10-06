@@ -65,14 +65,13 @@ enum class Orientation : uint8_t {
   kFaceNegZUpNegY,
 };
 
-// Which palette primitive, how large along its own axes, and how it is turned.
+// `size` is along the primitive's own axes, before `orientation` turns it.
 struct BlockSpec {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Ones();
   Orientation orientation {};
 };
 
-// The ship scene's building cube.
 inline BlockSpec CubeSpec() {
   return {.type_id = kCubePrimitiveId, .size = Eigen::Vector3i::Constant(kCubeEdgeCells)};
 }

@@ -71,7 +71,6 @@ constexpr ::Vector3 kSpaceshipPosition{30.f, 0.f, 0.f};
 constexpr float kSpaceshipPitchDegrees = 90.f;  // about world +X (FBX Y-up -> Z-up)
 constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientation)
 
-// The brush preview shows the block it would place, see-through.
 constexpr ::Color kBrushPreviewTint {255, 255, 255, 128};
 
 constexpr float kAvatarRadius = 0.5f;
