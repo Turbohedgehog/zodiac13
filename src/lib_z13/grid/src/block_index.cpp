@@ -106,6 +106,23 @@ bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const
   return overlaps;
 }
 
+std::vector<BlockId> BlockIndex::Overlapping(const z13::building::primitives::CellBox& cells) const {
+  std::vector<BlockId> found;
+  ForEachChunk(cells, [this, &cells, &found](const Eigen::Vector3i& chunk) {
+    const auto bucket = chunks_.find(chunk);
+    if (bucket == chunks_.end()) {
+      return;
+    }
+    for (const BlockId block : bucket->second) {
+      // A block spanning several chunks is filed in each of them.
+      if (boxes_.at(block).Overlaps(cells) && std::ranges::find(found, block) == found.end()) {
+        found.push_back(block);
+      }
+    }
+  });
+  return found;
+}
+
 // Steps cell by cell along the segment (Amanatides & Woo).
 std::optional<BlockId> BlockIndex::Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
   const auto hit = RaycastHit(from, to);

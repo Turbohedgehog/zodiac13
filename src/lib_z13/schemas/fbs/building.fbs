@@ -45,6 +45,10 @@ enum Action : int16 (action, action_group: "Building") {
   SELECT_SLOT_7 (display_text: "Primitive 7", default_keycodes: "KEY_7"),
   SELECT_SLOT_8 (display_text: "Primitive 8", default_keycodes: "KEY_8"),
   SELECT_SLOT_9 (display_text: "Primitive 9", default_keycodes: "KEY_9"),
+  // Held while a build is released: the dragged box is cut out of the station instead.
+  CUT_MODIFIER (display_text: "Cut instead of build", default_keycodes: "KEY_X"),
+  // Held while a build is released: the block's place is cut out first, so it fits into a wall.
+  CUT_IN_MODIFIER (display_text: "Cut the place out first", default_keycodes: "KEY_LSHIFT"),
   // Held: the cursor is free and the palette window shows, to pick a primitive with the mouse.
   SHOW_PALETTE (display_text: "Show the block palette", default_keycodes: "KEY_B"),
   ROTATE_AROUND_Z (display_text: "Turn the brush around Z", default_keycodes: "KEY_R"),

@@ -58,6 +58,8 @@ struct CellBox {
   Eigen::Vector3i End() const { return min + extent; }
   bool Contains(const Eigen::Vector3i& cell) const;
   bool Overlaps(const CellBox& other) const;
+  // The cells both boxes hold; an empty box (zero extent) if they share none.
+  CellBox Intersection(const CellBox& other) const;
 };
 
 // Maps a point p of the primitive's frame to origin + rotation * p.

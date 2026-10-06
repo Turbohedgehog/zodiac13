@@ -45,7 +45,6 @@ namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 constexpr std::string_view kBuildingActionGroup = "Building";
-constexpr float kHeldActionValue = 0.5f;
 
 void OnAppendInputSchema(
     flecs::iter it,
@@ -103,6 +102,8 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.rotate_around_x = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_X);
   build_action_ids.select_primitive = find_action_id(z13::fbs::building::Action::SELECT_PRIMITIVE);
   build_action_ids.show_palette = find_action_id(z13::fbs::building::Action::SHOW_PALETTE);
+  build_action_ids.cut_modifier = find_action_id(z13::fbs::building::Action::CUT_MODIFIER);
+  build_action_ids.cut_in_modifier = find_action_id(z13::fbs::building::Action::CUT_IN_MODIFIER);
   build_action_ids.cancel_brush_drag = find_action_id(z13::fbs::building::Action::CANCEL_BRUSH_DRAG);
 }
 
@@ -133,6 +134,15 @@ void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action
   }
 }
 
+template <class Tag>
+void SetPresent(flecs::entity e, bool present) {
+  if (present && !e.has<Tag>()) {
+    e.add<Tag>();
+  } else if (!present && e.has<Tag>()) {
+    e.remove<Tag>();
+  }
+}
+
 void ApplyBuildActionListener(
     flecs::entity e,
     z13::input::ActionListener& action_listener,
@@ -141,8 +151,12 @@ void ApplyBuildActionListener(
     ToggleBuildingMode(e);
   }
 
+  const bool tool_out = e.has<BuildingTool>();
+  SetPresent<CutModifier>(e, tool_out && IsHeld(action_listener, build_action_ids.cut_modifier));
+  SetPresent<CutInModifier>(e, tool_out && IsHeld(action_listener, build_action_ids.cut_in_modifier));
+
   // Building/destroying only makes sense while the brush is out.
-  if (!e.has<BuildingTool>()) {
+  if (!tool_out) {
     return;
   }
 
@@ -233,6 +247,8 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::StationMode>()
       .write<z13::station::BrushDrag>()
       .write<BuildingTool>()
+      .write<CutModifier>()
+      .write<CutInModifier>()
       .each(ApplyBuildActionListener);
 
   // After CalculateInputValues (same phase, registered earlier), before the recorder logs the frame.

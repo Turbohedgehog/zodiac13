@@ -38,6 +38,7 @@
 #include <z13_primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
+#include "block_cutting.h"
 #include "block_entities.h"
 #include "brush_aim.h"
 #include "build_validation.h"
@@ -108,15 +109,19 @@ std::optional<BrushDrag> DragOf(flecs::entity player) {
 
 // What a build would place with the brush aimed at `aim`: the block dragged out from
 // `drag`, or without one (or before it moved) the brush's block where it can rest (see BlockAt).
-Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, const Aim& aim,
-                 const Palette& palette, const BlockIndex& index) {
-  if (!drag || drag->anchor_cell == aim.Cell()) {
-    return BlockAt(aim, spec, index);
+// When `cutting` the block goes into the aimed face, not against it, over what it cuts.
+Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, const Aim& aimed,
+                 const Palette& palette, const BlockIndex& index, bool cutting) {
+  const Aim aim = cutting ? aimed.Flipped() : aimed;
+  const Eigen::Vector3i anchor_cell = drag ? (cutting ? drag->anchor_cell - drag->anchor_normal : drag->anchor_cell)
+                                           : Eigen::Vector3i::Zero();
+  if (!drag || anchor_cell == aim.Cell()) {
+    return BlockAt(aim, spec, index, cutting);
   }
   const auto primitive = palette.Find(spec.type_id);
   return z13::building::primitives::DraggedBlock(
-      drag->anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
-      primitive ? primitive->get().max_size : spec.size, drag->anchor_normal);
+      anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
+      primitive ? primitive->get().max_size : spec.size, cutting ? -drag->anchor_normal : drag->anchor_normal);
 }
 
 Status CheckPermission(flecs::entity player) {
@@ -142,15 +147,6 @@ std::vector<CellBox> SpawnClearances(const SpawnBlockQuery& spawn_blocks, const 
   return clearances;
 }
 
-// Named like the ship scene's blocks; see SpawnCube in BuildingSystem for the lookup loop.
-std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counters) {
-  std::string name;
-  do {
-    name = std::format("Block_{}", ++counters.last_block_id);
-  } while (world.lookup(name.c_str()));
-  return name;
-}
-
 void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BlockIndex& index) {
   player.remove<RequestBrushDrag>();
   if (const auto aim = FindAim(player, index)) {
@@ -158,11 +154,18 @@ void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BlockIndex& in
   }
 }
 
-// A dragged block's size becomes the brush's, so the next click repeats it.
+bool IsSpawnPoint(const Block& block, const Palette& palette) {
+  const auto primitive = palette.Find(block.spec.type_id);
+  return primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn);
+}
+
+// A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
+// the block's cells are cut out of the station instead; with CutInModifier they are cut
+// out first and the block takes their place.
 void ProcessBuildRequest(
     flecs::entity player, BlockBrush& brush, BlockIndex& index, z13::gameplay::IdCounters& counters,
     const BlockPalette& palette, const BuildingTuning& tuning, const PlayerQuery& players,
-    std::vector<CellBox>& spawn_clearances) {
+    std::vector<CellBox>& spawn_clearances, int& spawn_points, MadeBlocks& made) {
   player.remove<z13::building::RequestBuildBlock>();
   const auto aim = FindAim(player, index);
   const auto drag = DragOf(player);
@@ -171,9 +174,14 @@ void ProcessBuildRequest(
     return;
   }
 
-  const Block block = BrushBlock(drag, brush.spec, *aim, palette.palette, index);
+  const bool cuts = player.has<z13::building::CutModifier>();
+  const bool cuts_in = !cuts && player.has<z13::building::CutInModifier>();
+  const Block block = BrushBlock(drag, brush.spec, *aim, palette.palette, index, cuts || cuts_in);
+  const bool spawns = IsSpawnPoint(block, palette.palette);
   const auto valid = CheckPermission(player).and_then([&] {
-    return ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning);
+    return cuts ? Status {}
+                : ValidateBuild(block, palette.palette, index, PlayerSpheres(players), spawn_clearances, tuning,
+                                cuts_in);
   });
   if (!valid) {
     log_debug("station: build refused: {}", valid.error());
@@ -181,12 +189,24 @@ void ProcessBuildRequest(
   }
 
   flecs::world world = player.world();
-  const flecs::entity created = CreateBlock(world, NextBlockName(world, counters), block, palette.palette, tuning);
-  // Now, not at the next sync: a later request this same tick must see these cells taken.
-  index.Insert(created.id(), OccupiedCells(block));
-  const auto primitive = palette.palette.Find(block.spec.type_id);
-  if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
-    spawn_clearances.push_back(SpawnClearance(block, tuning));
+  if (cuts || cuts_in) {
+    const auto plan = PlanCut(world, index, palette.palette, OccupiedCells(block), spawn_points, made,
+                              cuts_in && spawns ? 1 : 0);
+    if (!plan) {
+      log_debug("station: cut refused: {}", plan.error());
+      return;
+    }
+    ApplyCut(world, *plan, index, counters, palette.palette, tuning, made);
+    spawn_points -= plan->spawn_points_removed;
+  }
+  if (!cuts) {
+    const flecs::entity created = CreateBlock(world, NextBlockName(world, counters), block, palette.palette, tuning);
+    index.Insert(created.id(), OccupiedCells(block));
+    made.emplace(created.id(), block);
+    if (spawns) {
+      ++spawn_points;
+      spawn_clearances.push_back(SpawnClearance(block, tuning));
+    }
   }
   if (drag) {
     brush.spec = block.spec;
@@ -197,6 +217,8 @@ void ProcessBuildRequest(
 // request keeps its clearance free for the requests after it in the same tick.
 void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
   std::optional<std::vector<CellBox>> spawn_clearances;
+  int spawn_points = it.world().count<SpawnPoint>();
+  MadeBlocks made;
   while (it.next()) {
     auto brushes = it.field<BlockBrush>(2);
     auto& index = it.field<BlockIndex>(3)[0];
@@ -207,7 +229,8 @@ void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const Spa
       spawn_clearances = SpawnClearances(spawn_blocks, tuning);
     }
     for (const size_t i : it) {
-      ProcessBuildRequest(it.entity(i), brushes[i], index, counters, palette, tuning, players, *spawn_clearances);
+      ProcessBuildRequest(
+          it.entity(i), brushes[i], index, counters, palette, tuning, players, *spawn_clearances, spawn_points, made);
     }
   }
 }
@@ -262,11 +285,30 @@ void UpdateBrushPreview(
   if (!aim) {
     return;
   }
-  const Block block = BrushBlock(DragOf(owner), owner.get<BlockBrush>().spec, *aim, palette.palette, index);
-  const bool valid = CheckPermission(owner) &&
-                     ValidateBuild(block, palette.palette, index, PlayerSpheres(players),
-                                   SpawnClearances(spawn_blocks, tuning), tuning);
-  brush.set(BrushPreview {.block = block, .valid = valid});
+  const bool cuts = owner.has<z13::building::CutModifier>();
+  const bool cuts_in = !cuts && owner.has<z13::building::CutInModifier>();
+  const Block block =
+      BrushBlock(DragOf(owner), owner.get<BlockBrush>().spec, *aim, palette.palette, index, cuts || cuts_in);
+  const bool spawns = IsSpawnPoint(block, palette.palette);
+  const int spawn_points = owner.world().count<SpawnPoint>();
+  const auto fits = [&] {
+    return cuts || ValidateBuild(block, palette.palette, index, PlayerSpheres(players),
+                                 SpawnClearances(spawn_blocks, tuning), tuning, cuts_in).has_value();
+  };
+  const auto cuttable = [&] {
+    return !(cuts || cuts_in) ||
+           PlanCut(owner.world(), index, palette.palette, OccupiedCells(block), spawn_points, {},
+                   cuts_in && spawns ? 1 : 0).has_value();
+  };
+  const bool valid = CheckPermission(owner).has_value() && fits() && cuttable();
+  if (cuts) {
+    const CellBox cells = OccupiedCells(block);
+    const Block box {.spec = {.type_id = z13::station::kCubePrimitiveId, .size = cells.extent}, .cell = cells.min};
+    brush.set(BrushPreview {.block = box, .valid = valid, .kind = BrushPreview::Kind::kCut});
+    return;
+  }
+  brush.set(BrushPreview {
+      .block = block, .valid = valid, .kind = cuts_in ? BrushPreview::Kind::kCutIn : BrushPreview::Kind::kBuild});
 }
 
 void InstallIndex(flecs::world world) {
@@ -331,6 +373,9 @@ void RegisterSystems(flecs::world world) {
       .with<z13::building::Brush>()
       .with<StationMode>()
       .read<BlockBrush>()
+      .read<Block>()
+      .read<z13::building::CutModifier>()
+      .read<z13::building::CutInModifier>()
       .read<BrushDrag>()
       .read<BuildPermission>()
       .write<BrushPreview>()

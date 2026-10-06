@@ -32,6 +32,10 @@ Eigen::Vector3i Aim::Cell() const {
   return (point + normal.cast<float>() / 2.f).array().floor().cast<int>();
 }
 
+Aim Aim::Flipped() const {
+  return {.eye = eye, .point = point, .normal = -normal};
+}
+
 Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen::Vector3f& reach) {
   const auto hit = index.RaycastHit(eye, reach);
   return hit ? Aim {.eye = eye, .point = hit->point, .normal = hit->normal} : Aim {.eye = eye, .point = reach};
@@ -75,7 +79,11 @@ Block SlidAlongFace(const Block& block, const Eigen::Vector3i& normal, const gri
 
 }  // namespace
 
-Block BlockAt(const Aim& aim, const BlockSpec& spec, const grid::BlockIndex& index) {
+Block BlockAt(const Aim& aim, const BlockSpec& spec, const grid::BlockIndex& index, bool may_overlap) {
+  if (may_overlap) {
+    return aim.normal.isZero() ? z13::building::primitives::PlaceCentredOn(aim.point, spec)
+                               : z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec);
+  }
   if (!aim.normal.isZero()) {
     return SlidAlongFace(z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec), aim.normal, index);
   }

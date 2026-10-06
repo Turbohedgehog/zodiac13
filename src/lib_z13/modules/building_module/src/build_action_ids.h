@@ -25,6 +25,7 @@
 namespace z13::building {
 
 inline constexpr size_t kPaletteSlots = 9;
+inline constexpr float kHeldActionValue = 0.5f;
 
 // The building actions' ids in the loaded action map, refreshed when the input config changes.
 struct BuildActionIds {
@@ -41,11 +42,15 @@ struct BuildActionIds {
   std::optional<IdType> rotate_around_x;
   std::optional<IdType> select_primitive;
   std::optional<IdType> show_palette;
+  std::optional<IdType> cut_modifier;
+  std::optional<IdType> cut_in_modifier;
   std::optional<IdType> cancel_brush_drag;
 };
 
 // Whether the action went down this frame; false for an action the config lacks.
 bool IsSwitchedOn(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id);
+// Whether the action is down now; false for an action the config lacks.
+bool IsHeld(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id);
 bool IsSwitchedOff(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id);
 
 }  // namespace z13::building

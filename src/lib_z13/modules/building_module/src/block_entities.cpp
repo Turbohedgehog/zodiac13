@@ -16,6 +16,8 @@
 
 #include "block_entities.h"
 
+#include <format>
+
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_state.h>
@@ -58,6 +60,14 @@ CellBox SpawnClearance(const Block& marker, const BuildingTuning& tuning) {
       .min = {cells.min.x(), cells.min.y(), cells.End().z()},
       .extent = {cells.extent.x(), cells.extent.y(), tuning.spawn_clearance_cells},
   };
+}
+
+std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counters) {
+  std::string name;
+  do {
+    name = std::format("Block_{}", ++counters.last_block_id);
+  } while (world.lookup(name.c_str()));
+  return name;
 }
 
 flecs::entity CreateBlock(

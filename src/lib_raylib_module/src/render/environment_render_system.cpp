@@ -74,6 +74,8 @@ constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientati
 constexpr ::Color kBrushPreviewTint {255, 255, 255, 128};
 constexpr ::Color kValidBuildTint {120, 255, 120, 128};
 constexpr ::Color kRefusedBuildTint {255, 90, 90, 128};
+// A cut that would be accepted: the box it takes, in orange.
+constexpr ::Color kValidCutTint {255, 170, 60, 128};
 
 constexpr float kAvatarRadius = 0.5f;
 constexpr float kMaxColorChannel = 255.f;
@@ -302,7 +304,9 @@ void DrawBrushPreview(
   if (world.has<z13::station::StationMode>()) {
     if (brush.has<z13::station::BrushPreview>()) {
       const auto& preview = brush.get<z13::station::BrushPreview>();
-      DrawBlock(meshes, preview.block, palette, preview.valid ? kValidBuildTint : kRefusedBuildTint);
+      const ::Color valid_tint =
+          preview.kind == z13::station::BrushPreview::Kind::kBuild ? kValidBuildTint : kValidCutTint;
+      DrawBlock(meshes, preview.block, palette, preview.valid ? valid_tint : kRefusedBuildTint);
     }
     return;
   }

@@ -46,7 +46,8 @@ bool Intersects(const PlayerSphere& player, const CellBox& cells) {
 
 Status ValidateBuild(
     const Block& block, const z13::building::primitives::Palette& palette, const grid::BlockIndex& index,
-    std::span<const PlayerSphere> players, std::span<const CellBox> spawn_clearances, const BuildingTuning& tuning) {
+    std::span<const PlayerSphere> players, std::span<const CellBox> spawn_clearances, const BuildingTuning& tuning,
+    bool replaces_cells) {
   const BlockSpec& spec = block.spec;
   const auto primitive = palette.Find(spec.type_id);
   if (!primitive) {
@@ -59,7 +60,7 @@ Status ValidateBuild(
   }
 
   const CellBox cells = z13::building::primitives::OccupiedCells(block);
-  if (index.Overlaps(cells)) {
+  if (!replaces_cells && index.Overlaps(cells)) {
     return std::unexpected(std::string {"cells are taken"});
   }
   if (std::ranges::any_of(players, [&cells](const PlayerSphere& player) { return Intersects(player, cells); })) {

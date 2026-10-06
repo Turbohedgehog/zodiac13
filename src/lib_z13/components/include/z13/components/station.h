@@ -112,8 +112,12 @@ struct BuildPermission {
 // What a brush's build would place right now and whether it would be accepted; derived
 // every frame on the brush entity, never state.
 struct BrushPreview {
+  enum class Kind : uint8_t { kBuild, kCutIn, kCut };
+
   Block block;
   bool valid {};
+  // A cut's block is a plain box of the cells it would take.
+  Kind kind {};
 };
 
 // The palette window's pick goes out as an action value, slot + 1, which a logged action
