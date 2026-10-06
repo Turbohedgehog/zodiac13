@@ -32,6 +32,9 @@ struct Aim {
 
   // The cell a build here starts from: the empty one in front of the face.
   Eigen::Vector3i Cell() const;
+  // The same aim from the other side of the face: the cell behind it, and a block placed
+  // into the face rather than against it.
+  Aim Flipped() const;
 };
 
 // Aims the ray from `eye` to `reach` at `index`.
@@ -39,6 +42,8 @@ Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen
 
 // The block of `spec` resting on the aimed face, slid along it off what it would sink into,
 // or centred on the free point and then drawn back along the ray until it clears others.
-z13::station::Block BlockAt(const Aim& aim, const z13::station::BlockSpec& spec, const grid::BlockIndex& index);
+// With `may_overlap` (a cut takes the cells first) it stays where aimed.
+z13::station::Block BlockAt(
+    const Aim& aim, const z13::station::BlockSpec& spec, const grid::BlockIndex& index, bool may_overlap = false);
 
 }  // namespace z13::building

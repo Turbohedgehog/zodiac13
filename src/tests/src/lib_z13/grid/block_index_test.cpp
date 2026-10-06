@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <optional>
 
 #include <Eigen/Dense>
@@ -76,6 +77,16 @@ TEST(BlockIndexTest, RaycastHitsTheFirstBlockAlongTheSegment) {
   EXPECT_EQ(index.Raycast({0.5f, 0.5f, 6.5f}, {4.5f, 0.5f, 6.5f}), std::nullopt);
   // Backwards, away from the wall, never reaching the floor.
   EXPECT_EQ(index.Raycast({0.5f, 0.5f, 6.5f}, {-20.5f, 0.5f, 6.5f}), std::nullopt);
+}
+
+TEST(BlockIndexTest, OverlappingListsEachBlockOnceEvenAcrossChunks) {
+  const BlockIndex index = FloorAndWall();
+
+  const auto both = index.Overlapping({.min = {0, 0, -1}, .extent = {10, 2, 2}});
+  EXPECT_EQ(both.size(), 2u);
+  EXPECT_NE(std::ranges::find(both, kFloor), both.end());
+  EXPECT_NE(std::ranges::find(both, kWall), both.end());
+  EXPECT_TRUE(index.Overlapping({.min = {100, 100, 100}, .extent = {1, 1, 1}}).empty());
 }
 
 TEST(BlockIndexTest, RaycastHitReportsTheFaceEntered) {

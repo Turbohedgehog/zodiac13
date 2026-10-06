@@ -33,6 +33,12 @@ struct Brush {
 // Station mode: the build key went down, so a drag starts at the brush.
 struct RequestBrushDrag {};
 struct RequestBuildBlock {};
+
+// The build modifiers held this frame, for as long as they are; derived from the input
+// every frame, never state. A build with CutModifier cuts its box out of the station
+// instead; with CutInModifier it cuts its place out first.
+struct CutModifier {};
+struct CutInModifier {};
 struct RequestDestroyBlock {};
 
 }  // namespace z13::building

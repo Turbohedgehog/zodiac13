@@ -56,6 +56,8 @@ class BlockIndex {
 
   std::optional<BlockId> At(const Eigen::Vector3i& cell) const;
   bool Overlaps(const z13::building::primitives::CellBox& cells) const;
+  // Every block sharing a cell with `cells`, in no particular order.
+  std::vector<BlockId> Overlapping(const z13::building::primitives::CellBox& cells) const;
 
   // The first block along the segment, both ends in cells.
   std::optional<BlockId> Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const;

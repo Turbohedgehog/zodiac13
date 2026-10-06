@@ -94,26 +94,21 @@ class KeyBindingsWindow : public Window {
       return;
     }
 
-    for (int group = 0; group < static_cast<int>(model_.groups.size()); ++group) {
-      const KeyBindingGroup& binding_group = model_.groups[group];
-      ImGui::SeparatorText(binding_group.name.c_str());
-      for (int action = 0; action < static_cast<int>(binding_group.actions.size()); ++action) {
-        const KeyBindingAction& binding_action = binding_group.actions[action];
-        ImGui::TextUnformatted(binding_action.display_text.c_str());
-        ImGui::SameLine(kBindingLabelWidth);
-        for (int slot = 0; slot < kKeyBindingSlots; ++slot) {
-          if (slot > 0) {
-            ImGui::SameLine();
-          }
-          ImGui::PushID((group * kMaxActionsPerGroupForId + action) * kKeyBindingSlots + slot);
-          const std::string slot_text(KeyBindingSlotText(model_, group, action, slot));
-          if (ImGui::Button(slot_text.c_str(), kBindingSlotSize)) {
-            rebind_ = KeyBindingSlot{group, action, slot};
-            arm_countdown_ = 1;
-          }
-          ImGui::PopID();
+    if (ImGui::BeginTabBar("KeyBindingGroups")) {
+      for (int group = 0; group < static_cast<int>(model_.groups.size()); ++group) {
+        const KeyBindingGroup& binding_group = model_.groups[group];
+        // The rebind prompt replaces the whole body, so the tab bar is rebuilt after it.
+        const ImGuiTabItemFlags flags =
+            restore_tab_ && group == selected_group_ ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+        if (!ImGui::BeginTabItem(binding_group.name.c_str(), nullptr, flags)) {
+          continue;
         }
+        selected_group_ = group;
+        DrawGroup(group, binding_group);
+        ImGui::EndTabItem();
       }
+      ImGui::EndTabBar();
+      restore_tab_ = false;
     }
 
     if (dirty_) {
@@ -126,8 +121,31 @@ class KeyBindingsWindow : public Window {
   }
 
  private:
+  void DrawGroup(int group, const KeyBindingGroup& binding_group) {
+    for (int action = 0; action < static_cast<int>(binding_group.actions.size()); ++action) {
+      const KeyBindingAction& binding_action = binding_group.actions[action];
+      ImGui::TextUnformatted(binding_action.display_text.c_str());
+      ImGui::SameLine(kBindingLabelWidth);
+      for (int slot = 0; slot < kKeyBindingSlots; ++slot) {
+        if (slot > 0) {
+          ImGui::SameLine();
+        }
+        ImGui::PushID((group * kMaxActionsPerGroupForId + action) * kKeyBindingSlots + slot);
+        const std::string slot_text(KeyBindingSlotText(model_, group, action, slot));
+        if (ImGui::Button(slot_text.c_str(), kBindingSlotSize)) {
+          rebind_ = KeyBindingSlot{group, action, slot};
+          arm_countdown_ = 1;
+          restore_tab_ = true;
+        }
+        ImGui::PopID();
+      }
+    }
+  }
+
   KeyBindingModel model_;
   std::optional<KeyBindingSlot> rebind_;
+  int selected_group_ {};
+  bool restore_tab_ {};
   // Frames left before OnKeyDown accepts a key for the new binding.
   //
   // WindowKeyDownEvent is published synchronously from InputPublisher::ReadInput

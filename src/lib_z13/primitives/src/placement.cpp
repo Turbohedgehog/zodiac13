@@ -123,6 +123,12 @@ bool CellBox::Overlaps(const CellBox& other) const {
   return (min.array() < other.End().array()).all() && (other.min.array() < End().array()).all();
 }
 
+CellBox CellBox::Intersection(const CellBox& other) const {
+  const Eigen::Vector3i low = min.cwiseMax(other.min);
+  const Eigen::Vector3i high = End().cwiseMin(other.End());
+  return {.min = low, .extent = (high - low).cwiseMax(Eigen::Vector3i::Zero())};
+}
+
 CellBox OccupiedCells(const z13::station::Block& block) {
   return {.min = block.cell, .extent = OrientationMatrix(block.spec.orientation).cwiseAbs() * block.spec.size};
 }

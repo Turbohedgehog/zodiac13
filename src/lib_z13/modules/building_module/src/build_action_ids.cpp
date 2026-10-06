@@ -23,6 +23,11 @@ bool IsSwitchedOn(const z13::input::ActionListener& listener, const std::optiona
   return value && value->IsSwitchedOn();
 }
 
+bool IsHeld(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id) {
+  const std::optional<z13::input::ActionValueHolder> value = action_id ? listener.Value(*action_id) : std::nullopt;
+  return value && value->current_value >= kHeldActionValue;
+}
+
 bool IsSwitchedOff(const z13::input::ActionListener& listener, const std::optional<BuildActionIds::IdType>& action_id) {
   const std::optional<z13::input::ActionValueHolder> value = action_id ? listener.Value(*action_id) : std::nullopt;
   return value && value->IsSwitchedOff();

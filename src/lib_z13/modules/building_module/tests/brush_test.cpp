@@ -16,14 +16,20 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 #include <net_module/in_memory_transport.h>
 #include <z13/components/building.h>
@@ -221,6 +227,106 @@ TEST(BrushTest, HoldingThePaletteKeyFreesTheCursorAndClicksBuildNothing) {
   EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
 }
 
+// A 24x12 cell wall 16 cells ahead of the player, its thin side facing them, centred on their eye.
+struct WallAhead {
+  flecs::entity entity;
+  Block block;
+};
+
+WallAhead AddWallAhead(Z13TestWorld& test_world, flecs::entity player) {
+  const Eigen::Vector3i eye =
+      (z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) / z13::station::kCellSize)
+          .array().floor().cast<int>();
+  const Block wall {
+      .spec = {.type_id = kWallId, .size = {24, 1, 12}, .orientation = Orientation::kFacePosYUpPosZ},
+      .cell = {eye.x() + 16, eye.y() - 12, eye.z() - 6}};
+  const flecs::entity entity = test_world.World().entity("TestWall").add<z13::flecs_tools::StateEntity>().set(wall);
+  Ticks(test_world, 2);
+  return {entity, wall};
+}
+
+// The brush turned like the wall, so a door's thin side is along X as well.
+void UseDoorBrush(flecs::entity player) {
+  player.set(BlockBrush {.spec = {.type_id = kDoorId, .size = {6, 1, 10}, .orientation = Orientation::kFacePosYUpPosZ}});
+}
+
+int CellsOf(const std::vector<Block>& blocks) {
+  int cells = 0;
+  for (const Block& block : blocks) {
+    cells += z13::building::primitives::OccupiedCells(block).extent.prod();
+  }
+  return cells;
+}
+
+TEST(BrushTest, HoldingTheCutKeyCutsTheBrushBoxOutOfTheWallInSight) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  const WallAhead wall = AddWallAhead(test_world, player);
+  UseDoorBrush(player);
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_X));
+  Ticks(test_world, 2);
+  const auto preview = PreviewOf(player);
+  ASSERT_TRUE(preview.has_value());
+  EXPECT_EQ(preview->kind, BrushPreview::Kind::kCut);
+  EXPECT_TRUE(preview->valid);
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+
+  EXPECT_FALSE(wall.entity.is_alive());
+  const auto pieces = BlocksOfType(test_world.World(), kWallId);
+  EXPECT_GE(pieces.size(), 3u);
+  EXPECT_EQ(CellsOf(pieces), 24 * 12 - 6 * 10);
+  EXPECT_TRUE(BlocksOfType(test_world.World(), kDoorId).empty());
+}
+
+TEST(BrushTest, HoldingTheCutInKeyFitsTheBlockIntoTheWall) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  const WallAhead wall = AddWallAhead(test_world, player);
+  UseDoorBrush(player);
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_LSHIFT));
+  Ticks(test_world, 2);
+  const auto preview = PreviewOf(player);
+  ASSERT_TRUE(preview.has_value());
+  EXPECT_EQ(preview->kind, BrushPreview::Kind::kCutIn);
+  EXPECT_TRUE(preview->valid);
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+
+  EXPECT_FALSE(wall.entity.is_alive());
+  const auto doors = BlocksOfType(test_world.World(), kDoorId);
+  ASSERT_EQ(doors.size(), 1u);
+  const auto pieces = BlocksOfType(test_world.World(), kWallId);
+  EXPECT_EQ(CellsOf(pieces) + CellsOf(doors), 24 * 12);
+  std::vector<Block> all = pieces;
+  all.push_back(doors[0]);
+  for (size_t i = 0; i < all.size(); ++i) {
+    for (size_t j = i + 1; j < all.size(); ++j) {
+      EXPECT_FALSE(z13::building::primitives::OccupiedCells(all[i]).Overlaps(
+          z13::building::primitives::OccupiedCells(all[j])));
+    }
+  }
+}
+
+TEST(BrushTest, ReleasingTheCutKeyBuildsAgain) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  const WallAhead wall = AddWallAhead(test_world, player);
+  UseDoorBrush(player);
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_X));
+  Ticks(test_world, 2);
+  test_world.EmitInput(z13::testing::KeyUp(Keycode::KEY_X));
+  Ticks(test_world, 2);
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  test_world.Tick();
+
+  EXPECT_TRUE(wall.entity.is_alive());
+  EXPECT_EQ(BlocksOfType(test_world.World(), kDoorId).size(), 1u);
+}
+
 TEST(BrushTest, ThePaletteWindowsPickLandsWithTheToolPutAway) {
   Z13TestWorld test_world = StationWorld();
   test_world.Tick();
@@ -343,6 +449,79 @@ TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
   EXPECT_EQ(BrushOf(client_a.Player()), expected);
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_a));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));
+}
+
+// A cut makes several blocks from one, named by a counter: every peer has to end with the same ones.
+TEST(BrushTest, ACutByAClientLeavesTheSameBlocksOnTheServerAndOtherClients) {
+  const auto network = std::make_shared<z13::net::InMemoryNetwork>();
+  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
+  // Before the clients join, so the Welcome snapshot carries it; players spawn about 1.25 m up
+  // at the origin, looking along +X.
+  server.World().entity("TestWall").add<z13::flecs_tools::StateEntity>().set(Block {
+      .spec = {.type_id = kWallId, .size = {24, 1, 12}, .orientation = Orientation::kFacePosYUpPosZ},
+      .cell = {16, -12, 0}});
+  Z13TestWorld client_a(
+      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_b(
+      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  const auto all = [&](uint64_t ticks) {
+    RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
+  };
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return client_a.World().has<z13::gameplay::Gameplay>() && client_b.World().has<z13::gameplay::Gameplay>() &&
+        client_a.World().count<z13::gameplay::Player>() == 3 && client_b.World().count<z13::gameplay::Player>() == 3;
+  }));
+
+  constexpr uint64_t kSettleTicks = 30;
+  const auto step = [&] { all(1); };
+  Tap(client_a, Keycode::KEY_TAB, step);
+  all(kSettleTicks);
+  client_a.EmitInput(z13::testing::KeyDown(Keycode::KEY_X));
+  all(kSettleTicks);
+  client_a.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_BUTTON_LEFT));
+  all(1);
+  client_a.EmitInput(z13::testing::MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  all(kSettleTicks);
+
+  EXPECT_GE(BlocksOfType(server.World(), kWallId).size(), 2u);
+  EXPECT_EQ(BlocksOfType(client_a.World(), kWallId).size(), BlocksOfType(server.World(), kWallId).size());
+  EXPECT_EQ(BlocksOfType(client_b.World(), kWallId).size(), BlocksOfType(server.World(), kWallId).size());
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_a));
+  EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));
+}
+
+// The cut is replayed from the logged actions, modifier key included.
+TEST(BrushTest, ReplayingACutAfterARollbackGivesTheSameState) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  AddWallAhead(test_world, player);
+  UseDoorBrush(player);
+
+  const float delta_time = 1.f / test_world.Config().GetFPS();
+  const uint64_t interval_ticks = static_cast<uint64_t>(
+      std::llround(test_world.Config().GetSnapshotIntervalSeconds() * test_world.Config().GetFPS()));
+  for (uint64_t i = 0; i < interval_ticks; ++i) {
+    test_world.Tick(delta_time);
+  }
+  const auto& history = test_world.World().get<z13::flecs_tools::WorldSnapshotHistory>().history;
+  ASSERT_FALSE(history.Empty());
+  const uint64_t rollback_tick = history.Entries().front().tick;
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_X));
+  Ticks(test_world, 2);
+  z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  Ticks(test_world, 2);
+  test_world.EmitInput(z13::testing::KeyUp(Keycode::KEY_X));
+  Ticks(test_world, 2);
+  ASSERT_GE(BlocksOfType(test_world.World(), kWallId).size(), 3u);
+
+  const uint64_t target_tick = test_world.World().get<z13::flecs_tools::SimulationClock>().tick;
+  const std::string ground_truth = Checkpoint(test_world);
+  z13::flecs_tools::RequestRollback(test_world.World(), rollback_tick, target_tick);
+  z13::flecs_tools::TickWorld(test_world.World(), delta_time);
+
+  ASSERT_FALSE(test_world.World().has<z13::flecs_tools::RollbackFailed>());
+  EXPECT_EQ(Checkpoint(test_world), ground_truth);
 }
 
 }  // namespace
