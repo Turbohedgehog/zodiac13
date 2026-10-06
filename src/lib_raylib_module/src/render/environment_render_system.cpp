@@ -47,12 +47,15 @@
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
 #include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+#include <z13_primitives/placement.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
 
 #include "../tools/assimp_loader.h"
 #include "../tools/math_convert.h"
+#include "block_meshes.h"
 #include "lights.h"
 #include "render_components.h"
 #include "render_resources.h"
@@ -68,7 +71,7 @@ constexpr ::Vector3 kSpaceshipPosition{30.f, 0.f, 0.f};
 constexpr float kSpaceshipPitchDegrees = 90.f;  // about world +X (FBX Y-up -> Z-up)
 constexpr float kSpaceshipYawDegrees = -90.f;   // about world +Y (art orientation)
 
-constexpr ::Color kPlacedBlockColor = GREEN;
+constexpr ::Color kBrushPreviewTint {255, 255, 255, 128};
 
 constexpr float kAvatarRadius = 0.5f;
 constexpr float kMaxColorChannel = 255.f;
@@ -78,7 +81,7 @@ constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
 constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BuildingBlock,
+  z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
                                          z13::VisualSmoothing>(world);
 }
 
@@ -88,10 +91,6 @@ struct SmoothedDrawing {
   z13::DrawnPoses poses;
   std::optional<std::chrono::steady_clock::time_point> last_frame;
 };
-
-// Per-entity cube models backing placed blocks / the brush preview, keyed by
-// entity -- the model itself doesn't live on BuildingBlock (see render_components.h).
-using BlockModels = std::unordered_map<flecs::entity_t, ModelResources>;
 
 // Points every material of `model` at Lighting's shared shader, and returns
 // the id MakeManagedModel needs to skip unloading a shader it doesn't own.
@@ -103,17 +102,6 @@ unsigned int ApplyLightingShader(::Model& model, const Lighting& lighting) {
     model.materials[i].shader = *lighting.res->shader;
   }
   return lighting.res->shader->id;
-}
-
-void AddBlockModel(
-    BlockModels& block_models, flecs::entity e, const Eigen::Matrix4f& transform, ::Color color,
-    const Lighting& lighting) {
-  ::Model model = LoadModelFromMesh(GenMeshCube(
-      z13::building::kBlockSize, z13::building::kBlockSize, z13::building::kBlockSize));
-  model.transform = EigenToRaylibMatrix(transform);
-  const unsigned int borrowed_shader_id = ApplyLightingShader(model, lighting);
-  block_models[e.id()] = ModelResources{.model = MakeManagedModel(model, borrowed_shader_id)};
-  e.set<BuildingBlock>({.color = color});
 }
 
 Lighting LoadLighting() {
@@ -175,13 +163,6 @@ void ReconcileSpaceship(flecs::world world, const Lighting& lighting) {
   } else if (!wanted && world.has<RenderModel>()) {
     world.remove<RenderModel>();
   }
-}
-
-// UnloadModel frees mesh arrays with RL_FREE, so they must come from MemAlloc.
-float* CopyToRaylib(const std::vector<float>& values) {
-  auto* data = static_cast<float*>(MemAlloc(static_cast<unsigned int>(values.size() * sizeof(float))));
-  std::ranges::copy(values, data);
-  return data;
 }
 
 // Flat-shaded: every face gets its own three vertices and normal.
@@ -295,21 +276,49 @@ void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
   }
 }
 
-// Drops the model of every entity that is gone or is no longer a block/brush.
-void ReleaseOrphanModels(const flecs::world& world, BlockModels& block_models) {
-  std::erase_if(block_models, [&world](const auto& entry) {
-    const flecs::entity_t id = entry.first;
-    if (!world.is_alive(id)) {
-      return true;
-    }
+using BlockQuery = flecs::query<const z13::station::Block>;
+using BrushQuery = flecs::query<const z13::building::Brush, const Eigen::Matrix4f>;
 
-    const flecs::entity e = world.entity(id);
-    if (e.has<z13::building::BasicBlock>() || e.has<z13::building::Brush>()) {
-      return false;
-    }
-    e.remove<BuildingBlock>();
-    return true;
+void DrawBlock(BlockMeshes& meshes, const z13::station::Block& block, BlockMeshes::OptionalPalette palette,
+               ::Color tint) {
+  const std::shared_ptr<::Model> model =
+      meshes.Get({.type_id = block.spec.type_id, .size = block.spec.size}, palette);
+  if (model->meshCount == 0) {
+    return;
+  }
+  const Eigen::Isometry3f pose =
+      z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
+  model->transform = EigenToRaylibMatrix(Eigen::Matrix4f(pose.matrix()));
+  DrawModel(*model, Vector3Zero(), 1.f, tint);
+}
+
+// What a build would place: the owner's BlockBrush in station mode, else the ship
+// scene's cube, snapped around the brush the same way the build snaps it.
+void DrawBrushPreview(
+    const flecs::world& world, flecs::entity brush, const Eigen::Matrix4f& transform, BlockMeshes& meshes,
+    BlockMeshes::OptionalPalette palette) {
+  const Eigen::Vector3f point = z13::math::ExtractTranslation<float>(transform) / z13::station::kCellSize;
+  const flecs::entity owner = brush.parent();
+  const z13::station::BlockSpec spec =
+      world.has<z13::station::StationMode>() && owner && owner.has<z13::station::BlockBrush>()
+          ? owner.get<z13::station::BlockBrush>().spec
+          : z13::station::CubeSpec();
+  DrawBlock(meshes, z13::building::primitives::PlaceCentredOn(point, spec), palette, kBrushPreviewTint);
+}
+
+void DrawBlocks(
+    const flecs::world& world, const BlockQuery& blocks, const BrushQuery& brushes, BlockMeshes& meshes) {
+  const auto* palette_component = world.try_get<z13::building::primitives::BlockPalette>();
+  const BlockMeshes::OptionalPalette palette =
+      palette_component != nullptr ? BlockMeshes::OptionalPalette(palette_component->palette) : std::nullopt;
+  blocks.each([&meshes, palette](const z13::station::Block& block) {
+    DrawBlock(meshes, block, palette, WHITE);
   });
+  brushes.each([&world, &meshes, palette](
+                   flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
+    DrawBrushPreview(world, brush, transform, meshes, palette);
+  });
+  meshes.ReleaseUnused();
 }
 
 // Replacement for BeginMode3D/EndMode3D: those need CORE for the aspect ratio,
@@ -334,7 +343,6 @@ void RegisterSystems(flecs::world world) {
   // The launcher overwrites this with the loaded settings (z13::InstallSettings).
   world.set<z13::VisualSmoothing>({});
   // Shared by the closures below; lives as long as the world.
-  auto block_models = std::make_shared<BlockModels>();
   auto drawing = std::make_shared<SmoothedDrawing>();
 
   // RaylibData is set right after InitWindow, so a live GL context is guaranteed.
@@ -344,6 +352,7 @@ void RegisterSystems(flecs::world world) {
       .each([world](RaylibData&) {
         Lighting lighting = LoadLighting();
         world.set<AvatarModel>(LoadAvatar(lighting));
+        world.set<BlockMeshes>(BlockMeshes(lighting.res ? *lighting.res->shader : ::Shader {}));
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
       });
@@ -381,45 +390,10 @@ void RegisterSystems(flecs::world world) {
       .write<RaylibCamera>()
       .each(ReleaseOrphanRaylibCamera);
 
-  // Singleton-only term, so $this is empty: use the iter/row overload.
-  world.system<const Lighting>("EnvironmentRenderSystem::ReleaseOrphanModels")
-      .kind<Render>()
-      .tick_source<RenderGate>()
-      .read<z13::building::BasicBlock>()
-      .read<z13::building::Brush>()
-      .write<BuildingBlock>()
-      .each([block_models](flecs::iter& it, size_t, const Lighting&) {
-        ReleaseOrphanModels(it.world(), *block_models);
-      });
-
-  // The brush preview and placed blocks share one cube model; the transform is
-  // refreshed at draw time from the entity's matrix.
-  world.system<const z13::building::Brush, const Eigen::Matrix4f, const Lighting>(
-           "EnvironmentRenderSystem::AddBrushModel")
-      .kind<Render>()
-      .tick_source<RenderGate>()
-      .without<BuildingBlock>()
-      .write<BuildingBlock>()
-      .each([block_models](
-                flecs::entity e, const z13::building::Brush&, const Eigen::Matrix4f& transform,
-                const Lighting& lighting) {
-        AddBlockModel(*block_models, e, transform, WHITE, lighting);
-      });
-
-  world.system<const z13::building::BasicBlock, const Eigen::Matrix4f, const Lighting>(
-           "EnvironmentRenderSystem::AddBlockModel")
-      .kind<Render>()
-      .tick_source<RenderGate>()
-      .without<BuildingBlock>()
-      .write<BuildingBlock>()
-      .each([block_models](
-                flecs::entity e, const z13::building::BasicBlock&, const Eigen::Matrix4f& transform,
-                const Lighting& lighting) {
-        AddBlockModel(*block_models, e, transform, kPlacedBlockColor, lighting);
-      });
-
-  flecs::query<const BuildingBlock, const Eigen::Matrix4f> block_query =
-      world.query_builder<const BuildingBlock, const Eigen::Matrix4f>("EnvironmentRenderSystem::BlockQuery")
+  const BlockQuery block_query =
+      world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::BlockQuery").build();
+  const BrushQuery brush_query =
+      world.query_builder<const z13::building::Brush, const Eigen::Matrix4f>("EnvironmentRenderSystem::BrushQuery")
           .build();
 
   RemotePlayerQuery remote_player_query =
@@ -429,8 +403,6 @@ void RegisterSystems(flecs::world world) {
 
   DrawnQuery drawn_query = world.query_builder<const Eigen::Matrix4f>("EnvironmentRenderSystem::DrawnQuery")
                                .with<gameplay::Player>()
-                               .or_()
-                               .with<BuildingBlock>()
                                .build();
 
   world.system<const VisualSmoothing>("EnvironmentRenderSystem::ChaseDrawnPoses")
@@ -445,8 +417,8 @@ void RegisterSystems(flecs::world world) {
   world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
-      .read<BuildingBlock>()
-      .each([world, block_query, block_models, remote_player_query, drawing](
+      .read<z13::station::Block>()
+      .each([world, block_query, brush_query, remote_player_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
@@ -475,14 +447,9 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        block_query.each(
-            [block_models, &drawing](flecs::entity e, const BuildingBlock& block, const Eigen::Matrix4f& transform) {
-              const auto it = block_models->find(e.id());
-              if (it != block_models->end() && it->second.model->meshCount > 0) {
-                it->second.model->transform = EigenToRaylibMatrix(z13::DrawnTransform(drawing->poses, e, transform));
-                DrawModel(*it->second.model, Vector3Zero(), 1.f, block.color);
-              }
-            });
+        if (world.has<BlockMeshes>()) {
+          DrawBlocks(world, block_query, brush_query, world.get_mut<BlockMeshes>());
+        }
         DrawRemotePlayers(world, remote_player_query, drawing->poses);
 
         EndScene3D();

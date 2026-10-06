@@ -15,6 +15,7 @@
  */
 
 #include <lib_core/settings/schema_attributes.h>
+#include <lib_core/utils/status.h>
 
 #include <algorithm>
 #include <charconv>
@@ -86,7 +87,7 @@ std::string JoinPath(std::string_view prefix, std::string_view name) {
   return prefix.empty() ? std::string(name) : std::format("{}{}{}", prefix, kPathSeparator, name);
 }
 
-std::expected<void, std::string> ValidateRangesAt(
+Status ValidateRangesAt(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table,
     std::string_view prefix) {
   for (const reflection::Field* field : *object.fields()) {
@@ -184,7 +185,7 @@ std::string DescribeField(const reflection::Field& field, std::string_view path)
   return description + ")";
 }
 
-std::expected<void, std::string> CollectCliOptionsAt(
+Status CollectCliOptionsAt(
     const reflection::Schema& schema, const reflection::Object& object, std::string_view prefix,
     std::vector<CliOption>& options) {
   for (const reflection::Field* field : *object.fields()) {
@@ -232,7 +233,7 @@ std::optional<T> ParseNumber(std::string_view text) {
 
 }  // namespace
 
-std::expected<void, std::string> ValidateRanges(
+Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table) {
   return ValidateRangesAt(schema, object, table, {});
 }
@@ -257,7 +258,7 @@ std::expected<std::vector<CliOption>, std::string> CollectCliOptions(
   return options;
 }
 
-std::expected<void, std::string> SetFieldFromText(
+Status SetFieldFromText(
     const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
     std::string_view path, std::string_view text) {
   const reflection::Object* object = &root;

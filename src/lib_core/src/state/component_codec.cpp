@@ -15,6 +15,7 @@
  */
 
 #include <lib_core/state/component_codec.h>
+#include <lib_core/utils/status.h>
 
 #include <format>
 
@@ -29,8 +30,8 @@ namespace {
 
 using codec::Error;
 
-std::expected<void, std::string> CheckSize(const flecs::world& world, flecs::entity_t type, size_t size) {
-  return codec::TypeSize(world, type).and_then([&](size_t expected_size) -> std::expected<void, std::string> {
+Status CheckSize(const flecs::world& world, flecs::entity_t type, size_t size) {
+  return codec::TypeSize(world, type).and_then([&](size_t expected_size) -> Status {
     if (size != expected_size) {
       return Error(std::format("{} bytes for '{}' of size {}", size, codec::TypeName(world, type), expected_size));
     }
@@ -48,12 +49,12 @@ std::expected<std::vector<uint8_t>, std::string> EncodeValue(
       .transform([&] { return encoder.Take(); });
 }
 
-std::expected<void, std::string> DecodeValue(
+Status DecodeValue(
     const flecs::world& world, flecs::entity_t type, std::span<std::byte> value, std::span<const uint8_t> bytes) {
   codec::ValueDecoder decoder(world, bytes);
   return CheckSize(world, type, value.size())
       .and_then([&] { return decoder.Read(type, value); })
-      .and_then([&]() -> std::expected<void, std::string> {
+      .and_then([&]() -> Status {
         if (!decoder.AtEnd()) {
           return Error("trailing bytes after value");
         }
@@ -71,13 +72,13 @@ std::expected<std::span<const std::byte>, std::string> ComponentBytes(
   return codec::ViewValue(world, type, value);
 }
 
-std::expected<void, std::string> CheckEncodable(const flecs::world& world, flecs::entity_t type) {
+Status CheckEncodable(const flecs::world& world, flecs::entity_t type) {
   return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {
     return EncodeValue(world, type, scratch.Bytes()).transform([](const std::vector<uint8_t>&) {});
   });
 }
 
-std::expected<void, std::string> ValidateValue(
+Status ValidateValue(
     const flecs::world& world, flecs::entity_t type, std::span<const uint8_t> bytes) {
   return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {
     return DecodeValue(world, type, scratch.Bytes(), bytes);

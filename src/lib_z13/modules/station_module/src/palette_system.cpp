@@ -45,20 +45,20 @@ std::filesystem::path PaletteFile() {
   return plugin_dir.parent_path().parent_path() / kPalettePath;
 }
 
-std::expected<z13::primitives::Palette, std::string> LoadPalette(const std::filesystem::path& file) {
+std::expected<z13::building::primitives::Palette, std::string> LoadPalette(const std::filesystem::path& file) {
   std::ifstream stream(file);
   if (!stream.is_open()) {
     return std::unexpected(std::format("cannot open '{}'", file.string()));
   }
   std::ostringstream contents;
   contents << stream.rdbuf();
-  return z13::primitives::ParsePalette(contents.str()).transform_error([&file](const std::string& error) {
+  return z13::building::primitives::ParsePalette(contents.str()).transform_error([&file](const std::string& error) {
     return std::format("{} ({})", error, file.string());
   });
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<z13::primitives::BlockPalette>(world);
+  z13::flecs_tools::RegisterComponent<z13::building::primitives::BlockPalette>(world);
 }
 
 // In the systems stage, not next to the registration (see PhysicsSystem::RegisterSystems).
@@ -68,7 +68,7 @@ void InstallPalette(flecs::world world) {
     log_error("station: no block palette: {}", palette.error());
     return;
   }
-  world.set(z13::primitives::BlockPalette {.palette = std::move(*palette)});
+  world.set(z13::building::primitives::BlockPalette {.palette = std::move(*palette)});
 }
 
 }  // namespace

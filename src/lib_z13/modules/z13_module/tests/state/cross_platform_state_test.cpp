@@ -54,8 +54,18 @@ std::optional<std::filesystem::path> DumpPath() {
   return path ? std::optional<std::filesystem::path>(path) : std::nullopt;
 }
 
+// The ship scene builds cubes; the station builds wall panels on the grid.
+constexpr std::string_view kShipMode = "ship";
+constexpr std::string_view kStationMode = "station";
+
 class Scenario {
  public:
+  explicit Scenario(std::string_view mode)
+      : mode_(mode),
+        world_(/*skip_main_menu=*/mode == kShipMode,
+               mode == kStationMode ? std::vector<std::string> {std::string(z13::testing::kStationArg)}
+                                    : std::vector<std::string> {}) {}
+
   // One line per component, so a diff points at the first diverging value.
   std::string Run() {
     Step();
@@ -124,19 +134,23 @@ class Scenario {
       for (const ft::ComponentValue& component : entity.components) {
         const flecs::entity type = world_.World().lookup(component.type.c_str());
         const std::string json = ft::ValueToJson(world_.World(), type, component.value).value();
-        dump_ += std::format("{}\t{}\t{}\t{}\n", tick, entity.name, component.type, json);
+        dump_ += std::format("{}\t{}\t{}\t{}\t{}\n", mode_, tick, entity.name, component.type, json);
       }
     }
   }
 
+  std::string_view mode_;
   Z13TestWorld world_;
   std::string dump_;
 };
 
 TEST(CrossPlatformStateTest, ScriptedSessionIsDeterministic) {
-  const std::string dump = Scenario().Run();
-
-  EXPECT_EQ(Scenario().Run(), dump);
+  std::string dump;
+  for (const std::string_view mode : {kShipMode, kStationMode}) {
+    const std::string run = Scenario(mode).Run();
+    EXPECT_EQ(Scenario(mode).Run(), run) << mode;
+    dump += run;
+  }
   if (const auto path = DumpPath()) {
     std::ofstream(*path, std::ios::binary) << dump;  // binary: the same bytes on Windows
   }

@@ -16,6 +16,8 @@
 
 #include "render_resources.h"
 
+#include <algorithm>
+
 #include <rlgl.h>
 
 #include "../platform/sdl_platform.h"
@@ -70,6 +72,12 @@ std::shared_ptr<::Model> MakeManagedModel(::Model model, unsigned int borrowed_s
     UnloadModel(*m);
     delete m;
   });
+}
+
+float* CopyToRaylib(const std::vector<float>& values) {
+  auto* data = static_cast<float*>(MemAlloc(static_cast<unsigned int>(values.size() * sizeof(float))));
+  std::ranges::copy(values, data);
+  return data;
 }
 
 }  // namespace z13::raylib

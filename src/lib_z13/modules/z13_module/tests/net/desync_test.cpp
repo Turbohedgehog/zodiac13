@@ -39,7 +39,9 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13/components/station.h>
 
+#include "../support/block_test_helpers.h"
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
 #include "../support/world_json_test_helpers.h"
@@ -131,7 +133,7 @@ TEST_F(DesyncTest, DigestsAgreeAfterAScriptedSession) {
   Settle();
   z13::testing::Click(client_, Keycode::MOUSE_BUTTON_LEFT, step);
   Settle();
-  ASSERT_EQ(server_.World().count<z13::building::BasicBlock>(), 1);
+  ASSERT_EQ(server_.World().count<z13::station::Block>(), 1);
 
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 3; }));
   EXPECT_EQ(Digests(client_).resyncs, 0u);
@@ -144,8 +146,7 @@ TEST_F(DesyncTest, ExtraEntityOnTheClientIsDetectedAndResynced) {
   client_.World()
       .entity("Block_Stray")
       .add<ft::StateEntity>()
-      .set(Eigen::Matrix4f(Eigen::Matrix4f::Identity()))
-      .add<z13::building::BasicBlock>();
+      .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
 
   ASSERT_TRUE(RunUntilResynced());
   Settle();

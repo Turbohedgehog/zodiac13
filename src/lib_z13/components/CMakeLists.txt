@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 find_package(Boost REQUIRED COMPONENTS container)
 find_package(flecs CONFIG REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
@@ -21,6 +22,7 @@ target_link_libraries(
     INTERFACE
     zodiac13::fbs_schemas
     Boost::container
+    Eigen3::Eigen
     flecs::flecs_static
 )
 

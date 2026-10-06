@@ -33,13 +33,14 @@
 #include <flecs.h>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
 class Core {
  public:
   // Lets the application add its options (Config::AddSchemaOptions) before the command line is parsed.
-  using ConfigureOptions = std::function<std::expected<void, std::string>(Config&)>;
+  using ConfigureOptions = std::function<Status(Config&)>;
 
   Core(int argc, char *argv[], const ConfigureOptions& configure_options = {});
   ~Core();  // for forward declared unique_ptr
@@ -57,7 +58,7 @@ class Core {
     return RegisterModuleFactory(std::make_shared<T>(std::forward<Ts>(params)...));
   }
 
-  std::expected<void, std::string> RegisterModuleFactory(
+  Status RegisterModuleFactory(
       const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
 
   void Update(float delta_time, flecs_tools::FrameKind kind = flecs_tools::FrameKind::kLive);

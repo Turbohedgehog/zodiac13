@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+include "building_tuning.fbs";
 include "core_settings.fbs";
 include "net_tuning.fbs";
 include "physics_tuning.fbs";
@@ -41,6 +42,7 @@ table Settings {
   connect_timeout: ConnectTimeout;
   net: z13.fbs.net.NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
+  building: z13.fbs.building.BuildingTuning;
   visual_smoothing: VisualSmoothing;
 }
 

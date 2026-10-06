@@ -25,6 +25,8 @@
 #include <flatbuffers/flatbuffers.h>
 #include <flatbuffers/reflection.h>
 
+#include <lib_core/utils/status.h>
+
 // Field attributes (fbs/attributes.fbs) read from a binary schema, so any table is checked and
 // overridden the same way:
 //   (min: 1, max: 1000)  inclusive bounds of a scalar field, checked by ValidateRanges;
@@ -37,7 +39,7 @@ inline constexpr std::string_view kMinAttribute = "min";
 inline constexpr std::string_view kMaxAttribute = "max";
 inline constexpr std::string_view kCliAttribute = "cli";
 
-std::expected<void, std::string> ValidateRanges(
+Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table);
 
 struct CliOption {
@@ -52,7 +54,7 @@ std::expected<std::vector<CliOption>, std::string> CollectCliOptions(
 
 // Writes `text` into the numeric field at `path`. The field must be present in the buffer
 // (build it with ForceDefaults), since a scalar equal to its default is otherwise omitted.
-std::expected<void, std::string> SetFieldFromText(
+Status SetFieldFromText(
     const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
     std::string_view path, std::string_view text);
 

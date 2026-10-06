@@ -29,6 +29,7 @@
 
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/status.h>
 
 namespace z13::flecs_tools {
 
@@ -58,10 +59,10 @@ std::string PathOf(flecs::entity e) {
   return path;
 }
 
-std::expected<void, std::string> CaptureComponentsAndTags(
+Status CaptureComponentsAndTags(
     const flecs::world& world, flecs::entity e, const ComponentFilter& accept_component,
     EntitySnapshot& s) {
-  std::expected<void, std::string> captured;
+  Status captured;
   e.each([&](flecs::id id) {
     if (!captured || !id.is_entity()) {
       return;  // pairs handled separately
@@ -147,7 +148,7 @@ std::expected<WorldSnapshot, std::string> CaptureImpl(
     const flecs::world& world, const EntityFilter& accept, const ComponentFilter& accept_component,
     const EntityFilter& accept_target) {
   WorldSnapshot snapshot;
-  std::expected<void, std::string> captured;
+  Status captured;
 
   flecs::world w = world;
   w.query_builder()
@@ -181,7 +182,7 @@ std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world
   return CaptureWorld(world, DefaultEntityFilter);
 }
 
-std::expected<void, std::string> ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
+Status ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
   // Entities first, so values can reference any of them by path.
   for (const auto& s : snapshot.entities) {
     world.entity(s.name.c_str());
@@ -256,7 +257,7 @@ namespace {
 
 using Error = std::unexpected<std::string>;
 
-std::expected<void, std::string> ValidateSnapshot(flecs::world& world, const WorldSnapshot& snapshot) {
+Status ValidateSnapshot(flecs::world& world, const WorldSnapshot& snapshot) {
   std::unordered_set<std::string> names;
   for (const auto& s : snapshot.entities) {
     if (s.name.empty() || !names.insert(s.name).second) {
@@ -341,7 +342,7 @@ void PruneToSnapshot(flecs::entity e, const EntitySnapshot& s) {
 
 }  // namespace
 
-std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
+Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
   if (auto valid = ValidateSnapshot(world, snapshot); !valid) {
     return valid;
   }
@@ -388,7 +389,7 @@ std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSn
   return {};
 }
 
-std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot) {
+Status ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot) {
   if (auto valid = ValidateSnapshot(world, snapshot); !valid) {
     return valid;
   }
@@ -462,7 +463,7 @@ std::expected<std::vector<uint8_t>, std::string> SaveWorldState(const flecs::wor
   return SaveWorldState(world, DefaultEntityFilter);
 }
 
-std::expected<void, std::string> LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes) {
+Status LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes) {
   flatbuffers::Verifier verifier(bytes.data(), bytes.size());
   if (!fbs::state::VerifyWorldSnapshotBuffer(verifier)) {
     return std::unexpected("malformed WorldSnapshot buffer");

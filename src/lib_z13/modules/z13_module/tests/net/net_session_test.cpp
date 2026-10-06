@@ -37,11 +37,14 @@
 #include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13/components/station.h>
+#include <z13_primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
 
+#include "../support/block_test_helpers.h"
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
 #include "../support/world_json_test_helpers.h"
@@ -84,8 +87,7 @@ Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
 void SpawnBlock(flecs::world world, const std::string& name, const Eigen::Matrix4f& transform) {
   world.entity(name.c_str())
       .add<z13::flecs_tools::StateEntity>()
-      .set(transform)
-      .add<z13::building::BasicBlock>();
+      .set(z13::testing::CubeAt(z13::math::ExtractTranslation<float>(transform)));
 }
 
 bool IsConnected(Z13TestWorld& world) {
@@ -95,8 +97,8 @@ bool IsConnected(Z13TestWorld& world) {
 
 size_t BlockCount(flecs::world world) {
   size_t count = 0;
-  world.query_builder<const z13::building::BasicBlock>().build().each(
-      [&](const z13::building::BasicBlock&) { ++count; });
+  world.query_builder<const z13::station::Block>().build().each(
+      [&](const z13::station::Block&) { ++count; });
   return count;
 }
 
@@ -127,9 +129,11 @@ std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWor
   return raw;
 }
 
-fbs::net::ClientHelloT HelloWithoutActions() {
+// With the server's palette hash, which a real client sends from its own palette.
+fbs::net::ClientHelloT HelloWithoutActions(flecs::world server) {
   fbs::net::ClientHelloT hello;
   hello.version = kProtocolVersion;
+  hello.palette_hash = server.get<z13::building::primitives::BlockPalette>().palette.hash;
   return hello;
 }
 
@@ -163,6 +167,33 @@ TEST(NetSessionTest, ClientReceivesSnapshotAndMatchesServerCounters) {
   const uint64_t server_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick;
   EXPECT_GT(client_tick, 0u);
   EXPECT_LE(client_tick, server_tick);
+}
+
+// Two joins back to back: the second is spawned before the first one's PlayerJoined
+// applies, so only the reservation keeps it off the first point.
+TEST(NetSessionTest, BackToBackJoinsGetDifferentSpawnPoints) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  for (const float x : {10.f, 20.f}) {
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    z13::math::SetTranslation(Eigen::Vector3f(x, 0.f, 0.f), transform);
+    server.World().entity().add<z13::flecs_tools::StateEntity>().set(z13::station::SpawnPoint {.transform = transform});
+  }
+
+  ConnectionId first_connection = kInvalidConnectionId;
+  ConnectionId second_connection = kInvalidConnectionId;
+  const auto first = ConnectRawClient(*network, server, first_connection);
+  const auto second = ConnectRawClient(*network, server, second_connection);
+  SendRaw(*first, first_connection, HelloWithoutActions(server.World()));
+  SendRaw(*second, second_connection, HelloWithoutActions(server.World()));
+  ASSERT_TRUE(RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return server.World().lookup(PlayerEntityName(1).c_str()) && server.World().lookup(PlayerEntityName(2).c_str());
+  }));
+
+  const auto x_of = [&server](uint32_t id) {
+    return server.World().lookup(PlayerEntityName(id).c_str()).get<Eigen::Matrix4f>()(0, 3);
+  };
+  EXPECT_NE(x_of(1), x_of(2));
 }
 
 // Welcome carries a snapshot cached before the joiner was spawned, so its own player can
@@ -301,7 +332,7 @@ TEST(NetSessionTest, PlayerLeftRemovesEntityOnServerAndOtherClients) {
   ConnectionId leaver_connection = kInvalidConnectionId;
   const auto leaver = ConnectRawClient(*network, server, leaver_connection);
   ASSERT_NE(leaver_connection, kInvalidConnectionId);
-  SendRaw(*leaver, leaver_connection, HelloWithoutActions());
+  SendRaw(*leaver, leaver_connection, HelloWithoutActions(server.World()));
 
   // Wait for client_a's copy specifically: the server spawns Player_2 synchronously,
   // but the PlayerJoined broadcast still needs a network tick to reach client_a.
@@ -324,7 +355,7 @@ TEST(NetSessionTest, PlayerLeftWaitsForAlreadyScheduledCommandsToApply) {
   ConnectionId leaver_connection = kInvalidConnectionId;
   const auto leaver = ConnectRawClient(*network, server, leaver_connection);
   ASSERT_NE(leaver_connection, kInvalidConnectionId);
-  SendRaw(*leaver, leaver_connection, HelloWithoutActions());
+  SendRaw(*leaver, leaver_connection, HelloWithoutActions(server.World()));
   ASSERT_TRUE(RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str()));
   }));
@@ -361,16 +392,14 @@ TEST(NetSessionTest, ConnectViaBootstrapStaysAtMenuUntilConnectedThenClearsPause
   EXPECT_TRUE(client.World().has<Gameplay>());
 }
 
-TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
+// The server's Rejected reason for `hello`, checking no player was spawned for it.
+std::optional<std::string> RejectionFor(const fbs::net::ClientHelloT& hello) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
 
   ConnectionId connection = kInvalidConnectionId;
   const auto raw = ConnectRawClient(*network, server, connection);
-  ASSERT_NE(connection, kInvalidConnectionId);
-
-  fbs::net::ClientHelloT hello;
-  hello.version = kProtocolVersion + 1;
+  EXPECT_NE(connection, kInvalidConnectionId);
   SendRaw(*raw, connection, hello);
 
   std::optional<std::string> reason;
@@ -382,16 +411,32 @@ TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
         continue;
       }
       const auto decoded = DecodeMessage(AsUint8(event.data));
-      ASSERT_TRUE(decoded.has_value());
-      if (const auto* rejected = AsBody<fbs::net::RejectedT>(decoded->body)) {
+      EXPECT_TRUE(decoded.has_value());
+      if (const auto* rejected = decoded ? AsBody<fbs::net::RejectedT>(decoded->body) : nullptr) {
         reason = rejected->reason;
       }
     }
   }
+  EXPECT_EQ(PlayerIds(server.World()), std::set<uint32_t> {0});  // no player spawned for the rejected connection
+  return reason;
+}
+
+TEST(NetSessionTest, RejectedOnProtocolVersionMismatch) {
+  fbs::net::ClientHelloT hello;
+  hello.version = kProtocolVersion + 1;
+
+  const auto reason = RejectionFor(hello);
 
   ASSERT_TRUE(reason.has_value());
   EXPECT_FALSE(reason->empty());
-  EXPECT_EQ(PlayerIds(server.World()), std::set<uint32_t> {0});  // no player spawned for the rejected connection
+}
+
+TEST(NetSessionTest, RejectedOnBlockPaletteMismatch) {
+  fbs::net::ClientHelloT hello;
+  hello.version = kProtocolVersion;
+  hello.palette_hash = 0;
+
+  EXPECT_EQ(RejectionFor(hello), "block palette mismatch");
 }
 
 TEST(NetSessionTest, WelcomeWithoutASnapshotFailsTheClientWithoutCreatingAScene) {
@@ -464,7 +509,7 @@ TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) 
   ConnectionId connection = kInvalidConnectionId;
   const auto raw = ConnectRawClient(*network, server, connection);
   ASSERT_NE(connection, kInvalidConnectionId);
-  SendRaw(*raw, connection, HelloWithoutActions());
+  SendRaw(*raw, connection, HelloWithoutActions(server.World()));
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
@@ -489,7 +534,7 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   ConnectionId connection = kInvalidConnectionId;
   const auto raw = ConnectRawClient(*network, server, connection);
   ASSERT_NE(connection, kInvalidConnectionId);
-  SendRaw(*raw, connection, HelloWithoutActions());
+  SendRaw(*raw, connection, HelloWithoutActions(server.World()));
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
 
@@ -584,7 +629,7 @@ TEST(NetSessionTest, ScriptedSessionConvergesToIdenticalStateEverywhere) {
   ConnectionId third_connection = kInvalidConnectionId;
   const auto third = ConnectRawClient(*network, server, third_connection);
   ASSERT_NE(third_connection, kInvalidConnectionId);
-  SendRaw(*third, third_connection, HelloWithoutActions());
+  SendRaw(*third, third_connection, HelloWithoutActions(server.World()));
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
     return static_cast<bool>(server.World().lookup(PlayerEntityName(3).c_str()));
   }));

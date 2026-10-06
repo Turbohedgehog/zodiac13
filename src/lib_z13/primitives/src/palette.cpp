@@ -28,7 +28,7 @@
 #include <lib_core/utils/fnv_hash.h>
 #include <z13_primitives/geometry.h>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 
 namespace {
 
@@ -161,4 +161,4 @@ std::expected<Palette, std::string> ParsePalette(std::string_view json) {
   return palette;
 }
 
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

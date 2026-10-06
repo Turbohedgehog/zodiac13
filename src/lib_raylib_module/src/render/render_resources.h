@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <raylib.h>
 
@@ -34,5 +35,8 @@ std::shared_ptr<::Texture2D> MakeManagedTexture(::Texture2D texture);
 // shared_ptr wrapper whose deleter frees the model, skipping the shader on any
 // material still pointing at borrowed_shader_id (owned/freed elsewhere, e.g. Lighting).
 std::shared_ptr<::Model> MakeManagedModel(::Model model, unsigned int borrowed_shader_id = 0);
+
+// A MemAlloc copy, as mesh arrays need: UnloadMesh frees them with RL_FREE.
+float* CopyToRaylib(const std::vector<float>& values);
 
 }  // namespace z13::raylib

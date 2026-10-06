@@ -10,6 +10,7 @@
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/state/world_state_requests.h>
+#include <lib_core/utils/status.h>
 #include <z13_tests/test_time.h>
 
 #include "test_components.h"
@@ -42,7 +43,7 @@ class WorldStateRequestsTest : public ::testing::Test {
 TEST_F(WorldStateRequestsTest, LoadIsAppliedAtTheStartOfTheNextFrame) {
   const std::string json = JsonWithHeroAt(5.f);
   hero_.set(Position{9.f, 0.f, 0.f});
-  std::optional<std::expected<void, std::string>> outcome;
+  std::optional<z13::Status> outcome;
 
   ft::RequestLoadWorldState(world_, json, [&outcome](const auto& result) { outcome = result; });
   EXPECT_EQ(HeroX(), 9.f);
@@ -107,7 +108,7 @@ TEST_F(WorldStateRequestsTest, RequestsRunInOrder) {
 }
 
 TEST_F(WorldStateRequestsTest, FailedLoadIsReportedAndLeavesTheWorldUntouched) {
-  std::optional<std::expected<void, std::string>> outcome;
+  std::optional<z13::Status> outcome;
 
   ft::RequestLoadWorldState(world_, "not json", [&outcome](const auto& result) { outcome = result; });
   ft::TickWorld(world_, kTestDeltaTime);

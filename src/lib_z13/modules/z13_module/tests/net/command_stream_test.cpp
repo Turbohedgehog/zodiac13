@@ -34,6 +34,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13/components/station.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/settings.h>
@@ -107,8 +108,8 @@ size_t LogCountFor(Z13TestWorld& world, uint32_t player_id) {
 
 size_t BlockCount(flecs::world world) {
   size_t count = 0;
-  world.query_builder<const z13::building::BasicBlock>().build().each(
-      [&](const z13::building::BasicBlock&) { ++count; });
+  world.query_builder<const z13::station::Block>().build().each(
+      [&](const z13::station::Block&) { ++count; });
   return count;
 }
 

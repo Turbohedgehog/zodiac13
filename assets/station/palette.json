@@ -103,7 +103,20 @@
         "first": {"r": 80, "g": 190, "b": 90, "a": 255},
         "second": {"r": 60, "g": 160, "b": 70, "a": 255}
       },
-      "flags": "Spawn"
+      "flags": "Solid Spawn"
+    },
+    {
+      "id": 9,
+      "name": "Cube",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 2, "y": 2, "z": 2},
+      "max_size": {"x": 2, "y": 2, "z": 2},
+      "material": {
+        "first": {"r": 90, "g": 200, "b": 90, "a": 255},
+        "second": {"r": 70, "g": 175, "b": 70, "a": 255}
+      },
+      "flags": "Solid"
     }
   ]
 }

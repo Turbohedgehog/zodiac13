@@ -32,10 +32,12 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
+#include <z13/components/station.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player_action.h>
 #include <z13_settings/physics_tuning.h>
 
+#include "../support/block_test_helpers.h"
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
 
@@ -47,7 +49,7 @@ namespace z13::state {
 namespace {
 
 namespace ft = z13::flecs_tools;
-using z13::building::BasicBlock;
+using z13::station::Block;
 using z13::building::BuildingTool;
 using z13::gameplay::PlayerActionLog;
 using z13::gameplay::PlayerActionRecord;
@@ -149,10 +151,8 @@ void ReceiveForeignActions(Z13TestWorld& test_world, std::vector<PlayerActionRec
 
 std::vector<Eigen::Vector3f> BlockPositions(flecs::world world) {
   std::vector<Eigen::Vector3f> positions;
-  world.query_builder<const BasicBlock, const Eigen::Matrix4f>().build().each(
-      [&](const BasicBlock&, const Eigen::Matrix4f& transform) {
-        positions.push_back(z13::math::ExtractTranslation<float>(transform));
-      });
+  world.query_builder<const Block>().build().each(
+      [&](const Block& block) { positions.push_back(z13::testing::BlockCenter(block)); });
   std::ranges::sort(positions, [](const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
     return std::lexicographical_compare(a.data(), a.data() + 3, b.data(), b.data() + 3);
   });
@@ -161,8 +161,8 @@ std::vector<Eigen::Vector3f> BlockPositions(flecs::world world) {
 
 std::set<std::string> BlockNames(flecs::world world) {
   std::set<std::string> names;
-  world.query_builder<const BasicBlock>().build().each(
-      [&](flecs::entity e, const BasicBlock&) { names.insert(e.name().c_str()); });
+  world.query_builder<const Block>().build().each(
+      [&](flecs::entity e, const Block&) { names.insert(e.name().c_str()); });
   return names;
 }
 

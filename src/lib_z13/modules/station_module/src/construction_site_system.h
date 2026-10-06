@@ -20,7 +20,7 @@
 
 namespace z13::station {
 
-// Lays out the scene a new station game starts in: a slab with a spawn point above it.
+// Lays out the scene a new station game starts in: a floor with a spawn point on it.
 class ConstructionSiteSystem {
  public:
   static void Register(flecs::world& world);

@@ -26,6 +26,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::flecs_tools {
 
 // Binary component values, written by walking the type's flecs meta (docs/serialization-plan.md).
@@ -34,7 +36,7 @@ std::expected<std::vector<uint8_t>, std::string> EncodeValue(
     const flecs::world& world, flecs::entity_t type, std::span<const std::byte> value);
 
 // Bytes may be untrusted; on error `value` may be partly written.
-std::expected<void, std::string> DecodeValue(
+Status DecodeValue(
     const flecs::world& world, flecs::entity_t type, std::span<std::byte> value, std::span<const uint8_t> bytes);
 
 // Views component memory flecs hands out (try_get, ensure) as a value of `type`; an error if null.
@@ -44,9 +46,9 @@ std::expected<std::span<const std::byte>, std::string> ComponentBytes(
     const flecs::world& world, flecs::entity_t type, const void* value);
 
 // Encodes a default value of `type`, to catch member types the codec can't write.
-std::expected<void, std::string> CheckEncodable(const flecs::world& world, flecs::entity_t type);
+Status CheckEncodable(const flecs::world& world, flecs::entity_t type);
 
-std::expected<void, std::string> ValidateValue(
+Status ValidateValue(
     const flecs::world& world, flecs::entity_t type, std::span<const uint8_t> bytes);
 
 std::expected<std::string, std::string> ValueToJson(

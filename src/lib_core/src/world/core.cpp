@@ -31,6 +31,7 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 #include <lib_core/world/module_factory_base.h>
+#include <lib_core/utils/status.h>
 
 #include "module_lib_holder.h"
 
@@ -78,7 +79,7 @@ bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
   return !!module_factories_.emplace_back(module_factory);
 }
 
-std::expected<void, std::string> Core::RegisterModuleFactory(
+Status Core::RegisterModuleFactory(
     const std::filesystem::path& module_lib_path, bool append_platform_extension) {
   return module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension)
       .transform([this](ModuleFactoryPtr module_factory) { RegisterModuleFactory(std::move(module_factory)); });

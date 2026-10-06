@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <optional>
 #include <ostream>
@@ -29,6 +28,7 @@
 #include <lib_core/settings/core_settings.h>
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/utils/endpoint.h>
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
@@ -40,7 +40,7 @@ class Config {
   void Clear();
 
   // Returns the rejection reason instead of applying anything; see Clear().
-  std::expected<void, std::string> ParseCommandLineArguments(int argc, char *argv[]);
+  Status ParseCommandLineArguments(int argc, char *argv[]);
   boost::program_options::options_description& GetOptionsDescription();
   bool NeedShowHelp() const;
   friend std::ostream& operator<<(std::ostream& os, const Config& person);
@@ -51,8 +51,8 @@ class Config {
   void SetCoreSettings(const CoreSettings& settings);
   // Registers an option per `cli` field of `root` (schema_attributes.h); call before parsing.
   // The schema must outlive this Config.
-  std::expected<void, std::string> AddSchemaOptions(const reflection::Schema& schema, const reflection::Object& root);
-  std::expected<void, std::string> ApplySchemaOverrides(const reflection::Object& root, flatbuffers::Table& table) const;
+  Status AddSchemaOptions(const reflection::Schema& schema, const reflection::Object& root);
+  Status ApplySchemaOverrides(const reflection::Object& root, flatbuffers::Table& table) const;
   void OverrideFps(std::optional<double> fps);
   bool SkipMainMenu() const;
   std::optional<std::filesystem::path> GetQuickSavePath() const;
@@ -68,7 +68,7 @@ class Config {
   std::optional<Endpoint> GetConnectEndpoint() const;
 
  private:
-  std::expected<void, std::string> ValidateAndApplyArguments();
+  Status ValidateAndApplyArguments();
 
   boost::program_options::options_description options_description_;
   boost::program_options::variables_map variables_map_;

@@ -23,10 +23,12 @@
 
 #include <flecs.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::flecs_tools {
 
 using SaveWorldStateCallback = std::function<void(std::expected<std::string, std::string> json)>;
-using LoadWorldStateCallback = std::function<void(const std::expected<void, std::string>& result)>;
+using LoadWorldStateCallback = std::function<void(const Status& result)>;
 
 // Save/load requests, safe to file from anywhere in a frame (not from other threads).
 // An immediate system runs them in order at the start of the next frame, so every

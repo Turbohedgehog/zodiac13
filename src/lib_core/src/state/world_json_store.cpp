@@ -23,6 +23,7 @@
 
 #include <lib_core/state/component_codec.h>
 #include <lib_core/version.h>
+#include <lib_core/utils/status.h>
 
 // reflect-cpp's headers trigger warnings under /W4 that this project treats as
 // errors; suppress them for code this project doesn't own.
@@ -125,7 +126,7 @@ std::expected<std::string, std::string> WorldJsonStore::Save(const flecs::world&
   return CaptureState(world).and_then([&world](const WorldSnapshot& snapshot) { return ToJson(world, snapshot); });
 }
 
-std::expected<void, std::string> WorldJsonStore::Load(flecs::world& world, std::string_view json) {
+Status WorldJsonStore::Load(flecs::world& world, std::string_view json) {
   auto snapshot = FromJson(world, json);
   if (!snapshot) {
     return std::unexpected(std::move(snapshot.error()));

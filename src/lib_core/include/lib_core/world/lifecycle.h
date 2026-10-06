@@ -16,12 +16,13 @@
 
 #pragma once
 
-#include <expected>
 #include <functional>
 #include <string>
 #include <utility>
 
 #include <flecs.h>
+
+#include <lib_core/utils/status.h>
 
 namespace z13 {
 
@@ -56,6 +57,6 @@ inline void OnInitWorldData(flecs::world& world, LifecycleCallback callback) {
 void InitLifecycle(flecs::world& world);
 // Runs every stage in order, with LinearizePhases between phases and systems; stops there
 // if the phases can't be ordered.
-std::expected<void, std::string> RunLifecycle(flecs::world& world);
+Status RunLifecycle(flecs::world& world);
 
 }  // namespace z13

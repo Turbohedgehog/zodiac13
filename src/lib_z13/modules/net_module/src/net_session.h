@@ -24,8 +24,12 @@
 #include <variant>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <net_module/protocol.h>
 #include <net_module/transport.h>
+
+#include <lib_core/utils/status.h>
 
 namespace z13::net {
 
@@ -37,7 +41,7 @@ class NetSession {
   using Singleton = void;
   // Every call below needs an open session. On a closed one they report instead of
   // quietly doing nothing, so a sequencing bug surfaces at ServiceNetSession.
-  using Result = std::expected<void, std::string>;
+  using Result = Status;
 
   void Open(std::unique_ptr<Transport> transport);
   bool IsOpen() const;
@@ -80,6 +84,8 @@ using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT
 struct ScheduledSessionDelta {
   uint64_t apply_tick {};
   SessionDelta delta;
+  // Server-side, for a join: where the player will appear, so later joins skip that spot.
+  std::optional<Eigen::Vector3f> spawn_position;
 };
 
 // `history` lets a rollback replay applied deltas and a joiner catch up on them.

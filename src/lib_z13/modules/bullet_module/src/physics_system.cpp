@@ -18,6 +18,10 @@
 
 #include "physics_world.h"
 
+#include <functional>
+#include <optional>
+#include <vector>
+
 #include <flecs.h>
 #include <Eigen/Dense>
 
@@ -34,6 +38,11 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/station.h>
+#include <z13_primitives/geometry.h>
+#include <z13_primitives/palette.h>
+#include <z13_primitives/placement.h>
+#include <z13_settings/building_tuning.h>
 #include <z13_settings/physics_tuning.h>
 
 namespace z13::bullet_module {
@@ -51,15 +60,13 @@ namespace {
 
 constexpr int kMaxSubSteps = 10;
 
-// How far along the player's forward axis DestroyBlock's raycast reaches.
-constexpr float kDestroyReachDistance = 5.f;
-
 void RegisterPipeline(flecs::world world) {
   world.component<PhysicsStepPhase>().add(flecs::Phase).depends_on<z13::gameplay::PreUpdatePhase>();
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning>(world);
+  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning, z13::BuildingTuning>(
+      world);
 }
 
 // Only term is a singleton, so $this is empty and the entity-taking .each()
@@ -68,10 +75,27 @@ void StepPhysicsWorld(flecs::iter& it, size_t, PhysicsWorld& physics_world) {
   physics_world.DynamicsWorld().stepSimulation(it.delta_time(), kMaxSubSteps);
 }
 
-using BlockQuery = flecs::query<const z13::building::BasicBlock, const Eigen::Matrix4f>;
+using BlockQuery = flecs::query<const z13::station::Block>;
+using z13::building::primitives::BlockPalette;
+using z13::building::primitives::OptionalPalette;
 
-void SyncBlockBody(flecs::entity e, const Eigen::Matrix4f& transform, PhysicsWorld& physics_world) {
-  physics_world.SyncBody(e.id(), ToBtTransform(transform), z13::building::kBlockSize);
+btTransform BlockTransform(const z13::station::Block& block) {
+  const Eigen::Isometry3f pose =
+      z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
+  const Eigen::Matrix3f& r = pose.linear();
+  btTransform transform;
+  transform.setBasis(btMatrix3x3(r(0, 0), r(0, 1), r(0, 2), r(1, 0), r(1, 1), r(1, 2), r(2, 0), r(2, 1), r(2, 2)));
+  transform.setOrigin(btVector3(pose.translation().x(), pose.translation().y(), pose.translation().z()));
+  return transform;
+}
+
+void SyncBlockBody(
+    flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world, OptionalPalette palette) {
+  const BlockShapeKey shape {.type_id = block.spec.type_id, .size = block.spec.size};
+  physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
+    return z13::building::primitives::Scaled(
+        z13::building::primitives::BlockSolids(palette, shape), z13::station::kCellSize);
+  });
   if (!e.has<RigidBody>()) {
     e.add<RigidBody>();
   }
@@ -84,7 +108,7 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
     }
 
     const flecs::entity e = world.entity(id);
-    if (e.has<z13::building::BasicBlock>()) {
+    if (e.has<z13::station::Block>()) {
       return false;
     }
     e.remove<RigidBody>();
@@ -93,16 +117,17 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
 }
 
 void SyncBlockTables(
-    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, bool changed_only) {
+    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, OptionalPalette palette,
+    bool changed_only) {
   ReleaseOrphanBodies(world, physics_world);
-  blocks.run([&physics_world, changed_only](flecs::iter& it) {
+  blocks.run([&physics_world, palette, changed_only](flecs::iter& it) {
     while (it.next()) {
       if (changed_only && !it.changed()) {
         continue;
       }
-      const auto transforms = it.field<const Eigen::Matrix4f>(1);
+      const auto blocks_field = it.field<const z13::station::Block>(0);
       for (const size_t i : it) {
-        SyncBlockBody(it.entity(i), transforms[i], physics_world);
+        SyncBlockBody(it.entity(i), blocks_field[i], physics_world, palette);
       }
     }
   });
@@ -110,13 +135,14 @@ void SyncBlockTables(
 
 // Syncs only changed block tables; a body count still off afterwards (e.g. a fresh
 // PhysicsWorld) forces a full pass.
-void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, const BlockQuery& blocks) {
+void SyncBlockBodies(
+    const flecs::world& world, PhysicsWorld& physics_world, const BlockQuery& blocks, OptionalPalette palette) {
   // Checked before count(): iterating the query resets its changed state.
   if (blocks.changed()) {
-    SyncBlockTables(world, blocks, physics_world, /*changed_only=*/true);
+    SyncBlockTables(world, blocks, physics_world, palette, /*changed_only=*/true);
   }
   if (static_cast<size_t>(blocks.count()) != physics_world.BodyCount()) {
-    SyncBlockTables(world, blocks, physics_world, /*changed_only=*/false);
+    SyncBlockTables(world, blocks, physics_world, palette, /*changed_only=*/false);
   }
 }
 
@@ -150,12 +176,16 @@ void ResolvePlayerCollision(
 
 void ProcessDestroyBlockRequest(
     flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player&,
-    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world) {
+    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning) {
+  // Station mode destroys through station_module's cell index instead.
+  if (player.world().has<z13::station::StationMode>()) {
+    return;
+  }
   player.remove<z13::building::RequestDestroyBlock>();
 
   const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transform);
   const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
-  const Eigen::Vector3f target = origin + forward * kDestroyReachDistance;
+  const Eigen::Vector3f target = origin + forward * tuning.destroy_reach_distance;
 
   const auto hit = physics_world.RaycastEntity(
       btVector3(origin.x(), origin.y(), origin.z()), btVector3(target.x(), target.y(), target.z()));
@@ -188,18 +218,18 @@ void RegisterSystems(flecs::world world) {
       .each(StepPhysicsWorld);
 
   const BlockQuery blocks =
-      world.query_builder<const z13::building::BasicBlock, const Eigen::Matrix4f>("PhysicsSystem::BlockQuery")
-          .detect_changes()
-          .build();
+      world.query_builder<const z13::station::Block>("PhysicsSystem::BlockQuery").detect_changes().build();
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
-  world.system<PhysicsWorld>("PhysicsSystem::SyncBlockBodies")
+  world.system<PhysicsWorld, const BlockPalette*>("PhysicsSystem::SyncBlockBodies")
       .kind<z13::gameplay::PostUpdatePhase>()
-      .read<z13::building::BasicBlock>()
+      .read<z13::station::Block>()
       .write<RigidBody>()
-      .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world) {
-        SyncBlockBodies(it.world(), physics_world, blocks);
+      .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
+        SyncBlockBodies(
+            it.world(), physics_world, blocks,
+            palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
       });
 
   // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.
@@ -215,11 +245,12 @@ void RegisterSystems(flecs::world world) {
 
   // After ResolvePlayerCollision in the same phase, so the raycast sees the final player
   // transform; a later phase would run after rendering. write<> merges the destroy early.
-  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, PhysicsWorld>(
-           "PhysicsSystem::ProcessDestroyBlockRequest")
+  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, PhysicsWorld,
+               const z13::BuildingTuning>("PhysicsSystem::ProcessDestroyBlockRequest")
       .kind<z13::gameplay::PostUpdatePhase>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
-      .write<z13::building::BasicBlock>()
+      .read<z13::station::StationMode>()
+      .write<z13::station::Block>()
       .each(ProcessDestroyBlockRequest);
 }
 

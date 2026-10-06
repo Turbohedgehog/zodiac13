@@ -15,7 +15,7 @@
  */
 
 // Load of the test station (docs/station-layout) on everything but rendering, with today's
-// BasicBlock standing in for every block. Built by `make.py --bench`, run with
+// Floor and Wall boxes standing in for every block. Built by `make.py --bench`, run with
 // `z13.py --bench --filter 'StationLoadBench.*'`.
 
 #include <gtest/gtest.h>
@@ -51,6 +51,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/station.h>
 #include <z13/components/net.h>
 #include <z13_settings/net_tuning.h>
 
@@ -68,7 +69,10 @@ const std::filesystem::path kStationLayoutDir {Z13_STATION_LAYOUT_DIR};
 const std::filesystem::path kRunsFile = kStationLayoutDir / "station-blocks-runs.txt";
 const std::filesystem::path kPanelsFile = kStationLayoutDir / "station-blocks-panels.txt";
 
-constexpr float kCellSize = 0.25f;
+constexpr float kCellSize = z13::station::kCellSize;
+// assets/station/palette.json
+constexpr uint32_t kFloorPrimitiveId = 1;
+constexpr uint32_t kWallPrimitiveId = 2;
 // Where the station sits relative to the spawned player: its first deck's spine corridor.
 const Eigen::Vector3f kSpineCentre {48.5f, 24.5f, 0.f};
 constexpr float kFloorBelowPlayer = 0.5f;
@@ -127,23 +131,23 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world) {
   return z13::math::ExtractTranslation<float>(world.Player().get<Eigen::Matrix4f>());
 }
 
-// The station placed around the player, `copies` times along +x, as BasicBlocks named like
-// SpawnBlock's so IdCounters stays in step.
+// The station placed around the player, `copies` times along +x, as Floor (one cell
+// thick) and Wall blocks named like SpawnCube's so IdCounters stays in step. Placed
+// directly, so walls along Y needn't fit the Wall primitive's limits.
 void PlaceStation(Z13TestWorld& world, const std::vector<Box>& boxes, int copies) {
   flecs::world w = world.World();
   const Eigen::Vector3f origin = PlayerPosition(world) - kSpineCentre - Eigen::Vector3f(0.f, 0.f, kFloorBelowPlayer);
   auto& counters = w.get_mut<z13::gameplay::IdCounters>();
   for (int copy = 0; copy < copies; ++copy) {
     const Eigen::Vector3f copy_origin = origin + Eigen::Vector3f(kCopyPitch * static_cast<float>(copy), 0.f, 0.f);
+    const Eigen::Vector3i origin_cell = (copy_origin / kCellSize).array().round().cast<int>();
     for (const Box& box : boxes) {
-      const Eigen::Vector3f centre =
-          (box.min.cast<float>() + box.size.cast<float>() * 0.5f) * kCellSize + copy_origin;
-      Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-      z13::math::SetTranslation(centre, transform);
       w.entity(std::format("Block_{}", ++counters.last_block_id).c_str())
           .add<ft::StateEntity>()
-          .set(transform)
-          .add<z13::building::BasicBlock>();
+          .set(z13::station::Block {
+              .spec = {.type_id = box.size.z() == 1 ? kFloorPrimitiveId : kWallPrimitiveId, .size = box.size},
+              .cell = origin_cell + box.min,
+          });
     }
   }
 }
@@ -207,7 +211,7 @@ Row Measure(const std::string& label, const std::vector<Box>& boxes, int copies)
     PlaceStation(world, boxes, copies);
     world.Tick();  // bodies are created on the first frame that sees the blocks
   });
-  row.blocks = static_cast<size_t>(w.count<z13::building::BasicBlock>());
+  row.blocks = static_cast<size_t>(w.count<z13::station::Block>());
 
   std::vector<double> capture;
   std::vector<double> restore;
@@ -339,7 +343,7 @@ TEST(StationLoadBench, DISABLED_Join) {
     std::cout << std::format(
         "[ bench ] join ({}): {} blocks, Welcome snapshot ~{:.0f} KB, joined in {} ticks, {:.0f} ms of server+client "
         "frames\n",
-        title, server.World().count<z13::building::BasicBlock>(),
+        title, server.World().count<z13::station::Block>(),
         static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, ticks, join_ms)
               << std::flush;
   }

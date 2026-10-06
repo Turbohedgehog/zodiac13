@@ -21,15 +21,24 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include <flecs.h>
 #include <Eigen/Dense>
 
 #include <bullet/btBulletDynamicsCommon.h>
 
+#include <z13_primitives/geometry.h>
+
 namespace z13::bullet_module {
 
 btTransform ToBtTransform(const Eigen::Matrix4f& transform);
+
+using z13::building::primitives::BlockShapeKey;
+
+// The shape's convex pieces in meters, in the body's frame; called only when no body
+// uses the shape yet.
+using SolidsBuilder = std::function<std::vector<z13::building::primitives::ConvexSolid>()>;
 
 // Private to this module and never serialized, so exempt from the "no
 // pointers in components" rule (see CLAUDE.md).
@@ -41,8 +50,9 @@ class PhysicsWorld {
 
   btDiscreteDynamicsWorld& DynamicsWorld();
 
-  // Creates the entity's body, or recreates it if `transform` no longer matches.
-  void SyncBody(flecs::entity_t entity, const btTransform& transform, float size);
+  // Creates the entity's body, or recreates it if its shape or `transform` no longer match.
+  void SyncBody(
+      flecs::entity_t entity, const BlockShapeKey& shape, const btTransform& transform, const SolidsBuilder& solids);
   void RemoveBody(flecs::entity_t entity);
 
   // Removes every body whose entity `should_remove` accepts; no per-call allocation.

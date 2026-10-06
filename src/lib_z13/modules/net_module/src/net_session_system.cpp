@@ -33,9 +33,11 @@
 
 #include <boost/container/flat_map.hpp>
 #include <flecs.h>
+#include <Eigen/Dense>
 
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/math.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 #include <z13_settings/settings.h>
@@ -49,6 +51,7 @@
 #include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13_primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/input/action_negotiation.h>
 
@@ -208,6 +211,7 @@ NetSession::Result SendWelcome(
   welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
   welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
   welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
+  welcome.building = std::make_unique<fbs::building::BuildingTuningT>(world.get<z13::BuildingTuning>());
   if (auto filled = FillCatchUp(world, welcome); !filled) {
     return filled;
   }
@@ -238,8 +242,10 @@ NetSession::Result SendRejected(NetSession& session, ConnectionId connection, st
 }
 
 NetSession::Result ScheduleSessionDelta(
-    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta) {
-  world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = apply_tick, .delta = delta});
+    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta,
+    std::optional<Eigen::Vector3f> spawn_position = std::nullopt) {
+  world.get_mut<ScheduledSessionDeltas>().pending.push_back(
+      {.apply_tick = apply_tick, .delta = delta, .spawn_position = spawn_position});
 
   Envelope envelope;
   std::visit([&envelope](auto& body) { envelope.body.Set(std::move(body)); }, delta);
@@ -248,7 +254,14 @@ NetSession::Result ScheduleSessionDelta(
 
 // Spawned only to serialize it: like everywhere else, it exists from apply_tick on.
 NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id) {
-  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
+  std::vector<Eigen::Vector3f> reserved;
+  for (const ScheduledSessionDelta& item : world.get<ScheduledSessionDeltas>().pending) {
+    if (item.spawn_position) {
+      reserved.push_back(*item.spawn_position);
+    }
+  }
+  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id, reserved);
+  const Eigen::Vector3f spawn_position = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
   fbn::PlayerJoinedT joined;
   joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
   const auto entity_state = ft::CaptureEntityState(world, player);
@@ -259,7 +272,7 @@ NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world,
   joined.entity_state = ToWire(*entity_state);
 
   const uint64_t apply_tick = joined.apply_tick;
-  return ScheduleSessionDelta(session, world, apply_tick, std::move(joined));
+  return ScheduleSessionDelta(session, world, apply_tick, std::move(joined), spawn_position);
 }
 
 // Deltas apply before same-tick commands, so the leave waits past the last one.
@@ -291,11 +304,24 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
   return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), world.get<NetTuning>(), descriptors);
 }
 
+// Peers must place blocks from the same palette; neither having one also agrees.
+std::optional<uint64_t> PaletteHash(flecs::world world) {
+  if (const auto* palette = world.try_get<z13::building::primitives::BlockPalette>()) {
+    return palette->palette.hash;
+  }
+  return std::nullopt;
+}
+
 NetSession::Result HandleClientHello(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
     z13::gameplay::IdCounters& counters) {
   if (hello.version != kProtocolVersion) {
     return SendRejected(session, connection, "protocol version mismatch");
+  }
+  const std::optional<uint64_t> client_palette =
+      hello.palette_hash ? std::optional<uint64_t>(*hello.palette_hash) : std::nullopt;
+  if (client_palette != PaletteHash(world)) {
+    return SendRejected(session, connection, "block palette mismatch");
   }
   if (session.PlayerIdFor(connection)) {
     // Honouring a second hello would spawn another player and orphan the first.
@@ -521,15 +547,21 @@ struct AdoptedSettings {
   using Singleton = void;
   NetTuning own_net;
   z13::PhysicsTuning own_physics;
+  z13::BuildingTuning own_building;
 };
 
 void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& session) {
   if (!world.has<AdoptedSettings>()) {
-    world.set<AdoptedSettings>({.own_net = world.get<NetTuning>(), .own_physics = world.get<z13::PhysicsTuning>()});
+    world.set<AdoptedSettings>({
+        .own_net = world.get<NetTuning>(),
+        .own_physics = world.get<z13::PhysicsTuning>(),
+        .own_building = world.get<z13::BuildingTuning>(),
+    });
   }
   z13::OverrideCoreFps(world, session.fps);
   world.set(NetTuning(session.net));
   world.set(z13::PhysicsTuning(session.physics));
+  world.set(z13::BuildingTuning(session.building));
 }
 
 void RestoreOwnSettings(flecs::world world) {
@@ -540,6 +572,7 @@ void RestoreOwnSettings(flecs::world world) {
   world.remove<AdoptedSettings>();
   world.set(own.own_net);
   world.set(own.own_physics);
+  world.set(own.own_building);
   z13::OverrideCoreFps(world, std::nullopt);
 }
 
@@ -617,14 +650,16 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t snapshot_
 
 // Validated together with this client's own retention: a server's windows must still fit its history.
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(flecs::world world, const fbn::WelcomeT& welcome) {
-  if (!welcome.tuning || !welcome.physics) {
+  if (!welcome.tuning || !welcome.physics || !welcome.building) {
     return std::unexpected("server sent no settings");
   }
-  const z13::SessionSettings session {.fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics};
+  const z13::SessionSettings session {
+      .fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics, .building = *welcome.building};
   z13::Settings own = z13::MakeSettings();
   *own.core = world.get<z13::ActiveCoreSettings>();
   *own.net = world.get<NetTuning>();
   *own.physics = world.get<z13::PhysicsTuning>();
+  *own.building = world.get<z13::BuildingTuning>();
   if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
     return std::unexpected(std::format("unusable server settings ({})", valid.error()));
   }
@@ -876,6 +911,9 @@ void HandleClientDisconnect(flecs::world world) {
 NetSession::Result SendClientHello(flecs::world world, NetSession& session, ConnectionId server_connection) {
   fbn::ClientHelloT hello;
   hello.version = kProtocolVersion;
+  if (const auto palette_hash = PaletteHash(world)) {
+    hello.palette_hash = *palette_hash;
+  }
   for (const zgi::ActionDescriptor& action : zgi::DescribeActions(world.get<z13::input::ActionMap>())) {
     auto described = std::make_unique<fbn::ActionDescT>();
     described->enum_name = action.enum_name;

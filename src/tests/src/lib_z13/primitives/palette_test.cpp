@@ -25,7 +25,7 @@
 
 #include <z13_primitives/palette.h>
 
-namespace z13::primitives {
+namespace z13::building::primitives {
 namespace {
 
 const std::filesystem::path kShippedPalette =
@@ -138,4 +138,4 @@ TEST(PaletteTest, RejectsMalformedPalettes) {
 }
 
 }  // namespace
-}  // namespace z13::primitives
+}  // namespace z13::building::primitives

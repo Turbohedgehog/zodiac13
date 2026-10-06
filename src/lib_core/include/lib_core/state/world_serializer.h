@@ -27,6 +27,8 @@
 
 #include <world_snapshot_generated.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::flecs_tools {
 
 // A data component and its value, serialized through flecs meta reflection.
@@ -79,13 +81,13 @@ std::expected<WorldSnapshot, std::string> CaptureState(const flecs::world& world
 // Makes the world's state equal to the snapshot, updating in place: state entities,
 // components and relationships it lacks are removed. Validated first; on error the
 // world is left untouched.
-std::expected<void, std::string> RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot);
+Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot);
 
 // Recreates the snapshot in a world whose components and their meta are already
 // registered. Entities are matched/created by name; relationships are applied in
 // a second pass once all targets exist.
 // Stops at the first value that doesn't decode, leaving the world partly applied.
-std::expected<void, std::string> ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot);
+Status ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot);
 
 // The snapshot as a FlatBuffers table (fbs/world_snapshot.fbs), for messages that embed it.
 fbs::state::WorldSnapshotT ToFlatbuffer(const WorldSnapshot& snapshot);
@@ -95,7 +97,7 @@ WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& snapshot);
 std::expected<std::vector<uint8_t>, std::string> SaveWorldState(
     const flecs::world& world, const EntityFilter& accept);
 std::expected<std::vector<uint8_t>, std::string> SaveWorldState(const flecs::world& world);
-std::expected<void, std::string> LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes);
+Status LoadWorldState(flecs::world& world, std::span<const uint8_t> bytes);
 
 // One entity's state (StateComponent-filtered, like CaptureState), for a delta join
 // rather than a full snapshot (docs/client-server-plan.md's PlayerJoined).
@@ -104,6 +106,6 @@ std::expected<WorldSnapshot, std::string> CaptureEntityState(const flecs::world&
 // Applies a single-entity (or otherwise partial) state snapshot on top of the world,
 // validated like RestoreWorld since it carries untrusted network input. Entities the
 // snapshot doesn't mention are left alone.
-std::expected<void, std::string> ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot);
+Status ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot);
 
 }  // namespace z13::flecs_tools

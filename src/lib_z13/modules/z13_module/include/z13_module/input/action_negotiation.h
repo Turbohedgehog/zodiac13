@@ -29,6 +29,8 @@
 #include <z13_settings/net_tuning.h>
 #include <z13/components/input.h>
 
+#include <lib_core/utils/status.h>
+
 namespace z13::gameplay::input {
 
 constexpr size_t kMaxNegotiatedActions = static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1;
@@ -47,7 +49,7 @@ std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
     z13::input::ActionMap& action_map, const NetTuning& tuning, std::span<const ActionDescriptor> actions);
 
 // `ids` follow the DescribeActions order.
-std::expected<void, std::string> AdoptActionIds(flecs::world world, std::span<const uint32_t> ids);
+Status AdoptActionIds(flecs::world world, std::span<const uint32_t> ids);
 
 void NotifyConfigUpdated(flecs::world world);
 

@@ -27,6 +27,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/station.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_tests/test_time.h>
 
@@ -40,18 +41,16 @@ namespace {
 using z13::testing::kTestDeltaTime;
 using z13::testing::Z13TestWorld;
 
-std::map<std::string, Eigen::Vector3f> BlocksByName(flecs::world world) {
-  std::map<std::string, Eigen::Vector3f> blocks;
-  world.query_builder<const BasicBlock, const Eigen::Matrix4f>().build().each(
-      [&](flecs::entity e, const BasicBlock&, const Eigen::Matrix4f& transform) {
-        blocks[e.name().c_str()] = z13::math::ExtractTranslation<float>(transform);
-      });
+std::map<std::string, Eigen::Vector3i> BlocksByName(flecs::world world) {
+  std::map<std::string, Eigen::Vector3i> blocks;
+  world.query_builder<const z13::station::Block>().build().each(
+      [&](flecs::entity e, const z13::station::Block& block) { blocks[e.name().c_str()] = block.cell; });
   return blocks;
 }
 
 // Spawns the players in `spawn_order` and has them all build on one tick, adding the
 // requests in that same order, as the input system would.
-std::map<std::string, Eigen::Vector3f> BuildSimultaneously(const std::vector<uint32_t>& spawn_order) {
+std::map<std::string, Eigen::Vector3i> BuildSimultaneously(const std::vector<uint32_t>& spawn_order) {
   Z13TestWorld test_world;
   flecs::world world = test_world.World();
 
@@ -74,9 +73,9 @@ TEST(PlayerOrderTest, SameTickBuildsNameBlocksByPlayerIdRegardlessOfSpawnOrder) 
 
   ASSERT_EQ(ascending.size(), 2u);
   ASSERT_EQ(descending.size(), ascending.size());
-  for (const auto& [name, position] : ascending) {
+  for (const auto& [name, cell] : ascending) {
     ASSERT_TRUE(descending.contains(name)) << name;
-    EXPECT_TRUE(descending.at(name).isApprox(position, z13::testing::kTestEpsilon)) << name;
+    EXPECT_EQ(descending.at(name), cell) << name;
   }
 }
 
