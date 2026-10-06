@@ -18,7 +18,7 @@
 
 #include <lib_core/world/core_types.h>
 
-namespace z13::station {
+namespace z13::building {
 
 // Loads assets/station/palette.json into the BlockPalette singleton.
 class PaletteSystem {
@@ -26,4 +26,4 @@ class PaletteSystem {
   static void Register(flecs::world& world);
 };
 
-}  // namespace z13::station
+}  // namespace z13::building

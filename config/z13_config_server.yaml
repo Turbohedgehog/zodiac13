@@ -4,6 +4,7 @@
 
 modules:
   - modules/z13_module/z13_module
+  - modules/building_module/building_module
   - modules/bullet_module/bullet_module
   - modules/station_module/station_module
   - modules/net_module/net_module

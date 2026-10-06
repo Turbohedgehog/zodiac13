@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
- #pragma once
+#include "building_module.h"
+
+#include <flecs.h>
+
+#include "block_building_system.h"
+#include "building_input_system.h"
+#include "building_system.h"
+#include "construction_site_system.h"
+#include "palette_system.h"
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
-
-struct BuildingTool {
-  using State = void;
-};
-
-struct Brush {
-  float distance {};
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
+BuildingModule::BuildingModule(flecs::world& world) {
+  BuildingSystem::Register(world);
+  BuildingInputSystem::Register(world);
+  PaletteSystem::Register(world);
+  ConstructionSiteSystem::Register(world);
+  BlockBuildingSystem::Register(world);
+}
 
 }  // namespace z13::building

@@ -37,8 +37,12 @@
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 
-namespace z13::station {
+namespace z13::building {
 namespace {
+
+using z13::station::BlockBrush;
+using z13::station::SpawnPoint;
+using z13::station::StationMode;
 
 using z13::gameplay::Gameplay;
 using z13::gameplay::PlayerEntityName;
@@ -176,4 +180,4 @@ TEST(StationModeTest, ClientJoiningAnOrdinaryServerDropsItsStaleMode) {
 }
 
 }  // namespace
-}  // namespace z13::station
+}  // namespace z13::building

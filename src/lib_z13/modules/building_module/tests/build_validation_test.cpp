@@ -26,8 +26,11 @@
 #include "../src/block_entities.h"
 #include "../src/build_validation.h"
 
-namespace z13::station {
+namespace z13::building {
 namespace {
+
+using z13::building::grid::BlockIndex;
+using z13::station::Block;
 
 // assets/station/palette.json
 constexpr uint32_t kWallId = 2;
@@ -121,4 +124,4 @@ TEST(BuildValidationTest, KeepsTheLastSpawnPoint) {
 }
 
 }  // namespace
-}  // namespace z13::station
+}  // namespace z13::building

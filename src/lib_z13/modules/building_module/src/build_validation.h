@@ -22,16 +22,16 @@
 #include <Eigen/Dense>
 
 #include <z13/components/station.h>
+#include <z13_grid/block_index.h>
 #include <z13_primitives/palette.h>
 #include <z13_settings/building_tuning.h>
 
 #include <lib_core/utils/status.h>
 
-#include "block_index.h"
 
 // Only what would break the world is refused; dangerous builds (venting a room, cutting
 // power) are allowed, see "Строительный инструмент" in docs/station-primitives-plan.md.
-namespace z13::station {
+namespace z13::building {
 
 struct PlayerSphere {
   Eigen::Vector3f center = Eigen::Vector3f::Zero();
@@ -41,12 +41,12 @@ struct PlayerSphere {
 // A known primitive within its size limits, on free cells, clear of every player and of
 // the space above spawn points (`spawn_clearances`); a new spawn point needs that space free.
 Status ValidateBuild(
-    const Block& block, const z13::building::primitives::Palette& palette, const BlockIndex& index,
+    const z13::station::Block& block, const z13::building::primitives::Palette& palette, const grid::BlockIndex& index,
     std::span<const PlayerSphere> players, std::span<const z13::building::primitives::CellBox> spawn_clearances,
     const BuildingTuning& tuning);
 
 // The last spawn point stays, or new players would have nowhere to appear.
 Status ValidateDestroy(
-    const Block& block, const z13::building::primitives::Palette& palette, int spawn_points);
+    const z13::station::Block& block, const z13::building::primitives::Palette& palette, int spawn_points);
 
-}  // namespace z13::station
+}  // namespace z13::building

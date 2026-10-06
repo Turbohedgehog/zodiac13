@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(station_module)
+project(building_module)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -16,6 +16,9 @@ file(
 
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES})
 
+# building_generated.h comes from the concrete flatc target (see z13_module/CMakeLists.txt).
+add_dependencies(${PROJECT_NAME}_objects GENERATE_FBS_SCHEMAS_HEADERS)
+
 target_include_directories(
   ${PROJECT_NAME}_objects
   PUBLIC
@@ -30,6 +33,10 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module
+  zodiac13::z13_settings
+  zodiac13::z13_primitives
+  zodiac13::z13_grid
   Boost::dll
 )
 
@@ -47,6 +54,10 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::z13_module
+  zodiac13::z13_settings
+  zodiac13::z13_primitives
+  zodiac13::z13_grid
   Boost::dll
 )
 
@@ -65,7 +76,7 @@ install(EXPORT ${PROJECT_NAME}Targets
         DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
 )
 
-set(MODULE_TARGET_PATH "modules/station_module")
+set(MODULE_TARGET_PATH "modules/building_module")
 set(MODULE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}")
 
 # Output layout matches z13_module/CMakeLists.txt and the path in z13_config.yaml.

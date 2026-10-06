@@ -14,23 +14,35 @@
  * limitations under the License.
  */
 
- #pragma once
+#include <building_module/building_module_factory.h>
+
+#include <flecs.h>
+
+#include <boost/dll/alias.hpp>
+
+#include "building_module.h"
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
+ModuleFactoryPtr BuildingModuleFactory::CreateFactory() {
+  return std::make_shared<BuildingModuleFactory>();
+}
 
-struct BuildingTool {
-  using State = void;
-};
+void BuildingModuleFactory::RegisterModules(flecs::world& world) {
+  world.import<BuildingModule>();
+}
 
-struct Brush {
-  float distance {};
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
+std::string_view BuildingModuleFactory::GetName() const {
+  return "BuildingModuleFactory";
+}
 
 }  // namespace z13::building
+
+extern "C" {
+
+BOOST_DLL_ALIAS(
+    z13::building::BuildingModuleFactory::CreateFactory,
+    create_module_factory
+)
+
+}  // extern "C"

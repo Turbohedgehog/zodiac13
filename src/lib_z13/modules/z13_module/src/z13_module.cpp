@@ -38,8 +38,6 @@
 #include "bootstrap/bootstrap_system.h"
 #include "gameplay/gameplay_system.h"
 #include "input/gameplay_input_system.h"
-#include "building/building_system.h"
-#include "building/building_input_system.h"
 #include "state/quick_save_input_system.h"
 #include "state/player_action_recorder.h"
 
@@ -88,8 +86,6 @@ Z13Module::Z13Module(flecs::world& world) {
   z13::bootstrap::BootstrapSystem::Register(world);
   z13::gameplay::GameplaySystem::Register(world);
   z13::gameplay::input::GameplayInputSystem::Register(world);
-  z13::building::BuildingSystem::Register(world);
-  z13::building::BuildingInputSystem::Register(world);
   z13::state::QuickSaveInputSystem::Register(world);
   z13::state::PlayerActionRecorder::Register(world);
   z13::state::Replay::Register(world);

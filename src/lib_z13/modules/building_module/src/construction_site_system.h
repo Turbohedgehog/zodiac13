@@ -18,7 +18,7 @@
 
 #include <lib_core/world/core_types.h>
 
-namespace z13::station {
+namespace z13::building {
 
 // Lays out the scene a new station game starts in: a floor with a spawn point on it.
 class ConstructionSiteSystem {
@@ -26,4 +26,4 @@ class ConstructionSiteSystem {
   static void Register(flecs::world& world);
 };
 
-}  // namespace z13::station
+}  // namespace z13::building

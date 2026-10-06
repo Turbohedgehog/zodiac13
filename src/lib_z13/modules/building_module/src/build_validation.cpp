@@ -25,7 +25,11 @@
 
 #include "block_entities.h"
 
-namespace z13::station {
+namespace z13::building {
+
+using z13::station::Block;
+using z13::station::BlockSpec;
+using z13::station::kCellSize;
 
 namespace {
 
@@ -41,7 +45,7 @@ bool Intersects(const PlayerSphere& player, const CellBox& cells) {
 }  // namespace
 
 Status ValidateBuild(
-    const Block& block, const z13::building::primitives::Palette& palette, const BlockIndex& index,
+    const Block& block, const z13::building::primitives::Palette& palette, const grid::BlockIndex& index,
     std::span<const PlayerSphere> players, std::span<const CellBox> spawn_clearances, const BuildingTuning& tuning) {
   const BlockSpec& spec = block.spec;
   const auto primitive = palette.Find(spec.type_id);
@@ -79,4 +83,4 @@ Status ValidateDestroy(
   return {};
 }
 
-}  // namespace z13::station
+}  // namespace z13::building

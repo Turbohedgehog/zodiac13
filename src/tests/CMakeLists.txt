@@ -50,12 +50,14 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::z13_module
+  zodiac13::building_module
   zodiac13::bullet_module
   zodiac13::station_module
   zodiac13::net_module
   zodiac13::z13_launcher
   zodiac13::z13_settings
   zodiac13::z13_primitives
+  zodiac13::z13_grid
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp
@@ -75,6 +77,7 @@ if(WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       $<TARGET_FILE:zodiac13::core>
       $<TARGET_FILE:zodiac13::z13_module>
+      $<TARGET_FILE:zodiac13::building_module>
       $<TARGET_FILE:zodiac13::bullet_module>
       $<TARGET_FILE:zodiac13::station_module>
       $<TARGET_FILE:zodiac13::net_module>
@@ -122,5 +125,5 @@ if(WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zodiac13::core> $<TARGET_FILE_DIR:z13_plugin_smoke>
   )
 endif()
-add_dependencies(z13_plugin_smoke z13_config z13_module net_module bullet_module station_module test_dll_module)
+add_dependencies(z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module test_dll_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)

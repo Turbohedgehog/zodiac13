@@ -32,13 +32,13 @@
 
 #include <z13_primitives/palette.h>
 
-namespace z13::station {
+namespace z13::building {
 
 namespace {
 
 const std::filesystem::path kPalettePath = std::filesystem::path("assets") / "station" / "palette.json";
 
-// Relative to this plugin (bin/modules/station_module/), which sits two levels below
+// Relative to this plugin (bin/modules/building_module/), which sits two levels below
 // assets/ wherever it runs: the game, a dedicated server or the test runner.
 std::filesystem::path PaletteFile() {
   const std::filesystem::path plugin_dir = boost::dll::this_line_location().parent_path().string();
@@ -79,4 +79,4 @@ void PaletteSystem::Register(flecs::world& world) {
   OnInitSystems(world, InstallPalette);
 }
 
-}  // namespace z13::station
+}  // namespace z13::building

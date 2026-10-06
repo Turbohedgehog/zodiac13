@@ -24,7 +24,7 @@
 
 #include "../../z13_module/tests/support/z13_test_world.h"
 
-namespace z13::station {
+namespace z13::building {
 namespace {
 
 using z13::building::primitives::BlockPalette;
@@ -45,4 +45,4 @@ TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
 }
 
 }  // namespace
-}  // namespace z13::station
+}  // namespace z13::building

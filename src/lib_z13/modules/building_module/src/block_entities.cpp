@@ -20,10 +20,13 @@
 
 #include <lib_core/state/world_state.h>
 
-namespace z13::station {
+namespace z13::building {
 
 namespace {
 
+using z13::station::Block;
+using z13::station::kCellSize;
+using z13::station::SpawnPoint;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::OccupiedCells;
 using z13::building::primitives::OrientationMatrix;
@@ -68,4 +71,4 @@ flecs::entity CreateBlock(
   return entity;
 }
 
-}  // namespace z13::station
+}  // namespace z13::building

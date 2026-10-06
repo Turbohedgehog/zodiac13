@@ -31,7 +31,7 @@
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_tests/test_time.h>
 
-#include "../support/z13_test_world.h"
+#include "../../z13_module/tests/support/z13_test_world.h"
 
 // Same-tick requests from several players must resolve in player_id order, not in the
 // ECS order that follows each participant's own entity creation history.

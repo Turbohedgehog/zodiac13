@@ -86,7 +86,7 @@ add_custom_target(z13_config ALL
     COMMENT "Copying config/ -> bin/config/"
     VERBATIM
 )
-# assets/ likewise: the renderer and station_module (its block palette) both read it.
+# assets/ likewise: the renderer and building_module (its block palette) both read it.
 add_custom_target(z13_assets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
             ${CMAKE_SOURCE_DIR}/assets
@@ -94,7 +94,7 @@ add_custom_target(z13_assets ALL
     COMMENT "Copying assets/ -> bin/assets/"
     VERBATIM
 )
-add_dependencies(station_module z13_assets)
+add_dependencies(building_module z13_assets)
 add_dependencies(raylib_module z13_assets)
 add_dependencies(z13_tests z13_assets)
 add_dependencies(z13_plugin_smoke z13_assets)

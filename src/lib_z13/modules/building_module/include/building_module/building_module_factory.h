@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
+
+#include <memory>
+#include <boost/config.hpp>
+#include <lib_core/world/module_factory_base.h>
+
+// The BOOST_DLL_ALIAS export lives in building_module_factory.cpp, not here, for the
+// reason given in bullet_module_factory.h.
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
+class BOOST_SYMBOL_VISIBLE BuildingModuleFactory : public z13::ModuleFactoryBase {
+ public:
+  static ModuleFactoryPtr CreateFactory();
 
-struct BuildingTool {
-  using State = void;
+  void RegisterModules(flecs::world& world) override;
+  std::string_view GetName() const override;
 };
-
-struct Brush {
-  float distance {};
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
 
 }  // namespace z13::building

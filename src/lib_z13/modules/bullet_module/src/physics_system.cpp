@@ -177,7 +177,7 @@ void ResolvePlayerCollision(
 void ProcessDestroyBlockRequest(
     flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player&,
     const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning) {
-  // Station mode destroys through station_module's cell index instead.
+  // Station mode destroys through building_module's cell index instead.
   if (player.world().has<z13::station::StationMode>()) {
     return;
   }

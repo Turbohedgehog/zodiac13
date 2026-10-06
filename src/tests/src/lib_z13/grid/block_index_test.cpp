@@ -20,13 +20,13 @@
 
 #include <Eigen/Dense>
 
-#include "../src/block_index.h"
+#include <z13_grid/block_index.h>
 
-namespace z13::station {
+namespace z13::building::grid {
 namespace {
 
-constexpr flecs::entity_t kFloor = 101;
-constexpr flecs::entity_t kWall = 102;
+constexpr BlockId kFloor = 101;
+constexpr BlockId kWall = 102;
 
 // A floor spanning several chunks, negative cells included, and a wall standing on it.
 BlockIndex FloorAndWall() {
@@ -79,4 +79,4 @@ TEST(BlockIndexTest, RaycastHitsTheFirstBlockAlongTheSegment) {
 }
 
 }  // namespace
-}  // namespace z13::station
+}  // namespace z13::building::grid

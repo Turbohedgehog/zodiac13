@@ -14,23 +14,17 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
+
+#include <lib_core/world/core_types.h>
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
-
-struct BuildingTool {
-  using State = void;
+// Station-mode building on the grid: keeps the BlockIndex, places the player's BlockBrush
+// at the brush and removes the block a player looks at, through ValidateBuild.
+class BlockBuildingSystem {
+ public:
+  static void Register(flecs::world& world);
 };
-
-struct Brush {
-  float distance {};
-};
-
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
 
 }  // namespace z13::building
