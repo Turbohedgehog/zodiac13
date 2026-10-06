@@ -18,10 +18,9 @@
 
 namespace z13::building {
 
-// Edge length of a placed block's collision/visual cube, shared between the
-// building module (placement/removal overlap tests) and the render module
-// (brush preview + placed-block mesh) so they can't drift apart.
-inline constexpr float kBlockSize = 0.6f;
+// Where the brush follows its player and build requests are handled; station_module
+// orders its own building after it.
+struct UpdateBuildingToolPhase {};
 
 struct BuildingTool {
   using State = void;
@@ -29,10 +28,6 @@ struct BuildingTool {
 
 struct Brush {
   float distance {};
-};
-
-struct BasicBlock {
-  using State = void;
 };
 
 struct RequestBuildBlock {};

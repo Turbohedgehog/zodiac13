@@ -33,9 +33,11 @@
 
 #include <boost/container/flat_map.hpp>
 #include <flecs.h>
+#include <Eigen/Dense>
 
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/math.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 #include <z13_settings/settings.h>
@@ -49,6 +51,7 @@
 #include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13_primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_module/input/action_negotiation.h>
 
@@ -238,8 +241,10 @@ NetSession::Result SendRejected(NetSession& session, ConnectionId connection, st
 }
 
 NetSession::Result ScheduleSessionDelta(
-    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta) {
-  world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = apply_tick, .delta = delta});
+    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta,
+    std::optional<Eigen::Vector3f> spawn_position = std::nullopt) {
+  world.get_mut<ScheduledSessionDeltas>().pending.push_back(
+      {.apply_tick = apply_tick, .delta = delta, .spawn_position = spawn_position});
 
   Envelope envelope;
   std::visit([&envelope](auto& body) { envelope.body.Set(std::move(body)); }, delta);
@@ -248,7 +253,14 @@ NetSession::Result ScheduleSessionDelta(
 
 // Spawned only to serialize it: like everywhere else, it exists from apply_tick on.
 NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id) {
-  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id);
+  std::vector<Eigen::Vector3f> reserved;
+  for (const ScheduledSessionDelta& item : world.get<ScheduledSessionDeltas>().pending) {
+    if (item.spawn_position) {
+      reserved.push_back(*item.spawn_position);
+    }
+  }
+  const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id, reserved);
+  const Eigen::Vector3f spawn_position = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
   fbn::PlayerJoinedT joined;
   joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
   const auto entity_state = ft::CaptureEntityState(world, player);
@@ -259,7 +271,7 @@ NetSession::Result SchedulePlayerJoined(NetSession& session, flecs::world world,
   joined.entity_state = ToWire(*entity_state);
 
   const uint64_t apply_tick = joined.apply_tick;
-  return ScheduleSessionDelta(session, world, apply_tick, std::move(joined));
+  return ScheduleSessionDelta(session, world, apply_tick, std::move(joined), spawn_position);
 }
 
 // Deltas apply before same-tick commands, so the leave waits past the last one.
@@ -291,11 +303,24 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
   return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), world.get<NetTuning>(), descriptors);
 }
 
+// Peers must place blocks from the same palette; neither having one also agrees.
+std::optional<uint64_t> PaletteHash(flecs::world world) {
+  if (const auto* palette = world.try_get<z13::primitives::BlockPalette>()) {
+    return palette->palette.hash;
+  }
+  return std::nullopt;
+}
+
 NetSession::Result HandleClientHello(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
     z13::gameplay::IdCounters& counters) {
   if (hello.version != kProtocolVersion) {
     return SendRejected(session, connection, "protocol version mismatch");
+  }
+  const std::optional<uint64_t> client_palette =
+      hello.palette_hash ? std::optional<uint64_t>(*hello.palette_hash) : std::nullopt;
+  if (client_palette != PaletteHash(world)) {
+    return SendRejected(session, connection, "block palette mismatch");
   }
   if (session.PlayerIdFor(connection)) {
     // Honouring a second hello would spawn another player and orphan the first.
@@ -876,6 +901,9 @@ void HandleClientDisconnect(flecs::world world) {
 NetSession::Result SendClientHello(flecs::world world, NetSession& session, ConnectionId server_connection) {
   fbn::ClientHelloT hello;
   hello.version = kProtocolVersion;
+  if (const auto palette_hash = PaletteHash(world)) {
+    hello.palette_hash = *palette_hash;
+  }
   for (const zgi::ActionDescriptor& action : zgi::DescribeActions(world.get<z13::input::ActionMap>())) {
     auto described = std::make_unique<fbn::ActionDescT>();
     described->enum_name = action.enum_name;

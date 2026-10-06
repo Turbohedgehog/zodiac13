@@ -27,12 +27,14 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/station.h>
 
 #include <lib_core/utils/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
 #include <z13_tests/test_time.h>
 
+#include "../../z13_module/tests/support/block_test_helpers.h"
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 
@@ -46,7 +48,7 @@ namespace {
 using z13::testing::kTestDeltaTime;
 constexpr float kBlockX = 2.f;
 constexpr float kFarX = 10.f;
-// Well inside a block (half-extent is kBlockSize/2 = 0.3), offset toward +X so
+// Well inside a block (half-extent is kCubeEdge/2 = 0.25), offset toward +X so
 // the push-out direction is unambiguous.
 constexpr float kInsideOffset = 0.2f;
 
@@ -57,7 +59,7 @@ Eigen::Matrix4f TranslatedIdentity(float x, float y, float z) {
 }
 
 flecs::entity SpawnBlockAt(flecs::world& world, const Eigen::Matrix4f& transform) {
-  return world.entity().set(transform).add<z13::building::BasicBlock>();
+  return world.entity().set(z13::testing::CubeAt(z13::math::ExtractTranslation<float>(transform)));
 }
 
 // Puts the player at `x` and lets the collision system run for a frame.
@@ -70,7 +72,7 @@ Eigen::Vector3f SettlePlayerAt(z13::testing::Z13TestWorld& test_world, float x) 
 
 const float kPlayerRadius = z13::PhysicsTuning {}.player_collider_radius;
 // Closest the player's center gets to the block's -X face.
-const float kTouchingX = kBlockX - z13::building::kBlockSize / 2.f - kPlayerRadius;
+const float kTouchingX = kBlockX - z13::testing::kCubeEdge / 2.f - kPlayerRadius;
 const float kApproachX = kTouchingX - 1.f;
 constexpr float kPastBlockX = kBlockX + 2.f;
 // Small enough that the step hits the face, not the edge.
@@ -151,7 +153,7 @@ TEST(PhysicsCollisionTest, PlayerIsPushedOutOfOverlappingBlock) {
                               .norm();
   EXPECT_GE(
       distance,
-      z13::building::kBlockSize / 2.f + kPlayerRadius - z13::testing::kTestEpsilon);
+      z13::testing::kCubeEdge / 2.f + kPlayerRadius - z13::testing::kTestEpsilon);
 }
 
 // SweepOrigin is set in the frame the player first appears, so its collision runs then too.
@@ -192,13 +194,13 @@ TEST(PhysicsBodySyncTest, BlockCreatedDirectlyGetsRigidBodyAndCollides) {
   EXPECT_GT(resolved.x(), kBlockX + kInsideOffset);
 }
 
-TEST(PhysicsBodySyncTest, RemovingBasicBlockTagReleasesBody) {
+TEST(PhysicsBodySyncTest, RemovingBlockReleasesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
   ASSERT_TRUE(block.has<RigidBody>());
 
-  block.remove<z13::building::BasicBlock>();
+  block.remove<z13::station::Block>();
   test_world.Tick(kTestDeltaTime);
 
   EXPECT_FALSE(block.has<RigidBody>());
@@ -218,12 +220,12 @@ TEST(PhysicsBodySyncTest, DestroyedBlockReleasesBody) {
   EXPECT_NEAR(resolved.x(), kBlockX + kInsideOffset, z13::testing::kTestEpsilon);
 }
 
-TEST(PhysicsBodySyncTest, ChangingBlockTransformInPlaceMovesBody) {
+TEST(PhysicsBodySyncTest, ChangingBlockCellInPlaceMovesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
 
-  block.set(TranslatedIdentity(kFarX, 0.f, 0.f));
+  block.set(z13::testing::CubeAt({kFarX, 0.f, 0.f}));
   test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f at_old_place = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
@@ -287,6 +289,22 @@ TEST(PhysicsBodySyncTest, BlockBodiesAreStaticAndAsleep) {
   EXPECT_FALSE(bodies[0]->isActive());
 }
 
+// The body follows the primitive's shape from the palette, not its bounding box: above
+// the low end of a slope (rising along +X) there is room for the player.
+TEST(PhysicsBodySyncTest, SlopeCollidesByItsShape) {
+  constexpr uint32_t kSlopeId = 5;  // assets/station/palette.json
+  const Eigen::Vector3f clear_of_the_slope {0.1f, 0.5f, 0.9f};
+  z13::testing::Z13TestWorld test_world;
+  flecs::entity player = test_world.Player();
+  test_world.World().entity().set(z13::station::Block {.type_id = kSlopeId, .size = {4, 4, 4}});
+  test_world.Tick(kTestDeltaTime);
+
+  player.set(TranslatedIdentity(clear_of_the_slope.x(), clear_of_the_slope.y(), clear_of_the_slope.z()));
+  test_world.Tick(kTestDeltaTime);
+
+  EXPECT_TRUE(z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()).isApprox(clear_of_the_slope));
+}
+
 // Placing and destroying blocks through the real pipeline: the block, its body and
 // what later systems see must all go away in the frame the block is destroyed.
 class BlockDestroyTest : public ::testing::Test {
@@ -294,7 +312,7 @@ class BlockDestroyTest : public ::testing::Test {
   void SetUp() override {
     z13::testing::EnterBuildMode(test_world_);
     z13::testing::Click(test_world_, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
-    ASSERT_EQ(test_world_.World().count<z13::building::BasicBlock>(), 1);
+    ASSERT_EQ(test_world_.World().count<z13::station::Block>(), 1);
     // The block sits at the brush; standing still, the destroy ray reaches it again.
   }
 
@@ -322,27 +340,27 @@ TEST_F(BlockDestroyTest, BodyIsReleasedInTheFrameTheBlockIsDestroyed) {
   flecs::world& world = test_world_.World();
 
   ClickCheckingEachFrame(test_world_, [&] {
-    EXPECT_EQ(BodyCount(), static_cast<size_t>(world.count<z13::building::BasicBlock>()));
+    EXPECT_EQ(BodyCount(), static_cast<size_t>(world.count<z13::station::Block>()));
   });
 
-  EXPECT_EQ(world.count<z13::building::BasicBlock>(), 0);
+  EXPECT_EQ(world.count<z13::station::Block>(), 0);
 }
 
 TEST_F(BlockDestroyTest, LateSystemsSeeTheDestroyedBlockInTheSameFrame) {
   flecs::world& world = test_world_.World();
   std::optional<int> seen_by_late_system;
-  world.system("Test::LateBlockReader").kind(flecs::OnStore).read<z13::building::BasicBlock>().run(
+  world.system("Test::LateBlockReader").kind(flecs::OnStore).read<z13::station::Block>().run(
       [&seen_by_late_system](flecs::iter& it) {
         while (it.next()) {
-          seen_by_late_system = it.world().count<z13::building::BasicBlock>();
+          seen_by_late_system = it.world().count<z13::station::Block>();
         }
       });
 
   ClickCheckingEachFrame(test_world_, [&] {
-    EXPECT_EQ(seen_by_late_system, world.count<z13::building::BasicBlock>());
+    EXPECT_EQ(seen_by_late_system, world.count<z13::station::Block>());
   });
 
-  EXPECT_EQ(world.count<z13::building::BasicBlock>(), 0);
+  EXPECT_EQ(world.count<z13::station::Block>(), 0);
 }
 
 TEST(PhysicsMainMenuTest, ExitToMainMenuDestroysThePhysicsWorld) {

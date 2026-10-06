@@ -64,6 +64,7 @@ table ActionDesc {
 table ClientHello {
   version: uint;
   actions: [ActionDesc];  // every action the client has, in its own order
+  palette_hash: ulong = null;  // the station block palette's, if loaded
 }
 
 table CommandBatch {

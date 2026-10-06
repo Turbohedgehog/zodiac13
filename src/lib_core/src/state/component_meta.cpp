@@ -35,27 +35,47 @@ void RegisterStdStringMeta(flecs::world& world) {
 
 namespace {
 
-constexpr int32_t kMatrix4fElementCount = 16;
 // Saves and snapshots name components by path; the derived one differs between GCC and MSVC.
 constexpr std::string_view kMatrix4fName = "Matrix4f";
+constexpr std::string_view kVector3iName = "Vector3i";
+
+// A fixed-size Eigen type as an opaque array of its scalars, in storage order.
+// The flecs primitive for each scalar an Eigen type here holds.
+template <class Scalar>
+flecs::entity_t ScalarKind();
+
+template <>
+flecs::entity_t ScalarKind<float>() {
+  return flecs::F32;
+}
+
+template <>
+flecs::entity_t ScalarKind<int32_t>() {
+  return flecs::I32;
+}
+
+template <class T, class Scalar>
+void RegisterEigenArray(flecs::world& world, std::string_view name) {
+  constexpr auto kCount = static_cast<int32_t>(T::SizeAtCompileTime);
+  world.component<T>().set_name(name.data());
+  world.component<T>()
+      .template opaque<Scalar>(world.array<Scalar>(kCount).id())
+      .serialize([](const flecs::serializer* s, const T* data) {
+        for (int32_t i = 0; i < kCount; ++i) {
+          s->value(ScalarKind<Scalar>(), data->data() + i);
+        }
+        return 0;
+      })
+      .count([](const T*) { return static_cast<size_t>(kCount); })
+      .resize([](T*, size_t) {})
+      .ensure_element([](T* data, size_t element) -> Scalar* { return data->data() + element; });
+}
 
 }  // namespace
 
 void RegisterEigenMeta(flecs::world& world) {
-  world.component<Eigen::Matrix4f>().set_name(kMatrix4fName.data());
-  world.component<Eigen::Matrix4f>()
-      .opaque<float>(world.array<float>(kMatrix4fElementCount).id())
-      .serialize([](const flecs::serializer* s, const Eigen::Matrix4f* data) {
-        for (int32_t i = 0; i < kMatrix4fElementCount; ++i) {
-          s->value(flecs::F32, data->data() + i);
-        }
-        return 0;
-      })
-      .count([](const Eigen::Matrix4f*) { return static_cast<size_t>(kMatrix4fElementCount); })
-      .resize([](Eigen::Matrix4f*, size_t) {})
-      .ensure_element([](Eigen::Matrix4f* data, size_t element) -> float* {
-        return data->data() + element;
-      });
+  RegisterEigenArray<Eigen::Matrix4f, float>(world, kMatrix4fName);
+  RegisterEigenArray<Eigen::Vector3i, int32_t>(world, kVector3iName);
 }
 
 }  // namespace z13::flecs_tools

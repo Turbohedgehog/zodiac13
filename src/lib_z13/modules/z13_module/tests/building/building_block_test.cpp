@@ -25,8 +25,11 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/station.h>
 #include <z13_module/gameplay/camera_look.h>
+#include <lib_core/utils/math.h>
 
+#include "../support/block_test_helpers.h"
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
 
@@ -57,9 +60,10 @@ TEST(BuildingBlockTest, BuildBlockDoesNothingOutsideBuildMode) {
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 0);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 0);
 }
 
+// Snapped to the grid, so within half a cell of the brush on each axis.
 TEST(BuildingBlockTest, BuildBlockSpawnsBlockAtBrushPosition) {
   z13::testing::Z13TestWorld test_world;
   EnterBuildMode(test_world);
@@ -69,12 +73,15 @@ TEST(BuildingBlockTest, BuildBlockSpawnsBlockAtBrushPosition) {
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
-  ASSERT_EQ(test_world.World().count<BasicBlock>(), 1);
+  ASSERT_EQ(test_world.World().count<z13::station::Block>(), 1);
 
-  test_world.World().query_builder<const BasicBlock, const Eigen::Matrix4f>()
+  const Eigen::Vector3f brush_position = z13::math::ExtractTranslation<float>(*brush_transform);
+  test_world.World().query_builder<const z13::station::Block>()
       .build()
-      .each([&](const BasicBlock&, const Eigen::Matrix4f& block_transform) {
-        EXPECT_TRUE(block_transform.isApprox(*brush_transform));
+      .each([&](const z13::station::Block& block) {
+        EXPECT_EQ(block.type_id, z13::station::kCubePrimitiveId);
+        EXPECT_LE((z13::testing::BlockCenter(block) - brush_position).cwiseAbs().maxCoeff(),
+                  z13::station::kCellSize / 2.f + z13::testing::kTestEpsilon);
       });
 }
 
@@ -84,9 +91,9 @@ TEST(BuildingBlockTest, BuildBlockCreatesRigidBody) {
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
   bool found_rigid_body = false;
-  test_world.World().query_builder<const BasicBlock>()
+  test_world.World().query_builder<const z13::station::Block>()
       .build()
-      .each([&](flecs::entity block, const BasicBlock&) {
+      .each([&](flecs::entity block, const z13::station::Block&) {
         found_rigid_body = block.has<z13::bullet_module::RigidBody>();
       });
 
@@ -100,18 +107,18 @@ TEST(BuildingBlockTest, DestroyBlockRemovesLookedAtBlock) {
   z13::testing::Z13TestWorld test_world;
   EnterBuildMode(test_world);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
-  ASSERT_EQ(test_world.World().count<BasicBlock>(), 1);
+  ASSERT_EQ(test_world.World().count<z13::station::Block>(), 1);
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 0);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 0);
 }
 
 TEST(BuildingBlockTest, DestroyBlockDoesNothingWhenNoBlockInSight) {
   z13::testing::Z13TestWorld test_world;
   EnterBuildMode(test_world);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
-  ASSERT_EQ(test_world.World().count<BasicBlock>(), 1);
+  ASSERT_EQ(test_world.World().count<z13::station::Block>(), 1);
 
   // Strafe well clear of the block (walking forward would stop at it), still facing
   // +X, so the destroy raycast passes beside it.
@@ -121,7 +128,7 @@ TEST(BuildingBlockTest, DestroyBlockDoesNothingWhenNoBlockInSight) {
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 1);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 1);
 }
 
 TEST(BuildingBlockTest, DestroyBlockOnlyRemovesOneOverlappingBlock) {
@@ -130,11 +137,11 @@ TEST(BuildingBlockTest, DestroyBlockOnlyRemovesOneOverlappingBlock) {
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
-  ASSERT_EQ(test_world.World().count<BasicBlock>(), 2);
+  ASSERT_EQ(test_world.World().count<z13::station::Block>(), 2);
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_RIGHT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 1);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 1);
 }
 
 }  // namespace

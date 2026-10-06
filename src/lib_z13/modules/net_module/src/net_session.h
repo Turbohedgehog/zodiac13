@@ -24,6 +24,8 @@
 #include <variant>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <net_module/protocol.h>
 #include <net_module/transport.h>
 
@@ -80,6 +82,8 @@ using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT
 struct ScheduledSessionDelta {
   uint64_t apply_tick {};
   SessionDelta delta;
+  // Server-side, for a join: where the player will appear, so later joins skip that spot.
+  std::optional<Eigen::Vector3f> spawn_position;
 };
 
 // `history` lets a rollback replay applied deltas and a joiner catch up on them.

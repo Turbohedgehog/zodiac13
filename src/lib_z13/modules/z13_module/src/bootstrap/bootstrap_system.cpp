@@ -46,7 +46,8 @@ void RegisterComponents(flecs::world world) {
   world.component<z13::net::JoinRequest>();
   world.component<z13::net::LeaveRequest>();
   z13::flecs_tools::RegisterComponent<z13::net::ConnectionStatus>(world);
-  z13::flecs_tools::RegisterComponents<z13::station::StationMode, z13::station::SpawnPoint>(world);
+  z13::flecs_tools::RegisterComponents<z13::station::StationMode, z13::station::SpawnPoint, z13::station::Block,
+                                         z13::station::BlockBrush>(world);
   world.component<z13::gameplay::PopulateSceneEvent>();
 }
 

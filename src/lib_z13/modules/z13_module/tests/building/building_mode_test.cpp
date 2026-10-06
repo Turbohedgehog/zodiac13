@@ -21,6 +21,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/input.h>
+#include <z13/components/station.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
@@ -98,7 +99,7 @@ TEST(BuildingModeTest, BuildingToolAddedDirectlyEnablesBuildInput) {
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 1);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 1);
 }
 
 TEST(BuildingModeTest, LeavingBuildModeRemovesBrushInTheSameFrame) {
@@ -141,7 +142,7 @@ TEST(BuildingModeTest, BrushAtTheWorldOriginStillGetsATransform) {
   z13::testing::EnterBuildMode(test_world);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 1);
+  EXPECT_EQ(test_world.World().count<z13::station::Block>(), 1);
 }
 
 TEST(BuildingModeTest, EnteringBuildModeFromInputCreatesBrush) {

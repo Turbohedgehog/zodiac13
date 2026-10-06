@@ -27,6 +27,8 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/station.h>
+#include <z13_primitives/placement.h>
 
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
@@ -38,9 +40,6 @@
 
 
 namespace z13::building {
-
-// Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
-struct UpdateBuildingToolPhase {};
 
 namespace {
 
@@ -124,19 +123,27 @@ std::optional<Eigen::Matrix4f> FindBrushTransform(flecs::entity player) {
 //
 // Temporary: probing world.lookup() in a loop is a brute-force way to find a free
 // name and doesn't scale. Revisit once name collisions actually show up in practice.
-flecs::entity SpawnBlock(
-    flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Matrix4f& transform) {
+flecs::entity SpawnCube(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3f& center) {
   std::string name;
   do {
     name = std::format("Block_{}", ++counters.last_block_id);
   } while (world.lookup(name.c_str()));
 
-  flecs::entity block = world.entity(name.c_str());
-  return block.add<z13::flecs_tools::StateEntity>().set(transform).add<BasicBlock>();
+  const auto placement = z13::primitives::PlaceCentredOn(
+      center / z13::station::kCellSize, Eigen::Vector3i::Constant(z13::station::kCubeEdgeCells), 0);
+  return world.entity(name.c_str())
+      .add<z13::flecs_tools::StateEntity>()
+      .set(z13::station::Block {
+          .type_id = z13::station::kCubePrimitiveId, .cell = placement.cell, .size = placement.size});
 }
 
+// The ship scene's free building: a cube at the brush, overlaps allowed. Station mode
+// builds through station_module instead and leaves the request to it.
 void ProcessBuildBlockRequest(
     flecs::entity player, RequestBuildBlock, const z13::gameplay::Player&, z13::gameplay::IdCounters& counters) {
+  if (player.world().has<z13::station::StationMode>()) {
+    return;
+  }
   player.remove<RequestBuildBlock>();
 
   const auto brush_transform = FindBrushTransform(player);
@@ -144,7 +151,7 @@ void ProcessBuildBlockRequest(
     return;
   }
 
-  SpawnBlock(player.world(), counters, *brush_transform);
+  SpawnCube(player.world(), counters, z13::math::ExtractTranslation<float>(*brush_transform));
 }
 
 void UpdateBuildingTool(
@@ -190,12 +197,12 @@ void RegisterSystems(flecs::world world) {
       "BuildingSystem::ProcessBuildBlockRequest")
     .kind<UpdateBuildingToolPhase>()
     .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
-    .write<BasicBlock>()
-    .write<Eigen::Matrix4f>()
+    .read<z13::station::StationMode>()
+    .write<z13::station::Block>()
     .each(ProcessBuildBlockRequest);
 
   // RequestDestroyBlock itself is handled in bullet_module (raycast against
-  // PhysicsWorld's block bodies), which owns the only class that can do it.
+  // PhysicsWorld's block bodies), or in station_module in station mode.
 }
 
 }  // namespace

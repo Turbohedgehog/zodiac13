@@ -43,4 +43,17 @@ TEST(EigenMeta, MatrixIsSerializedAsSixteenNumbers) {
   EXPECT_EQ(std::string(json.c_str()), "[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]");
 }
 
+TEST(EigenMeta, Vector3iRoundTripsThroughFlecsJson) {
+  flecs::world world;
+  ft::RegisterEigenMeta(world);
+  const Eigen::Vector3i original(-3, 0, 7);
+
+  const flecs::string json = world.to_json(world.component<Eigen::Vector3i>(), &original);
+  EXPECT_EQ(std::string(json.c_str()), "[-3, 0, 7]");
+
+  Eigen::Vector3i restored = Eigen::Vector3i::Zero();
+  ASSERT_NE(world.from_json(world.component<Eigen::Vector3i>(), &restored, json.c_str()), nullptr);
+  EXPECT_EQ(original, restored);
+}
+
 }  // namespace

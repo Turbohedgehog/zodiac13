@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_state.h>
@@ -37,24 +39,36 @@ const Eigen::Vector3f kSecondPoint {20.f, 0.f, 0.f};
 void AddSpawnPoint(flecs::world world, const Eigen::Vector3f& position) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   z13::math::SetTranslation(position, transform);
-  world.entity().add<z13::flecs_tools::StateEntity>().set(transform).add<z13::station::SpawnPoint>();
+  world.entity().add<z13::flecs_tools::StateEntity>().set(z13::station::SpawnPoint {.transform = transform});
 }
 
 Eigen::Vector3f PositionOf(flecs::entity player) {
   return z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
 }
 
+// In position order, not creation order: entity ids differ between peers and restores.
 TEST(SpawnPointTest, PlayersTakeFreeSpawnPointsInOrderThenShareThemById) {
   Z13TestWorld test_world;
   test_world.Tick();
-  AddSpawnPoint(test_world.World(), kFirstPoint);
   AddSpawnPoint(test_world.World(), kSecondPoint);
+  AddSpawnPoint(test_world.World(), kFirstPoint);
 
   EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 1)).isApprox(kFirstPoint));
   EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 2)).isApprox(kSecondPoint));
   // Both taken: the id modulo the point count picks one.
   EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 3)).isApprox(kSecondPoint));
   EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 4)).isApprox(kFirstPoint));
+}
+
+// A join the server scheduled but hasn't applied yet already holds its point.
+TEST(SpawnPointTest, ReservedSpawnPointsCountAsTaken) {
+  Z13TestWorld test_world;
+  test_world.Tick();
+  AddSpawnPoint(test_world.World(), kFirstPoint);
+  AddSpawnPoint(test_world.World(), kSecondPoint);
+  const std::vector<Eigen::Vector3f> reserved {kFirstPoint};
+
+  EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 1, reserved)).isApprox(kSecondPoint));
 }
 
 TEST(SpawnPointTest, WithoutSpawnPointsPlayersAreSpacedAlongX) {

@@ -90,7 +90,7 @@ std::expected<void, std::string> ValidateStateComponents(flecs::world& world);
 // True for the component entity of a singleton that is world state (State + Singleton).
 bool IsStateSingleton(flecs::entity component);
 
-// Registers the state markers, shared meta (std::string, Eigen::Matrix4f) and the
+// Registers the state markers, shared meta (std::string, Eigen types) and the
 // request queue. Called by the core before modules register.
 void RegisterStateMeta(flecs::world& world);
 

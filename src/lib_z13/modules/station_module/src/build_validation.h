@@ -1,0 +1,49 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include <expected>
+#include <span>
+#include <string>
+
+#include <Eigen/Dense>
+
+#include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+
+#include "block_index.h"
+
+// Only what would break the world is refused; dangerous builds (venting a room, cutting
+// power) are allowed, see "Строительный инструмент" in docs/station-primitives-plan.md.
+namespace z13::station {
+
+struct PlayerSphere {
+  Eigen::Vector3f center = Eigen::Vector3f::Zero();
+  float radius {};
+};
+
+// A known primitive within its size limits, on free cells, clear of every player and of
+// the space above spawn points (`spawn_clearances`); a new spawn point needs that space free.
+std::expected<void, std::string> ValidateBuild(
+    const Block& block, const z13::primitives::Palette& palette, const BlockIndex& index,
+    std::span<const PlayerSphere> players, std::span<const z13::primitives::CellBox> spawn_clearances);
+
+// The last spawn point stays, or new players would have nowhere to appear.
+std::expected<void, std::string> ValidateDestroy(
+    const Block& block, const z13::primitives::Palette& palette, int spawn_points);
+
+}  // namespace z13::station

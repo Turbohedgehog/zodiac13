@@ -26,6 +26,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
+#include <z13/components/station.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/world_json_test_helpers.h"
@@ -36,7 +37,7 @@ namespace z13::state {
 namespace {
 
 namespace ft = z13::flecs_tools;
-using z13::building::BasicBlock;
+using z13::station::Block;
 using z13::testing::Click;
 using z13::testing::kTestDeltaTime;
 using z13::testing::Z13TestWorld;
@@ -65,7 +66,7 @@ void Tap(Z13TestWorld& test_world, Keycode key) {
 }
 
 size_t Blocks(Z13TestWorld& test_world) {
-  return static_cast<size_t>(test_world.World().count<BasicBlock>());
+  return static_cast<size_t>(test_world.World().count<Block>());
 }
 
 std::string ReadFile(const std::filesystem::path& path) {

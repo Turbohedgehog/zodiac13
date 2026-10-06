@@ -51,7 +51,7 @@ void RegisterComponents(flecs::world world) {
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
   flecs_tools::RegisterComponents<
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
-      gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool, building::BasicBlock,
+      gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool,
       gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
       PhysicsTuning>(world);
   world.component<input::SystemInputEventType>();

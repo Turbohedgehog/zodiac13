@@ -18,6 +18,7 @@
 
 #include <flecs.h>
 
+#include "block_building_system.h"
 #include "construction_site_system.h"
 #include "palette_system.h"
 
@@ -26,6 +27,7 @@ namespace z13::station {
 StationModule::StationModule(flecs::world& world) {
   PaletteSystem::Register(world);
   ConstructionSiteSystem::Register(world);
+  BlockBuildingSystem::Register(world);
 }
 
 }  // namespace z13::station

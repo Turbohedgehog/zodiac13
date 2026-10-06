@@ -16,56 +16,56 @@
 
 #include "construction_site_system.h"
 
-#include <format>
-#include <string_view>
+#include <string>
 
 #include <flecs.h>
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
-#include <lib_core/utils/math.h>
+#include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+
+#include "block_entities.h"
 
 namespace z13::station {
 
 namespace {
 
-// The slab is BasicBlocks until station primitives replace them (f/block-grid).
-constexpr int kSlabHalfWidthInBlocks = 3;
-// Gap between the spawn point, at the origin, and the slab's top face.
-constexpr float kSpawnHeightAboveSlab = 1.f;
-constexpr std::string_view kSpawnPointName = "StationSpawnPoint";
+// assets/station/palette.json
+constexpr uint32_t kFloorPrimitiveId = 1;
+constexpr uint32_t kSpawnPointPrimitiveId = 8;
 
-Eigen::Matrix4f At(const Eigen::Vector3f& position) {
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  z13::math::SetTranslation(position, transform);
-  return transform;
-}
+// A 6 m floor with its top at z = 0, the spawn marker in its middle.
+constexpr int kFloorHalfWidthCells = 12;
+constexpr int kSpawnMarkerHalfWidthCells = 2;
 
 void PopulateConstructionSite(flecs::entity e, z13::gameplay::PopulateSceneEvent) {
   flecs::world world = e.world();
   if (!world.has<StationMode>()) {
     return;
   }
-
-  constexpr float kBlockSize = z13::building::kBlockSize;
-  const float slab_z = -kSpawnHeightAboveSlab - kBlockSize / 2.f;
-  for (int x = -kSlabHalfWidthInBlocks; x <= kSlabHalfWidthInBlocks; ++x) {
-    for (int y = -kSlabHalfWidthInBlocks; y <= kSlabHalfWidthInBlocks; ++y) {
-      world.entity(std::format("StationSlab_{}_{}", x, y).c_str())
-          .add<z13::flecs_tools::StateEntity>()
-          .set(At({static_cast<float>(x) * kBlockSize, static_cast<float>(y) * kBlockSize, slab_z}))
-          .add<z13::building::BasicBlock>();
-    }
+  const auto* palette = world.try_get<z13::primitives::BlockPalette>();
+  if (palette == nullptr) {
+    log_error("station: no block palette to build the construction site from");
+    return;
   }
-  world.entity(kSpawnPointName.data())
-      .add<z13::flecs_tools::StateEntity>()
-      .set(At(Eigen::Vector3f::Zero()))
-      .add<SpawnPoint>();
+  // Observers defer commands; SpawnPlayer, right after this event, must see the spawn point.
+  const z13::ImmediateScope immediate(world);
+
+  CreateBlock(world, std::string {"StationFloor"},
+              {.type_id = kFloorPrimitiveId,
+               .cell = {-kFloorHalfWidthCells, -kFloorHalfWidthCells, -1},
+               .size = {2 * kFloorHalfWidthCells, 2 * kFloorHalfWidthCells, 1}},
+              palette->palette);
+  CreateBlock(world, std::string {"StationSpawnPoint"},
+              {.type_id = kSpawnPointPrimitiveId,
+               .cell = {-kSpawnMarkerHalfWidthCells, -kSpawnMarkerHalfWidthCells, 0},
+               .size = {2 * kSpawnMarkerHalfWidthCells, 2 * kSpawnMarkerHalfWidthCells, 1}},
+              palette->palette);
 }
 
 void RegisterSystems(flecs::world world) {

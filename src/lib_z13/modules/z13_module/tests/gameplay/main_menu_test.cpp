@@ -17,6 +17,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/station.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"
@@ -25,7 +26,7 @@
 namespace z13::gameplay {
 namespace {
 
-using z13::building::BasicBlock;
+using z13::station::Block;
 using z13::testing::Click;
 using z13::testing::EnterBuildMode;
 using z13::testing::kTestDeltaTime;
@@ -65,13 +66,13 @@ TEST(MainMenuTest, StartGameSpawnsPlayer) {
 TEST(MainMenuTest, ExitToMainMenuDestroysPlayerAndBlocks) {
   Z13TestWorld test_world;
   PlaceBlock(test_world);
-  ASSERT_EQ(test_world.World().count<BasicBlock>(), 1);
+  ASSERT_EQ(test_world.World().count<Block>(), 1);
 
   test_world.ExitToMainMenu();
   test_world.Tick(kTestDeltaTime);
 
   EXPECT_FALSE(test_world.Player());
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 0);
+  EXPECT_EQ(test_world.World().count<Block>(), 0);
 }
 
 TEST(MainMenuTest, RestartedGameGetsFreshIdCounters) {
@@ -84,7 +85,7 @@ TEST(MainMenuTest, RestartedGameGetsFreshIdCounters) {
   test_world.StartGame();
   PlaceBlock(test_world);
 
-  EXPECT_EQ(test_world.World().count<BasicBlock>(), 1);
+  EXPECT_EQ(test_world.World().count<Block>(), 1);
   EXPECT_EQ(test_world.World().get<IdCounters>().last_block_id, kFirstBlockId);
 }
 

@@ -16,14 +16,23 @@
 
 #pragma once
 
-#include <lib_core/world/core_types.h>
+#include <string>
+
+#include <flecs.h>
+
+#include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+#include <z13_primitives/placement.h>
 
 namespace z13::station {
 
-// Lays out the scene a new station game starts in: a floor with a spawn point on it.
-class ConstructionSiteSystem {
- public:
-  static void Register(flecs::world& world);
-};
+// A state entity for `block`; a primitive with the Spawn flag also makes it a SpawnPoint,
+// facing the primitive's +X.
+flecs::entity CreateBlock(
+    flecs::world world, const std::string& name, const Block& block, const z13::primitives::Palette& palette);
+
+// The cells above a spawn marker kept free so players appear in the open: its footprint,
+// up past the head of a player at the spawn height.
+z13::primitives::CellBox SpawnClearance(const Block& marker);
 
 }  // namespace z13::station

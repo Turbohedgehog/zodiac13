@@ -61,12 +61,6 @@ struct AvatarModel {
   std::shared_ptr<ModelResources> res;
 };
 
-// Marks a block's cube model, which lives in EnvironmentRenderSystem's
-// BlockModels, plus its plain-data render state.
-struct BuildingBlock {
-  ::Color color{WHITE};
-};
-
 // GPU resources for scene lighting. Singleton (see MakeManagedShader, render_resources.h).
 struct LightingResources {
   std::shared_ptr<::Shader> shader;

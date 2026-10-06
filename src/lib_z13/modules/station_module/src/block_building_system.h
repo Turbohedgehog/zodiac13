@@ -20,8 +20,9 @@
 
 namespace z13::station {
 
-// Lays out the scene a new station game starts in: a floor with a spawn point on it.
-class ConstructionSiteSystem {
+// Station-mode building on the grid: keeps the BlockIndex, places the player's BlockBrush
+// at the brush and removes the block a player looks at, through ValidateBuild.
+class BlockBuildingSystem {
  public:
   static void Register(flecs::world& world);
 };

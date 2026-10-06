@@ -36,6 +36,7 @@
 
 #include "gui/gui_system.h"
 #include "platform/sdl_platform.h"
+#include "render/block_meshes.h"
 #include "render/render_components.h"
 
 namespace z13::raylib {
@@ -121,8 +122,7 @@ void Shutdown(flecs::entity e, RaylibWindowClosed, RaylibData&, SdlPlatformData&
   e.world().remove<RenderModel>();
   e.world().remove<Lighting>();
   e.world().remove<Skybox>();
-  // Per-entity, unlike the singletons above (e.g. an in-progress building brush).
-  e.world().remove_all<BuildingBlock>();
+  e.world().remove<BlockMeshes>();
   GuiSystem::ShutdownImGui(e.world());  // needs the GL context, so before SdlPlatform.
   platform_data.platform->Shutdown();
   e.world().remove<RaylibData>();

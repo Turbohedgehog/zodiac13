@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <format>
 #include <optional>
+#include <span>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -40,23 +42,31 @@ namespace {
 // A player closer than this to a spawn point occupies it.
 constexpr float kSpawnPointClearance = 1.f;
 
-// The first spawn point, in entity id order, with no player on it; if all are taken, the
+// Same order on every peer and after any restore, unlike entity ids.
+bool PositionLess(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
+  return std::tie(a.x(), a.y(), a.z()) < std::tie(b.x(), b.y(), b.z());
+}
+
+// The first spawn point, in position order, with no player on it; if all are taken, the
 // player's id picks one. Nullopt without spawn points.
-std::optional<Eigen::Matrix4f> ChooseSpawnPoint(flecs::world world, uint32_t id) {
-  std::vector<std::pair<flecs::entity_t, Eigen::Matrix4f>> points;
-  world.query_builder<const Eigen::Matrix4f>().with<z13::station::SpawnPoint>().build().each(
-      [&points](flecs::entity e, const Eigen::Matrix4f& transform) { points.emplace_back(e.id(), transform); });
+std::optional<Eigen::Matrix4f> ChooseSpawnPoint(
+    flecs::world world, uint32_t id, std::span<const Eigen::Vector3f> reserved) {
+  std::vector<Eigen::Matrix4f> points;
+  world.query_builder<const z13::station::SpawnPoint>().build().each(
+      [&points](const z13::station::SpawnPoint& point) { points.push_back(point.transform); });
   if (points.empty()) {
     return std::nullopt;
   }
-  std::ranges::sort(points, {}, &std::pair<flecs::entity_t, Eigen::Matrix4f>::first);
+  std::ranges::sort(points, PositionLess, [](const Eigen::Matrix4f& transform) {
+    return Eigen::Vector3f(z13::math::ExtractTranslation<float>(transform));
+  });
 
-  std::vector<Eigen::Vector3f> players;
+  std::vector<Eigen::Vector3f> players(reserved.begin(), reserved.end());
   world.query_builder<const Player, const Eigen::Matrix4f>().build().each(
       [&players](const Player&, const Eigen::Matrix4f& transform) {
         players.push_back(z13::math::ExtractTranslation<float>(transform));
       });
-  for (const auto& [entity, transform] : points) {
+  for (const Eigen::Matrix4f& transform : points) {
     const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transform);
     const bool occupied = std::ranges::any_of(players, [&position](const Eigen::Vector3f& player) {
       return (player - position).norm() < kSpawnPointClearance;
@@ -65,7 +75,7 @@ std::optional<Eigen::Matrix4f> ChooseSpawnPoint(flecs::world world, uint32_t id)
       return transform;
     }
   }
-  return points[id % points.size()].second;
+  return points[id % points.size()];
 }
 
 }  // namespace
@@ -74,7 +84,7 @@ std::string PlayerEntityName(uint32_t id) {
   return std::format("Player_{}", id);
 }
 
-flecs::entity SpawnPlayer(flecs::world world, uint32_t id) {
+flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen::Vector3f> reserved) {
   Camera camera {
     .fov = 90,
     .name = std::format("PlayerCamera_{}", id),
@@ -82,7 +92,7 @@ flecs::entity SpawnPlayer(flecs::world world, uint32_t id) {
 
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   transform(0, 3) = static_cast<float>(id) * kSpawnSpacing;
-  if (const auto spawn_point = ChooseSpawnPoint(world, id)) {
+  if (const auto spawn_point = ChooseSpawnPoint(world, id, reserved)) {
     transform = *spawn_point;
   }
 

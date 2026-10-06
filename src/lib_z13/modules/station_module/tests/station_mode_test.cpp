@@ -31,6 +31,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/station.h>
+#include <z13_primitives/placement.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include "../../z13_module/tests/support/test_network.h"
@@ -50,21 +51,21 @@ using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-// The construction site's slab is 7×7 placeholder blocks.
-constexpr int kSlabBlocks = 49;
+// The construction site: a floor and a spawn marker on it.
+constexpr int kSiteBlocks = 2;
 
 int SpawnPoints(Z13TestWorld& world) {
   return world.World().count<SpawnPoint>();
 }
 
 int Blocks(Z13TestWorld& world) {
-  return world.World().count<z13::building::BasicBlock>();
+  return world.World().count<z13::station::Block>();
 }
 
 Eigen::Vector3f SpawnPointPosition(Z13TestWorld& world) {
   Eigen::Vector3f position = Eigen::Vector3f::Zero();
-  world.World().query_builder<const Eigen::Matrix4f>().with<SpawnPoint>().build().each(
-      [&position](const Eigen::Matrix4f& transform) { position = z13::math::ExtractTranslation<float>(transform); });
+  world.World().query_builder<const SpawnPoint>().build().each(
+      [&position](const SpawnPoint& point) { position = z13::math::ExtractTranslation<float>(point.transform); });
   return position;
 }
 
@@ -73,14 +74,14 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world, uint32_t id) {
       world.World().lookup(PlayerEntityName(id).c_str()).get<Eigen::Matrix4f>());
 }
 
-// Above the slab: every block's top face is below the spawn point.
+// Above the site: every block's top face is below the spawn point.
 bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {
   bool above = true;
-  world.World().query_builder<const Eigen::Matrix4f>().with<z13::building::BasicBlock>().build().each(
-      [&](const Eigen::Matrix4f& transform) {
-        const float top = z13::math::ExtractTranslation<float>(transform).z() + z13::building::kBlockSize / 2.f;
-        above = above && top < position.z();
-      });
+  world.World().query_builder<const z13::station::Block>().build().each([&](const z13::station::Block& block) {
+    const z13::primitives::Placement placement {.cell = block.cell, .size = block.size, .orientation = block.orientation};
+    const float top = static_cast<float>(placement.Occupied().End().z()) * z13::station::kCellSize;
+    above = above && top < position.z();
+  });
   return above;
 }
 
@@ -90,7 +91,7 @@ TEST(StationModeTest, StationFlagStartsTheConstructionSite) {
 
   EXPECT_TRUE(test_world.World().has<StationMode>());
   EXPECT_TRUE(test_world.World().has<Gameplay>());
-  EXPECT_EQ(Blocks(test_world), kSlabBlocks);
+  EXPECT_EQ(Blocks(test_world), kSiteBlocks);
   ASSERT_EQ(SpawnPoints(test_world), 1);
   const Eigen::Vector3f player = PlayerPosition(test_world, 0);
   EXPECT_TRUE(player.isApprox(SpawnPointPosition(test_world)));
@@ -104,6 +105,8 @@ TEST(StationModeTest, WithoutTheFlagTheSceneIsUnchanged) {
   EXPECT_FALSE(test_world.World().has<StationMode>());
   EXPECT_EQ(Blocks(test_world), 0);
   EXPECT_EQ(SpawnPoints(test_world), 0);
+  // Station systems stay off: no player gets a station brush.
+  EXPECT_EQ(test_world.World().count<BlockBrush>(), 0);
 }
 
 TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
@@ -112,7 +115,7 @@ TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
   test_world.StartGame();
   test_world.Tick();
 
-  EXPECT_EQ(Blocks(test_world), kSlabBlocks);
+  EXPECT_EQ(Blocks(test_world), kSiteBlocks);
   EXPECT_EQ(SpawnPoints(test_world), 1);
 }
 
@@ -152,7 +155,7 @@ TEST(StationModeTest, ClientJoiningAStationServerGetsTheModeAndTheSite) {
   }));
 
   EXPECT_TRUE(client.World().has<StationMode>());
-  EXPECT_EQ(Blocks(client), kSlabBlocks);
+  EXPECT_EQ(Blocks(client), kSiteBlocks);
   EXPECT_EQ(SpawnPoints(client), 1);
   // The only spawn point is taken by the host, so the joiner shares it.
   EXPECT_TRUE(PlayerPosition(client, 1).isApprox(SpawnPointPosition(client)));
