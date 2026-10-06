@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <functional>
 #include <span>
 #include <string>
 
@@ -38,13 +39,22 @@ struct PlayerSphere {
   float radius {};
 };
 
-// A known primitive within its size limits, on free cells (or `replaces_cells`, a cut that
-// takes them first), clear of every player and of the space above spawn points
-// (`spawn_clearances`); a new spawn point needs that space free.
+// What a build is judged against: the station as it stands, and what keeps blocks out of
+// a place (`players`, the space above spawn points).
+struct BuildView {
+  std::reference_wrapper<const z13::building::primitives::Palette> palette;
+  std::reference_wrapper<const grid::BlockIndex> index;
+  std::reference_wrapper<const BuildingTuning> tuning;
+  std::span<const PlayerSphere> players;
+  std::span<const z13::building::primitives::CellBox> spawn_clearances;
+};
+
+// A known primitive within its size limits, on free cells (or, for a kCutIn build, cells it
+// cuts out first), clear of every player and of the space above spawn points; a new spawn
+// point needs that space free.
 Status ValidateBuild(
-    const z13::station::Block& block, const z13::building::primitives::Palette& palette, const grid::BlockIndex& index,
-    std::span<const PlayerSphere> players, std::span<const z13::building::primitives::CellBox> spawn_clearances,
-    const BuildingTuning& tuning, bool replaces_cells = false);
+    const z13::station::Block& block, const BuildView& view,
+    z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild);
 
 // The last spawn point stays, or new players would have nowhere to appear.
 Status ValidateDestroy(

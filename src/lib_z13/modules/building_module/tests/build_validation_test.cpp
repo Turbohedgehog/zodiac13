@@ -18,6 +18,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <sstream>
 #include <vector>
 
@@ -49,12 +50,32 @@ Block Wall(const Eigen::Vector3i& cell) {
   return {.spec = {.type_id = kWallId, .size = {8, 1, 8}}, .cell = cell};
 }
 
+Status Validate(
+    const Block& block, const z13::building::primitives::Palette& palette, const BlockIndex& index,
+    std::span<const PlayerSphere> players, std::span<const z13::building::primitives::CellBox> spawn_clearances,
+    z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild) {
+  const BuildingTuning tuning;
+  return ValidateBuild(
+      block,
+      {.palette = palette, .index = index, .tuning = tuning, .players = players, .spawn_clearances = spawn_clearances},
+      kind);
+}
+
 TEST(BuildValidationTest, AcceptsAPrimitiveOnFreeCells) {
   const auto palette = ShippedPalette();
   BlockIndex index;
   index.Insert(1, {.min = {0, 0, 0}, .extent = {8, 1, 8}});
 
-  EXPECT_TRUE(ValidateBuild(Wall({0, 1, 0}), palette, index, {}, {}, {}).has_value());
+  EXPECT_TRUE(Validate(Wall({0, 1, 0}), palette, index, {}, {}).has_value());
+}
+
+TEST(BuildValidationTest, ACutInBuildMayTakeCellsThatAreTaken) {
+  const auto palette = ShippedPalette();
+  BlockIndex index;
+  index.Insert(1, {.min = {0, 0, 0}, .extent = {8, 1, 8}});
+
+  EXPECT_TRUE(Validate(Wall({0, 0, 0}), palette, index, {}, {}, z13::station::BrushPreview::Kind::kCutIn).has_value());
+  EXPECT_FALSE(Validate(Wall({0, 0, 0}), palette, index, {}, {}).has_value());
 }
 
 TEST(BuildValidationTest, RefusesTakenCells) {
@@ -62,19 +83,19 @@ TEST(BuildValidationTest, RefusesTakenCells) {
   BlockIndex index;
   index.Insert(1, {.min = {0, 0, 0}, .extent = {8, 1, 8}});
 
-  EXPECT_FALSE(ValidateBuild(Wall({7, 0, 7}), palette, index, {}, {}, {}).has_value());
+  EXPECT_FALSE(Validate(Wall({7, 0, 7}), palette, index, {}, {}).has_value());
 }
 
 TEST(BuildValidationTest, RefusesUnknownTypesAndSizesOutsideTheLimits) {
   const auto palette = ShippedPalette();
   const BlockIndex index;
 
-  EXPECT_FALSE(ValidateBuild({.spec = {.type_id = kUnknownId, .size = {1, 1, 1}}}, palette, index, {}, {}, {})
+  EXPECT_FALSE(Validate({.spec = {.type_id = kUnknownId, .size = {1, 1, 1}}}, palette, index, {}, {})
                    .has_value());
   // A wall is one cell thick; a slope has a fixed size.
-  EXPECT_FALSE(ValidateBuild({.spec = {.type_id = kWallId, .size = {8, 2, 8}}}, palette, index, {}, {}, {})
+  EXPECT_FALSE(Validate({.spec = {.type_id = kWallId, .size = {8, 2, 8}}}, palette, index, {}, {})
                    .has_value());
-  EXPECT_FALSE(ValidateBuild({.spec = {.type_id = kSlopeId, .size = {4, 4, 5}}}, palette, index, {}, {}, {})
+  EXPECT_FALSE(Validate({.spec = {.type_id = kSlopeId, .size = {4, 4, 5}}}, palette, index, {}, {})
                    .has_value());
 }
 
@@ -85,8 +106,8 @@ TEST(BuildValidationTest, RefusesBuildingIntoAPlayer) {
   const std::vector<PlayerSphere> inside {{.center = {1.f, 0.1f, 1.f}, .radius = 0.4f}};
   const std::vector<PlayerSphere> clear {{.center = {1.f, 1.f, 1.f}, .radius = 0.4f}};
 
-  EXPECT_FALSE(ValidateBuild(Wall({0, 0, 0}), palette, index, inside, {}, {}).has_value());
-  EXPECT_TRUE(ValidateBuild(Wall({0, 0, 0}), palette, index, clear, {}, {}).has_value());
+  EXPECT_FALSE(Validate(Wall({0, 0, 0}), palette, index, inside, {}).has_value());
+  EXPECT_TRUE(Validate(Wall({0, 0, 0}), palette, index, clear, {}).has_value());
 }
 
 // Players appear a meter above a spawn marker; a block there would spawn them inside it.
@@ -97,10 +118,10 @@ TEST(BuildValidationTest, KeepsTheSpaceAboveSpawnPointsClear) {
   index.Insert(1, {.min = marker.cell, .extent = marker.spec.size});
   const std::vector<z13::building::primitives::CellBox> clearances {SpawnClearance(marker, BuildingTuning {})};
 
-  EXPECT_FALSE(ValidateBuild(Wall({0, 2, 1}), palette, index, {}, clearances, {}).has_value());
+  EXPECT_FALSE(Validate(Wall({0, 2, 1}), palette, index, {}, clearances).has_value());
   // Above the clearance, and beside the marker, are fine.
-  EXPECT_TRUE(ValidateBuild(Wall({0, 2, 9}), palette, index, {}, clearances, {}).has_value());
-  EXPECT_TRUE(ValidateBuild(Wall({0, 4, 1}), palette, index, {}, clearances, {}).has_value());
+  EXPECT_TRUE(Validate(Wall({0, 2, 9}), palette, index, {}, clearances).has_value());
+  EXPECT_TRUE(Validate(Wall({0, 4, 1}), palette, index, {}, clearances).has_value());
 }
 
 TEST(BuildValidationTest, ANewSpawnPointNeedsRoomAboveIt) {
@@ -110,8 +131,8 @@ TEST(BuildValidationTest, ANewSpawnPointNeedsRoomAboveIt) {
   const Block under_a_ceiling {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}, .cell = {0, 0, 0}};
   const Block in_the_open {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}, .cell = {10, 0, 0}};
 
-  EXPECT_FALSE(ValidateBuild(under_a_ceiling, palette, index, {}, {}, {}).has_value());
-  EXPECT_TRUE(ValidateBuild(in_the_open, palette, index, {}, {}, {}).has_value());
+  EXPECT_FALSE(Validate(under_a_ceiling, palette, index, {}, {}).has_value());
+  EXPECT_TRUE(Validate(in_the_open, palette, index, {}, {}).has_value());
 }
 
 TEST(BuildValidationTest, KeepsTheLastSpawnPoint) {

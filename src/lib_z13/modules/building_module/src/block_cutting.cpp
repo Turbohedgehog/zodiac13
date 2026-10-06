@@ -46,11 +46,11 @@ bool CellOrder(const Block& a, const Block& b) {
 }  // namespace
 
 std::expected<CutPlan, std::string> PlanCut(
-    flecs::world world, const grid::BlockIndex& index, const z13::building::primitives::Palette& palette,
-    const z13::building::primitives::CellBox& cells, int spawn_points, const MadeBlocks& made,
-    int spawn_points_added) {
+    flecs::world world, const BuildView& view, const MadeBlocks& made, const CutRequest& request) {
+  const z13::building::primitives::Palette& palette = view.palette;
+  const z13::building::primitives::CellBox& cells = request.cells;
   std::vector<std::pair<flecs::entity, Block>> hit;
-  for (const grid::BlockId id : index.Overlapping(cells)) {
+  for (const grid::BlockId id : view.index.get().Overlapping(cells)) {
     const flecs::entity entity = world.entity(id);
     if (const auto block = BlockOf(entity, made)) {
       hit.emplace_back(entity, *block);
@@ -73,24 +73,24 @@ std::expected<CutPlan, std::string> PlanCut(
       plan.remainders.push_back(remainder);
     }
   }
-  if (plan.spawn_points_removed > 0 && spawn_points - plan.spawn_points_removed + spawn_points_added < 1) {
+  const int spawn_points_left = request.spawn_points - plan.spawn_points_removed + request.spawn_points_added;
+  if (plan.spawn_points_removed > 0 && spawn_points_left < 1) {
     return std::unexpected(std::string {"the last spawn point"});
   }
   return plan;
 }
 
-void ApplyCut(
-    flecs::world world, const CutPlan& plan, grid::BlockIndex& index, z13::gameplay::IdCounters& counters,
-    const z13::building::primitives::Palette& palette, const BuildingTuning& tuning, MadeBlocks& made) {
+void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
   for (const flecs::entity entity : plan.removed) {
-    index.Erase(entity.id());
-    made.erase(entity.id());
+    run.index.get().Erase(entity.id());
+    run.made.erase(entity.id());
     entity.destruct();
   }
   for (const Block& remainder : plan.remainders) {
-    const flecs::entity created = CreateBlock(world, NextBlockName(world, counters), remainder, palette, tuning);
-    index.Insert(created.id(), z13::building::primitives::OccupiedCells(remainder));
-    made.emplace(created.id(), remainder);
+    const flecs::entity created =
+        CreateBlock(world, NextBlockName(world, run.counters), remainder, run.palette, run.tuning);
+    run.index.get().Insert(created.id(), z13::building::primitives::OccupiedCells(remainder));
+    run.made.emplace(created.id(), remainder);
   }
 }
 
