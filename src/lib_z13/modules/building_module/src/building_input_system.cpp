@@ -101,6 +101,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.rotate_around_y = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Y);
   build_action_ids.rotate_around_x = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_X);
   build_action_ids.select_primitive = find_action_id(z13::fbs::building::Action::SELECT_PRIMITIVE);
+  build_action_ids.cancel_brush_drag = find_action_id(z13::fbs::building::Action::CANCEL_BRUSH_DRAG);
 }
 
 void ToggleBuildingMode(flecs::entity e) {
@@ -150,6 +151,8 @@ void ApplyBuildActionListener(
     }
   } else if (IsSwitchedOn(action_listener, build_action_ids.build_block)) {
     e.add<RequestBrushDrag>();
+  } else if (IsSwitchedOn(action_listener, build_action_ids.cancel_brush_drag)) {
+    e.remove<z13::station::BrushDrag>();
   } else if (IsSwitchedOff(action_listener, build_action_ids.build_block) && e.has<z13::station::BrushDrag>()) {
     e.add<RequestBuildBlock>();
   }
@@ -163,12 +166,21 @@ void ApplyBuildActionListener(
 void SendPaletteChoice(
     z13::input::ActionListener& action_listener, const BuildActionIds& build_action_ids,
     z13::station::PaletteChoice& choice) {
-  if (!choice.type_id || !build_action_ids.select_primitive) {
+  if (!choice.slot || !build_action_ids.select_primitive) {
     return;
   }
-  action_listener.action_values[*build_action_ids.select_primitive].current_value =
-      static_cast<float>(*choice.type_id);
-  choice.type_id.reset();
+  if (*choice.slot < z13::station::kPaletteWindowSlots) {
+    action_listener.action_values[*build_action_ids.select_primitive].current_value =
+        static_cast<float>(*choice.slot + 1);
+  }
+  choice.slot.reset();
+}
+
+// Paused input reads as released, which would end a drag by placing its block.
+void CancelPausedBrushDrag(z13::input::ActionListener& action_listener, const BuildActionIds& build_action_ids) {
+  if (build_action_ids.cancel_brush_drag) {
+    action_listener.action_values[*build_action_ids.cancel_brush_drag].current_value = 1.f;
+  }
 }
 
 void RegisterComponents(flecs::world world) {
@@ -190,7 +202,7 @@ void RegisterSystems(flecs::world world) {
   world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .read<z13::station::StationMode>()
-      .read<z13::station::BrushDrag>()
+      .write<z13::station::BrushDrag>()
       .write<BuildingTool>()
       .each(ApplyBuildActionListener);
 
@@ -202,6 +214,14 @@ void RegisterSystems(flecs::world world) {
       .without<z13::gameplay::Pause>()
       .without<z13::flecs_tools::ReplayInProgress>()
       .each(SendPaletteChoice);
+
+  world.system<z13::input::ActionListener, const BuildActionIds>("gameplay_input_system::CancelPausedBrushDrag")
+      .kind<z13::input::CalculateActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .with<z13::station::BrushDrag>()
+      .with<z13::gameplay::Pause>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .each(CancelPausedBrushDrag);
 
   world.observer<z13::input::AppendInputSchema, z13::input::ActionMap>()
       .event<z13::input::AppendInputSchema>()

@@ -16,10 +16,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 
 #include <Eigen/Dense>
+
+#include <z13/components/player_action.h>
 
 namespace z13::station {
 
@@ -110,10 +114,16 @@ struct BrushPreview {
   bool valid {};
 };
 
-// The local player's pick in the palette window, until it is sent as an action.
+// The palette window's pick goes out as an action value, slot + 1, which a logged action
+// value can hold only up to this many slots.
+inline constexpr size_t kPaletteWindowSlots =
+    static_cast<size_t>(std::numeric_limits<int16_t>::max() / z13::gameplay::kActionValueScale);
+
+// The local player's pick in the palette window (an index into the palette), until it is
+// sent as an action.
 struct PaletteChoice {
   using Singleton = void;
-  std::optional<uint32_t> type_id;
+  std::optional<size_t> slot;
 };
 
 // A spot SpawnPlayer puts players on, with their facing.

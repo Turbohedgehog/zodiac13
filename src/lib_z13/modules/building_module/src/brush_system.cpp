@@ -92,7 +92,10 @@ std::optional<uint32_t> PickedType(
     return std::nullopt;
   }
   if (IsSwitchedOn(listener, ids.select_primitive)) {
-    return static_cast<uint32_t>(std::lround(listener.Value(*ids.select_primitive)->current_value));
+    const long slot = std::lround(listener.Value(*ids.select_primitive)->current_value) - 1;
+    return slot >= 0 && static_cast<size_t>(slot) < palette.primitives.size()
+               ? std::optional(palette.primitives[static_cast<size_t>(slot)].id)
+               : std::nullopt;
   }
   const size_t slots = std::min(kPaletteSlots, palette.primitives.size());
   for (size_t slot = 0; slot < slots; ++slot) {
@@ -148,8 +151,9 @@ void RegisterSystems(flecs::world world) {
   world.system<BlockBrush, const z13::input::ActionListener, const BuildActionIds, const BlockPalette>(
            "BrushSystem::ApplyBrushActions")
       .kind<StationBuildPhase>()
+      // No BuildingTool term: the palette window's pick also lands with the tool put away;
+      // the keys' Building group only routes input while it is out.
       .with<z13::gameplay::Player>()
-      .with<BuildingTool>()
       .with<StationMode>()
       .each(ApplyBrushActions);
 }

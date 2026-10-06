@@ -40,6 +40,7 @@ struct BuildActionIds {
   std::optional<IdType> rotate_around_y;
   std::optional<IdType> rotate_around_x;
   std::optional<IdType> select_primitive;
+  std::optional<IdType> cancel_brush_drag;
 };
 
 // Whether the action went down this frame; false for an action the config lacks.

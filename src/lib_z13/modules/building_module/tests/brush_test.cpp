@@ -74,6 +74,7 @@ constexpr uint32_t kWallId = 2;
 constexpr uint32_t kDoorId = 3;
 constexpr uint32_t kWindowId = 4;
 constexpr uint32_t kSlopeId = 5;
+constexpr size_t kSlopeSlot = 4;
 constexpr uint32_t kBuilderId = 7;
 // Off the cell boundary at y = 0, so the brush and the destroy ray agree on the row.
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
@@ -147,11 +148,11 @@ TEST(BrushTest, ThePaletteWindowsPickReachesTheBrush) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity player = LocalBuilder(test_world);
 
-  test_world.World().set(PaletteChoice {.type_id = kSlopeId});
+  test_world.World().set(PaletteChoice {.slot = kSlopeSlot});
   Ticks(test_world, 2);
 
   EXPECT_EQ(BrushOf(player).type_id, kSlopeId);
-  EXPECT_FALSE(test_world.World().get<PaletteChoice>().type_id.has_value());
+  EXPECT_FALSE(test_world.World().get<PaletteChoice>().slot.has_value());
 }
 
 // The builder walks 1 m (4 cells) along +X between press and release.
@@ -180,6 +181,37 @@ TEST(BrushTest, ADragSizesTheWallAndTheNextClickRepeatsIt) {
   const auto walls = BlocksOfType(test_world.World(), kWallId);
   ASSERT_EQ(walls.size(), 2u);
   EXPECT_EQ(walls[1].spec.size, Eigen::Vector3i(4, 1, 8));
+}
+
+TEST(BrushTest, ThePaletteWindowsPickLandsWithTheToolPutAway) {
+  Z13TestWorld test_world = StationWorld();
+  test_world.Tick();
+
+  test_world.World().set(PaletteChoice {.slot = kSlopeSlot});
+  Ticks(test_world, 2);
+
+  EXPECT_EQ(BrushOf(test_world.Player()).type_id, kSlopeId);
+}
+
+// Pausing zeroes the input, which reads as the release that would place the block.
+TEST(BrushTest, PausingMidDragPlacesNothing) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  test_world.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_BUTTON_LEFT));
+  test_world.Tick();
+  MovePlayerBy(player, {1.f, 0.f, 0.f});
+  test_world.Tick();
+  ASSERT_TRUE(player.has<z13::station::BrushDrag>());
+
+  test_world.World().add<z13::gameplay::Pause>();
+  Ticks(test_world, 2);
+  test_world.EmitInput(z13::testing::MouseUp(Keycode::MOUSE_BUTTON_LEFT));
+  Ticks(test_world, 2);
+  test_world.World().remove<z13::gameplay::Pause>();
+  Ticks(test_world, 2);
+
+  EXPECT_TRUE(BlocksOfType(test_world.World(), kWallId).empty());
+  EXPECT_FALSE(player.has<z13::station::BrushDrag>());
 }
 
 TEST(BrushTest, ThePreviewShowsWhetherTheBuildWouldBeAccepted) {

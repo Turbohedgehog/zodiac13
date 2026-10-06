@@ -16,6 +16,7 @@
 
 #include "palette_window.h"
 
+#include <algorithm>
 #include <format>
 #include <memory>
 #include <string>
@@ -46,11 +47,11 @@ class PaletteWindow : public Window {
       return;
     }
     const auto& primitives = palette->palette.primitives;
-    for (size_t slot = 0; slot < primitives.size(); ++slot) {
+    for (size_t slot = 0; slot < std::min(primitives.size(), z13::station::kPaletteWindowSlots); ++slot) {
       const auto& primitive = primitives[slot];
       const std::string label = slot < kNumberedSlots ? std::format("{}  {}", slot + 1, primitive.name) : primitive.name;
       if (ImGui::Button(label.c_str(), kButtonSize)) {
-        World().set(z13::station::PaletteChoice {.type_id = primitive.id});
+        World().set(z13::station::PaletteChoice {.slot = slot});
         RequestCloseMenu();
       }
     }

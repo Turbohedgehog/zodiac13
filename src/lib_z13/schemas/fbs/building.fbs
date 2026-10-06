@@ -48,8 +48,11 @@ enum Action : int16 (action, action_group: "Building") {
   ROTATE_AROUND_Z (display_text: "Turn the brush around Z", default_keycodes: "KEY_R"),
   ROTATE_AROUND_Y (display_text: "Turn the brush around Y", default_keycodes: "KEY_F"),
   ROTATE_AROUND_X (display_text: "Turn the brush around X", default_keycodes: "KEY_G"),
-  // Its value is the primitive id picked in the palette window, for one frame.
+  // Its value is the palette slot (from 1) picked in the palette window, for one frame.
   SELECT_PRIMITIVE (display_text: "Primitive from the palette window"),
+  // Set for the frames the local player is paused mid-drag: the release that pausing
+  // reads as must not place the block.
+  CANCEL_BRUSH_DRAG (display_text: "Cancel the drag"),
 }
 
 root_type Block;
