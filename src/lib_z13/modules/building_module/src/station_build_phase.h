@@ -14,25 +14,12 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
 namespace z13::building {
 
-// Where the brush follows its player and build requests are handled; BlockBuildingSystem
-// orders its own building after it.
-struct UpdateBuildingToolPhase {};
-
-struct BuildingTool {
-  using State = void;
-};
-
-struct Brush {
-  float distance {};
-};
-
-// Station mode: the build key went down, so a drag starts at the brush.
-struct RequestBrushDrag {};
-struct RequestBuildBlock {};
-struct RequestDestroyBlock {};
+// Station-mode building, after the brush moved (UpdateBuildingToolPhase). Outside an
+// anonymous namespace: its path breaks phase-order ties (see phase_order.h).
+struct StationBuildPhase {};
 
 }  // namespace z13::building

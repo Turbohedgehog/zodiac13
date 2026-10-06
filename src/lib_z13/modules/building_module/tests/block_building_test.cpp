@@ -37,6 +37,7 @@
 #include <z13_primitives/placement.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
+#include "support/station_builders.h"
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/world_json_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -56,8 +57,12 @@ using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
 using z13::testing::kStationArg;
+using z13::testing::AddBuilder;
+using z13::testing::BlocksOfType;
+using z13::testing::Facing;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
+using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
@@ -71,26 +76,6 @@ const Eigen::Vector3i kPanelSize {8, 1, 8};
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 constexpr uint32_t kBuilderId = 7;
 
-Z13TestWorld StationWorld() {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kStationArg)});
-}
-
-Eigen::Matrix4f Facing(const Eigen::Vector3f& position, const Eigen::Vector3f& forward) {
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  transform.block<3, 3>(0, 0) =
-      Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitX(), forward.normalized()).toRotationMatrix();
-  z13::math::SetTranslation(position, transform);
-  return transform;
-}
-
-flecs::entity AddBuilder(Z13TestWorld& test_world, uint32_t id, const Eigen::Matrix4f& transform) {
-  flecs::entity builder = z13::gameplay::SpawnPlayer(test_world.World(), id).set(transform);
-  builder.add<z13::building::BuildingTool>();
-  // The brush and the BlockBrush appear on the first frame.
-  test_world.Tick();
-  return builder;
-}
-
 void Request(Z13TestWorld& test_world, std::vector<flecs::entity> builders, bool build) {
   for (flecs::entity builder : builders) {
     if (build) {
@@ -100,16 +85,6 @@ void Request(Z13TestWorld& test_world, std::vector<flecs::entity> builders, bool
     }
   }
   test_world.Tick();
-}
-
-std::vector<Block> BlocksOfType(flecs::world world, uint32_t type_id) {
-  std::vector<Block> blocks;
-  world.query_builder<const Block>().build().each([&](const Block& block) {
-    if (block.spec.type_id == type_id) {
-      blocks.push_back(block);
-    }
-  });
-  return blocks;
 }
 
 TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {
@@ -126,17 +101,32 @@ TEST(BlockBuildingTest, BuildPlacesTheBrushBlockAroundTheBrush) {
   EXPECT_TRUE(z13::building::primitives::OccupiedCells(walls[0]).Contains(brush.array().floor().cast<int>()));
 }
 
-// Same tick, same cells: the lower player id builds, the other is refused.
-TEST(BlockBuildingTest, OverlappingBuildsAreRefused) {
+TEST(BlockBuildingTest, BuildRestsAgainstTheFaceInSight) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
+  Request(test_world, {builder}, /*build=*/true);
+  const auto first = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(first.size(), 1u);
+
+  Request(test_world, {builder}, /*build=*/true);
+
+  // The ray meets the first panel, so the second is not placed over it.
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 2u);
+}
+
+// Same tick, same aim: the lower player id builds first, the other rests against its face.
+TEST(BlockBuildingTest, SameTickBuildsDoNotOverlap) {
   Z13TestWorld test_world = StationWorld();
   const Eigen::Matrix4f transform = Facing(kBuilderPosition, Eigen::Vector3f::UnitX());
   const flecs::entity first = AddBuilder(test_world, kBuilderId, transform);
   const flecs::entity second = AddBuilder(test_world, kBuilderId + 1, transform);
 
   Request(test_world, {second, first}, /*build=*/true);
-  Request(test_world, {first}, /*build=*/true);
 
-  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
+  const auto walls = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
 }
 
 TEST(BlockBuildingTest, DestroyRemovesTheWholeBlockInSight) {
@@ -228,7 +218,11 @@ TEST(BlockBuildingTest, RestoredBlocksTakeTheirCellsAgain) {
   const flecs::entity restored_builder = test_world.World().lookup(z13::gameplay::PlayerEntityName(kBuilderId).c_str());
   Request(test_world, {restored_builder}, /*build=*/true);
 
-  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
+  // The brush aims at the restored block's face, so the new one rests against it.
+  const auto walls = BlocksOfType(test_world.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
 }
 
 std::string Checkpoint(Z13TestWorld& test_world) {
@@ -266,7 +260,10 @@ TEST(BlockBuildingTest, TwoClientsBuildingTheSameSpotConverge) {
   client_b.EmitInput(z13::testing::MouseUp(Keycode::MOUSE_BUTTON_LEFT));
   all(kSettleTicks);
 
-  EXPECT_EQ(BlocksOfType(server.World(), kWallId).size(), 1u);
+  const auto walls = BlocksOfType(server.World(), kWallId);
+  ASSERT_EQ(walls.size(), 2u);
+  EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
+      z13::building::primitives::OccupiedCells(walls[1])));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_a));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));
 }

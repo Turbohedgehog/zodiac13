@@ -37,6 +37,14 @@ using BlockId = uint64_t;
 // covers thousands of cells.
 class BlockIndex {
  public:
+  // Where a ray first met a block, in cells: the block, the face's outward normal (zero if
+  // the ray started inside it) and the point on that face.
+  struct RayHit {
+    BlockId block {};
+    Eigen::Vector3i normal = Eigen::Vector3i::Zero();
+    Eigen::Vector3f point = Eigen::Vector3f::Zero();
+  };
+
   using Singleton = void;
 
   explicit BlockIndex(int chunk_cells = fbs::building::BuildingTuningT {}.index_chunk_cells);
@@ -51,6 +59,7 @@ class BlockIndex {
 
   // The first block along the segment, both ends in cells.
   std::optional<BlockId> Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const;
+  std::optional<RayHit> RaycastHit(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const;
 
  private:
   struct ChunkHash {

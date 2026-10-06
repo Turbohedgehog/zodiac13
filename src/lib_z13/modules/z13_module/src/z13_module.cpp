@@ -51,7 +51,7 @@ void RegisterComponents(flecs::world world) {
   flecs_tools::RegisterComponents<
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
       gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool,
-      gameplay::Pause, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
+      gameplay::Pause, gameplay::FreeCursor, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
       PhysicsTuning, BuildingTuning>(world);
   world.component<input::SystemInputEventType>();
   world.component<PlayerInfoComponent>()

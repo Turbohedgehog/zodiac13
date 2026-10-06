@@ -21,7 +21,8 @@
 namespace z13::building {
 
 // Station-mode building on the grid: keeps the BlockIndex, places the player's BlockBrush
-// at the brush and removes the block a player looks at, through ValidateBuild.
+// (or the block they dragged out) at the brush, removes the block a player looks at, and
+// previews the next build on each brush, all through ValidateBuild.
 class BlockBuildingSystem {
  public:
   static void Register(flecs::world& world);

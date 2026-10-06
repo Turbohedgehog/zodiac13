@@ -108,9 +108,15 @@ bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const
 
 // Steps cell by cell along the segment (Amanatides & Woo).
 std::optional<BlockId> BlockIndex::Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
+  const auto hit = RaycastHit(from, to);
+  return hit ? std::optional(hit->block) : std::nullopt;
+}
+
+std::optional<BlockIndex::RayHit> BlockIndex::RaycastHit(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
   const Eigen::Vector3f direction = to - from;
   if (direction.isZero()) {
-    return At(from.array().floor().cast<int>());
+    const auto block = At(from.array().floor().cast<int>());
+    return block ? std::optional(RayHit {.block = *block, .point = from}) : std::nullopt;
   }
 
   Eigen::Vector3i cell = from.array().floor().cast<int>();
@@ -128,14 +134,17 @@ std::optional<BlockId> BlockIndex::Raycast(const Eigen::Vector3f& from, const Ei
   }
 
   float travelled = 0.f;
+  Eigen::Vector3i normal = Eigen::Vector3i::Zero();
   while (travelled <= 1.f) {
     if (const auto block = At(cell)) {
-      return block;
+      return RayHit {.block = *block, .normal = normal, .point = from + direction * travelled};
     }
     int axis = 0;
     next_crossing.minCoeff(&axis);
     travelled = next_crossing[axis];
     cell[axis] += step[axis];
+    normal = Eigen::Vector3i::Zero();
+    normal[axis] = -step[axis];
     next_crossing[axis] += crossing_interval[axis];
   }
   return std::nullopt;

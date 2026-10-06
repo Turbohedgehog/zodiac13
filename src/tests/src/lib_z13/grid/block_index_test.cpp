@@ -78,5 +78,23 @@ TEST(BlockIndexTest, RaycastHitsTheFirstBlockAlongTheSegment) {
   EXPECT_EQ(index.Raycast({0.5f, 0.5f, 6.5f}, {-20.5f, 0.5f, 6.5f}), std::nullopt);
 }
 
+TEST(BlockIndexTest, RaycastHitReportsTheFaceEntered) {
+  const BlockIndex index = FloorAndWall();
+
+  const auto wall = index.RaycastHit({0.5f, 0.5f, 6.5f}, {20.5f, 0.5f, 6.5f});
+  ASSERT_TRUE(wall);
+  EXPECT_EQ(wall->normal, Eigen::Vector3i(-1, 0, 0));
+  EXPECT_NEAR(wall->point.x(), 5.f, 1e-4f);
+
+  const auto floor = index.RaycastHit({0.5f, 0.5f, 6.5f}, {3.5f, 0.5f, -4.5f});
+  ASSERT_TRUE(floor);
+  EXPECT_EQ(floor->normal, Eigen::Vector3i(0, 0, 1));
+  EXPECT_NEAR(floor->point.z(), 0.f, 1e-4f);
+
+  const auto inside = index.RaycastHit({5.5f, 0.5f, 6.5f}, {8.5f, 0.5f, 6.5f});
+  ASSERT_TRUE(inside);
+  EXPECT_TRUE(inside->normal.isZero());
+}
+
 }  // namespace
 }  // namespace z13::building::grid

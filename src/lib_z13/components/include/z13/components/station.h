@@ -16,9 +16,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <optional>
 
 #include <Eigen/Dense>
+
+#include <z13/components/player_action.h>
 
 namespace z13::station {
 
@@ -70,6 +75,8 @@ struct BlockSpec {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Ones();
   Orientation orientation {};
+
+  bool operator==(const BlockSpec&) const = default;
 };
 
 inline BlockSpec CubeSpec() {
@@ -87,6 +94,38 @@ struct Block {
 struct BlockBrush {
   using State = void;
   BlockSpec spec;
+};
+
+// A player dragging out a block: the brush's cell where the drag began, and the normal of
+// the face it was aimed at (zero in free space).
+struct BrushDrag {
+  using State = void;
+  Eigen::Vector3i anchor_cell = Eigen::Vector3i::Zero();
+  Eigen::Vector3i anchor_normal = Eigen::Vector3i::Zero();
+};
+
+// The right to build and destroy blocks; every station player gets it for now.
+struct BuildPermission {
+  using State = void;
+};
+
+// What a brush's build would place right now and whether it would be accepted; derived
+// every frame on the brush entity, never state.
+struct BrushPreview {
+  Block block;
+  bool valid {};
+};
+
+// The palette window's pick goes out as an action value, slot + 1, which a logged action
+// value can hold only up to this many slots.
+inline constexpr size_t kPaletteWindowSlots =
+    static_cast<size_t>(std::numeric_limits<int16_t>::max() / z13::gameplay::kActionValueScale);
+
+// The local player's pick in the palette window (an index into the palette), until it is
+// sent as an action.
+struct PaletteChoice {
+  using Singleton = void;
+  std::optional<size_t> slot;
 };
 
 // A spot SpawnPlayer puts players on, with their facing.

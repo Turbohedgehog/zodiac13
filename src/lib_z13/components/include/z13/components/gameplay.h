@@ -50,6 +50,11 @@ struct Pause {
   using Singleton = void;
 };
 
+// The mouse is free to use the GUI while the game runs: look stops, the cursor shows.
+struct FreeCursor {
+  using Singleton = void;
+};
+
 struct WindowFocusEvent {
   bool has_focus = false;
 };
