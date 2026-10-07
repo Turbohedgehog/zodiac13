@@ -33,6 +33,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/status.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -48,6 +49,7 @@
 #include "net_session.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
+#include "wire_records.h"
 
 namespace z13::net {
 
@@ -62,7 +64,7 @@ struct ScheduledCommand {
   int16_t value {};
 };
 
-std::expected<std::vector<ScheduledCommand>, std::string> ToWire(
+std::expected<std::vector<ScheduledCommand>, std::string> ToScheduled(
     const std::vector<z13::gameplay::PlayerActionRecord>& records) {
   std::vector<ScheduledCommand> scheduled;
   scheduled.reserve(records.size());
@@ -99,16 +101,10 @@ std::expected<fbn::CommandBatchT, std::string> ToBatch(
   return batch;
 }
 
-void ScheduleLocally(
-    flecs::world world, uint32_t player_id, const std::vector<ScheduledCommand>& scheduled) {
+void ScheduleLocally(flecs::world world, uint32_t player_id, const fbn::CommandBatchT& batch) {
   auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
-  for (const ScheduledCommand& command : scheduled) {
-    QueueInOrder(queue, {
-        .tick = command.apply_tick,
-        .player_id = player_id,
-        .action_id = command.action_id,
-        .value = z13::gameplay::DequantizeActionValue(command.value),
-    });
+  for (const fbn::CommandWire& command : batch.commands) {
+    QueueInOrder(queue, FromWire(command, batch.base_tick, player_id));
   }
 }
 
@@ -148,11 +144,12 @@ void ApplyOwnCommands(
 
 // The client sends a CommandBatch; the host sequences its own commands on the spot,
 // like any client's, and broadcasts them (its clock offset is 0).
-NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandBatchT batch) {
+void Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandBatchT batch) {
   Envelope envelope;
   if (!is_server) {
     envelope.body.Set(std::move(batch));
-    return session.Send(*session.ServerConnection(), Channel::kReliable, envelope);
+    session.Send(*session.ServerConnection(), Channel::kReliable, envelope);
+    return;
   }
   fbn::SequencedCommandsT sequenced;
   sequenced.player_id = player_id;
@@ -160,10 +157,10 @@ NetSession::Result Send(NetSession& session, bool is_server, uint32_t player_id,
   sequenced.commands = std::move(batch.commands);
   sequenced.through_tick = batch.through_tick;
   envelope.body.Set(std::move(sequenced));
-  return session.Broadcast(Channel::kReliable, envelope);
+  session.Broadcast(Channel::kReliable, envelope);
 }
 
-NetSession::Result TrySendPendingCommands(
+Status TrySendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
     const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
     const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
@@ -184,7 +181,7 @@ NetSession::Result TrySendPendingCommands(
       fbn::CommandBatchT heartbeat;
       heartbeat.base_tick = clock.tick;
       heartbeat.through_tick = clock.tick;
-      return Send(session, is_server, *local_player.id, std::move(heartbeat));
+      Send(session, is_server, *local_player.id, std::move(heartbeat));
     }
     return {};
   }
@@ -195,7 +192,7 @@ NetSession::Result TrySendPendingCommands(
   }
 
   const bool held_back = CollapseHeldBackRecords(outgoing, clock.tick);
-  const auto scheduled = ToWire(outgoing.records);
+  const auto scheduled = ToScheduled(outgoing.records);
   outgoing.records.clear();
   outgoing.applied_count = 0;
   auto batch = scheduled.and_then(
@@ -204,9 +201,10 @@ NetSession::Result TrySendPendingCommands(
     return std::unexpected(std::format("dropping a batch: {}", batch.error()));
   }
   if (held_back) {
-    ScheduleLocally(it.world(), *local_player.id, *scheduled);
+    ScheduleLocally(it.world(), *local_player.id, *batch);
   }
-  return Send(session, is_server, *local_player.id, std::move(*batch));
+  Send(session, is_server, *local_player.id, std::move(*batch));
+  return {};
 }
 
 void SendPendingCommands(

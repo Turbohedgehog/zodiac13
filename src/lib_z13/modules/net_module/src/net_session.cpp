@@ -16,28 +16,16 @@
 
 #include "net_session.h"
 
+#include <cassert>
 #include <span>
-#include <string>
-#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace z13::net {
 
-namespace {
-
-constexpr std::string_view kClosedSessionError = "operation on a closed session";
-
-std::unexpected<std::string> ClosedSession() {
-  return std::unexpected(std::string(kClosedSessionError));
-}
-
-}  // namespace
-
+// No transport means a closed session.
 class NetSession::State {
  public:
-  bool IsOpen() const { return transport != nullptr; }
-
   std::unique_ptr<Transport> transport;
   std::unordered_set<ConnectionId> connections;
   std::unordered_map<ConnectionId, uint32_t> connection_to_player;
@@ -50,99 +38,71 @@ void NetSession::Open(std::unique_ptr<Transport> transport) {
 }
 
 bool NetSession::IsOpen() const {
-  return state_ && state_->IsOpen();
+  return state_ && state_->transport;
 }
 
 void NetSession::Close() {
   state_.reset();
 }
 
-std::expected<std::vector<TransportEvent>, std::string> NetSession::Service() {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
-  return state_->transport->Service();
+NetSession::State& NetSession::OpenState() const {
+  assert(IsOpen() && "NetSession used after Close()");
+  return *state_;
 }
 
-NetSession::Result NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
+std::vector<TransportEvent> NetSession::Service() {
+  return OpenState().transport->Service();
+}
+
+void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
-  state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
-  return {};
+  OpenState().transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
 }
 
-NetSession::Result NetSession::Broadcast(
-    Channel channel, const Envelope& envelope, std::optional<ConnectionId> except) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
+void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except) {
+  State& state = OpenState();
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
   const auto payload = std::as_bytes(std::span(bytes));
-  for (const ConnectionId connection : state_->connections) {
-    if (except && connection == *except) {
-      continue;
+  for (const ConnectionId connection : state.connections) {
+    if (connection != except) {
+      state.transport->Send(connection, channel, payload);
     }
-    state_->transport->Send(connection, channel, payload);
   }
-  return {};
 }
 
-NetSession::Result NetSession::Disconnect(ConnectionId connection) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
-  state_->transport->Disconnect(connection);
-  return {};
+void NetSession::Disconnect(ConnectionId connection) {
+  OpenState().transport->Disconnect(connection);
 }
 
-NetSession::Result NetSession::AddConnection(ConnectionId connection) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
-  state_->connections.insert(connection);
-  return {};
+void NetSession::AddConnection(ConnectionId connection) {
+  OpenState().connections.insert(connection);
 }
 
-NetSession::Result NetSession::RemoveConnection(ConnectionId connection) {
-  if (!IsOpen()) {
-    return ClosedSession();
+void NetSession::RemoveConnection(ConnectionId connection) {
+  State& state = OpenState();
+  state.connections.erase(connection);
+  state.connection_to_player.erase(connection);
+  if (state.server_connection == connection) {
+    state.server_connection.reset();
   }
-  state_->connections.erase(connection);
-  state_->connection_to_player.erase(connection);
-  if (state_->server_connection == connection) {
-    state_->server_connection.reset();
-  }
-  return {};
 }
 
-NetSession::Result NetSession::BindPlayer(ConnectionId connection, uint32_t player_id) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
-  state_->connection_to_player[connection] = player_id;
-  return {};
+void NetSession::BindPlayer(ConnectionId connection, uint32_t player_id) {
+  OpenState().connection_to_player[connection] = player_id;
 }
 
 std::optional<uint32_t> NetSession::PlayerIdFor(ConnectionId connection) const {
-  if (!IsOpen()) {
-    return std::nullopt;
-  }
-  const auto player = state_->connection_to_player.find(connection);
-  return player != state_->connection_to_player.end() ? std::optional(player->second) : std::nullopt;
+  const auto& by_connection = OpenState().connection_to_player;
+  const auto player = by_connection.find(connection);
+  return player != by_connection.end() ? std::optional(player->second) : std::nullopt;
 }
 
-NetSession::Result NetSession::SetServerConnection(ConnectionId connection) {
-  if (!IsOpen()) {
-    return ClosedSession();
-  }
-  state_->server_connection = connection;
-  return {};
+void NetSession::SetServerConnection(ConnectionId connection) {
+  OpenState().server_connection = connection;
 }
 
 std::optional<ConnectionId> NetSession::ServerConnection() const {
-  return IsOpen() ? state_->server_connection : std::nullopt;
+  return OpenState().server_connection;
 }
 
 }  // namespace z13::net

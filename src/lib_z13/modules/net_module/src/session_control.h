@@ -16,25 +16,23 @@
 
 #pragma once
 
-#include <optional>
 #include <string>
 
 #include <flecs.h>
 
-#include <net_module/state_digest.h>
-
-#include "net_session.h"
+#include <z13/components/net.h>
 
 namespace z13::net {
 
-// Records StateDigests::local on snapshot ticks while a session is open.
-void RegisterStateDigestSystems(flecs::world world);
+void SetConnectionStatus(flecs::world world, ConnectionState state, std::string reason = {});
 
-// Server: broadcasts each recorded digest once no late command can change its tick.
-void SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests);
+// Invalidates any NetSession reference: ServiceNetSession suspends defer, so the remove
+// is immediate. Callers must not touch it afterwards.
+void EndSession(flecs::world world);
 
-// Client: compares the server's digests this client has reached. Returns the first
-// mismatch, if any; digests with no local counterpart are dropped unchecked.
-std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests);
+// Ends the session of a client that can't go on, saying why.
+void FailSession(flecs::world world, std::string reason);
+
+bool IsJoined(flecs::world world);
 
 }  // namespace z13::net

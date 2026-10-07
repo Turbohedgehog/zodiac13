@@ -17,83 +17,58 @@
 #pragma once
 
 #include <cstdint>
-#include <expected>
 #include <memory>
 #include <optional>
-#include <string>
-#include <variant>
 #include <vector>
-
-#include <Eigen/Dense>
 
 #include <net_module/protocol.h>
 #include <net_module/transport.h>
 
-#include <lib_core/utils/status.h>
-
 namespace z13::net {
 
 // The live Transport plus connection/player bookkeeping, as a singleton exempt from the
-// "no pointers in components" rule like PhysicsWorld (see CLAUDE.md). Message-handling
-// logic lives in net_session_system.cpp, not here.
+// "no pointers in components" rule like PhysicsWorld (see CLAUDE.md).
 class NetSession {
  public:
   using Singleton = void;
-  // Every call below needs an open session. On a closed one they report instead of
-  // quietly doing nothing, so a sequencing bug surfaces at ServiceNetSession.
-  using Result = Status;
 
   void Open(std::unique_ptr<Transport> transport);
   bool IsOpen() const;
   void Close();
 
-  // Pumps the transport.
-  std::expected<std::vector<TransportEvent>, std::string> Service();
+  // Every call below needs an open session: calling one on a closed session is a
+  // sequencing bug, caught by an assert.
 
-  Result Send(ConnectionId connection, Channel channel, const Envelope& envelope);
+  // Pumps the transport.
+  std::vector<TransportEvent> Service();
+
+  void Send(ConnectionId connection, Channel channel, const Envelope& envelope);
   // Every tracked connection (AddConnection) except `except`, if given.
-  Result Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
+  void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
   // Drops a misbehaving peer at the transport level; bookkeeping is cleaned up
   // separately, from the kDisconnected event this produces.
-  Result Disconnect(ConnectionId connection);
+  void Disconnect(ConnectionId connection);
 
   // All connections accepted so far (server) or the one outgoing connection (client),
   // independent of whether a player id is bound yet.
-  Result AddConnection(ConnectionId connection);
-  Result RemoveConnection(ConnectionId connection);
+  void AddConnection(ConnectionId connection);
+  void RemoveConnection(ConnectionId connection);
 
   // Server-side connection <-> player id, set once a ClientHello is accepted.
-  Result BindPlayer(ConnectionId connection, uint32_t player_id);
-  // Nullopt for an unbound connection as well as a closed session -- both mean the same
-  // thing to every caller, so neither is an error worth reporting.
+  void BindPlayer(ConnectionId connection, uint32_t player_id);
   std::optional<uint32_t> PlayerIdFor(ConnectionId connection) const;
 
   // Client-side: the one connection representing the server, from the first
   // kConnected event this session's transport produces.
-  Result SetServerConnection(ConnectionId connection);
+  void SetServerConnection(ConnectionId connection);
   std::optional<ConnectionId> ServerConnection() const;
 
  private:
   class State;
 
+  State& OpenState() const;
+
   std::shared_ptr<State> state_;
-};
-
-using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT>;
-
-struct ScheduledSessionDelta {
-  uint64_t apply_tick {};
-  SessionDelta delta;
-  // Server-side, for a join: where the player will appear, so later joins skip that spot.
-  std::optional<Eigen::Vector3f> spawn_position;
-};
-
-// `history` lets a rollback replay applied deltas and a joiner catch up on them.
-struct ScheduledSessionDeltas {
-  using Singleton = void;
-  using SessionScoped = void;
-  std::vector<ScheduledSessionDelta> pending;
-  std::vector<ScheduledSessionDelta> history;
 };
 
 }  // namespace z13::net

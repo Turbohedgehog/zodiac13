@@ -114,23 +114,25 @@ TEST(CodecTest, PongRoundTrips) {
 TEST(CodecTest, WelcomeRoundTripsSnapshotAndCommandLists) {
   fbn::WelcomeT welcome;
   welcome.player_id = 3;
-  welcome.server_tick = 900;
-  welcome.snapshot = OneEntitySnapshot("Player_3");
-  welcome.snapshot_tick = 840;
-  welcome.actions = {{841, 1, 2, 1.f}, {842, 2, 7, -0.5f}};
-  welcome.held_values = {{840, 1, 3, 1.f}};
-  welcome.pending = {{901, 2, 4, 0.25f}};
+  welcome.catch_up = std::make_unique<fbn::CatchUpT>();
+  welcome.catch_up->server_tick = 900;
+  welcome.catch_up->snapshot = OneEntitySnapshot("Player_3");
+  welcome.catch_up->snapshot_tick = 840;
+  welcome.catch_up->actions = {{841, 1, 2, 1.f}, {842, 2, 7, -0.5f}};
+  welcome.catch_up->held_values = {{840, 1, 3, 1.f}};
+  welcome.catch_up->pending = {{901, 2, 4, 0.25f}};
 
   const auto decoded = RoundTrip(welcome);
 
   EXPECT_EQ(decoded.player_id, 3u);
-  EXPECT_EQ(decoded.server_tick, 900u);
-  ASSERT_NE(decoded.snapshot, nullptr);
-  EXPECT_EQ(*decoded.snapshot, *welcome.snapshot);
-  EXPECT_EQ(decoded.snapshot_tick, 840u);
-  EXPECT_EQ(decoded.actions, welcome.actions);
-  EXPECT_EQ(decoded.held_values, welcome.held_values);
-  EXPECT_EQ(decoded.pending, welcome.pending);
+  ASSERT_NE(decoded.catch_up, nullptr);
+  EXPECT_EQ(decoded.catch_up->server_tick, 900u);
+  ASSERT_NE(decoded.catch_up->snapshot, nullptr);
+  EXPECT_EQ(*decoded.catch_up->snapshot, *welcome.catch_up->snapshot);
+  EXPECT_EQ(decoded.catch_up->snapshot_tick, 840u);
+  EXPECT_EQ(decoded.catch_up->actions, welcome.catch_up->actions);
+  EXPECT_EQ(decoded.catch_up->held_values, welcome.catch_up->held_values);
+  EXPECT_EQ(decoded.catch_up->pending, welcome.catch_up->pending);
 }
 
 TEST(CodecTest, RejectedRoundTripsReason) {
@@ -142,17 +144,19 @@ TEST(CodecTest, RejectedRoundTripsReason) {
 
 TEST(CodecTest, ResyncRoundTrips) {
   fbn::ResyncT resync;
-  resync.server_tick = 1000;
-  resync.snapshot = OneEntitySnapshot("Player_1");
-  resync.snapshot_tick = 960;
-  resync.actions = {{961, 1, 2, 1.f}};
+  resync.catch_up = std::make_unique<fbn::CatchUpT>();
+  resync.catch_up->server_tick = 1000;
+  resync.catch_up->snapshot = OneEntitySnapshot("Player_1");
+  resync.catch_up->snapshot_tick = 960;
+  resync.catch_up->actions = {{961, 1, 2, 1.f}};
 
   const auto decoded = RoundTrip(resync);
-  EXPECT_EQ(decoded.server_tick, 1000u);
-  ASSERT_NE(decoded.snapshot, nullptr);
-  EXPECT_EQ(*decoded.snapshot, *resync.snapshot);
-  EXPECT_EQ(decoded.snapshot_tick, 960u);
-  EXPECT_EQ(decoded.actions, resync.actions);
+  ASSERT_NE(decoded.catch_up, nullptr);
+  EXPECT_EQ(decoded.catch_up->server_tick, 1000u);
+  ASSERT_NE(decoded.catch_up->snapshot, nullptr);
+  EXPECT_EQ(*decoded.catch_up->snapshot, *resync.catch_up->snapshot);
+  EXPECT_EQ(decoded.catch_up->snapshot_tick, 960u);
+  EXPECT_EQ(decoded.catch_up->actions, resync.catch_up->actions);
 }
 
 TEST(CodecTest, PlayerJoinedRoundTrips) {
