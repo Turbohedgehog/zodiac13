@@ -24,6 +24,7 @@
 #include <flecs.h>
 
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -37,7 +38,7 @@ namespace z13::building {
 namespace {
 
 std::expected<z13::building::primitives::Palette, std::string> LoadPalette(const std::filesystem::path& file) {
-  return z13::building::primitives::ReadTextFile(file)
+  return z13::ReadFile(file)
       .and_then([](const std::string& contents) { return z13::building::primitives::ParsePalette(contents); })
       .transform_error([&file](const std::string& error) { return std::format("{} ({})", error, file.string()); });
 }

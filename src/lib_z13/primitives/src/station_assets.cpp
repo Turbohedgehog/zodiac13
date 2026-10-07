@@ -18,8 +18,6 @@
 
 #include <algorithm>
 #include <format>
-#include <fstream>
-#include <sstream>
 #include <system_error>
 
 namespace z13::building::primitives {
@@ -50,16 +48,6 @@ std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir
   }
   std::ranges::sort(scenes);
   return scenes;
-}
-
-std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path& file) {
-  std::ifstream stream(file);
-  if (!stream.is_open()) {
-    return std::unexpected(std::format("cannot open '{}'", file.string()));
-  }
-  std::ostringstream contents;
-  contents << stream.rdbuf();
-  return contents.str();
 }
 
 }  // namespace z13::building::primitives

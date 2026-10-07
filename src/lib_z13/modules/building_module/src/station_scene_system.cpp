@@ -23,6 +23,7 @@
 #include <flecs.h>
 
 #include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -41,28 +42,28 @@ namespace z13::building {
 
 namespace {
 
+using z13::building::primitives::BlockPalette;
 using z13::station::StationMode;
 using z13::station::StationSceneChoice;
 
-void PopulateStationScene(flecs::entity e, z13::gameplay::PopulateSceneEvent) {
+void PopulateStationScene(
+    flecs::entity e,
+    z13::gameplay::PopulateSceneEvent,
+    const StationSceneChoice& choice,
+    const BlockPalette& palette,
+    const BuildingTuning& tuning) {
+  const auto& scene = choice.scene;
+  if (!scene) {
+    return;
+  }
   flecs::world world = e.world();
-  const auto& scene = world.get<StationSceneChoice>().scene;
-  if (!world.has<StationMode>() || !scene) {
-    return;
-  }
-  const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
-  if (palette == nullptr) {
-    log_error("station: no block palette to build '{}' from", *scene);
-    return;
-  }
   const std::filesystem::path file = AssetFile(z13::building::primitives::BlueprintFile(*scene));
-  const auto& tuning = world.get<BuildingTuning>();
-  const auto blocks = z13::building::primitives::ReadTextFile(file).and_then([palette](const std::string& json) {
-    return z13::building::primitives::ParseBlueprint(json, palette->palette);
+  const auto blocks = z13::ReadFile(file).and_then([&palette](const std::string& json) {
+    return z13::building::primitives::ParseBlueprint(json, palette.palette);
   });
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.
   const Status valid =
-      blocks.and_then([&](const auto& parsed) { return ValidateBlueprint(parsed, palette->palette, tuning); });
+      blocks.and_then([&](const auto& parsed) { return ValidateBlueprint(parsed, palette.palette, tuning); });
   if (!valid) {
     log_error("station: no scene '{}': {} ({})", *scene, valid.error(), file.string());
     return;
@@ -70,13 +71,17 @@ void PopulateStationScene(flecs::entity e, z13::gameplay::PopulateSceneEvent) {
   // Observers defer commands; SpawnPlayer, right after this event, must see the spawn points.
   const z13::ImmediateScope immediate(world);
   for (size_t i = 0; i < blocks->size(); ++i) {
-    CreateBlock(world, std::format("Station_{}", i), (*blocks)[i], palette->palette, tuning);
+    CreateBlock(world, std::format("Station_{}", i), (*blocks)[i], palette.palette, tuning);
   }
 }
 
 void RegisterSystems(flecs::world world) {
-  world.observer<z13::gameplay::PopulateSceneEvent>("StationSceneSystem::PopulateStationScene")
+  // Without the palette (CheckBlockPalette stops the launch first) this never fires.
+  world
+      .observer<z13::gameplay::PopulateSceneEvent, const StationSceneChoice, const BlockPalette, const BuildingTuning>(
+          "StationSceneSystem::PopulateStationScene")
       .event<z13::gameplay::PopulateSceneEvent>()
+      .with<StationMode>()
       .each(PopulateStationScene);
 }
 

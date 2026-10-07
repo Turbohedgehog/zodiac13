@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <expected>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -37,7 +36,5 @@ std::filesystem::path BlueprintFile(std::string_view scene);
 
 // The scenes whose blueprints lie in `assets_dir`, sorted.
 std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir);
-
-std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path& file);
 
 }  // namespace z13::building::primitives

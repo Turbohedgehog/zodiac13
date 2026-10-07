@@ -17,10 +17,10 @@
 #include <z13_launcher/module_list.h>
 
 #include <format>
-#include <fstream>
-#include <sstream>
 
 #include <yaml-cpp/yaml.h>
+
+#include <lib_core/utils/file_io.h>
 
 namespace z13 {
 
@@ -55,10 +55,7 @@ std::expected<std::vector<std::string>, std::string> ReadModuleList(const std::f
     return std::unexpected(std::format("ReadModuleList: config file '{}' does not exist", config_path.string()));
   }
 
-  std::ifstream file(config_path);
-  std::ostringstream contents;
-  contents << file.rdbuf();
-  return ParseModuleList(contents.str());
+  return ReadFile(config_path).and_then(ParseModuleList);
 }
 
 }  // namespace z13
