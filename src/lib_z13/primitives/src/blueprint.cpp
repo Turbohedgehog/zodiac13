@@ -33,21 +33,22 @@ namespace fbs_station = fbs::station;
 
 using z13::station::Orientation;
 
-const std::filesystem::path kBlueprintsDir = std::filesystem::path("station") / "blueprints";
-constexpr std::string_view kBlueprintExtension = ".json";
+std::filesystem::path BlueprintsDir() {
+  return std::filesystem::path(kBlueprintStationDir) / kBlueprintsDir;
+}
 
 static_assert(static_cast<size_t>(fbs_station::Orientation::MAX) == static_cast<size_t>(Orientation::kFaceNegZUpNegY));
 
 }  // namespace
 
 std::filesystem::path BlueprintFile(std::string_view scene) {
-  return kBlueprintsDir / std::format("{}{}", scene, kBlueprintExtension);
+  return BlueprintsDir() / std::format("{}{}", scene, kBlueprintExtension);
 }
 
 std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir) {
   std::vector<std::string> scenes;
   std::error_code error;
-  for (const auto& entry : std::filesystem::directory_iterator(assets_dir / kBlueprintsDir, error)) {
+  for (const auto& entry : std::filesystem::directory_iterator(assets_dir / BlueprintsDir(), error)) {
     if (entry.is_regular_file() && entry.path().extension() == kBlueprintExtension) {
       scenes.push_back(entry.path().stem().string());
     }

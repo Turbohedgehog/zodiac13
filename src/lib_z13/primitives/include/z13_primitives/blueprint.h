@@ -27,6 +27,12 @@
 
 namespace z13::building::primitives {
 
+// assets/station/blueprints/<scene>.json. Names rather than a path object: this library is
+// linked into several binaries, each of which would get its own global object.
+inline constexpr std::string_view kBlueprintStationDir = "station";
+inline constexpr std::string_view kBlueprintsDir = "blueprints";
+inline constexpr std::string_view kBlueprintExtension = ".json";
+
 // The blueprint a station scene is named after, relative to assets/.
 std::filesystem::path BlueprintFile(std::string_view scene);
 
