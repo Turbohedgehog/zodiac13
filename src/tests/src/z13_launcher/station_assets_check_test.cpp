@@ -22,7 +22,7 @@
 #include <vector>
 
 #include <lib_core/settings/config.h>
-#include <z13_launcher/station_scene_check.h>
+#include <z13_launcher/station_assets_check.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../../lib_z13/modules/z13_module/tests/support/z13_test_world.h"
@@ -36,6 +36,7 @@ using z13::testing::kStationSceneArg;
 using z13::testing::kTestScene;
 
 const std::filesystem::path kSourceAssets = z13::testing::SourceAsset({});
+constexpr std::string_view kMissingAssetsDirName = "z13_no_assets";
 
 
 // argv[0] is the (unused) program name boost::program_options expects.
@@ -65,6 +66,19 @@ TEST(StationSceneCheckTest, AMissingBlueprintStopsTheLaunch) {
 
   ASSERT_FALSE(checked.has_value());
   EXPECT_NE(checked.error().find("moon_base"), std::string::npos);
+}
+
+TEST(BlockPaletteCheckTest, TheShippedPalettePasses) {
+  const Status checked = CheckBlockPalette(kSourceAssets);
+
+  EXPECT_TRUE(checked.has_value()) << checked.error();
+}
+
+TEST(BlockPaletteCheckTest, AMissingPaletteStopsTheLaunch) {
+  const Status checked = CheckBlockPalette(std::filesystem::temp_directory_path() / kMissingAssetsDirName);
+
+  ASSERT_FALSE(checked.has_value());
+  EXPECT_NE(checked.error().find(z13::building::primitives::kPaletteFileName), std::string::npos) << checked.error();
 }
 
 }  // namespace

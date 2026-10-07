@@ -13,7 +13,7 @@
 
 #include <z13_launcher/module_list.h>
 #include <z13_launcher/settings_loader.h>
-#include <z13_launcher/station_scene_check.h>
+#include <z13_launcher/station_assets_check.h>
 #include <z13_settings/environment.h>
 #include <z13_settings/settings.h>
 
@@ -48,8 +48,11 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
 
   const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
-  if (const auto scene = CheckStationScene(core.GetConfig(), exe_dir / kAssetsRelativePath); !scene) {
-    log_error("{}", scene.error());
+  const std::filesystem::path assets_dir = exe_dir / kAssetsRelativePath;
+  const Status assets =
+      CheckBlockPalette(assets_dir).and_then([&] { return CheckStationScene(core.GetConfig(), assets_dir); });
+  if (!assets) {
+    log_error("{}", assets.error());
     return 1;
   }
   const auto config_path = exe_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);

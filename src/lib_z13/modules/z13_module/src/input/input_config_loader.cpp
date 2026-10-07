@@ -20,10 +20,8 @@
 #include <cstdint>
 #include <expected>
 #include <format>
-#include <fstream>
 #include <optional>
 #include <string>
-#include <system_error>
 #include <filesystem>
 #include <unordered_set>
 
@@ -33,6 +31,7 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/flatbuffers.h>
 
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/status.h>
 #include <z13_settings/environment.h>
@@ -111,17 +110,11 @@ std::expected<bool, std::string> InputConfigLoader::LoadConfig(
     return false;
   }
 
-  std::ifstream json_file(config_file_path);
-  if (!json_file.is_open()) {
-    return std::unexpected(std::format("cannot open '{}'", config_file_path.string()));
+  const auto json_input = z13::ReadFile(config_file_path);
+  if (!json_input) {
+    return std::unexpected(json_input.error());
   }
-
-  std::string json_input(
-      (std::istreambuf_iterator<char>(json_file)),
-      std::istreambuf_iterator<char>());
-  json_file.close();
-
-  return LoadConfigFromJson(json_input, input_config, action_map).transform([] { return true; });
+  return LoadConfigFromJson(*json_input, input_config, action_map).transform([] { return true; });
 }
 
 Status InputConfigLoader::LoadConfigFromJson(
@@ -259,21 +252,7 @@ Status InputConfigLoader::SaveConfig(
     return std::unexpected(json_output.error());
   }
 
-  const auto data_directory = z13::tools::environment::GetGameDataDirectory();
-  if (std::error_code error; !std::filesystem::create_directories(data_directory, error) && error) {
-    return std::unexpected(std::format("cannot create '{}': {}", data_directory.string(), error.message()));
-  }
-
-  auto config_file_path = z13::tools::environment::GetGameInputConfigJsonPath2();
-  std::ofstream output_file(config_file_path);
-  if (!output_file.is_open()) {
-    return std::unexpected(std::format("cannot open json file for write '{}'", config_file_path.string()));
-  }
-
-  output_file << *json_output;
-  output_file.close();
-
-  return {};
+  return z13::WriteFile(z13::tools::environment::GetGameInputConfigJsonPath2(), *json_output);
 }
 
 void InputConfigLoader::SetDefaults(

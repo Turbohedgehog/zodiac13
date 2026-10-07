@@ -161,10 +161,11 @@ TEST(InMemoryTransportTest, OvertakenUnreliablePacketsAreDroppedNotReordered) {
   auto server = MustCreateServer(network, kPort);
   auto client = CreateInMemoryClientTransport(network, kPort);
   std::vector<TransportEvent> connected;
-  while (connected.empty()) {
+  for (uint32_t tick = 0; tick <= kMaxDelayTicks && connected.empty(); ++tick) {
     network.Tick();
     connected = client->Service();
   }
+  ASSERT_FALSE(connected.empty()) << "the client never connected";
   const ConnectionId client_side_server = connected.at(0).connection;
   server->Service();
 

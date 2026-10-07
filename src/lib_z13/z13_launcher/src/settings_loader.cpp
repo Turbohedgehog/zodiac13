@@ -17,13 +17,11 @@
 #include <z13_launcher/settings_loader.h>
 
 #include <format>
-#include <fstream>
-#include <sstream>
-#include <system_error>
 
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
 
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/status.h>
 
@@ -38,15 +36,7 @@ Status WriteSettings(const std::filesystem::path& path, const Settings& settings
   if (!json) {
     return std::unexpected(json.error());
   }
-  if (std::error_code error; !std::filesystem::create_directories(path.parent_path(), error) && error) {
-    return std::unexpected(std::format("cannot create '{}': {}", path.parent_path().string(), error.message()));
-  }
-  std::ofstream file(path);
-  if (!file.is_open()) {
-    return std::unexpected(std::format("cannot open '{}' for write", path.string()));
-  }
-  file << *json;
-  return {};
+  return WriteFile(path, *json);
 }
 
 }  // namespace
@@ -98,13 +88,11 @@ std::expected<Settings, std::string> ReadSettings(const std::filesystem::path& c
     return defaults;
   }
 
-  std::ifstream file(config_path);
-  if (!file.is_open()) {
-    return std::unexpected(std::format("ReadSettings: cannot open '{}'", config_path.string()));
+  const auto contents = ReadFile(config_path);
+  if (!contents) {
+    return std::unexpected(std::format("ReadSettings: {}", contents.error()));
   }
-  std::ostringstream contents;
-  contents << file.rdbuf();
-  return ParseSettings(contents.str()).transform_error([&config_path](const std::string& error) {
+  return ParseSettings(*contents).transform_error([&config_path](const std::string& error) {
     return std::format("{} ({})", error, config_path.string());
   });
 }
