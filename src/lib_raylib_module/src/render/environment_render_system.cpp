@@ -20,6 +20,8 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -37,6 +39,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/frustum.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/drawn_poses.h>
@@ -48,6 +51,7 @@
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
 #include <z13/components/station.h>
+#include <z13_primitives/chunk_mesh.h>
 #include <z13_primitives/draw_order.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
@@ -57,10 +61,13 @@
 
 #include "../tools/assimp_loader.h"
 #include "../tools/math_convert.h"
+#include "block_checker.h"
+#include "block_chunks.h"
 #include "block_meshes.h"
 #include "lights.h"
 #include "render_components.h"
 #include "render_resources.h"
+#include "render_stats.h"
 #include "skybox.h"
 
 namespace z13::raylib {
@@ -88,7 +95,7 @@ constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         z13::VisualSmoothing>(world);
+                                         BlockChunks, RenderStats, z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
 // Everything not the local player's own chases its simulated transform in real time, so
@@ -118,6 +125,7 @@ Lighting LoadLighting() {
 
   auto res = std::make_shared<LightingResources>();
   res->shader = MakeManagedShader(shader);
+  res->checker = SetupCheckerUniforms(shader);
 
   Light sun{};
   sun.kind = LightKind::Directional;
@@ -285,13 +293,20 @@ void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
 using BlockQuery = flecs::query<const z13::station::Block>;
 using BrushQuery = flecs::query<const z13::building::Brush, const Eigen::Matrix4f>;
 
-void DrawBlock(BlockMeshes& meshes, const z13::station::Block& block, BlockMeshes::OptionalPalette palette,
-               ::Color tint) {
+// Blocks drawn one by one, past the chunks: glass and previews.
+struct SingleBlockDrawing {
+  std::reference_wrapper<BlockMeshes> meshes;
+  std::reference_wrapper<const Lighting> lighting;
+  BlockMeshes::OptionalPalette palette;
+};
+
+void DrawBlock(const SingleBlockDrawing& drawing, const z13::station::Block& block, ::Color tint) {
   const std::shared_ptr<::Model> model =
-      meshes.Get({.type_id = block.spec.type_id, .size = block.spec.size}, palette);
+      drawing.meshes.get().Get({.type_id = block.spec.type_id, .size = block.spec.size}, drawing.palette);
   if (model->meshCount == 0) {
     return;
   }
+  UseChecker(drawing.lighting, z13::building::primitives::MaterialOf(drawing.palette, block.spec.type_id));
   const Eigen::Isometry3f pose =
       z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
   model->transform = EigenToRaylibMatrix(Eigen::Matrix4f(pose.matrix()));
@@ -301,20 +316,19 @@ void DrawBlock(BlockMeshes& meshes, const z13::station::Block& block, BlockMeshe
 // What a build would place: in station mode the brush's BrushPreview, green if it would
 // be accepted, else the ship scene's cube, snapped around the brush as the build snaps it.
 void DrawBrushPreview(
-    const flecs::world& world, flecs::entity brush, const Eigen::Matrix4f& transform, BlockMeshes& meshes,
-    BlockMeshes::OptionalPalette palette) {
+    const flecs::world& world, flecs::entity brush, const Eigen::Matrix4f& transform,
+    const SingleBlockDrawing& drawing) {
   if (world.has<z13::station::StationMode>()) {
     if (brush.has<z13::station::BrushPreview>()) {
       const auto& preview = brush.get<z13::station::BrushPreview>();
       const ::Color valid_tint =
           preview.kind == z13::station::BrushPreview::Kind::kBuild ? kValidBuildTint : kValidCutTint;
-      DrawBlock(meshes, preview.block, palette, preview.valid ? valid_tint : kRefusedBuildTint);
+      DrawBlock(drawing, preview.block, preview.valid ? valid_tint : kRefusedBuildTint);
     }
     return;
   }
   const Eigen::Vector3f point = z13::math::ExtractTranslation<float>(transform) / z13::station::kCellSize;
-  DrawBlock(meshes, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), palette,
-            kBrushPreviewTint);
+  DrawBlock(drawing, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), kBrushPreviewTint);
 }
 
 BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
@@ -328,38 +342,67 @@ std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
   return blocks;
 }
 
-void DrawSome(BlockMeshes& meshes, std::span<const z13::station::Block> blocks, std::span<const size_t> which,
-              BlockMeshes::OptionalPalette palette) {
-  for (const size_t i : which) {
-    DrawBlock(meshes, blocks[i], palette, WHITE);
+// Rebuilds the chunks only when blocks, the chunk size or the palette changed.
+void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::RenderTuning& tuning,
+                     BlockMeshes::OptionalPalette palette) {
+  // Checked first: iterating the query resets its changed state.
+  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette)) {
+    chunks.Sync(CollectBlocks(blocks), palette, tuning.chunk_cells);
   }
 }
 
-// Opaque blocks and players first; then glass and previews from the farthest, blended over
+Eigen::AlignedBox3f BoundsInMeters(const z13::station::Block& block) {
+  const z13::building::primitives::CellBox cells = z13::building::primitives::OccupiedCells(block);
+  return {cells.min.cast<float>() * z13::station::kCellSize, cells.End().cast<float>() * z13::station::kCellSize};
+}
+
+std::vector<z13::station::Block> VisibleBlocks(
+    std::span<const z13::station::Block> blocks, const z13::math::Frustum& frustum) {
+  std::vector<z13::station::Block> visible;
+  std::ranges::copy_if(blocks, std::back_inserter(visible), [&frustum](const z13::station::Block& block) {
+    return frustum.Intersects(BoundsInMeters(block));
+  });
+  return visible;
+}
+
+// The view-projection rlgl draws with, set by BeginScene3D.
+z13::math::Frustum CurrentFrustum() {
+  return z13::math::Frustum(RaylibToEigenMatrix(rlGetMatrixProjection()) * RaylibToEigenMatrix(rlGetMatrixModelview()));
+}
+
+// Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
-void DrawScene(const flecs::world& world, const BlockQuery& block_query, const BrushQuery& brushes,
-               const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn, const ::Vector3& eye) {
-  if (!world.has<BlockMeshes>()) {
-    DrawRemotePlayers(world, remote_players, drawn);
+void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
+               const z13::DrawnPoses& drawn, const ::Vector3& eye, RenderStats& stats) {
+  stats = {};
+  DrawRemotePlayers(world, remote_players, drawn);
+  if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
     return;
   }
-  BlockMeshes& meshes = world.get_mut<BlockMeshes>();
-  const BlockMeshes::OptionalPalette palette = PaletteOf(world);
-  const std::vector<z13::station::Block> blocks = CollectBlocks(block_query);
-  const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
-      blocks, palette, Eigen::Vector3f(eye.x, eye.y, eye.z) / z13::station::kCellSize);
-  DrawSome(meshes, blocks, order.opaque, palette);
-  DrawRemotePlayers(world, remote_players, drawn);
+  const Lighting& lighting = world.get<Lighting>();
+  const SingleBlockDrawing drawing {
+      .meshes = world.get_mut<BlockMeshes>(), .lighting = lighting, .palette = PaletteOf(world)};
+  const BlockChunks& chunks = world.get<BlockChunks>();
+  const z13::math::Frustum frustum = CurrentFrustum();
+  chunks.DrawOpaque(frustum, lighting, stats);
+
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
-  DrawSome(meshes, blocks, order.transparent, palette);
-  brushes.each([&world, &meshes, palette](
-                   flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
-    DrawBrushPreview(world, brush, transform, meshes, palette);
+  const std::vector<z13::station::Block> glass = VisibleBlocks(chunks.Transparent(), frustum);
+  stats.glass = chunks.Transparent().size();
+  stats.glass_drawn = glass.size();
+  const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
+      glass, drawing.palette, Eigen::Vector3f(eye.x, eye.y, eye.z) / z13::station::kCellSize);
+  for (const size_t i : order.transparent) {
+    DrawBlock(drawing, glass[i], WHITE);
+  }
+  brushes.each([&world, &drawing](flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
+    DrawBrushPreview(world, brush, transform, drawing);
   });
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
-  meshes.ReleaseUnused();
+  StopChecker(lighting);
+  drawing.meshes.get().ReleaseUnused();
 }
 
 // Replacement for BeginMode3D/EndMode3D: those need CORE for the aspect ratio,
@@ -383,6 +426,8 @@ void EndScene3D() {
 void RegisterSystems(flecs::world world) {
   // The launcher overwrites this with the loaded settings (z13::InstallSettings).
   world.set<z13::VisualSmoothing>({});
+  world.set<z13::RenderTuning>({});
+  world.set<RenderStats>({});
   // Shared by the closures below; lives as long as the world.
   auto drawing = std::make_shared<SmoothedDrawing>();
 
@@ -393,7 +438,9 @@ void RegisterSystems(flecs::world world) {
       .each([world](RaylibData&) {
         Lighting lighting = LoadLighting();
         world.set<AvatarModel>(LoadAvatar(lighting));
-        world.set<BlockMeshes>(BlockMeshes(lighting.res ? *lighting.res->shader : ::Shader {}));
+        const ::Shader shader = lighting.res ? *lighting.res->shader : ::Shader {};
+        world.set<BlockMeshes>(BlockMeshes(shader));
+        world.set<BlockChunks>(BlockChunks(shader));
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
       });
@@ -432,7 +479,7 @@ void RegisterSystems(flecs::world world) {
       .each(ReleaseOrphanRaylibCamera);
 
   const BlockQuery block_query =
-      world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::BlockQuery").build();
+      world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::BlockQuery").detect_changes().build();
   const BrushQuery brush_query =
       world.query_builder<const z13::building::Brush, const Eigen::Matrix4f>("EnvironmentRenderSystem::BrushQuery")
           .build();
@@ -454,14 +501,24 @@ void RegisterSystems(flecs::world world) {
         ChaseDrawnPoses(*drawing, settings, drawn_query);
       });
 
-  // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
+  world.system<BlockChunks, const z13::RenderTuning, const z13::building::primitives::BlockPalette*>(
+           "EnvironmentRenderSystem::SyncBlockChunks")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
+      .each([block_query](BlockChunks& chunks, const z13::RenderTuning& tuning,
+                          const z13::building::primitives::BlockPalette* palette) {
+        SyncBlockChunks(chunks, block_query, tuning,
+                        palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt);
+      });
+
+  // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
+  world.system<const RaylibCamera, const WindowSize, RenderStats>("EnvironmentRenderSystem::Draw")
+      .kind<Render>()
+      .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
-      .each([world, block_query, brush_query, remote_player_query, drawing](
-                const RaylibCamera& raylib_camera, const WindowSize& size) {
+      .each([world, brush_query, remote_player_query, drawing](
+                const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -489,7 +546,7 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        DrawScene(world, block_query, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position);
+        DrawScene(world, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position, stats);
 
         EndScene3D();
       });

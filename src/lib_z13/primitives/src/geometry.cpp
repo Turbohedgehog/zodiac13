@@ -107,18 +107,6 @@ std::expected<std::vector<ConvexSolid>, std::string> MakeDoorFrame(
   };
 }
 
-// Projects onto the plane the normal is most nearly perpendicular to, in cells.
-Eigen::Vector2f CellUv(const Eigen::Vector3f& position, const Eigen::Vector3f& normal) {
-  const Eigen::Vector3f magnitude = normal.cwiseAbs();
-  if (magnitude.x() >= magnitude.y() && magnitude.x() >= magnitude.z()) {
-    return {position.y(), position.z()};
-  }
-  if (magnitude.y() >= magnitude.z()) {
-    return {position.x(), position.z()};
-  }
-  return {position.x(), position.y()};
-}
-
 }  // namespace
 
 // Temporary: shapes are built in code until they come from models in a later stage.
@@ -152,7 +140,6 @@ Mesh BuildMesh(std::span<const ConvexSolid> solids) {
           const Eigen::Vector3f& position = solid.vertices[index];
           mesh.positions.push_back(position);
           mesh.normals.push_back(normal);
-          mesh.uvs.push_back(CellUv(position, normal));
         }
       }
     }

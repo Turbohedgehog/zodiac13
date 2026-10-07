@@ -75,6 +75,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.visual_smoothing) {
     settings.visual_smoothing = std::make_unique<fbs::settings::VisualSmoothingT>();
   }
+  if (!settings.render) {
+    settings.render = std::make_unique<fbs::settings::RenderTuningT>();
+  }
 }
 
 SessionSettings SessionOf(const Settings& settings) {
@@ -97,7 +100,7 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
 
 Status ValidateSettings(const Settings& settings) {
   if (!settings.core || !settings.connect_timeout || !settings.net || !settings.physics || !settings.building ||
-      !settings.visual_smoothing) {
+      !settings.visual_smoothing || !settings.render) {
     return Invalid("nested tables", "must be set");
   }
 
@@ -156,7 +159,8 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 }
 
 void InstallSettings(flecs::world world, const Settings& settings) {
-  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing>(world);
+  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
+                                  RenderTuning>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
   }
@@ -171,6 +175,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.visual_smoothing) {
     world.set(VisualSmoothing(*settings.visual_smoothing));
+  }
+  if (settings.render) {
+    world.set(RenderTuning(*settings.render));
   }
 }
 

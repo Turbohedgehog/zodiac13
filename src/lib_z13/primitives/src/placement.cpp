@@ -24,6 +24,10 @@ namespace {
 
 using z13::station::Orientation;
 
+// Prime multipliers spreading neighbouring cells across buckets.
+constexpr size_t kHashY = 73856093;
+constexpr size_t kHashZ = 19349663;
+
 enum class Axis : uint8_t { kPosX, kNegX, kPosY, kNegY, kPosZ, kNegZ };
 
 struct Turn {
@@ -127,6 +131,15 @@ CellBox CellBox::Intersection(const CellBox& other) const {
   const Eigen::Vector3i low = min.cwiseMax(other.min);
   const Eigen::Vector3i high = End().cwiseMin(other.End());
   return {.min = low, .extent = (high - low).cwiseMax(Eigen::Vector3i::Zero())};
+}
+
+size_t CellHash::operator()(const Eigen::Vector3i& cell) const {
+  return static_cast<size_t>(cell.x()) ^ (static_cast<size_t>(cell.y()) * kHashY) ^
+         (static_cast<size_t>(cell.z()) * kHashZ);
+}
+
+Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell, int chunk_cells) {
+  return cell.unaryExpr([chunk_cells](int c) { return c >= 0 ? c / chunk_cells : -((-c - 1) / chunk_cells) - 1; });
 }
 
 CellBox OccupiedCells(const z13::station::Block& block) {

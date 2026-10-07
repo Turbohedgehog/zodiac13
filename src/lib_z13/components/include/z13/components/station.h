@@ -96,6 +96,8 @@ struct Block {
   using State = void;
   BlockSpec spec;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+
+  bool operator==(const Block&) const = default;
 };
 
 // What a player's next build places, at the brush.

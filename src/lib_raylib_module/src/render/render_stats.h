@@ -16,17 +16,18 @@
 
 #pragma once
 
-#include <Eigen/Dense>
-#include <raylib.h>
+#include <cstddef>
 
 namespace z13::raylib {
 
-// Z-up world transform (column 0 = forward, column 2 = up) -> raylib camera pose.
-// Keeps `fovy` / `projection` intact.
-void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transform);
-
-// Column-major Eigen matrix -> raylib Matrix (also column-major internally).
-::Matrix EigenToRaylibMatrix(const Eigen::Matrix4f& m);
-Eigen::Matrix4f RaylibToEigenMatrix(const ::Matrix& m);
+// What the last frame drew, for the stats overlay; never state.
+struct RenderStats {
+  using Singleton = void;
+  size_t chunks {};
+  size_t chunks_drawn {};
+  size_t meshes_drawn {};
+  size_t glass {};
+  size_t glass_drawn {};
+};
 
 }  // namespace z13::raylib

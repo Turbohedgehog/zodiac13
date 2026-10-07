@@ -37,6 +37,12 @@ table VisualSmoothing {
   snap_angle_deg: float = 90 (min: 0, max: 180, cli: "--visual-snap-angle");
 }
 
+// How the station is drawn (client only, never sent).
+table RenderTuning {
+  // Edge of a render chunk: a smaller one rebuilds faster after a build, a larger one draws in fewer calls.
+  chunk_cells: int32 = 32 (min: 1, max: 1024, cli: "--render-chunk-cells");
+}
+
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
@@ -44,6 +50,7 @@ table Settings {
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;
   visual_smoothing: VisualSmoothing;
+  render: RenderTuning;
 }
 
 root_type Settings;
