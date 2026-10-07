@@ -1,0 +1,72 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// A ready-made station (assets/station/blueprints/), placed block by block; see
+// docs/station-primitives-plan.md. Written by docs/station-layout/generate_layout.py.
+
+include "primitives.fbs";
+
+namespace z13.fbs.station;
+
+struct Cell {
+  x: int;
+  y: int;
+  z: int;
+}
+
+// z13::station::Orientation, in the same order.
+enum Orientation : ubyte {
+  FacePosXUpPosZ,
+  FacePosXUpNegZ,
+  FacePosXUpPosY,
+  FacePosXUpNegY,
+  FaceNegXUpPosZ,
+  FaceNegXUpNegZ,
+  FaceNegXUpPosY,
+  FaceNegXUpNegY,
+  FacePosYUpPosZ,
+  FacePosYUpNegZ,
+  FacePosYUpPosX,
+  FacePosYUpNegX,
+  FaceNegYUpPosZ,
+  FaceNegYUpNegZ,
+  FaceNegYUpPosX,
+  FaceNegYUpNegX,
+  FacePosZUpPosX,
+  FacePosZUpNegX,
+  FacePosZUpPosY,
+  FacePosZUpNegY,
+  FaceNegZUpPosX,
+  FaceNegZUpNegX,
+  FaceNegZUpPosY,
+  FaceNegZUpNegY,
+}
+
+table BlueprintBlock {
+  // The palette entry's name: ids may differ between palettes, names are what a blueprint
+  // is checked against.
+  primitive: string;
+  // The lowest corner of the cells the block occupies.
+  cell: Cell;
+  size: Cells;
+  orientation: Orientation;
+}
+
+table Blueprint {
+  blocks: [BlueprintBlock];
+}
+
+root_type Blueprint;

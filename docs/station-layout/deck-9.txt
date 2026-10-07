@@ -1,5 +1,5 @@
 Deck 9: Command deck. Floor at 32 m.
-1 char = 1 m (4 cells). # wall, = window, D door, X welded, / stairs, L lift, : dance floor.
+1 char = 1 m (4 cells). # wall, = window, D door, X welded, / stairs, L lift, : dance floor, _ counter.
 . hidden tech tunnel, ~ tunnel under a window ledge, S hidden door, H ladder between decks.
 AL - airlocks at the spine's ends, AIRLOCK-N/S - EVA airlocks by the stairs, SW - switchboard, TECH - tech rooms.
 

@@ -31,6 +31,7 @@ constexpr std::string_view kQuickSavePathOption = "quick-save-path";
 constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
 constexpr std::string_view kStationOption = "station";
+constexpr std::string_view kStationSceneOption = "station-scene";
 
 }  // namespace
 
@@ -47,7 +48,10 @@ Config::Config() {
       (kConnectOption.data(), po::value<std::string>(),
        "Join host[:port] on startup instead of showing the main menu")
       (kStationOption.data(), po::bool_switch(&command_line_.station),
-       "Start in station-building mode (with --server, host it); a client gets the mode from the server");
+       "Start in station-building mode (with --server, host it); a client gets the mode from the server")
+      (kStationSceneOption.data(), po::value<std::string>(),
+       "Blueprint to fill the station with (a file name under assets/station/blueprints/, without .json; "
+       "without it the station starts empty); implies --station");
 }
 
 void Config::Clear() {
@@ -85,8 +89,14 @@ Status Config::ValidateAndApplyArguments() {
     return std::unexpected(std::format("--{} and --{} cannot be used together", kServerOption, kConnectOption));
   }
 
+  if (variables_map_.count(kStationSceneOption.data()) > 0) {
+    command_line_.station = true;
+    command_line_.station_scene = variables_map_[kStationSceneOption.data()].as<std::string>();
+  }
+
   if (command_line_.station && variables_map_.count(kConnectOption.data()) > 0) {
-    return std::unexpected(std::format("--{} and --{} cannot be used together", kStationOption, kConnectOption));
+    const std::string_view station_option = command_line_.station_scene ? kStationSceneOption : kStationOption;
+    return std::unexpected(std::format("--{} and --{} cannot be used together", station_option, kConnectOption));
   }
 
   if (variables_map_.count(kConnectOption.data()) > 0) {
@@ -189,6 +199,10 @@ bool Config::IsServer() const {
 
 bool Config::IsStation() const {
   return command_line_.station;
+}
+
+std::optional<std::string> Config::GetStationScene() const {
+  return command_line_.station_scene;
 }
 
 uint16_t Config::GetPort() const {

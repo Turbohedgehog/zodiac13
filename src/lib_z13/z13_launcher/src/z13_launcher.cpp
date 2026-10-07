@@ -13,6 +13,7 @@
 
 #include <z13_launcher/module_list.h>
 #include <z13_launcher/settings_loader.h>
+#include <z13_launcher/station_scene_check.h>
 #include <z13_settings/environment.h>
 #include <z13_settings/settings.h>
 
@@ -25,6 +26,7 @@ const std::filesystem::path kConfigRelativePath =
 // Used instead of kConfigRelativePath for --server: no raylib_module (no display).
 const std::filesystem::path kServerConfigRelativePath =
     std::filesystem::path("config") / "z13_config_server.yaml";
+const std::filesystem::path kAssetsRelativePath = "assets";
 
 }  // namespace
 
@@ -46,6 +48,10 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
 
   const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
+  if (const auto scene = CheckStationScene(core.GetConfig(), exe_dir / kAssetsRelativePath); !scene) {
+    log_error("{}", scene.error());
+    return 1;
+  }
   const auto config_path = exe_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);
 
   const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());

@@ -75,11 +75,11 @@ using z13::testing::Z13TestWorld;
 // Server first: a client's connect attempt only ever resolves against whatever's
 // already listening at the moment it's created.
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  return Z13TestWorld({std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 // Matches building_system.cpp's ProcessBuildBlockRequest: a block only round-trips
@@ -90,8 +90,7 @@ void SpawnBlock(flecs::world world, const std::string& name, const Eigen::Matrix
       .set(z13::testing::CubeAt(z13::math::ExtractTranslation<float>(transform)));
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 

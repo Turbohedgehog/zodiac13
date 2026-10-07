@@ -16,13 +16,11 @@
 
 #include <gtest/gtest.h>
 
-#include <filesystem>
-#include <fstream>
 #include <span>
-#include <sstream>
 #include <vector>
 
 #include <z13_primitives/palette.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../src/block_entities.h"
 #include "../src/build_validation.h"
@@ -40,10 +38,7 @@ constexpr uint32_t kSpawnPointId = 8;
 constexpr uint32_t kUnknownId = 999;
 
 z13::building::primitives::Palette ShippedPalette() {
-  std::ifstream stream(std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json");
-  std::ostringstream contents;
-  contents << stream.rdbuf();
-  return z13::building::primitives::ParsePalette(contents.str()).value();
+  return z13::testing::ShippedPalette().value();
 }
 
 Block Wall(const Eigen::Vector3i& cell) {

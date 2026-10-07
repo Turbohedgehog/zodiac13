@@ -6,11 +6,10 @@ Deck 3 (Engineering deck): berths 0, rooms 23, doors 33, area 3862 m2, air cells
 Deck 4 (Security & storage deck): berths 17, rooms 48, doors 53, area 3661 m2, air cells 820,064
 Deck 5 (Habitat deck A): berths 115, rooms 143, doors 149, area 2979 m2, air cells 667,296
 Deck 6 (Habitat deck B): berths 115, rooms 143, doors 149, area 2979 m2, air cells 667,296
-Deck 7 (Campus deck): berths 0, rooms 25, doors 32, area 3888 m2, air cells 870,912
+Deck 7 (Campus deck): berths 0, rooms 25, doors 32, area 3899 m2, air cells 873,376
 Deck 8 (Science deck): berths 0, rooms 24, doors 31, area 3911 m2, air cells 876,064
 Deck 9 (Command deck): berths 13, rooms 36, doors 43, area 3721 m2, air cells 833,504
 
 Single cabins: 260. Rooms 490, doors 568.
-Air cells (0.25 m grid): 7,311,584.
-Blocks (one block per straight run, station-blocks-runs.txt): 1892 - walls 1050, windows 5, doors 568, slabs 125, wedges 144.
-Blocks (panels up to 4 m, station-blocks-panels.txt): 7493 - walls 3057, windows 41, doors 568, slabs 3683, wedges 144.
+Air cells (0.25 m grid): 7,314,048.
+Blueprint blocks (test.json): 3499 - Floor 90, Wall 2724, Door 454, HiddenDoor 106, Slope 112, SpawnPoint 8, Window 5.

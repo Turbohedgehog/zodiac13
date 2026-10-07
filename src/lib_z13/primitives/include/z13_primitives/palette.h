@@ -69,6 +69,7 @@ struct Palette {
   uint64_t hash {};
 
   std::optional<std::reference_wrapper<const Primitive>> Find(uint32_t id) const;
+  std::optional<std::reference_wrapper<const Primitive>> Find(std::string_view name) const;
 };
 
 // The loaded palette; rebuilt from the file at startup, never state.

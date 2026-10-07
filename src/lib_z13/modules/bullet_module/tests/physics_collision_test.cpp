@@ -378,7 +378,7 @@ TEST(PhysicsMainMenuTest, ExitToMainMenuDestroysThePhysicsWorld) {
 }
 
 TEST(PhysicsMainMenuTest, NoPhysicsWorldBeforeTheGameStarts) {
-  z13::testing::Z13TestWorld test_world(false);
+  z13::testing::Z13TestWorld test_world(std::vector<std::string> {});
   flecs::world& world = test_world.World();
   z13::flecs_tools::TickWorld(world, kTestDeltaTime);
   EXPECT_FALSE(world.has<PhysicsWorld>());

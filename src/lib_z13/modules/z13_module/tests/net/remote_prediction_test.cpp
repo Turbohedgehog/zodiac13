@@ -70,9 +70,9 @@ class RemotePredictionSession {
  public:
   explicit RemotePredictionSession(RemoteInputPrediction prediction)
       : settings_(SettingsFor(prediction)),
-        server_(/*skip_main_menu=*/false, {std::string(kServerArg)}, network_, settings_),
-        client_a_(/*skip_main_menu=*/false, ClientArgs(), network_, settings_),
-        client_b_(/*skip_main_menu=*/false, ClientArgs(), network_, settings_) {}
+        server_({std::string(kServerArg)}, network_, settings_),
+        client_a_(ClientArgs(), network_, settings_),
+        client_b_(ClientArgs(), network_, settings_) {}
 
   // Until B has spawned A too.
   bool Connect() {
@@ -107,8 +107,7 @@ class RemotePredictionSession {
     return {std::string(kConnectArg), std::string(kTestServerEndpoint)};
   }
 
-  static bool IsConnected(Z13TestWorld& world) {
-    return world.World().has<z13::gameplay::Gameplay>() &&
+  static bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
         world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
   }
 

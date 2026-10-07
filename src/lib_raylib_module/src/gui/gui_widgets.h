@@ -25,6 +25,7 @@ namespace z13::raylib::gui {
 
 inline constexpr ImVec2 kButtonSize{200.f, 0.f};
 inline constexpr ImVec4 kErrorColor{1.f, 0.4f, 0.4f, 1.f};
+inline constexpr float kAddressFieldWidth = 200.f;
 
 inline void DrawError(std::string_view text) {
   ImGui::TextColored(kErrorColor, "%s", std::string(text).c_str());

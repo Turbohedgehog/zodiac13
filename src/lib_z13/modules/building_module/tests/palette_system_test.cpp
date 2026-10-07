@@ -16,11 +16,9 @@
 
 #include <gtest/gtest.h>
 
-#include <filesystem>
-#include <fstream>
-#include <sstream>
 
 #include <z13_primitives/palette.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
 
@@ -29,13 +27,8 @@ namespace {
 
 using z13::building::primitives::BlockPalette;
 
-const std::filesystem::path kShippedPalettePath = std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json";
-
 TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
-  std::ifstream stream(kShippedPalettePath);
-  std::ostringstream shipped;
-  shipped << stream.rdbuf();
-  const auto expected = z13::building::primitives::ParsePalette(shipped.str());
+  const auto expected = z13::testing::ShippedPalette();
   ASSERT_TRUE(expected.has_value()) << expected.error();
 
   z13::testing::Z13TestWorld test_world;

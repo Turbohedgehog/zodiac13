@@ -57,20 +57,18 @@ using z13::testing::Z13TestWorld;
 constexpr uint64_t kSecondsToSettle = 4;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  return Z13TestWorld({std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-uint64_t Tick(Z13TestWorld& world) {
-  return world.World().get<ft::SimulationClock>().tick;
+uint64_t Tick(Z13TestWorld& world) {return world.World().get<ft::SimulationClock>().tick;
 }
 
 int64_t RealOffset(Z13TestWorld& server, Z13TestWorld& client) {
@@ -153,8 +151,7 @@ TEST(ClockSyncTest, ALaggingClientCatchesUpWithoutJumping) {
   EXPECT_GE(RealOffset(server, client), -kClockCatchUpThresholdTicks);
 }
 
-size_t LoggedFor(Z13TestWorld& world, uint32_t player_id) {
-  return static_cast<size_t>(std::ranges::count_if(
+size_t LoggedFor(Z13TestWorld& world, uint32_t player_id) {return static_cast<size_t>(std::ranges::count_if(
       world.World().get<z13::gameplay::PlayerActionLog>().log.Entries(),
       [player_id](const z13::gameplay::PlayerActionRecord& record) { return record.player_id == player_id; }));
 }

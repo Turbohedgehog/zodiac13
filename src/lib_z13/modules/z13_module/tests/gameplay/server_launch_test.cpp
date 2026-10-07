@@ -37,7 +37,7 @@ using z13::testing::kServerArg;
 using z13::testing::Z13TestWorld;
 
 TEST(ServerLaunchTest, DefaultRoleIsNeitherServerNorClient) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false);
+  Z13TestWorld test_world(std::vector<std::string> {});
 
   EXPECT_FALSE(test_world.World().has<ServerRole>());
   EXPECT_FALSE(test_world.World().has<ClientRole>());
@@ -47,7 +47,7 @@ TEST(ServerLaunchTest, DefaultRoleIsNeitherServerNorClient) {
 }
 
 TEST(ServerLaunchTest, ServerFlagStartsGameplayWithoutPauseAndSetsServerRole) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kServerArg)});
+  Z13TestWorld test_world({std::string(kServerArg)});
 
   EXPECT_TRUE(test_world.World().has<Gameplay>());
   EXPECT_FALSE(test_world.World().has<Pause>());
@@ -58,7 +58,7 @@ TEST(ServerLaunchTest, ServerFlagStartsGameplayWithoutPauseAndSetsServerRole) {
 }
 
 TEST(ServerLaunchTest, ConnectFlagSetsClientRoleButStaysAtMainMenuForNow) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kConnectArg), "127.0.0.1:26213"});
+  Z13TestWorld test_world({std::string(kConnectArg), "127.0.0.1:26213"});
 
   EXPECT_FALSE(test_world.World().has<Gameplay>());
   EXPECT_TRUE(test_world.World().has<Pause>());

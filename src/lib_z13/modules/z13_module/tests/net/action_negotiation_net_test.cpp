@@ -73,20 +73,18 @@ constexpr ActionInfo::EnumValueType kClientValue = 22;
 constexpr uint32_t kIdShift = 10;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  return Z13TestWorld({std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-bool HasFailed(Z13TestWorld& world) {
-  return world.World().get<ConnectionStatus>().state == ConnectionState::kFailed;
+bool HasFailed(Z13TestWorld& world) {return world.World().get<ConnectionStatus>().state == ConnectionState::kFailed;
 }
 
 void AddActionFromMissingModule(flecs::world world, std::string_view enum_name, std::string_view value_name, ActionInfo::EnumValueType value) {

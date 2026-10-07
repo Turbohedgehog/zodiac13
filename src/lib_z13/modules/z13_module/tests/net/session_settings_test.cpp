@@ -53,16 +53,15 @@ Settings ServerSettings() {
 }
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network, const Settings& settings) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
+  return Z13TestWorld({std::string(kServerArg)}, network, settings);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network, const Settings& settings = MakeSettings()) {
   return Z13TestWorld(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+      {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 

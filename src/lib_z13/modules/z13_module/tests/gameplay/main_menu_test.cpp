@@ -34,13 +34,12 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint32_t kFirstBlockId = 1;
 
-void PlaceBlock(Z13TestWorld& test_world) {
-  EnterBuildMode(test_world);
+void PlaceBlock(Z13TestWorld& test_world) {EnterBuildMode(test_world);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 }
 
 TEST(MainMenuTest, SkipMainMenuStartsWithSceneImmediately) {
-  Z13TestWorld test_world(true);
+  Z13TestWorld test_world;
 
   EXPECT_TRUE(test_world.World().has<Gameplay>());
   EXPECT_FALSE(test_world.World().has<Pause>());
@@ -48,7 +47,7 @@ TEST(MainMenuTest, SkipMainMenuStartsWithSceneImmediately) {
 }
 
 TEST(MainMenuTest, NormalLaunchStartsAtMainMenuWithoutScene) {
-  Z13TestWorld test_world(false);
+  Z13TestWorld test_world(std::vector<std::string> {});
 
   EXPECT_FALSE(test_world.World().has<Gameplay>());
   EXPECT_TRUE(test_world.World().has<Pause>());
@@ -56,7 +55,7 @@ TEST(MainMenuTest, NormalLaunchStartsAtMainMenuWithoutScene) {
 }
 
 TEST(MainMenuTest, StartGameSpawnsPlayer) {
-  Z13TestWorld test_world(false);
+  Z13TestWorld test_world(std::vector<std::string> {});
 
   test_world.StartGame();
 

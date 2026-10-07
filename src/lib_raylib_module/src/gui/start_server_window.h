@@ -16,13 +16,36 @@
 
 #pragma once
 
+#include <cstddef>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include <flecs.h>
 
 #include "gui_windows.h"
 
 namespace z13::raylib::gui {
 
+// Success removes Pause, which closes the menu; only a failure is left to show here.
+class StartServerWindow : public Window {
+ public:
+  explicit StartServerWindow(flecs::world world);
+
+ protected:
+  void DrawBody() override;
+
+ private:
+  void DrawSceneCombo();
+
+  std::string port_;
+  bool station_ {};
+  // The blueprints under assets/station/blueprints/; `scene_` indexes them, none is empty.
+  std::vector<std::string> station_scenes_;
+  std::optional<size_t> scene_;
+  bool submitted_ {};
+};
+
 WindowPtr MakeStartServerWindow(flecs::world world);
-WindowPtr MakeJoinWindow(flecs::world world);
 
 }  // namespace z13::raylib::gui

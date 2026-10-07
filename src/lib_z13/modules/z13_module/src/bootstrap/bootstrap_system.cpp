@@ -49,8 +49,8 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponent<z13::net::ConnectionStatus>(world);
   // BlockSpec first: Block and BlockBrush hold one.
   z13::flecs_tools::RegisterComponentMeta<z13::station::BlockSpec>(world);
-  z13::flecs_tools::RegisterComponents<z13::station::StationMode, z13::station::SpawnPoint, z13::station::Block,
-                                         z13::station::BlockBrush>(world);
+  z13::flecs_tools::RegisterComponents<z13::station::StationMode, z13::station::StationSceneChoice,
+                                       z13::station::SpawnPoint, z13::station::Block, z13::station::BlockBrush>(world);
   world.component<z13::gameplay::PopulateSceneEvent>();
 }
 
@@ -74,6 +74,7 @@ void OnSelectInitialState(flecs::entity e, const SelectInitialStateEvent&) {
 
   if (config->get().IsStation()) {
     world.add<z13::station::StationMode>();
+    world.set(z13::station::StationSceneChoice {.scene = config->get().GetStationScene()});
   }
 
   if (config->get().IsServer()) {
@@ -101,6 +102,7 @@ void RegisterSystems(flecs::world world) {
   // Set here, not next to its registration (see PhysicsSystem::RegisterSystems). The menu
   // reads it before any session has written it.
   world.set<z13::net::ConnectionStatus>({});
+  world.set<z13::station::StationSceneChoice>({});
 
   world.observer<LoadConfigEvent>("BootstrapSystem::OnLoadConfig")
     .event(flecs::OnAdd)

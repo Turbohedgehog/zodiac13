@@ -16,14 +16,19 @@
 
 #pragma once
 
-#include <lib_core/world/core_types.h>
+#include <expected>
+#include <string>
+#include <string_view>
+#include <vector>
 
-namespace z13::building {
+#include <z13/components/station.h>
+#include <z13_primitives/palette.h>
 
-// Lays out the scene a new station game starts in: a floor with a spawn point on it.
-class ConstructionSiteSystem {
- public:
-  static void Register(flecs::world& world);
-};
+namespace z13::building::primitives {
 
-}  // namespace z13::building
+// Parses blueprint JSON (blueprint.fbs) into blocks of `palette`, naming the first block
+// whose primitive the palette lacks. Placement isn't checked here: that's ValidateBuild's.
+std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
+    std::string_view json, const Palette& palette);
+
+}  // namespace z13::building::primitives

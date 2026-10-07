@@ -64,8 +64,6 @@ using z13::testing::Facing;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
-using z13::testing::kServerArg;
-using z13::testing::kStationArg;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::StationWorld;
@@ -87,14 +85,12 @@ const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 // The Building action group joins a frame after the tool is out.
 constexpr int kToolSettleTicks = 3;
 
-void Ticks(Z13TestWorld& test_world, int count) {
-  for (int i = 0; i < count; ++i) {
+void Ticks(Z13TestWorld& test_world, int count) {for (int i = 0; i < count; ++i) {
     test_world.Tick();
   }
 }
 
-flecs::entity LocalBuilder(Z13TestWorld& test_world) {
-  test_world.Tick();
+flecs::entity LocalBuilder(Z13TestWorld& test_world) {test_world.Tick();
   z13::testing::EnterBuildMode(test_world);
   Ticks(test_world, kToolSettleTicks);
   return test_world.Player();
@@ -233,8 +229,7 @@ struct WallAhead {
   Block block;
 };
 
-WallAhead AddWallAhead(Z13TestWorld& test_world, flecs::entity player) {
-  const Eigen::Vector3i eye =
+WallAhead AddWallAhead(Z13TestWorld& test_world, flecs::entity player) {const Eigen::Vector3i eye =
       (z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) / z13::station::kCellSize)
           .array().floor().cast<int>();
   const Block wall {
@@ -420,11 +415,9 @@ std::string Checkpoint(Z13TestWorld& test_world) {
 
 TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
-  Z13TestWorld client_a(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
-  Z13TestWorld client_b(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
+  Z13TestWorld client_a({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_b({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   const auto all = [&](uint64_t ticks) {
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
   };
@@ -454,16 +447,14 @@ TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
 // A cut makes several blocks from one, named by a counter: every peer has to end with the same ones.
 TEST(BrushTest, ACutByAClientLeavesTheSameBlocksOnTheServerAndOtherClients) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
   // Before the clients join, so the Welcome snapshot carries it; players spawn about 1.25 m up
   // at the origin, looking along +X.
   server.World().entity("TestWall").add<z13::flecs_tools::StateEntity>().set(Block {
       .spec = {.type_id = kWallId, .size = {24, 1, 12}, .orientation = Orientation::kFacePosYUpPosZ},
       .cell = {16, -12, 0}});
-  Z13TestWorld client_a(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
-  Z13TestWorld client_b(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_a({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_b({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   const auto all = [&](uint64_t ticks) {
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
   };

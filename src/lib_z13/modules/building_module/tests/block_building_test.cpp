@@ -55,8 +55,6 @@ using z13::station::kCellSize;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
-using z13::testing::kServerArg;
-using z13::testing::kStationArg;
 using z13::testing::AddBuilder;
 using z13::testing::BlocksOfType;
 using z13::testing::Facing;
@@ -185,7 +183,7 @@ TEST(BlockBuildingTest, TheLastSpawnPointCannotBeDestroyed) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
   const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
-  world.lookup("StationSpawnPoint").destruct();
+  world.delete_with<SpawnPoint>();
   const Eigen::Vector3i builder_cell = (kBuilderPosition / kCellSize).array().floor().cast<int>();
   const Eigen::Vector3i ahead = builder_cell + Eigen::Vector3i(12, -2, 0);
   const flecs::entity in_sight = AddSpawnBlock(world, "SpawnInSight", ahead);
@@ -235,11 +233,9 @@ std::string Checkpoint(Z13TestWorld& test_world) {
 // every peer must keep the same one.
 TEST(BlockBuildingTest, TwoClientsBuildingTheSameSpotConverge) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
-  Z13TestWorld client_a(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
-  Z13TestWorld client_b(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
+  Z13TestWorld client_a({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_b({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   const auto all = [&](uint64_t ticks) {
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
   };

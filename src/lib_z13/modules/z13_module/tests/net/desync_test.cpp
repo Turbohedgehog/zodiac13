@@ -65,25 +65,21 @@ using Keycode = z13::fbs::input::Keycode;
 constexpr uint64_t kSettleTicks = 30;
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(z13::testing::kServerArg)}, network);
+  return Z13TestWorld({std::string(z13::testing::kServerArg)}, network);
 }
 
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(
-      /*skip_main_menu=*/false, {std::string(z13::testing::kConnectArg), std::string(kTestServerEndpoint)}, network);
+Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {return Z13TestWorld(
+      {std::string(z13::testing::kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
-const StateDigests& Digests(Z13TestWorld& world) {
-  return world.World().get<StateDigests>();
+const StateDigests& Digests(Z13TestWorld& world) {return world.World().get<StateDigests>();
 }
 
-std::string Checkpoint(Z13TestWorld& test_world) {
-  const auto json = ft::WorldJsonStore::Save(test_world.World());
+std::string Checkpoint(Z13TestWorld& test_world) {const auto json = ft::WorldJsonStore::Save(test_world.World());
   EXPECT_TRUE(json.has_value()) << (json ? "" : json.error());
   return z13::testing::WithNormalizedSimulationTick(json.value_or(""));
 }
@@ -227,8 +223,7 @@ TEST_F(DesyncTest, InputAppliedButUnsentWhenAResyncStartsIsReappliedAfterIt) {
   Run(kSettleTicks, [] { return false; });
   client_.World().get_mut<StateDigests>().awaiting_resync = false;
 
-  const auto logged_ticks = [local_id](Z13TestWorld& world) {
-    std::vector<uint64_t> ticks;
+  const auto logged_ticks = [local_id](Z13TestWorld& world) {std::vector<uint64_t> ticks;
     for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
       if (record.player_id == local_id) {
         ticks.push_back(record.tick);

@@ -1,0 +1,6 @@
+{
+  "blocks": [
+    {"primitive": "Floor", "cell": {"x": -12, "y": -12, "z": -1}, "size": {"x": 24, "y": 24, "z": 1}},
+    {"primitive": "SpawnPoint", "cell": {"x": -2, "y": -2, "z": 0}, "size": {"x": 4, "y": 4, "z": 1}}
+  ]
+}
