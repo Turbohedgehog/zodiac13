@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <optional>
 
 #include <Eigen/Dense>
@@ -303,6 +304,72 @@ TEST(PhysicsBodySyncTest, SlopeCollidesByItsShape) {
   test_world.Tick(kTestDeltaTime);
 
   EXPECT_TRUE(z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()).isApprox(clear_of_the_slope));
+}
+
+// Station primitives from the palette, as the test station is built of them.
+constexpr uint32_t kWallId = 2;  // assets/station/palette.json
+constexpr uint32_t kDoorId = 3;
+const Eigen::Vector3i kWallSize {8, 1, 8};
+const Eigen::Vector3i kDoorSize {6, 1, 10};
+// Both stand across y = 2 m, from x = 0 and the floor up.
+const Eigen::Vector3i kAcrossCell {0, 8, 0};
+constexpr float kBeforeY = 1.f;
+constexpr float kBeyondY = 3.f;
+// The middle of the door's opening, where its leaf hangs (doors are closed until they open).
+constexpr float kOpeningCentreX = 0.75f;
+constexpr float kChestZ = 1.f;
+
+flecs::entity PlaceBlock(z13::testing::Z13TestWorld& test_world, uint32_t type_id, const Eigen::Vector3i& size,
+                         const Eigen::Vector3i& cell) {
+  flecs::entity block = test_world.World().entity().set(
+      z13::station::Block {.spec = {.type_id = type_id, .size = size}, .cell = cell});
+  test_world.Tick(kTestDeltaTime);
+  return block;
+}
+
+Eigen::Vector3f WalkAcross(z13::testing::Z13TestWorld& test_world, float x) {
+  test_world.Player().set(TranslatedIdentity(x, kBeforeY, kChestZ));
+  test_world.Tick(kTestDeltaTime);
+  return MovePlayerWithinFrame(test_world, Eigen::Vector3f(x, kBeyondY, kChestZ));
+}
+
+TEST(StationCollisionTest, AWallStopsThePlayer) {
+  z13::testing::Z13TestWorld test_world;
+  PlaceBlock(test_world, kWallId, kWallSize, kAcrossCell);
+
+  const Eigen::Vector3f moved = WalkAcross(test_world, kOpeningCentreX);
+
+  EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
+}
+
+TEST(StationCollisionTest, AClosedDoorStopsThePlayer) {
+  z13::testing::Z13TestWorld test_world;
+  PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);
+
+  const Eigen::Vector3f moved = WalkAcross(test_world, kOpeningCentreX);
+
+  EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
+}
+
+// No gravity: walking into a slope slides the player up its face and over its top.
+TEST(StationCollisionTest, WalkingIntoASlopeClimbsIt) {
+  constexpr uint32_t kSlopeId = 5;  // 1 m, rising along +X
+  constexpr float kStep = 0.1f;
+  constexpr int kSteps = 30;
+  constexpr float kSlopeTop = 1.f;
+  z13::testing::Z13TestWorld test_world;
+  PlaceBlock(test_world, kSlopeId, {4, 4, 4}, Eigen::Vector3i::Zero());
+  const Eigen::Vector3f start {-1.f, 0.5f, kPlayerRadius + 0.05f};
+  test_world.Player().set(TranslatedIdentity(start.x(), start.y(), start.z()));
+  test_world.Tick(kTestDeltaTime);
+
+  Eigen::Vector3f position = start;
+  for (int i = 0; i < kSteps; ++i) {
+    position = MovePlayerWithinFrame(test_world, position + Eigen::Vector3f(kStep, 0.f, 0.f));
+  }
+
+  EXPECT_GT(position.x(), kSlopeTop) << "stuck at the slope's foot";
+  EXPECT_GT(position.z(), kSlopeTop) << "went through the slope";
 }
 
 // Placing and destroying blocks through the real pipeline: the block, its body and

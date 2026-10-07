@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstdint>
 #include <expected>
@@ -28,6 +29,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <limits>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -50,6 +53,8 @@
 #include <z13/components/station.h>
 #include <z13/components/net.h>
 #include <z13_primitives/palette.h>
+#include <z13_primitives/placement.h>
+#include <z13_primitives/station_assets.h>
 #include <z13_settings/net_tuning.h>
 #include <z13_tests/shipped_station.h>
 
@@ -64,11 +69,11 @@ namespace ft = z13::flecs_tools;
 using Keycode = z13::fbs::input::Keycode;
 
 constexpr float kCellSize = z13::station::kCellSize;
-// Where the station sits relative to the spawned player: its first deck's spine corridor.
-const Eigen::Vector3f kSpineCentre {48.5f, 24.5f, 0.f};
 constexpr float kFloorBelowPlayer = 0.5f;
 // Copies for the x2/x4 scales stand side by side with a gap.
-constexpr float kCopyPitch = 110.f;
+constexpr float kCopyGap = 14.f;
+// Off the 1 m lines the generators draw walls on.
+constexpr float kOffTheWallLines = 0.5f;
 constexpr int kScales[] = {1, 2, 4};
 constexpr int kTimedRuns = 5;
 constexpr int kWalkTicks = 60;
@@ -79,9 +84,29 @@ constexpr double kBytesPerMb = 1024.0 * 1024.0;
 constexpr size_t kTopSystems = 8;
 constexpr double kMsPerSecond = 1000.0;
 
-std::expected<std::vector<z13::station::Block>, std::string> ReadStation() {
+std::expected<std::vector<z13::station::Block>, std::string> ReadStation(std::string_view scene) {
   return ShippedPalette().and_then(
-      [](const z13::building::primitives::Palette& palette) { return ShippedBlueprint(kTestScene, palette); });
+      [scene](const z13::building::primitives::Palette& palette) { return ShippedBlueprint(scene, palette); });
+}
+
+// Where a station's blocks go relative to the spawned player, from its blueprint alone: the
+// player stands over the middle of its bottom deck.
+struct StationLayout {
+  Eigen::Vector3f centre = Eigen::Vector3f::Zero();
+  float pitch {};
+};
+
+StationLayout LayoutOf(const std::vector<z13::station::Block>& blocks) {
+  Eigen::Vector3i min = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
+  Eigen::Vector3i max = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
+  for (const z13::station::Block& block : blocks) {
+    const z13::building::primitives::CellBox box = z13::building::primitives::OccupiedCells(block);
+    min = min.cwiseMin(box.min);
+    max = max.cwiseMax(box.End());
+  }
+  const Eigen::Vector3f middle = (min + max).cast<float>() * kCellSize / 2.f;
+  return {.centre = {std::floor(middle.x()) + kOffTheWallLines, std::floor(middle.y()) + kOffTheWallLines, 0.f},
+          .pitch = static_cast<float>(max.x() - min.x()) * kCellSize + kCopyGap};
 }
 
 template <typename F>
@@ -102,12 +127,13 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world) {
 
 // The station placed around the player, `copies` times along +x, with blocks named like
 // SpawnCube's so IdCounters stays in step.
-void PlaceStation(Z13TestWorld& world, const std::vector<z13::station::Block>& blocks, int copies) {
+void PlaceStation(
+    Z13TestWorld& world, const std::vector<z13::station::Block>& blocks, int copies, const StationLayout& layout) {
   flecs::world w = world.World();
-  const Eigen::Vector3f origin = PlayerPosition(world) - kSpineCentre - Eigen::Vector3f(0.f, 0.f, kFloorBelowPlayer);
+  const Eigen::Vector3f origin = PlayerPosition(world) - layout.centre - Eigen::Vector3f(0.f, 0.f, kFloorBelowPlayer);
   auto& counters = w.get_mut<z13::gameplay::IdCounters>();
   for (int copy = 0; copy < copies; ++copy) {
-    const Eigen::Vector3f copy_origin = origin + Eigen::Vector3f(kCopyPitch * static_cast<float>(copy), 0.f, 0.f);
+    const Eigen::Vector3f copy_origin = origin + Eigen::Vector3f(layout.pitch * static_cast<float>(copy), 0.f, 0.f);
     const Eigen::Vector3i origin_cell = (copy_origin / kCellSize).array().round().cast<int>();
     for (z13::station::Block block : blocks) {
       block.cell += origin_cell;
@@ -164,6 +190,7 @@ std::vector<std::pair<std::string, double>> TopSystems(
 }
 
 Row Measure(const std::string& label, const std::vector<z13::station::Block>& blocks, int copies) {
+  const StationLayout layout = LayoutOf(blocks);
   Row row {.label = label};
   Z13TestWorld world;
   world.Tick();  // bootstrap starts the game and spawns the player
@@ -172,7 +199,7 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
   w.set<ft::SnapshotCaptureRate>({.per_interval = z13::NetTuning {}.rollback_snapshots_per_interval});
 
   row.place_ms = Ms([&] {
-    PlaceStation(world, blocks, copies);
+    PlaceStation(world, blocks, copies, layout);
     world.Tick();  // bodies are created on the first frame that sees the blocks
   });
   row.blocks = static_cast<size_t>(w.count<z13::station::Block>());
@@ -229,7 +256,7 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
     w.remove<ft::RollbackFailed>();
   }
 
-  PlaceStation(world, {z13::station::Block {.spec = z13::station::CubeSpec()}}, /*copies=*/1);
+  PlaceStation(world, {z13::station::Block {.spec = z13::station::CubeSpec()}}, /*copies=*/1, layout);
   row.build_tick_ms = Ms([&] { world.Tick(); });
   return row;
 }
@@ -260,24 +287,30 @@ void Print(const std::string& title, const std::vector<Row>& rows) {
   std::cout << std::flush;
 }
 
+std::vector<std::string> Stations() {
+  return z13::building::primitives::BlueprintScenes(SourceAsset({}));
+}
+
 TEST(StationLoadBench, DISABLED_Scales) {
-  const auto blocks = ReadStation();
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
-  std::vector<Row> rows;
-  for (const int scale : kScales) {
-    rows.push_back(Measure(std::format("x{}", scale), *blocks, scale));
+  for (const std::string& scene : Stations()) {
+    const auto blocks = ReadStation(scene);
+    ASSERT_TRUE(blocks.has_value()) << blocks.error();
+    std::vector<Row> rows;
+    for (const int scale : kScales) {
+      rows.push_back(Measure(std::format("x{}", scale), *blocks, scale));
+    }
+    Print(std::format("station '{}'", scene), rows);
   }
-  Print("test station", rows);
 }
 
 // The server already holds the station when a client connects; Welcome carries all of it.
-TEST(StationLoadBench, DISABLED_Join) {
-  const auto blocks = ReadStation();
+void MeasureJoin(const std::string& scene) {
+  const auto blocks = ReadStation(scene);
   ASSERT_TRUE(blocks.has_value()) << blocks.error();
   auto network = std::make_shared<z13::net::InMemoryNetwork>();
   Z13TestWorld server({std::string(kServerArg)}, network);
   server.Tick();
-  PlaceStation(server, *blocks, 1);
+  PlaceStation(server, *blocks, 1, LayoutOf(*blocks));
   server.Tick();
   const auto snapshot = ft::CaptureState(server.World());
   ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
@@ -296,10 +329,16 @@ TEST(StationLoadBench, DISABLED_Join) {
   });
   EXPECT_TRUE(connected());
   std::cout << std::format(
-      "[ bench ] join: {} blocks, Welcome snapshot ~{:.0f} KB, joined in {} ticks, {:.0f} ms of server+client frames\n",
-      server.World().count<z13::station::Block>(), static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, ticks,
+      "[ bench ] join '{}': {} blocks, Welcome snapshot ~{:.0f} KB, joined in {} ticks, {:.0f} ms of server+client frames\n",
+      scene, server.World().count<z13::station::Block>(), static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, ticks,
       join_ms)
             << std::flush;
+}
+
+TEST(StationLoadBench, DISABLED_Join) {
+  for (const std::string& scene : Stations()) {
+    MeasureJoin(scene);
+  }
 }
 
 }  // namespace

@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -47,6 +48,7 @@
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
 #include <z13/components/station.h>
+#include <z13_primitives/draw_order.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
 #include <z13_settings/settings.h>
@@ -315,18 +317,48 @@ void DrawBrushPreview(
             kBrushPreviewTint);
 }
 
-void DrawBlocks(
-    const flecs::world& world, const BlockQuery& blocks, const BrushQuery& brushes, BlockMeshes& meshes) {
-  const auto* palette_component = world.try_get<z13::building::primitives::BlockPalette>();
-  const BlockMeshes::OptionalPalette palette =
-      palette_component != nullptr ? BlockMeshes::OptionalPalette(palette_component->palette) : std::nullopt;
-  blocks.each([&meshes, palette](const z13::station::Block& block) {
-    DrawBlock(meshes, block, palette, WHITE);
-  });
+BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
+  const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
+  return palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
+}
+
+std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
+  std::vector<z13::station::Block> blocks;
+  query.each([&blocks](const z13::station::Block& block) { blocks.push_back(block); });
+  return blocks;
+}
+
+void DrawSome(BlockMeshes& meshes, std::span<const z13::station::Block> blocks, std::span<const size_t> which,
+              BlockMeshes::OptionalPalette palette) {
+  for (const size_t i : which) {
+    DrawBlock(meshes, blocks[i], palette, WHITE);
+  }
+}
+
+// Opaque blocks and players first; then glass and previews from the farthest, blended over
+// them and without writing depth, so nothing behind them is hidden.
+void DrawScene(const flecs::world& world, const BlockQuery& block_query, const BrushQuery& brushes,
+               const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn, const ::Vector3& eye) {
+  if (!world.has<BlockMeshes>()) {
+    DrawRemotePlayers(world, remote_players, drawn);
+    return;
+  }
+  BlockMeshes& meshes = world.get_mut<BlockMeshes>();
+  const BlockMeshes::OptionalPalette palette = PaletteOf(world);
+  const std::vector<z13::station::Block> blocks = CollectBlocks(block_query);
+  const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
+      blocks, palette, Eigen::Vector3f(eye.x, eye.y, eye.z) / z13::station::kCellSize);
+  DrawSome(meshes, blocks, order.opaque, palette);
+  DrawRemotePlayers(world, remote_players, drawn);
+  rlDrawRenderBatchActive();
+  rlDisableDepthMask();
+  DrawSome(meshes, blocks, order.transparent, palette);
   brushes.each([&world, &meshes, palette](
                    flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
     DrawBrushPreview(world, brush, transform, meshes, palette);
   });
+  rlDrawRenderBatchActive();
+  rlEnableDepthMask();
   meshes.ReleaseUnused();
 }
 
@@ -457,10 +489,7 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        if (world.has<BlockMeshes>()) {
-          DrawBlocks(world, block_query, brush_query, world.get_mut<BlockMeshes>());
-        }
-        DrawRemotePlayers(world, remote_player_query, drawing->poses);
+        DrawScene(world, block_query, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position);
 
         EndScene3D();
       });

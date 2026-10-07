@@ -60,4 +60,6 @@ void main()
     finalColor = (texelColor*((colDiffuse + vec4(specular, 1.0))*vec4(lightDot, 1.0)));
     vec3 hemisphere = mix(ambientGround.rgb, ambient.rgb, normal.z*0.5 + 0.5);
     finalColor += texelColor*vec4(hemisphere, 0.0)*colDiffuse;
+    // The lit sum above scales alpha too; glass and previews keep their own.
+    finalColor.a = texelColor.a*colDiffuse.a;
 }
