@@ -16,14 +16,12 @@
 
 #include "net_session.h"
 
-#include <cassert>
 #include <span>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace z13::net {
 
-// No transport means a closed session.
 class NetSession::State {
  public:
   std::unique_ptr<Transport> transport;
@@ -37,30 +35,21 @@ void NetSession::Open(std::unique_ptr<Transport> transport) {
   state_->transport = std::move(transport);
 }
 
-bool NetSession::IsOpen() const {
-  return state_ && state_->transport;
-}
-
 void NetSession::Close() {
   state_.reset();
 }
 
-NetSession::State& NetSession::OpenState() const {
-  assert(IsOpen() && "NetSession used after Close()");
-  return *state_;
-}
-
 std::vector<TransportEvent> NetSession::Service() {
-  return OpenState().transport->Service();
+  return state_->transport->Service();
 }
 
 void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
-  OpenState().transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
+  state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
 }
 
 void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except) {
-  State& state = OpenState();
+  State& state = *state_;
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
   const auto payload = std::as_bytes(std::span(bytes));
   for (const ConnectionId connection : state.connections) {
@@ -71,15 +60,15 @@ void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optio
 }
 
 void NetSession::Disconnect(ConnectionId connection) {
-  OpenState().transport->Disconnect(connection);
+  state_->transport->Disconnect(connection);
 }
 
 void NetSession::AddConnection(ConnectionId connection) {
-  OpenState().connections.insert(connection);
+  state_->connections.insert(connection);
 }
 
 void NetSession::RemoveConnection(ConnectionId connection) {
-  State& state = OpenState();
+  State& state = *state_;
   state.connections.erase(connection);
   state.connection_to_player.erase(connection);
   if (state.server_connection == connection) {
@@ -88,21 +77,21 @@ void NetSession::RemoveConnection(ConnectionId connection) {
 }
 
 void NetSession::BindPlayer(ConnectionId connection, uint32_t player_id) {
-  OpenState().connection_to_player[connection] = player_id;
+  state_->connection_to_player[connection] = player_id;
 }
 
 std::optional<uint32_t> NetSession::PlayerIdFor(ConnectionId connection) const {
-  const auto& by_connection = OpenState().connection_to_player;
+  const auto& by_connection = state_->connection_to_player;
   const auto player = by_connection.find(connection);
   return player != by_connection.end() ? std::optional(player->second) : std::nullopt;
 }
 
 void NetSession::SetServerConnection(ConnectionId connection) {
-  OpenState().server_connection = connection;
+  state_->server_connection = connection;
 }
 
 std::optional<ConnectionId> NetSession::ServerConnection() const {
-  return OpenState().server_connection;
+  return state_->server_connection;
 }
 
 }  // namespace z13::net

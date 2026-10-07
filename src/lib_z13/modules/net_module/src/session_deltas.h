@@ -39,7 +39,7 @@ using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT
 struct ScheduledSessionDelta {
   uint64_t apply_tick {};
   SessionDelta delta;
-  // Server-side, for a join: where the player will appear, so later joins skip that spot.
+  // Server-side: reserved for this join, so later joins spawn elsewhere.
   std::optional<Eigen::Vector3f> spawn_position;
 };
 
@@ -51,7 +51,6 @@ struct ScheduledSessionDeltas {
   std::vector<ScheduledSessionDelta> history;
 };
 
-// Server: schedules the delta here and broadcasts it.
 void ScheduleSessionDelta(
     NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta,
     std::optional<Eigen::Vector3f> spawn_position = std::nullopt);

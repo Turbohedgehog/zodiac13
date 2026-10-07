@@ -139,12 +139,10 @@ Status HandleClientHello(
     return {};
   }
 
-  // Post-increment (matches OnInit): last_player_id already holds the next id to hand
-  // out, not the last one used.
+  // last_player_id holds the next id to hand out, as in OnInit.
   auto& allocator = world.get_mut<PlayerIdAllocator>();
   const uint32_t player_id = std::max(counters.last_player_id, allocator.next_player_id);
-  counters.last_player_id = player_id + 1;
-  allocator.next_player_id = player_id + 1;
+  allocator.next_player_id = counters.last_player_id = player_id + 1;
 
   session.BindPlayer(connection, player_id);
   return SendWelcome(session, world, connection, player_id, std::move(*action_ids)).and_then([&] {
@@ -269,8 +267,7 @@ Status HandleServerReceived(
   const ConnectionId connection = event.connection;
   if (!decoded) {
     log_warn("NetSession(server): dropping malformed packet from connection {}: {}", connection, decoded.error());
-    // Disconnect() only notifies the peer, not us -- clean up our own bookkeeping the
-    // same way a real kDisconnected event would.
+    // Disconnect() raises no kDisconnected for us.
     session.Disconnect(connection);
     HandleServerDisconnect(session, world, connection);
     return {};

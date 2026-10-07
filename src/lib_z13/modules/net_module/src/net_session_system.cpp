@@ -54,8 +54,7 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
-// Requests are consumed via OnSet, not OnAdd: OnAdd would run before .set() assigns the
-// value, since add-then-assign is two observable steps in flecs.
+// OnSet, not OnAdd: see CLAUDE.md.
 void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, const TransportFactories& factories) {
   flecs::world world = e.world();
   const uint16_t port = request.port;

@@ -33,40 +33,32 @@ class NetSession {
   using Singleton = void;
 
   void Open(std::unique_ptr<Transport> transport);
-  bool IsOpen() const;
   void Close();
 
-  // Every call below needs an open session: calling one on a closed session is a
-  // sequencing bug, caught by an assert.
+  // The calls below need an open session: one is in the world only while open (EndSession).
 
-  // Pumps the transport.
   std::vector<TransportEvent> Service();
 
   void Send(ConnectionId connection, Channel channel, const Envelope& envelope);
   // Every tracked connection (AddConnection) except `except`, if given.
   void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
-  // Drops a misbehaving peer at the transport level; bookkeeping is cleaned up
-  // separately, from the kDisconnected event this produces.
+  // Bookkeeping is cleaned up on the kDisconnected event this produces.
   void Disconnect(ConnectionId connection);
 
-  // All connections accepted so far (server) or the one outgoing connection (client),
-  // independent of whether a player id is bound yet.
+  // Server: every accepted connection; client: the one to the server.
   void AddConnection(ConnectionId connection);
   void RemoveConnection(ConnectionId connection);
 
-  // Server-side connection <-> player id, set once a ClientHello is accepted.
+  // Server-side, once a ClientHello is accepted.
   void BindPlayer(ConnectionId connection, uint32_t player_id);
   std::optional<uint32_t> PlayerIdFor(ConnectionId connection) const;
 
-  // Client-side: the one connection representing the server, from the first
-  // kConnected event this session's transport produces.
+  // Client-side, from the first kConnected event.
   void SetServerConnection(ConnectionId connection);
   std::optional<ConnectionId> ServerConnection() const;
 
  private:
   class State;
-
-  State& OpenState() const;
 
   std::shared_ptr<State> state_;
 };

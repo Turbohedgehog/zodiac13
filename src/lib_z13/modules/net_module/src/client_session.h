@@ -25,11 +25,10 @@ namespace z13::net {
 // May end the session.
 void ServiceClientSession(flecs::world world, NetSession& session);
 
-// A failed rollback after the join is one more way to diverge; during it, it's fatal
-// (FinishPendingJoin).
+// A failed rollback after the join counts as diverging too.
 void ResyncIfDiverged(flecs::world world, NetSession& session);
 
-// Runs once the world is back in the present; returns whether the session is still open.
+// Returns whether the session is still open.
 bool FinishPendingJoin(flecs::world world);
 
 // Unreliable: behind reliable traffic it would measure the queue, not the network.

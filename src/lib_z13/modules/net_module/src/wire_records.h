@@ -34,14 +34,12 @@ std::vector<fbs::net::ActionRecordWire> ToWire(const std::vector<z13::gameplay::
 std::vector<z13::gameplay::PlayerActionRecord> FromWire(const std::vector<fbs::net::ActionRecordWire>& wire);
 std::unique_ptr<fbs::state::WorldSnapshotT> ToWire(const z13::flecs_tools::WorldSnapshot& snapshot);
 
-// One command of a batch sent from `base_tick`, as `player_id`'s queued record.
 z13::gameplay::PlayerActionRecord FromWire(
     const fbs::net::CommandWire& command, uint64_t base_tick, uint32_t player_id);
 
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id);
 
-// TransportEvent::data is std::byte; the codec layer wants uint8_t, and std::as_bytes
-// only converts the other way.
+// The transport gives std::byte, the codec takes uint8_t.
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data);
 
 }  // namespace z13::net

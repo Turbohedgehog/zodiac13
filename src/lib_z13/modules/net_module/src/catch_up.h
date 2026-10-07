@@ -31,7 +31,6 @@
 
 namespace z13::net {
 
-// A decoded fbs::net::CatchUp.
 struct CatchUpPayload {
   uint64_t server_tick {};
   uint64_t snapshot_tick {};
@@ -41,15 +40,12 @@ struct CatchUpPayload {
   std::vector<z13::gameplay::PlayerActionRecord> pending;
 };
 
-// Server: what a client needs to reach this server's present, for Welcome and Resync.
 std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world);
 
 std::expected<CatchUpPayload, std::string> DecodeCatchUp(const std::unique_ptr<fbs::net::CatchUpT>& catch_up);
-// Untrusted: an implausible span would spin the catch-up for max_catch_up_ticks_per_frame
-// frames per tick, forever, with the transport unserviced.
+// The span comes from the network, so it is bounded.
 bool IsPlausibleCatchUp(flecs::world world, uint64_t snapshot_tick, uint64_t target_tick);
-// Replaces rather than merges: on a resync the local log, queue and snapshots are what
-// diverged. The queue needs no merge: NetActionSender holds input back while awaiting it.
+// Replaces the local log, queue and snapshots: on a resync they are what diverged.
 void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_tick);
 
 }  // namespace z13::net

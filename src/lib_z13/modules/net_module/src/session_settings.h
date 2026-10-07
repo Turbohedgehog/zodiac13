@@ -37,8 +37,7 @@ struct AdoptedSettings {
   z13::BuildingTuning own_building;
 };
 
-// The server's settings from `welcome`, validated together with this client's own retention:
-// a server's windows must still fit its history.
+// Validated with this client's own retention, which the server's windows must fit.
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(
     flecs::world world, const fbs::net::WelcomeT& welcome);
 void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& session);

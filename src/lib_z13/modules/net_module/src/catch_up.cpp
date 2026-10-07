@@ -41,14 +41,12 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
-// PlayerActionLog is sorted by tick.
 std::vector<z13::gameplay::PlayerActionRecord> ActionsSince(flecs::world world, uint64_t since_tick) {
   const auto& entries = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
   const auto first = std::ranges::upper_bound(entries, since_tick, {}, &z13::gameplay::PlayerActionRecord::tick);
   return {first, entries.end()};
 }
 
-// As of snapshot_tick, not now: the joiner replays `actions` from there.
 std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, uint64_t snapshot_tick) {
   const auto& entries = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
   const auto up_to_snapshot = std::ranges::subrange(
@@ -70,9 +68,7 @@ std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, ui
   return held;
 }
 
-// The newest snapshot older than any command the server may still accept or has yet to
-// replay, so the client can roll back for one; else the oldest, which the server can't go
-// past either.
+// Old enough for a rollback to any command still accepted or awaiting replay.
 const ft::TimestampedSnapshot& CatchUpBase(
     const ft::WorldSnapshotHistory& history, uint64_t now, std::optional<uint64_t> deferred_rollback_tick,
     uint64_t max_late_ticks) {
@@ -89,11 +85,8 @@ std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flec
   auto catch_up = std::make_unique<fbs::net::CatchUpT>();
   catch_up->server_tick = world.get<ft::SimulationClock>().tick;
 
-  // Reuses WorldSnapshotHistory's cache instead of a fresh CaptureState() per join (too
-  // expensive); the action batch lets the client catch up to server_tick by replaying it.
   const auto& history = world.get<ft::WorldSnapshotHistory>();
   if (history.history.Empty()) {
-    // Nothing cached yet -- fall back to a fresh capture; nothing to replay either.
     const auto snapshot = ft::CaptureState(world);
     if (!snapshot) {
       return std::unexpected(snapshot.error());

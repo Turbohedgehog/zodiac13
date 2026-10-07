@@ -26,11 +26,9 @@ namespace z13::net {
 
 void SetConnectionStatus(flecs::world world, ConnectionState state, std::string reason = {});
 
-// Invalidates any NetSession reference: ServiceNetSession suspends defer, so the remove
-// is immediate. Callers must not touch it afterwards.
+// Removes NetSession at once: callers must not touch it afterwards.
 void EndSession(flecs::world world);
 
-// Ends the session of a client that can't go on, saying why.
 void FailSession(flecs::world world, std::string reason);
 
 bool IsJoined(flecs::world world);

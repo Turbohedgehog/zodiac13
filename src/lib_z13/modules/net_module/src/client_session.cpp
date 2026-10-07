@@ -79,11 +79,9 @@ Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   world.set<z13::gameplay::LocalPlayer>({.id = welcome.player_id});
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
-  // The catch-up moves this clock onto the server's.
   world.set<ClockSync>({});
 
-  // The join is an ordinary rollback; ConnectionStatus stays kConnecting until the
-  // catch-up lands (see FinishPendingJoin).
+  // ConnectionStatus stays kConnecting until the catch-up rollback lands.
   const uint64_t target_tick = payload->server_tick;
   AdoptCatchUp(world, std::move(*payload), target_tick);
   return {};
@@ -96,8 +94,7 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   }
 }
 
-// Unlike a join, never moves this clock backwards: the replay also covers any ticks this
-// client has already run past server_tick.
+// Unlike a join, never moves this clock backwards.
 void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
   auto payload = DecodeCatchUp(resync.catch_up);
   const uint64_t target_tick = std::max(payload ? payload->server_tick : 0, world.get<ft::SimulationClock>().tick);
@@ -253,15 +250,13 @@ bool FinishPendingJoin(flecs::world world) {
     return false;
   }
 
-  // LocalPlayer itself exists in every world from creation, so the id -- and the entity
-  // it names, which arrives as a PlayerJoined delta -- is what says the join landed.
+  // The local player's entity arrives as a PlayerJoined delta: its presence says the join landed.
   if (!world.has<ConnectionStatus>() ||
       world.get<ConnectionStatus>().state != ConnectionState::kConnecting) {
     return true;
   }
   const std::optional<uint32_t> local_id = world.get<z13::gameplay::LocalPlayer>().id;
   if (local_id && world.lookup(z13::gameplay::PlayerEntityName(*local_id).c_str())) {
-    // Do eagerly what SyncLocalPlayerListener would only do on the next frame.
     z13::gameplay::EnsureLocalPlayerReady(world);
     SetConnectionStatus(world, ConnectionState::kConnected);
   }
