@@ -67,6 +67,7 @@
 #include "lights.h"
 #include "render_components.h"
 #include "render_resources.h"
+#include "render_stats.h"
 #include "skybox.h"
 
 namespace z13::raylib {
@@ -94,7 +95,7 @@ constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, z13::VisualSmoothing, z13::RenderTuning>(world);
+                                         BlockChunks, RenderStats, z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
 // Everything not the local player's own chases its simulated transform in real time, so
@@ -372,7 +373,8 @@ z13::math::Frustum CurrentFrustum() {
 // Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
-               const z13::DrawnPoses& drawn, const ::Vector3& eye) {
+               const z13::DrawnPoses& drawn, const ::Vector3& eye, RenderStats& stats) {
+  stats = {};
   DrawRemotePlayers(world, remote_players, drawn);
   if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
     return;
@@ -382,11 +384,13 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
       .meshes = world.get_mut<BlockMeshes>(), .lighting = lighting, .palette = PaletteOf(world)};
   const BlockChunks& chunks = world.get<BlockChunks>();
   const z13::math::Frustum frustum = CurrentFrustum();
-  chunks.DrawOpaque(frustum, lighting);
+  chunks.DrawOpaque(frustum, lighting, stats);
 
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
   const std::vector<z13::station::Block> glass = VisibleBlocks(chunks.Transparent(), frustum);
+  stats.glass = chunks.Transparent().size();
+  stats.glass_drawn = glass.size();
   const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
       glass, drawing.palette, Eigen::Vector3f(eye.x, eye.y, eye.z) / z13::station::kCellSize);
   for (const size_t i : order.transparent) {
@@ -423,6 +427,7 @@ void RegisterSystems(flecs::world world) {
   // The launcher overwrites this with the loaded settings (z13::InstallSettings).
   world.set<z13::VisualSmoothing>({});
   world.set<z13::RenderTuning>({});
+  world.set<RenderStats>({});
   // Shared by the closures below; lives as long as the world.
   auto drawing = std::make_shared<SmoothedDrawing>();
 
@@ -508,12 +513,12 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize>("EnvironmentRenderSystem::Draw")
+  world.system<const RaylibCamera, const WindowSize, RenderStats>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
       .each([world, brush_query, remote_player_query, drawing](
-                const RaylibCamera& raylib_camera, const WindowSize& size) {
+                const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -541,7 +546,7 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        DrawScene(world, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position);
+        DrawScene(world, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position, stats);
 
         EndScene3D();
       });

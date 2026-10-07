@@ -62,7 +62,7 @@ class BlockChunks::State {
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
-  void DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting) const;
+  void DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting, RenderStats& stats) const;
   const std::vector<z13::station::Block>& Transparent() const { return transparent_; }
 
  private:

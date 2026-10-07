@@ -28,6 +28,7 @@
 #include "block_checker.h"
 #include "block_model.h"
 #include "render_components.h"
+#include "render_stats.h"
 
 namespace z13::raylib {
 
@@ -82,14 +83,18 @@ ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, O
   return chunk;
 }
 
-void BlockChunks::State::DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting) const {
+void BlockChunks::State::DrawOpaque(
+    const z13::math::Frustum& frustum, const Lighting& lighting, RenderStats& stats) const {
+  stats.chunks = chunks_.size();
   for (const auto& [key, chunk] : chunks_) {
     if (!frustum.Intersects(chunk.bounds)) {
       continue;
     }
+    ++stats.chunks_drawn;
     for (const ChunkPart& part : chunk.parts) {
       UseChecker(lighting, part.material);
       DrawModel(*part.model, Vector3Zero(), 1.f, WHITE);
+      ++stats.meshes_drawn;
     }
   }
 }

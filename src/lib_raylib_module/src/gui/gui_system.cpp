@@ -16,6 +16,7 @@
 
 #include "gui_system.h"
 
+#include <chrono>
 #include <string_view>
 
 #include <flecs.h>
@@ -42,6 +43,8 @@
 #include "palette_window.h"
 #include "pause_menu_window.h"
 #include "platform/sdl_platform.h"
+#include "render/render_stats.h"
+#include "stats_overlay.h"
 
 namespace z13::raylib {
 
@@ -77,7 +80,7 @@ void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState>(world);
+  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay>(world);
 }
 
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
@@ -119,6 +122,7 @@ void RegisterSystems(flecs::world world) {
   // assigns the value, which would wipe the imgui_ready the observer just wrote.
   world.set<gui::WindowStack>({});
   world.set<GuiState>({});
+  world.set<gui::StatsOverlay>({});
 
   // Bring up ImGui once the SDL window / GL context exists (RaylibData is set at
   // the tail of RaylibSystem::CreateDefaults).
@@ -150,10 +154,11 @@ void RegisterSystems(flecs::world world) {
 
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
-  world.system<gui::WindowStack, const GuiState>("GuiSystem::Draw")
+  world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
-      .each([world](gui::WindowStack& stack, const GuiState& state) {
+      .each([world](gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
+                    const RenderStats* render) {
         if (!state.imgui_ready) {
           return;
         }
@@ -168,6 +173,13 @@ void RegisterSystems(flecs::world world) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
           gui::MakePaletteWindow(world)->Draw();
+        }
+        stats.CountFrame(std::chrono::steady_clock::now());
+        if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {
+          stats.Toggle();
+        }
+        if (stats.Visible()) {
+          stats.Draw(render);
         }
         EndImGuiFrame();
       });
