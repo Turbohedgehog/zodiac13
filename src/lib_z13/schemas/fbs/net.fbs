@@ -85,8 +85,8 @@ table Pong {
   server_tick: ulong;
 }
 
-table Welcome {
-  player_id: uint;
+// What a client needs to reach the server's present: Welcome and Resync carry it.
+table CatchUp {
   server_tick: ulong;
   // Reused from WorldSnapshotHistory's periodic capture rather than a fresh one taken
   // for this join; snapshot_tick lets the client replay forward to server_tick below.
@@ -95,6 +95,11 @@ table Welcome {
   actions: [ActionRecordWire];  // (snapshot_tick, server_tick]
   held_values: [ActionRecordWire];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
   pending: [ActionRecordWire];  // already-scheduled commands with apply_tick > server_tick
+}
+
+table Welcome {
+  player_id: uint;
+  catch_up: CatchUp;
   action_ids: [uint];  // the server's id for each ClientHello.actions entry, same order
   // The client runs on these instead of its own: peers must tick alike.
   fps: double;
@@ -107,14 +112,9 @@ table Rejected {
   reason: string;
 }
 
-// Welcome without the player id: the client already has one.
+// The client already has its id and settings.
 table Resync {
-  server_tick: ulong;
-  snapshot: z13.fbs.state.WorldSnapshot;
-  snapshot_tick: ulong;
-  actions: [ActionRecordWire];
-  held_values: [ActionRecordWire];
-  pending: [ActionRecordWire];
+  catch_up: CatchUp;
 }
 
 table PlayerJoined {

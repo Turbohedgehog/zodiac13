@@ -105,7 +105,7 @@ void RegisterStateDigestSystems(flecs::world world) {
 
 // Every command for tick T reaches the server by T + max_late_ticks, and reaches clients
 // ahead of this digest on the same ordered channel.
-NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
+void SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   const uint64_t max_late_ticks = world.get<NetTuning>().max_late_ticks;
@@ -119,12 +119,9 @@ NetSession::Result SendSettledStateDigests(flecs::world world, NetSession& sessi
     }
     Envelope envelope;
     envelope.body.Set(fbn::StateDigestT(digest));
-    if (const auto sent = session.Broadcast(Channel::kReliable, envelope); !sent) {
-      return sent;
-    }
+    session.Broadcast(Channel::kReliable, envelope);
     digests.last_sent_tick = tick;
   }
-  return {};
 }
 
 std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
