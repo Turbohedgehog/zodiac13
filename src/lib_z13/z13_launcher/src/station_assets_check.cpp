@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-#include <z13_launcher/station_scene_check.h>
+#include <z13_launcher/station_assets_check.h>
 
 #include <format>
 
+#include <lib_core/utils/file_io.h>
+#include <z13_primitives/palette.h>
 #include <z13_primitives/station_assets.h>
 
 namespace z13 {
@@ -32,6 +34,16 @@ Status CheckStationScene(const Config& config, const std::filesystem::path& asse
     return std::unexpected(std::format("--station-scene {}: no blueprint {}", *scene, file.string()));
   }
   return {};
+}
+
+Status CheckBlockPalette(const std::filesystem::path& assets_dir) {
+  const std::filesystem::path file = assets_dir / z13::building::primitives::PaletteFile();
+  return ReadFile(file)
+      .and_then([](const std::string& json) { return z13::building::primitives::ParsePalette(json); })
+      .transform([](const auto&) {})
+      .transform_error([&file](const std::string& error) {
+        return std::format("no block palette: {} ({})", error, file.string());
+      });
 }
 
 }  // namespace z13

@@ -235,6 +235,43 @@ TEST_F(DesyncTest, InputAppliedButUnsentWhenAResyncStartsIsReappliedAfterIt) {
   EXPECT_EQ(logged_ticks(client_), logged_ticks(server_));
 }
 
+// A real ResyncRequest over a slow link: heartbeats sent after it reach the server before the
+// Resync reaches the client, and must not break what the Resync restores.
+TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
+  const auto latency_ticks = static_cast<uint32_t>(2 * kNetSendIntervalTicks);
+  network_->SetFaultConfig({.min_delay_ticks = latency_ticks, .max_delay_ticks = latency_ticks});
+  Settle();
+  const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
+  const auto confirmed_on_server = [&]() -> uint64_t {
+    const auto& by_player = server_.World().get<z13::gameplay::ConfirmedInputTicks>().by_player;
+    const auto entry = by_player.find(local_id);
+    return entry == by_player.end() ? 0 : entry->second;
+  };
+  client_.World()
+      .entity("Block_Stray")
+      .add<ft::StateEntity>()
+      .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
+
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync; }));
+  const uint64_t requested_at = client_.World().get<ft::SimulationClock>().tick;
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return confirmed_on_server() > requested_at; }));
+  EXPECT_TRUE(Digests(client_).awaiting_resync) << "no heartbeat reached the server before the Resync came back";
+
+  ASSERT_TRUE(RunUntilResynced());
+  client_.EmitInput(KeyUp(Keycode::KEY_W));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&, checked = Digests(client_).checked] {
+    return Digests(client_).checked >= checked + 2;
+  }));
+
+  EXPECT_FALSE(client_.World().lookup("Block_Stray"));
+  EXPECT_EQ(Digests(client_).resyncs, 1u);
+  const auto& entries = server_.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
+  EXPECT_TRUE(std::ranges::any_of(entries, [local_id](const auto& record) { return record.player_id == local_id; }))
+      << "the press held back during the wait never reached the server";
+  EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
 TEST_F(DesyncTest, ReplayNeitherResendsNorRerecordsCommands) {
   constexpr uint64_t kRollbacks = 3;
   constexpr uint64_t kRollbackDepthTicks = 10;

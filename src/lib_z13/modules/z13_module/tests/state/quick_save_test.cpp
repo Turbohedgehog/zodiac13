@@ -16,13 +16,12 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <string>
 
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_json_store.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
@@ -69,11 +68,6 @@ size_t Blocks(Z13TestWorld& test_world) {
   return static_cast<size_t>(test_world.World().count<Block>());
 }
 
-std::string ReadFile(const std::filesystem::path& path) {
-  std::ifstream file(path, std::ios::binary);
-  return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-}
-
 TEST(QuickSaveTest, F5WritesTheSceneToTheQuickSaveFile) {
   Z13TestWorld test_world;
   z13::testing::EnterBuildMode(test_world);
@@ -88,7 +82,7 @@ TEST(QuickSaveTest, F5WritesTheSceneToTheQuickSaveFile) {
   // save is written, so SimulationClock.tick has moved on by the time of the re-save --
   // compare everything else byte-for-byte regardless.
   EXPECT_EQ(
-      z13::testing::WithNormalizedSimulationTick(ReadFile(test_world.QuickSavePath())),
+      z13::testing::WithNormalizedSimulationTick(z13::ReadFile(test_world.QuickSavePath()).value()),
       z13::testing::WithNormalizedSimulationTick(ft::WorldJsonStore::Save(test_world.World()).value()));
 }
 

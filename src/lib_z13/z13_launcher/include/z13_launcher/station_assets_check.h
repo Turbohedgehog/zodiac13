@@ -27,4 +27,8 @@ namespace z13 {
 // loads, so a mistyped name stops the launch instead of leaving an empty station.
 Status CheckStationScene(const Config& config, const std::filesystem::path& assets_dir);
 
+// The block palette under `assets_dir` must load: without it nothing builds blocks, the
+// station scene included.
+Status CheckBlockPalette(const std::filesystem::path& assets_dir);
+
 }  // namespace z13

@@ -18,8 +18,6 @@
 
 #include <expected>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +29,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/state/world_state_requests.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
@@ -54,24 +53,6 @@ struct QuickSaveActionIds {
   std::optional<IdType> save;
   std::optional<IdType> load;
 };
-
-Status WriteFile(const std::filesystem::path& path, std::string_view text) {
-  std::error_code error;
-  std::filesystem::create_directories(path.parent_path(), error);
-  std::ofstream file(path, std::ios::binary | std::ios::trunc);
-  if (!file.is_open() || !file.write(text.data(), static_cast<std::streamsize>(text.size()))) {
-    return std::unexpected("cannot write " + path.string());
-  }
-  return {};
-}
-
-std::expected<std::string, std::string> ReadFile(const std::filesystem::path& path) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file.is_open()) {
-    return std::unexpected("cannot open " + path.string());
-  }
-  return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-}
 
 void QuickSave(flecs::world world, const std::filesystem::path& path) {
   z13::flecs_tools::RequestSaveWorldState(

@@ -17,10 +17,10 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <fstream>
 #include <string>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/world/core.h>
 #include <z13_launcher/settings_loader.h>
 #include <z13_settings/settings.h>
@@ -137,21 +137,17 @@ TEST_F(SettingsFileTest, MissingFileIsCreatedFromTheSchemaDefaults) {
 }
 
 TEST_F(SettingsFileTest, ReadsAnExistingFileWithoutOverwritingIt) {
-  std::filesystem::create_directories(directory_);
-  std::ofstream(Path()) << R"({"net": {"send_interval_ticks": 6}})";
+  ASSERT_TRUE(WriteFile(Path(), R"({"net": {"send_interval_ticks": 6}})").has_value());
 
   const auto settings = ReadSettings(Path());
 
   ASSERT_TRUE(settings.has_value()) << settings.error();
   EXPECT_EQ(settings->net->send_interval_ticks, 6u);
-  std::ifstream file(Path());
-  const std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-  EXPECT_EQ(contents, R"({"net": {"send_interval_ticks": 6}})");
+  EXPECT_EQ(ReadFile(Path()), R"({"net": {"send_interval_ticks": 6}})");
 }
 
 TEST_F(SettingsFileTest, AnInvalidFileIsAnErrorNotARegeneration) {
-  std::filesystem::create_directories(directory_);
-  std::ofstream(Path()) << R"({"core": {"fps": 0}})";
+  ASSERT_TRUE(WriteFile(Path(), R"({"core": {"fps": 0}})").has_value());
 
   EXPECT_FALSE(ReadSettings(Path()).has_value());
 }

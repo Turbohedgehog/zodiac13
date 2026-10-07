@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include <lib_core/utils/file_io.h>
 #include <z13/components/station.h>
 #include <z13_primitives/blueprint.h>
 #include <z13_primitives/palette.h>
@@ -35,13 +36,13 @@ inline std::filesystem::path SourceAsset(const std::filesystem::path& relative) 
 }
 
 inline std::expected<z13::building::primitives::Palette, std::string> ShippedPalette() {
-  return z13::building::primitives::ReadTextFile(SourceAsset(z13::building::primitives::PaletteFile()))
+  return z13::ReadFile(SourceAsset(z13::building::primitives::PaletteFile()))
       .and_then([](const std::string& json) { return z13::building::primitives::ParsePalette(json); });
 }
 
 inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBlueprint(
     std::string_view scene, const z13::building::primitives::Palette& palette) {
-  return z13::building::primitives::ReadTextFile(SourceAsset(z13::building::primitives::BlueprintFile(scene)))
+  return z13::ReadFile(SourceAsset(z13::building::primitives::BlueprintFile(scene)))
       .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); });
 }
 
