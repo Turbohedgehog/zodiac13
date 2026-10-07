@@ -20,6 +20,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -60,15 +61,15 @@ using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-// Four markers in each habitat deck's lounge.
+// Four markers in each habitat deck's lounge, on either station.
 constexpr int kSpawnPoints = 8;
 
 Palette ShippedPalette() {
   return z13::testing::ShippedPalette().value();
 }
 
-std::vector<Block> ShippedStation(const Palette& palette) {
-  return z13::testing::ShippedBlueprint(z13::testing::kTestScene, palette).value();
+std::vector<Block> ShippedStation(std::string_view scene, const Palette& palette) {
+  return z13::testing::ShippedBlueprint(scene, palette).value();
 }
 
 std::vector<Block> Blocks(flecs::world world) {
@@ -84,13 +85,16 @@ bool SameBlocks(const std::vector<Block>& a, const std::vector<Block>& b) {
   return std::ranges::equal(a, b, [](const Block& x, const Block& y) { return x.spec == y.spec && x.cell == y.cell; });
 }
 
-std::vector<std::string> TestStationArgs() {
-  return {std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kTestScene)};
+std::vector<std::string> StationArgs(std::string_view scene) {
+  return {std::string(z13::testing::kStationSceneArg), std::string(scene)};
 }
 
-TEST(TestStationTest, EveryBlockOfTheBlueprintIsAValidBuild) {
+// Each shipped station scene.
+class TestStationTest : public ::testing::TestWithParam<std::string_view> {};
+
+TEST_P(TestStationTest, EveryBlockOfTheBlueprintIsAValidBuild) {
   const Palette palette = ShippedPalette();
-  const std::vector<Block> blocks = ShippedStation(palette);
+  const std::vector<Block> blocks = ShippedStation(GetParam(), palette);
   ASSERT_FALSE(blocks.empty());
 
   const Status valid = ValidateBlueprint(blocks, palette, BuildingTuning {});
@@ -102,9 +106,9 @@ TEST(TestStationTest, EveryBlockOfTheBlueprintIsAValidBuild) {
             kSpawnPoints);
 }
 
-TEST(TestStationTest, OverlappingBlueprintIsNotPlaced) {
+TEST_P(TestStationTest, OverlappingBlueprintIsNotPlaced) {
   const Palette palette = ShippedPalette();
-  std::vector<Block> blocks = ShippedStation(palette);
+  std::vector<Block> blocks = ShippedStation(GetParam(), palette);
   blocks.push_back(blocks.front());
 
   const Status valid = ValidateBlueprint(blocks, palette, BuildingTuning {});
@@ -113,7 +117,7 @@ TEST(TestStationTest, OverlappingBlueprintIsNotPlaced) {
   EXPECT_NE(valid.error().find(std::format("block {}", blocks.size() - 1)), std::string::npos);
 }
 
-TEST(TestStationTest, BlueprintNamingAnUnknownPrimitiveIsRejected) {
+TEST(StationBlueprintTest, BlueprintNamingAnUnknownPrimitiveIsRejected) {
   const auto blocks = z13::building::primitives::ParseBlueprint(
       R"({"blocks": [{"primitive": "Teleporter", "cell": {"x": 0, "y": 0, "z": 0}, "size": {"x": 1, "y": 1, "z": 1}}]})",
       ShippedPalette());
@@ -122,12 +126,12 @@ TEST(TestStationTest, BlueprintNamingAnUnknownPrimitiveIsRejected) {
   EXPECT_NE(blocks.error().find("Teleporter"), std::string::npos);
 }
 
-TEST(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
-  Z13TestWorld test_world(TestStationArgs());
+TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
+  Z13TestWorld test_world(StationArgs(GetParam()));
   test_world.Tick();
 
   ASSERT_TRUE(test_world.World().has<StationMode>());
-  EXPECT_EQ(Blocks(test_world.World()).size(), ShippedStation(ShippedPalette()).size());
+  EXPECT_EQ(Blocks(test_world.World()).size(), ShippedStation(GetParam(), ShippedPalette()).size());
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), kSpawnPoints);
   const Eigen::Vector3f player = z13::math::ExtractTranslation<float>(
       test_world.World().lookup(PlayerEntityName(0).c_str()).get<Eigen::Matrix4f>());
@@ -138,8 +142,8 @@ TEST(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   EXPECT_TRUE(on_a_marker);
 }
 
-TEST(TestStationTest, SaveAndLoadKeepEveryBlock) {
-  Z13TestWorld station(TestStationArgs());
+TEST_P(TestStationTest, SaveAndLoadKeepEveryBlock) {
+  Z13TestWorld station(StationArgs(GetParam()));
   station.Tick();
   const auto snapshot = z13::flecs_tools::CaptureState(station.World());
   ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
@@ -151,9 +155,9 @@ TEST(TestStationTest, SaveAndLoadKeepEveryBlock) {
   EXPECT_TRUE(SameBlocks(Blocks(loaded.World()), Blocks(station.World())));
 }
 
-TEST(TestStationTest, ClientJoiningGetsTheWholeStation) {
+TEST_P(TestStationTest, ClientJoiningGetsTheWholeStation) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(z13::testing::WithServerArg(TestStationArgs()), network);
+  Z13TestWorld server(z13::testing::WithServerArg(StationArgs(GetParam())), network);
   Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&client] {
@@ -163,6 +167,10 @@ TEST(TestStationTest, ClientJoiningGetsTheWholeStation) {
   EXPECT_TRUE(SameBlocks(Blocks(client.World()), Blocks(server.World())));
   EXPECT_EQ(client.World().count<SpawnPoint>(), kSpawnPoints);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Scenes, TestStationTest, ::testing::Values(z13::testing::kTestScene, z13::testing::kSpireScene),
+    [](const ::testing::TestParamInfo<std::string_view>& info) { return std::string(info.param); });
 
 }  // namespace
 }  // namespace z13::building
