@@ -31,7 +31,6 @@
 #include <z13/components/input.h>
 #include <z13/components/net.h>
 #include <z13_settings/net_tuning.h>
-#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"

@@ -65,7 +65,6 @@ constexpr int kMaxLagTicks = 60;
 // Server and two clients over a 2-4 tick network.
 class RemotePredictionSession {
  public:
-
   // Until B has spawned A too.
   bool Connect() {
     return RunNetworkUntil(*network_, {server_, client_a_, client_b_}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
@@ -159,6 +158,7 @@ TEST(RemotePredictionTest, ARemotePlayerNeverRunsPastItsStop) {
   constexpr int kHoldTicks = 60;
   const RunStopResult run = RunAndStop(kHoldTicks);
 
+  EXPECT_GT(run.metrics.lag_ticks, 0) << "B never mispredicted A, so the scenario proves nothing";
   EXPECT_LE(run.metrics.max_off_path, kTestEpsilon);
   EXPECT_LT((run.b_final - run.a_final).norm(), kTestEpsilon);
   EXPECT_LT((run.server_final - run.a_final).norm(), kTestEpsilon);

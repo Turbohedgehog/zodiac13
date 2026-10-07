@@ -186,10 +186,11 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovement) {
   constexpr int kExtraTicks = 20;
   constexpr int kSettleTicks = 30;
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kExtraTicks, [] { return false; });
+  EXPECT_GT(Position(client_b, kClientAId).x(), position_at_join + z13::testing::kTestEpsilon)
+      << "B doesn't see A move while the key is still held";
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
-  EXPECT_GT(Position(client_b, kClientAId).x(), position_at_join + z13::testing::kTestEpsilon);
   EXPECT_NEAR(Position(client_b, kClientAId).x(), Position(server, kClientAId).x(), z13::testing::kTestEpsilon)
       << "held_values didn't seed the joiner's view of an already-held key";
   EXPECT_EQ(client_b.World().get<StateDigests>().resyncs, 0u) << "only a resync caught B up";
