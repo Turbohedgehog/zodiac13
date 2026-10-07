@@ -1,5 +1,5 @@
 Deck 7: Campus deck. Floor at 24 m.
-1 char = 1 m (4 cells). # wall, = window, D door, X welded, / stairs, L lift, : dance floor.
+1 char = 1 m (4 cells). # wall, = window, D door, X welded, / stairs, L lift, : dance floor, _ counter.
 . hidden tech tunnel, ~ tunnel under a window ledge, S hidden door, H ladder between decks.
 AL - airlocks at the spine's ends, AIRLOCK-N/S - EVA airlocks by the stairs, SW - switchboard, TECH - tech rooms.
 
@@ -22,7 +22,7 @@ AL - airlocks at the spine's ends, AIRLOCK-N/S - EVA airlocks by the stairs, SW 
  15 #     #//     //#           #                 #   #                                       #     #
  16 #     #//     //#           #                 #   #                                       #     #
  17 #     #//     //#           #                 #####                                       #     #
- 18 #     #//     //#           #                 #LLL# ###########                           #     #
+ 18 #     #//     //#           #                 #LLL# ___________                           #     #
  19 #     #//     //#           #                 #LLL#                                       #     #
  20 ###S###//     //#           #                 #LLL#        BAR                            ###S###
  21 #     #//     //#           #                 #LLL#                                       #     #

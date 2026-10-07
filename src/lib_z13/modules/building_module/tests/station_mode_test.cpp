@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -36,6 +37,7 @@
 
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "support/station_builders.h"
 
 namespace z13::building {
 namespace {
@@ -89,8 +91,17 @@ bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {
   return above;
 }
 
-TEST(StationModeTest, StationFlagStartsTheConstructionSite) {
+TEST(StationModeTest, StationFlagAloneStartsAnEmptyStation) {
   Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kStationArg)});
+  test_world.Tick();
+
+  EXPECT_TRUE(test_world.World().has<StationMode>());
+  EXPECT_TRUE(test_world.World().has<Gameplay>());
+  EXPECT_EQ(Blocks(test_world), 0);
+}
+
+TEST(StationModeTest, SiteSceneStartsTheConstructionSite) {
+  Z13TestWorld test_world(/*skip_main_menu=*/false, z13::testing::SiteArgs());
   test_world.Tick();
 
   EXPECT_TRUE(test_world.World().has<StationMode>());
@@ -116,6 +127,7 @@ TEST(StationModeTest, WithoutTheFlagTheSceneIsUnchanged) {
 TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
   Z13TestWorld test_world(/*skip_main_menu=*/false);
   test_world.World().add<StationMode>();
+  test_world.World().set(z13::station::StationSceneChoice {.scene = std::string(z13::testing::kSiteScene)});
   test_world.StartGame();
   test_world.Tick();
 
@@ -124,7 +136,7 @@ TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
 }
 
 TEST(StationModeTest, ExitToMainMenuClearsTheSite) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kStationArg)});
+  Z13TestWorld test_world(/*skip_main_menu=*/false, z13::testing::SiteArgs());
   test_world.Tick();
 
   test_world.ExitToMainMenu();
@@ -150,7 +162,9 @@ TEST(StationModeTest, RestoringAnOrdinarySnapshotLeavesStationMode) {
 
 TEST(StationModeTest, ClientJoiningAStationServerGetsTheModeAndTheSite) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
+  std::vector<std::string> server_args = z13::testing::SiteArgs();
+  server_args.emplace_back(kServerArg);
+  Z13TestWorld server(/*skip_main_menu=*/false, server_args, network);
   Z13TestWorld client(
       /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 

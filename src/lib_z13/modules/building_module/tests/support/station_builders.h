@@ -32,8 +32,12 @@
 
 namespace z13::testing {
 
+inline std::vector<std::string> SiteArgs() {
+  return {std::string(kStationSceneArg), std::string(kSiteScene)};
+}
+
 inline Z13TestWorld StationWorld() {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kStationArg)});
+  return Z13TestWorld(/*skip_main_menu=*/false, SiteArgs());
 }
 
 inline Eigen::Matrix4f Facing(const Eigen::Vector3f& position, const Eigen::Vector3f& forward) {

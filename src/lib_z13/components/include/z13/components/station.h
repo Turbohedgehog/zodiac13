@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string>
 
 #include <Eigen/Dense>
 
@@ -39,6 +40,13 @@ inline constexpr int kCubeEdgeCells = 2;
 struct StationMode {
   using State = void;
   using Singleton = void;
+};
+
+// The blueprint (assets/station/blueprints/<scene>.json) the host fills a new station game
+// with; none leaves it empty. Not state: a save or a joining client gets the blocks themselves.
+struct StationSceneChoice {
+  using Singleton = void;
+  std::optional<std::string> scene;
 };
 
 // The 24 turns that map the grid onto itself, named by where the primitive's +X faces and

@@ -33,6 +33,7 @@
 #include "gui_keybindings.h"
 #include "gui_widgets.h"
 #include "net_windows.h"
+#include "station_window.h"
 
 namespace z13::raylib::gui {
 
@@ -269,10 +270,10 @@ class MainMenuWindow : public Window {
     }
 
     if (ImGui::Button("Start Game", kButtonSize)) {
-      StartSinglePlayer(/*station=*/false);
+      StartShip();
     }
-    if (ImGui::Button("Station", kButtonSize)) {
-      StartSinglePlayer(/*station=*/true);
+    if (ImGui::Button("Station...", kButtonSize)) {
+      RequestPush(MakeStationWindow(World()));
     }
     if (ImGui::Button("Start Server...", kButtonSize)) {
       RequestPush(MakeStartServerWindow(World()));
@@ -289,13 +290,9 @@ class MainMenuWindow : public Window {
   }
 
  private:
-  void StartSinglePlayer(bool station) {
+  void StartShip() {
     World().set<z13::net::ConnectionStatus>({});
-    if (station) {
-      World().add<z13::station::StationMode>();
-    } else {
-      World().remove<z13::station::StationMode>();
-    }
+    World().remove<z13::station::StationMode>();
     World().add<z13::gameplay::Gameplay>();
     RequestCloseMenu();
   }

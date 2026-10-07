@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-// Load of the test station (docs/station-layout) on everything but rendering, with today's
-// Floor and Wall boxes standing in for every block. Built by `make.py --bench`, run with
-// `z13.py --bench --filter 'StationLoadBench.*'`.
+// Load of the test station (assets/station/blueprints/test.json) on everything but
+// rendering. Built by `make.py --bench`, run with `z13.py --bench --filter 'StationLoadBench.*'`.
 
 #include <gtest/gtest.h>
 
@@ -53,6 +52,8 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
 #include <z13/components/net.h>
+#include <z13_primitives/blueprint.h>
+#include <z13_primitives/palette.h>
 #include <z13_settings/net_tuning.h>
 
 #include "../support/building_test_helpers.h"
@@ -65,14 +66,11 @@ namespace {
 namespace ft = z13::flecs_tools;
 using Keycode = z13::fbs::input::Keycode;
 
-const std::filesystem::path kStationLayoutDir {Z13_STATION_LAYOUT_DIR};
-const std::filesystem::path kRunsFile = kStationLayoutDir / "station-blocks-runs.txt";
-const std::filesystem::path kPanelsFile = kStationLayoutDir / "station-blocks-panels.txt";
+const std::filesystem::path kAssetsDir {Z13_SOURCE_ASSETS_DIR};
+const std::filesystem::path kPaletteFile = kAssetsDir / "station" / "palette.json";
+const std::filesystem::path kBlueprintFile = kAssetsDir / "station" / "blueprints" / "test.json";
 
 constexpr float kCellSize = z13::station::kCellSize;
-// assets/station/palette.json
-constexpr uint32_t kFloorPrimitiveId = 1;
-constexpr uint32_t kWallPrimitiveId = 2;
 // Where the station sits relative to the spawned player: its first deck's spine corridor.
 const Eigen::Vector3f kSpineCentre {48.5f, 24.5f, 0.f};
 constexpr float kFloorBelowPlayer = 0.5f;
@@ -88,31 +86,26 @@ constexpr double kBytesPerMb = 1024.0 * 1024.0;
 constexpr size_t kTopSystems = 8;
 constexpr double kMsPerSecond = 1000.0;
 
-struct Box {
-  Eigen::Vector3i min = Eigen::Vector3i::Zero();
-  Eigen::Vector3i size = Eigen::Vector3i::Zero();
-};
-
-std::expected<std::vector<Box>, std::string> ReadBlocks(const std::filesystem::path& path) {
+std::expected<std::string, std::string> ReadFile(const std::filesystem::path& path) {
   std::ifstream file(path);
   if (!file) {
-    return std::unexpected(std::format("can't open {} (run docs/station-layout/generate_layout.py)", path.string()));
+    return std::unexpected(std::format("can't open {}", path.string()));
   }
-  std::vector<Box> boxes;
-  std::string line;
-  while (std::getline(file, line)) {
-    if (line.empty() || line.front() == '#') {
-      continue;
-    }
-    std::istringstream fields(line);
-    std::string kind;
-    Box box;
-    if (!(fields >> kind >> box.min.x() >> box.min.y() >> box.min.z() >> box.size.x() >> box.size.y() >> box.size.z())) {
-      return std::unexpected(std::format("malformed line in {}: {}", path.string(), line));
-    }
-    boxes.push_back(box);
+  std::ostringstream contents;
+  contents << file.rdbuf();
+  return contents.str();
+}
+
+std::expected<std::vector<z13::station::Block>, std::string> ReadStation() {
+  const auto palette = ReadFile(kPaletteFile).and_then([](const std::string& json) {
+    return z13::building::primitives::ParsePalette(json);
+  });
+  if (!palette) {
+    return std::unexpected(palette.error());
   }
-  return boxes;
+  return ReadFile(kBlueprintFile).and_then([&palette](const std::string& json) {
+    return z13::building::primitives::ParseBlueprint(json, *palette);
+  });
 }
 
 template <typename F>
@@ -131,23 +124,18 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world) {
   return z13::math::ExtractTranslation<float>(world.Player().get<Eigen::Matrix4f>());
 }
 
-// The station placed around the player, `copies` times along +x, as Floor (one cell
-// thick) and Wall blocks named like SpawnCube's so IdCounters stays in step. Placed
-// directly, so walls along Y needn't fit the Wall primitive's limits.
-void PlaceStation(Z13TestWorld& world, const std::vector<Box>& boxes, int copies) {
+// The station placed around the player, `copies` times along +x, with blocks named like
+// SpawnCube's so IdCounters stays in step.
+void PlaceStation(Z13TestWorld& world, const std::vector<z13::station::Block>& blocks, int copies) {
   flecs::world w = world.World();
   const Eigen::Vector3f origin = PlayerPosition(world) - kSpineCentre - Eigen::Vector3f(0.f, 0.f, kFloorBelowPlayer);
   auto& counters = w.get_mut<z13::gameplay::IdCounters>();
   for (int copy = 0; copy < copies; ++copy) {
     const Eigen::Vector3f copy_origin = origin + Eigen::Vector3f(kCopyPitch * static_cast<float>(copy), 0.f, 0.f);
     const Eigen::Vector3i origin_cell = (copy_origin / kCellSize).array().round().cast<int>();
-    for (const Box& box : boxes) {
-      w.entity(std::format("Block_{}", ++counters.last_block_id).c_str())
-          .add<ft::StateEntity>()
-          .set(z13::station::Block {
-              .spec = {.type_id = box.size.z() == 1 ? kFloorPrimitiveId : kWallPrimitiveId, .size = box.size},
-              .cell = origin_cell + box.min,
-          });
+    for (z13::station::Block block : blocks) {
+      block.cell += origin_cell;
+      w.entity(std::format("Block_{}", ++counters.last_block_id).c_str()).add<ft::StateEntity>().set(block);
     }
   }
 }
@@ -199,7 +187,7 @@ std::vector<std::pair<std::string, double>> TopSystems(
   return spent;
 }
 
-Row Measure(const std::string& label, const std::vector<Box>& boxes, int copies) {
+Row Measure(const std::string& label, const std::vector<z13::station::Block>& blocks, int copies) {
   Row row {.label = label};
   Z13TestWorld world;
   world.Tick();  // bootstrap starts the game and spawns the player
@@ -208,7 +196,7 @@ Row Measure(const std::string& label, const std::vector<Box>& boxes, int copies)
   w.set<ft::SnapshotCaptureRate>({.per_interval = z13::NetTuning {}.rollback_snapshots_per_interval});
 
   row.place_ms = Ms([&] {
-    PlaceStation(world, boxes, copies);
+    PlaceStation(world, blocks, copies);
     world.Tick();  // bodies are created on the first frame that sees the blocks
   });
   row.blocks = static_cast<size_t>(w.count<z13::station::Block>());
@@ -265,7 +253,7 @@ Row Measure(const std::string& label, const std::vector<Box>& boxes, int copies)
     w.remove<ft::RollbackFailed>();
   }
 
-  PlaceStation(world, {Box {.size = Eigen::Vector3i::Ones()}}, /*copies=*/1);
+  PlaceStation(world, {z13::station::Block {.spec = z13::station::CubeSpec()}}, /*copies=*/1);
   row.build_tick_ms = Ms([&] { world.Tick(); });
   return row;
 }
@@ -296,57 +284,46 @@ void Print(const std::string& title, const std::vector<Row>& rows) {
   std::cout << std::flush;
 }
 
-void RunScales(const std::filesystem::path& file, const std::string& title) {
-  const auto boxes = ReadBlocks(file);
-  ASSERT_TRUE(boxes.has_value()) << boxes.error();
+TEST(StationLoadBench, DISABLED_Scales) {
+  const auto blocks = ReadStation();
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
   std::vector<Row> rows;
   for (const int scale : kScales) {
-    rows.push_back(Measure(std::format("x{}", scale), *boxes, scale));
+    rows.push_back(Measure(std::format("x{}", scale), *blocks, scale));
   }
-  Print(title, rows);
-}
-
-TEST(StationLoadBench, DISABLED_Runs) {
-  RunScales(kRunsFile, "station, one block per straight run");
-}
-
-TEST(StationLoadBench, DISABLED_Panels) {
-  RunScales(kPanelsFile, "station, panels up to 4 m");
+  Print("test station", rows);
 }
 
 // The server already holds the station when a client connects; Welcome carries all of it.
 TEST(StationLoadBench, DISABLED_Join) {
-  for (const auto& [file, title] : {std::pair {kRunsFile, "runs"}, std::pair {kPanelsFile, "panels"}}) {
-    const auto boxes = ReadBlocks(file);
-    ASSERT_TRUE(boxes.has_value()) << boxes.error();
-    auto network = std::make_shared<z13::net::InMemoryNetwork>();
-    Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
-    server.Tick();
-    PlaceStation(server, *boxes, 1);
-    server.Tick();
-    const auto snapshot = ft::CaptureState(server.World());
-    ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+  const auto blocks = ReadStation();
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
+  auto network = std::make_shared<z13::net::InMemoryNetwork>();
+  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  server.Tick();
+  PlaceStation(server, *blocks, 1);
+  server.Tick();
+  const auto snapshot = ft::CaptureState(server.World());
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
 
-    Z13TestWorld client(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
-    uint64_t ticks = 0;
-    const auto connected = [&] {
-      return client.World().has<z13::gameplay::Gameplay>() &&
-             client.World().get<z13::net::ConnectionStatus>().state == z13::net::ConnectionState::kConnected;
-    };
-    const double join_ms = Ms([&] {
-      while (!connected() && ticks < kMaxNetTestTicks) {
-        RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 1, [] { return false; });
-        ++ticks;
-      }
-    });
-    EXPECT_TRUE(connected()) << title;
-    std::cout << std::format(
-        "[ bench ] join ({}): {} blocks, Welcome snapshot ~{:.0f} KB, joined in {} ticks, {:.0f} ms of server+client "
-        "frames\n",
-        title, server.World().count<z13::station::Block>(),
-        static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, ticks, join_ms)
-              << std::flush;
-  }
+  Z13TestWorld client(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  uint64_t ticks = 0;
+  const auto connected = [&] {
+    return client.World().has<z13::gameplay::Gameplay>() &&
+           client.World().get<z13::net::ConnectionStatus>().state == z13::net::ConnectionState::kConnected;
+  };
+  const double join_ms = Ms([&] {
+    while (!connected() && ticks < kMaxNetTestTicks) {
+      RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 1, [] { return false; });
+      ++ticks;
+    }
+  });
+  EXPECT_TRUE(connected());
+  std::cout << std::format(
+      "[ bench ] join: {} blocks, Welcome snapshot ~{:.0f} KB, joined in {} ticks, {:.0f} ms of server+client frames\n",
+      server.World().count<z13::station::Block>(), static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, ticks,
+      join_ms)
+            << std::flush;
 }
 
 }  // namespace

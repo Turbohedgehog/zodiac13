@@ -14,27 +14,19 @@
  * limitations under the License.
  */
 
-#include "building_module.h"
+#pragma once
 
-#include <flecs.h>
-
-#include "block_building_system.h"
-#include "brush_system.h"
-#include "building_input_system.h"
-#include "building_system.h"
-#include "palette_system.h"
-#include "station_scene_system.h"
+#include <expected>
+#include <filesystem>
+#include <string>
 
 namespace z13::building {
 
-BuildingModule::BuildingModule(flecs::world& world) {
-  BuildingSystem::Register(world);
-  BuildingInputSystem::Register(world);
-  PaletteSystem::Register(world);
-  StationSceneSystem::Register(world);
-  // Before BlockBuildingSystem: same phase, so the brush is picked before it builds.
-  BrushSystem::Register(world);
-  BlockBuildingSystem::Register(world);
-}
+// `relative` under assets/, which sits two levels above this plugin
+// (bin/modules/building_module/) wherever it runs: the game, a dedicated server or the
+// test runner.
+std::filesystem::path AssetFile(const std::filesystem::path& relative);
+
+std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path& file);
 
 }  // namespace z13::building

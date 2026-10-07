@@ -63,13 +63,8 @@ target_link_libraries(
   reflectcpp::reflectcpp
 )
 
-# The palette tests read the shipped palette from the source tree.
+# The palette and blueprint tests read the shipped assets from the source tree.
 target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_SOURCE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
-
-if(Z13_BUILD_BENCHMARKS)
-  # StationLoadBench reads the station the layout generator wrote.
-  target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_STATION_LAYOUT_DIR="${CMAKE_SOURCE_DIR}/docs/station-layout")
-endif()
 
 # Windows finds the plugin DLLs only next to the exe; ELF finds them by build-tree RPATH.
 if(WIN32)

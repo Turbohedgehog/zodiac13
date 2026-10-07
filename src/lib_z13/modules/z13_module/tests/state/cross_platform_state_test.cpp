@@ -63,7 +63,8 @@ class Scenario {
   explicit Scenario(std::string_view mode)
       : mode_(mode),
         world_(/*skip_main_menu=*/mode == kShipMode,
-               mode == kStationMode ? std::vector<std::string> {std::string(z13::testing::kStationArg)}
+               mode == kStationMode ? std::vector<std::string> {std::string(z13::testing::kStationSceneArg),
+                                                                     std::string(z13::testing::kSiteScene)}
                                     : std::vector<std::string> {}) {}
 
   // One line per component, so a diff points at the first diverging value.

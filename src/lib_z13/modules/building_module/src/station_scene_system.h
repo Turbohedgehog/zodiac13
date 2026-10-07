@@ -20,8 +20,8 @@
 
 namespace z13::building {
 
-// Lays out the scene a new station game starts in: a floor with a spawn point on it.
-class ConstructionSiteSystem {
+// Fills a new station game with the blueprint StationSceneChoice names, or leaves it empty.
+class StationSceneSystem {
  public:
   static void Register(flecs::world& world);
 };

@@ -56,6 +56,12 @@ Status ValidateBuild(
     const z13::station::Block& block, const BuildView& view,
     z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild);
 
+// Every block of a blueprint, in order, as a build onto what the ones before it built,
+// with nobody in the way; names the first block that fails.
+Status ValidateBlueprint(
+    std::span<const z13::station::Block> blocks, const z13::building::primitives::Palette& palette,
+    const BuildingTuning& tuning);
+
 // The last spawn point stays, or new players would have nowhere to appear.
 Status ValidateDestroy(
     const z13::station::Block& block, const z13::building::primitives::Palette& palette, int spawn_points);

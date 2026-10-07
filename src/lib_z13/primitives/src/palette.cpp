@@ -126,6 +126,14 @@ std::optional<std::reference_wrapper<const Primitive>> Palette::Find(uint32_t id
   return std::cref(*it);
 }
 
+std::optional<std::reference_wrapper<const Primitive>> Palette::Find(std::string_view name) const {
+  const auto it = std::ranges::find(primitives, name, &Primitive::name);
+  if (it == primitives.end()) {
+    return std::nullopt;
+  }
+  return std::cref(*it);
+}
+
 std::expected<Palette, std::string> ParsePalette(std::string_view json) {
   flatbuffers::Parser parser;
   if (!parser.Deserialize(reflection::GetSchema(fbs_station::PaletteBinarySchema::data()))) {

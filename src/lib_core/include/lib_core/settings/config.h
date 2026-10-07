@@ -63,6 +63,9 @@ class Config {
   uint16_t GetPort() const;
   // --station: start in station-building mode; mutually exclusive with --connect.
   bool IsStation() const;
+  // --station-scene NAME: the blueprint to fill the station with; implies --station.
+  // std::nullopt when not given.
+  std::optional<std::string> GetStationScene() const;
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
@@ -86,6 +89,7 @@ class Config {
     bool skip_main_menu {false};
     bool server {false};
     bool station {false};
+    std::optional<std::string> station_scene;
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
   };

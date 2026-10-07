@@ -65,7 +65,6 @@ using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
 using z13::testing::kServerArg;
-using z13::testing::kStationArg;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::StationWorld;
@@ -420,7 +419,7 @@ std::string Checkpoint(Z13TestWorld& test_world) {
 
 TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
+  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kSiteScene)}, network);
   Z13TestWorld client_a(
       /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   Z13TestWorld client_b(
@@ -454,7 +453,7 @@ TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
 // A cut makes several blocks from one, named by a counter: every peer has to end with the same ones.
 TEST(BrushTest, ACutByAClientLeavesTheSameBlocksOnTheServerAndOtherClients) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(kStationArg)}, network);
+  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kSiteScene)}, network);
   // Before the clients join, so the Welcome snapshot carries it; players spawn about 1.25 m up
   // at the origin, looking along +X.
   server.World().entity("TestWall").add<z13::flecs_tools::StateEntity>().set(Block {

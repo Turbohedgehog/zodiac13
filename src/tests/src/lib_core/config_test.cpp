@@ -30,6 +30,8 @@ namespace {
 constexpr std::string_view kServerArg = "--server";
 constexpr std::string_view kConnectArg = "--connect";
 constexpr std::string_view kStationArg = "--station";
+constexpr std::string_view kStationSceneArg = "--station-scene";
+constexpr std::string_view kTestScene = "test";
 constexpr std::string_view kHelpArg = "--help";
 constexpr std::string_view kExampleHost = "example.com";
 constexpr std::string_view kExampleEndpoint = "example.com:9999";
@@ -151,9 +153,19 @@ TEST(ConfigTest, StationWithServerIsAccepted) {
   EXPECT_TRUE(parsed.config.IsStation());
 }
 
+TEST(ConfigTest, StationSceneImpliesStation) {
+  const auto parsed = ParseArgs({kStationSceneArg, kTestScene});
+
+  EXPECT_TRUE(parsed.result.has_value());
+  EXPECT_TRUE(parsed.config.IsStation());
+  EXPECT_EQ(parsed.config.GetStationScene(), std::string(kTestScene));
+  EXPECT_FALSE(ParseArgs({kStationArg}).config.GetStationScene().has_value());
+}
+
 // A client takes the mode from the server it joins.
 TEST(ConfigTest, StationAndConnectTogetherIsRejected) {
   EXPECT_FALSE(ParseArgs({kStationArg, kConnectArg, kExampleHost}).result.has_value());
+  EXPECT_FALSE(ParseArgs({kStationSceneArg, kTestScene, kConnectArg, kExampleHost}).result.has_value());
 }
 
 }  // namespace

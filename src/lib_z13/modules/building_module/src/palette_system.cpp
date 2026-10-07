@@ -19,11 +19,8 @@
 #include <expected>
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <sstream>
 #include <string>
 
-#include <boost/dll/runtime_symbol_info.hpp>
 #include <flecs.h>
 
 #include <lib_core/state/world_state.h>
@@ -32,29 +29,18 @@
 
 #include <z13_primitives/palette.h>
 
+#include "station_assets.h"
+
 namespace z13::building {
 
 namespace {
 
-const std::filesystem::path kPalettePath = std::filesystem::path("assets") / "station" / "palette.json";
-
-// Relative to this plugin (bin/modules/building_module/), which sits two levels below
-// assets/ wherever it runs: the game, a dedicated server or the test runner.
-std::filesystem::path PaletteFile() {
-  const std::filesystem::path plugin_dir = boost::dll::this_line_location().parent_path().string();
-  return plugin_dir.parent_path().parent_path() / kPalettePath;
-}
+const std::filesystem::path kPalettePath = std::filesystem::path("station") / "palette.json";
 
 std::expected<z13::building::primitives::Palette, std::string> LoadPalette(const std::filesystem::path& file) {
-  std::ifstream stream(file);
-  if (!stream.is_open()) {
-    return std::unexpected(std::format("cannot open '{}'", file.string()));
-  }
-  std::ostringstream contents;
-  contents << stream.rdbuf();
-  return z13::building::primitives::ParsePalette(contents.str()).transform_error([&file](const std::string& error) {
-    return std::format("{} ({})", error, file.string());
-  });
+  return ReadTextFile(file)
+      .and_then([](const std::string& contents) { return z13::building::primitives::ParsePalette(contents); })
+      .transform_error([&file](const std::string& error) { return std::format("{} ({})", error, file.string()); });
 }
 
 void RegisterComponents(flecs::world world) {
@@ -63,7 +49,7 @@ void RegisterComponents(flecs::world world) {
 
 // In the systems stage, not next to the registration (see PhysicsSystem::RegisterSystems).
 void InstallPalette(flecs::world world) {
-  auto palette = LoadPalette(PaletteFile());
+  auto palette = LoadPalette(AssetFile(kPalettePath));
   if (!palette) {
     log_error("station: no block palette: {}", palette.error());
     return;

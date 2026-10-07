@@ -16,10 +16,13 @@
 
 #include "net_windows.h"
 
+#include <filesystem>
 #include <format>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -29,7 +32,9 @@
 
 #include <z13/components/net.h>
 #include <z13/components/station.h>
+#include <z13_primitives/blueprint.h>
 
+#include "../tools/asset_path.h"
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
@@ -38,6 +43,7 @@ namespace {
 
 constexpr float kAddressFieldWidth = 200.f;
 constexpr std::string_view kDefaultJoinHost = "127.0.0.1";
+constexpr std::string_view kEmptyScene = "(new station)";
 
 const z13::net::ConnectionStatus& Status(flecs::world world) {
   return world.get<z13::net::ConnectionStatus>();
@@ -47,13 +53,18 @@ const z13::net::ConnectionStatus& Status(flecs::world world) {
 class StartServerWindow : public Window {
  public:
   explicit StartServerWindow(flecs::world world)
-      : Window(world, "Start Server"), port_(std::to_string(z13::kDefaultServerPort)) {}
+      : Window(world, "Start Server"),
+        port_(std::to_string(z13::kDefaultServerPort)),
+        station_scenes_(z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}))) {}
 
  protected:
   void DrawBody() override {
     ImGui::SetNextItemWidth(kAddressFieldWidth);
     ImGui::InputText("Port", &port_, ImGuiInputTextFlags_CharsDecimal);
     ImGui::Checkbox("Station", &station_);
+    if (station_) {
+      DrawSceneCombo();
+    }
 
     const auto port = z13::ParsePort(port_);
     if (!port) {
@@ -66,6 +77,8 @@ class StartServerWindow : public Window {
     if (ImGui::Button("Start", kButtonSize)) {
       if (station_) {
         World().add<z13::station::StationMode>();
+        World().set(z13::station::StationSceneChoice {
+            .scene = scene_ ? std::optional<std::string>(station_scenes_[*scene_]) : std::nullopt});
       } else {
         World().remove<z13::station::StationMode>();
       }
@@ -79,8 +92,26 @@ class StartServerWindow : public Window {
   }
 
  private:
+  void DrawSceneCombo() {
+    if (!ImGui::BeginCombo("Scene", scene_ ? station_scenes_[*scene_].c_str() : kEmptyScene.data())) {
+      return;
+    }
+    if (ImGui::Selectable(kEmptyScene.data(), !scene_)) {
+      scene_ = std::nullopt;
+    }
+    for (size_t i = 0; i < station_scenes_.size(); ++i) {
+      if (ImGui::Selectable(station_scenes_[i].c_str(), scene_ == i)) {
+        scene_ = i;
+      }
+    }
+    ImGui::EndCombo();
+  }
+
   std::string port_;
   bool station_ {};
+  // The blueprints under assets/station/blueprints/; `scene_` indexes them, none is empty.
+  std::vector<std::string> station_scenes_;
+  std::optional<size_t> scene_;
   bool submitted_ {};
 };
 
