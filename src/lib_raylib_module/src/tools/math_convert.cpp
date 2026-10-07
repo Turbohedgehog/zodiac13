@@ -16,6 +16,8 @@
 
 #include "math_convert.h"
 
+#include <raymath.h>
+
 #include <lib_core/utils/math.h>
 
 namespace z13::raylib {
@@ -40,6 +42,10 @@ void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transf
       d[2], d[6], d[10], d[14],
       d[3], d[7], d[11], d[15],
   };
+}
+
+Eigen::Matrix4f RaylibToEigenMatrix(const ::Matrix& m) {
+  return Eigen::Map<const Eigen::Matrix4f>(MatrixToFloatV(m).v);
 }
 
 }  // namespace z13::raylib

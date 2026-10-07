@@ -48,8 +48,6 @@ struct ConvexSolid {
 struct Mesh {
   std::vector<Eigen::Vector3f> positions;
   std::vector<Eigen::Vector3f> normals;
-  // In cells, so a checker with one square per UV unit lines up with the grid.
-  std::vector<Eigen::Vector2f> uvs;
 };
 
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& shape, const Eigen::Vector3i& size);

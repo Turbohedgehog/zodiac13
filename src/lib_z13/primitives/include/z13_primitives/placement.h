@@ -68,6 +68,14 @@ struct CellPose {
   Eigen::Vector3i origin = Eigen::Vector3i::Zero();
 };
 
+struct CellHash {
+  size_t operator()(const Eigen::Vector3i& cell) const;
+};
+
+// The chunk of `chunk_cells`³ cells holding `cell`, by floor division so negative cells land
+// in the chunk below zero.
+Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell, int chunk_cells);
+
 CellBox OccupiedCells(const z13::station::Block& block);
 CellPose PoseOf(const z13::station::Block& block);
 

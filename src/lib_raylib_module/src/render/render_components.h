@@ -20,6 +20,8 @@
 
 #include <raylib.h>
 
+#include "block_checker.h"
+
 namespace z13::raylib {
 
 // Per-entity camera, kept in sync with the entity's Eigen::Matrix4f transform.
@@ -64,6 +66,7 @@ struct AvatarModel {
 // GPU resources for scene lighting. Singleton (see MakeManagedShader, render_resources.h).
 struct LightingResources {
   std::shared_ptr<::Shader> shader;
+  CheckerUniforms checker;
 };
 
 struct Lighting {

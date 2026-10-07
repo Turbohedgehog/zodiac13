@@ -27,12 +27,23 @@ uniform Light lights[MAX_LIGHTS];
 uniform vec4 ambient;
 uniform vec4 ambientGround;
 uniform vec3 viewPos;
+// Station blocks: a checker of one square per grid cell, from the world position.
+uniform int checkerEnabled;
+uniform vec4 checkerFirst;
+uniform vec4 checkerSecond;
+uniform float cellSize;
 
 void main()
 {
-    vec4 texelColor = texture(texture0, fragTexCoord);
-    vec3 lightDot = vec3(0.0);
     vec3 normal = normalize(fragNormal);
+    vec4 texelColor = texture(texture0, fragTexCoord);
+    if (checkerEnabled == 1)
+    {
+        // Half a cell inward, so a face lying on a cell boundary doesn't flicker between cells.
+        ivec3 cell = ivec3(floor(fragPosition/cellSize - normal*0.5));
+        texelColor = ((cell.x + cell.y + cell.z) & 1) == 0 ? checkerFirst : checkerSecond;
+    }
+    vec3 lightDot = vec3(0.0);
     vec3 viewD = normalize(viewPos - fragPosition);
     vec3 specular = vec3(0.0);
 

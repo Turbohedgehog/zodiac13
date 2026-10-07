@@ -21,31 +21,15 @@
 
 namespace z13::building::grid {
 
-namespace {
-
-// Prime multipliers spreading neighbouring chunks across buckets.
-constexpr size_t kHashY = 73856093;
-constexpr size_t kHashZ = 19349663;
-
-}  // namespace
+using z13::building::primitives::ChunkOf;
 
 BlockIndex::BlockIndex(int chunk_cells) : chunk_cells_(chunk_cells) {
 }
 
-// Floor division, so negative cells land in the chunk below zero.
-Eigen::Vector3i BlockIndex::ChunkOf(const Eigen::Vector3i& cell) const {
-  return cell.unaryExpr([this](int c) { return c >= 0 ? c / chunk_cells_ : -((-c - 1) / chunk_cells_) - 1; });
-}
-
-size_t BlockIndex::ChunkHash::operator()(const Eigen::Vector3i& chunk) const {
-  return static_cast<size_t>(chunk.x()) ^ (static_cast<size_t>(chunk.y()) * kHashY) ^
-         (static_cast<size_t>(chunk.z()) * kHashZ);
-}
-
 template <class Visit>
 void BlockIndex::ForEachChunk(const z13::building::primitives::CellBox& cells, Visit visit) const {
-  const Eigen::Vector3i first = ChunkOf(cells.min);
-  const Eigen::Vector3i last = ChunkOf(cells.End() - Eigen::Vector3i::Ones());
+  const Eigen::Vector3i first = ChunkOf(cells.min, chunk_cells_);
+  const Eigen::Vector3i last = ChunkOf(cells.End() - Eigen::Vector3i::Ones(), chunk_cells_);
   for (int x = first.x(); x <= last.x(); ++x) {
     for (int y = first.y(); y <= last.y(); ++y) {
       for (int z = first.z(); z <= last.z(); ++z) {
@@ -83,7 +67,7 @@ void BlockIndex::Erase(BlockId block) {
 }
 
 std::optional<BlockId> BlockIndex::At(const Eigen::Vector3i& cell) const {
-  const auto bucket = chunks_.find(ChunkOf(cell));
+  const auto bucket = chunks_.find(ChunkOf(cell, chunk_cells_));
   if (bucket == chunks_.end()) {
     return std::nullopt;
   }

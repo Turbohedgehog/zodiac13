@@ -16,17 +16,24 @@
 
 #pragma once
 
+#include <array>
+
 #include <Eigen/Dense>
-#include <raylib.h>
 
-namespace z13::raylib {
+namespace z13::math {
 
-// Z-up world transform (column 0 = forward, column 2 = up) -> raylib camera pose.
-// Keeps `fovy` / `projection` intact.
-void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transform);
+// The six planes of a view frustum, for culling boxes against it.
+class Frustum {
+ public:
+  // `view_projection` maps world points into OpenGL clip space (-w..w on every axis).
+  explicit Frustum(const Eigen::Matrix4f& view_projection);
 
-// Column-major Eigen matrix -> raylib Matrix (also column-major internally).
-::Matrix EigenToRaylibMatrix(const Eigen::Matrix4f& m);
-Eigen::Matrix4f RaylibToEigenMatrix(const ::Matrix& m);
+  // Conservative: a box near a corner of the frustum may pass though it lies outside.
+  bool Intersects(const Eigen::AlignedBox3f& box) const;
 
-}  // namespace z13::raylib
+ private:
+  // (normal, offset): a point p is inside when normal·p + offset >= 0.
+  std::array<Eigen::Vector4f, 6> planes_;
+};
+
+}  // namespace z13::math

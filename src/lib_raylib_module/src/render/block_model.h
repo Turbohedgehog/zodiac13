@@ -16,17 +16,16 @@
 
 #pragma once
 
-#include <Eigen/Dense>
+#include <memory>
+
 #include <raylib.h>
+
+#include <z13_primitives/geometry.h>
 
 namespace z13::raylib {
 
-// Z-up world transform (column 0 = forward, column 2 = up) -> raylib camera pose.
-// Keeps `fovy` / `projection` intact.
-void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transform);
-
-// Column-major Eigen matrix -> raylib Matrix (also column-major internally).
-::Matrix EigenToRaylibMatrix(const Eigen::Matrix4f& m);
-Eigen::Matrix4f RaylibToEigenMatrix(const ::Matrix& m);
+// Uploads `mesh` (in cells) as a model in meters; `lighting_shader` is borrowed by its
+// material, and id 0 keeps raylib's default.
+std::shared_ptr<::Model> LoadBlockModel(const z13::building::primitives::Mesh& mesh, ::Shader lighting_shader);
 
 }  // namespace z13::raylib

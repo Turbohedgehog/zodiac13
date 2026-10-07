@@ -116,24 +116,6 @@ TEST(PrimitiveGeometryTest, VerticesStayInsideTheSize) {
   }
 }
 
-// One UV unit per cell: on axis-aligned faces UVs are two of the cell coordinates.
-TEST(PrimitiveGeometryTest, UvsAdvanceOneUnitPerCell) {
-  for (const Case& c : Cases()) {
-    const Mesh mesh = BuildMesh(Solids(c));
-    for (size_t i = 0; i < mesh.positions.size(); ++i) {
-      const Eigen::Vector3f& p = mesh.positions[i];
-      const Eigen::Vector3f n = mesh.normals[i].cwiseAbs();
-      if (std::abs(n.maxCoeff() - 1.f) > kTolerance) {
-        continue;
-      }
-      const Eigen::Vector2f expected = n.x() > 0.5f ? Eigen::Vector2f(p.y(), p.z())
-          : n.y() > 0.5f                            ? Eigen::Vector2f(p.x(), p.z())
-                                                    : Eigen::Vector2f(p.x(), p.y());
-      EXPECT_LT((mesh.uvs[i] - expected).norm(), kTolerance) << c.name;
-    }
-  }
-}
-
 TEST(PrimitiveGeometryTest, DoorLeafFillsTheOpening) {
   const auto solids = BuildSolids({.kind = ShapeKind::kDoorFrame, .door_opening = {4, 8}}, {6, 1, 10});
   ASSERT_TRUE(solids.has_value());

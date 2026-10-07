@@ -16,30 +16,41 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <span>
+#include <vector>
 
 #include <raylib.h>
 
+#include <lib_core/utils/frustum.h>
+#include <z13/components/station.h>
 #include <z13_primitives/geometry.h>
 
 namespace z13::raylib {
 
-// Models of placed primitives, one per (type, size) shared by every block of that shape;
-// for blocks drawn one by one (glass, previews), the rest go in BlockChunks. Singleton exempt from the "no pointers" rule (see
-// CLAUDE.md); never state.
-class BlockMeshes {
+struct Lighting;
+
+// Opaque blocks merged into one model per render chunk and material
+// (z13_primitives/chunk_mesh.h); transparent ones are kept apart, to be drawn one by one
+// in order. Singleton exempt from the "no pointers" rule (see CLAUDE.md); never state.
+class BlockChunks {
  public:
   using Singleton = void;
   using OptionalPalette = z13::building::primitives::OptionalPalette;
 
   // `lighting_shader` is borrowed by every model's material; id 0 keeps raylib's default.
-  explicit BlockMeshes(::Shader lighting_shader = {});
+  explicit BlockChunks(::Shader lighting_shader = {});
 
-  // Built on first use; a type the palette lacks gets a grey box.
-  std::shared_ptr<::Model> Get(const z13::building::primitives::BlockShapeKey& shape, OptionalPalette palette);
+  // Whether the last Sync used these; if not, the blocks must be synced even if unchanged.
+  bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
 
-  // Frees the models no Get() asked for since the previous call.
-  void ReleaseUnused();
+  // Rebuilds only the chunks whose blocks differ from the previous call's.
+  void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
+
+  void DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting) const;
+
+  const std::vector<z13::station::Block>& Transparent() const;
 
  private:
   class State;
