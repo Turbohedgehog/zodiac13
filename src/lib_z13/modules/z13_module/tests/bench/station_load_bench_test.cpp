@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-// Load of the test station (assets/station/blueprints/test.json) on everything but
-// rendering. Built by `make.py --bench`, run with `z13.py --bench --filter 'StationLoadBench.*'`.
+// Load of the shipped stations (assets/station/blueprints/) on everything but
+// rendering, in one world or as a server and a walking client. Built by `make.py --bench`,
+// run with `z13.py --bench --filter 'StationLoadBench.*'`.
 
 #include <gtest/gtest.h>
 
@@ -83,6 +84,10 @@ constexpr int kMaxCatchUpCalls = 1000;
 constexpr double kBytesPerMb = 1024.0 * 1024.0;
 constexpr size_t kTopSystems = 8;
 constexpr double kMsPerSecond = 1000.0;
+constexpr int kServerClientWalkTicks = 300;  // 5 s: all of the snapshot history turns over
+constexpr double kTickBudgetMs = kMsPerSecond * kNetTestDeltaTime;
+constexpr double kMedian = 0.5;
+constexpr double kP95 = 0.95;
 
 std::expected<std::vector<z13::station::Block>, std::string> ReadStation(std::string_view scene) {
   return ShippedPalette().and_then(
@@ -261,6 +266,14 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
   return row;
 }
 
+void PrintTopSystems(const std::string& label, const std::vector<std::pair<std::string, double>>& top_systems_ms) {
+  std::cout << std::format("[ bench ] {} heaviest systems, ms per tick:", label);
+  for (const auto& [name, ms] : top_systems_ms) {
+    std::cout << std::format(" {} {:.2f};", name, ms);
+  }
+  std::cout << "\n";
+}
+
 void Print(const std::string& title, const std::vector<Row>& rows) {
   std::cout << std::format("[ bench ] {}\n", title);
   std::cout << "[ bench ] scale  blocks  place ms  snapshot KB  capture ms  restore ms  tick med/max ms  "
@@ -278,11 +291,7 @@ void Print(const std::string& title, const std::vector<Row>& rows) {
         row.build_tick_ms);
   }
   for (const Row& row : rows) {
-    std::cout << std::format("[ bench ] {} heaviest systems, ms per tick:", row.label);
-    for (const auto& [name, ms] : row.top_systems_ms) {
-      std::cout << std::format(" {} {:.2f};", name, ms);
-    }
-    std::cout << "\n";
+    PrintTopSystems(row.label, row.top_systems_ms);
   }
   std::cout << std::flush;
 }
@@ -338,6 +347,85 @@ void MeasureJoin(const std::string& scene) {
 TEST(StationLoadBench, DISABLED_Join) {
   for (const std::string& scene : Stations()) {
     MeasureJoin(scene);
+  }
+}
+
+using Z13TestWorldRef = std::reference_wrapper<Z13TestWorld>;
+
+struct SideRun {
+  std::string label;
+  std::vector<double> frames_ms;
+  std::vector<std::pair<std::string, double>> top_systems_ms;  // per tick
+};
+
+double Percentile(std::vector<double> values, double fraction) {
+  std::ranges::sort(values);
+  return values.empty() ? 0.0 : values[static_cast<size_t>(fraction * static_cast<double>(values.size() - 1))];
+}
+
+void PrintSides(const std::string& scene, size_t blocks, const std::vector<SideRun>& sides) {
+  std::cout << std::format(
+      "[ bench ] server+client '{}': {} blocks, {} ticks walked, tick budget {:.1f} ms\n", scene, blocks,
+      kServerClientWalkTicks, kTickBudgetMs);
+  std::cout << "[ bench ] side    frame med/p95/max ms  over budget\n";
+  for (const SideRun& side : sides) {
+    const auto over_budget = std::ranges::count_if(side.frames_ms, [](double ms) { return ms > kTickBudgetMs; });
+    std::cout << std::format(
+        "[ bench ] {:<6}  {:>7.1f}/{:>5.1f}/{:<7.1f}  {:>11}\n", side.label, Percentile(side.frames_ms, kMedian),
+        Percentile(side.frames_ms, kP95), Percentile(side.frames_ms, 1.0), over_budget);
+  }
+  for (const SideRun& side : sides) {
+    PrintTopSystems(side.label, side.top_systems_ms);
+  }
+  std::cout << std::flush;
+}
+
+// A client walks inside a station its server holds. The sides are timed apart: the
+// snapshot and digest work lands on whichever one the session gives it.
+void MeasureServerClient(const std::string& scene) {
+  const auto blocks = ReadStation(scene);
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
+  auto network = std::make_shared<z13::net::InMemoryNetwork>();
+  Z13TestWorld server({std::string(kServerArg)}, network);
+  server.Tick();
+  PlaceStation(server, *blocks, 1, LayoutOf(*blocks));
+  server.Tick();
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  const auto connected = [&] {
+    return client.World().has<z13::gameplay::Gameplay>() &&
+           client.World().get<z13::net::ConnectionStatus>().state == z13::net::ConnectionState::kConnected;
+  };
+  const auto never = [] { return false; };
+  const bool joined = RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, connected);
+  ASSERT_TRUE(joined);
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kWarmUpTicks, never);
+
+  std::vector<SideRun> sides {{.label = "server"}, {.label = "client"}};
+  const std::vector<Z13TestWorldRef> worlds {server, client};
+  std::vector<std::vector<std::pair<std::string, double>>> before;
+  for (const Z13TestWorldRef& world : worlds) {
+    ecs_measure_system_time(world.get().World(), true);
+    before.push_back(SystemTimes(world.get().World()));
+  }
+  client.EmitInput(KeyDown(Keycode::KEY_W));
+  for (int tick = 0; tick < kServerClientWalkTicks; ++tick) {
+    for (size_t side = 0; side < sides.size(); ++side) {
+      sides[side].frames_ms.push_back(Ms([&] { ft::TickWorld(worlds[side].get().World(), kNetTestDeltaTime); }));
+    }
+    network->Tick();
+  }
+  client.EmitInput(KeyUp(Keycode::KEY_W));
+  for (size_t side = 0; side < sides.size(); ++side) {
+    flecs::world w = worlds[side].get().World();
+    sides[side].top_systems_ms = TopSystems(before[side], SystemTimes(w), kServerClientWalkTicks);
+    ecs_measure_system_time(w, false);
+  }
+  PrintSides(scene, static_cast<size_t>(server.World().count<z13::station::Block>()), sides);
+}
+
+TEST(StationLoadBench, DISABLED_ServerClient) {
+  for (const std::string& scene : Stations()) {
+    MeasureServerClient(scene);
   }
 }
 

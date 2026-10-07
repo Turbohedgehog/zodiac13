@@ -118,7 +118,7 @@
 
 Вид роста важнее абсолютных цифр: их даёт Release-сборка (`python3 make.py -br`) или x64-раннер CI, а Debug на ARM годится только для соотношений. Проекция чуть занижает снимок: у `BasicBlock` нет полей типа и размера (+10–20 байт на блок у настоящего `Block`). Помещения и газ меряются позже отдельными бенчмарками в своих этапах; до того генератор считает их входные размеры — столбцы свободного пространства, порталы, помещения.
 
-Бенчмарк — `StationLoadBench` (`z13_module/tests/bench/station_load_bench_test.cpp`): `DISABLED_Scales` (×1/×2/×4, с разбивкой тика по системам через `ecs_measure_system_time`) и `DISABLED_Join` (до этапа 5 — `DISABLED_Runs` и `DISABLED_Panels` по проекции); загружает станцию из чертежа, позже добавит помещения и газ из `station-systems-plan.md`.
+Бенчмарк — `StationLoadBench` (`z13_module/tests/bench/station_load_bench_test.cpp`): `DISABLED_Scales` (×1/×2/×4, с разбивкой тика по системам через `ecs_measure_system_time`) `DISABLED_Join` и `DISABLED_ServerClient` (сервер и идущий по станции клиент на `InMemoryNetwork`, кадры сторон и их тяжёлые системы раздельно; на `spire`, Debug x64: медиана кадра 0,8 мс, но `CaptureSnapshot` занимает ~750 мс на сервере и ~330 мс на клиенте раз в 15 тиков — 53 и 20 кадров из 300 вне бюджета 16,7 мс) (до этапа 5 — `DISABLED_Runs` и `DISABLED_Panels` по проекции); загружает станцию из чертежа, позже добавит помещения и газ из `station-systems-plan.md`.
 
 ### Результаты (2026-10-05, Debug, ARM, PRoot)
 
