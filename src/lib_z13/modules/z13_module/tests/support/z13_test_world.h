@@ -59,8 +59,6 @@ constexpr std::string_view kStationSceneArg = "--station-scene";
 constexpr std::string_view kSiteScene = "site";
 // assets/station/blueprints/test.json, from docs/station-layout/generate_layout.py.
 constexpr std::string_view kTestScene = "test";
-// assets/station/blueprints/spire.json, from docs/station-layout/generate_spire.py.
-constexpr std::string_view kSpireScene = "spire";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
