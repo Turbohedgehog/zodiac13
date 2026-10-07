@@ -23,6 +23,7 @@
 
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/world_state_requests.h>
 #include <lib_core/time/simulation_clock.h>
@@ -76,6 +77,7 @@ void RegisterStateMeta(flecs::world& world) {
   RegisterWorldStateRequests(world);
   RegisterSimulationClock(world);
   RegisterWorldSnapshotHistory(world);
+  RegisterSnapshotGrouping(world);
   RegisterRollback(world);
 }
 

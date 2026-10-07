@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -130,7 +131,10 @@ class Scenario {
 
   void Checkpoint(uint64_t tick) {
     const ft::WorldSnapshot snapshot = ft::CaptureState(world_.World()).value();
-    for (const ft::EntitySnapshot& entity : snapshot.entities) {
+    ft::EntityRefs entities = ft::AllEntities(snapshot);
+    std::ranges::sort(
+        entities, std::less<> {}, [](const ft::EntitySnapshot& entity) -> const std::string& { return entity.name; });
+    for (const ft::EntitySnapshot& entity : entities) {
       for (const ft::ComponentValue& component : entity.components) {
         const flecs::entity type = world_.World().lookup(component.type.c_str());
         const std::string json = ft::ValueToJson(world_.World(), type, component.value).value();

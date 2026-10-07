@@ -19,6 +19,7 @@
 #include <flecs.h>
 
 #include "block_building_system.h"
+#include "block_snapshot_system.h"
 #include "brush_system.h"
 #include "building_input_system.h"
 #include "building_system.h"
@@ -31,6 +32,7 @@ BuildingModule::BuildingModule(flecs::world& world) {
   BuildingSystem::Register(world);
   BuildingInputSystem::Register(world);
   PaletteSystem::Register(world);
+  BlockSnapshotSystem::Register(world);
   StationSceneSystem::Register(world);
   // Before BlockBuildingSystem: same phase, so the brush is picked before it builds.
   BrushSystem::Register(world);

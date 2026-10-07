@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
@@ -51,9 +52,25 @@ struct EntitySnapshot {
   std::vector<Relationship> relationships;  // sorted by (relation, target)
 };
 
-struct WorldSnapshot {
+using SnapshotGroupId = uint64_t;
+
+// Entities a module snapshots together (snapshot_grouping.h); later snapshots share the
+// group while its fingerprint is unchanged.
+struct GroupSnapshot {
+  SnapshotGroupId id {};
+  uint64_t fingerprint {};
   std::vector<EntitySnapshot> entities;  // sorted by name
 };
+
+struct WorldSnapshot {
+  std::vector<EntitySnapshot> entities;                      // ungrouped, sorted by name
+  std::vector<std::shared_ptr<const GroupSnapshot>> groups;  // sorted by id
+};
+
+using EntityRefs = std::vector<std::reference_wrapper<const EntitySnapshot>>;
+
+// The ungrouped entities, then each group's.
+EntityRefs AllEntities(const WorldSnapshot& snapshot);
 
 // Decides whether an entity belongs to the serialized state.
 using EntityFilter = std::function<bool(flecs::entity)>;
