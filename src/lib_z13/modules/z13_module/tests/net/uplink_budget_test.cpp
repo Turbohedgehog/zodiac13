@@ -66,19 +66,12 @@ constexpr int kMouseDeltaX = 5;
 constexpr int kMouseJitterX = 5;
 constexpr int kMouseJitterY = 3;
 
-z13::Settings SettingsFor(fbs::net::RemoteInputPrediction prediction) {
-  z13::Settings settings = z13::MakeSettings();
-  settings.net->remote_input_prediction = prediction;
-  return settings;
+Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
+  return Z13TestWorld({std::string(kServerArg)}, network);
 }
 
-Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
-  return Z13TestWorld({std::string(kServerArg)}, network, settings);
-}
-
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
-  return Z13TestWorld(
-      {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
 bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
@@ -104,8 +97,8 @@ std::vector<uint64_t> UplinkBytesPerSecond(
   return per_second;
 }
 
-// Neutral prediction adds a batch per send interval while a key is held.
-class UplinkBudgetTest : public ::testing::TestWithParam<fbs::net::RemoteInputPrediction> {
+// A held key adds a batch per send interval.
+class UplinkBudgetTest : public ::testing::Test {
  protected:
   void SetUp() override {
     ASSERT_TRUE(RunNetworkUntil(
@@ -113,13 +106,12 @@ class UplinkBudgetTest : public ::testing::TestWithParam<fbs::net::RemoteInputPr
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
-  z13::Settings settings_ = SettingsFor(GetParam());
-  Z13TestWorld server_ = MakeServer(network_, settings_);
-  Z13TestWorld client_ = MakeClient(network_, settings_);
+  Z13TestWorld server_ = MakeServer(network_);
+  Z13TestWorld client_ = MakeClient(network_);
 };
 
 // W for 5 s, then 2 s of mouse look changing every tick (a steady delta would be sent once).
-TEST_P(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
+TEST_F(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
   const auto per_second = UplinkBytesPerSecond(*network_, server_, client_, kSessionSeconds, [&](uint64_t tick) {
     if (tick == 0) {
       client_.EmitInput(KeyDown(Keycode::KEY_W));
@@ -139,18 +131,11 @@ TEST_P(UplinkBudgetTest, ScriptedSessionStaysWithinBudget) {
   EXPECT_LE(peak, kClientUplinkBudgetBytesPerSecond);
 }
 
-TEST_P(UplinkBudgetTest, IdleClientStaysWithinIdleBudget) {
+TEST_F(UplinkBudgetTest, IdleClientStaysWithinIdleBudget) {
   const auto per_second = UplinkBytesPerSecond(*network_, server_, client_, kIdleSeconds, [](uint64_t) {});
 
   EXPECT_LE(std::ranges::max(per_second), kIdleUplinkBudgetBytesPerSecond);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    Prediction, UplinkBudgetTest,
-    ::testing::Values(fbs::net::RemoteInputPrediction::Hold, fbs::net::RemoteInputPrediction::Neutral),
-    [](const ::testing::TestParamInfo<fbs::net::RemoteInputPrediction>& info) {
-      return std::string(fbs::net::EnumNameRemoteInputPrediction(info.param));
-    });
 
 }  // namespace
 }  // namespace z13::net

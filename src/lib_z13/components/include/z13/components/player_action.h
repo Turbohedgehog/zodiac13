@@ -107,7 +107,7 @@ struct RemoteActionState {
   std::optional<uint64_t> synced_tick;
 };
 
-// How far each remote player's input has arrived; kept only under RemoteInputPrediction::Neutral.
+// How far each remote player's input has arrived.
 // Past it, the player's non-absolute actions read as released.
 struct ConfirmedInputTicks {
   using Singleton = void;

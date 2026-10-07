@@ -29,6 +29,7 @@
 
 #include <net_module/clock_sync.h>
 #include <net_module/in_memory_transport.h>
+#include <net_module/state_digest.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
@@ -74,13 +75,6 @@ Z13TestWorld MakeServer(
 Z13TestWorld MakeClient(
     const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
   return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
-}
-
-// Observers predict a held key as held, so they move with it on the same tick.
-z13::Settings HoldPrediction() {
-  z13::Settings settings = z13::MakeSettings();
-  settings.net->remote_input_prediction = z13::fbs::net::RemoteInputPrediction::Hold;
-  return settings;
 }
 
 bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
@@ -155,11 +149,11 @@ Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
 
 // Welcome's snapshot is the newest one past the late-command window. B joins so that it was
 // taken mid-hold and the held key's next reassert is far off: only held_values tell B W is down.
-TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
+TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovement) {
   constexpr double kSnapshotIntervalSeconds = 5.;
   constexpr double kSnapshotRetentionSeconds = 10.;
   auto network = std::make_shared<InMemoryNetwork>();
-  z13::Settings settings = HoldPrediction();
+  z13::Settings settings = z13::MakeSettings();
   settings.core->snapshot_interval_seconds = kSnapshotIntervalSeconds;
   settings.core->snapshot_retention_seconds = kSnapshotRetentionSeconds;
   Z13TestWorld server = MakeServer(network, settings);
@@ -190,12 +184,15 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovementImmediately) {
   const float position_at_join = Position(client_b, kClientAId).x();
 
   constexpr int kExtraTicks = 20;
+  constexpr int kSettleTicks = 30;
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kExtraTicks, [] { return false; });
+  client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+  RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
-  const float moved = Position(client_b, kClientAId).x() - position_at_join;
-  const float expected = static_cast<float>(kExtraTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
-  EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
+  EXPECT_GT(Position(client_b, kClientAId).x(), position_at_join + z13::testing::kTestEpsilon);
+  EXPECT_NEAR(Position(client_b, kClientAId).x(), Position(server, kClientAId).x(), z13::testing::kTestEpsilon)
       << "held_values didn't seed the joiner's view of an already-held key";
+  EXPECT_EQ(client_b.World().get<StateDigests>().resyncs, 0u) << "only a resync caught B up";
 }
 
 TEST(CommandStreamTest, LocalCommandMovesTheClientOnTheTickItIsPressed) {
