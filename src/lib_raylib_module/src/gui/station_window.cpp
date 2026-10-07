@@ -18,60 +18,45 @@
 
 #include <filesystem>
 #include <memory>
-#include <optional>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include <imgui.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/station.h>
-#include <z13_primitives/blueprint.h>
+#include <z13_primitives/station_assets.h>
 
 #include "../tools/asset_path.h"
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
 
-namespace {
+StationWindow::StationWindow(flecs::world world)
+    : Window(world, "Station"),
+      scenes_(z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}))) {}
 
-class StationWindow : public Window {
- public:
-  explicit StationWindow(flecs::world world)
-      : Window(world, "Station"),
-        scenes_(z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}))) {}
-
- protected:
-  void DrawBody() override {
-    for (const std::string& scene : scenes_) {
-      if (ImGui::Button(scene.c_str(), kButtonSize)) {
-        Start(scene);
-      }
-    }
-    if (ImGui::Button("New station", kButtonSize)) {
-      Start(std::nullopt);
-    }
-    if (ImGui::Button("Back", kButtonSize)) {
-      RequestPop();
+void StationWindow::DrawBody() {
+  for (const std::string& scene : scenes_) {
+    if (ImGui::Button(scene.c_str(), kButtonSize)) {
+      Start(scene);
     }
   }
-
- private:
-  void Start(std::optional<std::string> scene) {
-    World().set<z13::net::ConnectionStatus>({});
-    World().add<z13::station::StationMode>();
-    World().set(z13::station::StationSceneChoice {.scene = std::move(scene)});
-    World().add<z13::gameplay::Gameplay>();
-    RequestCloseMenu();
+  if (ImGui::Button("New station", kButtonSize)) {
+    Start(std::nullopt);
   }
+  if (ImGui::Button("Back", kButtonSize)) {
+    RequestPop();
+  }
+}
 
-  // Read once when the window opens.
-  std::vector<std::string> scenes_;
-};
-
-}  // namespace
+void StationWindow::Start(std::optional<std::string> scene) {
+  World().set<z13::net::ConnectionStatus>({});
+  World().add<z13::station::StationMode>();
+  World().set(z13::station::StationSceneChoice {.scene = std::move(scene)});
+  World().add<z13::gameplay::Gameplay>();
+  RequestCloseMenu();
+}
 
 WindowPtr MakeStationWindow(flecs::world world) {
   return std::make_shared<StationWindow>(world);

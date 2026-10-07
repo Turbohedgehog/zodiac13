@@ -16,19 +16,32 @@
 
 #pragma once
 
-#include <expected>
 #include <string>
-#include <string_view>
-#include <vector>
 
-#include <z13/components/station.h>
-#include <z13_primitives/palette.h>
+#include <flecs.h>
 
-namespace z13::building::primitives {
+#include "gui_windows.h"
 
-// Parses blueprint JSON (blueprint.fbs) into blocks of `palette`, naming the first block
-// whose primitive the palette lacks. Placement isn't checked here: that's ValidateBuild's.
-std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
-    std::string_view json, const Palette& palette);
+namespace z13::raylib::gui {
 
-}  // namespace z13::building::primitives
+class JoinWindow : public Window {
+ public:
+  explicit JoinWindow(flecs::world world);
+
+  StackRequest OnBack() override;
+
+ protected:
+  void DrawBody() override;
+
+ private:
+  bool IsConnecting() const;
+  void CancelIfConnecting();
+
+  std::string host_;
+  std::string port_;
+  bool submitted_ {};
+};
+
+WindowPtr MakeJoinWindow(flecs::world world);
+
+}  // namespace z13::raylib::gui

@@ -73,16 +73,15 @@ z13::Settings SettingsFor(fbs::net::RemoteInputPrediction prediction) {
 }
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
+  return Z13TestWorld({std::string(kServerArg)}, network, settings);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings) {
   return Z13TestWorld(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+      {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 

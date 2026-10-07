@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <filesystem>
 #include <format>
 #include <memory>
 #include <string>
@@ -36,12 +35,13 @@
 #include <z13_primitives/blueprint.h>
 #include <z13_primitives/palette.h>
 #include <z13_primitives/placement.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/block_entities.h"
 #include "../src/build_validation.h"
-#include "../src/station_assets.h"
+#include "support/station_builders.h"
 
 namespace z13::building {
 namespace {
@@ -56,26 +56,19 @@ using z13::station::StationMode;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
-using z13::testing::kServerArg;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
-constexpr std::string_view kTestSceneName = "test";
-const std::filesystem::path kAssetsDir {Z13_SOURCE_ASSETS_DIR};
-const std::filesystem::path kPaletteFile = kAssetsDir / "station" / "palette.json";
-const std::filesystem::path kBlueprintFile = kAssetsDir / "station" / "blueprints" / "test.json";
 // Four markers in each habitat deck's lounge.
 constexpr int kSpawnPoints = 8;
 
 Palette ShippedPalette() {
-  return ReadTextFile(kPaletteFile).and_then(z13::building::primitives::ParsePalette).value();
+  return z13::testing::ShippedPalette().value();
 }
 
 std::vector<Block> ShippedStation(const Palette& palette) {
-  return ReadTextFile(kBlueprintFile)
-      .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); })
-      .value();
+  return z13::testing::ShippedBlueprint(z13::testing::kTestScene, palette).value();
 }
 
 std::vector<Block> Blocks(flecs::world world) {
@@ -92,7 +85,7 @@ bool SameBlocks(const std::vector<Block>& a, const std::vector<Block>& b) {
 }
 
 std::vector<std::string> TestStationArgs() {
-  return {std::string(z13::testing::kStationSceneArg), std::string(kTestSceneName)};
+  return {std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kTestScene)};
 }
 
 TEST(TestStationTest, EveryBlockOfTheBlueprintIsAValidBuild) {
@@ -130,7 +123,7 @@ TEST(TestStationTest, BlueprintNamingAnUnknownPrimitiveIsRejected) {
 }
 
 TEST(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, TestStationArgs());
+  Z13TestWorld test_world(TestStationArgs());
   test_world.Tick();
 
   ASSERT_TRUE(test_world.World().has<StationMode>());
@@ -146,11 +139,11 @@ TEST(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
 }
 
 TEST(TestStationTest, SaveAndLoadKeepEveryBlock) {
-  Z13TestWorld station(/*skip_main_menu=*/false, TestStationArgs());
+  Z13TestWorld station(TestStationArgs());
   station.Tick();
   const auto snapshot = z13::flecs_tools::CaptureState(station.World());
   ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
-  Z13TestWorld loaded(/*skip_main_menu=*/false, {std::string(z13::testing::kStationArg)});
+  Z13TestWorld loaded({std::string(z13::testing::kStationArg)});
   loaded.Tick();
 
   ASSERT_TRUE(z13::flecs_tools::RestoreWorld(loaded.World(), *snapshot).has_value());
@@ -160,11 +153,8 @@ TEST(TestStationTest, SaveAndLoadKeepEveryBlock) {
 
 TEST(TestStationTest, ClientJoiningGetsTheWholeStation) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  std::vector<std::string> server_args = TestStationArgs();
-  server_args.emplace_back(kServerArg);
-  Z13TestWorld server(/*skip_main_menu=*/false, server_args, network);
-  Z13TestWorld client(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(TestStationArgs()), network);
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&client] {
     return client.World().has<Gameplay>() && client.World().lookup(PlayerEntityName(1).c_str());

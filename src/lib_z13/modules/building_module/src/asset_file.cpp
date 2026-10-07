@@ -14,28 +14,21 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include "asset_file.h"
 
-
-#include <z13_primitives/palette.h>
-#include <z13_tests/shipped_station.h>
-
-#include "../../z13_module/tests/support/z13_test_world.h"
+#include <boost/dll/runtime_symbol_info.hpp>
 
 namespace z13::building {
+
 namespace {
 
-using z13::building::primitives::BlockPalette;
-
-TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
-  const auto expected = z13::testing::ShippedPalette();
-  ASSERT_TRUE(expected.has_value()) << expected.error();
-
-  z13::testing::Z13TestWorld test_world;
-
-  ASSERT_TRUE(test_world.World().has<BlockPalette>());
-  EXPECT_EQ(test_world.World().get<BlockPalette>().palette.hash, expected->hash);
-}
+const std::filesystem::path kAssetsDir = "assets";
 
 }  // namespace
+
+std::filesystem::path AssetFile(const std::filesystem::path& relative) {
+  const std::filesystem::path plugin_dir = boost::dll::this_line_location().parent_path().string();
+  return plugin_dir.parent_path().parent_path() / kAssetsDir / relative;
+}
+
 }  // namespace z13::building

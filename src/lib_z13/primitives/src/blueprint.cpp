@@ -16,9 +16,7 @@
 
 #include <z13_primitives/blueprint.h>
 
-#include <algorithm>
 #include <format>
-#include <system_error>
 
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
@@ -33,29 +31,9 @@ namespace fbs_station = fbs::station;
 
 using z13::station::Orientation;
 
-std::filesystem::path BlueprintsDir() {
-  return std::filesystem::path(kBlueprintStationDir) / kBlueprintsDir;
-}
-
 static_assert(static_cast<size_t>(fbs_station::Orientation::MAX) == static_cast<size_t>(Orientation::kFaceNegZUpNegY));
 
 }  // namespace
-
-std::filesystem::path BlueprintFile(std::string_view scene) {
-  return BlueprintsDir() / std::format("{}{}", scene, kBlueprintExtension);
-}
-
-std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir) {
-  std::vector<std::string> scenes;
-  std::error_code error;
-  for (const auto& entry : std::filesystem::directory_iterator(assets_dir / BlueprintsDir(), error)) {
-    if (entry.is_regular_file() && entry.path().extension() == kBlueprintExtension) {
-      scenes.push_back(entry.path().stem().string());
-    }
-  }
-  std::ranges::sort(scenes);
-  return scenes;
-}
 
 std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
     std::string_view json, const Palette& palette) {

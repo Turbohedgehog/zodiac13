@@ -30,11 +30,12 @@
 #include <z13/components/station.h>
 #include <z13_primitives/blueprint.h>
 #include <z13_primitives/palette.h>
+#include <z13_primitives/station_assets.h>
 #include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
 #include "build_validation.h"
-#include "station_assets.h"
+#include "asset_file.h"
 
 namespace z13::building {
 
@@ -56,7 +57,7 @@ void PopulateStationScene(flecs::entity e, z13::gameplay::PopulateSceneEvent) {
   }
   const std::filesystem::path file = AssetFile(z13::building::primitives::BlueprintFile(*scene));
   const auto& tuning = world.get<BuildingTuning>();
-  const auto blocks = ReadTextFile(file).and_then([palette](const std::string& json) {
+  const auto blocks = z13::building::primitives::ReadTextFile(file).and_then([palette](const std::string& json) {
     return z13::building::primitives::ParseBlueprint(json, palette->palette);
   });
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.

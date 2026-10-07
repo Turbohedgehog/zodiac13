@@ -40,6 +40,7 @@ namespace z13::input {
 namespace {
 
 using z13::testing::kServerArg;
+using z13::testing::kSkipMainMenuArg;
 using z13::testing::Z13TestWorld;
 
 TEST(PhaseOrderTest, PhasesRunInTheDocumentedOrder) {
@@ -140,12 +141,12 @@ TEST(PhaseOrderTest, EverySystemHasAtMostOnePhase) {
   Z13TestWorld local;
   EXPECT_EQ(SystemsWithSeveralPhases(local.World()), std::vector<std::string> {});
 
-  Z13TestWorld server(true, {std::string(kServerArg)});
+  Z13TestWorld server({std::string(kSkipMainMenuArg), std::string(kServerArg)});
   EXPECT_EQ(SystemsWithSeveralPhases(server.World()), std::vector<std::string> {});
 }
 
 TEST(PhaseOrderTest, NoPhaseLivesInAnAnonymousNamespace) {
-  Z13TestWorld server(true, {std::string(kServerArg)});
+  Z13TestWorld server({std::string(kSkipMainMenuArg), std::string(kServerArg)});
   std::vector<std::string> anonymous;
   server.World().query_builder().with(flecs::Phase).build().each([&anonymous](flecs::entity phase) {
     const std::string path {phase.path().c_str()};
@@ -158,7 +159,7 @@ TEST(PhaseOrderTest, NoPhaseLivesInAnAnonymousNamespace) {
 }
 
 TEST(PhaseOrderTest, EveryPhaseDependsOnlyOnItsAnchor) {
-  Z13TestWorld server(true, {std::string(kServerArg)});
+  Z13TestWorld server({std::string(kSkipMainMenuArg), std::string(kServerArg)});
   std::vector<std::string> offenders;
   server.World().query_builder().with(flecs::Phase).build().each([&offenders](flecs::entity phase) {
     int32_t anchor_count {};
@@ -196,7 +197,7 @@ TEST(PhaseOrderTest, DisablingAPhaseKeepsTheLaterOnesRunning) {
 }
 
 TEST(PhaseOrderTest, NoTwoPhasesRunAtTheSameDepth) {
-  Z13TestWorld server(true, {std::string(kServerArg)});
+  Z13TestWorld server({std::string(kSkipMainMenuArg), std::string(kServerArg)});
   EXPECT_EQ(PhasesSharingDepth(server.World()), std::set<std::string> {});
 }
 

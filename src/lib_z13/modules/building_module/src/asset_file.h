@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <expected>
 #include <filesystem>
-#include <string>
 
 namespace z13::building {
 
@@ -26,7 +24,5 @@ namespace z13::building {
 // (bin/modules/building_module/) wherever it runs: the game, a dedicated server or the
 // test runner.
 std::filesystem::path AssetFile(const std::filesystem::path& relative);
-
-std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path& file);
 
 }  // namespace z13::building

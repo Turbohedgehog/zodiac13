@@ -23,13 +23,10 @@
 #include <chrono>
 #include <cstdint>
 #include <expected>
-#include <filesystem>
 #include <format>
-#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,9 +49,9 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
 #include <z13/components/net.h>
-#include <z13_primitives/blueprint.h>
 #include <z13_primitives/palette.h>
 #include <z13_settings/net_tuning.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -65,10 +62,6 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 using Keycode = z13::fbs::input::Keycode;
-
-const std::filesystem::path kAssetsDir {Z13_SOURCE_ASSETS_DIR};
-const std::filesystem::path kPaletteFile = kAssetsDir / "station" / "palette.json";
-const std::filesystem::path kBlueprintFile = kAssetsDir / "station" / "blueprints" / "test.json";
 
 constexpr float kCellSize = z13::station::kCellSize;
 // Where the station sits relative to the spawned player: its first deck's spine corridor.
@@ -86,26 +79,9 @@ constexpr double kBytesPerMb = 1024.0 * 1024.0;
 constexpr size_t kTopSystems = 8;
 constexpr double kMsPerSecond = 1000.0;
 
-std::expected<std::string, std::string> ReadFile(const std::filesystem::path& path) {
-  std::ifstream file(path);
-  if (!file) {
-    return std::unexpected(std::format("can't open {}", path.string()));
-  }
-  std::ostringstream contents;
-  contents << file.rdbuf();
-  return contents.str();
-}
-
 std::expected<std::vector<z13::station::Block>, std::string> ReadStation() {
-  const auto palette = ReadFile(kPaletteFile).and_then([](const std::string& json) {
-    return z13::building::primitives::ParsePalette(json);
-  });
-  if (!palette) {
-    return std::unexpected(palette.error());
-  }
-  return ReadFile(kBlueprintFile).and_then([&palette](const std::string& json) {
-    return z13::building::primitives::ParseBlueprint(json, *palette);
-  });
+  return ShippedPalette().and_then(
+      [](const z13::building::primitives::Palette& palette) { return ShippedBlueprint(kTestScene, palette); });
 }
 
 template <typename F>
@@ -299,14 +275,14 @@ TEST(StationLoadBench, DISABLED_Join) {
   const auto blocks = ReadStation();
   ASSERT_TRUE(blocks.has_value()) << blocks.error();
   auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  Z13TestWorld server({std::string(kServerArg)}, network);
   server.Tick();
   PlaceStation(server, *blocks, 1);
   server.Tick();
   const auto snapshot = ft::CaptureState(server.World());
   ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
 
-  Z13TestWorld client(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   uint64_t ticks = 0;
   const auto connected = [&] {
     return client.World().has<z13::gameplay::Gameplay>() &&

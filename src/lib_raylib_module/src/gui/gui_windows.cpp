@@ -32,7 +32,8 @@
 
 #include "gui_keybindings.h"
 #include "gui_widgets.h"
-#include "net_windows.h"
+#include "join_window.h"
+#include "start_server_window.h"
 #include "station_window.h"
 
 namespace z13::raylib::gui {

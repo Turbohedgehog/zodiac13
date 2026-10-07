@@ -18,7 +18,7 @@
 
 #include <format>
 
-#include <z13_primitives/blueprint.h>
+#include <z13_primitives/station_assets.h>
 
 namespace z13 {
 

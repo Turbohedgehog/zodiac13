@@ -53,32 +53,28 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint64_t kHoldTicks = 30;
 
-Z13TestWorld MakeMenuWorld(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {}, network);
+Z13TestWorld MakeMenuWorld(const std::shared_ptr<InMemoryNetwork>& network) {return Z13TestWorld({}, network);
 }
 
 Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
+  return Z13TestWorld({std::string(kServerArg)}, network);
 }
 
 Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 }
 
-ConnectionState StatusOf(Z13TestWorld& world) {
-  return world.World().get<ConnectionStatus>().state;
+ConnectionState StatusOf(Z13TestWorld& world) {return world.World().get<ConnectionStatus>().state;
 }
 
 bool IsConnected(Z13TestWorld& world) {
   return world.World().has<Gameplay>() && StatusOf(world) == ConnectionState::kConnected;
 }
 
-bool HasPlayer(Z13TestWorld& world, uint32_t id) {
-  return world.World().lookup(PlayerEntityName(id).c_str());
+bool HasPlayer(Z13TestWorld& world, uint32_t id) {return world.World().lookup(PlayerEntityName(id).c_str());
 }
 
-Eigen::Vector3f PositionOf(Z13TestWorld& world, uint32_t id) {
-  return z13::math::ExtractTranslation<float>(
+Eigen::Vector3f PositionOf(Z13TestWorld& world, uint32_t id) {return z13::math::ExtractTranslation<float>(
       world.World().lookup(PlayerEntityName(id).c_str()).get<Eigen::Matrix4f>());
 }
 

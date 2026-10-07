@@ -57,26 +57,25 @@ constexpr std::string_view kStationArg = "--station";
 constexpr std::string_view kStationSceneArg = "--station-scene";
 // assets/station/blueprints/site.json: a floor with one spawn point.
 constexpr std::string_view kSiteScene = "site";
+// assets/station/blueprints/test.json, from docs/station-layout/generate_layout.py.
+constexpr std::string_view kTestScene = "test";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.
-class Z13TestWorld {
- public:
-  // skip_main_menu mirrors --skip-main-menu: true spawns the scene on the first frame.
-  // extra_args are appended as-is (e.g. {kServerArg}, {kConnectArg, "host:1234"}).
+class Z13TestWorld {public:
+  // args are the command line (e.g. {kServerArg}, {kConnectArg, "host:1234"}); the default,
+  // kSkipMainMenuArg, spawns the scene on the first frame.
   // network is this world's virtual network for --server/--connect: pass the same
   // InMemoryNetwork to several Z13TestWorlds so they can reach each other; left null,
   // each world gets its own, so a solo --server/--connect world never touches a socket.
-  explicit Z13TestWorld(
-      bool skip_main_menu = true, std::vector<std::string> extra_args = {},
+  explicit Z13TestWorld(std::vector<std::string> args = {std::string(kSkipMainMenuArg)},
       std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr,
       const z13::Settings& settings = z13::MakeSettings())
       : network_(network ? std::move(network) : std::make_shared<z13::net::InMemoryNetwork>()),
-        core_(MakeCore(skip_main_menu, quick_save_path_, std::move(extra_args))),
+        core_(MakeCore(quick_save_path_, std::move(args))),
         world_(CreateWorld(core_, network_, settings)) {}
 
-  ~Z13TestWorld() {
-    std::error_code ignored;
+  ~Z13TestWorld() {std::error_code ignored;
     std::filesystem::remove(quick_save_path_, ignored);
   }
 
@@ -123,16 +122,11 @@ class Z13TestWorld {
 
  private:
   // Goes through the real command line, so the module reads these settings from Config.
-  static z13::Core MakeCore(
-      bool skip_main_menu, const std::filesystem::path& quick_save_path, std::vector<std::string> extra_args) {
+  static z13::Core MakeCore(const std::filesystem::path& quick_save_path, std::vector<std::string> args) {
     std::string program {kTestProgramName};
-    std::string skip_main_menu_arg {kSkipMainMenuArg};
     std::string quick_save_arg = std::format("{}={}", kQuickSavePathArg, quick_save_path.string());
     std::vector<char*> argv {program.data(), quick_save_arg.data()};
-    if (skip_main_menu) {
-      argv.push_back(skip_main_menu_arg.data());
-    }
-    for (std::string& arg : extra_args) {
+    for (std::string& arg : args) {
       argv.push_back(arg.data());
     }
     return z13::Core(static_cast<int>(argv.size()), argv.data());

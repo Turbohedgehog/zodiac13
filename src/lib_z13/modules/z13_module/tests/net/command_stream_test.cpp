@@ -68,13 +68,12 @@ constexpr uint32_t kClientAId = 1;
 
 Z13TestWorld MakeServer(
     const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
-  return Z13TestWorld(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
+  return Z13TestWorld({std::string(kServerArg)}, network, settings);
 }
 
 Z13TestWorld MakeClient(
     const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
-  return Z13TestWorld(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
+  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
 }
 
 // Observers predict a held key as held, so they move with it on the same tick.
@@ -84,8 +83,7 @@ z13::Settings HoldPrediction() {
   return settings;
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
@@ -100,8 +98,7 @@ uint64_t SnapshotIntervalTicks(Z13TestWorld& world) {
   return static_cast<uint64_t>(std::llround(world.Config().GetSnapshotIntervalSeconds() * world.Config().GetFPS()));
 }
 
-size_t LogCountFor(Z13TestWorld& world, uint32_t player_id) {
-  return static_cast<size_t>(std::ranges::count_if(
+size_t LogCountFor(Z13TestWorld& world, uint32_t player_id) {return static_cast<size_t>(std::ranges::count_if(
       world.World().get<z13::gameplay::PlayerActionLog>().log.Entries(),
       [player_id](const z13::gameplay::PlayerActionRecord& r) { return r.player_id == player_id; }));
 }
@@ -262,8 +259,7 @@ TEST(CommandStreamTest, LateCommandsRollBackInBatchesFromANearbySnapshot) {
 
   constexpr uint64_t kTapTicks = 120;
   for (uint64_t tick = 0; tick < kTapTicks; ++tick) {
-    for (Z13TestWorld* client : {&client_a, &client_b}) {
-      if (tick % 2 == 0) {
+    for (Z13TestWorld* client : {&client_a, &client_b}) {if (tick % 2 == 0) {
         client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
       } else {
         client->EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
@@ -326,8 +322,7 @@ TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
   constexpr uint64_t kTicks = 240;
   constexpr int kLookDelta = 7;
   const float max_step = z13::gameplay::kCameraVelocity * kNetTestDeltaTime + z13::testing::kTestEpsilon;
-  for (Z13TestWorld* client : {&client_a, &client_b}) {
-    client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
+  for (Z13TestWorld* client : {&client_a, &client_b}) {client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   }
   Eigen::Vector3f previous = Position(client_a, own_id);
   for (uint64_t tick = 0; tick < kTicks; ++tick) {

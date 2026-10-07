@@ -219,8 +219,7 @@ void UpdateHeldKeys(Z13TestWorld& world, const std::set<Keycode>& held, const st
   }
 }
 
-bool IsConnected(Z13TestWorld& world) {
-  return world.World().has<z13::gameplay::Gameplay>() &&
+bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
 }
 
@@ -229,10 +228,10 @@ std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile,
   variant.apply(settings);
   auto network = std::make_shared<InMemoryNetwork>();
   network->SetFaultConfig(profile.fault);
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg)}, network, settings);
+  Z13TestWorld server({std::string(kServerArg)}, network, settings);
   const std::vector<std::string> client_args {std::string(kConnectArg), std::string(kTestServerEndpoint)};
-  Z13TestWorld client_a(/*skip_main_menu=*/false, client_args, network, settings);
-  Z13TestWorld client_b(/*skip_main_menu=*/false, client_args, network, settings);
+  Z13TestWorld client_a(client_args, network, settings);
+  Z13TestWorld client_b(client_args, network, settings);
   const auto tick = [&](uint64_t ticks) {
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
   };

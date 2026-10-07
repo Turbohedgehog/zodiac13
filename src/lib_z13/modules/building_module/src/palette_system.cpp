@@ -28,17 +28,16 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13_primitives/palette.h>
+#include <z13_primitives/station_assets.h>
 
-#include "station_assets.h"
+#include "asset_file.h"
 
 namespace z13::building {
 
 namespace {
 
-const std::filesystem::path kPalettePath = std::filesystem::path("station") / "palette.json";
-
 std::expected<z13::building::primitives::Palette, std::string> LoadPalette(const std::filesystem::path& file) {
-  return ReadTextFile(file)
+  return z13::building::primitives::ReadTextFile(file)
       .and_then([](const std::string& contents) { return z13::building::primitives::ParsePalette(contents); })
       .transform_error([&file](const std::string& error) { return std::format("{} ({})", error, file.string()); });
 }
@@ -49,7 +48,7 @@ void RegisterComponents(flecs::world world) {
 
 // In the systems stage, not next to the registration (see PhysicsSystem::RegisterSystems).
 void InstallPalette(flecs::world world) {
-  auto palette = LoadPalette(AssetFile(kPalettePath));
+  auto palette = LoadPalette(AssetFile(z13::building::primitives::PaletteFile()));
   if (!palette) {
     log_error("station: no block palette: {}", palette.error());
     return;

@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+#include <vector>
+
 #include <flecs.h>
 
 #include "gui_windows.h"
@@ -24,6 +28,20 @@ namespace z13::raylib::gui {
 
 // Starts a station game: from one of the blueprints under assets/station/blueprints/, or
 // a new, empty station.
+class StationWindow : public Window {
+ public:
+  explicit StationWindow(flecs::world world);
+
+ protected:
+  void DrawBody() override;
+
+ private:
+  void Start(std::optional<std::string> scene);
+
+  // Read once when the window opens.
+  std::vector<std::string> scenes_;
+};
+
 WindowPtr MakeStationWindow(flecs::world world);
 
 }  // namespace z13::raylib::gui

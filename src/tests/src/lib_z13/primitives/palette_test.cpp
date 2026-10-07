@@ -16,27 +16,15 @@
 
 #include <gtest/gtest.h>
 
-#include <filesystem>
 #include <format>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <string_view>
 
 #include <z13_primitives/palette.h>
+#include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
 namespace {
-
-const std::filesystem::path kShippedPalette =
-    std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / "station" / "palette.json";
-
-std::string ReadFile(const std::filesystem::path& path) {
-  std::ifstream stream(path);
-  std::ostringstream contents;
-  contents << stream.rdbuf();
-  return contents.str();
-}
 
 // A palette of the given comma-separated entries.
 std::string Palette(std::string_view entries) {
@@ -54,7 +42,7 @@ std::string Entry(uint32_t id, std::string_view name, std::string_view min = R"(
 }
 
 TEST(PaletteTest, ShippedPaletteParses) {
-  const auto palette = ParsePalette(ReadFile(kShippedPalette));
+  const auto palette = z13::testing::ShippedPalette();
   ASSERT_TRUE(palette.has_value()) << palette.error();
 
   EXPECT_FALSE(palette->primitives.empty());

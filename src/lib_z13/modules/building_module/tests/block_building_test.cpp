@@ -55,7 +55,6 @@ using z13::station::kCellSize;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
-using z13::testing::kServerArg;
 using z13::testing::AddBuilder;
 using z13::testing::BlocksOfType;
 using z13::testing::Facing;
@@ -234,11 +233,9 @@ std::string Checkpoint(Z13TestWorld& test_world) {
 // every peer must keep the same one.
 TEST(BlockBuildingTest, TwoClientsBuildingTheSameSpotConverge) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg), std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kSiteScene)}, network);
-  Z13TestWorld client_a(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
-  Z13TestWorld client_b(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
+  Z13TestWorld client_a({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld client_b({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   const auto all = [&](uint64_t ticks) {
     RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, ticks, [] { return false; });
   };

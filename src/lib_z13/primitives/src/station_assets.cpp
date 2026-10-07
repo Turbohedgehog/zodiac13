@@ -14,25 +14,42 @@
  * limitations under the License.
  */
 
-#include "station_assets.h"
+#include <z13_primitives/station_assets.h>
 
+#include <algorithm>
 #include <format>
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
-#include <boost/dll/runtime_symbol_info.hpp>
-
-namespace z13::building {
+namespace z13::building::primitives {
 
 namespace {
 
-const std::filesystem::path kAssetsDir = "assets";
+std::filesystem::path BlueprintsDir() {
+  return std::filesystem::path(kStationDir) / kBlueprintsDir;
+}
 
 }  // namespace
 
-std::filesystem::path AssetFile(const std::filesystem::path& relative) {
-  const std::filesystem::path plugin_dir = boost::dll::this_line_location().parent_path().string();
-  return plugin_dir.parent_path().parent_path() / kAssetsDir / relative;
+std::filesystem::path PaletteFile() {
+  return std::filesystem::path(kStationDir) / kPaletteFileName;
+}
+
+std::filesystem::path BlueprintFile(std::string_view scene) {
+  return BlueprintsDir() / std::format("{}{}", scene, kBlueprintExtension);
+}
+
+std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir) {
+  std::vector<std::string> scenes;
+  std::error_code error;
+  for (const auto& entry : std::filesystem::directory_iterator(assets_dir / BlueprintsDir(), error)) {
+    if (entry.is_regular_file() && entry.path().extension() == kBlueprintExtension) {
+      scenes.push_back(entry.path().stem().string());
+    }
+  }
+  std::ranges::sort(scenes);
+  return scenes;
 }
 
 std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path& file) {
@@ -45,4 +62,4 @@ std::expected<std::string, std::string> ReadTextFile(const std::filesystem::path
   return contents.str();
 }
 
-}  // namespace z13::building
+}  // namespace z13::building::primitives

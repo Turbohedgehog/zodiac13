@@ -70,8 +70,7 @@ class QuickSaveInSessionTest : public ::testing::Test {
     Run(ticks, [] { return false; });
   }
 
-  void Tap(Z13TestWorld& world, Keycode key) {
-    world.EmitInput(KeyDown(key));
+  void Tap(Z13TestWorld& world, Keycode key) {world.EmitInput(KeyDown(key));
     RunTicks(kSettleTicks);
     world.EmitInput(KeyUp(key));
     RunTicks(kSettleTicks);
@@ -82,14 +81,12 @@ class QuickSaveInSessionTest : public ::testing::Test {
     std::ofstream(world.QuickSavePath(), std::ios::binary) << ft::WorldJsonStore::Save(world.World()).value();
   }
 
-  static uint64_t Tick(Z13TestWorld& world) {
-    return world.World().get<ft::SimulationClock>().tick;
+  static uint64_t Tick(Z13TestWorld& world) {return world.World().get<ft::SimulationClock>().tick;
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server_ {/*skip_main_menu=*/false, {std::string(kServerArg)}, network_};
-  Z13TestWorld client_ {
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_};
+  Z13TestWorld server_ {{std::string(kServerArg)}, network_};
+  Z13TestWorld client_ {{std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_};
 };
 
 TEST_F(QuickSaveInSessionTest, ClientQuickLoadDoesNotRewindTheServer) {

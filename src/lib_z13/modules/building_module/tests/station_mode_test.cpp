@@ -60,29 +60,24 @@ using z13::testing::Z13TestWorld;
 // A floor and a spawn marker.
 constexpr int kSiteBlocks = 2;
 
-int SpawnPoints(Z13TestWorld& world) {
-  return world.World().count<SpawnPoint>();
+int SpawnPoints(Z13TestWorld& world) {return world.World().count<SpawnPoint>();
 }
 
-int Blocks(Z13TestWorld& world) {
-  return world.World().count<z13::station::Block>();
+int Blocks(Z13TestWorld& world) {return world.World().count<z13::station::Block>();
 }
 
-Eigen::Vector3f SpawnPointPosition(Z13TestWorld& world) {
-  Eigen::Vector3f position = Eigen::Vector3f::Zero();
+Eigen::Vector3f SpawnPointPosition(Z13TestWorld& world) {Eigen::Vector3f position = Eigen::Vector3f::Zero();
   world.World().query_builder<const SpawnPoint>().build().each(
       [&position](const SpawnPoint& point) { position = z13::math::ExtractTranslation<float>(point.transform); });
   return position;
 }
 
-Eigen::Vector3f PlayerPosition(Z13TestWorld& world, uint32_t id) {
-  return z13::math::ExtractTranslation<float>(
+Eigen::Vector3f PlayerPosition(Z13TestWorld& world, uint32_t id) {return z13::math::ExtractTranslation<float>(
       world.World().lookup(PlayerEntityName(id).c_str()).get<Eigen::Matrix4f>());
 }
 
 // Above the site: every block's top face is below the spawn point.
-bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {
-  bool above = true;
+bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {bool above = true;
   world.World().query_builder<const z13::station::Block>().build().each([&](const z13::station::Block& block) {
     const auto cells = z13::building::primitives::OccupiedCells(block);
     const float top = static_cast<float>(cells.End().z()) * z13::station::kCellSize;
@@ -92,7 +87,7 @@ bool IsAboveTheSlab(Z13TestWorld& world, const Eigen::Vector3f& position) {
 }
 
 TEST(StationModeTest, StationFlagAloneStartsAnEmptyStation) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, {std::string(kStationArg)});
+  Z13TestWorld test_world({std::string(kStationArg)});
   test_world.Tick();
 
   EXPECT_TRUE(test_world.World().has<StationMode>());
@@ -101,7 +96,7 @@ TEST(StationModeTest, StationFlagAloneStartsAnEmptyStation) {
 }
 
 TEST(StationModeTest, SiteSceneStartsTheConstructionSite) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, z13::testing::SiteArgs());
+  Z13TestWorld test_world(z13::testing::SiteArgs());
   test_world.Tick();
 
   EXPECT_TRUE(test_world.World().has<StationMode>());
@@ -125,7 +120,7 @@ TEST(StationModeTest, WithoutTheFlagTheSceneIsUnchanged) {
 }
 
 TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false);
+  Z13TestWorld test_world(std::vector<std::string> {});
   test_world.World().add<StationMode>();
   test_world.World().set(z13::station::StationSceneChoice {.scene = std::string(z13::testing::kSiteScene)});
   test_world.StartGame();
@@ -136,7 +131,7 @@ TEST(StationModeTest, ModeAddedBeforeStartGameBuildsTheSite) {
 }
 
 TEST(StationModeTest, ExitToMainMenuClearsTheSite) {
-  Z13TestWorld test_world(/*skip_main_menu=*/false, z13::testing::SiteArgs());
+  Z13TestWorld test_world(z13::testing::SiteArgs());
   test_world.Tick();
 
   test_world.ExitToMainMenu();
@@ -151,7 +146,7 @@ TEST(StationModeTest, RestoringAnOrdinarySnapshotLeavesStationMode) {
   ordinary.Tick();
   const auto snapshot = z13::flecs_tools::CaptureState(ordinary.World());
   ASSERT_TRUE(snapshot.has_value());
-  Z13TestWorld station(/*skip_main_menu=*/false, {std::string(kStationArg)});
+  Z13TestWorld station({std::string(kStationArg)});
   station.Tick();
 
   ASSERT_TRUE(z13::flecs_tools::RestoreWorld(station.World(), *snapshot).has_value());
@@ -162,11 +157,8 @@ TEST(StationModeTest, RestoringAnOrdinarySnapshotLeavesStationMode) {
 
 TEST(StationModeTest, ClientJoiningAStationServerGetsTheModeAndTheSite) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  std::vector<std::string> server_args = z13::testing::SiteArgs();
-  server_args.emplace_back(kServerArg);
-  Z13TestWorld server(/*skip_main_menu=*/false, server_args, network);
-  Z13TestWorld client(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
 
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&client] {
     return client.World().has<Gameplay>() && client.World().lookup(PlayerEntityName(1).c_str());
@@ -181,9 +173,8 @@ TEST(StationModeTest, ClientJoiningAStationServerGetsTheModeAndTheSite) {
 
 TEST(StationModeTest, ClientJoiningAnOrdinaryServerDropsItsStaleMode) {
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server(/*skip_main_menu=*/false, {std::string(kServerArg)}, network);
-  Z13TestWorld client(
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  Z13TestWorld server({std::string(kServerArg)}, network);
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   client.World().add<StationMode>();
 
   ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&client] {

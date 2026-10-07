@@ -23,12 +23,20 @@
 
 #include <lib_core/settings/config.h>
 #include <z13_launcher/station_scene_check.h>
+#include <z13_tests/shipped_station.h>
+
+#include "../../../lib_z13/modules/z13_module/tests/support/z13_test_world.h"
 
 namespace z13 {
 namespace {
 
-const std::filesystem::path kAssetsDir {Z13_SOURCE_ASSETS_DIR};
-constexpr std::string_view kStationSceneArg = "--station-scene";
+using z13::testing::kSiteScene;
+using z13::testing::kStationArg;
+using z13::testing::kStationSceneArg;
+using z13::testing::kTestScene;
+
+const std::filesystem::path kSourceAssets = z13::testing::SourceAsset({});
+
 
 // argv[0] is the (unused) program name boost::program_options expects.
 Config Parsed(const std::vector<std::string_view>& args) {
@@ -44,16 +52,16 @@ Config Parsed(const std::vector<std::string_view>& args) {
 }
 
 TEST(StationSceneCheckTest, AShippedBlueprintPasses) {
-  EXPECT_TRUE(CheckStationScene(Parsed({kStationSceneArg, "test"}), kAssetsDir).has_value());
-  EXPECT_TRUE(CheckStationScene(Parsed({kStationSceneArg, "site"}), kAssetsDir).has_value());
+  EXPECT_TRUE(CheckStationScene(Parsed({kStationSceneArg, kTestScene}), kSourceAssets).has_value());
+  EXPECT_TRUE(CheckStationScene(Parsed({kStationSceneArg, kSiteScene}), kSourceAssets).has_value());
 }
 
 TEST(StationSceneCheckTest, NoSceneMeansAnEmptyStation) {
-  EXPECT_TRUE(CheckStationScene(Parsed({"--station"}), kAssetsDir).has_value());
+  EXPECT_TRUE(CheckStationScene(Parsed({kStationArg}), kSourceAssets).has_value());
 }
 
 TEST(StationSceneCheckTest, AMissingBlueprintStopsTheLaunch) {
-  const Status checked = CheckStationScene(Parsed({kStationSceneArg, "moon_base"}), kAssetsDir);
+  const Status checked = CheckStationScene(Parsed({kStationSceneArg, "moon_base"}), kSourceAssets);
 
   ASSERT_FALSE(checked.has_value());
   EXPECT_NE(checked.error().find("moon_base"), std::string::npos);

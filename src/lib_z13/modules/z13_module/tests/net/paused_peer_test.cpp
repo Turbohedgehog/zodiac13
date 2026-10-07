@@ -86,8 +86,7 @@ class PausedPeerTest : public ::testing::Test {
   }
 
   // Peers' clocks differ by a tick, so compare only after the mover stops.
-  void ReleaseAndSettle(Z13TestWorld& mover) {
-    mover.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+  void ReleaseAndSettle(Z13TestWorld& mover) {mover.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
     RunTicks(kSettleTicks);
   }
 
@@ -98,9 +97,8 @@ class PausedPeerTest : public ::testing::Test {
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server_ {/*skip_main_menu=*/false, {std::string(kServerArg)}, network_};
-  Z13TestWorld client_ {
-      /*skip_main_menu=*/false, {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_};
+  Z13TestWorld server_ {{std::string(kServerArg)}, network_};
+  Z13TestWorld client_ {{std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_};
 };
 
 TEST_F(PausedPeerTest, PausedHostKeepsSimulatingTheClient) {
