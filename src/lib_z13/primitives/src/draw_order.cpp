@@ -27,11 +27,6 @@ namespace z13::building::primitives {
 
 namespace {
 
-bool IsTransparent(const z13::station::Block& block, OptionalPalette palette) {
-  const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
-  return primitive && primitive->get().Has(PrimitiveFlags::Transparent);
-}
-
 float SquaredDistance(const z13::station::Block& block, const Eigen::Vector3f& eye) {
   const CellBox box = OccupiedCells(block);
   const Eigen::Vector3f centre = box.min.cast<float>() + box.extent.cast<float>() / 2.f;
@@ -39,6 +34,11 @@ float SquaredDistance(const z13::station::Block& block, const Eigen::Vector3f& e
 }
 
 }  // namespace
+
+bool IsTransparent(const z13::station::Block& block, OptionalPalette palette) {
+  const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
+  return primitive && primitive->get().Has(PrimitiveFlags::Transparent);
+}
 
 DrawOrder SortForDrawing(
     std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye) {

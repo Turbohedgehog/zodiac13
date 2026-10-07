@@ -47,6 +47,8 @@ using Rgba = std::array<uint8_t, 4>;
 struct Checker {
   Rgba first {};
   Rgba second {};
+
+  bool operator==(const Checker&) const = default;
 };
 
 // One palette entry, as plain data so a flecs component can hold it.

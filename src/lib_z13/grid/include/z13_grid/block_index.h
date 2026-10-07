@@ -64,18 +64,12 @@ class BlockIndex {
   std::optional<RayHit> RaycastHit(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const;
 
  private:
-  struct ChunkHash {
-    size_t operator()(const Eigen::Vector3i& chunk) const;
-  };
-
-  Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell) const;
-
   template <class Visit>
   void ForEachChunk(const z13::building::primitives::CellBox& cells, Visit visit) const;
 
   int chunk_cells_ {};
   std::unordered_map<BlockId, z13::building::primitives::CellBox> boxes_;
-  std::unordered_map<Eigen::Vector3i, std::vector<BlockId>, ChunkHash> chunks_;
+  std::unordered_map<Eigen::Vector3i, std::vector<BlockId>, z13::building::primitives::CellHash> chunks_;
 };
 
 }  // namespace z13::building::grid

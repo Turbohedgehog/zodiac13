@@ -16,17 +16,27 @@
 
 #pragma once
 
-#include <Eigen/Dense>
 #include <raylib.h>
+
+#include <z13_primitives/palette.h>
 
 namespace z13::raylib {
 
-// Z-up world transform (column 0 = forward, column 2 = up) -> raylib camera pose.
-// Keeps `fovy` / `projection` intact.
-void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transform);
+struct Lighting;
 
-// Column-major Eigen matrix -> raylib Matrix (also column-major internally).
-::Matrix EigenToRaylibMatrix(const Eigen::Matrix4f& m);
-Eigen::Matrix4f RaylibToEigenMatrix(const ::Matrix& m);
+// Locations of the checker uniforms in assets/shaders/lighting.fs.
+struct CheckerUniforms {
+  int enabled {};
+  int first {};
+  int second {};
+};
+
+// Also sets the cell size the checker squares follow.
+CheckerUniforms SetupCheckerUniforms(const ::Shader& shader);
+
+// Until StopChecker, what is drawn takes `material`'s squares from its world position instead
+// of its texture. Both do nothing without a lighting shader.
+void UseChecker(const Lighting& lighting, const z13::building::primitives::Checker& material);
+void StopChecker(const Lighting& lighting);
 
 }  // namespace z13::raylib

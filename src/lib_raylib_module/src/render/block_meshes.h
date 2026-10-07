@@ -24,8 +24,8 @@
 
 namespace z13::raylib {
 
-// Models of placed primitives, one per (type, size) shared by every block of that shape,
-// each with its checker texture. Singleton exempt from the "no pointers" rule (see
+// Models of placed primitives, one per (type, size) shared by every block of that shape;
+// for blocks drawn one by one (glass, previews), the rest go in BlockChunks. Singleton exempt from the "no pointers" rule (see
 // CLAUDE.md); never state.
 class BlockMeshes {
  public:

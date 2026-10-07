@@ -34,7 +34,10 @@ struct DrawOrder {
   std::vector<size_t> transparent;
 };
 
-// `eye` in cells. A block whose type the palette lacks is opaque.
+// A block whose type the palette lacks is opaque.
+bool IsTransparent(const z13::station::Block& block, OptionalPalette palette);
+
+// `eye` in cells.
 DrawOrder SortForDrawing(
     std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye);
 
