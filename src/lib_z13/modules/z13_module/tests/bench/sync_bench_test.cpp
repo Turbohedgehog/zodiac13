@@ -133,10 +133,6 @@ std::vector<NetProfile> NetProfiles() {
   };
 }
 
-void PredictNeutral(z13::Settings& settings) {
-  settings.net->remote_input_prediction = z13::fbs::net::RemoteInputPrediction::Neutral;
-}
-
 void SendEveryTick(z13::Settings& settings) {
   settings.net->send_interval_ticks = 1;
   settings.core->max_rollback_delay_ticks = 0;
@@ -146,13 +142,6 @@ std::vector<TuningVariant> TuningVariants() {
   return {
       {.name = "default", .apply = [](z13::Settings&) {}},
       {.name = "send1+rb0", .apply = SendEveryTick},
-      {.name = "neutral", .apply = PredictNeutral},
-      {.name = "neutral+send1+rb0",
-       .apply =
-           [](z13::Settings& settings) {
-             PredictNeutral(settings);
-             SendEveryTick(settings);
-           }},
   };
 }
 

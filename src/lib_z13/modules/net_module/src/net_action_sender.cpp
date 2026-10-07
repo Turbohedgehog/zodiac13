@@ -172,21 +172,18 @@ Status TrySendPendingCommands(
   if ((!is_server && !session.ServerConnection()) || !local_player.id) {
     return {};
   }
-  const bool neutral = tuning.remote_input_prediction == fbn::RemoteInputPrediction::Neutral;
   // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
   // nothing after it may be. An empty batch still confirms the wait, or the server would
   // stand the player still for all of it; held-back input is later retimed past it.
   if (digests.awaiting_resync) {
-    if (neutral) {
-      fbn::CommandBatchT heartbeat;
-      heartbeat.base_tick = clock.tick;
-      heartbeat.through_tick = clock.tick;
-      Send(session, is_server, *local_player.id, std::move(heartbeat));
-    }
+    fbn::CommandBatchT heartbeat;
+    heartbeat.base_tick = clock.tick;
+    heartbeat.through_tick = clock.tick;
+    Send(session, is_server, *local_player.id, std::move(heartbeat));
     return {};
   }
   // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
-  const bool heartbeat = neutral && HoldsReleasableAction(last_recorded.values, action_map);
+  const bool heartbeat = HoldsReleasableAction(last_recorded.values, action_map);
   if (outgoing.records.empty() && !heartbeat) {
     return {};
   }

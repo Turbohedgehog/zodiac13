@@ -93,7 +93,7 @@ std::expected<Settings, std::string> ReadSettings(const std::filesystem::path& c
     return std::unexpected(std::format("ReadSettings: {}", contents.error()));
   }
   return ParseSettings(*contents).transform_error([&config_path](const std::string& error) {
-    return std::format("{} ({})", error, config_path.string());
+    return std::format("{} ({}; delete it to regenerate the defaults)", error, config_path.string());
   });
 }
 

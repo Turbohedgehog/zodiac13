@@ -39,7 +39,6 @@
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
-#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/motion_metrics.h"
@@ -50,7 +49,6 @@ namespace z13::net {
 namespace {
 
 using z13::fbs::input::Keycode;
-using z13::fbs::net::RemoteInputPrediction;
 using z13::testing::kConnectArg;
 using z13::testing::kMaxNetTestTicks;
 using z13::testing::kNetTestDeltaTime;
@@ -63,17 +61,10 @@ using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
 constexpr int kMaxLagTicks = 60;
-const float kStep = z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
 
-// Server and two clients over a 2-4 tick network, all on one prediction mode.
+// Server and two clients over a 2-4 tick network.
 class RemotePredictionSession {
  public:
-  explicit RemotePredictionSession(RemoteInputPrediction prediction)
-      : settings_(SettingsFor(prediction)),
-        server_({std::string(kServerArg)}, network_, settings_),
-        client_a_(ClientArgs(), network_, settings_),
-        client_b_(ClientArgs(), network_, settings_) {}
-
   // Until B has spawned A too.
   bool Connect() {
     return RunNetworkUntil(*network_, {server_, client_a_, client_b_}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
@@ -97,12 +88,6 @@ class RemotePredictionSession {
   Z13TestWorld& B() { return client_b_; }
 
  private:
-  static z13::Settings SettingsFor(RemoteInputPrediction prediction) {
-    z13::Settings settings = z13::MakeSettings();
-    settings.net->remote_input_prediction = prediction;
-    return settings;
-  }
-
   static std::vector<std::string> ClientArgs() {
     return {std::string(kConnectArg), std::string(kTestServerEndpoint)};
   }
@@ -118,10 +103,9 @@ class RemotePredictionSession {
   }
 
   std::shared_ptr<InMemoryNetwork> network_ = DelayedNetwork();
-  z13::Settings settings_;
-  Z13TestWorld server_;
-  Z13TestWorld client_a_;
-  Z13TestWorld client_b_;
+  Z13TestWorld server_ {{std::string(kServerArg)}, network_};
+  Z13TestWorld client_a_ {ClientArgs(), network_};
+  Z13TestWorld client_b_ {ClientArgs(), network_};
 };
 
 struct RunStopResult {
@@ -132,9 +116,9 @@ struct RunStopResult {
 };
 
 // A holds W for `hold_ticks`, then stands still; B's view of A is tracked against A's own.
-RunStopResult RunAndStop(RemoteInputPrediction prediction, int hold_ticks) {
+RunStopResult RunAndStop(int hold_ticks) {
   constexpr int kStillTicks = 60;
-  RemotePredictionSession session(prediction);
+  RemotePredictionSession session;
   EXPECT_TRUE(session.Connect());
   std::vector<Eigen::Vector3f> truth {session.PositionOfA(session.A())};
   std::vector<Eigen::Vector3f> observed {session.PositionOfA(session.B())};
@@ -169,33 +153,32 @@ TEST(RemotePredictionTest, LookActionsAreAbsoluteAndMovesAreNot) {
   EXPECT_FALSE(absolute("MOVE_FORWARD"));
 }
 
-// Holding the last value runs a remote player on past its stop; releasing never does.
-TEST(RemotePredictionTest, NeutralPredictionNeverRunsARemotePlayerPastItsStop) {
+// Unconfirmed ticks read as released, so a remote player only lags and never overshoots.
+TEST(RemotePredictionTest, ARemotePlayerNeverRunsPastItsStop) {
   constexpr int kHoldTicks = 60;
-  const RunStopResult hold = RunAndStop(RemoteInputPrediction::Hold, kHoldTicks);
-  const RunStopResult neutral = RunAndStop(RemoteInputPrediction::Neutral, kHoldTicks);
+  const RunStopResult run = RunAndStop(kHoldTicks);
 
-  EXPECT_GT(hold.metrics.max_off_path, kStep) << "the scenario never overshoots, so it proves nothing";
-  EXPECT_LE(neutral.metrics.max_off_path, kTestEpsilon);
-  EXPECT_LT((neutral.b_final - neutral.a_final).norm(), kTestEpsilon);
-  EXPECT_LT((neutral.server_final - neutral.a_final).norm(), kTestEpsilon);
+  EXPECT_GT(run.metrics.lag_ticks, 0) << "B never mispredicted A, so the scenario proves nothing";
+  EXPECT_LE(run.metrics.max_off_path, kTestEpsilon);
+  EXPECT_LT((run.b_final - run.a_final).norm(), kTestEpsilon);
+  EXPECT_LT((run.server_final - run.a_final).norm(), kTestEpsilon);
 }
 
 // Past the held-key reassert interval, only the confirmed-tick heartbeat keeps B's A moving.
-TEST(RemotePredictionTest, NeutralPredictionKeepsALongHoldMoving) {
+TEST(RemotePredictionTest, ALongHoldKeepsMoving) {
   constexpr int kLongHoldTicks = 150;
   constexpr int kMaxExpectedLagTicks = 20;
-  const RunStopResult neutral = RunAndStop(RemoteInputPrediction::Neutral, kLongHoldTicks);
+  const RunStopResult run = RunAndStop(kLongHoldTicks);
 
-  EXPECT_LE(neutral.metrics.lag_ticks, kMaxExpectedLagTicks);
-  ASSERT_TRUE(neutral.metrics.path_ratio);
-  EXPECT_NEAR(*neutral.metrics.path_ratio, 1.f, kTestEpsilon);
-  EXPECT_LT((neutral.b_final - neutral.a_final).norm(), kTestEpsilon);
+  EXPECT_LE(run.metrics.lag_ticks, kMaxExpectedLagTicks);
+  ASSERT_TRUE(run.metrics.path_ratio);
+  EXPECT_NEAR(*run.metrics.path_ratio, 1.f, kTestEpsilon);
+  EXPECT_LT((run.b_final - run.a_final).norm(), kTestEpsilon);
 }
 
 // Without confirmations through the wait, the server would stand A still for all of it.
 TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
-  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  RemotePredictionSession session;
   ASSERT_TRUE(session.Connect());
   session.A().EmitInput(KeyDown(Keycode::KEY_W));
   for (int tick = 0; tick < kMaxLagTicks; ++tick) {
@@ -226,7 +209,7 @@ TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
 
 // The renderer smooths everything but these (EnvironmentRenderSystem::ChaseDrawnPoses).
 TEST(RemotePredictionTest, OnlyTheLocalPlayerAndItsBrushAreOwn) {
-  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  RemotePredictionSession session;
   ASSERT_TRUE(session.Connect());
   const auto tick = [&session] { session.Tick(); };
   z13::testing::EnterBuildMode(session.A(), tick);
@@ -250,7 +233,7 @@ TEST(RemotePredictionTest, OnlyTheLocalPlayerAndItsBrushAreOwn) {
 
 // Kept while a rollback may still cross the leave, dropped once none can.
 TEST(RemotePredictionTest, ADepartedPlayersConfirmedTickOutlivesTheRollbackWindowOnly) {
-  RemotePredictionSession session(RemoteInputPrediction::Neutral);
+  RemotePredictionSession session;
   ASSERT_TRUE(session.Connect());
   const uint32_t a_id = session.AId();
   const auto confirmed = [&session, a_id] {

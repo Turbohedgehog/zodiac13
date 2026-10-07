@@ -28,7 +28,6 @@
 
 #include <z13/components/input.h>
 #include <z13/components/player_action.h>
-#include <z13_settings/net_tuning.h>
 
 #include "scheduled_commands.h"
 
@@ -91,9 +90,6 @@ bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionM
 }
 
 bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t through_tick) {
-  if (world.get<NetTuning>().remote_input_prediction != fbs::net::RemoteInputPrediction::Neutral) {
-    return false;
-  }
   auto& confirmed = world.get_mut<z13::gameplay::ConfirmedInputTicks>().by_player;
   const auto [entry, inserted] = confirmed.try_emplace(player_id, through_tick);
   if (!inserted && through_tick <= entry->second) {
