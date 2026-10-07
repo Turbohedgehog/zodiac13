@@ -38,7 +38,9 @@
 #include <raylib_module/raylib_components.h>
 
 #include "gui_windows.h"
+#include "main_menu_window.h"
 #include "palette_window.h"
+#include "pause_menu_window.h"
 #include "platform/sdl_platform.h"
 
 namespace z13::raylib {

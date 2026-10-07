@@ -71,9 +71,4 @@ struct WindowStack {
   std::vector<WindowPtr> windows;
 };
 
-WindowPtr MakeMainMenu(flecs::world world);
-WindowPtr MakeGameplayPauseMenu(flecs::world world);
-WindowPtr MakeInputSettings(flecs::world world);
-WindowPtr MakeKeyBindings(flecs::world world);
-
 }  // namespace z13::raylib::gui
