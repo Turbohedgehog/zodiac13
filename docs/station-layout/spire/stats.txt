@@ -1,0 +1,15 @@
+Spire station load estimate (written by generate_spire.py).
+
+Deck 1 (Sealed deck Sigma): berths 0, rooms 28, doors 32, area 2195 m2, air cells 491,680
+Deck 2 (Sealed deck Omega): berths 0, rooms 30, doors 36, area 2787 m2, air cells 624,288
+Deck 3 (Engineering deck): berths 0, rooms 30, doors 35, area 3703 m2, air cells 829,472
+Deck 4 (Security & storage deck): berths 16, rooms 52, doors 42, area 3545 m2, air cells 794,080
+Deck 5 (Habitat deck A): berths 116, rooms 146, doors 141, area 4986 m2, air cells 1,116,864
+Deck 6 (Habitat deck B): berths 116, rooms 146, doors 141, area 4906 m2, air cells 1,098,944
+Deck 7 (Campus deck): berths 0, rooms 28, doors 24, area 4765 m2, air cells 1,067,360
+Deck 8 (Science deck): berths 0, rooms 30, doors 30, area 3449 m2, air cells 772,576
+Deck 9 (Command deck): berths 13, rooms 38, doors 36, area 2515 m2, air cells 563,360
+
+Single cabins: 261. Rooms 528, doors 517.
+Air cells (0.25 m grid): 7,358,624.
+Blueprint blocks (spire.json): 6219 - Floor 1225, Window 779, Wall 3564, HiddenDoor 14, Door 517, Slope 112, SpawnPoint 8.

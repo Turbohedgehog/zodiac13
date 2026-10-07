@@ -5,8 +5,13 @@ One character is 1 m (4 grid cells). Writes the deck plans, the section and the 
 itself, and the blueprint the game builds the test station from into assets/station/blueprints/.
 """
 
-import json
 from pathlib import Path
+
+from station_blueprint import (
+    CELLS_PER_M, COUNTER, DANCE, DECK_PITCH_CELLS, DECK_PITCH_M, DOORS, FLOOR, HIDDEN, LADDER, RAMP,
+    ROOM_HEIGHT_CELLS, SEALED, SHAFT, TUNNEL, UNDER_LEDGE, WALL, WINDOW, Deck, block_kinds, clear_flights,
+    deck_floor_z, door_boxes, flight_blocks, mask_blocks, render_plan, ruler, spawn_blocks, stairs_open,
+    wall_blocks, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
 # ASCII only: the files are read on systems whose consoles may not show anything else.
@@ -109,91 +114,8 @@ SERVICE_ROOMS = ("SW", Room.TECH, "ATMOS", Room.REACTOR, Room.POWER, Room.GRAVIT
 # ----- Geometry -----------------------------------------------------------------------------
 
 WIDTH, DEPTH = 97, 49  # hull 96 x 48 m
-CELLS_PER_M = 4
-DECK_PITCH_M = 4  # floor slab + 3.5 m room + ceiling slab
-ROOM_HEIGHT_CELLS = 14
-DECK_PITCH_CELLS = DECK_PITCH_M * CELLS_PER_M
-SLAB_CELLS = 1
 CABIN_WIDTH_M = 3  # single cabins, 3 x 4 m
 
-WALL, WINDOW, DOOR, SEALED, RAMP, SHAFT, DANCE, COUNTER = "#", "=", "D", "X", "/", "L", ":", "_"
-HIDDEN, TUNNEL, UNDER_LEDGE, LADDER = "S", ".", "~", "H"
-DOORS = DOOR + SEALED + HIDDEN
-HEADER_RULER = ("    " + "".join(f"{x:<10}" for x in range(0, WIDTH, 10))).rstrip()
-
-
-class Deck:
-    def __init__(self, number, name, sealed=False):
-        self.number = number
-        self.name = name
-        self.sealed = sealed
-        self.grid = [[" "] * WIDTH for _ in range(DEPTH)]
-        self.rooms = []
-        self.rects = []
-        self.counters = {}
-        self.berths = 0
-        # Rooms whose middle gets the station's spawn points.
-        self.spawn_rooms = ()
-        # Drawn over the plan only when rendering: label letters must not read as doors or ladders.
-        self.labels = []
-
-    @property
-    def entry(self):
-        """The doors leading onto the deck, welded shut on a sealed one."""
-        return SEALED if self.sealed else DOOR
-
-    def put(self, x, y, ch):
-        self.grid[y][x] = ch
-
-    def rect(self, x0, y0, x1, y1):
-        for x in range(x0, x1 + 1):
-            self.put(x, y0, WALL)
-            self.put(x, y1, WALL)
-        for y in range(y0, y1 + 1):
-            self.put(x0, y, WALL)
-            self.put(x1, y, WALL)
-
-    def numbered(self, prefix):
-        self.counters[prefix] = self.counters.get(prefix, 0) + 1
-        return f"{prefix}{self.counters[prefix]}"
-
-    def room(self, x0, y0, x1, y1, label, door=None):
-        """`door`: (side, offset[, width]) with side in N/S/W/E; offset from the room's start, None centres it."""
-        self.rect(x0, y0, x1, y1)
-        self.rooms.append(label)
-        self.rects.append((x0, y0, x1, y1, label))
-        self.label(x0, y0, x1, y1, label)
-        if door:
-            self.door_on(x0, y0, x1, y1, *door)
-
-    def label(self, x0, y0, x1, y1, text):
-        y = (y0 + y1) // 2
-        x = max(x0 + 1, (x0 + x1 - len(text)) // 2 + 1)
-        self.labels.append((x, y, text[: x1 - x0 - 1]))
-
-    def door_on(self, x0, y0, x1, y1, side, offset=None, width=2, ch=None):
-        ch = ch or DOOR
-        if side in "NS":
-            y = y0 if side == "N" else y1
-            start = x0 + (offset if offset is not None else (x1 - x0 - width) // 2 + 1)
-            for x in range(start, start + width):
-                self.put(x, y, ch)
-        else:
-            x = x0 if side == "W" else x1
-            start = y0 + (offset if offset is not None else (y1 - y0 - width) // 2 + 1)
-            for y in range(start, start + width):
-                self.put(x, y, ch)
-
-    def window(self, x0, y0, x1, y1):
-        for y in range(y0, y1 + 1):
-            for x in range(x0, x1 + 1):
-                if self.grid[y][x] == WALL:
-                    self.put(x, y, WINDOW if not self.sealed else WALL)
-
-    def fill(self, x0, y0, x1, y1, ch):
-        for y in range(y0, y1 + 1):
-            for x in range(x0, x1 + 1):
-                self.put(x, y, ch)
 
 
 def common_core(deck):
@@ -322,7 +244,7 @@ def south_rooms(deck, rooms):
 
 def sealed(number, letter):
     """Known only from the original blueprints; every way in is welded shut."""
-    deck = Deck(number, Name.SEALED.format(letter=letter), sealed=True)
+    deck = Deck(number, Name.SEALED.format(letter=letter), WIDTH, DEPTH, sealed=True)
     common_core(deck)
     bay = Room.UNKNOWN_BAY
     north_rooms(deck, [(16, 32, bay), (32, 46, bay), (50, 70, bay), (70, 90, bay)])
@@ -334,7 +256,7 @@ def sealed(number, letter):
 
 
 def engineering(number):
-    deck = Deck(number, Name.ENGINEERING)
+    deck = Deck(number, Name.ENGINEERING, WIDTH, DEPTH)
     common_core(deck)
     north_rooms(deck, [(16, 46, Room.REACTOR), (50, 70, Room.POWER), (70, 90, Room.ATMOSPHERE.format(n=1))])
     south_rooms(deck, [(6, 30, Room.GRAVITY), (30, 50, Room.WATER), (50, 66, Room.WORKSHOP), (66, 80, Room.SPARES)])
@@ -344,7 +266,7 @@ def engineering(number):
 
 
 def security_and_storage(number):
-    deck = Deck(number, Name.SECURITY)
+    deck = Deck(number, Name.SECURITY, WIDTH, DEPTH)
     common_core(deck)
     north_rooms(deck, [(16, 30, Room.SECURITY), (30, 46, Room.ARMORY)])
     cabin_wing(deck, 70, 90, "N", [79], shared=[(70, 78, 3, Room.BARRACKS)])
@@ -362,7 +284,7 @@ def security_and_storage(number):
 
 
 def habitat(number, letter, lounge, extra):
-    deck = Deck(number, Name.HABITAT.format(letter=letter))
+    deck = Deck(number, Name.HABITAT.format(letter=letter), WIDTH, DEPTH)
     common_core(deck)
     # A washroom on every corridor: the cabins of one corridor never walk past another's.
     cabin_wing(deck, 16, 46, "N", [28],
@@ -379,7 +301,7 @@ def habitat(number, letter, lounge, extra):
 
 
 def campus(number):
-    deck = Deck(number, Name.CAMPUS)
+    deck = Deck(number, Name.CAMPUS, WIDTH, DEPTH)
     common_core(deck)
     north_rooms(deck, [(16, 28, Room.KITCHEN), (28, 46, Room.MESS)])
     deck.door_on(16, 0, 28, 22, "E", 6)
@@ -400,7 +322,7 @@ def campus(number):
 
 
 def science(number):
-    deck = Deck(number, Name.SCIENCE)
+    deck = Deck(number, Name.SCIENCE, WIDTH, DEPTH)
     common_core(deck)
     north_rooms(deck, [(16, 30, Room.LAB_BIO), (30, 46, Room.LAB_CHEM), (50, 66, Room.LAB_PHYS),
                        (66, 90, Room.OBSERVATORY)])
@@ -415,7 +337,7 @@ def science(number):
 
 
 def command(number):
-    deck = Deck(number, Name.COMMAND)
+    deck = Deck(number, Name.COMMAND, WIDTH, DEPTH)
     common_core(deck)
     north_rooms(deck, [(16, 46, Room.BRIDGE), (50, 62, Room.NAVIGATION), (62, 74, Room.COMMS),
                        (74, 90, Room.BRIEFING)])
@@ -428,241 +350,11 @@ def command(number):
     return deck
 
 
-def door_boxes(grid):
-    """Doors are connected groups of door cells, whatever their width: one box each."""
-    seen = set()
-    boxes = []
-    for y in range(DEPTH):
-        for x in range(WIDTH):
-            if grid[y][x] not in DOORS or (x, y) in seen:
-                continue
-            cells = []
-            stack = [(x, y)]
-            while stack:
-                cx, cy = stack.pop()
-                if (cx, cy) in seen or not (0 <= cx < WIDTH and 0 <= cy < DEPTH) or grid[cy][cx] not in DOORS:
-                    continue
-                seen.add((cx, cy))
-                cells.append((cx, cy))
-                stack += [(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)]
-            xs = [c[0] for c in cells]
-            ys = [c[1] for c in cells]
-            boxes.append((min(xs), min(ys), max(xs), max(ys)))
-    return boxes
-
-
-def rectangles(mask):
-    """Covers the True cells of `mask` with rectangles: row runs merged down while they repeat."""
-    open_runs = {}
-    found = []
-    for y in range(len(mask) + 1):
-        row_runs = set()
-        if y < len(mask):
-            x = 0
-            while x < len(mask[y]):
-                if mask[y][x]:
-                    end = x
-                    while end < len(mask[y]) and mask[y][end]:
-                        end += 1
-                    row_runs.add((x, end - 1))
-                    x = end
-                else:
-                    x += 1
-        for run, top in list(open_runs.items()):
-            if run not in row_runs:
-                found.append((run[0], top, run[1], y - 1))
-                del open_runs[run]
-        for run in row_runs:
-            open_runs.setdefault(run, y)
-    return found
-
-
 # ----- Blueprint ----------------------------------------------------------------------------
-# A wall of the plan becomes blocks one cell thick on the grid line through its characters'
-# first cells: x m on the plan is cell 4x.
-
-# Primitive names in assets/station/palette.json.
-FLOOR, WALL_BLOCK, WINDOW_BLOCK, DOOR_BLOCK, HIDDEN_DOOR_BLOCK, SLOPE, SPAWN_POINT = (
-    "Floor", "Wall", "Window", "Door", "HiddenDoor", "Slope", "SpawnPoint")
-# Orientations (blueprint.fbs) turning a primitive's +X to +Y or -Y.
-TO_POS_Y, TO_NEG_Y = "FacePosYUpPosZ", "FaceNegYUpPosZ"
-MAX_SIZE_CELLS = 256
-WALL_HEIGHT_CELLS = DECK_PITCH_CELLS - SLAB_CELLS
-COUNTER_HEIGHT_CELLS = CELLS_PER_M
-DOOR_WIDTH_CELLS, DOOR_HEIGHT_CELLS = 6, 10
-WEDGE_CELLS = 4
-FLIGHT_WEDGES = DECK_PITCH_CELLS // WEDGE_CELLS
-FLIGHT_WIDTH_WEDGES = 2
-SPAWN_CELLS = 4
-SPAWN_OFFSETS = (-6, 6)  # a 2 x 2 group of markers around a room's centre
-
-WALL_LIKE = WALL + WINDOW + COUNTER + DOORS
-WALL_KIND, WINDOW_KIND, COUNTER_KIND, DOOR_KIND = "wall", "window", "counter", "door"
-LINE_PRIMITIVES = {WALL_KIND: (WALL_BLOCK, WALL_HEIGHT_CELLS), WINDOW_KIND: (WINDOW_BLOCK, WALL_HEIGHT_CELLS),
-                   COUNTER_KIND: (WALL_BLOCK, COUNTER_HEIGHT_CELLS)}
 
 # Stairwells (their walls' x0, y0, x1, y1) and the way their flight climbs along y: away from
 # the door, up a 2 m wide flight over the first ramp column, to a landing by the far wall.
 STAIRWELLS = (((6, 12, 16, 22), -1), ((80, 26, 90, 36), 1))
-
-
-def wall_like(grid, x, y):
-    return 0 <= x < WIDTH and 0 <= y < DEPTH and grid[y][x] in WALL_LIKE
-
-
-def kind_of(ch):
-    if ch in DOORS:
-        return DOOR_KIND
-    return {WINDOW: WINDOW_KIND, COUNTER: COUNTER_KIND}.get(ch, WALL_KIND)
-
-
-def block(primitive, cell, size, orientation=None):
-    entry = {"primitive": primitive, "cell": dict(zip("xyz", cell)), "size": dict(zip("xyz", size))}
-    if orientation:
-        entry["orientation"] = orientation
-    return entry
-
-
-def line_blocks(primitive, axis, start, line, z, length, height):
-    """A wall-like primitive along x (axis 0) or y (axis 1), cut to the size limit."""
-    blocks = []
-    for offset in range(0, length, MAX_SIZE_CELLS):
-        piece = min(MAX_SIZE_CELLS, length - offset)
-        cell = (start + offset, line, z) if axis == 0 else (line, start + offset, z)
-        blocks.append(block(primitive, cell, (piece, 1, height), None if axis == 0 else TO_POS_Y))
-    return blocks
-
-
-def door_axes(grid):
-    """Every door group in a wall with the axis the wall runs along; a door stands in a straight wall."""
-    doors = []
-    for x0, y0, x1, y1 in door_boxes(grid):
-        if (x0, y0, x1, y1) in LADDER_HATCHES:  # welded hatches in the floor: the slab stays closed
-            continue
-        axes = []
-        for axis in (0, 1):
-            if (axis == 0 and y0 != y1) or (axis == 1 and x0 != x1):
-                continue
-            ends = ((x0 - 1, y0), (x1 + 1, y1)) if axis == 0 else ((x0, y0 - 1), (x1, y1 + 1))
-            if all(wall_like(grid, *end) for end in ends):
-                axes.append(axis)
-        if len(axes) != 1:
-            raise ValueError(f"the door at {x0},{y0} doesn't stand in one straight wall")
-        doors.append(((x0, y0, x1, y1), axes[0]))
-    return doors
-
-
-def line_cells(grid, doors):
-    """The cells of the deck's wall lines with their kind; a door's line is a door cell."""
-    axis_of = {(x, y): axis for (x0, y0, x1, y1), axis in doors
-               for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
-    cells = {}
-    for y, row in enumerate(grid):
-        for x, ch in enumerate(row):
-            if ch not in WALL_LIKE:
-                continue
-            cells[(x * CELLS_PER_M, y * CELLS_PER_M)] = kind_of(ch)
-            for axis, (nx, ny) in ((0, (x + 1, y)), (1, (x, y + 1))):
-                if not wall_like(grid, nx, ny):
-                    continue
-                ends = [(x, y), (nx, ny)]
-                along_door = [end for end in ends if axis_of.get(end) == axis]
-                kinds = {kind_of(grid[ey][ex]) for ex, ey in ends if (ex, ey) not in axis_of}
-                if along_door:
-                    kind = DOOR_KIND
-                elif kinds == {WINDOW_KIND}:
-                    kind = WINDOW_KIND
-                else:  # a wall meeting a door's line from the side stops at the door
-                    kind = COUNTER_KIND if COUNTER_KIND in kinds else WALL_KIND
-                for step in range(1, CELLS_PER_M):
-                    cell = (x * CELLS_PER_M + step, y * CELLS_PER_M) if axis == 0 else \
-                        (x * CELLS_PER_M, y * CELLS_PER_M + step)
-                    cells[cell] = kind
-    return cells
-
-
-def line_runs(cells):
-    """Splits the line cells into runs of one kind without overlaps: runs along x of at least two
-    cells first, so a corner or junction belongs to them, then runs along y of the rest."""
-    left = dict(cells)
-    runs = []
-    for axis in (0, 1):
-        step = (1, 0) if axis == 0 else (0, 1)
-        for x, y in sorted(left, key=lambda c: (c[1], c[0]) if axis == 0 else c):
-            kind = left.get((x, y))
-            if kind is None or left.get((x - step[0], y - step[1])) == kind:
-                continue
-            length = 1
-            while left.get((x + step[0] * length, y + step[1] * length)) == kind:
-                length += 1
-            if axis == 0 and length < 2:
-                continue
-            for i in range(length):
-                del left[(x + step[0] * i, y + step[1] * i)]
-            runs.append((kind, axis, (x, y), length))
-    return runs
-
-
-def door_blocks(grid, doors, z):
-    """Each door group: one door in the middle of its opening, walls beside it and over it."""
-    blocks = []
-    for (x0, y0, x1, y1), axis in doors:
-        chars = {grid[y][x] for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
-        if len(chars) != 1:
-            raise ValueError(f"the door at {x0},{y0} mixes kinds {sorted(chars)}")
-        primitive = HIDDEN_DOOR_BLOCK if chars == {HIDDEN} else DOOR_BLOCK
-        first, last = (x0, x1) if axis == 0 else (y0, y1)
-        line = (y0 if axis == 0 else x0) * CELLS_PER_M
-        start = (first - 1) * CELLS_PER_M + 1
-        length = (last + 1) * CELLS_PER_M - start
-        before = (length - DOOR_WIDTH_CELLS) // 2
-        after = length - DOOR_WIDTH_CELLS - before
-        door_start = start + before
-        door_cell = (door_start, line, z) if axis == 0 else (line, door_start, z)
-        blocks.append(block(primitive, door_cell, (DOOR_WIDTH_CELLS, 1, DOOR_HEIGHT_CELLS),
-                            None if axis == 0 else TO_POS_Y))
-        if before:
-            blocks += line_blocks(WALL_BLOCK, axis, start, line, z, before, WALL_HEIGHT_CELLS)
-        if after:
-            blocks += line_blocks(WALL_BLOCK, axis, door_start + DOOR_WIDTH_CELLS, line, z, after, WALL_HEIGHT_CELLS)
-        blocks += line_blocks(WALL_BLOCK, axis, door_start, line, z + DOOR_HEIGHT_CELLS, DOOR_WIDTH_CELLS,
-                              WALL_HEIGHT_CELLS - DOOR_HEIGHT_CELLS)
-    return blocks
-
-
-def deck_floor_z(deck):
-    return (deck.number - 1) * DECK_PITCH_CELLS + SLAB_CELLS
-
-
-def stairs_open(decks, index):
-    """Whether the slab under deck `index` (counted from 0) opens over the flights below it."""
-    return 0 < index < len(decks) and not (decks[index - 1].sealed and not decks[index].sealed)
-
-
-def flight(stairwell):
-    """A stairwell's flight: its x, its y from bottom to top and the slopes' orientation."""
-    (x0, y0, x1, y1), climb = stairwell
-    door_wall = (y1 if climb < 0 else y0) * CELLS_PER_M
-    bottom = door_wall + climb * FLIGHT_WEDGES * WEDGE_CELLS
-    return (x0 + 1) * CELLS_PER_M, bottom, climb
-
-
-def flight_footprint(stairwell):
-    x, bottom, climb = flight(stairwell)
-    top = bottom + climb * FLIGHT_WEDGES * WEDGE_CELLS
-    return x, min(bottom, top), x + FLIGHT_WIDTH_WEDGES * WEDGE_CELLS - 1, max(bottom, top) - 1
-
-
-def flight_blocks(z):
-    blocks = []
-    for stairwell in STAIRWELLS:
-        x, bottom, climb = flight(stairwell)
-        for step in range(FLIGHT_WEDGES):
-            y = bottom + step * WEDGE_CELLS if climb > 0 else bottom - (step + 1) * WEDGE_CELLS
-            for column in range(FLIGHT_WIDTH_WEDGES):
-                blocks.append(block(SLOPE, (x + column * WEDGE_CELLS, y, z + step * WEDGE_CELLS),
-                                    (WEDGE_CELLS,) * 3, TO_POS_Y if climb > 0 else TO_NEG_Y))
-    return blocks
 
 
 def slab_blocks(decks, index):
@@ -670,32 +362,8 @@ def slab_blocks(decks, index):
     width, depth = (WIDTH - 1) * CELLS_PER_M + 1, (DEPTH - 1) * CELLS_PER_M + 1
     mask = [[True] * width for _ in range(depth)]
     if stairs_open(decks, index):
-        for stairwell in STAIRWELLS:
-            fx0, fy0, fx1, fy1 = flight_footprint(stairwell)
-            for y in range(fy0, fy1 + 1):
-                for x in range(fx0, fx1 + 1):
-                    mask[y][x] = False
-    z = index * DECK_PITCH_CELLS
-    blocks = []
-    for x0, y0, x1, y1 in rectangles(mask):
-        for px in range(x0, x1 + 1, MAX_SIZE_CELLS):
-            for py in range(y0, y1 + 1, MAX_SIZE_CELLS):
-                size = (min(MAX_SIZE_CELLS, x1 + 1 - px), min(MAX_SIZE_CELLS, y1 + 1 - py), SLAB_CELLS)
-                blocks.append(block(FLOOR, (px, py, z), size))
-    return blocks
-
-
-def spawn_blocks(deck, z):
-    blocks = []
-    for x0, y0, x1, y1, label in deck.rects:
-        if label not in deck.spawn_rooms:
-            continue
-        centre_x, centre_y = (x0 + x1) * CELLS_PER_M // 2, (y0 + y1) * CELLS_PER_M // 2
-        for dy in SPAWN_OFFSETS:
-            for dx in SPAWN_OFFSETS:
-                cell = (centre_x + dx - SPAWN_CELLS // 2, centre_y + dy - SPAWN_CELLS // 2, z)
-                blocks.append(block(SPAWN_POINT, cell, (SPAWN_CELLS, SPAWN_CELLS, 1)))
-    return blocks
+        clear_flights(mask, STAIRWELLS)
+    return mask_blocks(mask, index * DECK_PITCH_CELLS, FLOOR)
 
 
 def station_blocks(decks):
@@ -704,25 +372,11 @@ def station_blocks(decks):
         blocks += slab_blocks(decks, index)
     for index, deck in enumerate(decks):
         z = deck_floor_z(deck)
-        doors = door_axes(deck.grid)
-        for kind, axis, (x, y), length in line_runs(line_cells(deck.grid, doors)):
-            if kind == DOOR_KIND:
-                continue
-            primitive, height = LINE_PRIMITIVES[kind]
-            start, line = (x, y) if axis == 0 else (y, x)
-            blocks += line_blocks(primitive, axis, start, line, z, length, height)
-        blocks += door_blocks(deck.grid, doors, z)
+        blocks += wall_blocks(deck.grid, z, LADDER_HATCHES)
         if stairs_open(decks, index + 1):
-            blocks += flight_blocks(z)
+            blocks += flight_blocks(STAIRWELLS, z)
         blocks += spawn_blocks(deck, z)
     return blocks
-
-
-def write_blueprint(path, blocks):
-    """One block per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/blueprint.fbs)."""
-    lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii")
 
 
 def interior_m2(deck):
@@ -734,12 +388,7 @@ def render(deck):
               *DECK_LEGEND]
     if deck.sealed:
         header.append(SEALED_NOTE)
-    header += ["", HEADER_RULER]
-    plan = [row[:] for row in deck.grid]
-    for x, y, text in deck.labels:
-        plan[y][x:x + len(text)] = list(text)
-    body = [f"{y:3} " + "".join(row).rstrip() for y, row in enumerate(plan)]
-    return "\n".join(header + body) + "\n"
+    return render_plan(deck, header)
 
 
 def render_section(decks):
@@ -780,7 +429,7 @@ def render_section(decks):
         if decks[z // DECK_PITCH_M].sealed and z % DECK_PITCH_M == 2:
             rows[z][46] = SEALED
     body = [f"{z:3} " + "".join(row).rstrip() for z, row in reversed(list(enumerate(rows)))]
-    return "\n".join([*SECTION_LEGEND, ""] + body + [HEADER_RULER]) + "\n"
+    return "\n".join([*SECTION_LEGEND, ""] + body + [ruler(WIDTH)]) + "\n"
 
 
 def main():
@@ -809,11 +458,7 @@ def main():
     lines += ["", STATS_TOTAL.format(berths=berths, rooms=rooms, doors=doors), STATS_AIR.format(air=f"{air_cells:,}")]
     blocks = station_blocks(decks)
     write_blueprint(BLUEPRINT_FILE, blocks)
-    kinds = {}
-    for entry in blocks:
-        kinds[entry["primitive"]] = kinds.get(entry["primitive"], 0) + 1
-    lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks),
-                                     kinds=", ".join(f"{name} {count}" for name, count in kinds.items())))
+    lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii")
     (OUT / SECTION_FILE).write_text(render_section(decks), encoding="ascii")
     print("\n".join(lines))

@@ -1,0 +1,42 @@
+Cut through the core (y = 48 m), seen from the south. 1 char = 1 m across, 1 row = 1 m of height.
+= glass: atrium roof under deck 8, observatory floor, bridge roof. Gaps in a floor are the machine hall
+(decks 3-4) and the atrium (decks 5-7). Pylons with airlocks stick out of deck 4.
+
+ 36                                     ###############===================###############
+ 35                                     #                      LLLL                     #
+ 34                                     # 9: COMMAND DECK      LLLL                     #
+ 33                                     #                      LLLL                     #
+ 32                               #############################################################
+ 31                               #                            LLLL                           #
+ 30                               # 8: SCIENCE DECK            LLLL                           #
+ 29                               #                            LLLL                           #
+ 28                       #############################===================#############################
+ 27                       #                                    LLLL                                   #
+ 26                       #            7: CAMPUS DECK          LLLL                                   #
+ 25                       #                                    LLLL                                   #
+ 24                   #################################                   #################################
+ 23                   #                                        LLLL                                       #
+ 22                   #             6: HABITAT DECK B          LLLL                                       #
+ 21                   #                                        LLLL                                       #
+ 20                   #################################                   #################################
+ 19                   #                                        LLLL                                       #
+ 18                   #             5: HABITAT DECK A          LLLL                                       #
+ 17                   #                                        LLLL                                       #
+ 16     #################################################################################################################
+ 15     #                       #                              LLLL                             #                       #
+ 14     #                       # 4: SECURITY & STORAGE DECK   LLLL                             #                       #
+ 13     #                       #                              LLLL                             #                       #
+ 12     ###############################################                   ###############################################
+ 11                             #                              LLLL                             #
+ 10                             # 3: ENGINEERING DECK          LLLL                             #
+  9                             #                              LLLL                             #
+  8                             #################################################################
+  7                                   #                        LLLL                       #
+  6                                   # 2: SEALED DECK OMEGA   LLLL                       #
+  5                                   #                        LLLL                       #
+  4                                   #####################################################
+  3                                       #                    LLLL                   #
+  2                                       # 1: SEALED DECK SIGMLLLL                   #
+  1                                       #                    LLLL                   #
+  0                                       #############################################
+    0         10        20        30        40        50        60        70        80        90        100       110       120
