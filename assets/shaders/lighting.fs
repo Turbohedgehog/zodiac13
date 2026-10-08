@@ -43,6 +43,8 @@ void main()
         ivec3 cell = ivec3(floor(fragPosition/cellSize - normal*0.5));
         texelColor = ((cell.x + cell.y + cell.z) & 1) == 0 ? checkerFirst : checkerSecond;
     }
+    // Light passes through glass, so both of its faces are lit alike.
+    bool twoSided = texelColor.a < 1.0;
     vec3 lightDot = vec3(0.0);
     vec3 viewD = normalize(viewPos - fragPosition);
     vec3 specular = vec3(0.0);
@@ -59,11 +61,12 @@ void main()
             if (lights[i].type == LIGHT_POINT)
                 light = normalize(lights[i].position - fragPosition);
 
-            float NdotL = max(dot(normal, light), 0.0);
+            vec3 lit = (twoSided && dot(normal, light) < 0.0) ? -normal : normal;
+            float NdotL = max(dot(lit, light), 0.0);
             lightDot += lights[i].color.rgb*NdotL;
 
             float specCo = 0.0;
-            if (NdotL > 0.0) specCo = pow(max(0.0, dot(viewD, reflect(-(light), normal))), 16.0);
+            if (NdotL > 0.0) specCo = pow(max(0.0, dot(viewD, reflect(-(light), lit))), 16.0);
             specular += specCo;
         }
     }
