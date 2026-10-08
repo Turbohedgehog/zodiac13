@@ -75,7 +75,7 @@ std::expected<rfl::Generic, std::string> ParseValue(const std::string& text) {
 std::expected<std::string, std::string> WorldJsonStore::ToJson(
     const flecs::world& world, const WorldSnapshot& snapshot) {
   DocumentJson document {.version = kVersion, .engine_version = std::string(kEngineVersion)};
-  for (const auto& s : snapshot.entities) {
+  for (const EntitySnapshot& s : AllEntities(snapshot)) {
     EntityJson entity {.name = s.name, .tags = s.tags, .relationships = s.relationships};
     for (const auto& c : s.components) {
       const flecs::entity component = world.lookup(c.type.c_str());
