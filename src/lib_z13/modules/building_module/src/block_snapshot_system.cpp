@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+
 #include "block_snapshot_system.h"
 
+#include <bit>
 #include <cstdint>
-#include <functional>
 #include <memory>
+#include <numeric>
+#include <span>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 
 #include <flecs.h>
 
@@ -30,88 +35,77 @@
 #include <z13_primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
+#include "block_watch.h"
+
 namespace z13::building {
 
 namespace {
+
+using z13::flecs_tools::MixHash;
+using z13::station::Block;
+using z13::station::SpawnPoint;
 
 constexpr int kChunkAxisBits = 21;
 constexpr int64_t kChunkAxisBias = int64_t {1} << (kChunkAxisBits - 1);
 constexpr uint64_t kChunkAxisMask = (uint64_t {1} << kChunkAxisBits) - 1;
 
-std::optional<z13::flecs_tools::SnapshotGroupId> GroupOf(flecs::world world, flecs::entity e) {
-  const auto* block = e.try_get<z13::station::Block>();
-  if (block == nullptr) {
-    return std::nullopt;
+template <typename T>
+uint64_t Combine(uint64_t seed, T value) {
+  if constexpr (std::is_same_v<T, float>) {
+    return MixHash(seed ^ std::bit_cast<uint32_t>(value));
+  } else {
+    return MixHash(seed ^ static_cast<uint64_t>(value));
   }
-  const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
-  return BlockSnapshotSystem::GroupIdOf(z13::building::primitives::ChunkOf(block->cell, chunk_cells));
 }
 
-uint64_t Combine(uint64_t seed, int64_t value) {
-  return z13::flecs_tools::MixHash(seed ^ static_cast<uint64_t>(value));
+template <typename T>
+uint64_t CombineAll(uint64_t seed, std::span<const T> values) {
+  return std::accumulate(
+      values.begin(), values.end(), seed, [](uint64_t hash, T value) { return Combine(hash, value); });
 }
 
-// Name and every field of Block: what a snapshot of the entity holds.
+// The name and every state component a block entity can have (see the test
+// BlockSnapshotTest.ABlockHoldsOnlyWhatItsHashCovers).
 uint64_t HashOf(flecs::entity e) {
-  const auto& block = e.get<z13::station::Block>();
+  const Block& block = e.get<Block>();
   const flecs::string_view name = e.name();
-  uint64_t hash = z13::flecs_tools::MixHash(std::hash<std::string_view> {}(std::string_view(name.c_str(), name.length())));
+  uint64_t hash = MixHash(z13::flecs_tools::HashName(std::string_view(name.c_str(), name.length())));
   hash = Combine(hash, block.spec.type_id);
-  hash = Combine(hash, static_cast<int64_t>(block.spec.orientation));
-  for (int axis = 0; axis < 3; ++axis) {
-    hash = Combine(hash, block.spec.size[axis]);
-    hash = Combine(hash, block.cell[axis]);
+  hash = Combine(hash, std::to_underlying(block.spec.orientation));
+  hash = CombineAll(hash, std::span<const int>(block.spec.size.data(), block.spec.size.size()));
+  hash = CombineAll(hash, std::span<const int>(block.cell.data(), block.cell.size()));
+  if (const auto* spawn_point = e.try_get<SpawnPoint>()) {
+    hash = CombineAll(hash, std::span<const float>(spawn_point->transform.data(), spawn_point->transform.size()));
   }
   return hash;
 }
 
-// The blocks as they were when `unchanged` last asked.
-struct BlockWatch {
-  flecs::query<const z13::station::Block> blocks;
-  bool seen {};
-  int count {};
-  int chunk_cells {};
-};
-
-bool BlocksUnchanged(flecs::world world, BlockWatch& watch) {
-  // Checked before the walk: iterating the query resets its changed state (count() doesn't).
-  const bool changed = watch.blocks.changed();
-  int count = 0;
-  watch.blocks.run([&count](flecs::iter& it) {
-    while (it.next()) {
-      count += static_cast<int>(it.count());
-    }
-  });
+z13::flecs_tools::GroupOf MakeGroupOf(flecs::world world) {
   const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
-  const bool unchanged = watch.seen && !changed && count == watch.count && chunk_cells == watch.chunk_cells;
-  watch.seen = true;
-  watch.count = count;
-  watch.chunk_cells = chunk_cells;
-  return unchanged;
+  return [chunk_cells](flecs::entity e) {
+    return BlockSnapshotSystem::GroupIdOf(z13::building::primitives::ChunkOf(e.get<Block>().cell, chunk_cells));
+  };
 }
 
 // In the systems stage, not next to the registration (see PhysicsSystem::RegisterSystems).
 void InstallGrouping(flecs::world world) {
-  const auto watch = std::make_shared<BlockWatch>(BlockWatch {
-      .blocks = world.query_builder<const z13::station::Block>("BlockSnapshotSystem::BlockQuery")
-                    .detect_changes()
-                    .build()});
+  const auto watch = std::make_shared<BlockWatch>(world);
   world.set(z13::flecs_tools::SnapshotGrouping {
-      .member = world.component<z13::station::Block>().id(),
-      .group_of = [world](flecs::entity e) { return GroupOf(world, e); },
+      .member = world.component<Block>().id(),
+      .make_group_of = [world] { return MakeGroupOf(world); },
       .hash_of = HashOf,
-      .unchanged = [world, watch] { return BlocksUnchanged(world, *watch); },
+      .unchanged = [watch] { return watch->Unchanged(); },
   });
 }
 
 }  // namespace
 
 z13::flecs_tools::SnapshotGroupId BlockSnapshotSystem::GroupIdOf(const Eigen::Vector3i& chunk) {
-  z13::flecs_tools::SnapshotGroupId id {};
-  for (int axis = 0; axis < 3; ++axis) {
-    id = (id << kChunkAxisBits) | (static_cast<uint64_t>(chunk[axis] + kChunkAxisBias) & kChunkAxisMask);
-  }
-  return id;
+  return std::accumulate(
+      chunk.data(), chunk.data() + chunk.size(), z13::flecs_tools::SnapshotGroupId {},
+      [](z13::flecs_tools::SnapshotGroupId id, int axis) {
+        return (id << kChunkAxisBits) | (static_cast<uint64_t>(axis + kChunkAxisBias) & kChunkAxisMask);
+      });
 }
 
 void BlockSnapshotSystem::Register(flecs::world& world) {

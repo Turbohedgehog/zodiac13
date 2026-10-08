@@ -14,25 +14,26 @@
  * limitations under the License.
  */
 
+
 #pragma once
 
 #include <cstdint>
-#include <optional>
+#include <vector>
 
-#include <Eigen/Dense>
+#include <flecs.h>
 
-#include <lib_core/world/core_types.h>
-#include <lib_core/state/world_serializer.h>
+namespace z13::flecs_tools {
 
-namespace z13::building {
-
-// Files the blocks into snapshot groups (SnapshotGrouping) by index chunk.
-class BlockSnapshotSystem {
+// The members a scan found in one snapshot group, with their fingerprint.
+class GroupBucket {
  public:
-  static void Register(flecs::world& world);
+  void Add(flecs::entity e, uint64_t hash);
+  uint64_t Fingerprint() const;
+  const std::vector<flecs::entity>& Members() const { return members_; }
 
-  // The chunk's three coordinates, 21 bits each.
-  static z13::flecs_tools::SnapshotGroupId GroupIdOf(const Eigen::Vector3i& chunk);
+ private:
+  uint64_t sum_ {};  // a sum, so the order members are found in doesn't matter
+  std::vector<flecs::entity> members_;
 };
 
-}  // namespace z13::building
+}  // namespace z13::flecs_tools

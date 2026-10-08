@@ -31,21 +31,19 @@ constexpr float kInSecondGroup = 11.f;
 constexpr float kMovedInSecondGroup = 12.f;
 constexpr float kInThirdGroup = 25.f;
 
-// Groups the entities that have a Position by x / kGroupWidth.
 void InstallGrouping(flecs::world& world) {
   world.set(ft::SnapshotGrouping {
       .member = world.component<Position>().id(),
-      .group_of = [](flecs::entity e) -> std::optional<ft::SnapshotGroupId> {
-        const auto* position = e.try_get<Position>();
-        if (position == nullptr) {
-          return std::nullopt;
-        }
-        return static_cast<ft::SnapshotGroupId>(position->x / kGroupWidth);
-      },
+      .make_group_of =
+          [] {
+            return ft::GroupOf([](flecs::entity e) {
+              return static_cast<ft::SnapshotGroupId>(e.get<Position>().x / kGroupWidth);
+            });
+          },
       .hash_of =
           [](flecs::entity e) {
             const Position& position = e.get<Position>();
-            uint64_t hash = std::hash<std::string_view> {}(std::string_view(e.name().c_str(), e.name().length()));
+            uint64_t hash = ft::HashName(std::string_view(e.name().c_str(), e.name().length()));
             for (const float value : {position.x, position.y, position.z}) {
               hash = ft::MixHash(hash ^ std::bit_cast<uint32_t>(value));
             }
@@ -115,12 +113,18 @@ TEST_F(SnapshotGroupingTest, HoldsTheSameStateAsAnUngroupedCapture) {
   world_.entity("hero").add<ft::StateEntity>().set(Health {5, 5});
 
   const StateByName grouped = Flatten(Capture());
-  const auto group_of = std::exchange(world_.get_mut<ft::SnapshotGrouping>().group_of, nullptr);
+  const auto make_group_of = std::exchange(world_.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
   const ft::WorldSnapshot ungrouped = Capture();
-  world_.get_mut<ft::SnapshotGrouping>().group_of = group_of;
+  world_.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
 
   EXPECT_TRUE(ungrouped.groups.empty());
   EXPECT_EQ(grouped, Flatten(ungrouped));
+}
+
+TEST_F(SnapshotGroupingTest, AnUnnamedMemberIsLeftOutLikeAnyUnnamedEntity) {
+  world_.entity().add<ft::StateEntity>().set(Position {kInFirstGroup, 0.f, 0.f});
+
+  EXPECT_TRUE(Capture().groups.empty());
 }
 
 TEST_F(SnapshotGroupingTest, AnUnchangedGroupIsSharedWithThePreviousCapture) {

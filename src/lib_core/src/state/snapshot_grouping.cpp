@@ -16,6 +16,8 @@
 
 #include <lib_core/state/snapshot_grouping.h>
 
+#include <numeric>
+
 #include <lib_core/state/world_state.h>
 
 namespace z13::flecs_tools {
@@ -27,6 +29,8 @@ constexpr uint64_t kMixShiftSecond = 27;
 constexpr uint64_t kMixShiftLast = 31;
 constexpr uint64_t kMixMultiplierFirst = 0xbf58476d1ce4e5b9ULL;
 constexpr uint64_t kMixMultiplierSecond = 0x94d049bb133111ebULL;
+constexpr uint64_t kFnvOffsetBasis = 0xcbf29ce484222325ULL;
+constexpr uint64_t kFnvPrime = 0x100000001b3ULL;
 
 }  // namespace
 
@@ -34,6 +38,12 @@ uint64_t MixHash(uint64_t value) {
   value = (value ^ (value >> kMixShiftFirst)) * kMixMultiplierFirst;
   value = (value ^ (value >> kMixShiftSecond)) * kMixMultiplierSecond;
   return value ^ (value >> kMixShiftLast);
+}
+
+uint64_t HashName(std::string_view name) {
+  return std::accumulate(name.begin(), name.end(), kFnvOffsetBasis, [](uint64_t hash, char c) {
+    return (hash ^ static_cast<unsigned char>(c)) * kFnvPrime;
+  });
 }
 
 void RegisterSnapshotGrouping(flecs::world& world) {

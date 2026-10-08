@@ -16,23 +16,16 @@
 
 #pragma once
 
-#include <cstdint>
-#include <optional>
+#include <map>
+#include <memory>
 
-#include <Eigen/Dense>
-
-#include <lib_core/world/core_types.h>
 #include <lib_core/state/world_serializer.h>
 
-namespace z13::building {
+namespace z13::flecs_tools {
 
-// Files the blocks into snapshot groups (SnapshotGrouping) by index chunk.
-class BlockSnapshotSystem {
- public:
-  static void Register(flecs::world& world);
-
-  // The chunk's three coordinates, 21 bits each.
-  static z13::flecs_tools::SnapshotGroupId GroupIdOf(const Eigen::Vector3i& chunk);
+// The groups the last CaptureState made, shared with the snapshots that hold them.
+struct SnapshotGroupingState {
+  std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
 };
 
-}  // namespace z13::building
+}  // namespace z13::flecs_tools

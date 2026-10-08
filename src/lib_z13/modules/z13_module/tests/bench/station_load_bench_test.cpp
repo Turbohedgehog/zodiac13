@@ -380,8 +380,7 @@ void PrintSides(const std::string& scene, size_t blocks, const std::vector<SideR
   std::cout << std::flush;
 }
 
-// A client walks inside a station its server holds. The sides are timed apart: the
-// snapshot and digest work lands on whichever one the session gives it.
+// A client walks inside a station its server holds.
 void MeasureServerClient(const std::string& scene) {
   const auto blocks = ReadStation(scene);
   ASSERT_TRUE(blocks.has_value()) << blocks.error();

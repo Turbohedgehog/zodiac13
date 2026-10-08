@@ -54,8 +54,7 @@ struct EntitySnapshot {
 
 using SnapshotGroupId = uint64_t;
 
-// Entities a module snapshots together (snapshot_grouping.h); later snapshots share the
-// group while its fingerprint is unchanged.
+// See snapshot_grouping.h.
 struct GroupSnapshot {
   SnapshotGroupId id {};
   uint64_t fingerprint {};
@@ -93,7 +92,8 @@ std::expected<WorldSnapshot, std::string> CaptureWorld(const flecs::world& world
 // singleton alone when the snapshot has no entry for it.
 bool StateEntityFilter(flecs::entity e);
 bool StateComponentFilter(flecs::entity component);
-std::expected<WorldSnapshot, std::string> CaptureState(const flecs::world& world);
+// Updates SnapshotGrouping's cache of groups, so the world isn't taken as const.
+std::expected<WorldSnapshot, std::string> CaptureState(flecs::world world);
 
 // Makes the world's state equal to the snapshot, updating in place: state entities,
 // components and relationships it lacks are removed. Validated first; on error the

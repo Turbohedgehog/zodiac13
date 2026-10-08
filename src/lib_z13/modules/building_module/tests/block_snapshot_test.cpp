@@ -17,7 +17,9 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <format>
 #include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,17 +32,19 @@
 #include <lib_core/state/world_state.h>
 
 #include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+#include <z13_settings/building_tuning.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "../src/block_entities.h"
 #include "support/station_builders.h"
 
-// Blocks are snapshotted by index chunk, and a chunk that didn't change is shared with
-// the previous snapshot.
 namespace z13::building {
 namespace {
 
 namespace ft = z13::flecs_tools;
 using z13::station::Block;
+using z13::station::SpawnPoint;
 using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
 
@@ -70,18 +74,32 @@ flecs::entity PlaceBlock(flecs::world world, std::string_view name, const Eigen:
       .set(Block {.spec = z13::station::CubeSpec(), .cell = cell});
 }
 
-// What a snapshot of a block holds must be what its group hash covers.
-TEST(BlockSnapshotTest, ABlockIsNothingButItsBlockComponent) {
+// The group hash (HashOf) covers Block and SpawnPoint; a block of any primitive holds nothing else.
+TEST(BlockSnapshotTest, ABlockHoldsOnlyWhatItsHashCovers) {
   Z13TestWorld test_world = StationWorld();
-  const flecs::entity block = PlaceBlock(test_world.World(), "TestBlock", kFirstChunkCell);
+  flecs::world world = test_world.World();
+  const auto& palette = world.get<z13::building::primitives::BlockPalette>().palette;
+  const auto& tuning = world.get<z13::BuildingTuning>();
+  const std::set<flecs::entity_t> covered {world.component<Block>().id(), world.component<SpawnPoint>().id()};
+  int spawn_points = 0;
 
-  const auto snapshot = ft::CaptureEntityState(test_world.World(), block);
+  for (const auto& primitive : palette.primitives) {
+    const Block block {.spec = {.type_id = primitive.id, .size = primitive.min_size}, .cell = kFirstChunkCell};
+    const flecs::entity e = CreateBlock(world, std::format("TestBlock_{}", primitive.name), block, palette, tuning);
+    spawn_points += e.has<SpawnPoint>() ? 1 : 0;
 
-  ASSERT_TRUE(snapshot.has_value());
-  ASSERT_EQ(snapshot->entities.size(), 1u);
-  EXPECT_EQ(snapshot->entities[0].components.size(), 1u);
-  EXPECT_TRUE(snapshot->entities[0].tags.empty());
-  EXPECT_TRUE(snapshot->entities[0].relationships.empty());
+    const auto snapshot = ft::CaptureEntityState(world, e);
+
+    ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+    ASSERT_EQ(snapshot->entities.size(), 1u);
+    for (const ft::ComponentValue& component : snapshot->entities[0].components) {
+      EXPECT_TRUE(covered.contains(world.lookup(component.type.c_str()).id())) << primitive.name << ": " << component.type;
+    }
+    EXPECT_TRUE(snapshot->entities[0].tags.empty()) << primitive.name;
+    EXPECT_TRUE(snapshot->entities[0].relationships.empty()) << primitive.name;
+    e.destruct();
+  }
+  EXPECT_GT(spawn_points, 0);
 }
 
 TEST(BlockSnapshotTest, GroupingDoesNotChangeWhatTheSnapshotHolds) {
@@ -92,9 +110,9 @@ TEST(BlockSnapshotTest, GroupingDoesNotChangeWhatTheSnapshotHolds) {
   PlaceBlock(world, "TestBlock_2", kThirdChunkCell);
 
   const ft::WorldSnapshot grouped = ft::CaptureState(world).value();
-  const auto group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().group_of, nullptr);
+  const auto make_group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
   const ft::WorldSnapshot ungrouped = ft::CaptureState(world).value();
-  world.get_mut<ft::SnapshotGrouping>().group_of = group_of;
+  world.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
 
   EXPECT_FALSE(grouped.groups.empty());
   EXPECT_TRUE(ungrouped.groups.empty());
@@ -131,7 +149,6 @@ TEST(BlockSnapshotTest, NothingChangedSharesEveryChunk) {
   EXPECT_EQ(after.groups, before.groups);
 }
 
-// A cached chunk must follow every kind of edit: a block moved, added and destroyed.
 TEST(BlockSnapshotTest, ACachedChunkNeverGoesStale) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
@@ -141,13 +158,17 @@ TEST(BlockSnapshotTest, ACachedChunkNeverGoesStale) {
 
   const auto matches_ungrouped = [&world] {
     const StateByName grouped = Flatten(ft::CaptureState(world).value());
-    const auto group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().group_of, nullptr);
+    const auto make_group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
     const StateByName ungrouped = Flatten(ft::CaptureState(world).value());
-    world.get_mut<ft::SnapshotGrouping>().group_of = group_of;
+    world.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
     return grouped == ungrouped;
   };
 
   moving.set(Block {.spec = z13::station::CubeSpec(), .cell = kNextToFirst});
+  EXPECT_TRUE(matches_ungrouped());
+  moving.set(SpawnPoint {});
+  EXPECT_TRUE(matches_ungrouped());
+  moving.set(SpawnPoint {.transform = Eigen::Matrix4f::Constant(1.f)});
   EXPECT_TRUE(matches_ungrouped());
   PlaceBlock(world, "TestBlock_2", kThirdChunkCell);
   EXPECT_TRUE(matches_ungrouped());

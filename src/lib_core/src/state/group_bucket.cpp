@@ -14,25 +14,20 @@
  * limitations under the License.
  */
 
-#pragma once
 
-#include <cstdint>
-#include <optional>
+#include "group_bucket.h"
 
-#include <Eigen/Dense>
+#include <lib_core/state/snapshot_grouping.h>
 
-#include <lib_core/world/core_types.h>
-#include <lib_core/state/world_serializer.h>
+namespace z13::flecs_tools {
 
-namespace z13::building {
+void GroupBucket::Add(flecs::entity e, uint64_t hash) {
+  sum_ += MixHash(hash);
+  members_.push_back(e);
+}
 
-// Files the blocks into snapshot groups (SnapshotGrouping) by index chunk.
-class BlockSnapshotSystem {
- public:
-  static void Register(flecs::world& world);
+uint64_t GroupBucket::Fingerprint() const {
+  return MixHash(sum_ ^ MixHash(members_.size()));
+}
 
-  // The chunk's three coordinates, 21 bits each.
-  static z13::flecs_tools::SnapshotGroupId GroupIdOf(const Eigen::Vector3i& chunk);
-};
-
-}  // namespace z13::building
+}  // namespace z13::flecs_tools

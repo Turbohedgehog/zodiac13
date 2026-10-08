@@ -14,25 +14,39 @@
  * limitations under the License.
  */
 
+
 #pragma once
 
-#include <cstdint>
 #include <optional>
 
-#include <Eigen/Dense>
+#include <flecs.h>
 
-#include <lib_core/world/core_types.h>
-#include <lib_core/state/world_serializer.h>
+#include <z13/components/station.h>
 
 namespace z13::building {
 
-// Files the blocks into snapshot groups (SnapshotGrouping) by index chunk.
-class BlockSnapshotSystem {
- public:
-  static void Register(flecs::world& world);
+// What BlockWatch saw last; a changed count catches a removal change detection misses.
+struct BlockWatchSeen {
+  int blocks {};
+  int spawn_points {};
+  int chunk_cells {};
 
-  // The chunk's three coordinates, 21 bits each.
-  static z13::flecs_tools::SnapshotGroupId GroupIdOf(const Eigen::Vector3i& chunk);
+  bool operator==(const BlockWatchSeen&) const = default;
+};
+
+// Tells whether any block's snapshot could differ since the previous call
+// (SnapshotGrouping::unchanged).
+class BlockWatch {
+ public:
+  explicit BlockWatch(flecs::world world);
+
+  bool Unchanged();
+
+ private:
+  flecs::world world_;
+  flecs::query<const z13::station::Block> blocks_;
+  flecs::query<const z13::station::SpawnPoint> spawn_points_;
+  std::optional<BlockWatchSeen> last_;
 };
 
 }  // namespace z13::building
