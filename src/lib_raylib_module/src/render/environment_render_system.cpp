@@ -50,6 +50,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
+#include <z13/components/rooms.h>
 #include <z13/components/station.h>
 #include <z13_primitives/chunk_mesh.h>
 #include <z13_primitives/draw_order.h>
@@ -331,6 +332,49 @@ void DrawBrushPreview(
   DrawBlock(drawing, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), kBrushPreviewTint);
 }
 
+// The 12 edges of a box in world coordinates, straight into the line batch: no matrix
+// stack, whose state this renderer sets by hand (BeginScene3D).
+void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
+  const auto corner = [&](int i) {
+    return Eigen::Vector3f((i & 1) != 0 ? high.x() : low.x(), (i & 2) != 0 ? high.y() : low.y(),
+                           (i & 4) != 0 ? high.z() : low.z());
+  };
+  // Corners differing in exactly one bit are joined.
+  for (int i = 0; i < 8; ++i) {
+    for (int bit = 1; bit < 8; bit <<= 1) {
+      if ((i & bit) == 0) {
+        const Eigen::Vector3f from = corner(i);
+        const Eigen::Vector3f to = corner(i | bit);
+        rlVertex3f(from.x(), from.y(), from.z());
+        rlVertex3f(to.x(), to.y(), to.z());
+      }
+    }
+  }
+}
+
+// The debug overlay's boxes as wireframes, when it is on: on the default shader and texture
+// (the block shader would light the lines by view angle) and past the depth test, as the
+// edges lie on the walls' own faces.
+void DrawRoomOverlay(const flecs::world& world) {
+  const auto* overlay = world.try_get<z13::station::RoomOverlay>();
+  if (overlay == nullptr || !overlay->enabled) {
+    return;
+  }
+  rlDrawRenderBatchActive();
+  rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
+  rlSetTexture(rlGetTextureIdDefault());
+  rlDisableDepthTest();
+  rlBegin(RL_LINES);
+  for (const z13::station::OverlayBox& box : overlay->boxes) {
+    rlColor4ub(box.color[0], box.color[1], box.color[2], box.color[3]);
+    AddBoxEdges(box.min.cast<float>() * z13::station::kCellSize,
+                (box.min + box.extent).cast<float>() * z13::station::kCellSize);
+  }
+  rlEnd();
+  rlDrawRenderBatchActive();
+  rlEnableDepthTest();
+}
+
 BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
   const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
   return palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
@@ -402,6 +446,7 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
   StopChecker(lighting);
+  DrawRoomOverlay(world);
   drawing.meshes.get().ReleaseUnused();
 }
 

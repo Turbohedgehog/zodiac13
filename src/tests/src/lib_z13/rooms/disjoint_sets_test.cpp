@@ -14,19 +14,31 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#include <gtest/gtest.h>
 
-#include <flecs.h>
+#include <z13_rooms/disjoint_sets.h>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+namespace z13::station::rooms {
+namespace {
 
-namespace z13::station {
+TEST(DisjointSetsTest, ItemsAreAloneUntilJoined) {
+  DisjointSets sets(4);
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
+  EXPECT_NE(sets.Find(0), sets.Find(1));
+  EXPECT_NE(sets.Find(2), sets.Find(3));
 }
 
-}  // namespace z13::station
+TEST(DisjointSetsTest, JoiningIsTransitive) {
+  DisjointSets sets(5);
+
+  sets.Union(0, 1);
+  sets.Union(1, 2);
+  sets.Union(3, 4);
+
+  EXPECT_EQ(sets.Find(0), sets.Find(2));
+  EXPECT_EQ(sets.Find(3), sets.Find(4));
+  EXPECT_NE(sets.Find(2), sets.Find(3));
+}
+
+}  // namespace
+}  // namespace z13::station::rooms

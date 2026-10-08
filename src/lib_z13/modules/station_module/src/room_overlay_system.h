@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
 #include <flecs.h>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
-
 namespace z13::station {
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-}
+// Fills RoomOverlay, while it is enabled, with the room the local player stands in and the
+// portals of that room.
+class RoomOverlaySystem {
+ public:
+  static void Register(flecs::world& world);
+};
 
 }  // namespace z13::station

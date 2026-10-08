@@ -14,19 +14,23 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
+#include <cstddef>
+#include <vector>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+namespace z13::station::rooms {
 
-namespace z13::station {
+// Union-find over the items 0..size-1: which items were joined, directly or not.
+class DisjointSets {
+ public:
+  explicit DisjointSets(size_t size);
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-}
+  size_t Find(size_t item);
+  void Union(size_t first, size_t second);
 
-}  // namespace z13::station
+ private:
+  std::vector<size_t> parent_;
+};
+
+}  // namespace z13::station::rooms

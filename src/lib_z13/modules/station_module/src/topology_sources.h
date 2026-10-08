@@ -14,19 +14,26 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
+
+#include <cstdint>
 
 #include <flecs.h>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+#include <z13/components/station.h>
+#include <z13_primitives/palette.h>
+#include <z13_rooms/room_builder.h>
 
 namespace z13::station {
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-}
+// What the rooms are built from, with the fingerprint of the blocks behind it.
+struct TopologySources {
+  z13::station::rooms::RoomSources sources;
+  uint64_t fingerprint {};
+};
+
+// The sealing blocks, and the doors and windows among them, of every block.
+TopologySources GatherSources(
+    const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette);
 
 }  // namespace z13::station

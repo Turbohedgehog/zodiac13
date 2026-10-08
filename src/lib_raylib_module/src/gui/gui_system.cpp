@@ -35,6 +35,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/rooms.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -44,6 +45,7 @@
 #include "pause_menu_window.h"
 #include "platform/sdl_platform.h"
 #include "render/render_stats.h"
+#include "room_label.h"
 #include "stats_overlay.h"
 
 namespace z13::raylib {
@@ -154,11 +156,12 @@ void RegisterSystems(flecs::world world) {
 
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
-  world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*>("GuiSystem::Draw")
+  world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*>(
+          "GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([world](gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
-                    const RenderStats* render) {
+                    const RenderStats* render, z13::station::RoomOverlay* rooms) {
         if (!state.imgui_ready) {
           return;
         }
@@ -180,6 +183,14 @@ void RegisterSystems(flecs::world world) {
         }
         if (stats.Visible()) {
           stats.Draw(render);
+        }
+        if (rooms != nullptr) {
+          if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {
+            rooms->enabled = !rooms->enabled;
+          }
+          if (rooms->enabled) {
+            gui::DrawRoomLabel(rooms->label);
+          }
         }
         EndImGuiFrame();
       });

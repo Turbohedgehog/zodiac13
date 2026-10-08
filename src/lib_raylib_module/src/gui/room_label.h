@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
+#include <string>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+namespace z13::raylib::gui {
 
-namespace z13::station {
+// Where the room overlay says the player is, under the stats in a corner of the screen.
+void DrawRoomLabel(const std::string& label);
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-}
-
-}  // namespace z13::station
+}  // namespace z13::raylib::gui

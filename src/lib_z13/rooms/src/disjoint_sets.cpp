@@ -14,19 +14,26 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#include <z13_rooms/disjoint_sets.h>
 
-#include <flecs.h>
+#include <numeric>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+namespace z13::station::rooms {
 
-namespace z13::station {
-
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
+DisjointSets::DisjointSets(size_t size) : parent_(size) {
+  std::iota(parent_.begin(), parent_.end(), size_t {});
 }
 
-}  // namespace z13::station
+size_t DisjointSets::Find(size_t item) {
+  while (parent_[item] != item) {
+    parent_[item] = parent_[parent_[item]];
+    item = parent_[item];
+  }
+  return item;
+}
+
+void DisjointSets::Union(size_t first, size_t second) {
+  parent_[Find(first)] = Find(second);
+}
+
+}  // namespace z13::station::rooms

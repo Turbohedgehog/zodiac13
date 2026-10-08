@@ -58,6 +58,7 @@ target_link_libraries(
   zodiac13::z13_settings
   zodiac13::z13_primitives
   zodiac13::z13_grid
+  zodiac13::z13_rooms
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

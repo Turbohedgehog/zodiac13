@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
+#include <cstdint>
 
-#include "room_overlay_system.h"
-#include "room_system.h"
+#include <z13/components/station.h>
 
-namespace z13::station {
+namespace z13::station::rooms {
 
-// Blocks are building_module's; the rooms are derived from them here.
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-}
+// A hash of what makes one block differ from another on the grid. Summing these over the
+// blocks that shape the rooms gives a fingerprint that doesn't depend on their order or on
+// entity ids, which differ between peers.
+uint64_t BlockFingerprint(const Block& block);
 
-}  // namespace z13::station
+}  // namespace z13::station::rooms
