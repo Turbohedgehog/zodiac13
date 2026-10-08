@@ -28,7 +28,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/station.h>
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>

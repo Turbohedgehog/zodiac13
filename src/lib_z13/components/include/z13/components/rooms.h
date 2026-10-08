@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -24,10 +23,11 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/color.h>
+
 namespace z13::station {
 
-// The station's rooms and portals are derived from the blocks every tick they change, in
-// this phase and after building.
+// Where the rooms and portals are updated, after building.
 struct StationTopologyPhase {};
 
 // Counts every change to the blocks that shape the rooms. `fingerprint` is what the blocks
@@ -40,22 +40,23 @@ struct TopologyVersion {
   uint64_t fingerprint {};
 };
 
-// A box of cells drawn over the world.
+inline constexpr Rgba kRoomOverlayColor {80, 200, 120, 255};
+inline constexpr Rgba kWindowOverlayColor {80, 160, 255, 255};
+inline constexpr Rgba kDoorOverlayColor {255, 160, 60, 255};
+
 struct OverlayBox {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();
   Eigen::Vector3i extent = Eigen::Vector3i::Zero();
-  std::array<uint8_t, 4> color {};
+  Rgba color {};
 
   bool operator==(const OverlayBox&) const = default;
 };
 
-// The room the local player stands in and the portals around it, for debugging. The
-// renderer shows it while `enabled`; station_module fills it only then. Not state.
+// Debug view of the local player's room and its portals, filled only while `enabled`.
 struct RoomOverlay {
   using Singleton = void;
   bool enabled {};
   std::vector<OverlayBox> boxes;
-  // Where the player is: which room, or open to space.
   std::string label;
   // What boxes and label were made for, so they are rebuilt only when it changes.
   std::optional<uint64_t> shown_fingerprint;

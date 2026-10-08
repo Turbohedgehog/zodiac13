@@ -34,7 +34,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::fbs_schemas
-  zodiac13::z13_primitives
+  zodiac13::primitives
   Boost::dll
   yaml-cpp::yaml-cpp
 )

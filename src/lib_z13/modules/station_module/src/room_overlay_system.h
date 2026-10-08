@@ -20,8 +20,6 @@
 
 namespace z13::station {
 
-// Fills RoomOverlay, while it is enabled, with the room the local player stands in and the
-// portals of that room.
 class RoomOverlaySystem {
  public:
   static void Register(flecs::world& world);

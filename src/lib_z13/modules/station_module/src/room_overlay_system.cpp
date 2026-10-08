@@ -17,7 +17,6 @@
 #include "room_overlay_system.h"
 
 #include <algorithm>
-#include <array>
 #include <format>
 #include <string>
 #include <tuple>
@@ -31,7 +30,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
-#include <z13_rooms/room_cache.h>
+#include <rooms/room_cache.h>
 
 namespace z13::station {
 
@@ -44,10 +43,7 @@ using z13::station::rooms::RoomIndex;
 using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
 
 constexpr int kProbeCellsAbove = 4;
-
-constexpr std::array<uint8_t, 4> kRoomColor {80, 200, 120, 255};
-constexpr std::array<uint8_t, 4> kWindowColor {80, 160, 255, 255};
-constexpr std::array<uint8_t, 4> kDoorColor {255, 160, 60, 255};
+constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
 
 std::optional<Eigen::Vector3i> PlayerCell(const PlayerQuery& players, const z13::gameplay::LocalPlayer& local) {
   std::optional<Eigen::Vector3i> cell;
@@ -63,19 +59,17 @@ std::optional<Eigen::Vector3i> PlayerCell(const PlayerQuery& players, const z13:
   return cell;
 }
 
-OverlayBox Box(const Eigen::Vector3i& min, const Eigen::Vector3i& extent, const std::array<uint8_t, 4>& color) {
+OverlayBox Box(const Eigen::Vector3i& min, const Eigen::Vector3i& extent, const Rgba& color) {
   return {.min = min, .extent = extent, .color = color};
 }
 
-// The room's cells in one column interval.
 OverlayBox RunOf(int x, int y, const rooms::FreeInterval& interval) {
-  return Box({x, y, interval.begin}, {1, 1, interval.end - interval.begin}, kRoomColor);
+  return Box({x, y, interval.begin}, {1, 1, interval.end - interval.begin}, kRoomOverlayColor);
 }
 
-// Joins the boxes that touch face to face along `axis` with the same footprint across it.
 bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
-  const Eigen::Index u = (axis + 1) % 3;
-  const Eigen::Index v = (axis + 2) % 3;
+  const Eigen::Index u = (axis + 1) % kAxisCount;
+  const Eigen::Index v = (axis + 2) % kAxisCount;
   const auto key = [&](const OverlayBox& box) {
     return std::tuple(box.min[u], box.extent[u], box.min[v], box.extent[v], box.min[axis]);
   };
@@ -97,19 +91,16 @@ bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
   return joined;
 }
 
-// Fewest boxes the greedy joins reach, so the walls between neighbouring boxes of one room
-// don't show.
 void MergeBoxes(std::vector<OverlayBox>& boxes) {
   bool joined = true;
   while (joined) {
     joined = false;
-    for (Eigen::Index axis = 0; axis < 3; ++axis) {
+    for (Eigen::Index axis = 0; axis < kAxisCount; ++axis) {
       joined = MergeAlong(boxes, axis) || joined;
     }
   }
 }
 
-// The room's cells as boxes: one per column interval, then joined.
 void AddRoomBoxes(const RoomGraph& graph, RoomIndex room, std::vector<OverlayBox>& boxes) {
   const auto& bounds = graph.rooms[room].bounds;
   const size_t first = boxes.size();
@@ -139,7 +130,6 @@ std::optional<RoomIndex> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) 
   return std::nullopt;
 }
 
-// What the overlay shows for the room the player is in, or for none.
 void Describe(const RoomGraph& graph, std::optional<RoomIndex> room, RoomOverlay& overlay) {
   overlay.boxes.clear();
   if (!room) {
@@ -152,7 +142,7 @@ void Describe(const RoomGraph& graph, std::optional<RoomIndex> room, RoomOverlay
   int portals {};
   for (const rooms::Portal& portal : graph.portals) {
     if (portal.a == *room || portal.b == *room) {
-      overlay.boxes.push_back(Box(portal.opening.min, portal.opening.extent, portal.visible ? kWindowColor : kDoorColor));
+      overlay.boxes.push_back(Box(portal.opening.min, portal.opening.extent, portal.visible ? kWindowOverlayColor : kDoorOverlayColor));
       ++portals;
     }
   }

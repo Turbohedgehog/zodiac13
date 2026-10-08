@@ -28,8 +28,8 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13_primitives/palette.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/palette.h>
+#include <primitives/station_assets.h>
 
 #include "asset_file.h"
 

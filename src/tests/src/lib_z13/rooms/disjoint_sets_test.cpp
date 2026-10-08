@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include <z13_rooms/disjoint_sets.h>
+#include <rooms/disjoint_sets.h>
 
 namespace z13::station::rooms {
 namespace {

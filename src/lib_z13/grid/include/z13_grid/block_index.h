@@ -25,7 +25,7 @@
 #include <Eigen/Dense>
 
 #include <building_tuning_generated.h>
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 
 namespace z13::building::grid {
 

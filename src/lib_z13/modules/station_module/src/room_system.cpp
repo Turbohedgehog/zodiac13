@@ -25,9 +25,9 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_rooms/room_builder.h>
-#include <z13_rooms/room_cache.h>
+#include <primitives/palette.h>
+#include <rooms/room_builder.h>
+#include <rooms/room_cache.h>
 
 #include "topology_sources.h"
 

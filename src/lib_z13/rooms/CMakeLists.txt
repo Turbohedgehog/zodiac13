@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_rooms)
+project(rooms)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -32,7 +32,7 @@ target_link_libraries(
   PUBLIC
   Eigen3::Eigen
   zodiac13::fbs_schemas
-  zodiac13::z13_primitives
+  zodiac13::primitives
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

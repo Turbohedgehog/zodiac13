@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_rooms/room_builder.h>
+#include <rooms/room_builder.h>
 
 #include <algorithm>
 #include <array>
@@ -26,7 +26,7 @@
 #include <tuple>
 #include <utility>
 
-#include <z13_rooms/disjoint_sets.h>
+#include <rooms/disjoint_sets.h>
 
 #include "room_builder_types.h"
 
@@ -54,7 +54,6 @@ Bounds Surround(const std::vector<CellBox>& boxes) {
   return {.low = low - Eigen::Vector3i::Constant(kMargin), .high = high + Eigen::Vector3i::Constant(kMargin)};
 }
 
-// Calls visit(column) for each column the box stands over.
 template <typename Visit>
 void ForEachColumn(const CellBox& box, const Bounds& bounds, int width, Visit visit) {
   const int x_begin = box.min.x() - bounds.low.x();
@@ -112,7 +111,6 @@ ColumnMap FreeColumns(const std::vector<CellBox>& boxes, const Bounds& bounds, c
                    std::move(intervals));
 }
 
-// Joins the intervals of two neighbouring columns that share a cell face.
 void JoinColumns(const ColumnMap& columns, size_t first, size_t second, DisjointSets& sets) {
   const std::span<const FreeInterval> all = columns.Intervals();
   size_t i = columns.FirstInterval(first);
@@ -236,7 +234,7 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
     const CellBox& box = source.opening;
     const auto axis = static_cast<size_t>(source.axis);
     const int thickness = box.extent[static_cast<Eigen::Index>(axis)];
-    std::array<int, 3> step {};
+    std::array step {0, 0, 0};
     step[axis] = 1;
     CellBox face = box;
     face.extent[static_cast<Eigen::Index>(axis)] = 1;

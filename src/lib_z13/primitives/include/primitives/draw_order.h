@@ -16,19 +16,29 @@
 
 #pragma once
 
+#include <cstddef>
+#include <span>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/geometry.h>
 
 namespace z13::building::primitives {
 
-// What is left of `block` once the cells of `cut` are taken out of it: blocks of the same
-// type and turn that tile the rest, up to six, split along X, then Y, then Z. A block that
-// can't be split (a fixed-size primitive, or a rest below the size limits) leaves nothing.
-// The order is fixed, so every peer ends up with the same blocks.
-std::vector<z13::station::Block> LeftAfterCut(
-    const z13::station::Block& block, const Primitive& primitive, const CellBox& cut);
+// Indices into the blocks drawn: the opaque ones first, in any order, then the transparent
+// ones from the farthest to the nearest, so each blends over what lies behind it.
+struct DrawOrder {
+  std::vector<size_t> opaque;
+  std::vector<size_t> transparent;
+};
+
+// A block whose type the palette lacks is opaque.
+bool IsTransparent(const z13::station::Block& block, OptionalPalette palette);
+
+// `eye` in cells.
+DrawOrder SortForDrawing(
+    std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye);
 
 }  // namespace z13::building::primitives

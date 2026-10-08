@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <z13_rooms/room_overlap.h>
+#include <rooms/room_overlap.h>
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <limits>
 #include <map>
 #include <span>
@@ -52,19 +53,19 @@ std::vector<FreeInterval> ColumnOver(const RoomGraph& graph, const Eigen::Vector
 
 std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGraph& after) {
   // The grids of both graphs, which all else is vacuum to; one without blocks has none.
-  const std::array<const ColumnMap*, 2> grids {&before.columns, &after.columns};
+  const std::array grids {std::cref(before.columns), std::cref(after.columns)};
   Eigen::Vector2i low = Eigen::Vector2i::Constant(std::numeric_limits<int>::max());
   Eigen::Vector2i high = Eigen::Vector2i::Constant(std::numeric_limits<int>::min());
   int z_low = std::numeric_limits<int>::max();
   int z_high = std::numeric_limits<int>::min();
-  for (const ColumnMap* grid : grids) {
-    if (grid->ColumnCount() == 0) {
+  for (const ColumnMap& grid : grids) {
+    if (grid.ColumnCount() == 0) {
       continue;
     }
-    low = low.cwiseMin(grid->Origin());
-    high = high.cwiseMax(grid->Origin() + grid->Size());
-    z_low = std::min(z_low, grid->Heights().x());
-    z_high = std::max(z_high, grid->Heights().y());
+    low = low.cwiseMin(grid.Origin());
+    high = high.cwiseMax(grid.Origin() + grid.Size());
+    z_low = std::min(z_low, grid.Heights().x());
+    z_high = std::max(z_high, grid.Heights().y());
   }
   std::map<std::pair<RoomIndex, RoomIndex>, int64_t> cells;
   for (int y = low.y(); y < high.y(); ++y) {

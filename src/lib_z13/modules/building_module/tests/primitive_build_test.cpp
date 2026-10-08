@@ -35,7 +35,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"

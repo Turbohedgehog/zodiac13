@@ -52,10 +52,10 @@
 #include <z13/components/player_color.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
-#include <z13_primitives/chunk_mesh.h>
-#include <z13_primitives/draw_order.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/chunk_mesh.h>
+#include <primitives/draw_order.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
@@ -332,19 +332,28 @@ void DrawBrushPreview(
   DrawBlock(drawing, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), kBrushPreviewTint);
 }
 
+// A box corner's index has one bit per axis (x, y, z), set for the high side of the axis.
+constexpr std::array kAxisBits {1, 2, 4};
+constexpr int kBoxCorners = 1 << kAxisBits.size();
+
 // The 12 edges of a box in world coordinates, straight into the line batch: no matrix
 // stack, whose state this renderer sets by hand (BeginScene3D).
 void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
-  const auto corner = [&](int i) {
-    return Eigen::Vector3f((i & 1) != 0 ? high.x() : low.x(), (i & 2) != 0 ? high.y() : low.y(),
-                           (i & 4) != 0 ? high.z() : low.z());
+  const auto corner = [&](int index) {
+    Eigen::Vector3f point = low;
+    for (size_t axis = 0; axis < kAxisBits.size(); ++axis) {
+      if ((index & kAxisBits[axis]) != 0) {
+        point[static_cast<Eigen::Index>(axis)] = high[static_cast<Eigen::Index>(axis)];
+      }
+    }
+    return point;
   };
   // Corners differing in exactly one bit are joined.
-  for (int i = 0; i < 8; ++i) {
-    for (int bit = 1; bit < 8; bit <<= 1) {
-      if ((i & bit) == 0) {
-        const Eigen::Vector3f from = corner(i);
-        const Eigen::Vector3f to = corner(i | bit);
+  for (int index = 0; index < kBoxCorners; ++index) {
+    for (const int bit : kAxisBits) {
+      if ((index & bit) == 0) {
+        const Eigen::Vector3f from = corner(index);
+        const Eigen::Vector3f to = corner(index | bit);
         rlVertex3f(from.x(), from.y(), from.z());
         rlVertex3f(to.x(), to.y(), to.z());
       }

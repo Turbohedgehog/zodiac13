@@ -19,8 +19,8 @@
 #include <algorithm>
 #include <vector>
 
-#include <z13_rooms/room_builder.h>
-#include <z13_rooms/room_overlap.h>
+#include <rooms/room_builder.h>
+#include <rooms/room_overlap.h>
 
 namespace z13::station::rooms {
 namespace {
@@ -119,7 +119,6 @@ TEST(RoomBuilderTest, ADoorJoinsTheRoomsOnBothSidesAsAPortal) {
                              .axis = Axis::kX,
                              .visible = false,
                              .passable = false});
-  // The opening is part of the wall block: the rooms stay apart.
 
   const RoomGraph graph = Build(sources);
 

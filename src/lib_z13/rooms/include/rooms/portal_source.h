@@ -20,8 +20,8 @@
 #include <optional>
 
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 
 namespace z13::station::rooms {
 
@@ -30,7 +30,6 @@ enum class Axis : uint8_t { kX, kY, kZ };
 // Where a door or window block lets rooms see (or pass) into each other. The block itself
 // is found by the opening's cell (BlockIndex): entity ids differ between peers and rebuilds.
 struct PortalSource {
-  // The cells the opening spans, through the block's thickness.
   z13::building::primitives::CellBox opening;
   // The world axis the opening is crossed along.
   Axis axis {};
@@ -38,7 +37,6 @@ struct PortalSource {
   bool passable {};
 };
 
-// A block seals gas when its primitive says so; doors and windows seal until opened.
 bool IsSealing(const z13::building::primitives::Primitive& primitive);
 
 // The opening of a door frame (the gap between its posts) or of a transparent block (all

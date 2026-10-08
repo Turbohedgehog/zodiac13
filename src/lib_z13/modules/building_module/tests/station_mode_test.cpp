@@ -32,7 +32,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
 #include <z13/components/station.h>
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include "../../z13_module/tests/support/test_network.h"

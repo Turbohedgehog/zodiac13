@@ -19,11 +19,10 @@
 #include <cstdint>
 #include <vector>
 
-#include <z13_rooms/room_graph.h>
+#include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
 
-// The cells a room of one graph shares with a room of another.
 struct RoomOverlap {
   RoomIndex before {};
   RoomIndex after {};

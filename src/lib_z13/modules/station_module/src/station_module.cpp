@@ -23,7 +23,6 @@
 
 namespace z13::station {
 
-// Blocks are building_module's; the rooms are derived from them here.
 StationModule::StationModule(flecs::world& world) {
   RoomSystem::Register(world);
   RoomOverlaySystem::Register(world);

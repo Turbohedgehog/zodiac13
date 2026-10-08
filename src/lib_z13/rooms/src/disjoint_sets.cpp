@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_rooms/disjoint_sets.h>
+#include <rooms/disjoint_sets.h>
 
 #include <numeric>
 

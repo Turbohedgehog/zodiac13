@@ -19,7 +19,7 @@
 #include <Eigen/Dense>
 
 #include <z13/components/station.h>
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 
 namespace z13::testing {
 

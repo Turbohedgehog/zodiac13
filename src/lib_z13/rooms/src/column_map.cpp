@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_rooms/column_map.h>
+#include <rooms/column_map.h>
 
 #include <algorithm>
 #include <utility>

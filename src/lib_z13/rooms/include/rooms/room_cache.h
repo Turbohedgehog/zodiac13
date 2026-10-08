@@ -24,7 +24,7 @@
 #include <optional>
 #include <string>
 
-#include <z13_rooms/room_graph.h>
+#include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
 
@@ -51,13 +51,11 @@ class RoomCache {
   std::optional<std::reference_wrapper<const RoomGraph>> Current() const;
   std::optional<uint64_t> CurrentFingerprint() const;
 
-  // The number of blocks the current graph was selected over.
   size_t BlocksSeen() const { return blocks_seen_; }
   void SetBlocksSeen(size_t blocks) { blocks_seen_ = blocks; }
 
  private:
   std::deque<RoomCacheEntry> entries_;
-  // The newest entry's fingerprint, unless the last selection failed.
   std::optional<uint64_t> current_;
   size_t blocks_seen_ {};
 };

@@ -21,9 +21,9 @@
 #include <string>
 #include <vector>
 
-#include <z13_primitives/placement.h>
-#include <z13_rooms/portal_source.h>
-#include <z13_rooms/room_graph.h>
+#include <primitives/placement.h>
+#include <rooms/portal_source.h>
+#include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
 
@@ -31,8 +31,6 @@ namespace z13::station::rooms {
 // block far from the rest from allocating the whole plane in between.
 inline constexpr size_t kMaxColumns = 16u * 1024u * 1024u;
 
-// What the rooms are built from: the cells sealing blocks occupy, and the doors and
-// windows among them.
 struct RoomSources {
   std::vector<z13::building::primitives::CellBox> sealed;
   std::vector<PortalSource> portals;

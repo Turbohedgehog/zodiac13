@@ -16,10 +16,12 @@
 
 #pragma once
 
-#include <string>
+#include <array>
+#include <cstdint>
 
-namespace z13::raylib::gui {
+namespace z13 {
 
-void DrawRoomLabel(const std::string& label);
+// Red, green, blue and alpha, each 0..255.
+using Rgba = std::array<uint8_t, 4>;
 
-}  // namespace z13::raylib::gui
+}  // namespace z13

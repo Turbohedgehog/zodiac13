@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_rooms/topology_fingerprint.h>
+#include <rooms/topology_fingerprint.h>
 
 #include <array>
 
@@ -22,7 +22,9 @@ namespace z13::station::rooms {
 
 namespace {
 
-// The SplitMix64 finalizer.
+// The SplitMix64 mixer: the first constant is 2^64 divided by the golden ratio, the shifts
+// and multipliers are Stafford's "variant 13", chosen so each input bit flips about half of
+// the output bits.
 uint64_t Mix(uint64_t value) {
   value += 0x9e3779b97f4a7c15ULL;
   value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
@@ -33,7 +35,7 @@ uint64_t Mix(uint64_t value) {
 }  // namespace
 
 uint64_t BlockFingerprint(const Block& block) {
-  const std::array<uint64_t, 8> fields {
+  const auto fields = std::to_array<uint64_t>({
       block.spec.type_id,
       static_cast<uint64_t>(block.spec.orientation),
       static_cast<uint64_t>(block.spec.size.x()),
@@ -42,7 +44,7 @@ uint64_t BlockFingerprint(const Block& block) {
       static_cast<uint64_t>(block.cell.x()),
       static_cast<uint64_t>(block.cell.y()),
       static_cast<uint64_t>(block.cell.z()),
-  };
+  });
   uint64_t hash {};
   for (const uint64_t field : fields) {
     hash = Mix(hash ^ field);

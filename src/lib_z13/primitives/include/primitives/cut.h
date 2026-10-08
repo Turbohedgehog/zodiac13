@@ -16,19 +16,19 @@
 
 #pragma once
 
-#include <expected>
-#include <string>
-#include <string_view>
 #include <vector>
 
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 
-// Parses blueprint JSON (blueprint.fbs) into blocks of `palette`, naming the first block
-// whose primitive the palette lacks. Placement isn't checked here: that's ValidateBuild's.
-std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
-    std::string_view json, const Palette& palette);
+// What is left of `block` once the cells of `cut` are taken out of it: blocks of the same
+// type and turn that tile the rest, up to six, split along X, then Y, then Z. A block that
+// can't be split (a fixed-size primitive, or a rest below the size limits) leaves nothing.
+// The order is fixed, so every peer ends up with the same blocks.
+std::vector<z13::station::Block> LeftAfterCut(
+    const z13::station::Block& block, const Primitive& primitive, const CellBox& cut);
 
 }  // namespace z13::building::primitives

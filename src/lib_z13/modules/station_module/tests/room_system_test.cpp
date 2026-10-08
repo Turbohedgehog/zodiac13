@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <array>
 #include <optional>
 #include <format>
 #include <string>
@@ -32,9 +31,9 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/station_assets.h>
-#include <z13_rooms/room_cache.h>
+#include <primitives/palette.h>
+#include <primitives/station_assets.h>
+#include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../building_module/tests/support/station_builders.h"
@@ -292,7 +291,7 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
   int64_t covered = 0;
   std::optional<rooms::RoomIndex> room;
   for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
-    if (box.color != std::array<uint8_t, 4> {80, 200, 120, 255}) {
+    if (box.color != kRoomOverlayColor) {
       continue;
     }
     for (int z = box.min.z(); z < box.min.z() + box.extent.z(); ++z) {

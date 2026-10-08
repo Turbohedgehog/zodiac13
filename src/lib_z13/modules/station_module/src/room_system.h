@@ -20,8 +20,7 @@
 
 namespace z13::station {
 
-// Keeps the station's rooms and portals (a RoomCache) and TopologyVersion in step with the
-// blocks, and the debug overlay of the room around the local player.
+// Keeps the RoomCache and TopologyVersion in step with the blocks.
 class RoomSystem {
  public:
   static void Register(flecs::world& world);

@@ -22,16 +22,13 @@
 
 #include <Eigen/Dense>
 
-// What BuildRooms passes between its steps.
 namespace z13::station::rooms {
 
-// The z-range [begin, end) of one sealed box in a column.
 struct Span {
   int begin {};
   int end {};
 };
 
-// The grid BuildRooms lays over the station: the sealed boxes' bounds and the margin.
 struct Bounds {
   Eigen::Vector3i low;
   Eigen::Vector3i high;

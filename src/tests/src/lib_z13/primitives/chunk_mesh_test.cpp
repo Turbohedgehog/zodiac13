@@ -23,7 +23,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/chunk_mesh.h>
+#include <primitives/chunk_mesh.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {

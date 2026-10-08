@@ -34,10 +34,10 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
 #include <z13_module/gameplay/gameplay_entities.h>
-#include <z13_primitives/blueprint.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/blueprint.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
+#include <primitives/station_assets.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/test_network.h"

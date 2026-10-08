@@ -48,7 +48,6 @@ class ColumnMap {
 
   const Eigen::Vector2i& Origin() const { return origin_; }
   const Eigen::Vector2i& Size() const { return size_; }
-  // The z range (begin, end) the grid spans.
   const Eigen::Vector2i& Heights() const { return heights_; }
   size_t ColumnCount() const { return static_cast<size_t>(size_.x()) * static_cast<size_t>(size_.y()); }
 

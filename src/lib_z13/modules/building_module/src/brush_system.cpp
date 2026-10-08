@@ -32,8 +32,8 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
 #include "build_action_ids.h"

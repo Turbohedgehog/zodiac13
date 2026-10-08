@@ -24,7 +24,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/geometry.h>
+#include <primitives/geometry.h>
 
 namespace z13::building::primitives {
 namespace {

@@ -32,7 +32,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/station.h>
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
 #include "block_watch.h"

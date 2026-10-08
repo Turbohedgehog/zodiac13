@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/draw_order.h>
+#include <primitives/draw_order.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {

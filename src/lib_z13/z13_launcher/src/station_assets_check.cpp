@@ -19,8 +19,8 @@
 #include <format>
 
 #include <lib_core/utils/file_io.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/palette.h>
+#include <primitives/station_assets.h>
 
 namespace z13 {
 

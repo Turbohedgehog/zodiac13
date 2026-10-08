@@ -16,9 +16,9 @@
 
 #include "topology_sources.h"
 
-#include <z13_primitives/placement.h>
-#include <z13_rooms/portal_source.h>
-#include <z13_rooms/topology_fingerprint.h>
+#include <primitives/placement.h>
+#include <rooms/portal_source.h>
+#include <rooms/topology_fingerprint.h>
 
 namespace z13::station {
 

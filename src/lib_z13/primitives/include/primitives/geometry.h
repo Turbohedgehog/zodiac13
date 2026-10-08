@@ -27,7 +27,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 
 // Geometry of a primitive in its own frame, in cells: it spans [0, size] on each axis,
 // Z up. The caller scales by the cell size and applies the block's placement.

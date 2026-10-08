@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Full rebuild of the rooms of every shipped station (z13_rooms/room_builder.h). Built by
+// Full rebuild of the rooms of every shipped station (rooms/room_builder.h). Built by
 // `make.py --bench`, run with `z13.py --bench --filter 'RoomBuildBench.*'`.
 
 #include <gtest/gtest.h>
@@ -24,9 +24,9 @@
 #include <iostream>
 #include <string>
 
-#include <z13_primitives/station_assets.h>
-#include <z13_rooms/portal_source.h>
-#include <z13_rooms/room_builder.h>
+#include <primitives/station_assets.h>
+#include <rooms/portal_source.h>
+#include <rooms/room_builder.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::testing {

@@ -38,7 +38,7 @@
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include <net_module/clock_sync.h>

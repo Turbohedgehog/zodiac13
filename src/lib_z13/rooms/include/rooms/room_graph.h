@@ -22,8 +22,8 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/placement.h>
-#include <z13_rooms/column_map.h>
+#include <primitives/placement.h>
+#include <rooms/column_map.h>
 
 namespace z13::station::rooms {
 
@@ -37,14 +37,12 @@ struct Room {
   bool operator==(const Room&) const = default;
 };
 
-// An opening between two rooms through a door or window block.
 struct Portal {
   RoomIndex a {};
   RoomIndex b {};
   int area_cells {};
   bool visible {};
   bool passable {};
-  // The cells the opening spans, through the block.
   z13::building::primitives::CellBox opening;
 
   bool operator==(const Portal&) const = default;
