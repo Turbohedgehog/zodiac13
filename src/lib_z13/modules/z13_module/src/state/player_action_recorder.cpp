@@ -134,9 +134,10 @@ void RecordChangedActions(
 void ApplyOwnCommands(
     flecs::iter&, size_t, z13::gameplay::OutgoingCommands& outgoing,
     z13::gameplay::PlayerActionLog& log) {
-  for (const z13::gameplay::PlayerActionRecord& record : outgoing.records) {
-    log.log.Push(record);
-  }
+  // Merged, not appended: after a load the clock is behind records already in the log, which
+  // must stay sorted by tick.
+  std::ranges::sort(outgoing.records, z13::gameplay::RecordLess);
+  log.log.MergeSorted(std::move(outgoing.records), z13::gameplay::RecordLess);
   outgoing.records.clear();
 }
 
