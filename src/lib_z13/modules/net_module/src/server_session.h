@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include <compare>
+#include <cstddef>
 #include <cstdint>
-#include <map>
+#include <functional>
 #include <unordered_map>
 
 #include <flecs.h>
@@ -54,7 +54,19 @@ struct CommandRateLimits {
 struct PlayerActionKey {
   uint32_t player_id {};
   z13::input::ActionInfo::IdType action_id {};
-  auto operator<=>(const PlayerActionKey&) const = default;
+  bool operator==(const PlayerActionKey&) const = default;
+};
+
+struct PlayerActionKeyHash {
+  size_t operator()(const PlayerActionKey& key) const {
+    return std::hash<uint64_t> {}((static_cast<uint64_t>(key.player_id) << 32) ^ key.action_id);
+  }
+};
+
+// The ticks a client's command may be scheduled on this frame.
+struct ScheduleWindow {
+  uint64_t earliest {};
+  uint64_t latest {};
 };
 
 struct ScheduledCommandTick {
@@ -66,7 +78,7 @@ struct ScheduledCommandTick {
 struct LastCommandTicks {
   using Singleton = void;
   using SessionScoped = void;
-  std::map<PlayerActionKey, ScheduledCommandTick> by_action;
+  std::unordered_map<PlayerActionKey, ScheduledCommandTick, PlayerActionKeyHash> by_action;
 };
 
 Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters);

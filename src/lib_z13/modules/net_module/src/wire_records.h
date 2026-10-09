@@ -18,8 +18,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <memory>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <lib_core/state/world_serializer.h>
@@ -37,7 +39,17 @@ std::unique_ptr<fbs::state::WorldSnapshotT> ToWire(const z13::flecs_tools::World
 z13::gameplay::PlayerActionRecord FromWire(
     const fbs::net::CommandWire& command, uint64_t base_tick, uint32_t player_id);
 
+// One player's commands as CommandWire, ticks relative to the earliest (or to `empty_base_tick`).
+struct CommandRun {
+  uint64_t base_tick {};
+  std::vector<fbs::net::CommandWire> commands;
+};
+
+std::expected<CommandRun, std::string> ToCommandRun(
+    const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t empty_base_tick);
+
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id);
+bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionInfo::IdType action_id);
 
 // The transport gives std::byte, the codec takes uint8_t.
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data);

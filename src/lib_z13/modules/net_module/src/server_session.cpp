@@ -54,45 +54,29 @@ namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 namespace zgi = z13::gameplay::input;
 
-// The oldest tick a rollback can still replay from: inside the late window and past a snapshot.
-uint64_t EarliestScheduleTick(flecs::world world, uint64_t now, const NetTuning& tuning) {
+// Inside the late window, past a snapshot a rollback can start from (scanned: a join pushes its
+// snapshot out of tick order), and no further ahead than the schedule window.
+ScheduleWindow MakeScheduleWindow(flecs::world world, uint64_t now, const NetTuning& tuning) {
   const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
-  const uint64_t window_start = now > tuning.max_late_ticks ? now - tuning.max_late_ticks : 0;
-  return entries.empty() ? now : std::min(now, std::max(window_start, entries.front().tick + 1));
+  const uint64_t late_start = now > tuning.max_late_ticks ? now - tuning.max_late_ticks : 0;
+  const uint64_t earliest = entries.empty()
+      ? now
+      : std::min(now, std::max(late_start, std::ranges::min(entries, {}, &ft::TimestampedSnapshot::tick).tick + 1));
+  return {.earliest = earliest, .latest = now + tuning.max_schedule_ahead_ticks};
 }
 
-// A command outside the window, or too old to replay, is moved to the window's nearest edge rather
-// than dropped (CLAUDE.md), as close as possible to when the player acted; CommandsRetimed tells its
-// sender. A move never puts it before the same action's previous command, nor on one tick with it,
-// where one would hide the other.
+// A command outside the window is moved to its nearest edge rather than dropped (CLAUDE.md), as
+// close as possible to when the player acted; CommandsRetimed tells its sender. A move keeps it
+// after the same action's previous command, and off that command's tick unless the action is
+// absolute (a state, where the newer value rightly wins): otherwise one press would hide the other.
 ScheduledCommandTick ScheduleTick(
-    flecs::world world, uint64_t tick, uint64_t now, const NetTuning& tuning,
-    std::optional<ScheduledCommandTick> last) {
-  ScheduledCommandTick scheduled {
-      .tick = std::clamp(tick, EarliestScheduleTick(world, now, tuning), now + tuning.max_schedule_ahead_ticks)};
-  scheduled.moved = scheduled.tick != tick;
-  if (last && (scheduled.tick < last->tick || (scheduled.tick == last->tick && (scheduled.moved || last->moved)))) {
-    scheduled = {.tick = last->tick + 1, .moved = true};
+    const ScheduleWindow& window, uint64_t tick, bool absolute, std::optional<ScheduledCommandTick> last) {
+  uint64_t scheduled = std::clamp(tick, window.earliest, window.latest);
+  if (last && scheduled <= last->tick) {
+    const bool apart = !absolute && (scheduled != tick || last->moved || scheduled < last->tick);
+    scheduled = std::min(last->tick + (apart ? 1 : 0), window.latest);
   }
-  return scheduled;
-}
-
-std::expected<fbn::SequencedCommandsT, std::string> ToSequenced(
-    uint32_t player_id, const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t through_tick) {
-  fbn::SequencedCommandsT sequenced;
-  sequenced.player_id = player_id;
-  sequenced.through_tick = through_tick;
-  sequenced.base_tick = records.empty() ? through_tick : std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick;
-  for (const z13::gameplay::PlayerActionRecord& record : records) {
-    const uint64_t delta = record.tick - sequenced.base_tick;
-    if (delta > std::numeric_limits<uint8_t>::max()) {
-      return std::unexpected(std::format("command {} ticks past the batch base", delta));
-    }
-    sequenced.commands.emplace_back(
-        static_cast<uint8_t>(delta), static_cast<uint16_t>(record.action_id),
-        z13::gameplay::QuantizeActionValue(record.value));
-  }
-  return sequenced;
+  return {.tick = scheduled, .moved = scheduled != tick};
 }
 
 Status SendWelcome(
@@ -241,6 +225,7 @@ void HandleCommandBatch(
   const auto& tuning = world.get<NetTuning>();
 
   auto& last_ticks = world.get_mut<LastCommandTicks>().by_action;
+  const ScheduleWindow window = MakeScheduleWindow(world, now, tuning);
   std::vector<z13::gameplay::PlayerActionRecord> accepted;
   fbn::CommandsRetimedT retimed;
   for (const fbs::net::CommandWire& command : batch.commands) {
@@ -259,7 +244,8 @@ void HandleCommandBatch(
     const PlayerActionKey key {.player_id = *player_id, .action_id = record.action_id};
     const auto last = last_ticks.find(key);
     const ScheduledCommandTick scheduled = ScheduleTick(
-        world, record.tick, now, tuning, last == last_ticks.end() ? std::nullopt : std::optional(last->second));
+        window, record.tick, IsAbsoluteAction(action_map, record.action_id),
+        last == last_ticks.end() ? std::nullopt : std::optional(last->second));
     if (scheduled.moved) {
       retimed.moves.emplace_back(record.tick, scheduled.tick, command.action_id(), command.value());
       record.tick = scheduled.tick;
@@ -281,13 +267,18 @@ void HandleCommandBatch(
     return;
   }
 
-  auto sequenced = ToSequenced(*player_id, accepted, through_tick);
-  if (!sequenced) {
-    log_error("NetSession(server): can't relay commands from connection {}: {}", connection, sequenced.error());
+  auto run = ToCommandRun(accepted, through_tick);
+  if (!run) {
+    log_error("NetSession(server): can't relay commands from connection {}: {}", connection, run.error());
     return;
   }
+  fbn::SequencedCommandsT sequenced;
+  sequenced.player_id = *player_id;
+  sequenced.base_tick = run->base_tick;
+  sequenced.commands = std::move(run->commands);
+  sequenced.through_tick = through_tick;
   Envelope envelope;
-  envelope.body.Set(std::move(*sequenced));
+  envelope.body.Set(std::move(sequenced));
   session.Broadcast(Channel::kReliable, envelope, connection);
 }
 
@@ -298,6 +289,9 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
   if (!player_id) {
     return;  // never completed the handshake
   }
+  std::erase_if(world.get_mut<LastCommandTicks>().by_action, [&](const auto& entry) {
+    return entry.first.player_id == *player_id;
+  });
 
   fbn::PlayerLeftT left;
   left.apply_tick = LeaveApplyTick(world, *player_id);

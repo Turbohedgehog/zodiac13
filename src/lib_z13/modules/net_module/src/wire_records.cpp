@@ -17,7 +17,9 @@
 #include "wire_records.h"
 
 #include <algorithm>
+#include <format>
 #include <iterator>
+#include <limits>
 
 namespace z13::net {
 
@@ -49,6 +51,27 @@ std::unique_ptr<fbs::state::WorldSnapshotT> ToWire(const z13::flecs_tools::World
   return std::make_unique<fbs::state::WorldSnapshotT>(z13::flecs_tools::ToFlatbuffer(snapshot));
 }
 
+std::expected<CommandRun, std::string> ToCommandRun(
+    const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t empty_base_tick) {
+  CommandRun run {
+      .base_tick = records.empty() ? empty_base_tick
+                                   : std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick};
+  run.commands.reserve(records.size());
+  for (const z13::gameplay::PlayerActionRecord& record : records) {
+    if (record.action_id > std::numeric_limits<uint16_t>::max()) {
+      return std::unexpected(std::format("action id {} does not fit the wire format", record.action_id));
+    }
+    const uint64_t delta = record.tick - run.base_tick;
+    if (delta > std::numeric_limits<uint8_t>::max()) {
+      return std::unexpected(std::format("command {} ticks past the run's base", delta));
+    }
+    run.commands.emplace_back(
+        static_cast<uint8_t>(delta), static_cast<uint16_t>(record.action_id),
+        z13::gameplay::QuantizeActionValue(record.value));
+  }
+  return run;
+}
+
 z13::gameplay::PlayerActionRecord FromWire(
     const fbs::net::CommandWire& command, uint64_t base_tick, uint32_t player_id) {
   return {
@@ -62,6 +85,12 @@ z13::gameplay::PlayerActionRecord FromWire(
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id) {
   const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
   return by_id.find(static_cast<z13::input::ActionInfo::IdType>(action_id)) != by_id.end();
+}
+
+bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionInfo::IdType action_id) {
+  const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
+  const auto info = by_id.find(action_id);
+  return info != by_id.end() && info->absolute;
 }
 
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data) {

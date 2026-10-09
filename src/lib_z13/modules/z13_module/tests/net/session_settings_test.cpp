@@ -105,7 +105,7 @@ TEST(SessionSettingsTest, ClientRefusesServerSettingsItsHistoryCannotCover) {
   auto network = std::make_shared<InMemoryNetwork>();
   Settings server_settings = MakeSettings();
   server_settings.core->snapshot_retention_seconds = 10.;
-  server_settings.net->max_late_ticks = 400;  // 6.7s + 1s of history at 60 fps
+  server_settings.net->max_late_ticks = 200;  // 3.3s + 1s of history at 60 fps
   Settings client_settings = MakeSettings();
   client_settings.core->snapshot_retention_seconds = 3.;
   Z13TestWorld server = MakeServer(network, server_settings);

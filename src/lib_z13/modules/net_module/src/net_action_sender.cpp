@@ -21,10 +21,8 @@
 #include <expected>
 #include <format>
 #include <iterator>
-#include <limits>
 #include <ranges>
 #include <string>
-#include <vector>
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/time/simulation_clock.h>
@@ -45,6 +43,7 @@
 
 #include "net_session.h"
 #include "remote_input.h"
+#include "wire_records.h"
 
 namespace z13::net {
 
@@ -52,49 +51,6 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
-
-struct ScheduledCommand {
-  uint64_t apply_tick {};
-  uint16_t action_id {};
-  int16_t value {};
-};
-
-std::expected<std::vector<ScheduledCommand>, std::string> ToScheduled(
-    const std::vector<z13::gameplay::PlayerActionRecord>& records) {
-  std::vector<ScheduledCommand> scheduled;
-  scheduled.reserve(records.size());
-  for (const z13::gameplay::PlayerActionRecord& record : records) {
-    if (record.action_id > std::numeric_limits<uint16_t>::max()) {
-      return std::unexpected(std::format("action id {} does not fit the wire format", record.action_id));
-    }
-    scheduled.push_back({
-        .apply_tick = record.tick,
-        .action_id = static_cast<uint16_t>(record.action_id),
-        .value = z13::gameplay::QuantizeActionValue(record.value),
-    });
-  }
-  return scheduled;
-}
-
-std::expected<fbn::CommandBatchT, std::string> ToBatch(
-    const std::vector<ScheduledCommand>& scheduled, uint64_t through_tick) {
-  uint64_t base_tick = scheduled.empty() ? through_tick : scheduled.front().apply_tick;
-  for (const ScheduledCommand& command : scheduled) {
-    base_tick = std::min(base_tick, command.apply_tick);
-  }
-
-  fbn::CommandBatchT batch;
-  batch.base_tick = base_tick;
-  batch.through_tick = through_tick;
-  for (const ScheduledCommand& command : scheduled) {
-    const uint64_t delta = command.apply_tick - batch.base_tick;
-    if (delta > std::numeric_limits<uint8_t>::max()) {
-      return std::unexpected(std::format("command {} ticks past the batch base", delta));
-    }
-    batch.commands.emplace_back(static_cast<uint8_t>(delta), command.action_id, command.value);
-  }
-  return batch;
-}
 
 // The client sends a CommandBatch; the host sequences its own commands on the spot,
 // like any client's, and broadcasts them (its clock offset is 0).
@@ -132,17 +88,19 @@ Status TrySendPendingCommands(
     return {};
   }
 
-  const auto scheduled = ToScheduled(outgoing.records);
+  auto run = ToCommandRun(outgoing.records, clock.tick);
   if (digests.awaiting_resync) {
     std::ranges::copy(outgoing.records, std::back_inserter(*digests.awaiting_resync));
   }
   outgoing.records.clear();
-  auto batch = scheduled.and_then(
-      [&clock](const std::vector<ScheduledCommand>& commands) { return ToBatch(commands, clock.tick); });
-  if (!batch) {
-    return std::unexpected(std::format("dropping a batch: {}", batch.error()));
+  if (!run) {
+    return std::unexpected(std::format("dropping a batch: {}", run.error()));
   }
-  Send(session, is_server, *local_player.id, std::move(*batch));
+  fbn::CommandBatchT batch;
+  batch.base_tick = run->base_tick;
+  batch.commands = std::move(run->commands);
+  batch.through_tick = clock.tick;
+  Send(session, is_server, *local_player.id, std::move(batch));
   return {};
 }
 

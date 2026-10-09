@@ -16,7 +16,9 @@
 
 #include <z13_settings/settings.h>
 
+#include <cstdint>
 #include <format>
+#include <limits>
 #include <memory>
 #include <string_view>
 
@@ -121,6 +123,11 @@ Status ValidateSettings(const Settings& settings) {
   }
   if (settings.connect_timeout->max_timeout_ms < settings.connect_timeout->min_timeout_ms) {
     return Invalid("connect_timeout.max_timeout_ms", "must not be below connect_timeout.min_timeout_ms");
+  }
+
+  // A relayed run of commands spans the whole schedule window in one byte (CommandWire::tick_delta).
+  if (settings.net->max_late_ticks + settings.net->max_schedule_ahead_ticks > std::numeric_limits<uint8_t>::max()) {
+    return Invalid("net.max_late_ticks", "plus net.max_schedule_ahead_ticks must fit a command's 8-bit tick delta");
   }
 
   // A rollback for the oldest accepted command needs a snapshot at least that old.
