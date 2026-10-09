@@ -100,7 +100,9 @@ void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
   const uint64_t target_tick = std::max(payload ? payload->server_tick : 0, world.get<ft::SimulationClock>().tick);
   if (!payload || !IsPlausibleCatchUp(world, payload->snapshot_tick, target_tick)) {
     log_warn("NetSession(client): unusable Resync: {}", payload ? "implausible server tick" : payload.error());
-    world.get_mut<StateDigests>().awaiting_resync = false;  // the next mismatch asks again
+    auto& digests = world.get_mut<StateDigests>();
+    digests.awaiting_resync = false;  // the next mismatch asks again
+    digests.sent_since_resync_request.clear();
     return;
   }
   log_info("NetSession(client): resyncing from tick {}", payload->snapshot_tick);

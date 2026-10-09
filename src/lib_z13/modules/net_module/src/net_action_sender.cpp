@@ -22,12 +22,9 @@
 #include <format>
 #include <iterator>
 #include <limits>
-#include <optional>
 #include <ranges>
 #include <string>
 #include <vector>
-
-#include <boost/container/flat_map.hpp>
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/time/simulation_clock.h>
@@ -48,8 +45,6 @@
 
 #include "net_session.h"
 #include "remote_input.h"
-#include "scheduled_commands.h"
-#include "wire_records.h"
 
 namespace z13::net {
 
@@ -101,47 +96,6 @@ std::expected<fbn::CommandBatchT, std::string> ToBatch(
   return batch;
 }
 
-void ScheduleLocally(flecs::world world, uint32_t player_id, const fbn::CommandBatchT& batch) {
-  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
-  for (const fbn::CommandWire& command : batch.commands) {
-    QueueInOrder(queue, FromWire(command, batch.base_tick, player_id));
-  }
-}
-
-// Onto the next tick, last value per action, so they stay in the server's window.
-bool CollapseHeldBackRecords(z13::gameplay::OutgoingCommands& outgoing, uint64_t now) {
-  if (outgoing.applied_count == outgoing.records.size()) {
-    return false;
-  }
-  boost::container::flat_map<z13::input::ActionInfo::IdType, z13::gameplay::PlayerActionRecord> latest;
-  for (z13::gameplay::PlayerActionRecord record : outgoing.records) {
-    record.tick = now + 1;
-    latest.insert_or_assign(record.action_id, record);
-  }
-  outgoing.records.clear();
-  std::ranges::copy(latest | std::views::values, std::back_inserter(outgoing.records));
-  return true;
-}
-
-void ApplyOwnCommands(
-    flecs::iter&, size_t, const NetSession&, const ft::SimulationClock& clock, const StateDigests& digests,
-    z13::gameplay::OutgoingCommands& outgoing, z13::gameplay::PlayerActionLog& log) {
-  // The Resync's log lacks what was applied but not yet sent.
-  if (digests.awaiting_resync) {
-    outgoing.applied_count = 0;
-    return;
-  }
-  auto unapplied = outgoing.records | std::views::drop(outgoing.applied_count);
-  if (std::ranges::empty(unapplied) ||
-      std::ranges::any_of(unapplied, [&clock](const auto& record) { return record.tick != clock.tick; })) {
-    return;  // a backlog: the sender collapses it
-  }
-  std::vector<z13::gameplay::PlayerActionRecord> recorded_now(unapplied.begin(), unapplied.end());
-  outgoing.applied_count = outgoing.records.size();
-  std::ranges::sort(recorded_now, RecordLess);
-  log.log.MergeSorted(std::move(recorded_now), RecordLess);
-}
-
 // The client sends a CommandBatch; the host sequences its own commands on the spot,
 // like any client's, and broadcasts them (its clock offset is 0).
 void Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandBatchT batch) {
@@ -162,7 +116,7 @@ void Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandB
 
 Status TrySendPendingCommands(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock, const z13::gameplay::LocalPlayer& local_player,
-    const StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
+    StateDigests& digests, z13::gameplay::OutgoingCommands& outgoing,
     const z13::gameplay::LastRecordedActionValues& last_recorded, const z13::input::ActionMap& action_map) {
   const auto& tuning = it.world().get<NetTuning>();
   if (clock.tick % tuning.send_interval_ticks != 0) {
@@ -172,33 +126,21 @@ Status TrySendPendingCommands(
   if ((!is_server && !session.ServerConnection()) || !local_player.id) {
     return {};
   }
-  // Held back, not dropped: everything sent before the ResyncRequest is in the Resync and
-  // nothing after it may be. An empty batch still confirms the wait, or the server would
-  // stand the player still for all of it; held-back input is later retimed past it.
-  if (digests.awaiting_resync) {
-    fbn::CommandBatchT heartbeat;
-    heartbeat.base_tick = clock.tick;
-    heartbeat.through_tick = clock.tick;
-    Send(session, is_server, *local_player.id, std::move(heartbeat));
-    return {};
-  }
   // Observers release a held action past the last confirmed tick, so holding one is worth a batch.
   const bool heartbeat = HoldsReleasableAction(last_recorded.values, action_map);
   if (outgoing.records.empty() && !heartbeat) {
     return {};
   }
 
-  const bool held_back = CollapseHeldBackRecords(outgoing, clock.tick);
   const auto scheduled = ToScheduled(outgoing.records);
+  if (digests.awaiting_resync) {
+    std::ranges::copy(outgoing.records, std::back_inserter(digests.sent_since_resync_request));
+  }
   outgoing.records.clear();
-  outgoing.applied_count = 0;
   auto batch = scheduled.and_then(
       [&clock](const std::vector<ScheduledCommand>& commands) { return ToBatch(commands, clock.tick); });
   if (!batch) {
     return std::unexpected(std::format("dropping a batch: {}", batch.error()));
-  }
-  if (held_back) {
-    ScheduleLocally(it.world(), *local_player.id, *batch);
   }
   Send(session, is_server, *local_player.id, std::move(*batch));
   return {};
@@ -206,7 +148,7 @@ Status TrySendPendingCommands(
 
 void SendPendingCommands(
     flecs::iter& it, size_t row, NetSession& session, const ft::SimulationClock& clock,
-    const z13::gameplay::LocalPlayer& local_player, const StateDigests& digests,
+    const z13::gameplay::LocalPlayer& local_player, StateDigests& digests,
     z13::gameplay::OutgoingCommands& outgoing, const z13::gameplay::LastRecordedActionValues& last_recorded,
     const z13::input::ActionMap& action_map) {
   if (const auto sent = TrySendPendingCommands(
@@ -218,15 +160,8 @@ void SendPendingCommands(
 
 void RegisterSystems(flecs::world world) {
   world.system<
-      const NetSession, const ft::SimulationClock, const StateDigests, z13::gameplay::OutgoingCommands,
-      z13::gameplay::PlayerActionLog>("NetActionSender::ApplyOwnCommands")
-      .kind<z13::input::OwnCommandsFramePhase>()
-      .without<ft::ReplayInProgress>()
-      .each(ApplyOwnCommands);
-
-  world.system<
       NetSession, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
-      const StateDigests, z13::gameplay::OutgoingCommands, const z13::gameplay::LastRecordedActionValues,
+      StateDigests, z13::gameplay::OutgoingCommands, const z13::gameplay::LastRecordedActionValues,
       const z13::input::ActionMap>(
       "NetActionSender::SendPendingCommands")
       .kind(flecs::PostUpdate)

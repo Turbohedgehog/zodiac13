@@ -67,12 +67,11 @@ inline bool RecordLess(const PlayerActionRecord& a, const PlayerActionRecord& b)
   return std::tie(a.tick, a.player_id, a.action_id) < std::tie(b.tick, b.player_id, b.action_id);
 }
 
+// Own records, applied to PlayerActionLog on their tick and kept until NetActionSender sends them.
 struct OutgoingCommands {
   using Singleton = void;
   using SessionScoped = void;
   std::vector<PlayerActionRecord> records;
-  // Leading records already in PlayerActionLog.
-  size_t applied_count {};
 };
 
 // Not ActionListener's prev_value: RemoteActionFramePhase overwrites it every tick.

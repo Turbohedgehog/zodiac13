@@ -124,9 +124,15 @@ bool IsPlausibleCatchUp(flecs::world world, uint64_t snapshot_tick, uint64_t tar
          target_tick - snapshot_tick <= world.get<z13::ActiveCoreSettings>().max_catch_up_ticks_per_frame;
 }
 
+// In the world's thread for now; see «Ресинк в одном потоке» in docs/client-server-plan.md.
 void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_tick) {
+  auto& digests = world.get_mut<StateDigests>();
   std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(payload.held_values);
   log_entries.insert(log_entries.end(), payload.actions.begin(), payload.actions.end());
+  // Own input the catch-up lacks: sent after the ResyncRequest, or not sent yet.
+  std::ranges::copy(digests.sent_since_resync_request, std::back_inserter(log_entries));
+  std::ranges::copy(world.get<z13::gameplay::OutgoingCommands>().records, std::back_inserter(log_entries));
+  std::ranges::sort(log_entries, RecordLess);
   auto& log = world.get_mut<z13::gameplay::PlayerActionLog>().log;
   log.RemoveIf([](const auto&) { return true; });
   if (!log_entries.empty()) {
@@ -139,10 +145,10 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_ti
   history.RemoveIf([](const auto&) { return true; });
   history.Push({.tick = payload.snapshot_tick, .snapshot = std::move(payload.snapshot)});
 
-  auto& digests = world.get_mut<StateDigests>();
   digests.local.clear();
   digests.received.clear();
   digests.awaiting_resync = false;
+  digests.sent_since_resync_request.clear();
 
   // A deferred rollback may reach past the adopted snapshot.
   world.get_mut<ft::RollbackRequest>() = {};
