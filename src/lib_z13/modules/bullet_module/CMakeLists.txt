@@ -8,11 +8,13 @@ find_package(Bullet REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS dll)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/block_shape.cpp
+  src/bullet_module.cpp
+  src/bullet_module_factory.cpp
+  src/physics_system.cpp
+  src/physics_world.cpp
 )
 
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES})

@@ -16,18 +16,52 @@ find_path(FLATBUFFERS_CMAKE_DIR BuildFlatBuffers.cmake
 include(${FLATBUFFERS_CMAKE_DIR}/BuildFlatBuffers.cmake)
 
 # lib_core owns the schema of its own settings and knows nothing of the game's schemas.
+set(
+  CORE_FBS_SCHEMAS
+  ${PROJECT_SOURCE_DIR}/fbs/attributes.fbs
+  ${PROJECT_SOURCE_DIR}/fbs/core_settings.fbs
+  ${PROJECT_SOURCE_DIR}/fbs/world_snapshot.fbs
+)
+# The game schemas include these (see lib_z13/schemas/CMakeLists.txt).
+set(CORE_FBS_SCHEMAS ${CORE_FBS_SCHEMAS} PARENT_SCOPE)
+
 flatbuffers_generate_headers(
     TARGET CORE_SETTINGS_HEADERS
-    SCHEMAS ${PROJECT_SOURCE_DIR}/fbs/attributes.fbs ${PROJECT_SOURCE_DIR}/fbs/core_settings.fbs
-            ${PROJECT_SOURCE_DIR}/fbs/world_snapshot.fbs
+    SCHEMAS ${CORE_FBS_SCHEMAS}
     # Same flags as the game schemas: their generated headers reference this one's type table.
     FLAGS "--scoped-enums" "--reflect-names" "--gen-name-strings" "--gen-object-api" "--gen-compare" "--cpp-std" "c++17"
 )
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/**.cpp
+  src/settings/config.cpp
+  src/settings/schema_attributes.cpp
+  src/state/component_codec.cpp
+  src/state/component_codec/meta_access.cpp
+  src/state/component_codec/scratch_value.cpp
+  src/state/component_codec/value_decoder.cpp
+  src/state/component_codec/value_encoder.cpp
+  src/state/component_meta.cpp
+  src/state/group_bucket.cpp
+  src/state/rollback.cpp
+  src/state/snapshot_grouping.cpp
+  src/state/world_json_store.cpp
+  src/state/world_serializer.cpp
+  src/state/world_snapshot_history.cpp
+  src/state/world_state.cpp
+  src/state/world_state_requests.cpp
+  src/time/simulation_clock.cpp
+  src/time/tick_pacer.cpp
+  src/utils/drawn_poses.cpp
+  src/utils/endpoint.cpp
+  src/utils/file_io.cpp
+  src/utils/flecs_utils.cpp
+  src/utils/frustum.cpp
+  src/utils/pose_smoothing.cpp
+  src/world/core.cpp
+  src/world/lifecycle.cpp
+  src/world/module_lib_holder.cpp
+  src/world/phase_order.cpp
 )
 
 # Shared: one copy for the executable and every plugin, instead of one inside each.

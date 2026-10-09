@@ -10,12 +10,22 @@ find_path(FLATBUFFERS_CMAKE_DIR BuildFlatBuffers.cmake
           HINTS ${flatbuffers_DIR} "${flatbuffers_DIR}/../../../share/flatbuffers")
 include(${FLATBUFFERS_CMAKE_DIR}/BuildFlatBuffers.cmake)
 
-set(FBS_DIR ${PROJECT_SOURCE_DIR}/fbs/)
+set(FBS_DIR ${PROJECT_SOURCE_DIR}/fbs)
 
-file(
-    GLOB_RECURSE
+set(
     FBS_SCHEMAS
-    ${FBS_DIR}/*.fbs
+    ${FBS_DIR}/actions.fbs
+    ${FBS_DIR}/blueprint.fbs
+    ${FBS_DIR}/building.fbs
+    ${FBS_DIR}/building_tuning.fbs
+    ${FBS_DIR}/common.fbs
+    ${FBS_DIR}/geometry.fbs
+    ${FBS_DIR}/input_config.fbs
+    ${FBS_DIR}/net.fbs
+    ${FBS_DIR}/net_tuning.fbs
+    ${FBS_DIR}/physics_tuning.fbs
+    ${FBS_DIR}/primitives.fbs
+    ${FBS_DIR}/settings.fbs
 )
 
 add_library(${PROJECT_NAME} INTERFACE)
@@ -44,7 +54,6 @@ flatbuffers_generate_headers(
 
 # flatc's rules depend only on their own schema, but --bfbs-gen-embed embeds what a schema
 # includes too: rebuild every output when any schema changes, or one embeds a stale layout.
-file(GLOB CORE_FBS_SCHEMAS ${CMAKE_SOURCE_DIR}/src/lib_core/fbs/*.fbs)
 foreach(schema IN LISTS FBS_SCHEMAS)
   get_filename_component(schema_name ${schema} NAME_WE)
   add_custom_command(

@@ -6,10 +6,9 @@ set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/block_index.cpp
 )
 
 # Stateless, like primitives: each plugin linking its own copy shares nothing.

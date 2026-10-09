@@ -6,11 +6,11 @@ set(CMAKE_CXX_STANDARD 23)
 
 find_package(Boost REQUIRED COMPONENTS dll)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/test_dll_module.cpp
+  src/test_dll_module_factory.cpp
+  src/test_dll_system.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})

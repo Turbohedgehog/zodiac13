@@ -7,10 +7,20 @@ set(CMAKE_CXX_STANDARD 23)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS dll)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/bootstrap/bootstrap_system.cpp
+  src/gameplay/camera_look.cpp
+  src/gameplay/gameplay_entities.cpp
+  src/gameplay/gameplay_system.cpp
+  src/input/action_negotiation.cpp
+  src/input/gameplay_input_system.cpp
+  src/input/input_config_loader.cpp
+  src/state/player_action_recorder.cpp
+  src/state/quick_save_input_system.cpp
+  src/state/replay.cpp
+  src/z13_module.cpp
+  src/z13_module_factory.cpp
 )
 
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES} ${PROTO_SRCS} ${PROTO_HDRS})
