@@ -17,6 +17,9 @@
 #include "server_session.h"
 
 #include <algorithm>
+#include <expected>
+#include <format>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ranges>
@@ -51,14 +54,45 @@ namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 namespace zgi = z13::gameplay::input;
 
-// Never moved: the sender has already applied its own copy on this tick.
-bool IsWithinScheduleWindow(uint64_t apply_tick, uint64_t now, const NetTuning& tuning) {
-  return apply_tick + tuning.max_late_ticks >= now && apply_tick <= now + tuning.max_schedule_ahead_ticks;
+// The oldest tick a rollback can still replay from: inside the late window and past a snapshot.
+uint64_t EarliestScheduleTick(flecs::world world, uint64_t now, const NetTuning& tuning) {
+  const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
+  const uint64_t window_start = now > tuning.max_late_ticks ? now - tuning.max_late_ticks : 0;
+  return entries.empty() ? now : std::min(now, std::max(window_start, entries.front().tick + 1));
 }
 
-bool CanReplayFrom(flecs::world world, uint64_t tick) {
-  const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
-  return std::ranges::any_of(entries, [tick](const ft::TimestampedSnapshot& entry) { return entry.tick < tick; });
+// A command outside the window, or too old to replay, is moved to the window's nearest edge rather
+// than dropped (CLAUDE.md), as close as possible to when the player acted; CommandsRetimed tells its
+// sender. A move never puts it before the same action's previous command, nor on one tick with it,
+// where one would hide the other.
+ScheduledCommandTick ScheduleTick(
+    flecs::world world, uint64_t tick, uint64_t now, const NetTuning& tuning,
+    std::optional<ScheduledCommandTick> last) {
+  ScheduledCommandTick scheduled {
+      .tick = std::clamp(tick, EarliestScheduleTick(world, now, tuning), now + tuning.max_schedule_ahead_ticks)};
+  scheduled.moved = scheduled.tick != tick;
+  if (last && (scheduled.tick < last->tick || (scheduled.tick == last->tick && (scheduled.moved || last->moved)))) {
+    scheduled = {.tick = last->tick + 1, .moved = true};
+  }
+  return scheduled;
+}
+
+std::expected<fbn::SequencedCommandsT, std::string> ToSequenced(
+    uint32_t player_id, const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t through_tick) {
+  fbn::SequencedCommandsT sequenced;
+  sequenced.player_id = player_id;
+  sequenced.through_tick = through_tick;
+  sequenced.base_tick = records.empty() ? through_tick : std::ranges::min(records, {}, &z13::gameplay::PlayerActionRecord::tick).tick;
+  for (const z13::gameplay::PlayerActionRecord& record : records) {
+    const uint64_t delta = record.tick - sequenced.base_tick;
+    if (delta > std::numeric_limits<uint8_t>::max()) {
+      return std::unexpected(std::format("command {} ticks past the batch base", delta));
+    }
+    sequenced.commands.emplace_back(
+        static_cast<uint8_t>(delta), static_cast<uint16_t>(record.action_id),
+        z13::gameplay::QuantizeActionValue(record.value));
+  }
+  return sequenced;
 }
 
 Status SendWelcome(
@@ -206,7 +240,9 @@ void HandleCommandBatch(
   auto& rate_limits = world.get_mut<CommandRateLimits>();
   const auto& tuning = world.get<NetTuning>();
 
-  std::vector<fbs::net::CommandWire> accepted;
+  auto& last_ticks = world.get_mut<LastCommandTicks>().by_action;
+  std::vector<z13::gameplay::PlayerActionRecord> accepted;
+  fbn::CommandsRetimedT retimed;
   for (const fbs::net::CommandWire& command : batch.commands) {
     if (!IsKnownActionId(action_map, command.action_id())) {
       log_warn(
@@ -214,19 +250,29 @@ void HandleCommandBatch(
           connection);
       continue;
     }
-    const z13::gameplay::PlayerActionRecord record = FromWire(command, batch.base_tick, *player_id);
-    if (!IsWithinScheduleWindow(record.tick, now, tuning) || (record.tick < now && !CanReplayFrom(world, record.tick))) {
-      log_warn("NetSession(server): dropping a command for tick {} from connection {} at tick {}", record.tick,
-          connection, now);
-      continue;
-    }
     if (!AllowCommand(rate_limits, connection, now, tuning)) {
       log_warn("NetSession(server): connection {} exceeded its command rate limit, dropping the rest of this batch",
           connection);
       break;
     }
+    z13::gameplay::PlayerActionRecord record = FromWire(command, batch.base_tick, *player_id);
+    const PlayerActionKey key {.player_id = *player_id, .action_id = record.action_id};
+    const auto last = last_ticks.find(key);
+    const ScheduledCommandTick scheduled = ScheduleTick(
+        world, record.tick, now, tuning, last == last_ticks.end() ? std::nullopt : std::optional(last->second));
+    if (scheduled.moved) {
+      retimed.moves.emplace_back(record.tick, scheduled.tick, command.action_id(), command.value());
+      record.tick = scheduled.tick;
+    }
+    last_ticks.insert_or_assign(key, scheduled);
     QueueInOrder(queue, record);
-    accepted.push_back(command);
+    accepted.push_back(record);
+  }
+  if (!retimed.moves.empty()) {
+    log_info("NetSession(server): moved {} late or early commands from connection {}", retimed.moves.size(), connection);
+    Envelope envelope;
+    envelope.body.Set(std::move(retimed));
+    session.Send(connection, Channel::kReliable, envelope);
   }
   // Capped like a command's tick, so a client can't claim input far ahead.
   const uint64_t through_tick = std::min(batch.through_tick, now + tuning.max_schedule_ahead_ticks);
@@ -235,14 +281,13 @@ void HandleCommandBatch(
     return;
   }
 
-  fbn::SequencedCommandsT sequenced;
-  sequenced.player_id = *player_id;
-  sequenced.base_tick = batch.base_tick;
-  sequenced.commands = std::move(accepted);
-  sequenced.through_tick = through_tick;
-
+  auto sequenced = ToSequenced(*player_id, accepted, through_tick);
+  if (!sequenced) {
+    log_error("NetSession(server): can't relay commands from connection {}: {}", connection, sequenced.error());
+    return;
+  }
   Envelope envelope;
-  envelope.body.Set(std::move(sequenced));
+  envelope.body.Set(std::move(*sequenced));
   session.Broadcast(Channel::kReliable, envelope, connection);
 }
 

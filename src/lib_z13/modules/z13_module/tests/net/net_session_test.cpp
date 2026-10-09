@@ -16,9 +16,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -548,6 +550,43 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
   EXPECT_EQ(CommittedCommands(server.World()).size(), kMaxCommandsPerRateLimitWindow);
+}
+
+// Moved to the late window's start, a command must not land on or before the same action's
+// command already near there, where one would hide the other.
+TEST(NetSessionTest, ALateCommandMovedNextToItsActionsCommandKeepsItsOwnTick) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  ConnectionId connection = kInvalidConnectionId;
+  const auto raw = ConnectRawClient(*network, server, connection);
+  ASSERT_NE(connection, kInvalidConnectionId);
+  SendRaw(*raw, connection, HelloWithoutActions(server.World()));
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+  const uint64_t max_late_ticks = NetTuning {}.max_late_ticks;
+  // Long enough for snapshots older than the whole late window.
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, 2 * max_late_ticks, [] { return false; });
+
+  const uint16_t action_id = AnyKnownActionId(server.World());
+  const uint64_t now = server.World().get<z13::flecs_tools::SimulationClock>().tick;
+  fbs::net::CommandBatchT near_edge;
+  near_edge.base_tick = now - max_late_ticks + 3;
+  near_edge.commands.emplace_back(0, action_id, 100);
+  SendRaw(*raw, connection, near_edge);
+  fbs::net::CommandBatchT late;
+  late.base_tick = now - max_late_ticks - 10;
+  late.commands.emplace_back(0, action_id, 0);
+  SendRaw(*raw, connection, late);
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, 5, [] { return false; });
+
+  std::vector<z13::gameplay::PlayerActionRecord> own;
+  std::ranges::copy_if(CommittedCommands(server.World()), std::back_inserter(own), [](const auto& record) {
+    return record.player_id == 1;
+  });
+  ASSERT_EQ(own.size(), 2u) << "a command was dropped";
+  EXPECT_EQ(own[0].value, 1.f);
+  EXPECT_EQ(own[1].value, 0.f);
+  EXPECT_LT(own[0].tick, own[1].tick) << "the moved command shares a tick with, or precedes, the one before it";
 }
 
 TEST(NetSessionTest, LargeSnapshotArrivesWhole) {
