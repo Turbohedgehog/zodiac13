@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -184,55 +185,70 @@ TEST_F(DesyncTest, FailedRollbackResyncsInsteadOfClosingTheSession) {
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 
-// Set and cleared by hand, with no ResyncRequest sent, so no Resync interferes.
-TEST_F(DesyncTest, InputWhileAwaitingResyncIsHeldBackThenSentOnTime) {
-  client_.World().get_mut<StateDigests>().awaiting_resync = true;
-  client_.EmitInput(KeyDown(Keycode::KEY_W));
-  Run(kSettleTicks, [] { return false; });
-
-  const auto logged = [](Z13TestWorld& world) -> const auto& {
-    return world.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
+// Recorded before the ResyncRequest but sent after it, so the Resync lacks it.
+TEST_F(DesyncTest, ReleaseUnsentWhenAResyncStartsSurvivesIt) {
+  const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
+  const auto client_tick = [&] { return client_.World().get<ft::SimulationClock>().tick; };
+  const auto own_records = [local_id](Z13TestWorld& world) {
+    std::vector<z13::gameplay::PlayerActionRecord> records;
+    std::ranges::copy_if(
+        world.World().get<z13::gameplay::PlayerActionLog>().log.Entries(), std::back_inserter(records),
+        [local_id](const auto& record) { return record.player_id == local_id; });
+    return records;
   };
-  EXPECT_TRUE(logged(server_).empty());
-  EXPECT_TRUE(logged(client_).empty()) << "held-back input must not apply locally either";
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !own_records(server_).empty(); }));
 
-  const uint64_t resumed_at = client_.World().get<ft::SimulationClock>().tick;
-  client_.World().get_mut<StateDigests>().awaiting_resync = false;
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !logged(server_).empty(); })) << "the held-back press was never sent";
-  EXPECT_GT(logged(server_).front().tick, resumed_at) << "sent for the tick it was pressed, not the resume";
-
+  // Right after a send tick, so the release is recorded before the ResyncRequest and not sent.
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return client_tick() % kNetSendIntervalTicks == 0; }));
   client_.EmitInput(KeyUp(Keycode::KEY_W));
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 2; }));
-  EXPECT_EQ(Digests(client_).resyncs, 0u);
+  ft::RequestRollback(client_.World(), 0, client_tick());
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
+  ASSERT_EQ(client_.World().get<z13::gameplay::OutgoingCommands>().records.size(), 1u) << "sent already";
+
+  ASSERT_TRUE(RunUntilResynced());
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return own_records(server_).back().value == 0.f; }))
+      << "the server still holds the released key";
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&, checked = Digests(client_).checked] {
+    return Digests(client_).checked >= checked + 2;
+  }));
+  EXPECT_EQ(Digests(client_).resyncs, 1u);
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 
-// The Resync's log lacks input applied but not yet sent.
-TEST_F(DesyncTest, InputAppliedButUnsentWhenAResyncStartsIsReappliedAfterIt) {
+// A press and its release, both within the wait: neither may be lost or merged into the other.
+TEST_F(DesyncTest, EveryInputWhileAwaitingAResyncIsApplied) {
+  const auto latency_ticks = static_cast<uint32_t>(2 * kNetSendIntervalTicks);
+  network_->SetFaultConfig({.min_delay_ticks = latency_ticks, .max_delay_ticks = latency_ticks});
+  Settle();
   const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
-  const auto client_tick = [&] { return client_.World().get<ft::SimulationClock>().tick; };
-  // Right after a send tick, so the record waits.
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return client_tick() % kNetSendIntervalTicks == 0; }));
-  client_.EmitInput(KeyDown(Keycode::KEY_W));
-  Run(1, [] { return false; });
-  ASSERT_EQ(client_.World().get<z13::gameplay::OutgoingCommands>().records.size(), 1u) << "sent already";
-
-  client_.World().get_mut<StateDigests>().awaiting_resync = true;
-  client_.World().get_mut<z13::gameplay::PlayerActionLog>().log.RemoveIf(
-      [local_id](const auto& record) { return record.player_id == local_id; });
-  Run(kSettleTicks, [] { return false; });
-  client_.World().get_mut<StateDigests>().awaiting_resync = false;
-
-  const auto logged_ticks = [local_id](Z13TestWorld& world) {std::vector<uint64_t> ticks;
+  const auto own_values = [local_id](Z13TestWorld& world) {
+    std::vector<float> values;
     for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
-      if (record.player_id == local_id) {
-        ticks.push_back(record.tick);
+      if (record.player_id == local_id && record.value != 0.f) {
+        values.push_back(record.value);
       }
     }
-    return ticks;
+    return values;
   };
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !logged_ticks(server_).empty(); }));
-  EXPECT_EQ(logged_ticks(client_), logged_ticks(server_));
+  client_.World()
+      .entity("Block_Stray")
+      .add<ft::StateEntity>()
+      .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
+
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  Run(1, [] { return false; });
+  client_.EmitInput(KeyUp(Keycode::KEY_W));
+  Run(1, [] { return false; });
+  ASSERT_TRUE(Digests(client_).awaiting_resync) << "the Resync came back before the tap ended";
+
+  ASSERT_TRUE(RunUntilResynced());
+  Settle();
+  EXPECT_EQ(Digests(client_).resyncs, 1u);
+  EXPECT_EQ(own_values(server_).size(), 1u) << "the press never reached the server";
+  EXPECT_EQ(own_values(client_), own_values(server_));
+  EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 
 // A real ResyncRequest over a slow link: heartbeats sent after it reach the server before the
@@ -252,7 +268,7 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
       .add<ft::StateEntity>()
       .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
 
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
   const uint64_t requested_at = client_.World().get<ft::SimulationClock>().tick;
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return confirmed_on_server() > requested_at; }));
@@ -268,7 +284,7 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
   EXPECT_EQ(Digests(client_).resyncs, 1u);
   const auto& entries = server_.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
   EXPECT_TRUE(std::ranges::any_of(entries, [local_id](const auto& record) { return record.player_id == local_id; }))
-      << "the press held back during the wait never reached the server";
+      << "the press made during the wait never reached the server";
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 

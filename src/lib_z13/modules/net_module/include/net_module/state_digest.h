@@ -23,6 +23,8 @@
 
 #include <flecs.h>
 
+#include <z13/components/player_action.h>
+
 #include <net_module/protocol.h>
 
 namespace z13::net {
@@ -39,7 +41,9 @@ struct StateDigests {
   std::map<uint64_t, fbs::net::StateDigestT> local;
   std::vector<fbs::net::StateDigestT> received;
   std::optional<uint64_t> last_sent_tick;
-  bool awaiting_resync {};
+  // Set while awaiting a Resync: own records sent after the ResyncRequest, which the server
+  // sequences only after building the Resync.
+  std::optional<std::vector<z13::gameplay::PlayerActionRecord>> awaiting_resync;
   uint64_t checked {};
   uint64_t resyncs {};
 };

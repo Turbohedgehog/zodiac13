@@ -124,9 +124,20 @@ bool IsPlausibleCatchUp(flecs::world world, uint64_t snapshot_tick, uint64_t tar
          target_tick - snapshot_tick <= world.get<z13::ActiveCoreSettings>().max_catch_up_ticks_per_frame;
 }
 
+// In the world's thread for now; see «Ресинк в одном потоке» in docs/client-server-plan.md.
 void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_tick) {
-  std::vector<z13::gameplay::PlayerActionRecord> log_entries = std::move(payload.held_values);
-  log_entries.insert(log_entries.end(), payload.actions.begin(), payload.actions.end());
+  auto& digests = world.get_mut<StateDigests>();
+  std::vector<z13::gameplay::PlayerActionRecord> server_entries = std::move(payload.held_values);
+  server_entries.insert(server_entries.end(), payload.actions.begin(), payload.actions.end());
+  // Own input the catch-up lacks: sent after the ResyncRequest, or not sent yet. A tie keeps the
+  // server's record first.
+  std::vector<z13::gameplay::PlayerActionRecord> own_entries =
+      digests.awaiting_resync.value_or(std::vector<z13::gameplay::PlayerActionRecord> {});
+  std::ranges::copy(world.get<z13::gameplay::OutgoingCommands>().records, std::back_inserter(own_entries));
+  std::ranges::sort(own_entries, RecordLess);
+  std::vector<z13::gameplay::PlayerActionRecord> log_entries;
+  log_entries.reserve(server_entries.size() + own_entries.size());
+  std::ranges::merge(server_entries, own_entries, std::back_inserter(log_entries), RecordLess);
   auto& log = world.get_mut<z13::gameplay::PlayerActionLog>().log;
   log.RemoveIf([](const auto&) { return true; });
   if (!log_entries.empty()) {
@@ -139,10 +150,9 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_ti
   history.RemoveIf([](const auto&) { return true; });
   history.Push({.tick = payload.snapshot_tick, .snapshot = std::move(payload.snapshot)});
 
-  auto& digests = world.get_mut<StateDigests>();
   digests.local.clear();
   digests.received.clear();
-  digests.awaiting_resync = false;
+  digests.awaiting_resync.reset();
 
   // A deferred rollback may reach past the adopted snapshot.
   world.get_mut<ft::RollbackRequest>() = {};

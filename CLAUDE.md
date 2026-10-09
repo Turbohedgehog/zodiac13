@@ -81,6 +81,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 - Before committing, scan the added comments (`git diff main -U0 | grep '^+\s*//'`) and delete those that restate a name or the code; comments running long has been the most frequent review remark.
 - For a sweep over many files (renames, comment trimming), take the whole diff/grep once and read the targets together, then edit straight through the list.
 - Some files are CRLF on purpose (e.g. `vcpkg.json`): edit them with the Edit tool or open them with `newline=''`; a text-mode Python rewrite turns them into a whole-file diff. Check `git diff --stat` for unexpected sizes.
+- The player's experience comes first: every action the player performs is registered and reaches the simulation, never dropped, held back or collapsed into its last value (a resync, rollback or lag included; input the pause menu swallows is not a gameplay action). When a network or performance mechanism would cost input, change the mechanism, not the input (see `AdoptCatchUp`, which merges own input a Resync lacks).
 - Render-side mechanisms (smoothing, effects) work for every rendered entity with the relevant component, keyed per entity in a side table — not special-cased for today's brush or camera; more meshes and animations are coming.
 - Pre-alpha: changing the save/snapshot format needs no migration of player data; only regenerate saves checked into the repo or tests.
 - Tests reuse the project's registration helpers (`RegisterComponent`, `RegisterComponentMeta`) and say why when they can't.

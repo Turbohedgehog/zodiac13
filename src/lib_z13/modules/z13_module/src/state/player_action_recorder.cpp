@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -131,14 +132,24 @@ void RecordChangedActions(
   }
 }
 
+// Before RemoteActionFramePhase, which drives a networked local player from the log.
 void ApplyOwnCommands(
-    flecs::iter&, size_t, z13::gameplay::OutgoingCommands& outgoing,
-    z13::gameplay::PlayerActionLog& log) {
+    flecs::iter&, size_t, const z13::flecs_tools::SimulationClock& clock,
+    const z13::gameplay::OutgoingCommands& outgoing, z13::gameplay::PlayerActionLog& log) {
+  // Earlier records were applied on their own tick (both phases freeze together) and only wait
+  // for NetActionSender; this tick's are recorded last.
+  const auto earlier = std::ranges::find_if(
+      outgoing.records | std::views::reverse, [&clock](const auto& record) { return record.tick != clock.tick; });
+  std::vector<z13::gameplay::PlayerActionRecord> applied(earlier.base(), outgoing.records.end());
   // Merged, not appended: after a load the clock is behind records already in the log, which
   // must stay sorted by tick.
-  std::ranges::sort(outgoing.records, z13::gameplay::RecordLess);
-  log.log.MergeSorted(std::move(outgoing.records), z13::gameplay::RecordLess);
-  outgoing.records.clear();
+  std::ranges::sort(applied, z13::gameplay::RecordLess);
+  log.log.MergeSorted(std::move(applied), z13::gameplay::RecordLess);
+}
+
+// In a network game NetActionSender drains them instead.
+void DropAppliedOwnCommands(flecs::iter&, size_t, z13::gameplay::OutgoingCommands& outgoing) {
+  outgoing = {};
 }
 
 void PruneLog(
@@ -171,12 +182,18 @@ void RegisterSystems(flecs::world world) {
       .with<z13::input::CurrentActionListenerTag>()
       .each(RecordChangedActions);
 
-  world.system<z13::gameplay::OutgoingCommands, z13::gameplay::PlayerActionLog>(
+  world.system<
+      const z13::flecs_tools::SimulationClock, const z13::gameplay::OutgoingCommands, z13::gameplay::PlayerActionLog>(
       "PlayerActionRecorder::ApplyOwnCommands")
+      .kind<z13::input::OwnCommandsFramePhase>()
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .each(ApplyOwnCommands);
+
+  world.system<z13::gameplay::OutgoingCommands>("PlayerActionRecorder::DropAppliedOwnCommands")
       .kind(flecs::PostUpdate)
       .without<z13::net::ClientRole>()
       .without<z13::net::ServerRole>()
-      .each(ApplyOwnCommands);
+      .each(DropAppliedOwnCommands);
 
   world.system<const z13::flecs_tools::SimulationClock, z13::gameplay::PlayerActionLog>(
       "PlayerActionRecorder::PruneLog")
