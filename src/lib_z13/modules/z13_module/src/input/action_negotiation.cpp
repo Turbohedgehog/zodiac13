@@ -70,8 +70,8 @@ std::vector<ActionDescriptor> DescribeActions(const ActionMap& action_map) {
 }
 
 std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
-    ActionMap& action_map, const NetTuning& tuning, std::span<const ActionDescriptor> actions) {
-  if (actions.size() > tuning.max_actions_per_client) {
+    ActionMap& action_map, std::span<const ActionDescriptor> actions) {
+  if (actions.size() > kMaxActionsPerClient) {
     return std::unexpected(std::format("too many actions ({})", actions.size()));
   }
 
@@ -111,7 +111,7 @@ std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
       continue;
     }
 
-    if (registered_remotely + to_register.size() >= tuning.max_remote_actions || next_id >= kMaxNegotiatedActions) {
+    if (registered_remotely + to_register.size() >= kMaxRemoteActions || next_id >= kMaxNegotiatedActions) {
       return std::unexpected(std::format("no room left to register action {}:{}", enum_name, value_name));
     }
     // The server never looks remote actions up by value, so a taken one just moves on.

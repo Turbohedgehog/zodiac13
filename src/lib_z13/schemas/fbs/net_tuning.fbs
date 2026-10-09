@@ -34,10 +34,4 @@ table NetTuning {
 
   command_rate_limit_window_ticks: uint64 = 60 (min: 1, cli);
   max_commands_per_rate_limit_window: uint32 = 128 (min: 1, cli);
-  max_actions_per_client: uint32 = 1024 (min: 1, cli);
-  max_remote_actions: uint32 = 4096 (min: 1, cli);
-
-  // Client-to-server payload per second; UplinkBudgetTest holds the client to them.
-  client_uplink_budget_bytes_per_second: uint32 = 2560 (min: 1, cli);
-  idle_uplink_budget_bytes_per_second: uint32 = 64 (min: 1, cli);
 }

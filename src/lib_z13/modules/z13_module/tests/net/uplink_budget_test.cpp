@@ -30,7 +30,6 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/net.h>
-#include <z13_settings/net_tuning.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -50,11 +49,10 @@ using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
-const NetTuning kTuning;
 // Measured peak (mouse look) is ~1.8 KB/s.
-const uint64_t kClientUplinkBudgetBytesPerSecond = kTuning.client_uplink_budget_bytes_per_second;
+constexpr uint64_t kClientUplinkBudgetBytesPerSecond = 2560;
 // Pings and clock sync only; measured at 48 B/s.
-const uint64_t kIdleUplinkBudgetBytesPerSecond = kTuning.idle_uplink_budget_bytes_per_second;
+constexpr uint64_t kIdleUplinkBudgetBytesPerSecond = 64;
 
 constexpr uint64_t kTicksPerSecond = 60;
 constexpr uint64_t kSessionSeconds = 10;

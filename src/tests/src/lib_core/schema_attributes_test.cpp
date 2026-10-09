@@ -227,7 +227,7 @@ TEST(SchemaCliTest, RejectsWhatCannotBeWritten) {
   EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "core.fps", "fast").has_value());
   EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "core.fps", "30x").has_value());
   EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "net.max_late_ticks", "-1").has_value());
-  EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "net.max_actions_per_client", "5000000000").has_value())
+  EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "net.max_commands_per_rate_limit_window", "5000000000").has_value())
       << "a uint32 field must not wrap";
   EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "net.no_such_field", "1").has_value());
   EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "core", "1").has_value());
