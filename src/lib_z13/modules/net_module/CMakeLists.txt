@@ -38,7 +38,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_primitives
+  zodiac13::primitives
   zodiac13::z13_module
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}
@@ -59,7 +59,7 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_primitives
+  zodiac13::primitives
   zodiac13::z13_module
   unofficial::enet::enet
   ${ENET_PLATFORM_LIBS}

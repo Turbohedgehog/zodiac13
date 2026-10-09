@@ -12,7 +12,7 @@ file(
   ${PROJECT_SOURCE_DIR}/src/*.cpp
 )
 
-# Stateless, like z13_primitives: each plugin linking its own copy shares nothing.
+# Stateless, like primitives: each plugin linking its own copy shares nothing.
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -32,7 +32,7 @@ target_link_libraries(
   PUBLIC
   Eigen3::Eigen
   zodiac13::fbs_schemas
-  zodiac13::z13_primitives
+  zodiac13::primitives
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

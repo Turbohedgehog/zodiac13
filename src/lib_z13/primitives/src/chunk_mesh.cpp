@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_primitives/chunk_mesh.h>
+#include <primitives/chunk_mesh.h>
 
 #include <algorithm>
 #include <iterator>

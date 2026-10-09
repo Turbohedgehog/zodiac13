@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_primitives)
+project(primitives)
 
 set(CMAKE_CXX_STANDARD 23)
 

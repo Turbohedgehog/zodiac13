@@ -29,6 +29,7 @@ namespace z13::raylib::gui {
 
 // A debug key, not a game action: it never goes through the command stream.
 inline constexpr ImGuiKey kStatsOverlayKey = ImGuiKey_F3;
+inline constexpr ImGuiKey kRoomOverlayKey = ImGuiKey_F4;
 
 // Frame rate and what the renderer drew, in a corner of the screen; F3 shows and hides it.
 // Singleton; never state.

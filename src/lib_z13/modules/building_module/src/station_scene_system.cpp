@@ -29,9 +29,9 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
-#include <z13_primitives/blueprint.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/blueprint.h>
+#include <primitives/palette.h>
+#include <primitives/station_assets.h>
 #include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"

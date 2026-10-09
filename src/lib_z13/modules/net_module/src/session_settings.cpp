@@ -20,7 +20,7 @@
 #include <utility>
 
 #include <lib_core/utils/flecs_utils.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 
 namespace z13::net {
 

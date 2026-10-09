@@ -29,8 +29,8 @@
 
 #include <lib_core/utils/frustum.h>
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 
 #include "block_chunks.h"
 

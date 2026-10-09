@@ -39,9 +39,9 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/station.h>
-#include <z13_primitives/geometry.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/geometry.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/physics_tuning.h>
 

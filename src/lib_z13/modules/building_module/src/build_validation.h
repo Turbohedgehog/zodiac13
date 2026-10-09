@@ -24,7 +24,7 @@
 
 #include <z13/components/station.h>
 #include <z13_grid/block_index.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>
 
 #include <lib_core/utils/status.h>

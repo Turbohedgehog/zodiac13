@@ -50,11 +50,12 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/player_color.h>
+#include <z13/components/rooms.h>
 #include <z13/components/station.h>
-#include <z13_primitives/chunk_mesh.h>
-#include <z13_primitives/draw_order.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/chunk_mesh.h>
+#include <primitives/draw_order.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
@@ -331,6 +332,58 @@ void DrawBrushPreview(
   DrawBlock(drawing, z13::building::primitives::PlaceCentredOn(point, z13::station::CubeSpec()), kBrushPreviewTint);
 }
 
+// A box corner's index has one bit per axis (x, y, z), set for the high side of the axis.
+constexpr std::array kAxisBits {1, 2, 4};
+constexpr int kBoxCorners = 1 << kAxisBits.size();
+
+// The 12 edges of a box in world coordinates, straight into the line batch: no matrix
+// stack, whose state this renderer sets by hand (BeginScene3D).
+void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
+  const auto corner = [&](int index) {
+    Eigen::Vector3f point = low;
+    for (size_t axis = 0; axis < kAxisBits.size(); ++axis) {
+      if ((index & kAxisBits[axis]) != 0) {
+        point[static_cast<Eigen::Index>(axis)] = high[static_cast<Eigen::Index>(axis)];
+      }
+    }
+    return point;
+  };
+  // Corners differing in exactly one bit are joined.
+  for (int index = 0; index < kBoxCorners; ++index) {
+    for (const int bit : kAxisBits) {
+      if ((index & bit) == 0) {
+        const Eigen::Vector3f from = corner(index);
+        const Eigen::Vector3f to = corner(index | bit);
+        rlVertex3f(from.x(), from.y(), from.z());
+        rlVertex3f(to.x(), to.y(), to.z());
+      }
+    }
+  }
+}
+
+// The debug overlay's boxes as wireframes, when it is on: on the default shader and texture
+// (the block shader would light the lines by view angle) and past the depth test, as the
+// edges lie on the walls' own faces.
+void DrawRoomOverlay(const flecs::world& world) {
+  const auto* overlay = world.try_get<z13::station::RoomOverlay>();
+  if (overlay == nullptr || !overlay->enabled) {
+    return;
+  }
+  rlDrawRenderBatchActive();
+  rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
+  rlSetTexture(rlGetTextureIdDefault());
+  rlDisableDepthTest();
+  rlBegin(RL_LINES);
+  for (const z13::station::OverlayBox& box : overlay->boxes) {
+    rlColor4ub(box.color[0], box.color[1], box.color[2], box.color[3]);
+    AddBoxEdges(box.min.cast<float>() * z13::station::kCellSize,
+                (box.min + box.extent).cast<float>() * z13::station::kCellSize);
+  }
+  rlEnd();
+  rlDrawRenderBatchActive();
+  rlEnableDepthTest();
+}
+
 BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
   const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
   return palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
@@ -402,6 +455,7 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   rlDrawRenderBatchActive();
   rlEnableDepthMask();
   StopChecker(lighting);
+  DrawRoomOverlay(world);
   drawing.meshes.get().ReleaseUnused();
 }
 

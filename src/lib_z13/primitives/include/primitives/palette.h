@@ -28,6 +28,7 @@
 #include <Eigen/Dense>
 
 #include <primitives_generated.h>
+#include <z13/components/color.h>
 
 namespace z13::building::primitives {
 
@@ -42,7 +43,7 @@ struct Shape {
   Eigen::Vector2i door_opening = Eigen::Vector2i::Zero();
 };
 
-using Rgba = std::array<uint8_t, 4>;
+using Rgba = z13::Rgba;
 
 struct Checker {
   Rgba first {};

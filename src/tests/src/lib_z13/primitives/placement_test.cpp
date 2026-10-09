@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 namespace {

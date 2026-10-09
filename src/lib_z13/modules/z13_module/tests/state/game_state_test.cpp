@@ -32,6 +32,7 @@
 #include <z13/components/station.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
+#include <z13/components/player_action.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
@@ -304,6 +305,22 @@ TEST(GameStateTest, BlockNamesStayUniqueAfterLoad) {
 
   EXPECT_EQ(Count(test_world), 4u);
   EXPECT_EQ(BlockNames(test_world.World()).size(), 4u);
+}
+
+TEST(GameStateTest, ActionLogStaysSortedWhenActionsFollowALoad) {
+  Z13TestWorld test_world;
+  z13::testing::EnterBuildMode(test_world);
+  BuildBlockAt(test_world, BlockAt(0));
+  const std::string json = Save(test_world);
+  BuildBlockAt(test_world, BlockAt(1));
+  BuildBlockAt(test_world, BlockAt(2));
+
+  Load(test_world, json);
+  BuildBlockAt(test_world, BlockAt(3));
+
+  const auto& records = test_world.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
+  EXPECT_FALSE(records.empty());
+  EXPECT_TRUE(std::ranges::is_sorted(records, z13::gameplay::RecordLess));
 }
 
 TEST(GameStateTest, NewBlocksSkipNamesTakenByALaggingCounter) {

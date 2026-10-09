@@ -16,29 +16,19 @@
 
 #pragma once
 
-#include <cstddef>
-#include <span>
+#include <expected>
+#include <string>
+#include <string_view>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <z13/components/station.h>
-#include <z13_primitives/geometry.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 
-// Indices into the blocks drawn: the opaque ones first, in any order, then the transparent
-// ones from the farthest to the nearest, so each blends over what lies behind it.
-struct DrawOrder {
-  std::vector<size_t> opaque;
-  std::vector<size_t> transparent;
-};
-
-// A block whose type the palette lacks is opaque.
-bool IsTransparent(const z13::station::Block& block, OptionalPalette palette);
-
-// `eye` in cells.
-DrawOrder SortForDrawing(
-    std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye);
+// Parses blueprint JSON (blueprint.fbs) into blocks of `palette`, naming the first block
+// whose primitive the palette lacks. Placement isn't checked here: that's ValidateBuild's.
+std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
+    std::string_view json, const Palette& palette);
 
 }  // namespace z13::building::primitives

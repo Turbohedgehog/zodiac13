@@ -30,6 +30,8 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::primitives
+  zodiac13::rooms
   Boost::dll
 )
 
@@ -47,6 +49,8 @@ target_link_libraries(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::primitives
+  zodiac13::rooms
   Boost::dll
 )
 

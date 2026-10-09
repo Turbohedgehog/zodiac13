@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Render chunks of every shipped station (z13_primitives/chunk_mesh.h) at several chunk
+// Render chunks of every shipped station (primitives/chunk_mesh.h) at several chunk
 // sizes, without the GPU upload. Built by `make.py --bench`, run with
 // `z13.py --bench --filter 'RenderChunkBench.*'`.
 
@@ -30,9 +30,9 @@
 #include <vector>
 
 #include <z13/components/station.h>
-#include <z13_primitives/chunk_mesh.h>
-#include <z13_primitives/draw_order.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/chunk_mesh.h>
+#include <primitives/draw_order.h>
+#include <primitives/station_assets.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::testing {

@@ -22,8 +22,8 @@
 
 #include <raymath.h>
 
-#include <z13_primitives/chunk_mesh.h>
-#include <z13_primitives/draw_order.h>
+#include <primitives/chunk_mesh.h>
+#include <primitives/draw_order.h>
 
 #include "block_checker.h"
 #include "block_model.h"

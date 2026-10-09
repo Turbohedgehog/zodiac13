@@ -24,7 +24,7 @@
 #include <imgui.h>
 
 #include <z13/components/station.h>
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 
 #include "gui_widgets.h"
 

@@ -34,8 +34,8 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
 #include <z13_grid/block_index.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
 #include "block_cutting.h"

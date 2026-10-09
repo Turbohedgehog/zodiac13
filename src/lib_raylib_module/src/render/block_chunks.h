@@ -25,7 +25,7 @@
 
 #include <lib_core/utils/frustum.h>
 #include <z13/components/station.h>
-#include <z13_primitives/geometry.h>
+#include <primitives/geometry.h>
 
 namespace z13::raylib {
 
@@ -33,7 +33,7 @@ struct Lighting;
 struct RenderStats;
 
 // Opaque blocks merged into one model per render chunk and material
-// (z13_primitives/chunk_mesh.h); transparent ones are kept apart, to be drawn one by one
+// (primitives/chunk_mesh.h); transparent ones are kept apart, to be drawn one by one
 // in order. Singleton exempt from the "no pointers" rule (see CLAUDE.md); never state.
 class BlockChunks {
  public:

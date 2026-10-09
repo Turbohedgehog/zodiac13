@@ -22,7 +22,7 @@
 
 #include <bullet/btBulletDynamicsCommon.h>
 
-#include <z13_primitives/geometry.h>
+#include <primitives/geometry.h>
 
 namespace z13::bullet_module {
 

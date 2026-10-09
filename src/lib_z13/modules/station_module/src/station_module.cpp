@@ -18,10 +18,14 @@
 
 #include <flecs.h>
 
+#include "room_overlay_system.h"
+#include "room_system.h"
+
 namespace z13::station {
 
-// Empty until rooms and doors (f/rooms); blocks are building_module's.
-StationModule::StationModule(flecs::world&) {
+StationModule::StationModule(flecs::world& world) {
+  RoomSystem::Register(world);
+  RoomOverlaySystem::Register(world);
 }
 
 }  // namespace z13::station

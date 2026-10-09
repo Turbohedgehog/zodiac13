@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include <z13_primitives/draw_order.h>
+#include <primitives/draw_order.h>
 
 #include <algorithm>
 #include <iterator>
 #include <utility>
 
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 

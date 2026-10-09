@@ -18,7 +18,7 @@
 
 #include <raylib.h>
 
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 
 namespace z13::raylib {
 

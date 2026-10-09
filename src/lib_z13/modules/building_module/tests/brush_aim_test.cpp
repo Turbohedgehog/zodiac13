@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include <z13_primitives/placement.h>
+#include <primitives/placement.h>
 
 #include "../src/brush_aim.h"
 

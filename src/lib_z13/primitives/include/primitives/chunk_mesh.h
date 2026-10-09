@@ -23,9 +23,9 @@
 #include <Eigen/Dense>
 
 #include <z13/components/station.h>
-#include <z13_primitives/geometry.h>
-#include <z13_primitives/palette.h>
-#include <z13_primitives/placement.h>
+#include <primitives/geometry.h>
+#include <primitives/palette.h>
+#include <primitives/placement.h>
 
 // Blocks merged into one mesh per render chunk and material, so a station draws in hundreds
 // of calls instead of one per block.

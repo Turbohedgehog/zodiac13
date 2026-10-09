@@ -20,7 +20,7 @@
 #include <string>
 #include <string_view>
 
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {

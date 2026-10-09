@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 
 #include <algorithm>
 #include <format>
@@ -26,7 +26,7 @@
 #include <flatbuffers/reflection.h>
 
 #include <lib_core/utils/fnv_hash.h>
-#include <z13_primitives/geometry.h>
+#include <primitives/geometry.h>
 
 namespace z13::building::primitives {
 

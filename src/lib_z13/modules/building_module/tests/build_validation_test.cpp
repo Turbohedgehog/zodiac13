@@ -19,7 +19,7 @@
 #include <span>
 #include <vector>
 
-#include <z13_primitives/palette.h>
+#include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../src/block_entities.h"

@@ -21,7 +21,7 @@
 
 #include <raylib.h>
 
-#include <z13_primitives/geometry.h>
+#include <primitives/geometry.h>
 
 #include "block_meshes.h"
 

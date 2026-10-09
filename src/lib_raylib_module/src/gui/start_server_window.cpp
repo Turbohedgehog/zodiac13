@@ -28,7 +28,7 @@
 
 #include <z13/components/net.h>
 #include <z13/components/station.h>
-#include <z13_primitives/station_assets.h>
+#include <primitives/station_assets.h>
 
 #include "../tools/asset_path.h"
 #include "gui_widgets.h"
