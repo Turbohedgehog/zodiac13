@@ -26,7 +26,6 @@
 
 #include <flecs.h>
 
-#include <z13_settings/net_tuning.h>
 #include <z13/components/input.h>
 
 #include <lib_core/utils/status.h>
@@ -35,6 +34,9 @@ namespace z13::gameplay::input {
 
 constexpr size_t kMaxNegotiatedActions = static_cast<size_t>(std::numeric_limits<uint16_t>::max()) + 1;
 constexpr size_t kMaxActionNameLength = 128;
+// Limits on what a client's ClientHello may register on the server.
+constexpr size_t kMaxActionsPerClient = 1024;
+constexpr size_t kMaxRemoteActions = 4096;
 
 struct ActionDescriptor {
   std::string enum_name;
@@ -46,7 +48,7 @@ std::vector<ActionDescriptor> DescribeActions(const z13::input::ActionMap& actio
 
 // Unknown actions get the next free id, never reused; nothing is registered if any is refused.
 std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
-    z13::input::ActionMap& action_map, const NetTuning& tuning, std::span<const ActionDescriptor> actions);
+    z13::input::ActionMap& action_map, std::span<const ActionDescriptor> actions);
 
 // `ids` follow the DescribeActions order.
 Status AdoptActionIds(flecs::world world, std::span<const uint32_t> ids);

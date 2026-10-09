@@ -27,6 +27,8 @@
 
 4. **`f/net-tuning-trim`** (мелкая): уплинк-бюджеты (`client_uplink_budget_*`, `idle_uplink_budget_*`) — в константы `UplinkBudgetTest`; `max_actions_per_client`/`max_remote_actions` — в `constexpr`; пересмотреть, что из настроек реально нужно слать в `Welcome` (для одинакового тика нужны `fps` и физика). Три порога часов оставить, но проверить, нужен ли каждый.
 
+   Сделано. Уплинк-бюджеты — константы `UplinkBudgetTest`, лимиты `ClientHello` — `kMaxActionsPerClient`/`kMaxRemoteActions` в `action_negotiation.h`. `Welcome` по-прежнему несёт весь `NetTuning`: клиенту нужны `send_interval_ticks`, `max_late_ticks` (под это окно опоздавших команд клиент держит историю снимков, `ValidateSettings`) и `rollback_snapshots_per_interval`, а оставшиеся серверные поля (окно и лимит частоты команд, задержка join/leave) в одной таблице ничего не стоят; делить её на две — лишняя схема. Пороги часов нужны все три: скачок (заодно отсев выбросов в `ApplyPong`), плавный догон и его шаг.
+
 ## Отложено до замеров
 
 - **Отложенные откаты** (`DeferRollback`, `max_deferred_rollbacks`, `max_rollback_delay_ticks`, `DeferredRollbackTick` в трёх потребителях). Идея «не откатываться, если подтверждение совпало с предсказанием» (`action-delivery-plan.md`, открытые вопросы) могла бы убрать большую часть откатов и сделать пакетирование лишним. Сначала сделать её и замерить, потом решать, нужен ли `DeferRollback`.

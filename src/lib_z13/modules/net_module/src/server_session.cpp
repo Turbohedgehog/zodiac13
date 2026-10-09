@@ -109,7 +109,7 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
     }
     descriptors.push_back({.enum_name = action->enum_name, .value_name = action->value_name, .enum_value = action->enum_value});
   }
-  return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), world.get<NetTuning>(), descriptors);
+  return zgi::RegisterRemoteActions(world.get_mut<z13::input::ActionMap>(), descriptors);
 }
 
 Status HandleClientHello(
