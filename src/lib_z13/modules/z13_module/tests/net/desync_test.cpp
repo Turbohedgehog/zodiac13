@@ -203,7 +203,7 @@ TEST_F(DesyncTest, ReleaseUnsentWhenAResyncStartsSurvivesIt) {
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return client_tick() % kNetSendIntervalTicks == 0; }));
   client_.EmitInput(KeyUp(Keycode::KEY_W));
   ft::RequestRollback(client_.World(), 0, client_tick());
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
   ASSERT_EQ(client_.World().get<z13::gameplay::OutgoingCommands>().records.size(), 1u) << "sent already";
 
   ASSERT_TRUE(RunUntilResynced());
@@ -235,7 +235,7 @@ TEST_F(DesyncTest, EveryInputWhileAwaitingAResyncIsApplied) {
       .entity("Block_Stray")
       .add<ft::StateEntity>()
       .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
 
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   Run(1, [] { return false; });
@@ -268,7 +268,7 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
       .add<ft::StateEntity>()
       .set(z13::testing::CubeAt(Eigen::Vector3f::Zero()));
 
-  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync; }));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).awaiting_resync.has_value(); }));
   const uint64_t requested_at = client_.World().get<ft::SimulationClock>().tick;
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return confirmed_on_server() > requested_at; }));
@@ -284,7 +284,7 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
   EXPECT_EQ(Digests(client_).resyncs, 1u);
   const auto& entries = server_.World().get<z13::gameplay::PlayerActionLog>().log.Entries();
   EXPECT_TRUE(std::ranges::any_of(entries, [local_id](const auto& record) { return record.player_id == local_id; }))
-      << "the press held back during the wait never reached the server";
+      << "the press made during the wait never reached the server";
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 

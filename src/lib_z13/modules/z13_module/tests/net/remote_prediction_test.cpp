@@ -187,11 +187,11 @@ TEST(RemotePredictionTest, AWaitForAResyncKeepsConfirmingAHeldAction) {
 
   const uint64_t retention_ticks = static_cast<uint64_t>(std::llround(
       session.Server().Config().GetSnapshotRetentionSeconds() * session.Server().Config().GetFPS()));
-  session.A().World().get_mut<StateDigests>().awaiting_resync = true;
+  session.A().World().get_mut<StateDigests>().awaiting_resync.emplace();
   for (uint64_t tick = 0; tick <= retention_ticks; ++tick) {
     session.Tick();
   }
-  session.A().World().get_mut<StateDigests>().awaiting_resync = false;
+  session.A().World().get_mut<StateDigests>().awaiting_resync.reset();
   session.A().EmitInput(KeyUp(Keycode::KEY_W));
   for (int tick = 0; tick < kMaxLagTicks; ++tick) {
     session.Tick();

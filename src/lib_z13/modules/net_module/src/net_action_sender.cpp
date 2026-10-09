@@ -134,7 +134,7 @@ Status TrySendPendingCommands(
 
   const auto scheduled = ToScheduled(outgoing.records);
   if (digests.awaiting_resync) {
-    std::ranges::copy(outgoing.records, std::back_inserter(digests.sent_since_resync_request));
+    std::ranges::copy(outgoing.records, std::back_inserter(*digests.awaiting_resync));
   }
   outgoing.records.clear();
   auto batch = scheduled.and_then(
