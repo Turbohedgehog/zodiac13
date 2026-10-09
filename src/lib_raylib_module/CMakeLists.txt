@@ -11,11 +11,39 @@ find_package(Boost REQUIRED COMPONENTS dll)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(assimp CONFIG REQUIRED)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/gui/gui_keybindings.cpp
+  src/gui/gui_system.cpp
+  src/gui/gui_windows.cpp
+  src/gui/input_settings_window.cpp
+  src/gui/join_window.cpp
+  src/gui/key_bindings_window.cpp
+  src/gui/main_menu_window.cpp
+  src/gui/palette_window.cpp
+  src/gui/pause_menu_window.cpp
+  src/gui/room_label.cpp
+  src/gui/start_server_window.cpp
+  src/gui/station_window.cpp
+  src/gui/stats_overlay.cpp
+  src/platform/sdl_platform.cpp
+  src/raylib_module.cpp
+  src/raylib_module_factory.cpp
+  src/raylib_system.cpp
+  src/render/block_checker.cpp
+  src/render/block_chunks.cpp
+  src/render/block_chunks_state.cpp
+  src/render/block_meshes.cpp
+  src/render/block_meshes_state.cpp
+  src/render/block_model.cpp
+  src/render/environment_render_system.cpp
+  src/render/lights.cpp
+  src/render/render_resources.cpp
+  src/render/skybox.cpp
+  src/tools/asset_path.cpp
+  src/tools/assimp_loader.cpp
+  src/tools/input_publisher.cpp
+  src/tools/math_convert.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})

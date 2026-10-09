@@ -6,10 +6,15 @@ set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/column_map.cpp
+  src/disjoint_sets.cpp
+  src/portal_source.cpp
+  src/room_builder.cpp
+  src/room_cache.cpp
+  src/room_overlap.cpp
+  src/topology_fingerprint.cpp
 )
 
 # Stateless, like z13_grid: each plugin linking its own copy shares nothing.

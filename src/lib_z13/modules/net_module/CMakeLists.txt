@@ -12,10 +12,27 @@ if(WIN32)
   set(ENET_PLATFORM_LIBS winmm ws2_32)
 endif()
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/catch_up.cpp
+  src/client_session.cpp
+  src/clock_sync.cpp
+  src/enet_transport.cpp
+  src/in_memory_transport.cpp
+  src/net_action_sender.cpp
+  src/net_module.cpp
+  src/net_module_factory.cpp
+  src/net_session.cpp
+  src/net_session_system.cpp
+  src/protocol.cpp
+  src/remote_input.cpp
+  src/scheduled_commands.cpp
+  src/server_session.cpp
+  src/session_control.cpp
+  src/session_deltas.cpp
+  src/session_settings.cpp
+  src/state_digest.cpp
+  src/wire_records.cpp
 )
 
 add_library(${PROJECT_NAME}_objects OBJECT ${PROJECT_SOURCE_FILES})

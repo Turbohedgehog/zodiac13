@@ -12,17 +12,103 @@ include(GoogleTest)
 
 # Test code lives either here (for cross-module/serialization tests) or next to
 # the module it covers, under that module's own tests/ directory.
-file(
-  GLOB_RECURSE
+set(MODULES_DIR ${CMAKE_SOURCE_DIR}/src/lib_z13/modules)
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.h
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
-  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.h
-  ${CMAKE_SOURCE_DIR}/src/lib_z13/modules/*/tests/*.cpp
+  src/lib_core/config_test.cpp
+  src/lib_core/core_settings_test.cpp
+  src/lib_core/drawn_poses_test.cpp
+  src/lib_core/endpoint_test.cpp
+  src/lib_core/file_io_test.cpp
+  src/lib_core/flecs_state/component_codec_test.cpp
+  src/lib_core/flecs_state/eigen_meta_test.cpp
+  src/lib_core/flecs_state/flecs_state_roundtrip_test.cpp
+  src/lib_core/flecs_state/json_canonical.cpp
+  src/lib_core/flecs_state/serialization_efficiency_test.cpp
+  src/lib_core/flecs_state/snapshot_grouping_test.cpp
+  src/lib_core/flecs_state/test_components.cpp
+  src/lib_core/flecs_state/world_fixture.cpp
+  src/lib_core/flecs_state/world_state_requests_test.cpp
+  src/lib_core/flecs_state/world_state_test.cpp
+  src/lib_core/frame_start_test.cpp
+  src/lib_core/frustum_test.cpp
+  src/lib_core/lifecycle_test.cpp
+  src/lib_core/pose_smoothing_test.cpp
+  src/lib_core/schema_attributes_test.cpp
+  src/lib_core/tick_pacer_test.cpp
+  src/lib_z13/grid/block_index_test.cpp
+  src/lib_z13/primitives/chunk_mesh_test.cpp
+  src/lib_z13/primitives/cut_test.cpp
+  src/lib_z13/primitives/draw_order_test.cpp
+  src/lib_z13/primitives/geometry_test.cpp
+  src/lib_z13/primitives/palette_test.cpp
+  src/lib_z13/primitives/placement_test.cpp
+  src/lib_z13/rooms/disjoint_sets_test.cpp
+  src/lib_z13/rooms/room_builder_test.cpp
+  src/lib_z13/rooms/room_cache_test.cpp
+  src/test_runner.cpp
+  src/z13_launcher/module_list_test.cpp
+  src/z13_launcher/settings_loader_test.cpp
+  src/z13_launcher/station_assets_check_test.cpp
+  ${MODULES_DIR}/building_module/tests/block_building_test.cpp
+  ${MODULES_DIR}/building_module/tests/block_snapshot_test.cpp
+  ${MODULES_DIR}/building_module/tests/brush_aim_test.cpp
+  ${MODULES_DIR}/building_module/tests/brush_test.cpp
+  ${MODULES_DIR}/building_module/tests/build_validation_test.cpp
+  ${MODULES_DIR}/building_module/tests/building_block_test.cpp
+  ${MODULES_DIR}/building_module/tests/building_mode_test.cpp
+  ${MODULES_DIR}/building_module/tests/palette_system_test.cpp
+  ${MODULES_DIR}/building_module/tests/player_order_test.cpp
+  ${MODULES_DIR}/building_module/tests/primitive_build_test.cpp
+  ${MODULES_DIR}/building_module/tests/station_mode_test.cpp
+  ${MODULES_DIR}/building_module/tests/test_station_test.cpp
+  ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
+  ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
+  ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
+  ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
+  ${MODULES_DIR}/station_module/tests/room_system_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/pause_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/player_color_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/server_launch_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/spawn_point_test.cpp
+  ${MODULES_DIR}/z13_module/tests/input/action_negotiation_test.cpp
+  ${MODULES_DIR}/z13_module/tests/input/input_config_defaults_test.cpp
+  ${MODULES_DIR}/z13_module/tests/input/input_pipeline_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/desync_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/listen_server_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/motion_metrics_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/net_session_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/paused_peer_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/quick_save_in_session_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/remote_prediction_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/session_settings_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/uplink_budget_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/action_quantization_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/action_replay_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/cross_platform_state_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/game_state_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/phase_order_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/player_action_log_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/quick_save_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/two_player_replay_test.cpp
+  ${MODULES_DIR}/z13_module/tests/state/world_snapshot_history_test.cpp
+  ${MODULES_DIR}/z13_module/tests/support/motion_metrics.cpp
 )
 
-if(NOT Z13_BUILD_BENCHMARKS)
-  list(FILTER PROJECT_SOURCE_FILES EXCLUDE REGEX "/tests/bench/")
+if(Z13_BUILD_BENCHMARKS)
+  list(
+    APPEND
+    PROJECT_SOURCE_FILES
+    ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
+  )
 endif()
 
 # Standalone DLL exercising lib_core and lib_z13.

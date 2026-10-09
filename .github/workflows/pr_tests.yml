@@ -42,6 +42,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Check that CMake lists every source
+        if: runner.os == 'Linux'
+        run: .github/scripts/check_listed_sources.py
+
       # cl on PATH, so Windows builds with Ninja: the VS generator ignores compiler launchers.
       - name: Set up MSVC environment
         if: runner.os == 'Windows'

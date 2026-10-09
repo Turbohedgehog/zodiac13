@@ -6,10 +6,16 @@ set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
-file(
-  GLOB_RECURSE
+set(
   PROJECT_SOURCE_FILES
-  ${PROJECT_SOURCE_DIR}/src/*.cpp
+  src/blueprint.cpp
+  src/chunk_mesh.cpp
+  src/cut.cpp
+  src/draw_order.cpp
+  src/geometry.cpp
+  src/palette.cpp
+  src/placement.cpp
+  src/station_assets.cpp
 )
 
 # Stateless functions only, so each plugin linking its own copy shares nothing.
