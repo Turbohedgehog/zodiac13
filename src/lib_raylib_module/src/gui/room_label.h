@@ -20,7 +20,6 @@
 
 namespace z13::raylib::gui {
 
-// At `top`, below any overlay drawn before it (gui_widgets.h).
 void DrawRoomLabel(const std::string& label, float top);
 
 }  // namespace z13::raylib::gui

@@ -60,8 +60,7 @@ inline void PlaceOverlay(float top) {
   ImGui::SetNextWindowBgAlpha(kOverlayBackgroundAlpha);
 }
 
-// Where the overlay below the current window starts; call after its content, before End.
-// Measured from this frame's content: an auto-resized window's size lags a frame behind.
+// Measured from this frame's content, as an auto-resized window's size lags a frame; call before End.
 inline float OverlayTopBelow() {
   const ImGuiStyle& style = ImGui::GetStyle();
   return ImGui::GetCursorScreenPos().y - style.ItemSpacing.y + style.WindowPadding.y + Em(kOverlayMarginEm);

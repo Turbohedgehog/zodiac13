@@ -33,9 +33,8 @@ struct ChunkBounds {
   Eigen::AlignedBox3f bounds;
 };
 
-// Sorts `chunks` from the farthest centre to the nearest, so each chunk's glass blends over
-// what lies behind it; equally far ones by key, whatever order they come in. `eye` in the
-// units of the bounds.
+// Farthest centre first, so glass blends over what lies behind it; ties by key, whatever the
+// input order. `eye` in the bounds' units.
 void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye);
 
 }  // namespace z13::building::primitives

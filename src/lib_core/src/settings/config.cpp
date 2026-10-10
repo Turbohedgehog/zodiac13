@@ -36,8 +36,7 @@ constexpr std::string_view kStationSceneOption = "station-scene";
 constexpr std::string_view kRenderTourOption = "render-tour";
 constexpr std::string_view kRenderTourViewOption = "render-tour-view";
 
-// Takes the token after --render-tour-view as its value even when it starts with '-' (a
-// negative x), which boost::program_options would read as an option.
+// boost::program_options would read a value starting with '-' (a negative x) as an option.
 std::vector<po::option> ParseRenderTourView(std::vector<std::string>& args) {
   const std::string flag = std::format("--{}", kRenderTourViewOption);
   if (args.size() < 2 || args[0] != flag) {

@@ -57,7 +57,6 @@ ChunkBounds ChunkAt(int x) {
   return {.key = {x, 0, 0}, .bounds = {min, min + Eigen::Vector3f::Ones()}};
 }
 
-// The keys' x of `chunks` sorted for `eye`.
 std::vector<int> SortedXs(std::vector<ChunkBounds> chunks, const Eigen::Vector3f& eye) {
   SortFarthestFirst(chunks, eye);
   std::vector<int> xs;
