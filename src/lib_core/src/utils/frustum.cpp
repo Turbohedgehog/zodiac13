@@ -20,20 +20,31 @@
 
 namespace z13::math {
 
+namespace {
+
+// Rows of the view-projection: x and y (the screen's axes), depth, then w.
+constexpr int kScreenAxes = Eigen::AlignedBox2f::AmbientDimAtCompileTime;
+constexpr int kDepthRow = 2;
+constexpr int kWRow = 3;
+// A low and a high plane on each axis.
+constexpr int kPlanesPerAxis = 2;
+
+}  // namespace
+
 Frustum::Frustum(const Eigen::Matrix4f& view_projection) : Frustum(view_projection, FullScreen()) {
 }
 
 // Gribb-Hartmann, with the side planes moved in: x >= low * w is (row - low * w) · p >= 0.
 Frustum::Frustum(const Eigen::Matrix4f& view_projection, const Eigen::AlignedBox2f& ndc) {
-  const Eigen::Vector4f w = view_projection.row(3).transpose();
-  for (int axis = 0; axis < 2; ++axis) {
+  const Eigen::Vector4f w = view_projection.row(kWRow).transpose();
+  for (int axis = 0; axis < kScreenAxes; ++axis) {
     const Eigen::Vector4f row = view_projection.row(axis).transpose();
-    planes_[2 * axis] = row - (ndc.min()[axis] * w);
-    planes_[(2 * axis) + 1] = (ndc.max()[axis] * w) - row;
+    planes_[kPlanesPerAxis * axis] = row - (ndc.min()[axis] * w);
+    planes_[(kPlanesPerAxis * axis) + 1] = (ndc.max()[axis] * w) - row;
   }
-  const Eigen::Vector4f depth = view_projection.row(2).transpose();
-  planes_[4] = w + depth;
-  planes_[5] = w - depth;
+  const Eigen::Vector4f depth = view_projection.row(kDepthRow).transpose();
+  planes_[kPlanesPerAxis * kDepthRow] = w + depth;
+  planes_[(kPlanesPerAxis * kDepthRow) + 1] = w - depth;
 }
 
 Eigen::AlignedBox2f Frustum::FullScreen() {

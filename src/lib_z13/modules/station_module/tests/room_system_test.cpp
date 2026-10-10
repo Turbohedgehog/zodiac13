@@ -30,6 +30,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/enum_cycle.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
@@ -266,9 +267,9 @@ TEST(RoomSystemTest, TheOverlayIsEmptyWhenOff) {
 }
 
 TEST(RoomSystemTest, F4StepsThroughSeenAllAndOff) {
-  EXPECT_EQ(NextRoomOverlayMode(RoomOverlayMode::kOff), RoomOverlayMode::kSeen);
-  EXPECT_EQ(NextRoomOverlayMode(RoomOverlayMode::kSeen), RoomOverlayMode::kAll);
-  EXPECT_EQ(NextRoomOverlayMode(RoomOverlayMode::kAll), RoomOverlayMode::kOff);
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kOff), RoomOverlayMode::kSeen);
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kSeen), RoomOverlayMode::kAll);
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kAll), RoomOverlayMode::kOff);
 }
 
 TEST(RoomSystemTest, TheVersionGrowsOnlyWhenTheBlocksChange) {

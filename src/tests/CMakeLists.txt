@@ -19,6 +19,7 @@ set(
   src/lib_core/core_settings_test.cpp
   src/lib_core/drawn_poses_test.cpp
   src/lib_core/endpoint_test.cpp
+  src/lib_core/enum_cycle_test.cpp
   src/lib_core/file_io_test.cpp
   src/lib_core/flecs_state/component_codec_test.cpp
   src/lib_core/flecs_state/eigen_meta_test.cpp

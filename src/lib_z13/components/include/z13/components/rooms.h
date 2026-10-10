@@ -59,18 +59,6 @@ struct OverlayBox {
 // and portal; F4 steps through them in this order.
 enum class RoomOverlayMode : uint8_t { kOff, kSeen, kAll };
 
-inline RoomOverlayMode NextRoomOverlayMode(RoomOverlayMode mode) {
-  switch (mode) {
-    case RoomOverlayMode::kOff:
-      return RoomOverlayMode::kSeen;
-    case RoomOverlayMode::kSeen:
-      return RoomOverlayMode::kAll;
-    case RoomOverlayMode::kAll:
-      return RoomOverlayMode::kOff;
-  }
-  return RoomOverlayMode::kOff;
-}
-
 // What the overlay's boxes and label were made for, so they are rebuilt only when it changes.
 struct RoomOverlayShown {
   RoomOverlayMode mode {};
