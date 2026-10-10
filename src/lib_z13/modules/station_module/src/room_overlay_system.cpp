@@ -87,27 +87,43 @@ std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& 
              : std::format("Room {}: {} cells, {} portals", *room, graph.rooms[*room].volume_cells, portals);
 }
 
-OverlayBox PortalBox(const rooms::Portal& portal) {
-  return {.min = portal.opening.min,
-          .extent = portal.opening.extent,
-          .color = portal.visible ? kWindowOverlayColor : kDoorOverlayColor};
+OverlayBox PortalBox(const rooms::Portal& portal, const Rgba& color) {
+  return {.min = portal.opening.min, .extent = portal.opening.extent, .color = color};
+}
+
+OverlayBox PortalBoxByKind(const rooms::Portal& portal) {
+  return PortalBox(portal, portal.visible ? kWindowOverlayColor : kDoorOverlayColor);
+}
+
+// The visible portals with a seen room on both sides.
+void AddSeenPortals(const RoomGraph& graph, const std::vector<uint32_t>& seen, std::vector<OverlayBox>& boxes) {
+  for (const rooms::Portal& portal : graph.portals) {
+    if (portal.visible && std::ranges::binary_search(seen, portal.a) && std::ranges::binary_search(seen, portal.b)) {
+      boxes.push_back(PortalBox(portal, kSeenPortalOverlayColor));
+    }
+  }
 }
 
 std::vector<OverlayBox> Boxes(const RoomGraph& graph, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
   std::vector<OverlayBox> boxes;
+  const Rgba room_color = shown.mode == RoomOverlayMode::kSeen ? kSeenRoomOverlayColor : kRoomOverlayColor;
   const auto add_room = [&](RoomIndex room) {
     if (room != rooms::kVacuumRoom && room < graph.rooms.size()) {
-      const std::vector<OverlayBox>& room_boxes = box_cache.BoxesOf(graph, shown.fingerprint, room);
-      boxes.insert(boxes.end(), room_boxes.begin(), room_boxes.end());
+      std::ranges::transform(box_cache.BoxesOf(graph, shown.fingerprint, room), std::back_inserter(boxes),
+                             [&room_color](OverlayBox box) {
+                               box.color = room_color;
+                               return box;
+                             });
     }
   };
   if (shown.mode == RoomOverlayMode::kSeen && shown.seen_rooms) {
     std::ranges::for_each(*shown.seen_rooms, add_room);
+    AddSeenPortals(graph, *shown.seen_rooms, boxes);
   } else if (shown.mode == RoomOverlayMode::kAll) {
     for (RoomIndex room = 0; room < graph.rooms.size(); ++room) {
       add_room(room);
     }
-    std::ranges::transform(graph.portals, std::back_inserter(boxes), PortalBox);
+    std::ranges::transform(graph.portals, std::back_inserter(boxes), PortalBoxByKind);
   }
   return boxes;
 }

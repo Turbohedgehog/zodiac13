@@ -43,6 +43,9 @@ struct TopologyVersion {
 inline constexpr Rgba kRoomOverlayColor {80, 200, 120, 255};
 inline constexpr Rgba kWindowOverlayColor {80, 160, 255, 255};
 inline constexpr Rgba kDoorOverlayColor {255, 160, 60, 255};
+// The rooms the renderer drew and the portals it saw through, shown only in RoomOverlayMode::kSeen.
+inline constexpr Rgba kSeenRoomOverlayColor {240, 230, 70, 255};
+inline constexpr Rgba kSeenPortalOverlayColor {230, 80, 230, 255};
 
 struct OverlayBox {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();

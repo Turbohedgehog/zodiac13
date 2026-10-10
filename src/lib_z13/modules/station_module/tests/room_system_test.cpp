@@ -53,6 +53,7 @@ using z13::testing::Z13TestWorld;
 constexpr std::string_view kFloor = "Floor";
 constexpr std::string_view kWall = "Wall";
 constexpr std::string_view kDoor = "Door";
+constexpr std::string_view kWindow = "Window";
 
 // Far from anything the site scene builds.
 const Eigen::Vector3i kRoomCorner {30, 30, 5};
@@ -196,11 +197,33 @@ TEST(RoomSystemTest, TheOverlayShowsOnlyTheSeenRooms) {
   ASSERT_TRUE(west.has_value());
 
   ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*west});
-  EXPECT_EQ(CountColoured(world, kRoomOverlayColor), 1U);
+  EXPECT_EQ(CountColoured(world, kSeenRoomOverlayColor), 1U);
+  EXPECT_EQ(CountColoured(world, kRoomOverlayColor), 0U);
   EXPECT_EQ(CountColoured(world, kDoorOverlayColor), 0U);
 
   ShowRooms(world, RoomOverlayMode::kSeen);
   EXPECT_TRUE(world.World().get<RoomOverlay>().boxes.empty());
+}
+
+TEST(RoomSystemTest, TheOverlayMarksTheVisiblePortalsBetweenSeenRooms) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  AddBlock(world, At(kWindow, {kSide, 1, kHeight}, kAlongY, {5, 1, 1}));
+  world.Tick();
+  const auto west = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(1, 5, 5));
+  const auto east = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(8, 5, 5));
+  ASSERT_TRUE(west && east);
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {std::min(*west, *east), std::max(*west, *east)});
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 1U);
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*west});
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 0U);
+
+  ShowRooms(world, RoomOverlayMode::kAll);
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 0U);
+  EXPECT_EQ(CountColoured(world, kWindowOverlayColor), 1U);
 }
 
 TEST(RoomSystemTest, TheOverlayIgnoresRoomsDrawnWithAnotherGraph) {
@@ -367,7 +390,7 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
   int64_t covered = 0;
   std::optional<rooms::RoomIndex> room;
   for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
-    if (box.color != kRoomOverlayColor) {
+    if (box.color != kSeenRoomOverlayColor) {
       continue;
     }
     for (int z = box.min.z(); z < box.min.z() + box.extent.z(); ++z) {
