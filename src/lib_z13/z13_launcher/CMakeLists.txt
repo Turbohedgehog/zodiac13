@@ -31,7 +31,7 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
-  zodiac13::z13_settings
+  zodiac13::settings
   PRIVATE
   zodiac13::core
   zodiac13::fbs_schemas

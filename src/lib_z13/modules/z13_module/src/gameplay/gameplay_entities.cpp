@@ -31,6 +31,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/gravity.h>
 #include <z13/components/input.h>
 #include <z13/components/station.h>
 #include <z13_settings/physics_tuning.h>
@@ -104,7 +105,9 @@ flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen
       .set(std::move(camera))
       .set(transform)
       .set(Player{.id = id})
-      .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius});
+      .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius})
+      .set(PlayerMotion {})
+      .set(z13::gravity::Gravity {});
 }
 
 void EnsureLocalPlayerReady(flecs::world world) {

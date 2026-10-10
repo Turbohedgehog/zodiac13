@@ -121,6 +121,13 @@ Status ValidateSettings(const Settings& settings) {
   if (static_cast<float>(building.spawn_clearance_cells) * station::kCellSize <= building.spawn_height_above_marker) {
     return Invalid("building.spawn_clearance_cells", "must reach above building.spawn_height_above_marker");
   }
+  const fbs::physics::PhysicsTuningT& physics = *settings.physics;
+  if (physics.eye_height <= physics.player_collider_radius) {
+    return Invalid("physics.eye_height", "must be above physics.player_collider_radius");
+  }
+  if (physics.step_height > physics.eye_height - physics.player_collider_radius) {
+    return Invalid("physics.step_height", "must not exceed physics.eye_height minus physics.player_collider_radius");
+  }
   if (settings.connect_timeout->max_timeout_ms < settings.connect_timeout->min_timeout_ms) {
     return Invalid("connect_timeout.max_timeout_ms", "must not be below connect_timeout.min_timeout_ms");
   }

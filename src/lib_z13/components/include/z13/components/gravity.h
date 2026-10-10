@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
+#include <Eigen/Dense>
 
-#include "gravity_system.h"
-#include "room_overlay_system.h"
-#include "room_system.h"
+namespace z13::gravity {
 
-namespace z13::station {
+// The acceleration of the room or area a body is in, set by the station; zero in vacuum and
+// without a station. State: rooms are rebuilt after movement, so a replayed tick must not
+// read the rooms of a later one.
+struct Gravity {
+  using State = void;
+  Eigen::Vector3f acceleration = Eigen::Vector3f::Zero();
 
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-  GravitySystem::Register(world);
-}
+  bool Pulls() const { return !acceleration.isZero(); }
+};
 
-}  // namespace z13::station
+}  // namespace z13::gravity

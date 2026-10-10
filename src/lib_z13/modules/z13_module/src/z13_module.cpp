@@ -27,6 +27,7 @@
 #include <z13/components/z13.h>
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/gravity.h>
 #include <z13/components/input.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/state/replay.h>
@@ -50,7 +51,7 @@ void RegisterComponents(flecs::world world) {
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
   flecs_tools::RegisterComponents<
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
-      gameplay::PlayerCollider, gameplay::LookAngles, building::BuildingTool,
+      gameplay::PlayerCollider, gameplay::PlayerMotion, gravity::Gravity, gameplay::LookAngles, building::BuildingTool,
       gameplay::Pause, gameplay::FreeCursor, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
       PhysicsTuning, BuildingTuning>(world);
   world.component<input::SystemInputEventType>();

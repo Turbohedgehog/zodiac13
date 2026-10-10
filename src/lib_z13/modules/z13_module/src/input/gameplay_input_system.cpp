@@ -32,9 +32,11 @@
 
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/gravity.h>
 #include <z13/components/input.h>
 #include <z13/components/player_action.h>
 #include <z13_settings/environment.h>
+#include <z13_settings/physics_tuning.h>
 #include <z13_module/input/action_negotiation.h>
 #include <z13_module/input/input_config_loader.h>
 #include <z13_module/gameplay/camera_look.h>
@@ -90,7 +92,10 @@ void ApplyMoveActionListener(
     flecs::entity e,
     const z13::input::ActionListener& action_listener,
     const MoveActionIds& move_action_ids,
-    Eigen::Matrix4f& transform) {
+    Eigen::Matrix4f& transform,
+    z13::gameplay::PlayerMotion* motion,
+    const z13::gravity::Gravity* gravity,
+    const z13::PhysicsTuning& tuning) {
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
 
@@ -117,7 +122,20 @@ void ApplyMoveActionListener(
       },
   };
 
-  z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
+  if (motion != nullptr && gravity != nullptr && gravity->Pulls()) {
+    const z13::gameplay::WalkStep step {
+        .delta_time = delta_time,
+        .gravity = gravity->acceleration,
+        .walk_speed = tuning.walk_speed,
+        .jump_speed = tuning.jump_speed,
+    };
+    z13::gameplay::ApplyWalkMove(axes, step, look, *motion, transform);
+  } else {
+    if (motion != nullptr) {
+      *motion = {};
+    }
+    z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
+  }
   e.set(transform);
 }
 
@@ -544,7 +562,9 @@ void RegisterSystems(flecs::world world) {
       .with<z13::input::CurrentActionListenerTag>()
       .each(CalculateInputValues);
 
-  world.system<z13::input::ActionListener, MoveActionIds, Eigen::Matrix4f>("gameplay_input_system::ApplyMoveActionListener")
+  world.system<z13::input::ActionListener, MoveActionIds, Eigen::Matrix4f, z13::gameplay::PlayerMotion*,
+               const z13::gravity::Gravity*, const z13::PhysicsTuning>(
+      "gameplay_input_system::ApplyMoveActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .each(ApplyMoveActionListener);
 

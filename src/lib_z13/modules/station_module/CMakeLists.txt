@@ -9,6 +9,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 set(
   PROJECT_SOURCE_FILES
+  src/gravity_system.cpp
   src/room_box_cache.cpp
   src/room_overlay_system.cpp
   src/room_system.cpp
@@ -35,6 +36,7 @@ target_link_libraries(
   zodiac13::components
   zodiac13::primitives
   zodiac13::rooms
+  zodiac13::settings
   Boost::dll
 )
 
@@ -54,6 +56,7 @@ target_link_libraries(
   zodiac13::components
   zodiac13::primitives
   zodiac13::rooms
+  zodiac13::settings
   Boost::dll
 )
 

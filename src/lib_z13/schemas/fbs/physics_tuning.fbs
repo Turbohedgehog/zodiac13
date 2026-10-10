@@ -24,4 +24,13 @@ table PhysicsTuning {
   player_collider_radius: float = 0.4 (min: "0.01", cli);
   // Sweeps per step: sliding along one face takes two, around a corner three.
   max_sweep_iterations: uint32 = 3 (min: 2, max: 16, cli);
+  // Walking under the station's gravity, in m and m/s; vacuum is flown through instead.
+  gravity: float = 9.81 (min: "0", max: "100", cli);
+  walk_speed: float = 5 (min: "0.1", max: "100", cli);
+  jump_speed: float = 4 (min: "0", max: "100", cli);
+  // From the floor to the eyes, at the collider's centre. The shipped door's opening is 2 m
+  // high: eye_height plus the radius must stay below it to walk through.
+  eye_height: float = 1.5 (min: "0.1", max: "10", cli);
+  // A floor this far below the feet is stepped down onto rather than fallen to.
+  step_height: float = 0.3 (min: "0", max: "2", cli);
 }

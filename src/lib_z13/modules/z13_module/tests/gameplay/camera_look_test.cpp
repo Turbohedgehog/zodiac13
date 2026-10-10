@@ -191,5 +191,64 @@ TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
   EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, kCameraVelocity, 0.f), 1e-3f));
 }
 
+constexpr float kLookDownDeg = 60.f;
+const WalkStep kWalk {
+    .delta_time = 0.1f, .gravity = Eigen::Vector3f(0.f, 0.f, -10.f), .walk_speed = 5.f, .jump_speed = 4.f};
+
+TEST(WalkMove, LookingDownStillWalksAlongTheFloor) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion {.grounded = true};
+  CameraMoveAxes axes;
+  axes.forward = 1.f;
+  axes.absolute_look.pitch_deg = kLookDownDeg;
+
+  ApplyWalkMove(axes, kWalk, look, motion, transform);
+
+  EXPECT_NEAR(Position(transform).x(), kWalk.walk_speed * kWalk.delta_time, 1e-4f);
+  EXPECT_FLOAT_EQ(look.pitch_deg, kLookDownDeg);
+}
+
+TEST(WalkMove, DiagonalKeysDontWalkFaster) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion {.grounded = true};
+  CameraMoveAxes axes;
+  axes.forward = 1.f;
+  axes.left = 1.f;
+
+  ApplyWalkMove(axes, kWalk, look, motion, transform);
+
+  EXPECT_NEAR(Position(transform).head<2>().norm(), kWalk.walk_speed * kWalk.delta_time, 1e-4f);
+}
+
+TEST(WalkMove, JumpsOnlyFromTheGround) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  CameraMoveAxes axes;
+  axes.up = 1.f;
+  PlayerMotion grounded {.grounded = true};
+  PlayerMotion airborne;
+
+  ApplyWalkMove(axes, kWalk, look, grounded, transform);
+  ApplyWalkMove(axes, kWalk, look, airborne, transform);
+
+  EXPECT_LT(grounded.fall_speed, 0.f);
+  EXPECT_FALSE(grounded.grounded);
+  EXPECT_GT(airborne.fall_speed, 0.f);
+}
+
+TEST(WalkMove, FallsAlongTheGravity) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion;
+
+  ApplyWalkMove({}, kWalk, look, motion, transform);
+
+  const float speed = kWalk.gravity.norm() * kWalk.delta_time;
+  EXPECT_FLOAT_EQ(motion.fall_speed, speed);
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, 0.f, -speed * kWalk.delta_time)));
+}
+
 }  // namespace
 }  // namespace z13::gameplay

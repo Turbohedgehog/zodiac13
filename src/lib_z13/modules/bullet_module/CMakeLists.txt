@@ -35,7 +35,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::primitives
-  zodiac13::z13_settings
+  zodiac13::settings
   ${BULLET_LIBRARIES}
   Boost::dll
 )
@@ -55,7 +55,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::primitives
-  zodiac13::z13_settings
+  zodiac13::settings
   ${BULLET_LIBRARIES}
   Boost::dll
 )

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(z13_settings)
+project(settings)
 
 set(CMAKE_CXX_STANDARD 23)
 

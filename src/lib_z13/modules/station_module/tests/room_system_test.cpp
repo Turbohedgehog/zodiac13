@@ -42,6 +42,7 @@
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "support/room_blocks.h"
 
 namespace z13::station {
 namespace {
@@ -51,65 +52,23 @@ using z13::station::rooms::RoomGraph;
 using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
 
-constexpr std::string_view kFloor = "Floor";
-constexpr std::string_view kWall = "Wall";
-constexpr std::string_view kDoor = "Door";
-constexpr std::string_view kWindow = "Window";
-
-// Far from anything the site scene builds.
-const Eigen::Vector3i kRoomCorner {30, 30, 5};
-constexpr int kSide = 10;
-constexpr int kHeight = 12;
-// The door primitive's frame and its 4x8 opening.
-constexpr int kDoorWidth = 6;
-constexpr int kDoorHeight = 10;
-constexpr int kDoorOpeningCells = 4 * 8;
-
-uint32_t IdOf(std::string_view name) {
-  return z13::testing::ShippedPalette()->Find(name)->get().id;
-}
-
-// Wall panels along y: the primitive's x runs along the world's y.
-constexpr Orientation kAlongY = Orientation::kFacePosYUpPosZ;
-
-Block At(std::string_view primitive, Eigen::Vector3i size, Orientation orientation, Eigen::Vector3i offset) {
-  return {.spec = {.type_id = IdOf(primitive), .size = size, .orientation = orientation},
-          .cell = kRoomCorner + offset};
-}
-
-// A sealed box whose inside is kSide x kSide x kHeight cells, with its lowest cell at (1, 1, 1).
-std::vector<Block> SealedBox() {
-  constexpr int outer = kSide + 2;
-  return {
-      At(kFloor, {outer, outer, 1}, {}, {0, 0, 0}),
-      At(kFloor, {outer, outer, 1}, {}, {0, 0, kHeight + 1}),
-      At(kWall, {outer, 1, kHeight}, {}, {0, 0, 1}),
-      At(kWall, {outer, 1, kHeight}, {}, {0, outer - 1, 1}),
-      At(kWall, {kSide, 1, kHeight}, kAlongY, {0, 1, 1}),
-      At(kWall, {kSide, 1, kHeight}, kAlongY, {outer - 1, 1, 1}),
-  };
-}
-
-// A partition at x = 5 with a door in it, leaving the box as two rooms.
-std::vector<Block> DoorPartition() {
-  return {
-      At(kDoor, {kDoorWidth, 1, kDoorHeight}, kAlongY, {5, 1, 1}),
-      At(kWall, {kSide - kDoorWidth, 1, kHeight}, kAlongY, {5, 1 + kDoorWidth, 1}),
-      At(kWall, {kDoorWidth, 1, kHeight - kDoorHeight}, kAlongY, {5, 1, 1 + kDoorHeight}),
-  };
-}
-
-flecs::entity AddBlock(Z13TestWorld& world, const Block& block) {
-  // Named, as the game names its blocks: a restore matches state entities by name.
-  const std::string name = std::format("RoomTest_{}_{}_{}_{}", block.spec.type_id, block.cell.x(), block.cell.y(), block.cell.z());
-  return world.World().entity(name.c_str()).add<z13::flecs_tools::StateEntity>().set(block);
-}
-
-void AddBlocks(Z13TestWorld& world, const std::vector<Block>& blocks) {
-  for (const Block& block : blocks) {
-    AddBlock(world, block);
-  }
-}
+using testing::AddBlock;
+using testing::AddBlocks;
+using testing::At;
+using testing::DoorPartition;
+using testing::IdOf;
+using testing::kAlongY;
+using testing::kDoor;
+using testing::kDoorHeight;
+using testing::kDoorOpeningCells;
+using testing::kDoorWidth;
+using testing::kFloor;
+using testing::kHeight;
+using testing::kRoomCorner;
+using testing::kSide;
+using testing::kWall;
+using testing::kWindow;
+using testing::SealedBox;
 
 const RoomGraph& Graph(Z13TestWorld& world) {
   return world.World().get<RoomCache>().Current()->get();

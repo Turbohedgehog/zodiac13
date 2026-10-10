@@ -38,6 +38,7 @@ namespace {
 // Saves and snapshots name components by path; the derived one differs between GCC and MSVC.
 constexpr std::string_view kMatrix4fName = "Matrix4f";
 constexpr std::string_view kVector3iName = "Vector3i";
+constexpr std::string_view kVector3fName = "Vector3f";
 
 template <class Scalar>
 flecs::entity_t ScalarKind();
@@ -75,6 +76,7 @@ void RegisterEigenArray(flecs::world& world, std::string_view name) {
 void RegisterEigenMeta(flecs::world& world) {
   RegisterEigenArray<Eigen::Matrix4f, float>(world, kMatrix4fName);
   RegisterEigenArray<Eigen::Vector3i, int32_t>(world, kVector3iName);
+  RegisterEigenArray<Eigen::Vector3f, float>(world, kVector3fName);
 }
 
 }  // namespace z13::flecs_tools

@@ -315,8 +315,10 @@ const Eigen::Vector3i kDoorSize {6, 1, 10};
 const Eigen::Vector3i kAcrossCell {0, 8, 0};
 constexpr float kBeforeY = 1.f;
 constexpr float kBeyondY = 3.f;
-// The middle of the door's opening, where its leaf hangs (doors are closed until they open).
+// The middle of the door's opening, where its leaf hangs.
 constexpr float kOpeningCentreX = 0.75f;
+// Inside the door's left post.
+constexpr float kPostX = 0.1f;
 constexpr float kChestZ = 1.f;
 
 flecs::entity PlaceBlock(z13::testing::Z13TestWorld& test_world, uint32_t type_id, const Eigen::Vector3i& size,
@@ -342,13 +344,23 @@ TEST(StationCollisionTest, AWallStopsThePlayer) {
   EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
 }
 
-TEST(StationCollisionTest, AClosedDoorStopsThePlayer) {
+// Until f/doors opens doors, a closed one is walked through; its frame still stops the player.
+TEST(StationCollisionTest, AClosedDoorLetsThePlayerThrough) {
   z13::testing::Z13TestWorld test_world;
   PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);
 
   const Eigen::Vector3f moved = WalkAcross(test_world, kOpeningCentreX);
 
-  EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
+  EXPECT_NEAR(moved.y(), kBeyondY, kSweepTolerance);
+}
+
+TEST(StationCollisionTest, ADoorFrameStopsThePlayer) {
+  z13::testing::Z13TestWorld test_world;
+  PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);
+
+  const Eigen::Vector3f moved = WalkAcross(test_world, kPostX);
+
+  EXPECT_LT(moved.y(), kAcrossCell.y() * z13::station::kCellSize);
 }
 
 // No gravity: walking into a slope slides the player up its face and over its top.
