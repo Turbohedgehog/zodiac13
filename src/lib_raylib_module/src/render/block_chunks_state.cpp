@@ -29,6 +29,7 @@
 #include "block_model.h"
 #include "render_components.h"
 #include "render_stats.h"
+#include "view_culling.h"
 
 namespace z13::raylib {
 
@@ -84,10 +85,10 @@ ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, O
 }
 
 void BlockChunks::State::DrawOpaque(
-    const z13::math::Frustum& frustum, const Lighting& lighting, RenderStats& stats) const {
+    const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const {
   stats.chunks = chunks_.size();
   for (const auto& [key, chunk] : chunks_) {
-    if (!frustum.Intersects(chunk.bounds)) {
+    if (!culling.Visible(chunk.bounds)) {
       continue;
     }
     ++stats.chunks_drawn;

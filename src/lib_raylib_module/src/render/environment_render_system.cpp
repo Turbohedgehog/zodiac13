@@ -39,7 +39,6 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
-#include <lib_core/utils/frustum.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/drawn_poses.h>
@@ -56,6 +55,7 @@
 #include <primitives/draw_order.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
+#include <rooms/room_cache.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
@@ -70,6 +70,7 @@
 #include "render_resources.h"
 #include "render_stats.h"
 #include "skybox.h"
+#include "view_culling.h"
 
 namespace z13::raylib {
 
@@ -246,7 +247,8 @@ void ChaseDrawnPoses(SmoothedDrawing& drawing, const VisualSmoothing& settings, 
 }
 
 // Every avatar shares the one model; only its transform and tint change per player.
-void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn) {
+void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn,
+                       const ViewCulling& culling) {
   if (!world.has<AvatarModel>()) {
     return;
   }
@@ -254,8 +256,14 @@ void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remot
   if (!avatar.res || avatar.res->model->meshCount == 0) {
     return;
   }
-  remote_players.each([&avatar, &drawn](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
-    avatar.res->model->transform = EigenToRaylibMatrix(z13::DrawnTransform(drawn, e, transform));
+  remote_players.each([&](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+    const Eigen::Matrix4f drawn_transform = z13::DrawnTransform(drawn, e, transform);
+    const Eigen::Vector3f centre = z13::math::ExtractTranslation<float>(drawn_transform);
+    const Eigen::Vector3f reach = Eigen::Vector3f::Constant(kAvatarRadius);
+    if (!culling.Visible({centre - reach, centre + reach})) {
+      return;
+    }
+    avatar.res->model->transform = EigenToRaylibMatrix(drawn_transform);
     DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player.id)));
   });
 }
@@ -366,7 +374,7 @@ void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
 // edges lie on the walls' own faces.
 void DrawRoomOverlay(const flecs::world& world) {
   const auto* overlay = world.try_get<z13::station::RoomOverlay>();
-  if (overlay == nullptr || !overlay->enabled) {
+  if (overlay == nullptr || overlay->mode == z13::station::RoomOverlayMode::kOff) {
     return;
   }
   rlDrawRenderBatchActive();
@@ -410,25 +418,50 @@ Eigen::AlignedBox3f BoundsInMeters(const z13::station::Block& block) {
 }
 
 std::vector<z13::station::Block> VisibleBlocks(
-    std::span<const z13::station::Block> blocks, const z13::math::Frustum& frustum) {
+    std::span<const z13::station::Block> blocks, const ViewCulling& culling) {
   std::vector<z13::station::Block> visible;
-  std::ranges::copy_if(blocks, std::back_inserter(visible), [&frustum](const z13::station::Block& block) {
-    return frustum.Intersects(BoundsInMeters(block));
+  std::ranges::copy_if(blocks, std::back_inserter(visible), [&culling](const z13::station::Block& block) {
+    return culling.Visible(BoundsInMeters(block));
   });
   return visible;
 }
 
 // The view-projection rlgl draws with, set by BeginScene3D.
-z13::math::Frustum CurrentFrustum() {
-  return z13::math::Frustum(RaylibToEigenMatrix(rlGetMatrixProjection()) * RaylibToEigenMatrix(rlGetMatrixModelview()));
+Eigen::Matrix4f CurrentViewProjection() {
+  return RaylibToEigenMatrix(rlGetMatrixProjection()) * RaylibToEigenMatrix(rlGetMatrixModelview());
 }
+
+ViewCulling::OptionalGraph CurrentRooms(const z13::station::rooms::RoomCache* cache) {
+  return cache != nullptr ? cache->Current() : std::nullopt;
+}
+
+// The overlay outlines the rooms drawn this frame (station_module builds its boxes).
+void PublishSeenRooms(const ViewCulling& culling, const z13::station::rooms::RoomCache* rooms, RenderStats& stats,
+                      z13::station::RoomOverlay* overlay) {
+  stats.rooms_seen = culling.SeenRoomCount();
+  if (overlay == nullptr) {
+    return;
+  }
+  overlay->drawn.reset();
+  const auto fingerprint = rooms != nullptr ? rooms->CurrentFingerprint() : std::nullopt;
+  if (overlay->mode == z13::station::RoomOverlayMode::kSeen && fingerprint) {
+    if (auto seen = culling.SeenRooms()) {
+      overlay->drawn = z13::station::RoomsDrawn {.fingerprint = *fingerprint, .rooms = std::move(*seen)};
+    }
+  }
+}
+
+struct SceneView {
+  ::Vector3 eye {};
+  ViewCulling culling;
+};
 
 // Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
-               const z13::DrawnPoses& drawn, const ::Vector3& eye, RenderStats& stats) {
+               const z13::DrawnPoses& drawn, const SceneView& view, RenderStats& stats) {
   stats = {};
-  DrawRemotePlayers(world, remote_players, drawn);
+  DrawRemotePlayers(world, remote_players, drawn, view.culling);
   if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
     return;
   }
@@ -436,16 +469,15 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   const SingleBlockDrawing drawing {
       .meshes = world.get_mut<BlockMeshes>(), .lighting = lighting, .palette = PaletteOf(world)};
   const BlockChunks& chunks = world.get<BlockChunks>();
-  const z13::math::Frustum frustum = CurrentFrustum();
-  chunks.DrawOpaque(frustum, lighting, stats);
+  chunks.DrawOpaque(view.culling, lighting, stats);
 
   rlDrawRenderBatchActive();
   rlDisableDepthMask();
-  const std::vector<z13::station::Block> glass = VisibleBlocks(chunks.Transparent(), frustum);
+  const std::vector<z13::station::Block> glass = VisibleBlocks(chunks.Transparent(), view.culling);
   stats.glass = chunks.Transparent().size();
   stats.glass_drawn = glass.size();
   const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
-      glass, drawing.palette, Eigen::Vector3f(eye.x, eye.y, eye.z) / z13::station::kCellSize);
+      glass, drawing.palette, Eigen::Vector3f(view.eye.x, view.eye.y, view.eye.z) / z13::station::kCellSize);
   for (const size_t i : order.transparent) {
     DrawBlock(drawing, glass[i], WHITE);
   }
@@ -567,12 +599,15 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize, RenderStats>("EnvironmentRenderSystem::Draw")
+  world.system<const RaylibCamera, const WindowSize, RenderStats, const z13::station::rooms::RoomCache*,
+               z13::station::RoomOverlay*>(
+           "EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
       .each([world, brush_query, remote_player_query, drawing](
-                const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats) {
+                const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
+                const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -600,7 +635,13 @@ void RegisterSystems(flecs::world world) {
           }
         }
 
-        DrawScene(world, brush_query, remote_player_query, drawing->poses, raylib_camera.camera.position, stats);
+        const ::Vector3& eye = raylib_camera.camera.position;
+        const SceneView view {
+            .eye = eye,
+            .culling = ViewCulling(CurrentViewProjection(), Eigen::Vector3f(eye.x, eye.y, eye.z), CurrentRooms(rooms)),
+        };
+        DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
+        PublishSeenRooms(view.culling, rooms, stats, overlay);
 
         EndScene3D();
       });

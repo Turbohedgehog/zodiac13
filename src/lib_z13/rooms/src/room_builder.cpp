@@ -270,12 +270,22 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
   }
 }
 
+std::vector<std::vector<size_t>> PortalsByRoom(const RoomGraph& graph) {
+  std::vector<std::vector<size_t>> by_room(graph.rooms.size());
+  for (size_t i = 0; i < graph.portals.size(); ++i) {
+    by_room[graph.portals[i].a].push_back(i);
+    by_room[graph.portals[i].b].push_back(i);
+  }
+  return by_room;
+}
+
 }  // namespace
 
 std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources) {
   RoomGraph graph;
   if (sources.sealed.empty()) {
     graph.rooms.push_back({});
+    graph.room_portals = PortalsByRoom(graph);
     return graph;
   }
   const Bounds bounds = Surround(sources.sealed);
@@ -289,6 +299,7 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources) {
   JoinNeighbours(graph.columns, sets);
   graph.rooms = NameRooms(graph.columns, bounds, sets);
   AddPortals(sources, graph);
+  graph.room_portals = PortalsByRoom(graph);
   return graph;
 }
 

@@ -52,15 +52,47 @@ struct OverlayBox {
   bool operator==(const OverlayBox&) const = default;
 };
 
-// Debug view of the local player's room and its portals, filled only while `enabled`.
+// What the room overlay draws: the rooms the renderer drew, in one colour, or every room
+// and portal; F4 steps through them in this order.
+enum class RoomOverlayMode : uint8_t { kOff, kSeen, kAll };
+
+inline RoomOverlayMode NextRoomOverlayMode(RoomOverlayMode mode) {
+  switch (mode) {
+    case RoomOverlayMode::kOff:
+      return RoomOverlayMode::kSeen;
+    case RoomOverlayMode::kSeen:
+      return RoomOverlayMode::kAll;
+    case RoomOverlayMode::kAll:
+      return RoomOverlayMode::kOff;
+  }
+  return RoomOverlayMode::kOff;
+}
+
+// What the overlay's boxes and label were made for, so they are rebuilt only when it changes.
+struct RoomOverlayShown {
+  RoomOverlayMode mode {};
+  uint64_t fingerprint {};
+  std::optional<uint32_t> player_room;
+  std::optional<std::vector<uint32_t>> seen_rooms;
+
+  bool operator==(const RoomOverlayShown&) const = default;
+};
+
+// The rooms the renderer drew, sorted, numbered as in the graph of `fingerprint`.
+struct RoomsDrawn {
+  uint64_t fingerprint {};
+  std::vector<uint32_t> rooms;
+};
+
+// Debug view of the rooms, with a label for the local player's room; empty while off.
 struct RoomOverlay {
   using Singleton = void;
-  bool enabled {};
+  RoomOverlayMode mode {};
+  // Set by the renderer each frame in kSeen; nothing while rooms don't cull.
+  std::optional<RoomsDrawn> drawn;
   std::vector<OverlayBox> boxes;
   std::string label;
-  // What boxes and label were made for, so they are rebuilt only when it changes.
-  std::optional<uint64_t> shown_fingerprint;
-  std::optional<uint32_t> shown_room;
+  std::optional<RoomOverlayShown> shown;
 };
 
 }  // namespace z13::station

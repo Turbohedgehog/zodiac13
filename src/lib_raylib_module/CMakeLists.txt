@@ -40,6 +40,7 @@ set(
   src/render/lights.cpp
   src/render/render_resources.cpp
   src/render/skybox.cpp
+  src/render/view_culling.cpp
   src/tools/asset_path.cpp
   src/tools/assimp_loader.cpp
   src/tools/input_publisher.cpp
@@ -77,6 +78,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::primitives
+  zodiac13::rooms
   zodiac13::z13_settings
   raylib
   SDL3::SDL3

@@ -68,5 +68,14 @@ TEST(FrustumTest, FollowsTheView) {
   EXPECT_FALSE(frustum.Intersects(UnitBoxAt({40.f, 0.f, 0.f})));
 }
 
+TEST(FrustumTest, ANarrowedFrustumKeepsOnlyItsPartOfTheScreen) {
+  const Eigen::AlignedBox2f right_half(Eigen::Vector2f(0.f, -1.f), Eigen::Vector2f(1.f, 1.f));
+  const Frustum frustum(Perspective(), right_half);
+
+  EXPECT_TRUE(frustum.Intersects(UnitBoxAt({5.f, 0.f, -10.f})));
+  EXPECT_FALSE(frustum.Intersects(UnitBoxAt({-5.f, 0.f, -10.f})));
+  EXPECT_FALSE(frustum.Intersects(UnitBoxAt({20.f, 0.f, -10.f})));
+}
+
 }  // namespace
 }  // namespace z13::math

@@ -16,21 +16,27 @@
 
 #pragma once
 
-#include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <unordered_map>
+#include <vector>
 
-namespace z13::raylib {
+#include <z13/components/rooms.h>
+#include <rooms/room_graph.h>
 
-// What the last frame drew, for the stats overlay; never state.
-struct RenderStats {
+namespace z13::station {
+
+// Each room's merged overlay boxes, made once per room graph. Derived, never state.
+class RoomBoxCache {
+ public:
   using Singleton = void;
-  size_t chunks {};
-  size_t chunks_drawn {};
-  size_t meshes_drawn {};
-  size_t glass {};
-  size_t glass_drawn {};
-  // Nothing while rooms don't cull.
-  std::optional<size_t> rooms_seen;
+
+  const std::vector<OverlayBox>& BoxesOf(
+      const z13::station::rooms::RoomGraph& graph, uint64_t fingerprint, z13::station::rooms::RoomIndex room);
+
+ private:
+  std::optional<uint64_t> fingerprint_;
+  std::unordered_map<z13::station::rooms::RoomIndex, std::vector<OverlayBox>> boxes_;
 };
 
-}  // namespace z13::raylib
+}  // namespace z13::station

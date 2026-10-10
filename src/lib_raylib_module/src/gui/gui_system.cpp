@@ -186,9 +186,9 @@ void RegisterSystems(flecs::world world) {
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {
-            rooms->enabled = !rooms->enabled;
+            rooms->mode = z13::station::NextRoomOverlayMode(rooms->mode);
           }
-          if (rooms->enabled) {
+          if (rooms->mode != z13::station::RoomOverlayMode::kOff) {
             gui::DrawRoomLabel(rooms->label);
           }
         }

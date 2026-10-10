@@ -9,6 +9,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 set(
   PROJECT_SOURCE_FILES
+  src/room_box_cache.cpp
   src/room_overlay_system.cpp
   src/room_system.cpp
   src/station_module.cpp

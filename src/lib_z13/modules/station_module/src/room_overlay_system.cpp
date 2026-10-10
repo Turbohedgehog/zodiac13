@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
+
 #include "room_overlay_system.h"
 
 #include <algorithm>
 #include <format>
-#include <string>
-#include <tuple>
+#include <iterator>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <lib_core/state/world_state.h>
@@ -31,6 +33,8 @@
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
 #include <rooms/room_cache.h>
+
+#include "room_box_cache.h"
 
 namespace z13::station {
 
@@ -43,7 +47,6 @@ using z13::station::rooms::RoomIndex;
 using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
 
 constexpr int kProbeCellsAbove = 4;
-constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
 
 std::optional<Eigen::Vector3i> PlayerCell(const PlayerQuery& players, const z13::gameplay::LocalPlayer& local) {
   std::optional<Eigen::Vector3i> cell;
@@ -59,66 +62,6 @@ std::optional<Eigen::Vector3i> PlayerCell(const PlayerQuery& players, const z13:
   return cell;
 }
 
-OverlayBox Box(const Eigen::Vector3i& min, const Eigen::Vector3i& extent, const Rgba& color) {
-  return {.min = min, .extent = extent, .color = color};
-}
-
-OverlayBox RunOf(int x, int y, const rooms::FreeInterval& interval) {
-  return Box({x, y, interval.begin}, {1, 1, interval.end - interval.begin}, kRoomOverlayColor);
-}
-
-bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
-  const Eigen::Index u = (axis + 1) % kAxisCount;
-  const Eigen::Index v = (axis + 2) % kAxisCount;
-  const auto key = [&](const OverlayBox& box) {
-    return std::tuple(box.min[u], box.extent[u], box.min[v], box.extent[v], box.min[axis]);
-  };
-  std::ranges::sort(boxes, {}, key);
-  std::vector<OverlayBox> merged;
-  for (const OverlayBox& box : boxes) {
-    if (!merged.empty()) {
-      OverlayBox& last = merged.back();
-      if (last.min[u] == box.min[u] && last.extent[u] == box.extent[u] && last.min[v] == box.min[v] &&
-          last.extent[v] == box.extent[v] && last.min[axis] + last.extent[axis] == box.min[axis]) {
-        last.extent[axis] += box.extent[axis];
-        continue;
-      }
-    }
-    merged.push_back(box);
-  }
-  const bool joined = merged.size() < boxes.size();
-  boxes = std::move(merged);
-  return joined;
-}
-
-void MergeBoxes(std::vector<OverlayBox>& boxes) {
-  bool joined = true;
-  while (joined) {
-    joined = false;
-    for (Eigen::Index axis = 0; axis < kAxisCount; ++axis) {
-      joined = MergeAlong(boxes, axis) || joined;
-    }
-  }
-}
-
-void AddRoomBoxes(const RoomGraph& graph, RoomIndex room, std::vector<OverlayBox>& boxes) {
-  const auto& bounds = graph.rooms[room].bounds;
-  const size_t first = boxes.size();
-  for (int y = bounds.min.y(); y < bounds.End().y(); ++y) {
-    for (int x = bounds.min.x(); x < bounds.End().x(); ++x) {
-      for (const auto& interval : graph.columns.Column({x, y})) {
-        if (interval.room == room) {
-          boxes.push_back(RunOf(x, y, interval));
-        }
-      }
-    }
-  }
-  std::vector<OverlayBox> room_boxes(boxes.begin() + static_cast<std::ptrdiff_t>(first), boxes.end());
-  boxes.resize(first);
-  MergeBoxes(room_boxes);
-  boxes.insert(boxes.end(), room_boxes.begin(), room_boxes.end());
-}
-
 // The room at the cell, or the first free cell above it: a player resting on the floor can
 // have its position inside the floor's top cell.
 std::optional<RoomIndex> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) {
@@ -130,59 +73,93 @@ std::optional<RoomIndex> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) 
   return std::nullopt;
 }
 
-void Describe(const RoomGraph& graph, std::optional<RoomIndex> room, RoomOverlay& overlay) {
-  overlay.boxes.clear();
+std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& cell, std::optional<RoomIndex> room) {
+  if (!cell) {
+    return {};
+  }
   if (!room) {
-    overlay.label = "Inside a block";
-    return;
+    return "Inside a block";
   }
-  if (*room != rooms::kVacuumRoom) {
-    AddRoomBoxes(graph, *room, overlay.boxes);
-  }
-  int portals {};
-  for (const rooms::Portal& portal : graph.portals) {
-    if (portal.a == *room || portal.b == *room) {
-      overlay.boxes.push_back(Box(portal.opening.min, portal.opening.extent, portal.visible ? kWindowOverlayColor : kDoorOverlayColor));
-      ++portals;
-    }
-  }
-  overlay.label = *room == rooms::kVacuumRoom
-                      ? std::format("Open to space, {} portals", portals)
-                      : std::format("Room {}: {} cells, {} portals", *room, graph.rooms[*room].volume_cells, portals);
+  const auto portals = std::ranges::count_if(
+      graph.portals, [&room](const rooms::Portal& portal) { return portal.a == *room || portal.b == *room; });
+  return *room == rooms::kVacuumRoom
+             ? std::format("Open to space, {} portals", portals)
+             : std::format("Room {}: {} cells, {} portals", *room, graph.rooms[*room].volume_cells, portals);
 }
 
-void UpdateOverlay(
-    RoomOverlay& overlay, const RoomCache& cache, const z13::gameplay::LocalPlayer& local, const PlayerQuery& players) {
-  const auto cell = PlayerCell(players, local);
-  if (!overlay.enabled || !cache.Current() || !cell) {
-    overlay.boxes.clear();
-    overlay.label.clear();
-    overlay.shown_fingerprint.reset();
+OverlayBox PortalBox(const rooms::Portal& portal) {
+  return {.min = portal.opening.min,
+          .extent = portal.opening.extent,
+          .color = portal.visible ? kWindowOverlayColor : kDoorOverlayColor};
+}
+
+std::vector<OverlayBox> Boxes(const RoomGraph& graph, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
+  std::vector<OverlayBox> boxes;
+  const auto add_room = [&](RoomIndex room) {
+    if (room != rooms::kVacuumRoom && room < graph.rooms.size()) {
+      const std::vector<OverlayBox>& room_boxes = box_cache.BoxesOf(graph, shown.fingerprint, room);
+      boxes.insert(boxes.end(), room_boxes.begin(), room_boxes.end());
+    }
+  };
+  if (shown.mode == RoomOverlayMode::kSeen && shown.seen_rooms) {
+    std::ranges::for_each(*shown.seen_rooms, add_room);
+  } else if (shown.mode == RoomOverlayMode::kAll) {
+    for (RoomIndex room = 0; room < graph.rooms.size(); ++room) {
+      add_room(room);
+    }
+    std::ranges::transform(graph.portals, std::back_inserter(boxes), PortalBox);
+  }
+  return boxes;
+}
+
+// Rooms drawn against an older graph are numbered differently, so they wait for the renderer.
+std::optional<std::vector<uint32_t>> DrawnRooms(const RoomOverlay& overlay, uint64_t fingerprint) {
+  if (overlay.mode != RoomOverlayMode::kSeen || !overlay.drawn || overlay.drawn->fingerprint != fingerprint) {
+    return std::nullopt;
+  }
+  return overlay.drawn->rooms;
+}
+
+void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
+                   const z13::gameplay::LocalPlayer& local, const PlayerQuery& players) {
+  const auto fingerprint = cache.CurrentFingerprint();
+  if (overlay.mode == RoomOverlayMode::kOff || !cache.Current() || !fingerprint) {
+    overlay = {.mode = overlay.mode, .drawn = std::move(overlay.drawn)};
     return;
   }
   const RoomGraph& graph = cache.Current()->get();
-  const std::optional<RoomIndex> room = RoomNear(graph, *cell);
-  if (overlay.shown_fingerprint == cache.CurrentFingerprint() && overlay.shown_room == room) {
+  const auto cell = PlayerCell(players, local);
+  const std::optional<RoomIndex> room = cell ? RoomNear(graph, *cell) : std::nullopt;
+  RoomOverlayShown wanted {
+      .mode = overlay.mode,
+      .fingerprint = *fingerprint,
+      .player_room = room,
+      .seen_rooms = DrawnRooms(overlay, *fingerprint),
+  };
+  if (overlay.shown == wanted) {
     return;
   }
-  Describe(graph, room, overlay);
-  overlay.shown_fingerprint = cache.CurrentFingerprint();
-  overlay.shown_room = room;
+  overlay.boxes = Boxes(graph, wanted, box_cache);
+  overlay.label = Label(graph, cell, room);
+  overlay.shown = std::move(wanted);
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<RoomOverlay>(world);
+  z13::flecs_tools::RegisterComponents<RoomOverlay, RoomBoxCache>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   world.set(RoomOverlay {});
+  world.set(RoomBoxCache {});
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
-  world.system<RoomOverlay, const RoomCache, const z13::gameplay::LocalPlayer>("RoomOverlaySystem::Update")
+  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer>("RoomOverlaySystem::Update")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
-      .each([players](flecs::iter&, size_t, RoomOverlay& overlay, const RoomCache& cache,
-                      const z13::gameplay::LocalPlayer& local) { UpdateOverlay(overlay, cache, local, players); });
+      .each([players](flecs::iter&, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
+                      const z13::gameplay::LocalPlayer& local) {
+        UpdateOverlay(overlay, box_cache, cache, local, players);
+      });
 }
 
 }  // namespace
