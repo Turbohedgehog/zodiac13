@@ -42,7 +42,8 @@ class SdlPlatform {
   SdlPlatform(const SdlPlatform&) = delete;
   SdlPlatform& operator=(const SdlPlatform&) = delete;
 
-  // SDL_Init + window + GL 3.3 core context + rlglInit. false on failure.
+  // SDL_Init + window + GL 3.3 core context + rlglInit. false on failure. The window is
+  // width x height scaled for the display, so Size() can differ.
   bool Init(int width, int height, std::string_view title);
   void Shutdown();
   bool IsReady() const;
@@ -60,7 +61,10 @@ class SdlPlatform {
   // rlDrawRenderBatchActive + baseline GL state + SDL_GL_SwapWindow.
   void EndFrame();
 
+  // In pixels, which is what the viewport needs.
   Eigen::Vector2i Size() const;
+  // The display scale of the monitor the window is on (1 at 96 DPI), for sizing the interface.
+  float DisplayScale() const;
 
   // Relative-mouse (FPS look) toggle + this-frame accumulated delta.
   void SetRelativeMouse(bool enabled);

@@ -17,6 +17,7 @@
 #include "gui_system.h"
 
 #include <chrono>
+#include <optional>
 #include <string_view>
 
 #include <flecs.h>
@@ -60,6 +61,8 @@ constexpr std::string_view kGlslVersion = "#version 330";
 struct GuiState {
   using Singleton = void;
   bool imgui_ready {};
+  // The display scale the style was last sized for.
+  std::optional<float> display_scale;
 };
 
 void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
@@ -95,11 +98,26 @@ void InitImGui(const SdlPlatform& platform, GuiState& state) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGui::GetIO().IniFilename = nullptr;
-  ImGui::StyleColorsDark();
   ImGui_ImplSDL3_InitForOpenGL(platform.Window(), platform.GlContext());
   ImGui_ImplOpenGL3_Init(kGlslVersion.data());
   state.imgui_ready = true;
   log_info("[gui] Dear ImGui {} initialised (SDL3 + OpenGL3)", IMGUI_VERSION);
+}
+
+// ImGui scales neither by itself: the style's sizes and the font follow the monitor the
+// window is on, rebuilt from the default style when the window moves to another scale.
+void ApplyDisplayScale(const SdlPlatform& platform, GuiState& state) {
+  const float scale = platform.DisplayScale();
+  if (state.display_scale == scale) {
+    return;
+  }
+  ImGuiStyle style;
+  ImGui::StyleColorsDark(&style);
+  style.ScaleAllSizes(scale);
+  style.FontScaleDpi = scale;
+  ImGui::GetStyle() = style;
+  state.display_scale = scale;
+  log_info("[gui] display scale {}", scale);
 }
 
 void ForwardImGuiEvents(const SdlPlatform& platform) {
@@ -146,11 +164,12 @@ void RegisterSystems(flecs::world world) {
         }
       });
 
-  world.system<const RaylibData, const GuiState>("GuiSystem::BeginFrame")
+  world.system<const RaylibData, const SdlPlatformData, GuiState>("GuiSystem::BeginFrame")
       .kind<PreRender>()
       .tick_source<RenderGate>()
-      .each([](const RaylibData&, const GuiState& state) {
+      .each([](const RaylibData&, const SdlPlatformData& platform_data, GuiState& state) {
         if (state.imgui_ready) {
+          ApplyDisplayScale(*platform_data.platform, state);
           BeginImGuiFrame();
         }
       });
@@ -231,7 +250,7 @@ void GuiSystem::ShutdownImGui(flecs::world world) {
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplSDL3_Shutdown();
   ImGui::DestroyContext();
-  state.imgui_ready = false;
+  state = {};
 }
 
 }  // namespace z13::raylib

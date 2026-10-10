@@ -13,6 +13,7 @@ find_package(assimp CONFIG REQUIRED)
 
 set(
   PROJECT_SOURCE_FILES
+  src/gui/game_scenes.cpp
   src/gui/gui_keybindings.cpp
   src/gui/gui_system.cpp
   src/gui/gui_windows.cpp
@@ -23,8 +24,8 @@ set(
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp
   src/gui/room_label.cpp
+  src/gui/start_game_window.cpp
   src/gui/start_server_window.cpp
-  src/gui/station_window.cpp
   src/gui/stats_overlay.cpp
   src/platform/sdl_platform.cpp
   src/raylib_module.cpp

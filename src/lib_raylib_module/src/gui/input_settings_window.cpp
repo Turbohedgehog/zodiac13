@@ -48,10 +48,10 @@ void InputSettingsWindow::DrawBody() {
   }
 
   ImGui::Separator();
-  if (ImGui::Button("Keyboard bindings...", kButtonSize)) {
+  if (ImGui::Button("Keyboard bindings...", ButtonSize())) {
     RequestPush(MakeKeyBindings(World()));
   }
-  if (ImGui::Button("Back", kButtonSize)) {
+  if (ImGui::Button("Back", ButtonSize())) {
     SaveIfDirty();
     RequestPop();
   }

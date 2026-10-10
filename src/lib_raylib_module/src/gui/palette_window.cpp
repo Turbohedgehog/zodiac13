@@ -49,7 +49,7 @@ void PaletteWindow::DrawBody() {
   for (size_t slot = 0; slot < std::min(primitives.size(), z13::station::kPaletteWindowSlots); ++slot) {
     const auto& primitive = primitives[slot];
     const std::string label = slot < kNumberedSlots ? std::format("{}  {}", slot + 1, primitive.name) : primitive.name;
-    if (ImGui::Button(label.c_str(), kButtonSize)) {
+    if (ImGui::Button(label.c_str(), ButtonSize())) {
       World().set(z13::station::PaletteChoice {.slot = slot});
     }
   }

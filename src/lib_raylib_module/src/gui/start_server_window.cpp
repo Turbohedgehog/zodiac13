@@ -16,9 +16,8 @@
 
 #include "start_server_window.h"
 
-#include <filesystem>
 #include <memory>
-#include <string_view>
+#include <string>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -27,32 +26,20 @@
 #include <lib_core/utils/endpoint.h>
 
 #include <z13/components/net.h>
-#include <z13/components/station.h>
-#include <primitives/station_assets.h>
 
-#include "../tools/asset_path.h"
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
 
-namespace {
-
-constexpr std::string_view kEmptyScene = "(new station)";
-
-}  // namespace
-
 StartServerWindow::StartServerWindow(flecs::world world)
     : Window(world, "Start Server"),
       port_(std::to_string(z13::kDefaultServerPort)),
-      station_scenes_(z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}))) {}
+      scenes_(GameScenes()) {}
 
 void StartServerWindow::DrawBody() {
-  ImGui::SetNextItemWidth(kAddressFieldWidth);
+  ImGui::SetNextItemWidth(AddressFieldWidth());
   ImGui::InputText("Port", &port_, ImGuiInputTextFlags_CharsDecimal);
-  ImGui::Checkbox("Station", &station_);
-  if (station_) {
-    DrawSceneCombo();
-  }
+  DrawSceneCombo();
 
   const auto& status = World().get<z13::net::ConnectionStatus>();
   const auto port = z13::ParsePort(port_);
@@ -63,34 +50,28 @@ void StartServerWindow::DrawBody() {
   }
 
   ImGui::BeginDisabled(!port);
-  if (ImGui::Button("Start", kButtonSize)) {
-    if (station_) {
-      World().add<z13::station::StationMode>();
-      World().set(z13::station::StationSceneChoice {
-          .scene = scene_ ? std::optional<std::string>(station_scenes_[*scene_]) : std::nullopt});
-    } else {
-      World().remove<z13::station::StationMode>();
-    }
+  if (ImGui::Button("Start", ButtonSize())) {
+    SelectScene(World(), scenes_[scene_]);
     World().entity().set<z13::net::StartServerRequest>({.port = *port});
     submitted_ = true;
   }
   ImGui::EndDisabled();
-  if (ImGui::Button("Back", kButtonSize)) {
+  if (ImGui::Button("Back", ButtonSize())) {
     RequestPop();
   }
 }
 
 void StartServerWindow::DrawSceneCombo() {
-  if (!ImGui::BeginCombo("Scene", scene_ ? station_scenes_[*scene_].c_str() : kEmptyScene.data())) {
+  ImGui::SetNextItemWidth(AddressFieldWidth());
+  if (!ImGui::BeginCombo("Scene", scenes_[scene_].label.c_str())) {
     return;
   }
-  if (ImGui::Selectable(kEmptyScene.data(), !scene_)) {
-    scene_ = std::nullopt;
-  }
-  for (size_t i = 0; i < station_scenes_.size(); ++i) {
-    if (ImGui::Selectable(station_scenes_[i].c_str(), scene_ == i)) {
+  for (size_t i = 0; i < scenes_.size(); ++i) {
+    ImGui::PushID(static_cast<int>(i));
+    if (ImGui::Selectable(scenes_[i].label.c_str(), scene_ == i)) {
       scene_ = i;
     }
+    ImGui::PopID();
   }
   ImGui::EndCombo();
 }

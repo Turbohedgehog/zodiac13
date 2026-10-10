@@ -113,7 +113,7 @@ void CreateDefaults(flecs::world world) {
     return;
   }
   world.set(RaylibData{.initialized = true});
-  world.set(WindowSize{.size = kWindowSize});
+  world.set(WindowSize{.size = platform->Size()});
 }
 
 void Shutdown(flecs::entity e, RaylibWindowClosed, RaylibData&, SdlPlatformData& platform_data) {

@@ -49,9 +49,9 @@ JoinWindow::StackRequest JoinWindow::OnBack() {
 void JoinWindow::DrawBody() {
   const bool connecting = IsConnecting();
   ImGui::BeginDisabled(connecting);
-  ImGui::SetNextItemWidth(kAddressFieldWidth);
+  ImGui::SetNextItemWidth(AddressFieldWidth());
   ImGui::InputText("Host", &host_);
-  ImGui::SetNextItemWidth(kAddressFieldWidth);
+  ImGui::SetNextItemWidth(AddressFieldWidth());
   ImGui::InputText("Port", &port_, ImGuiInputTextFlags_CharsDecimal);
   ImGui::EndDisabled();
 
@@ -66,12 +66,12 @@ void JoinWindow::DrawBody() {
   }
 
   ImGui::BeginDisabled(connecting || !endpoint);
-  if (ImGui::Button("Connect", kButtonSize)) {
+  if (ImGui::Button("Connect", ButtonSize())) {
     World().entity().set<z13::net::JoinRequest>({.endpoint = *endpoint});
     submitted_ = true;
   }
   ImGui::EndDisabled();
-  if (ImGui::Button(connecting ? "Cancel" : "Back", kButtonSize)) {
+  if (ImGui::Button(connecting ? "Cancel" : "Back", ButtonSize())) {
     CancelIfConnecting();
     RequestPop();
   }

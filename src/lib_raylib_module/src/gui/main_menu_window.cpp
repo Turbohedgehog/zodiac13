@@ -20,17 +20,15 @@
 
 #include <imgui.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/net.h>
-#include <z13/components/station.h>
 
 #include <raylib_module/raylib_components.h>
 
 #include "gui_widgets.h"
 #include "input_settings_window.h"
 #include "join_window.h"
+#include "start_game_window.h"
 #include "start_server_window.h"
-#include "station_window.h"
 
 namespace z13::raylib::gui {
 
@@ -44,7 +42,7 @@ void MainMenuWindow::DrawBody() {
   const auto& status = World().get<z13::net::ConnectionStatus>();
   if (status.state == z13::net::ConnectionState::kConnecting) {  // --connect
     ImGui::TextUnformatted("Connecting...");
-    if (ImGui::Button("Cancel", kButtonSize)) {
+    if (ImGui::Button("Cancel", ButtonSize())) {
       World().entity().add<z13::net::LeaveRequest>();
     }
     return;
@@ -55,31 +53,21 @@ void MainMenuWindow::DrawBody() {
     DrawError(status.reason);
   }
 
-  if (ImGui::Button("Start Game", kButtonSize)) {
-    StartShip();
+  if (ImGui::Button("Start Game...", ButtonSize())) {
+    RequestPush(MakeStartGameWindow(World()));
   }
-  if (ImGui::Button("Station...", kButtonSize)) {
-    RequestPush(MakeStationWindow(World()));
-  }
-  if (ImGui::Button("Start Server...", kButtonSize)) {
+  if (ImGui::Button("Start Server...", ButtonSize())) {
     RequestPush(MakeStartServerWindow(World()));
   }
-  if (ImGui::Button("Join...", kButtonSize)) {
+  if (ImGui::Button("Join...", ButtonSize())) {
     RequestPush(MakeJoinWindow(World()));
   }
-  if (ImGui::Button("Settings...", kButtonSize)) {
+  if (ImGui::Button("Settings...", ButtonSize())) {
     RequestPush(MakeInputSettings(World()));
   }
-  if (ImGui::Button("Exit", kButtonSize)) {
+  if (ImGui::Button("Exit", ButtonSize())) {
     World().add<RaylibWindowClosed>();
   }
-}
-
-void MainMenuWindow::StartShip() {
-  World().set<z13::net::ConnectionStatus>({});
-  World().remove<z13::station::StationMode>();
-  World().add<z13::gameplay::Gameplay>();
-  RequestCloseMenu();
 }
 
 WindowPtr MakeMainMenu(flecs::world world) {

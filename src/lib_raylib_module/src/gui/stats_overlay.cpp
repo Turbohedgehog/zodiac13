@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "gui_widgets.h"
 #include "render/render_stats.h"
 
 namespace z13::raylib::gui {
@@ -26,7 +27,7 @@ namespace {
 
 // Long enough for steady figures, short enough to follow a change.
 constexpr std::chrono::milliseconds kAveragingWindow {500};
-constexpr float kMargin = 10.f;
+constexpr float kMarginEm = 0.75f;
 constexpr float kBackgroundAlpha = 0.5f;
 constexpr ImGuiWindowFlags kOverlayFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                                            ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
@@ -61,7 +62,8 @@ void StatsOverlay::CountFrame(Clock::time_point now) {
 }
 
 void StatsOverlay::Draw(const RenderStats* render) const {
-  ImGui::SetNextWindowPos({kMargin, kMargin});
+  const float margin = Em(kMarginEm);
+  ImGui::SetNextWindowPos({margin, margin});
   ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
   if (ImGui::Begin("##stats", nullptr, kOverlayFlags)) {
     ImGui::Text("%.0f fps, %.1f ms, worst %.1f ms", fps_, average_ms_, worst_ms_);
