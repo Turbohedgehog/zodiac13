@@ -58,6 +58,7 @@ set(
   src/utils/flecs_utils.cpp
   src/utils/frustum.cpp
   src/utils/pose_smoothing.cpp
+  src/utils/system_times.cpp
   src/world/core.cpp
   src/world/lifecycle.cpp
   src/world/module_lib_holder.cpp

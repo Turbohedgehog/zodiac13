@@ -20,14 +20,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include <lib_core/utils/system_times.h>
 #include <rooms/room_graph.h>
 #include <rooms/tour_viewpoints.h>
 
 #include "render_stats.h"
+#include "view_culling.h"
 
 namespace z13::raylib {
 
@@ -44,7 +47,16 @@ struct TourTally {
   double total_ms {};
   double worst_ms {};
   double culling_us {};
+  DrawTimes times {};
   RenderStats last;
+};
+
+// What the tour reads from the world each frame.
+struct TourFrame {
+  std::reference_wrapper<const RenderStats> stats;
+  ViewCulling::OptionalGraph rooms;
+  int chunk_cells {};
+  z13::SystemSampler sample_systems;
 };
 
 // The --render-tour measurement: moves the camera from stop to stop, measures the frames
@@ -65,8 +77,8 @@ class RenderTour {
   size_t StopIndex() const { return stop_; }
 
   // Records the frame that ended at `now`, drawn with `stats`, and moves to the next stop
-  // once this one is measured.
-  void Step(Clock::time_point now, const RenderStats& stats);
+  // once this one is measured. `sample_systems` is called around the measured frames only.
+  void Step(Clock::time_point now, const RenderStats& stats, const z13::SystemSampler& sample_systems);
 
   // Nothing once every stop is measured.
   std::optional<TourStop> Current() const;
@@ -74,6 +86,9 @@ class RenderTour {
 
   const std::filesystem::path& Output() const { return output_; }
   std::string Csv() const;
+  // Each system's time per frame at each stop, next to Output().
+  std::filesystem::path SystemsOutput() const;
+  std::string SystemsCsv() const;
 
  private:
   std::filesystem::path output_;
@@ -85,7 +100,9 @@ class RenderTour {
   int frame_ {};
   std::optional<Clock::time_point> last_frame_;
   TourTally tally_;
+  std::vector<z13::SystemTime> systems_before_;
   std::vector<std::string> rows_;
+  std::vector<std::string> system_rows_;
 };
 
 }  // namespace z13::raylib

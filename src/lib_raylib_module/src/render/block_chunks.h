@@ -52,7 +52,9 @@ class BlockChunks {
   // Counts the chunks and meshes drawn in `stats`.
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
 
-  const std::vector<z13::station::Block>& Transparent() const;
+  // The transparent blocks in view, for drawing one by one in order.
+  std::vector<z13::station::Block> VisibleTransparent(const ViewCulling& culling) const;
+  size_t TransparentCount() const;
 
  private:
   class State;

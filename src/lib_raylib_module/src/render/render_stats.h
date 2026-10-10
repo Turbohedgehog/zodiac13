@@ -21,6 +21,34 @@
 
 namespace z13::raylib {
 
+// CPU time of each part of the scene's drawing, in ms; a wait for the GPU lands in the part
+// that waited.
+struct DrawTimes {
+  // The skybox, the spaceship model and the lighting uniforms.
+  double background_ms {};
+  double players_ms {};
+  double opaque_ms {};
+  double glass_ms {};
+  double previews_ms {};
+  // The checker shader's reset and the F4 room overlay.
+  double overlay_ms {};
+  // Unloading the block meshes nothing drew.
+  double release_ms {};
+  double flush_ms {};
+
+  DrawTimes& operator+=(const DrawTimes& other) {
+    background_ms += other.background_ms;
+    players_ms += other.players_ms;
+    opaque_ms += other.opaque_ms;
+    glass_ms += other.glass_ms;
+    previews_ms += other.previews_ms;
+    overlay_ms += other.overlay_ms;
+    release_ms += other.release_ms;
+    flush_ms += other.flush_ms;
+    return *this;
+  }
+};
+
 // What the last frame drew, for the stats overlay; never state.
 struct RenderStats {
   using Singleton = void;
@@ -33,6 +61,7 @@ struct RenderStats {
   std::optional<size_t> rooms_seen;
   // Walking the portals and narrowing the frustum.
   double culling_us {};
+  DrawTimes times {};
 };
 
 }  // namespace z13::raylib
