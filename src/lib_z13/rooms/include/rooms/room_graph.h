@@ -25,6 +25,7 @@
 
 #include <primitives/placement.h>
 #include <rooms/column_map.h>
+#include <rooms/portal_source.h>
 
 namespace z13::station::rooms {
 
@@ -45,6 +46,9 @@ struct Portal {
   bool visible {};
   bool passable {};
   z13::building::primitives::CellBox opening;
+  // The axis the opening is crossed along, and which of a and b lies on its low side.
+  Axis axis {};
+  RoomIndex low_side {};
 
   bool operator==(const Portal&) const = default;
 };

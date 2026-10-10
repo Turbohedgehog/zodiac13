@@ -65,8 +65,8 @@ PortalSource Window(int wall_x, const Eigen::Vector3i& at, const Eigen::Vector3i
           .passable = false};
 }
 
-RoomGraph Build(const std::vector<PortalSource>& portals) {
-  auto graph = BuildRooms({.sealed = Hall(), .portals = portals});
+RoomGraph Build(const std::vector<PortalSource>& portals, std::vector<CellBox> sealed = Hall()) {
+  auto graph = BuildRooms({.sealed = std::move(sealed), .portals = portals});
   EXPECT_TRUE(graph.has_value());
   return graph.value_or(RoomGraph {});
 }
@@ -92,12 +92,15 @@ Eigen::Matrix4f ViewProjection(const Eigen::Vector3f& eye, const Eigen::Vector3f
   return projection * view;
 }
 
-ScreenRegions SeenFrom(const RoomGraph& graph, const Eigen::Vector3f& eye, const Eigen::Vector3f& forward) {
+ScreenRegions SeenFrom(const RoomGraph& graph, const Eigen::Vector3f& eye, const Eigen::Vector3f& forward,
+                       const Eigen::Vector2f& min_extent = Eigen::Vector2f::Zero()) {
   const auto room = graph.RoomAt(eye.array().floor().cast<int>());
   EXPECT_TRUE(room.has_value());
   return VisibleRooms(graph, {.eye_room = room.value_or(kVacuumRoom),
+                              .eye = eye,
                               .view_projection = ViewProjection(eye, forward),
-                              .screen = z13::math::Frustum::FullScreen()});
+                              .screen = z13::math::Frustum::FullScreen(),
+                              .min_extent = min_extent});
 }
 
 bool Seen(const RoomGraph& graph, const ScreenRegions& seen, const Eigen::Vector3i& cell) {
@@ -151,13 +154,55 @@ TEST(RoomVisibilityTest, AWindowBesideTheEyeAndPartlyBehindItShowsNothing) {
 
 TEST(RoomVisibilityTest, AnEyeInTheOpeningSeesThroughAllOfIt) {
   const RoomGraph graph = Build({Window(kFirstWall, kInLine, {1, 1, 1})});
+  const Eigen::Vector3f in_the_opening(8.5f, 5.5f, 4.5f);
   const ScreenRegions seen =
       VisibleRooms(graph, {.eye_room = *graph.RoomAt(kEyeInA.cast<int>()),
-                           .view_projection = ViewProjection({8.5f, 5.5f, 4.5f}, Eigen::Vector3f::UnitX()),
+                           .eye = in_the_opening,
+                           .view_projection = ViewProjection(in_the_opening, Eigen::Vector3f::UnitX()),
                            .screen = z13::math::Frustum::FullScreen()});
 
   ASSERT_TRUE(Seen(graph, seen, kCellInB));
   EXPECT_TRUE(seen[*graph.RoomAt(kCellInB)]->isApprox(z13::math::Frustum::FullScreen()));
+}
+
+TEST(RoomVisibilityTest, AWindowTooSmallOnScreenShowsNothing) {
+  // The one-cell window five cells away spans about 0.2 of the screen's 2.
+  const Eigen::Vector2f wide_enough = Eigen::Vector2f::Constant(0.1f);
+  const Eigen::Vector2f too_wide = Eigen::Vector2f::Constant(0.5f);
+  const RoomGraph graph = Build({Window(kFirstWall, kInLine, {1, 1, 1})});
+
+  EXPECT_TRUE(Seen(graph, SeenFrom(graph, kEyeInA, Eigen::Vector3f::UnitX(), wide_enough), kCellInB));
+  EXPECT_FALSE(Seen(graph, SeenFrom(graph, kEyeInA, Eigen::Vector3f::UnitX(), too_wide), kCellInB));
+}
+
+// Room D stands in space beyond the hall's x = 0 wall, x [-13, -2).
+std::vector<CellBox> HallAndRoomD() {
+  constexpr int kDLow = -13;
+  const Eigen::Vector3i outer(11, kSide + 2, kHeight + 2);
+  std::vector<CellBox> sealed = Hall();
+  const std::vector<CellBox> d {
+      {.min = {kDLow, 0, 0}, .extent = {outer.x(), outer.y(), 1}},
+      {.min = {kDLow, 0, outer.z() - 1}, .extent = {outer.x(), outer.y(), 1}},
+      {.min = {kDLow, 0, 1}, .extent = {1, outer.y(), kHeight}},
+      {.min = {kDLow + outer.x() - 1, 0, 1}, .extent = {1, outer.y(), kHeight}},
+      {.min = {kDLow + 1, 0, 1}, .extent = {outer.x() - 2, 1, kHeight}},
+      {.min = {kDLow + 1, outer.y() - 1, 1}, .extent = {outer.x() - 2, 1, kHeight}},
+  };
+  sealed.insert(sealed.end(), d.begin(), d.end());
+  return sealed;
+}
+
+// From A, through its window in the x = 0 wall, the eye looks across space at D's back.
+TEST(RoomVisibilityTest, AWindowSeenFromBehindShowsNothing) {
+  const Eigen::Vector3i cell_in_d(-8, 5, 3);
+  const RoomGraph facing_away = Build({Window(0, kInLine, {1, 1, 1}), Window(-13, kInLine, {1, 1, 1})}, HallAndRoomD());
+  const RoomGraph facing_the_eye =
+      Build({Window(0, kInLine, {1, 1, 1}), Window(-3, kInLine, {1, 1, 1})}, HallAndRoomD());
+
+  const ScreenRegions away = SeenFrom(facing_away, kEyeInA, -Eigen::Vector3f::UnitX());
+  EXPECT_TRUE(away[kVacuumRoom].has_value());
+  EXPECT_FALSE(Seen(facing_away, away, cell_in_d));
+  EXPECT_TRUE(Seen(facing_the_eye, SeenFrom(facing_the_eye, kEyeInA, -Eigen::Vector3f::UnitX()), cell_in_d));
 }
 
 }  // namespace

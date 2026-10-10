@@ -18,9 +18,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
+
+#include <rooms/column_map.h>
 
 namespace z13::station::rooms {
 
@@ -53,6 +56,14 @@ struct RoomExtent {
   int low_z {};
   int high_z {};
   int64_t volume {};
+};
+
+// The cells of one opening's face between a pair of rooms.
+struct OpeningShare {
+  // Lower index first.
+  std::pair<RoomIndex, RoomIndex> rooms;
+  int area_cells {};
+  RoomIndex low_side {};
 };
 
 }  // namespace z13::station::rooms

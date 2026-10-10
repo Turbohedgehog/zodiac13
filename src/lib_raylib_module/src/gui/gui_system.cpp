@@ -41,6 +41,7 @@
 
 #include <raylib_module/raylib_components.h>
 
+#include "gui_widgets.h"
 #include "gui_windows.h"
 #include "main_menu_window.h"
 #include "palette_window.h"
@@ -201,15 +202,16 @@ void RegisterSystems(flecs::world world) {
         if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {
           stats.Toggle();
         }
+        float overlay_top = gui::FirstOverlayTop();
         if (stats.Visible()) {
-          stats.Draw(render);
+          overlay_top = stats.Draw(render, overlay_top);
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {
             rooms->mode = z13::NextEnumerator(rooms->mode);
           }
           if (rooms->mode != z13::station::RoomOverlayMode::kOff) {
-            gui::DrawRoomLabel(rooms->label);
+            gui::DrawRoomLabel(rooms->label, overlay_top);
           }
         }
         EndImGuiFrame();

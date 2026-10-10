@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <cstddef>
 #include <span>
-#include <vector>
 
 #include <Eigen/Dense>
 
@@ -27,18 +25,16 @@
 
 namespace z13::building::primitives {
 
-// Indices into the blocks drawn: the opaque ones first, in any order, then the transparent
-// ones from the farthest to the nearest, so each blends over what lies behind it.
-struct DrawOrder {
-  std::vector<size_t> opaque;
-  std::vector<size_t> transparent;
-};
-
 // A block whose type the palette lacks is opaque.
 bool IsTransparent(const z13::station::Block& block, OptionalPalette palette);
 
-// `eye` in cells.
-DrawOrder SortForDrawing(
-    std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye);
+struct ChunkBounds {
+  Eigen::Vector3i key = Eigen::Vector3i::Zero();
+  Eigen::AlignedBox3f bounds;
+};
+
+// Farthest centre first, so glass blends over what lies behind it; ties by key, whatever the
+// input order. `eye` in the bounds' units.
+void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye);
 
 }  // namespace z13::building::primitives

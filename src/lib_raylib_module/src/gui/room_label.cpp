@@ -22,21 +22,9 @@
 
 namespace z13::raylib::gui {
 
-namespace {
-
-// Below the stats overlay, in font heights (gui_widgets.h).
-constexpr ImVec2 kPositionEm {0.75f, 6.f};
-constexpr float kBackgroundAlpha = 0.5f;
-constexpr ImGuiWindowFlags kLabelFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-                                         ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
-                                         ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings;
-
-}  // namespace
-
-void DrawRoomLabel(const std::string& label) {
-  ImGui::SetNextWindowPos({Em(kPositionEm.x), Em(kPositionEm.y)});
-  ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
-  if (ImGui::Begin("##room_label", nullptr, kLabelFlags)) {
+void DrawRoomLabel(const std::string& label, float top) {
+  PlaceOverlay(top);
+  if (ImGui::Begin("##room_label", nullptr, kOverlayFlags)) {
     ImGui::TextUnformatted(label.empty() ? "No room" : label.c_str());
   }
   ImGui::End();

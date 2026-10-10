@@ -52,6 +52,7 @@ set(
   src/state/world_state_requests.cpp
   src/time/simulation_clock.cpp
   src/time/tick_pacer.cpp
+  src/utils/camera_pose.cpp
   src/utils/drawn_poses.cpp
   src/utils/endpoint.cpp
   src/utils/file_io.cpp
@@ -102,14 +103,14 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   Boost::dll
-  Eigen3::Eigen
 )
 
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
-  # config.h holds program_options members, so its users link it too.
+  # config.h holds program_options members and CameraPose, so its users link them too.
   Boost::program_options
+  Eigen3::Eigen
   flatbuffers::flatbuffers
   flecs::flecs_static
   spdlog::spdlog

@@ -27,6 +27,7 @@
 
 #include <lib_core/settings/core_settings.h>
 #include <lib_core/settings/schema_attributes.h>
+#include <lib_core/utils/camera_pose.h>
 #include <lib_core/utils/endpoint.h>
 #include <lib_core/utils/status.h>
 
@@ -69,6 +70,9 @@ class Config {
   // --render-tour PATH: measure the frame time along a camera tour of the station, write it
   // to PATH and quit; needs --station-scene. std::nullopt when not given.
   std::optional<std::filesystem::path> GetRenderTourPath() const;
+  // --render-tour-view x,y,z,yaw,pitch, repeatable: the poses --render-tour measures instead
+  // of its own points; empty when not given.
+  const std::vector<CameraPose>& GetRenderTourViews() const;
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
@@ -94,6 +98,7 @@ class Config {
     bool station {false};
     std::optional<std::string> station_scene;
     std::optional<std::filesystem::path> render_tour;
+    std::vector<CameraPose> render_tour_views;
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
   };

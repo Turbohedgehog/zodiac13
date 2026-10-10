@@ -19,10 +19,13 @@
 #include <algorithm>
 #include <array>
 #include <format>
+#include <iterator>
 #include <numeric>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include <z13/components/station.h>
 
 namespace z13::raylib {
 
@@ -38,7 +41,7 @@ constexpr std::array kCullRooms {true, false};
 
 constexpr std::string_view kCsvHeader =
     "viewpoint,room,room_cells,eye_x,eye_y,eye_z,target_x,target_y,target_z,culling,chunk_cells,frames,"
-    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_drawn,glass,rooms_seen,"
+    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_chunks_drawn,glass_chunks,rooms_seen,"
     "background_ms,players_ms,opaque_ms,glass_ms,previews_ms,overlay_ms,release_ms,flush_ms\n";
 constexpr std::string_view kSystemsCsvHeader = "viewpoint,culling,chunk_cells,system,ms_per_frame\n";
 constexpr std::string_view kSystemsFileSuffix = "_systems";
@@ -61,9 +64,18 @@ std::string CsvField(std::string_view text) {
   return quoted + '"';
 }
 
+// A pose inside a block is filed under the vacuum.
+z13::station::rooms::Viewpoint InCells(const z13::CameraPose& pose, const z13::station::rooms::RoomGraph& graph) {
+  const Eigen::Vector3f eye = pose.eye / z13::station::kCellSize;
+  return {.room = graph.RoomAt(eye.array().floor().cast<int>()).value_or(z13::station::rooms::kVacuumRoom),
+          .eye = eye,
+          .target = eye + z13::Forward(pose)};
+}
+
 }  // namespace
 
-RenderTour::RenderTour(std::filesystem::path output) : output_(std::move(output)) {
+RenderTour::RenderTour(std::filesystem::path output, std::vector<z13::CameraPose> views)
+    : output_(std::move(output)), views_(std::move(views)) {
 }
 
 bool RenderTour::ReadyToStart() {
@@ -72,7 +84,14 @@ bool RenderTour::ReadyToStart() {
 
 void RenderTour::Start(const z13::station::rooms::RoomGraph& graph, int chunk_cells) {
   chunk_cells_ = chunk_cells;
-  for (const z13::station::rooms::Viewpoint& view : z13::station::rooms::TourViewpoints(graph, kTourRooms)) {
+  std::vector<z13::station::rooms::Viewpoint> viewpoints;
+  if (views_.empty()) {
+    viewpoints = z13::station::rooms::TourViewpoints(graph, kTourRooms);
+  } else {
+    std::ranges::transform(views_, std::back_inserter(viewpoints),
+                           [&graph](const z13::CameraPose& pose) { return InCells(pose, graph); });
+  }
+  for (const z13::station::rooms::Viewpoint& view : viewpoints) {
     for (const bool cull_rooms : kCullRooms) {
       stops_.push_back({.view = view, .room_cells = graph.rooms[view.room].volume_cells, .cull_rooms = cull_rooms});
     }
@@ -120,7 +139,7 @@ void RenderTour::Step(Clock::time_point now, const RenderStats& stats, const z13
       stop_ / kCullRooms.size(), stop->view.room, stop->room_cells, eye.x(), eye.y(), eye.z(), target.x(), target.y(),
       target.z(), culling, chunk_cells_, tally_.frames,
       tally_.total_ms / frames, tally_.worst_ms, tally_.culling_us / frames, drawn.chunks_drawn, drawn.chunks,
-      drawn.meshes_drawn, drawn.glass_drawn, drawn.glass,
+      drawn.meshes_drawn, drawn.glass_chunks_drawn, drawn.glass_chunks,
       drawn.rooms_seen ? std::to_string(*drawn.rooms_seen) : std::string(), tally_.times.background_ms / frames,
       tally_.times.players_ms / frames, tally_.times.opaque_ms / frames, tally_.times.glass_ms / frames,
       tally_.times.previews_ms / frames, tally_.times.overlay_ms / frames, tally_.times.release_ms / frames,

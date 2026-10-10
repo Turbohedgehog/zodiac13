@@ -44,7 +44,8 @@ class StatsOverlay {
   // Called once per drawn frame, shown or not, so the first figures shown are current.
   void CountFrame(Clock::time_point now);
 
-  void Draw(const RenderStats* render) const;
+  // Returns where the next overlay starts.
+  float Draw(const RenderStats* render, float top) const;
 
  private:
   bool visible_ {};

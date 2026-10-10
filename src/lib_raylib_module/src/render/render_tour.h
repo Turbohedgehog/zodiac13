@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include <lib_core/utils/camera_pose.h>
 #include <lib_core/utils/system_times.h>
 #include <rooms/room_graph.h>
 #include <rooms/tour_viewpoints.h>
@@ -67,7 +68,8 @@ class RenderTour {
   using Clock = std::chrono::steady_clock;
 
   RenderTour() = default;
-  explicit RenderTour(std::filesystem::path output);
+  // Measures `views` if any, else the tour's own points (rooms/tour_viewpoints.h).
+  RenderTour(std::filesystem::path output, std::vector<z13::CameraPose> views);
 
   // Waits a few frames after the station's rooms exist, so its first draw isn't measured.
   bool ReadyToStart();
@@ -92,6 +94,7 @@ class RenderTour {
 
  private:
   std::filesystem::path output_;
+  std::vector<z13::CameraPose> views_;
   int chunk_cells_ {};
   int startup_frames_ {};
   bool started_ {};

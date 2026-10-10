@@ -21,6 +21,7 @@
 #include <span>
 #include <vector>
 
+#include <Eigen/Dense>
 #include <raylib.h>
 
 #include <z13/components/station.h>
@@ -32,9 +33,9 @@ struct Lighting;
 struct RenderStats;
 class ViewCulling;
 
-// Opaque blocks merged into one model per render chunk and material
-// (primitives/chunk_mesh.h); transparent ones are kept apart, to be drawn one by one
-// in order. Singleton exempt from the "no pointers" rule (see CLAUDE.md); never state.
+// Blocks merged into one model per render chunk and material (primitives/chunk_mesh.h),
+// opaque and transparent ones apart. Singleton exempt from the "no pointers" rule (see
+// CLAUDE.md); never state.
 class BlockChunks {
  public:
   using Singleton = void;
@@ -52,9 +53,10 @@ class BlockChunks {
   // Counts the chunks and meshes drawn in `stats`.
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
 
-  // The transparent blocks in view, for drawing one by one in order.
-  std::vector<z13::station::Block> VisibleTransparent(const ViewCulling& culling) const;
-  size_t TransparentCount() const;
+  // The glass in view from the farthest chunk, `eye` in meters; counts its chunks drawn in
+  // `stats`.
+  void DrawTransparent(
+      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const;
 
  private:
   class State;

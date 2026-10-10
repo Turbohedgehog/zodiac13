@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -59,6 +60,28 @@ void AddHeadings(RoomIndex room, const Eigen::Vector3f& eye, const Eigen::Vector
   }
 }
 
+// The largest window onto space of the room with the most window area onto space.
+std::optional<size_t> LargestSpaceWindow(const RoomGraph& graph) {
+  std::vector<int> area(graph.rooms.size());
+  std::vector<std::optional<size_t>> largest(graph.rooms.size());
+  for (size_t i = 0; i < graph.portals.size(); ++i) {
+    const Portal& portal = graph.portals[i];
+    // a < b, so the vacuum is always a.
+    if (!portal.visible || portal.a != kVacuumRoom) {
+      continue;
+    }
+    area[portal.b] += portal.area_cells;
+    if (!largest[portal.b] || graph.portals[*largest[portal.b]].area_cells < portal.area_cells) {
+      largest[portal.b] = i;
+    }
+  }
+  const auto windowiest = std::ranges::max_element(area);
+  if (windowiest == area.end() || *windowiest == 0) {
+    return std::nullopt;
+  }
+  return largest[static_cast<size_t>(std::distance(area.begin(), windowiest))];
+}
+
 }  // namespace
 
 std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
@@ -73,12 +96,26 @@ std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
     return graph.rooms[candidate.first].volume_cells;
   });
 
+  const auto window = LargestSpaceWindow(graph);
+  const std::optional<RoomIndex> window_room =
+      window ? std::optional(graph.portals[*window].b) : std::nullopt;
+  const auto toward = [&](RoomIndex room) {
+    return room == window_room ? CentreOf(graph.portals[*window].opening) : CentreOf(graph.rooms[room].bounds);
+  };
+
   std::vector<Viewpoint> viewpoints;
+  bool window_seen = false;
   const size_t picked = std::min(rooms, candidates.size());
   for (size_t i = 0; i < picked; ++i) {
     const size_t at = picked == 1 ? 0 : i * (candidates.size() - 1) / (picked - 1);
     const auto& [room, eye] = candidates[at];
-    AddHeadings(room, eye, CentreOf(graph.rooms[room].bounds), viewpoints);
+    AddHeadings(room, eye, toward(room), viewpoints);
+    window_seen = window_seen || room == window_room;
+  }
+  if (window_room && !window_seen) {
+    if (const auto eye = EyeIn(graph, *window_room)) {
+      AddHeadings(*window_room, *eye, toward(*window_room), viewpoints);
+    }
   }
   if (!graph.rooms.empty() && !graph.rooms[kVacuumRoom].bounds.extent.isZero()) {
     const CellBox& station = graph.rooms[kVacuumRoom].bounds;

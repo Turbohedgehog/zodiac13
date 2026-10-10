@@ -17,44 +17,26 @@
 #include <primitives/draw_order.h>
 
 #include <algorithm>
-#include <iterator>
-#include <utility>
 
 #include <primitives/palette.h>
-#include <primitives/placement.h>
 
 namespace z13::building::primitives {
-
-namespace {
-
-float SquaredDistance(const z13::station::Block& block, const Eigen::Vector3f& eye) {
-  const CellBox box = OccupiedCells(block);
-  const Eigen::Vector3f centre = box.min.cast<float>() + box.extent.cast<float>() / 2.f;
-  return (centre - eye).squaredNorm();
-}
-
-}  // namespace
 
 bool IsTransparent(const z13::station::Block& block, OptionalPalette palette) {
   const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
   return primitive && primitive->get().Has(PrimitiveFlags::Transparent);
 }
 
-DrawOrder SortForDrawing(
-    std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye) {
-  DrawOrder order;
-  std::vector<std::pair<float, size_t>> transparent;
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    if (IsTransparent(blocks[i], palette)) {
-      transparent.emplace_back(SquaredDistance(blocks[i], eye), i);
-    } else {
-      order.opaque.push_back(i);
+void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye) {
+  std::ranges::sort(chunks, [&eye](const ChunkBounds& a, const ChunkBounds& b) {
+    const float distance_a = (a.bounds.center() - eye).squaredNorm();
+    const float distance_b = (b.bounds.center() - eye).squaredNorm();
+    if (distance_a != distance_b) {
+      return distance_a > distance_b;
     }
-  }
-  std::ranges::sort(transparent, std::ranges::greater {});
-  order.transparent.reserve(transparent.size());
-  std::ranges::transform(transparent, std::back_inserter(order.transparent), &std::pair<float, size_t>::second);
-  return order;
+    return std::lexicographical_compare(a.key.data(), a.key.data() + a.key.size(), b.key.data(),
+                                        b.key.data() + b.key.size());
+  });
 }
 
 }  // namespace z13::building::primitives

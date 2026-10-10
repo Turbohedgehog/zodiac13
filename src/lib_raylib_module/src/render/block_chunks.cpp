@@ -35,12 +35,9 @@ void BlockChunks::DrawOpaque(const ViewCulling& culling, const Lighting& lightin
   state_->DrawOpaque(culling, lighting, stats);
 }
 
-std::vector<z13::station::Block> BlockChunks::VisibleTransparent(const ViewCulling& culling) const {
-  return state_->VisibleTransparent(culling);
-}
-
-size_t BlockChunks::TransparentCount() const {
-  return state_->TransparentCount();
+void BlockChunks::DrawTransparent(
+    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const {
+  state_->DrawTransparent(culling, eye, lighting, stats);
 }
 
 }  // namespace z13::raylib

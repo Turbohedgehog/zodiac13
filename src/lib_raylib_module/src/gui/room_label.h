@@ -20,6 +20,6 @@
 
 namespace z13::raylib::gui {
 
-void DrawRoomLabel(const std::string& label);
+void DrawRoomLabel(const std::string& label, float top);
 
 }  // namespace z13::raylib::gui

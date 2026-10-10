@@ -36,6 +36,14 @@ struct SeenRoom {
   z13::math::Frustum frustum;
 };
 
+struct CameraView {
+  Eigen::Matrix4f view_projection = Eigen::Matrix4f::Identity();
+  // In meters.
+  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
+  // A portal narrower than this on screen, in normalized device coordinates, hides its room.
+  Eigen::Vector2f min_portal_extent = Eigen::Vector2f::Zero();
+};
+
 // What the camera can see: its frustum and, in the station, the rooms seen through
 // portals (rooms/room_visibility.h).
 class ViewCulling {
@@ -43,7 +51,7 @@ class ViewCulling {
   using OptionalGraph = std::optional<std::reference_wrapper<const z13::station::rooms::RoomGraph>>;
 
   // Without a graph, or with the eye inside a block or in the vacuum, only the frustum culls.
-  ViewCulling(const Eigen::Matrix4f& view_projection, const Eigen::Vector3f& eye, OptionalGraph graph);
+  ViewCulling(const CameraView& view, OptionalGraph graph);
 
   bool Visible(const Eigen::AlignedBox3f& box) const;
 
