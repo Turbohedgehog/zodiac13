@@ -20,11 +20,13 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -42,6 +44,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/system_times.h>
 #include <lib_core/utils/drawn_poses.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
@@ -415,20 +418,6 @@ void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::R
   }
 }
 
-Eigen::AlignedBox3f BoundsInMeters(const z13::station::Block& block) {
-  const z13::building::primitives::CellBox cells = z13::building::primitives::OccupiedCells(block);
-  return {cells.min.cast<float>() * z13::station::kCellSize, cells.End().cast<float>() * z13::station::kCellSize};
-}
-
-std::vector<z13::station::Block> VisibleBlocks(
-    std::span<const z13::station::Block> blocks, const ViewCulling& culling) {
-  std::vector<z13::station::Block> visible;
-  std::ranges::copy_if(blocks, std::back_inserter(visible), [&culling](const z13::station::Block& block) {
-    return culling.Visible(BoundsInMeters(block));
-  });
-  return visible;
-}
-
 // The view-projection rlgl draws with, set by BeginScene3D.
 Eigen::Matrix4f CurrentViewProjection() {
   return RaylibToEigenMatrix(rlGetMatrixProjection()) * RaylibToEigenMatrix(rlGetMatrixModelview());
@@ -454,20 +443,26 @@ void PublishSeenRooms(const ViewCulling& culling, const z13::station::rooms::Roo
   }
 }
 
+void WriteTourFile(const std::filesystem::path& path, const std::string& csv) {
+  if (const auto written = z13::WriteFile(path, csv); !written) {
+    log_error("[raylib] render tour: {}", written.error());
+  } else {
+    log_info("[raylib] render tour written to '{}'", path.string());
+  }
+}
+
 // Places the camera at the tour's stop for this frame. Returns false once the tour is over,
 // after writing what it measured.
-bool StepRenderTour(RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
-                    const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+bool StepRenderTour(RaylibCamera& camera, RenderTour& tour, const TourFrame& frame) {
   if (!tour.Started()) {
-    const ViewCulling::OptionalGraph graph = CurrentRooms(rooms);
-    if (graph && tour.ReadyToStart()) {
-      tour.Start(*graph, tuning.chunk_cells);
+    if (frame.rooms && tour.ReadyToStart()) {
+      tour.Start(*frame.rooms, frame.chunk_cells);
       log_info("[raylib] render tour: {} stops", tour.StopCount());
     }
     return true;
   }
   const size_t before = tour.StopIndex();
-  tour.Step(RenderTour::Clock::now(), stats);
+  tour.Step(RenderTour::Clock::now(), frame.stats, frame.sample_systems);
   if (tour.StopIndex() != before) {
     log_info("[raylib] render tour: stop {} of {} measured", tour.StopIndex(), tour.StopCount());
   }
@@ -479,12 +474,42 @@ bool StepRenderTour(RaylibCamera& camera, RenderTour& tour, const RenderStats& s
     camera.camera.up = {0.f, 0.f, 1.f};
     return true;
   }
-  if (const auto written = z13::WriteFile(tour.Output(), tour.Csv()); !written) {
-    log_error("[raylib] render tour: {}", written.error());
-  } else {
-    log_info("[raylib] render tour written to '{}'", tour.Output().string());
-  }
+  WriteTourFile(tour.Output(), tour.Csv());
+  WriteTourFile(tour.SystemsOutput(), tour.SystemsCsv());
   return false;
+}
+
+template <typename Draw>
+double MsOf(Draw draw) {
+  const auto start = std::chrono::steady_clock::now();
+  draw();
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+void SetViewPosition(const flecs::world& world, const ::Vector3& eye) {
+  if (!world.has<Lighting>()) {
+    return;
+  }
+  const Lighting& lighting = world.get<Lighting>();
+  if (lighting.res) {
+    const std::array view_pos = {eye.x, eye.y, eye.z};
+    SetShaderValue(*lighting.res->shader, lighting.res->shader->locs[SHADER_LOC_VECTOR_VIEW], view_pos.data(),
+                   SHADER_UNIFORM_VEC3);
+  }
+}
+
+// The skybox and the spaceship model, drawn before the scene.
+void DrawBackground(const flecs::world& world) {
+  if (world.has<Skybox>()) {
+    if (const Skybox& skybox = world.get<Skybox>(); skybox.res) {
+      DrawSkybox(*skybox.res);
+    }
+  }
+  if (world.has<RenderModel>()) {
+    if (const RenderModel& render_model = world.get<RenderModel>(); render_model.res) {
+      DrawModel(*render_model.res->model, Vector3Zero(), 1.f, WHITE);
+    }
+  }
 }
 
 struct SceneView {
@@ -497,7 +522,7 @@ struct SceneView {
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
                const z13::DrawnPoses& drawn, const SceneView& view, RenderStats& stats) {
   stats = {};
-  DrawRemotePlayers(world, remote_players, drawn, view.culling);
+  stats.times.players_ms = MsOf([&] { DrawRemotePlayers(world, remote_players, drawn, view.culling); });
   if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
     return;
   }
@@ -505,26 +530,34 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   const SingleBlockDrawing drawing {
       .meshes = world.get_mut<BlockMeshes>(), .lighting = lighting, .palette = PaletteOf(world)};
   const BlockChunks& chunks = world.get<BlockChunks>();
-  chunks.DrawOpaque(view.culling, lighting, stats);
-
-  rlDrawRenderBatchActive();
-  rlDisableDepthMask();
-  const std::vector<z13::station::Block> glass = VisibleBlocks(chunks.Transparent(), view.culling);
-  stats.glass = chunks.Transparent().size();
-  stats.glass_drawn = glass.size();
-  const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
-      glass, drawing.palette, Eigen::Vector3f(view.eye.x, view.eye.y, view.eye.z) / z13::station::kCellSize);
-  for (const size_t i : order.transparent) {
-    DrawBlock(drawing, glass[i], WHITE);
-  }
-  brushes.each([&world, &drawing](flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
-    DrawBrushPreview(world, brush, transform, drawing);
+  stats.times.opaque_ms = MsOf([&] {
+    chunks.DrawOpaque(view.culling, lighting, stats);
+    rlDrawRenderBatchActive();
   });
-  rlDrawRenderBatchActive();
+
+  rlDisableDepthMask();
+  stats.times.glass_ms = MsOf([&] {
+    const std::vector<z13::station::Block> glass = chunks.VisibleTransparent(view.culling);
+    stats.glass = chunks.TransparentCount();
+    stats.glass_drawn = glass.size();
+    const z13::building::primitives::DrawOrder order = z13::building::primitives::SortForDrawing(
+        glass, drawing.palette, Eigen::Vector3f(view.eye.x, view.eye.y, view.eye.z) / z13::station::kCellSize);
+    for (const size_t i : order.transparent) {
+      DrawBlock(drawing, glass[i], WHITE);
+    }
+  });
+  stats.times.previews_ms = MsOf([&] {
+    brushes.each([&world, &drawing](flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
+      DrawBrushPreview(world, brush, transform, drawing);
+    });
+    rlDrawRenderBatchActive();
+  });
   rlEnableDepthMask();
-  StopChecker(lighting);
-  DrawRoomOverlay(world);
-  drawing.meshes.get().ReleaseUnused();
+  stats.times.overlay_ms = MsOf([&] {
+    StopChecker(lighting);
+    DrawRoomOverlay(world);
+  });
+  stats.times.release_ms = MsOf([&] { drawing.meshes.get().ReleaseUnused(); });
 }
 
 // Replacement for BeginMode3D/EndMode3D: those need CORE for the aspect ratio,
@@ -568,6 +601,7 @@ void RegisterSystems(flecs::world world) {
         const auto config = z13::GetCoreConfig(world);
         if (const auto tour = config ? config->get().GetRenderTourPath() : std::nullopt) {
           world.set(RenderTour(*tour));
+          ecs_measure_system_time(world, true);
         }
       });
 
@@ -647,7 +681,13 @@ void RegisterSystems(flecs::world world) {
       .write<RaylibWindowClosed>()
       .each([world](RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
                     const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
-        if (!world.has<RaylibWindowClosed>() && !StepRenderTour(camera, tour, stats, rooms, tuning)) {
+        const TourFrame frame {
+            .stats = stats,
+            .rooms = CurrentRooms(rooms),
+            .chunk_cells = tuning.chunk_cells,
+            .sample_systems = [world] { return z13::SystemTimes(world); },
+        };
+        if (!world.has<RaylibWindowClosed>() && !StepRenderTour(camera, tour, frame)) {
           world.add<RaylibWindowClosed>();
         }
       });
@@ -663,32 +703,9 @@ void RegisterSystems(flecs::world world) {
                 const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
                 const RenderTour* tour) {
-        if (world.has<Lighting>()) {
-          const Lighting& lighting = world.get<Lighting>();
-          if (lighting.res) {
-            const ::Vector3& eye = raylib_camera.camera.position;
-            const std::array<float, 3> view_pos = {eye.x, eye.y, eye.z};
-            SetShaderValue(*lighting.res->shader,
-                           lighting.res->shader->locs[SHADER_LOC_VECTOR_VIEW], view_pos.data(),
-                           SHADER_UNIFORM_VEC3);
-          }
-        }
-
+        double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);
-
-        if (world.has<Skybox>()) {
-          const Skybox& skybox = world.get<Skybox>();
-          if (skybox.res) {
-            DrawSkybox(*skybox.res);
-          }
-        }
-
-        if (world.has<RenderModel>()) {
-          const RenderModel& render_model = world.get<RenderModel>();
-          if (render_model.res) {
-            DrawModel(*render_model.res->model, Vector3Zero(), 1.f, WHITE);
-          }
-        }
+        background_ms += MsOf([&] { DrawBackground(world); });
 
         const ::Vector3& eye = raylib_camera.camera.position;
         const auto culling_start = std::chrono::steady_clock::now();
@@ -701,9 +718,10 @@ void RegisterSystems(flecs::world world) {
             std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - culling_start).count();
         DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
         stats.culling_us = culling_us;
+        stats.times.background_ms = background_ms;
         PublishSeenRooms(view.culling, rooms, stats, overlay);
 
-        EndScene3D();
+        stats.times.flush_ms = MsOf(EndScene3D);
       });
 }
 

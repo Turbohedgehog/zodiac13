@@ -45,6 +45,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/system_times.h>
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
@@ -83,7 +84,6 @@ constexpr uint64_t kWarmUpTicks = 250;  // more history than the deepest rollbac
 constexpr int kMaxCatchUpCalls = 1000;
 constexpr double kBytesPerMb = 1024.0 * 1024.0;
 constexpr size_t kTopSystems = 8;
-constexpr double kMsPerSecond = 1000.0;
 constexpr int kServerClientWalkTicks = 300;  // 5 s: all of the snapshot history turns over
 constexpr double kTickBudgetMs = kMsPerSecond * kNetTestDeltaTime;
 constexpr double kMedian = 0.5;
@@ -167,29 +167,13 @@ struct Row {
   double digest_ms {};
   std::vector<double> rollback_ms;
   double build_tick_ms {};
-  std::vector<std::pair<std::string, double>> top_systems_ms;  // per tick
+  std::vector<z13::SystemTime> top_systems_ms;  // per tick
 };
 
-std::vector<std::pair<std::string, double>> SystemTimes(flecs::world world) {
-  std::vector<std::pair<std::string, double>> times;
-  world.query_builder().with(flecs::System).build().each([&](flecs::entity system) {
-    if (const ecs_system_t* data = ecs_system_get(world, system)) {
-      times.emplace_back(std::string(system.path()), static_cast<double>(data->time_spent) * kMsPerSecond);
-    }
-  });
-  return times;
-}
-
 // Where the walk's ticks went, system by system, heaviest first.
-std::vector<std::pair<std::string, double>> TopSystems(
-    const std::vector<std::pair<std::string, double>>& before, const std::vector<std::pair<std::string, double>>& after,
-    int ticks) {
-  std::vector<std::pair<std::string, double>> spent;
-  for (const auto& [name, ms] : after) {
-    const auto found = std::ranges::find(before, name, &std::pair<std::string, double>::first);
-    spent.emplace_back(name, (ms - (found != before.end() ? found->second : 0.0)) / ticks);
-  }
-  std::ranges::sort(spent, std::greater<>(), &std::pair<std::string, double>::second);
+std::vector<z13::SystemTime> TopSystems(
+    const std::vector<z13::SystemTime>& before, const std::vector<z13::SystemTime>& after, int ticks) {
+  std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(before, after, ticks);
   spent.resize(std::min(spent.size(), kTopSystems));
   return spent;
 }
@@ -228,14 +212,14 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
     world.Tick();
   }
   ecs_measure_system_time(w, true);
-  const auto systems_before = SystemTimes(w);
+  const auto systems_before = z13::SystemTimes(w);
   world.EmitInput(KeyDown(Keycode::KEY_W));
   std::vector<double> ticks;
   for (int tick = 0; tick < kWalkTicks; ++tick) {
     ticks.push_back(Ms([&] { world.Tick(); }));
   }
   world.EmitInput(KeyUp(Keycode::KEY_W));
-  row.top_systems_ms = TopSystems(systems_before, SystemTimes(w), kWalkTicks);
+  row.top_systems_ms = TopSystems(systems_before, z13::SystemTimes(w), kWalkTicks);
   ecs_measure_system_time(w, false);
   row.tick_median_ms = Median(ticks);
   row.tick_max_ms = std::ranges::max(ticks);
@@ -266,7 +250,7 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
   return row;
 }
 
-void PrintTopSystems(const std::string& label, const std::vector<std::pair<std::string, double>>& top_systems_ms) {
+void PrintTopSystems(const std::string& label, const std::vector<z13::SystemTime>& top_systems_ms) {
   std::cout << std::format("[ bench ] {} heaviest systems, ms per tick:", label);
   for (const auto& [name, ms] : top_systems_ms) {
     std::cout << std::format(" {} {:.2f};", name, ms);
@@ -355,7 +339,7 @@ using Z13TestWorldRef = std::reference_wrapper<Z13TestWorld>;
 struct SideRun {
   std::string label;
   std::vector<double> frames_ms;
-  std::vector<std::pair<std::string, double>> top_systems_ms;  // per tick
+  std::vector<z13::SystemTime> top_systems_ms;  // per tick
 };
 
 double Percentile(std::vector<double> values, double fraction) {
@@ -401,10 +385,10 @@ void MeasureServerClient(const std::string& scene) {
 
   std::vector<SideRun> sides {{.label = "server"}, {.label = "client"}};
   const std::vector<Z13TestWorldRef> worlds {server, client};
-  std::vector<std::vector<std::pair<std::string, double>>> before;
+  std::vector<std::vector<z13::SystemTime>> before;
   for (const Z13TestWorldRef& world : worlds) {
     ecs_measure_system_time(world.get().World(), true);
-    before.push_back(SystemTimes(world.get().World()));
+    before.push_back(z13::SystemTimes(world.get().World()));
   }
   client.EmitInput(KeyDown(Keycode::KEY_W));
   for (int tick = 0; tick < kServerClientWalkTicks; ++tick) {
@@ -416,7 +400,7 @@ void MeasureServerClient(const std::string& scene) {
   client.EmitInput(KeyUp(Keycode::KEY_W));
   for (size_t side = 0; side < sides.size(); ++side) {
     flecs::world w = worlds[side].get().World();
-    sides[side].top_systems_ms = TopSystems(before[side], SystemTimes(w), kServerClientWalkTicks);
+    sides[side].top_systems_ms = TopSystems(before[side], z13::SystemTimes(w), kServerClientWalkTicks);
     ecs_measure_system_time(w, false);
   }
   PrintSides(scene, static_cast<size_t>(server.World().count<z13::station::Block>()), sides);

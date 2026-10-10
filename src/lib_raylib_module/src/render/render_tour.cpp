@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <format>
-#include <ranges>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -38,9 +38,28 @@ constexpr std::array kCullRooms {true, false};
 
 constexpr std::string_view kCsvHeader =
     "viewpoint,room,room_cells,eye_x,eye_y,eye_z,target_x,target_y,target_z,culling,chunk_cells,frames,"
-    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_drawn,glass,rooms_seen\n";
+    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_drawn,glass,rooms_seen,"
+    "background_ms,players_ms,opaque_ms,glass_ms,previews_ms,overlay_ms,release_ms,flush_ms\n";
+constexpr std::string_view kSystemsCsvHeader = "viewpoint,culling,chunk_cells,system,ms_per_frame\n";
+constexpr std::string_view kSystemsFileSuffix = "_systems";
+// Systems below this per frame are left out of the systems CSV.
+constexpr double kMinSystemMs = 0.01;
 constexpr std::string_view kRoomsCulling = "rooms";
 constexpr std::string_view kFrustumCulling = "frustum";
+
+// std::accumulate rather than ranges::to, which GCC 13 lacks.
+std::string CsvOf(std::string_view header, const std::vector<std::string>& rows) {
+  return std::accumulate(rows.begin(), rows.end(), std::string(header));
+}
+
+// Quoted, so a comma in a template-named system's path stays in one field.
+std::string CsvField(std::string_view text) {
+  std::string quoted = "\"";
+  for (const char c : text) {
+    quoted += c == '"' ? std::string_view("\"\"") : std::string_view(&c, 1);
+  }
+  return quoted + '"';
+}
 
 }  // namespace
 
@@ -62,7 +81,7 @@ void RenderTour::Start(const z13::station::rooms::RoomGraph& graph, int chunk_ce
 }
 
 // The frame ending at a stop's first step was still drawn at the previous stop.
-void RenderTour::Step(Clock::time_point now, const RenderStats& stats) {
+void RenderTour::Step(Clock::time_point now, const RenderStats& stats, const z13::SystemSampler& sample_systems) {
   const auto stop = Current();
   if (!stop) {
     return;
@@ -73,24 +92,39 @@ void RenderTour::Step(Clock::time_point now, const RenderStats& stats) {
     tally_.total_ms += ms;
     tally_.worst_ms = std::max(tally_.worst_ms, ms);
     tally_.culling_us += stats.culling_us;
+    tally_.times += stats.times;
     tally_.last = stats;
   }
   last_frame_ = now;
+  if (frame_ == kWarmupFrames) {
+    systems_before_ = sample_systems();
+  }
   if (frame_ < kWarmupFrames + kMeasuredFrames) {
     ++frame_;
     return;
+  }
+  const std::string_view culling = stop->cull_rooms ? kRoomsCulling : kFrustumCulling;
+  for (const z13::SystemTime& system : z13::SystemTimesPerFrame(systems_before_, sample_systems(), tally_.frames)) {
+    if (system.ms >= kMinSystemMs) {
+      system_rows_.push_back(std::format("{},{},{},{},{:.4f}\n", stop_ / kCullRooms.size(), culling, chunk_cells_,
+                                         CsvField(system.path), system.ms));
+    }
   }
   const Eigen::Vector3f& eye = stop->view.eye;
   const Eigen::Vector3f& target = stop->view.target;
   const RenderStats& drawn = tally_.last;
   const double frames = std::max(tally_.frames, 1);
   rows_.push_back(std::format(
-      "{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{},{},{},{:.3f},{:.3f},{:.1f},{},{},{},{},{},{}\n",
+      "{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{},{},{},{:.3f},{:.3f},{:.1f},{},{},{},{},{},{},"
+      "{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}\n",
       stop_ / kCullRooms.size(), stop->view.room, stop->room_cells, eye.x(), eye.y(), eye.z(), target.x(), target.y(),
-      target.z(), stop->cull_rooms ? kRoomsCulling : kFrustumCulling, chunk_cells_, tally_.frames,
+      target.z(), culling, chunk_cells_, tally_.frames,
       tally_.total_ms / frames, tally_.worst_ms, tally_.culling_us / frames, drawn.chunks_drawn, drawn.chunks,
       drawn.meshes_drawn, drawn.glass_drawn, drawn.glass,
-      drawn.rooms_seen ? std::to_string(*drawn.rooms_seen) : std::string()));
+      drawn.rooms_seen ? std::to_string(*drawn.rooms_seen) : std::string(), tally_.times.background_ms / frames,
+      tally_.times.players_ms / frames, tally_.times.opaque_ms / frames, tally_.times.glass_ms / frames,
+      tally_.times.previews_ms / frames, tally_.times.overlay_ms / frames, tally_.times.release_ms / frames,
+      tally_.times.flush_ms / frames));
   ++stop_;
   frame_ = 0;
   tally_ = {};
@@ -106,7 +140,17 @@ bool RenderTour::CullsRooms() const {
 }
 
 std::string RenderTour::Csv() const {
-  return std::format("{}{}", kCsvHeader, rows_ | std::views::join | std::ranges::to<std::string>());
+  return CsvOf(kCsvHeader, rows_);
+}
+
+std::filesystem::path RenderTour::SystemsOutput() const {
+  std::filesystem::path path = output_;
+  path.replace_filename(std::format("{}{}{}", output_.stem().string(), kSystemsFileSuffix, output_.extension().string()));
+  return path;
+}
+
+std::string RenderTour::SystemsCsv() const {
+  return CsvOf(kSystemsCsvHeader, system_rows_);
 }
 
 }  // namespace z13::raylib
