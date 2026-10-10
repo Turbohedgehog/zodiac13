@@ -116,7 +116,6 @@ void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& s
   ConfirmInputThrough(world, sequenced.player_id, sequenced.through_tick);
 }
 
-// The server applies these own commands on another tick; the local copy moves there too.
 void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
   const uint32_t local_id = *world.get<z13::gameplay::LocalPlayer>().id;
   const uint64_t now = world.get<ft::SimulationClock>().tick;

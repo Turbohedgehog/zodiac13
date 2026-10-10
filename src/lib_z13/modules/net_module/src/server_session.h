@@ -63,7 +63,6 @@ struct PlayerActionKeyHash {
   }
 };
 
-// The ticks a client's command may be scheduled on this frame.
 struct ScheduleWindow {
   uint64_t earliest {};
   uint64_t latest {};

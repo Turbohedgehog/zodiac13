@@ -65,10 +65,8 @@ ScheduleWindow MakeScheduleWindow(flecs::world world, uint64_t now, const NetTun
   return {.earliest = earliest, .latest = now + tuning.max_schedule_ahead_ticks};
 }
 
-// A command outside the window is moved to its nearest edge rather than dropped (CLAUDE.md), as
-// close as possible to when the player acted; CommandsRetimed tells its sender. A move keeps it
-// after the same action's previous command, and off that command's tick unless the action is
-// absolute (a state, where the newer value rightly wins): otherwise one press would hide the other.
+// Moved to the window's nearest edge rather than dropped (CLAUDE.md). It stays after the action's
+// previous command and, unless absolute (the newer value rightly wins), off its tick: one press would hide the other.
 ScheduledCommandTick ScheduleTick(
     const ScheduleWindow& window, uint64_t tick, bool absolute, std::optional<ScheduledCommandTick> last) {
   uint64_t scheduled = std::clamp(tick, window.earliest, window.latest);

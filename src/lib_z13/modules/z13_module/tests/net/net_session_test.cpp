@@ -552,8 +552,6 @@ TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
   EXPECT_EQ(CommittedCommands(server.World()).size(), kMaxCommandsPerRateLimitWindow);
 }
 
-// Moved to the late window's start, a command must not land on or before the same action's
-// command already near there, where one would hide the other.
 TEST(NetSessionTest, ALateCommandMovedNextToItsActionsCommandKeepsItsOwnTick) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);

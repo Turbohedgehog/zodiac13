@@ -34,7 +34,6 @@ struct CommandWire {
   value: short;
 }
 
-// A command the server applies on another tick than its sender chose.
 struct CommandMove {
   from_tick: ulong;
   to_tick: ulong;
