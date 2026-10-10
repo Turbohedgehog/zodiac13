@@ -40,7 +40,7 @@ table VisualSmoothing {
 // How the station is drawn (client only, never sent).
 table RenderTuning {
   // Edge of a render chunk: a smaller one rebuilds faster after a build, a larger one draws in fewer calls.
-  chunk_cells: int32 = 32 (min: 1, max: 1024, cli: "--render-chunk-cells");
+  chunk_cells: int32 = 64 (min: 1, max: 1024, cli: "--render-chunk-cells");
 }
 
 table Settings {

@@ -38,6 +38,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/file_io.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
@@ -69,6 +70,7 @@
 #include "render_components.h"
 #include "render_resources.h"
 #include "render_stats.h"
+#include "render_tour.h"
 #include "skybox.h"
 #include "view_culling.h"
 
@@ -97,7 +99,8 @@ constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, RenderStats, z13::VisualSmoothing, z13::RenderTuning>(world);
+                                         BlockChunks, RenderStats, RenderTour, z13::VisualSmoothing,
+                                         z13::RenderTuning>(world);
 }
 
 // Everything not the local player's own chases its simulated transform in real time, so
@@ -451,6 +454,39 @@ void PublishSeenRooms(const ViewCulling& culling, const z13::station::rooms::Roo
   }
 }
 
+// Places the camera at the tour's stop for this frame. Returns false once the tour is over,
+// after writing what it measured.
+bool StepRenderTour(RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
+                    const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+  if (!tour.Started()) {
+    const ViewCulling::OptionalGraph graph = CurrentRooms(rooms);
+    if (graph && tour.ReadyToStart()) {
+      tour.Start(*graph, tuning.chunk_cells);
+      log_info("[raylib] render tour: {} stops", tour.StopCount());
+    }
+    return true;
+  }
+  const size_t before = tour.StopIndex();
+  tour.Step(RenderTour::Clock::now(), stats);
+  if (tour.StopIndex() != before) {
+    log_info("[raylib] render tour: stop {} of {} measured", tour.StopIndex(), tour.StopCount());
+  }
+  if (const auto stop = tour.Current()) {
+    const Eigen::Vector3f eye = stop->view.eye * z13::station::kCellSize;
+    const Eigen::Vector3f target = stop->view.target * z13::station::kCellSize;
+    camera.camera.position = {eye.x(), eye.y(), eye.z()};
+    camera.camera.target = {target.x(), target.y(), target.z()};
+    camera.camera.up = {0.f, 0.f, 1.f};
+    return true;
+  }
+  if (const auto written = z13::WriteFile(tour.Output(), tour.Csv()); !written) {
+    log_error("[raylib] render tour: {}", written.error());
+  } else {
+    log_info("[raylib] render tour written to '{}'", tour.Output().string());
+  }
+  return false;
+}
+
 struct SceneView {
   ::Vector3 eye {};
   ViewCulling culling;
@@ -529,6 +565,10 @@ void RegisterSystems(flecs::world world) {
         world.set<BlockChunks>(BlockChunks(shader));
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
+        const auto config = z13::GetCoreConfig(world);
+        if (const auto tour = config ? config->get().GetRenderTourPath() : std::nullopt) {
+          world.set(RenderTour(*tour));
+        }
       });
 
   // Everything below runs in the Render phase, ahead of Draw (systems in one phase run
@@ -598,16 +638,31 @@ void RegisterSystems(flecs::world world) {
                         palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt);
       });
 
+  // After SyncRaylibCamera, so the tour's camera wins.
+  world.system<RaylibCamera, RenderTour, const RenderStats, const z13::station::rooms::RoomCache*,
+               const z13::RenderTuning>("EnvironmentRenderSystem::StepRenderTour")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .write<RaylibWindowClosed>()
+      .each([world](RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
+                    const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+        if (!world.has<RaylibWindowClosed>() && !StepRenderTour(camera, tour, stats, rooms, tuning)) {
+          world.add<RaylibWindowClosed>();
+        }
+      });
+
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize, RenderStats, const z13::station::rooms::RoomCache*,
-               z13::station::RoomOverlay*>(
+               z13::station::RoomOverlay*, const RenderTour*>(
            "EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
       .each([world, brush_query, remote_player_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
-                const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay) {
+                const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
+                const RenderTour* tour) {
         if (world.has<Lighting>()) {
           const Lighting& lighting = world.get<Lighting>();
           if (lighting.res) {
@@ -636,11 +691,16 @@ void RegisterSystems(flecs::world world) {
         }
 
         const ::Vector3& eye = raylib_camera.camera.position;
+        const auto culling_start = std::chrono::steady_clock::now();
         const SceneView view {
             .eye = eye,
-            .culling = ViewCulling(CurrentViewProjection(), Eigen::Vector3f(eye.x, eye.y, eye.z), CurrentRooms(rooms)),
+            .culling = ViewCulling(CurrentViewProjection(), Eigen::Vector3f(eye.x, eye.y, eye.z),
+                                   tour == nullptr || tour->CullsRooms() ? CurrentRooms(rooms) : std::nullopt),
         };
+        const double culling_us =
+            std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - culling_start).count();
         DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
+        stats.culling_us = culling_us;
         PublishSeenRooms(view.culling, rooms, stats, overlay);
 
         EndScene3D();

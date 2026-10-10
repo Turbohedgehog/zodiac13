@@ -16,6 +16,7 @@ set(
   src/room_overlap.cpp
   src/room_visibility.cpp
   src/topology_fingerprint.cpp
+  src/tour_viewpoints.cpp
 )
 
 # Stateless, like z13_grid: each plugin linking its own copy shares nothing.

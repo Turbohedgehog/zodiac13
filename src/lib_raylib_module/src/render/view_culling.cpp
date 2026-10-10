@@ -45,8 +45,9 @@ std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomIndex ro
 
 std::optional<std::vector<SeenRoom>> RoomsInView(
     const Eigen::Matrix4f& view_projection, const Eigen::Vector3f& eye, const RoomGraph& graph) {
+  // From the vacuum, which has no bounds, rooms cull nothing yet and cost more than the frustum.
   const auto eye_room = graph.RoomAt((eye / kCellSize).array().floor().cast<int>());
-  if (!eye_room) {
+  if (!eye_room || *eye_room == z13::station::rooms::kVacuumRoom) {
     return std::nullopt;
   }
   const Eigen::Matrix4f cells_to_clip = view_projection * Eigen::Affine3f(Eigen::Scaling(kCellSize)).matrix();

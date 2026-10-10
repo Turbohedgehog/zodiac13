@@ -32,6 +32,7 @@ constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
 constexpr std::string_view kStationOption = "station";
 constexpr std::string_view kStationSceneOption = "station-scene";
+constexpr std::string_view kRenderTourOption = "render-tour";
 
 }  // namespace
 
@@ -51,7 +52,10 @@ Config::Config() {
        "Start in station-building mode (with --server, host it); a client gets the mode from the server")
       (kStationSceneOption.data(), po::value<std::string>(),
        "Blueprint to fill the station with (a file name under assets/station/blueprints/, without .json; "
-       "without it the station starts empty); implies --station");
+       "without it the station starts empty); implies --station")
+      (kRenderTourOption.data(), po::value<std::string>(),
+       "Fly the camera through measuring points of the --station-scene station, write the frame times "
+       "to this CSV file and quit");
 }
 
 void Config::Clear() {
@@ -92,6 +96,13 @@ Status Config::ValidateAndApplyArguments() {
   if (variables_map_.count(kStationSceneOption.data()) > 0) {
     command_line_.station = true;
     command_line_.station_scene = variables_map_[kStationSceneOption.data()].as<std::string>();
+  }
+
+  if (variables_map_.count(kRenderTourOption.data()) > 0) {
+    if (!command_line_.station_scene) {
+      return std::unexpected(std::format("--{} needs --{}", kRenderTourOption, kStationSceneOption));
+    }
+    command_line_.render_tour = std::filesystem::path(variables_map_[kRenderTourOption.data()].as<std::string>());
   }
 
   if (command_line_.station && variables_map_.count(kConnectOption.data()) > 0) {
@@ -203,6 +214,10 @@ bool Config::IsStation() const {
 
 std::optional<std::string> Config::GetStationScene() const {
   return command_line_.station_scene;
+}
+
+std::optional<std::filesystem::path> Config::GetRenderTourPath() const {
+  return command_line_.render_tour;
 }
 
 uint16_t Config::GetPort() const {

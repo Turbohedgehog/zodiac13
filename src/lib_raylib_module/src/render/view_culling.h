@@ -42,7 +42,7 @@ class ViewCulling {
  public:
   using OptionalGraph = std::optional<std::reference_wrapper<const z13::station::rooms::RoomGraph>>;
 
-  // Without a graph, or with the eye inside a block, only the frustum culls.
+  // Without a graph, or with the eye inside a block or in the vacuum, only the frustum culls.
   ViewCulling(const Eigen::Matrix4f& view_projection, const Eigen::Vector3f& eye, OptionalGraph graph);
 
   bool Visible(const Eigen::AlignedBox3f& box) const;

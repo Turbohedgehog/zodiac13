@@ -69,7 +69,7 @@ void StatsOverlay::Draw(const RenderStats* render) const {
       ImGui::Text("Chunks %zu / %zu, meshes %zu", render->chunks_drawn, render->chunks, render->meshes_drawn);
       ImGui::Text("Glass %zu / %zu", render->glass_drawn, render->glass);
       if (render->rooms_seen) {
-        ImGui::Text("Rooms seen %zu", *render->rooms_seen);
+        ImGui::Text("Rooms seen %zu, %.0f us", *render->rooms_seen, render->culling_us);
       } else {
         ImGui::TextUnformatted("Rooms don't cull");
       }
