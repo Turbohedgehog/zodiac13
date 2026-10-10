@@ -33,7 +33,7 @@ constexpr int kHeight = 10;
 constexpr int kWall = 5;
 constexpr size_t kHeadingsPerRoom = 4;
 
-RoomGraph Hall() {
+RoomGraph Hall(const std::vector<PortalSource>& portals = {}) {
   const Eigen::Vector3i outer(kLength + 2, kSide + 2, kHeight + 2);
   const std::vector<CellBox> sealed {
       {.min = {0, 0, 0}, .extent = {outer.x(), outer.y(), 1}},
@@ -44,7 +44,7 @@ RoomGraph Hall() {
       {.min = {1, outer.y() - 1, 1}, .extent = {kLength, 1, kHeight}},
       {.min = {kWall, 1, 1}, .extent = {1, kSide, kHeight}},
   };
-  auto graph = BuildRooms({.sealed = sealed});
+  auto graph = BuildRooms({.sealed = sealed, .portals = portals});
   EXPECT_TRUE(graph.has_value());
   return graph.value_or(RoomGraph {});
 }
@@ -81,6 +81,20 @@ TEST(TourViewpointsTest, FirstLooksTowardsTheRoomsCentre) {
   const CellBox& bounds = graph.rooms[first.room].bounds;
   const Eigen::Vector3f centre = (bounds.min.cast<float>() + bounds.End().cast<float>()) / 2.f;
   EXPECT_GT((first.target - first.eye).head<2>().dot((centre - first.eye).head<2>()), 0.f);
+}
+
+// Where portals reach the most rooms: through windows onto space.
+TEST(TourViewpointsTest, LooksOutOfTheRoomWithTheMostWindowOntoSpace) {
+  // In the small room's end wall at x = 0.
+  const PortalSource window {.opening = {.min = {0, 4, 4}, .extent = {1, 2, 2}}, .axis = Axis::kX, .visible = true};
+  const RoomGraph graph = Hall({window});
+
+  const std::vector<Viewpoint> viewpoints = TourViewpoints(graph, 2);
+
+  ASSERT_EQ(viewpoints.size(), (3 * kHeadingsPerRoom) + 1);
+  const Viewpoint& looking_out = viewpoints[2 * kHeadingsPerRoom];
+  EXPECT_EQ(looking_out.room, graph.RoomAt({1, 4, 4}));
+  EXPECT_LT(looking_out.target.x(), looking_out.eye.x());
 }
 
 TEST(TourViewpointsTest, AStationWithoutRoomsIsOnlySeenFromOutside) {

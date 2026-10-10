@@ -44,4 +44,25 @@ inline void DrawError(std::string_view text) {
   ImGui::TextColored(kErrorColor, "%s", std::string(text).c_str());
 }
 
+// Debug overlays stack down the top-left corner, this far apart and from the screen's edges.
+inline constexpr float kOverlayMarginEm = 0.75f;
+inline constexpr float kOverlayBackgroundAlpha = 0.5f;
+inline constexpr ImGuiWindowFlags kOverlayFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                                  ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
+                                                  ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings;
+
+inline float FirstOverlayTop() {
+  return Em(kOverlayMarginEm);
+}
+
+inline void PlaceOverlay(float top) {
+  ImGui::SetNextWindowPos({Em(kOverlayMarginEm), top});
+  ImGui::SetNextWindowBgAlpha(kOverlayBackgroundAlpha);
+}
+
+// Where the overlay below the current window starts; call between Begin and End.
+inline float OverlayTopBelow() {
+  return ImGui::GetWindowPos().y + ImGui::GetWindowSize().y + Em(kOverlayMarginEm);
+}
+
 }  // namespace z13::raylib::gui

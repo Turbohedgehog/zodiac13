@@ -39,31 +39,41 @@ Block At(uint32_t type_id, const Eigen::Vector3i& cell) {
   return {.spec = {.type_id = type_id, .size = kPanel}, .cell = cell};
 }
 
-TEST(DrawOrderTest, OpaqueBlocksComeFirstAndWindowsFarthestFirst) {
+TEST(DrawOrderTest, WindowsAreTransparentAndWallsAreNot) {
   const Palette palette = z13::testing::ShippedPalette().value();
-  const std::vector<Block> blocks {
-      At(kWindowId, {10, 0, 0}), At(kWallId, {40, 0, 0}), At(kWindowId, {30, 0, 0}), At(kWindowId, {20, 0, 0})};
 
-  const DrawOrder order = SortForDrawing(blocks, palette, Eigen::Vector3f::Zero());
-
-  EXPECT_EQ(order.opaque, std::vector<size_t>({1}));
-  EXPECT_EQ(order.transparent, std::vector<size_t>({2, 3, 0}));
-}
-
-TEST(DrawOrderTest, TheOrderFollowsTheEye) {
-  const Palette palette = z13::testing::ShippedPalette().value();
-  const std::vector<Block> blocks {At(kWindowId, {10, 0, 0}), At(kWindowId, {30, 0, 0})};
-
-  EXPECT_EQ(SortForDrawing(blocks, palette, Eigen::Vector3f(40.f, 0.f, 0.f)).transparent, std::vector<size_t>({0, 1}));
+  EXPECT_TRUE(IsTransparent(At(kWindowId, {}), palette));
+  EXPECT_FALSE(IsTransparent(At(kWallId, {}), palette));
 }
 
 TEST(DrawOrderTest, WithoutAPaletteEveryBlockIsOpaque) {
-  const std::vector<Block> blocks {At(kWindowId, {10, 0, 0}), At(kWallId, {20, 0, 0})};
+  EXPECT_FALSE(IsTransparent(At(kWindowId, {}), std::nullopt));
+}
 
-  const DrawOrder order = SortForDrawing(blocks, std::nullopt, Eigen::Vector3f::Zero());
+// A cube of side 1 at `x` along the X axis, filed under key `x`.
+ChunkBounds ChunkAt(int x) {
+  const Eigen::Vector3f min(static_cast<float>(x), 0.f, 0.f);
+  return {.key = {x, 0, 0}, .bounds = {min, min + Eigen::Vector3f::Ones()}};
+}
 
-  EXPECT_EQ(order.opaque, std::vector<size_t>({0, 1}));
-  EXPECT_TRUE(order.transparent.empty());
+TEST(DrawOrderTest, ChunksGoFarthestFirst) {
+  const std::vector<ChunkBounds> chunks {ChunkAt(10), ChunkAt(30), ChunkAt(20)};
+
+  EXPECT_EQ(FarthestFirst(chunks, Eigen::Vector3f::Zero()), std::vector<size_t>({1, 2, 0}));
+}
+
+TEST(DrawOrderTest, TheOrderFollowsTheEye) {
+  const std::vector<ChunkBounds> chunks {ChunkAt(10), ChunkAt(30)};
+
+  EXPECT_EQ(FarthestFirst(chunks, Eigen::Vector3f(40.f, 0.f, 0.f)), std::vector<size_t>({0, 1}));
+}
+
+// Chunk keys come from a hash map, whose order a rehash changes.
+TEST(DrawOrderTest, EquallyFarChunksGoByKeyWhateverTheirOrder) {
+  const Eigen::Vector3f between(20.5f, 0.5f, 0.5f);
+
+  EXPECT_EQ(FarthestFirst(std::vector {ChunkAt(30), ChunkAt(10)}, between), std::vector<size_t>({1, 0}));
+  EXPECT_EQ(FarthestFirst(std::vector {ChunkAt(10), ChunkAt(30)}, between), std::vector<size_t>({0, 1}));
 }
 
 }  // namespace

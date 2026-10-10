@@ -19,10 +19,13 @@
 #include <algorithm>
 #include <array>
 #include <format>
+#include <iterator>
 #include <numeric>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include <z13/components/station.h>
 
 namespace z13::raylib {
 
@@ -61,9 +64,18 @@ std::string CsvField(std::string_view text) {
   return quoted + '"';
 }
 
+// A pose inside a block is filed under the vacuum.
+z13::station::rooms::Viewpoint InCells(const z13::CameraPose& pose, const z13::station::rooms::RoomGraph& graph) {
+  const Eigen::Vector3f eye = pose.eye / z13::station::kCellSize;
+  return {.room = graph.RoomAt(eye.array().floor().cast<int>()).value_or(z13::station::rooms::kVacuumRoom),
+          .eye = eye,
+          .target = eye + z13::Forward(pose)};
+}
+
 }  // namespace
 
-RenderTour::RenderTour(std::filesystem::path output) : output_(std::move(output)) {
+RenderTour::RenderTour(std::filesystem::path output, std::vector<z13::CameraPose> views)
+    : output_(std::move(output)), views_(std::move(views)) {
 }
 
 bool RenderTour::ReadyToStart() {
@@ -72,7 +84,14 @@ bool RenderTour::ReadyToStart() {
 
 void RenderTour::Start(const z13::station::rooms::RoomGraph& graph, int chunk_cells) {
   chunk_cells_ = chunk_cells;
-  for (const z13::station::rooms::Viewpoint& view : z13::station::rooms::TourViewpoints(graph, kTourRooms)) {
+  std::vector<z13::station::rooms::Viewpoint> viewpoints;
+  if (views_.empty()) {
+    viewpoints = z13::station::rooms::TourViewpoints(graph, kTourRooms);
+  } else {
+    std::ranges::transform(views_, std::back_inserter(viewpoints),
+                           [&graph](const z13::CameraPose& pose) { return InCells(pose, graph); });
+  }
+  for (const z13::station::rooms::Viewpoint& view : viewpoints) {
     for (const bool cull_rooms : kCullRooms) {
       stops_.push_back({.view = view, .room_cells = graph.rooms[view.room].volume_cells, .cull_rooms = cull_rooms});
     }

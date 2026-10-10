@@ -16,11 +16,28 @@
 
 #pragma once
 
+#include <expected>
 #include <string>
+#include <string_view>
 
-namespace z13::raylib::gui {
+#include <Eigen/Dense>
 
-// At `top`, below any overlay drawn before it (gui_widgets.h).
-void DrawRoomLabel(const std::string& label, float top);
+namespace z13 {
 
-}  // namespace z13::raylib::gui
+// Where a camera stands and looks: the eye in meters, the heading around +Z from +X and the
+// pitch, up positive, in degrees.
+struct CameraPose {
+  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
+  float yaw_deg {};
+  float pitch_deg {};
+};
+
+CameraPose PoseLookingAt(const Eigen::Vector3f& eye, const Eigen::Vector3f& target);
+
+// A unit vector.
+Eigen::Vector3f Forward(const CameraPose& pose);
+
+// "x,y,z,yaw,pitch".
+std::expected<CameraPose, std::string> ParseCameraPose(std::string_view text);
+
+}  // namespace z13

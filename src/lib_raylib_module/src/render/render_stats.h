@@ -19,6 +19,8 @@
 #include <cstddef>
 #include <optional>
 
+#include <lib_core/utils/camera_pose.h>
+
 namespace z13::raylib {
 
 // CPU time of each part of the scene's drawing, in ms; a wait for the GPU lands in the part
@@ -52,6 +54,7 @@ struct DrawTimes {
 // What the last frame drew, for the stats overlay; never state.
 struct RenderStats {
   using Singleton = void;
+  z13::CameraPose camera {};
   size_t chunks {};
   size_t chunks_drawn {};
   size_t meshes_drawn {};

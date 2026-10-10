@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -59,6 +60,28 @@ void AddHeadings(RoomIndex room, const Eigen::Vector3f& eye, const Eigen::Vector
   }
 }
 
+// The largest window onto space of the room with the most window area onto space.
+std::optional<size_t> LargestSpaceWindow(const RoomGraph& graph) {
+  std::vector<int> area(graph.rooms.size());
+  std::vector<std::optional<size_t>> largest(graph.rooms.size());
+  for (size_t i = 0; i < graph.portals.size(); ++i) {
+    const Portal& portal = graph.portals[i];
+    // a < b, so the vacuum is always a.
+    if (!portal.visible || portal.a != kVacuumRoom) {
+      continue;
+    }
+    area[portal.b] += portal.area_cells;
+    if (!largest[portal.b] || graph.portals[*largest[portal.b]].area_cells < portal.area_cells) {
+      largest[portal.b] = i;
+    }
+  }
+  const auto windowiest = std::ranges::max_element(area);
+  if (windowiest == area.end() || *windowiest == 0) {
+    return std::nullopt;
+  }
+  return largest[static_cast<size_t>(std::distance(area.begin(), windowiest))];
+}
+
 }  // namespace
 
 std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
@@ -79,6 +102,12 @@ std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
     const size_t at = picked == 1 ? 0 : i * (candidates.size() - 1) / (picked - 1);
     const auto& [room, eye] = candidates[at];
     AddHeadings(room, eye, CentreOf(graph.rooms[room].bounds), viewpoints);
+  }
+  if (const auto window = LargestSpaceWindow(graph)) {
+    const Portal& portal = graph.portals[*window];
+    if (const auto eye = EyeIn(graph, portal.b)) {
+      AddHeadings(portal.b, *eye, CentreOf(portal.opening), viewpoints);
+    }
   }
   if (!graph.rooms.empty() && !graph.rooms[kVacuumRoom].bounds.extent.isZero()) {
     const CellBox& station = graph.rooms[kVacuumRoom].bounds;

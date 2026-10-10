@@ -37,7 +37,8 @@ inline constexpr int kViewpointEyeCells = 6;
 
 // Viewpoints for measuring the renderer, the same for the same graph: `rooms` rooms spread
 // from the smallest to the largest, each seen from a corner at eye level in four directions,
-// then the whole station from outside.
+// then the room with the most window onto space, first towards its largest one, then the
+// whole station from outside.
 std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms);
 
 }  // namespace z13::station::rooms

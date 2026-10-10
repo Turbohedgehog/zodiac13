@@ -18,6 +18,10 @@
 
 #include <algorithm>
 
+#include <Eigen/Dense>
+
+#include <z13/components/station.h>
+
 #include "gui_widgets.h"
 #include "render/render_stats.h"
 
@@ -27,11 +31,6 @@ namespace {
 
 // Long enough for steady figures, short enough to follow a change.
 constexpr std::chrono::milliseconds kAveragingWindow {500};
-constexpr float kMarginEm = 0.75f;
-constexpr float kBackgroundAlpha = 0.5f;
-constexpr ImGuiWindowFlags kOverlayFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-                                           ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
-                                           ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings;
 
 float Ms(StatsOverlay::Clock::duration duration) {
   return std::chrono::duration<float, std::milli>(duration).count();
@@ -61,10 +60,9 @@ void StatsOverlay::CountFrame(Clock::time_point now) {
   window_worst_ms_ = 0.f;
 }
 
-void StatsOverlay::Draw(const RenderStats* render) const {
-  const float margin = Em(kMarginEm);
-  ImGui::SetNextWindowPos({margin, margin});
-  ImGui::SetNextWindowBgAlpha(kBackgroundAlpha);
+float StatsOverlay::Draw(const RenderStats* render, float top) const {
+  PlaceOverlay(top);
+  float below = top;
   if (ImGui::Begin("##stats", nullptr, kOverlayFlags)) {
     ImGui::Text("%.0f fps, %.1f ms, worst %.1f ms", fps_, average_ms_, worst_ms_);
     if (render != nullptr) {
@@ -75,9 +73,16 @@ void StatsOverlay::Draw(const RenderStats* render) const {
       } else {
         ImGui::TextUnformatted("Rooms don't cull");
       }
+      const z13::CameraPose& camera = render->camera;
+      const Eigen::Vector3i cell = (camera.eye / z13::station::kCellSize).array().floor().cast<int>();
+      ImGui::Text("Eye x %.2f, y %.2f, z %.2f m", camera.eye.x(), camera.eye.y(), camera.eye.z());
+      ImGui::Text("Cell x %d, y %d, z %d", cell.x(), cell.y(), cell.z());
+      ImGui::Text("Yaw %.1f, pitch %.1f", camera.yaw_deg, camera.pitch_deg);
     }
+    below = OverlayTopBelow();
   }
   ImGui::End();
+  return below;
 }
 
 }  // namespace z13::raylib::gui

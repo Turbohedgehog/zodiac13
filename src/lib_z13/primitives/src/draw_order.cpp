@@ -17,43 +17,33 @@
 #include <primitives/draw_order.h>
 
 #include <algorithm>
-#include <iterator>
-#include <utility>
+#include <numeric>
 
 #include <primitives/palette.h>
-#include <primitives/placement.h>
 
 namespace z13::building::primitives {
-
-namespace {
-
-float SquaredDistance(const z13::station::Block& block, const Eigen::Vector3f& eye) {
-  const CellBox box = OccupiedCells(block);
-  const Eigen::Vector3f centre = box.min.cast<float>() + box.extent.cast<float>() / 2.f;
-  return (centre - eye).squaredNorm();
-}
-
-}  // namespace
 
 bool IsTransparent(const z13::station::Block& block, OptionalPalette palette) {
   const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
   return primitive && primitive->get().Has(PrimitiveFlags::Transparent);
 }
 
-DrawOrder SortForDrawing(
-    std::span<const z13::station::Block> blocks, OptionalPalette palette, const Eigen::Vector3f& eye) {
-  DrawOrder order;
-  std::vector<std::pair<float, size_t>> transparent;
-  for (size_t i = 0; i < blocks.size(); ++i) {
-    if (IsTransparent(blocks[i], palette)) {
-      transparent.emplace_back(SquaredDistance(blocks[i], eye), i);
-    } else {
-      order.opaque.push_back(i);
+std::vector<size_t> FarthestFirst(std::span<const ChunkBounds> chunks, const Eigen::Vector3f& eye) {
+  std::vector<float> distances(chunks.size());
+  std::ranges::transform(chunks, distances.begin(), [&eye](const ChunkBounds& chunk) {
+    return (chunk.bounds.center() - eye).squaredNorm();
+  });
+  std::vector<size_t> order(chunks.size());
+  std::iota(order.begin(), order.end(), size_t {});
+  std::ranges::sort(order, [&chunks, &distances](size_t a, size_t b) {
+    if (distances[a] != distances[b]) {
+      return distances[a] > distances[b];
     }
-  }
-  std::ranges::sort(transparent, std::ranges::greater {});
-  order.transparent.reserve(transparent.size());
-  std::ranges::transform(transparent, std::back_inserter(order.transparent), &std::pair<float, size_t>::second);
+    const Eigen::Vector3i& key_a = chunks[a].key;
+    const Eigen::Vector3i& key_b = chunks[b].key;
+    return std::lexicographical_compare(key_a.data(), key_a.data() + key_a.size(), key_b.data(),
+                                        key_b.data() + key_b.size());
+  });
   return order;
 }
 

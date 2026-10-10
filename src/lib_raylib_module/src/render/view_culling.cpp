@@ -43,22 +43,26 @@ std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomIndex ro
   return Eigen::AlignedBox3f(low.cast<float>() * kCellSize, high.cast<float>() * kCellSize);
 }
 
-std::optional<std::vector<SeenRoom>> RoomsInView(
-    const Eigen::Matrix4f& view_projection, const Eigen::Vector3f& eye, const RoomGraph& graph) {
+std::optional<std::vector<SeenRoom>> RoomsInView(const CameraView& view, const RoomGraph& graph) {
+  const Eigen::Vector3f eye = view.eye / kCellSize;
   // From the vacuum, which has no bounds, rooms cull nothing yet and cost more than the frustum.
-  const auto eye_room = graph.RoomAt((eye / kCellSize).array().floor().cast<int>());
+  const auto eye_room = graph.RoomAt(eye.array().floor().cast<int>());
   if (!eye_room || *eye_room == z13::station::rooms::kVacuumRoom) {
     return std::nullopt;
   }
-  const Eigen::Matrix4f cells_to_clip = view_projection * Eigen::Affine3f(Eigen::Scaling(kCellSize)).matrix();
+  const Eigen::Matrix4f cells_to_clip = view.view_projection * Eigen::Affine3f(Eigen::Scaling(kCellSize)).matrix();
   const z13::station::rooms::ScreenRegions regions = z13::station::rooms::VisibleRooms(
-      graph, {.eye_room = *eye_room, .view_projection = cells_to_clip, .screen = z13::math::Frustum::FullScreen()});
+      graph, {.eye_room = *eye_room,
+              .eye = eye,
+              .view_projection = cells_to_clip,
+              .screen = z13::math::Frustum::FullScreen(),
+              .min_extent = view.min_portal_extent});
   std::vector<SeenRoom> seen;
   for (RoomIndex room = 0; room < regions.size(); ++room) {
     if (regions[room]) {
       seen.push_back({.room = room,
                       .bounds = BoundsOf(graph, room),
-                      .frustum = z13::math::Frustum(view_projection, *regions[room])});
+                      .frustum = z13::math::Frustum(view.view_projection, *regions[room])});
     }
   }
   return seen;
@@ -66,8 +70,8 @@ std::optional<std::vector<SeenRoom>> RoomsInView(
 
 }  // namespace
 
-ViewCulling::ViewCulling(const Eigen::Matrix4f& view_projection, const Eigen::Vector3f& eye, OptionalGraph graph)
-    : frustum_(view_projection), rooms_(graph ? RoomsInView(view_projection, eye, *graph) : std::nullopt) {
+ViewCulling::ViewCulling(const CameraView& view, OptionalGraph graph)
+    : frustum_(view.view_projection), rooms_(graph ? RoomsInView(view, *graph) : std::nullopt) {
 }
 
 bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {

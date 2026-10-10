@@ -47,17 +47,7 @@ struct ChunkModels {
   std::vector<ChunkPart> parts;
 };
 
-// A transparent block and its bounds in meters, found once per Sync rather than per frame.
-struct GlassBlock {
-  z13::station::Block block {};
-  Eigen::AlignedBox3f bounds {};
-};
-
-// The transparent blocks of one render chunk, culled as a whole before one by one.
-struct GlassChunk {
-  Eigen::AlignedBox3f bounds {};
-  std::vector<GlassBlock> blocks;
-};
+using ChunkMap = std::unordered_map<Eigen::Vector3i, ChunkModels, z13::building::primitives::CellHash>;
 
 // What a Sync was made with; another chunk size or palette rebuilds every chunk.
 struct ChunkSyncKey {
@@ -74,17 +64,19 @@ class BlockChunks::State {
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
-  std::vector<z13::station::Block> VisibleTransparent(const ViewCulling& culling) const;
-  size_t TransparentCount() const { return transparent_count_; }
+  void DrawTransparent(
+      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const;
 
  private:
+  void SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
+                  int chunk_cells) const;
   ChunkModels Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) const;
 
   ::Shader lighting_shader_ {};
   std::optional<ChunkSyncKey> synced_with_;
-  std::unordered_map<Eigen::Vector3i, ChunkModels, z13::building::primitives::CellHash> chunks_;
-  std::vector<GlassChunk> glass_;
-  size_t transparent_count_ {};
+  ChunkMap opaque_;
+  ChunkMap transparent_;
+  size_t transparent_blocks_ {};
 };
 
 }  // namespace z13::raylib

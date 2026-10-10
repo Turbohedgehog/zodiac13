@@ -239,7 +239,7 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
     CellBox face = box;
     face.extent[static_cast<Eigen::Index>(axis)] = 1;
     // Few pairs per opening: a linear search beats a map for every cell.
-    std::vector<std::pair<std::pair<RoomIndex, RoomIndex>, int>> areas;
+    std::vector<OpeningShare> shares;
     for (int z = face.min.z(); z < face.End().z(); ++z) {
       for (int y = face.min.y(); y < face.End().y(); ++y) {
         for (int x = face.min.x(); x < face.End().x(); ++x) {
@@ -248,24 +248,26 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
               graph.columns.RoomAt(x + step[0] * thickness, y + step[1] * thickness, z + step[2] * thickness);
           if (before && after && *before != *after) {
             const std::pair<RoomIndex, RoomIndex> pair {std::min(*before, *after), std::max(*before, *after)};
-            const auto found = std::ranges::find(areas, pair, &decltype(areas)::value_type::first);
-            if (found == areas.end()) {
-              areas.emplace_back(pair, 1);
+            const auto found = std::ranges::find(shares, pair, &OpeningShare::rooms);
+            if (found == shares.end()) {
+              shares.push_back({.rooms = pair, .area_cells = 1, .low_side = *before});
             } else {
-              ++found->second;
+              ++found->area_cells;
             }
           }
         }
       }
     }
-    std::ranges::sort(areas);
-    for (const auto& [pair, area] : areas) {
-      graph.portals.push_back({.a = pair.first,
-                               .b = pair.second,
-                               .area_cells = area,
+    std::ranges::sort(shares, {}, &OpeningShare::rooms);
+    for (const OpeningShare& share : shares) {
+      graph.portals.push_back({.a = share.rooms.first,
+                               .b = share.rooms.second,
+                               .area_cells = share.area_cells,
                                .visible = source.visible,
                                .passable = source.passable,
-                               .opening = source.opening});
+                               .opening = source.opening,
+                               .axis = source.axis,
+                               .low_side = share.low_side});
     }
   }
 }

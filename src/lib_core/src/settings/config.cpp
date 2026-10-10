@@ -33,6 +33,7 @@ constexpr std::string_view kConnectOption = "connect";
 constexpr std::string_view kStationOption = "station";
 constexpr std::string_view kStationSceneOption = "station-scene";
 constexpr std::string_view kRenderTourOption = "render-tour";
+constexpr std::string_view kRenderTourViewOption = "render-tour-view";
 
 }  // namespace
 
@@ -55,7 +56,10 @@ Config::Config() {
        "without it the station starts empty); implies --station")
       (kRenderTourOption.data(), po::value<std::string>(),
        "Fly the camera through measuring points of the --station-scene station, write the frame times "
-       "to this CSV file and quit");
+       "to this CSV file and quit")
+      (kRenderTourViewOption.data(), po::value<std::vector<std::string>>()->composing(),
+       "Measure --render-tour from x,y,z,yaw,pitch (meters and degrees, as the F3 overlay shows them) "
+       "instead of its own points; repeatable");
 }
 
 void Config::Clear() {
@@ -103,6 +107,19 @@ Status Config::ValidateAndApplyArguments() {
       return std::unexpected(std::format("--{} needs --{}", kRenderTourOption, kStationSceneOption));
     }
     command_line_.render_tour = std::filesystem::path(variables_map_[kRenderTourOption.data()].as<std::string>());
+  }
+
+  if (variables_map_.count(kRenderTourViewOption.data()) > 0) {
+    if (!command_line_.render_tour) {
+      return std::unexpected(std::format("--{} needs --{}", kRenderTourViewOption, kRenderTourOption));
+    }
+    for (const std::string& text : variables_map_[kRenderTourViewOption.data()].as<std::vector<std::string>>()) {
+      const auto view = ParseCameraPose(text);
+      if (!view) {
+        return std::unexpected(std::format("--{}: {}", kRenderTourViewOption, view.error()));
+      }
+      command_line_.render_tour_views.push_back(*view);
+    }
   }
 
   if (command_line_.station && variables_map_.count(kConnectOption.data()) > 0) {
@@ -218,6 +235,10 @@ std::optional<std::string> Config::GetStationScene() const {
 
 std::optional<std::filesystem::path> Config::GetRenderTourPath() const {
   return command_line_.render_tour;
+}
+
+const std::vector<CameraPose>& Config::GetRenderTourViews() const {
+  return command_line_.render_tour_views;
 }
 
 uint16_t Config::GetPort() const {

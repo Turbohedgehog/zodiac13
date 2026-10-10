@@ -62,6 +62,21 @@ std::optional<Eigen::AlignedBox2f> Through(
   return narrowed.isEmpty() ? std::nullopt : std::optional(narrowed);
 }
 
+// Whether the eye, looking from `from`, sees the opening's face toward `from` rather than
+// its back: it is not past the opening's far face.
+bool FacesEye(const Portal& portal, RoomIndex from, const Eigen::Vector3f& eye) {
+  const auto axis = static_cast<Eigen::Index>(portal.axis);
+  const float along = eye[axis];
+  if (from == portal.low_side) {
+    return along < static_cast<float>(portal.opening.End()[axis]);
+  }
+  return along > static_cast<float>(portal.opening.min[axis]);
+}
+
+bool TooSmall(const Eigen::AlignedBox2f& region, const Eigen::Vector2f& min_extent) {
+  return (region.sizes().array() < min_extent.array()).any();
+}
+
 }  // namespace
 
 // A room reached again through another portal grows its region and is walked again;
@@ -78,13 +93,13 @@ ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view) {
     pending.pop_back();
     for (const size_t index : graph.room_portals[room]) {
       const Portal& portal = graph.portals[index];
-      if (!portal.visible || portal.a == portal.b) {
+      if (!portal.visible || portal.a == portal.b || !FacesEye(portal, room, view.eye)) {
         continue;
       }
       const RoomIndex other = portal.a == room ? portal.b : portal.a;
       const auto through = Through(*seen[room], portal.opening, view.view_projection);
       std::optional<Eigen::AlignedBox2f>& region = seen[other];
-      if (!through || (region && region->contains(*through))) {
+      if (!through || TooSmall(*through, view.min_extent) || (region && region->contains(*through))) {
         continue;
       }
       region = region ? region->merged(*through) : *through;

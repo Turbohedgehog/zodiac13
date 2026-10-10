@@ -41,6 +41,8 @@ table VisualSmoothing {
 table RenderTuning {
   // Edge of a render chunk: a smaller one rebuilds faster after a build, a larger one draws in fewer calls.
   chunk_cells: int32 = 64 (min: 1, max: 1024, cli: "--render-chunk-cells");
+  // Rooms seen only through portals narrower than this on screen, in pixels, aren't drawn.
+  min_portal_pixels: float = 2 (min: "0", max: "100", cli: "--render-min-portal-pixels");
 }
 
 table Settings {

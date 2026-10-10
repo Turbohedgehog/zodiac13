@@ -31,13 +31,18 @@ using ScreenRegions = std::vector<std::optional<Eigen::AlignedBox2f>>;
 
 struct RoomView {
   RoomIndex eye_room {};
+  // In cells.
+  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
   // Maps cells into OpenGL clip space.
   Eigen::Matrix4f view_projection = Eigen::Matrix4f::Identity();
   // What the eye room is seen through, usually the whole screen.
   Eigen::AlignedBox2f screen;
+  // A portal seen narrower than this on either axis shows nothing worth drawing.
+  Eigen::Vector2f min_extent = Eigen::Vector2f::Zero();
 };
 
-// Walks the visible portals from the eye room, narrowing the screen to each opening.
+// Walks the visible portals from the eye room, narrowing the screen to each opening. A
+// portal is passed only from the side the eye is on: a window seen from behind leads nowhere.
 ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view);
 
 }  // namespace z13::station::rooms
