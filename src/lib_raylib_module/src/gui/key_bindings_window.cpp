@@ -27,8 +27,8 @@ namespace z13::raylib::gui {
 
 namespace {
 
-constexpr float kBindingLabelWidth = 160.f;
-constexpr ImVec2 kBindingSlotSize{110.f, 0.f};
+constexpr float kBindingLabelWidthEm = 12.f;
+constexpr float kBindingSlotWidthEm = 8.5f;
 // Stride used to combine (group, action, slot) into a single ImGui PushID; must
 // exceed the largest number of actions any group can have.
 constexpr int kMaxActionsPerGroupForId = 64;
@@ -97,7 +97,7 @@ void KeyBindingsWindow::DrawBody() {
 
   if (dirty_) {
     ImGui::Separator();
-    if (ImGui::Button("Save changes", kButtonSize)) {
+    if (ImGui::Button("Save changes", ButtonSize())) {
       ApplyKeyBindingModel(World(), model_);
       dirty_ = false;
     }
@@ -108,14 +108,14 @@ void KeyBindingsWindow::DrawGroup(int group, const KeyBindingGroup& binding_grou
   for (int action = 0; action < static_cast<int>(binding_group.actions.size()); ++action) {
     const KeyBindingAction& binding_action = binding_group.actions[action];
     ImGui::TextUnformatted(binding_action.display_text.c_str());
-    ImGui::SameLine(kBindingLabelWidth);
+    ImGui::SameLine(Em(kBindingLabelWidthEm));
     for (int slot = 0; slot < kKeyBindingSlots; ++slot) {
       if (slot > 0) {
         ImGui::SameLine();
       }
       ImGui::PushID((group * kMaxActionsPerGroupForId + action) * kKeyBindingSlots + slot);
       const std::string slot_text(KeyBindingSlotText(model_, group, action, slot));
-      if (ImGui::Button(slot_text.c_str(), kBindingSlotSize)) {
+      if (ImGui::Button(slot_text.c_str(), {Em(kBindingSlotWidthEm), 0.f})) {
         rebind_ = KeyBindingSlot{group, action, slot};
         arm_countdown_ = 1;
         restore_tab_ = true;

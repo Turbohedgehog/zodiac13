@@ -56,6 +56,19 @@ void ForwardRaylibLog(int level, const char* text, va_list args) {
   }
 }
 
+// `size` scaled for the primary display, as the interface is (DisplayScale), but no larger
+// than the part of the display windows may use.
+Eigen::Vector2i InitialSize(const Eigen::Vector2i& size) {
+  const SDL_DisplayID display = SDL_GetPrimaryDisplay();
+  const float content_scale = SDL_GetDisplayContentScale(display);
+  Eigen::Vector2i scaled = (size.cast<float>() * (content_scale > 0.f ? content_scale : 1.f)).cast<int>();
+  SDL_Rect usable {};
+  if (SDL_GetDisplayUsableBounds(display, &usable)) {
+    scaled = scaled.cwiseMin(Eigen::Vector2i(usable.w, usable.h));
+  }
+  return scaled;
+}
+
 }  // namespace
 
 bool IsGlContextAlive() { return gl_context_alive; }
@@ -83,8 +96,9 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-  SDL_Window* window = SDL_CreateWindow(std::string(title).c_str(), width, height,
-                                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  const Eigen::Vector2i size = InitialSize({width, height});
+  SDL_Window* window = SDL_CreateWindow(std::string(title).c_str(), size.x(), size.y(),
+                                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
   if (window == nullptr) {
     spdlog::error("[sdl] SDL_CreateWindow: {}", SDL_GetError());
     return false;
@@ -100,15 +114,19 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
   SDL_GL_MakeCurrent(window, gl);
   SDL_GL_SetSwapInterval(0);  // Core owns frame pacing
 
+  int pixel_width {};
+  int pixel_height {};
+  SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
   rlLoadExtensions(reinterpret_cast<void*>(SDL_GL_GetProcAddress));
-  rlglInit(width, height);
+  rlglInit(pixel_width, pixel_height);
 
-  window_size_ = {width, height};
+  window_size_ = {pixel_width, pixel_height};
   quit_ = false;
   events_.reserve(64);
   gl_context_alive = true;
 
-  spdlog::info("[sdl] window {}x{} '{}' + GL context created", width, height, title);
+  spdlog::info("[sdl] window {}x{} pixels, display scale {}, '{}' + GL context created", pixel_width,
+               pixel_height, DisplayScale(), title);
   return true;
 }
 
@@ -150,8 +168,6 @@ void SdlPlatform::PumpEvents() {
         quit_ = true;
         break;
       case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-        [[fallthrough]];
-      case SDL_EVENT_WINDOW_RESIZED:
         window_size_ = {event.window.data1, event.window.data2};
         break;
       case SDL_EVENT_MOUSE_MOTION:
@@ -188,14 +204,23 @@ void SdlPlatform::EndFrame() {
 
 Eigen::Vector2i SdlPlatform::Size() const { return window_size_; }
 
+// The content scale, not SDL_GetWindowDisplayScale: that one includes the pixel density,
+// which ImGui's SDL3 backend already applies through the framebuffer scale.
+float SdlPlatform::DisplayScale() const {
+  const float scale = window_ != nullptr ? SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(window_)) : 0.f;
+  return scale > 0.f ? scale : 1.f;
+}
+
 void SdlPlatform::SetRelativeMouse(bool enabled) {
   if (enabled == relative_mouse_) {
     return;
   }
   if (!enabled) {
     // Recentre before releasing the grab so the cursor doesn't reappear at a stale position.
-    SDL_WarpMouseInWindow(window_, static_cast<float>(window_size_.x()) / 2.f,
-                          static_cast<float>(window_size_.y()) / 2.f);
+    int width {};
+    int height {};
+    SDL_GetWindowSize(window_, &width, &height);
+    SDL_WarpMouseInWindow(window_, static_cast<float>(width) / 2.f, static_cast<float>(height) / 2.f);
   }
   // Read back the actual result: SDL can silently fail to grab relative mode
   // right after window creation, so we shouldn't cache the requested value.

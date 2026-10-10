@@ -14,52 +14,45 @@
  * limitations under the License.
  */
 
-#include "station_window.h"
+#include "start_game_window.h"
 
-#include <filesystem>
+#include <cstddef>
 #include <memory>
-#include <utility>
 
 #include <imgui.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
-#include <z13/components/station.h>
-#include <primitives/station_assets.h>
 
-#include "../tools/asset_path.h"
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
 
-StationWindow::StationWindow(flecs::world world)
-    : Window(world, "Station"),
-      scenes_(z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}))) {}
+StartGameWindow::StartGameWindow(flecs::world world) : Window(world, "Start Game"), scenes_(GameScenes()) {}
 
-void StationWindow::DrawBody() {
-  for (const std::string& scene : scenes_) {
-    if (ImGui::Button(scene.c_str(), kButtonSize)) {
-      Start(scene);
+void StartGameWindow::DrawBody() {
+  // Blueprint names are free text: ids by index keep them apart from each other and from Back.
+  for (size_t i = 0; i < scenes_.size(); ++i) {
+    ImGui::PushID(static_cast<int>(i));
+    if (ImGui::Button(scenes_[i].label.c_str(), ButtonSize())) {
+      Start(scenes_[i]);
     }
+    ImGui::PopID();
   }
-  if (ImGui::Button("New station", kButtonSize)) {
-    Start(std::nullopt);
-  }
-  if (ImGui::Button("Back", kButtonSize)) {
+  if (ImGui::Button("Back", ButtonSize())) {
     RequestPop();
   }
 }
 
-void StationWindow::Start(std::optional<std::string> scene) {
+void StartGameWindow::Start(const GameScene& scene) {
   World().set<z13::net::ConnectionStatus>({});
-  World().add<z13::station::StationMode>();
-  World().set(z13::station::StationSceneChoice {.scene = std::move(scene)});
+  SelectScene(World(), scene);
   World().add<z13::gameplay::Gameplay>();
   RequestCloseMenu();
 }
 
-WindowPtr MakeStationWindow(flecs::world world) {
-  return std::make_shared<StationWindow>(world);
+WindowPtr MakeStartGameWindow(flecs::world world) {
+  return std::make_shared<StartGameWindow>(world);
 }
 
 }  // namespace z13::raylib::gui

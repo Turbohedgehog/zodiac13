@@ -16,34 +16,27 @@
 
 #pragma once
 
-#include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <flecs.h>
 
-#include "game_scenes.h"
-#include "gui_windows.h"
+#include <z13/components/station.h>
 
 namespace z13::raylib::gui {
 
-// Success removes Pause, which closes the menu; only a failure is left to show here.
-class StartServerWindow : public Window {
- public:
-  explicit StartServerWindow(flecs::world world);
-
- protected:
-  void DrawBody() override;
-
- private:
-  void DrawSceneCombo();
-
-  std::string port_;
-  std::vector<GameScene> scenes_;
-  size_t scene_ {};
-  bool submitted_ {};
+// A scene a local or hosted game starts in; the spaceship has no station.
+struct GameScene {
+  std::string label;
+  std::optional<z13::station::StationSceneChoice> station;
 };
 
-WindowPtr MakeStartServerWindow(flecs::world world);
+// The spaceship, the station blueprints under assets/station/blueprints/, then a new, empty
+// station.
+std::vector<GameScene> GameScenes();
+
+// Puts the world in `scene`'s mode (StationMode, StationSceneChoice) for the game to start in.
+void SelectScene(flecs::world world, const GameScene& scene);
 
 }  // namespace z13::raylib::gui

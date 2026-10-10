@@ -34,13 +34,13 @@ Window::StackRequest GameplayPauseMenuWindow::OnBack() {
 }
 
 void GameplayPauseMenuWindow::DrawBody() {
-  if (ImGui::Button("Resume", kButtonSize)) {
+  if (ImGui::Button("Resume", ButtonSize())) {
     RequestCloseMenu();
   }
-  if (ImGui::Button("Settings...", kButtonSize)) {
+  if (ImGui::Button("Settings...", ButtonSize())) {
     RequestPush(MakeInputSettings(World()));
   }
-  if (ImGui::Button("Exit to Main Menu", kButtonSize)) {
+  if (ImGui::Button("Exit to Main Menu", ButtonSize())) {
     // Pause stays set, so the empty stack makes GuiSystem::Draw show the main menu next.
     World().remove<z13::gameplay::Gameplay>();
     RequestPop();

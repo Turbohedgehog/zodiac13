@@ -32,9 +32,6 @@ class MainMenuWindow : public Window {
 
  protected:
   void DrawBody() override;
-
- private:
-  void StartShip();
 };
 
 WindowPtr MakeMainMenu(flecs::world world);
