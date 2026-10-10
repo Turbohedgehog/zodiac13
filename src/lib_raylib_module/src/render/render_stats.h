@@ -31,6 +31,8 @@ struct RenderStats {
   size_t glass_drawn {};
   // Nothing while rooms don't cull.
   std::optional<size_t> rooms_seen;
+  // Walking the portals and narrowing the frustum.
+  double culling_us {};
 };
 
 }  // namespace z13::raylib

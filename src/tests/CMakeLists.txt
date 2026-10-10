@@ -48,6 +48,7 @@ set(
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
   src/lib_z13/rooms/room_visibility_test.cpp
+  src/lib_z13/rooms/tour_viewpoints_test.cpp
   src/test_runner.cpp
   src/z13_launcher/module_list_test.cpp
   src/z13_launcher/settings_loader_test.cpp

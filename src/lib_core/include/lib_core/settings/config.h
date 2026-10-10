@@ -66,6 +66,9 @@ class Config {
   // --station-scene NAME: the blueprint to fill the station with; implies --station.
   // std::nullopt when not given.
   std::optional<std::string> GetStationScene() const;
+  // --render-tour PATH: measure the frame time along a camera tour of the station, write it
+  // to PATH and quit; needs --station-scene. std::nullopt when not given.
+  std::optional<std::filesystem::path> GetRenderTourPath() const;
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
@@ -90,6 +93,7 @@ class Config {
     bool server {false};
     bool station {false};
     std::optional<std::string> station_scene;
+    std::optional<std::filesystem::path> render_tour;
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
   };

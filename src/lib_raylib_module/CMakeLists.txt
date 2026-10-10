@@ -39,6 +39,7 @@ set(
   src/render/environment_render_system.cpp
   src/render/lights.cpp
   src/render/render_resources.cpp
+  src/render/render_tour.cpp
   src/render/skybox.cpp
   src/render/view_culling.cpp
   src/tools/asset_path.cpp

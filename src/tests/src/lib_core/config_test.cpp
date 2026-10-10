@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -32,6 +33,8 @@ constexpr std::string_view kConnectArg = "--connect";
 constexpr std::string_view kStationArg = "--station";
 constexpr std::string_view kStationSceneArg = "--station-scene";
 constexpr std::string_view kTestScene = "test";
+constexpr std::string_view kRenderTourArg = "--render-tour";
+constexpr std::string_view kTourFile = "tour.csv";
 constexpr std::string_view kHelpArg = "--help";
 constexpr std::string_view kExampleHost = "example.com";
 constexpr std::string_view kExampleEndpoint = "example.com:9999";
@@ -160,6 +163,15 @@ TEST(ConfigTest, StationSceneImpliesStation) {
   EXPECT_TRUE(parsed.config.IsStation());
   EXPECT_EQ(parsed.config.GetStationScene(), std::string(kTestScene));
   EXPECT_FALSE(ParseArgs({kStationArg}).config.GetStationScene().has_value());
+}
+
+TEST(ConfigTest, RenderTourTakesItsFileAndNeedsAStationScene) {
+  const auto parsed = ParseArgs({kStationSceneArg, kTestScene, kRenderTourArg, kTourFile});
+
+  EXPECT_TRUE(parsed.result.has_value());
+  EXPECT_EQ(parsed.config.GetRenderTourPath(), std::filesystem::path(kTourFile));
+  EXPECT_FALSE(ParseArgs({kStationSceneArg, kTestScene}).config.GetRenderTourPath().has_value());
+  EXPECT_FALSE(ParseArgs({kRenderTourArg, kTourFile}).result.has_value());
 }
 
 // A client takes the mode from the server it joins.
