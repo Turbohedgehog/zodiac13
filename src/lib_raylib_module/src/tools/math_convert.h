@@ -19,7 +19,16 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
+#include <z13/components/color.h>
+
 namespace z13::raylib {
+
+// A full channel of z13::Rgba and of raylib's Color.
+inline constexpr float kMaxColorChannel = 255.f;
+
+// 0-255 channels as 0-1.
+Eigen::Vector4f ToUnitColor(const z13::Rgba& rgba);
+::Vector3 EigenToRaylibVector(const Eigen::Vector3f& v);
 
 // Z-up world transform (column 0 = forward, column 2 = up) -> raylib camera pose.
 // Keeps `fovy` / `projection` intact.

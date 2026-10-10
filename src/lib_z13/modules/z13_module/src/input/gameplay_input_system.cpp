@@ -272,13 +272,13 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   const auto& enum_value = action_map.action_map.get<z13::input::ActionMap::EnumNameEnumValueTag>();
 
   auto apply_action_id = [&](const auto action_value, auto& action_id_holder) {
-    auto action_id = InputConfigLoader::FindActionId(action_map.action_map, "z13.fbs.actions.Action", action_value);
+    auto action_id = InputConfigLoader::FindActionId(action_map.action_map, kActionsEnumName, action_value);
     if (action_id) {
       action_id_holder = *action_id;
     } else {
       log_error(
-        "OnConfigUpdated: Cannot find action id '{}' for enum 'z13.fbs.actions.Action'",
-        static_cast<EnumValueType>(action_value)
+        "OnConfigUpdated: Cannot find action id '{}' for enum '{}'",
+        static_cast<EnumValueType>(action_value), kActionsEnumName
       );
     }
   };

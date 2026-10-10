@@ -12,7 +12,7 @@ from pathlib import Path
 from station_blueprint import (
     CELLS_PER_M, COUNTER, DANCE, DECK_PITCH_CELLS, DECK_PITCH_M, DOOR, DOORS, FLOOR, HIDDEN, LADDER, RAMP,
     ROOM_HEIGHT_CELLS, SEALED, SHAFT, TUNNEL, WALL, WALL_BLOCK, WALL_HEIGHT_CELLS, WALL_LIKE, WINDOW,
-    TO_POS_Y, WINDOW_BLOCK, Deck, block, block_kinds, clear_flights, deck_floor_z, door_boxes, flight_blocks,
+    TO_POS_Y, WINDOW_BLOCK, Deck, block, block_kinds, clear_flights, deck_floor_z, door_boxes, flight_blocks, lamp_blocks,
     mask_blocks, render_plan, ruler, spawn_blocks, stairs_open, wall_blocks, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
@@ -685,6 +685,8 @@ def station_blocks(decks):
         if stairs_open(decks, index + 1):
             blocks += flight_blocks(STAIRWELLS, z)
         blocks += spawn_blocks(deck, z)
+    for deck in decks:
+        blocks += lamp_blocks(deck, deck_floor_z(deck), blocks)
     return blocks
 
 

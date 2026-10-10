@@ -96,6 +96,12 @@ struct PlayerCollider {
   float radius {};
 };
 
+// A light along the player's look, from the eye.
+struct Flashlight {
+  using State = void;
+  bool on {};
+};
+
 // A player under gravity (z13/components/gravity.h) walks; without it, flies freely.
 struct PlayerMotion {
   using State = void;

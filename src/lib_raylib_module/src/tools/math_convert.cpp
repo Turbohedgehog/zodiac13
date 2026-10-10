@@ -22,6 +22,14 @@
 
 namespace z13::raylib {
 
+Eigen::Vector4f ToUnitColor(const z13::Rgba& rgba) {
+  return Eigen::Vector4f(rgba[0], rgba[1], rgba[2], rgba[3]) / kMaxColorChannel;
+}
+
+::Vector3 EigenToRaylibVector(const Eigen::Vector3f& v) {
+  return {v.x(), v.y(), v.z()};
+}
+
 void UpdateCameraFromTransform(::Camera3D& camera, const Eigen::Matrix4f& transform) {
   const Eigen::Vector3f position = z13::math::ExtractTranslation(transform);
   const Eigen::Quaternionf rotation = z13::math::ExtractQuat(transform);

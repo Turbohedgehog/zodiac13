@@ -31,6 +31,23 @@ void BlockChunks::Sync(std::span<const z13::station::Block> blocks, OptionalPale
   state_->Sync(blocks, palette, chunk_cells);
 }
 
+uint64_t BlockChunks::Version() const {
+  return state_->Version();
+}
+
+Eigen::AlignedBox3f BlockChunks::ChangedSince(uint64_t version) const {
+  return state_->ChangedSince(version);
+}
+
+std::optional<Eigen::AlignedBox3f> BlockChunks::OpaqueBounds() const {
+  return state_->OpaqueBounds();
+}
+
+void BlockChunks::DrawShadowCasters(const std::function<bool(const Eigen::AlignedBox3f&)>& keep,
+                                    const ::Material& material) const {
+  state_->DrawShadowCasters(keep, material);
+}
+
 void BlockChunks::DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const {
   state_->DrawOpaque(culling, lighting, stats);
 }

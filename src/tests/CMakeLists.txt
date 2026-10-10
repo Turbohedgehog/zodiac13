@@ -43,9 +43,11 @@ set(
   src/lib_z13/primitives/cut_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp
   src/lib_z13/primitives/geometry_test.cpp
+  src/lib_z13/primitives/lights_test.cpp
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/rooms/disjoint_sets_test.cpp
+  src/lib_z13/rooms/light_reach_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
   src/lib_z13/rooms/room_visibility_test.cpp

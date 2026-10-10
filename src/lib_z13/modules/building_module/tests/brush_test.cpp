@@ -146,6 +146,26 @@ TEST(BrushTest, TurnKeysTurnTheBrush) {
   EXPECT_EQ(BrushOf(player).orientation, QuarterTurn(QuarterTurn(Orientation {}, TurnAxis::kZ), TurnAxis::kX));
 }
 
+// ROTATE_AROUND_Y's and TOGGLE_FLASHLIGHT's default key (building.fbs, actions.fbs).
+constexpr Keycode kTurnOrFlashlightKey = Keycode::KEY_F;
+
+TEST(BrushTest, TheTurnKeyTurnsTheBrushOnlyWhileBuildingAndSwitchesTheFlashlightOtherwise) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+
+  Tap(test_world, kTurnOrFlashlightKey, TickOnly(test_world));
+  const Orientation turned = QuarterTurn(Orientation {}, TurnAxis::kY);
+  EXPECT_EQ(BrushOf(player).orientation, turned);
+  EXPECT_FALSE(player.get<z13::gameplay::Flashlight>().on);
+
+  z13::testing::ToggleBuildMode(test_world, TickOnly(test_world));
+  Ticks(test_world, kToolSettleTicks);
+  ASSERT_FALSE(player.has<BuildingTool>());
+  Tap(test_world, kTurnOrFlashlightKey, TickOnly(test_world));
+  EXPECT_EQ(BrushOf(player).orientation, turned);
+  EXPECT_TRUE(player.get<z13::gameplay::Flashlight>().on);
+}
+
 TEST(BrushTest, ThePaletteWindowsPickReachesTheBrush) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity player = LocalBuilder(test_world);

@@ -376,6 +376,97 @@ def spawn_blocks(deck, z):
     return blocks
 
 
+# ----- Lamps -------------------------------------------------------------------------------
+
+LAMP = "Lamp"
+LAMP_CELLS = 2
+# One lamp per this many meters of a free area along each axis, at least one per area.
+LAMP_SPACING_M = 6
+AXES = {"X": 0, "Y": 1, "Z": 2}
+
+
+def axis_vector(name):
+    """'PosX', 'NegZ', ... as a unit vector."""
+    vector = [0, 0, 0]
+    vector[AXES[name[3]]] = 1 if name.startswith("Pos") else -1
+    return vector
+
+
+def occupied_box(entry):
+    """The cells [min, max) a blueprint block occupies (primitives/placement.h)."""
+    size = [entry["size"][axis] for axis in "xyz"]
+    extent = list(size)
+    orientation = entry.get("orientation")
+    if orientation:
+        face, up = orientation[len("Face"):].split("Up")
+        x, z = axis_vector(face), axis_vector(up)
+        y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]]
+        extent = [sum(abs(column[row]) * size[i] for i, column in enumerate((x, y, z))) for row in range(3)]
+    low = [entry["cell"][axis] for axis in "xyz"]
+    return low, [low[i] + extent[i] for i in range(3)]
+
+
+def overlaps(box, low, high):
+    return all(box[0][i] < high[i] and low[i] < box[1][i] for i in range(3))
+
+
+def free_areas(grid):
+    """The deck's free areas at 1 m, walls and doors apart; the one around the hull is left out."""
+    depth, width = len(grid), len(grid[0])
+    seen = set()
+    areas = []
+    for y in range(depth):
+        for x in range(width):
+            if grid[y][x] in WALL_LIKE or (x, y) in seen:
+                continue
+            cells, stack, outside = set(), [(x, y)], False
+            while stack:
+                cx, cy = stack.pop()
+                if (cx, cy) in seen or grid[cy][cx] in WALL_LIKE:
+                    continue
+                seen.add((cx, cy))
+                cells.add((cx, cy))
+                outside = outside or cx in (0, width - 1) or cy in (0, depth - 1)
+                stack += [(nx, ny) for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1))
+                          if 0 <= nx < width and 0 <= ny < depth]
+            if not outside:
+                areas.append(cells)
+    return areas
+
+
+def lamp_spots(area):
+    """A lattice of LAMP_SPACING_M over the area's bounds, kept where it falls inside the area."""
+    xs = [x for x, _ in area]
+    ys = [y for _, y in area]
+    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    columns = max(1, round((x1 - x0 + 1) / LAMP_SPACING_M))
+    rows = max(1, round((y1 - y0 + 1) / LAMP_SPACING_M))
+    spots = [(x0 + (x1 - x0 + 1) * (2 * i + 1) // (2 * columns), y0 + (y1 - y0 + 1) * (2 * j + 1) // (2 * rows))
+             for j in range(rows) for i in range(columns)]
+    inside = [spot for spot in spots if spot in area]
+    if inside:
+        return inside
+    centre = ((x0 + x1) / 2, (y0 + y1) / 2)
+    return [min(sorted(area), key=lambda c: (c[0] - centre[0]) ** 2 + (c[1] - centre[1]) ** 2)]
+
+
+def lamp_blocks(deck, z, blocks):
+    """Lamps under the ceiling of every free area of the deck, on a lattice; a lamp needs a block
+    above it to hang from and none where it hangs, so open slabs and stairs get none."""
+    top = z + WALL_HEIGHT_CELLS - 1
+    near = [box for box in map(occupied_box, blocks) if box[0][2] < top + 2 and top < box[1][2]]
+    lamps = []
+    for area in free_areas(deck.grid):
+        for x, y in lamp_spots(area):
+            low = [x * CELLS_PER_M + 1, y * CELLS_PER_M + 1, top]
+            high = [low[0] + LAMP_CELLS, low[1] + LAMP_CELLS, top + 1]
+            hung = all(any(overlaps(box, [cx, cy, top + 1], [cx + 1, cy + 1, top + 2]) for box in near)
+                       for cx in range(low[0], high[0]) for cy in range(low[1], high[1]))
+            if hung and not any(overlaps(box, low, high) for box in near):
+                lamps.append(block(LAMP, low, (LAMP_CELLS, LAMP_CELLS, 1)))
+    return lamps
+
+
 def write_blueprint(path, blocks):
     """One block per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/blueprint.fbs)."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]

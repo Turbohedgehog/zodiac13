@@ -28,6 +28,8 @@ namespace z13::raylib {
 struct DrawTimes {
   // The skybox, the spaceship model and the lighting uniforms.
   double background_ms {};
+  // Choosing the lamps in view and redrawing the shadow maps that changed.
+  double shadows_ms {};
   double players_ms {};
   double opaque_ms {};
   double glass_ms {};
@@ -40,6 +42,7 @@ struct DrawTimes {
 
   DrawTimes& operator+=(const DrawTimes& other) {
     background_ms += other.background_ms;
+    shadows_ms += other.shadows_ms;
     players_ms += other.players_ms;
     opaque_ms += other.opaque_ms;
     glass_ms += other.glass_ms;
@@ -60,6 +63,9 @@ struct RenderStats {
   size_t meshes_drawn {};
   size_t glass_chunks {};
   size_t glass_chunks_drawn {};
+  // Lamps lighting the frame, and those of them casting shadows.
+  size_t lights {};
+  size_t shadowed_lights {};
   // Nothing while rooms don't cull.
   std::optional<size_t> rooms_seen;
   // Walking the portals and narrowing the frustum.

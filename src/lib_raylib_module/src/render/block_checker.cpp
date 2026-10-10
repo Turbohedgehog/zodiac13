@@ -16,11 +16,11 @@
 
 #include "block_checker.h"
 
-#include <array>
 #include <string_view>
 
 #include <z13/components/station.h>
 
+#include "../tools/math_convert.h"
 #include "render_components.h"
 
 namespace z13::raylib {
@@ -28,18 +28,14 @@ namespace z13::raylib {
 namespace {
 
 constexpr std::string_view kEnabledUniform = "checkerEnabled";
+constexpr std::string_view kEmissiveUniform = "checkerEmissive";
 constexpr std::string_view kFirstUniform = "checkerFirst";
 constexpr std::string_view kSecondUniform = "checkerSecond";
 constexpr std::string_view kCellSizeUniform = "cellSize";
-constexpr float kMaxChannel = 255.f;
 
-std::array<float, 4> ToVec4(const z13::building::primitives::Rgba& rgba) {
-  return {rgba[0] / kMaxChannel, rgba[1] / kMaxChannel, rgba[2] / kMaxChannel, rgba[3] / kMaxChannel};
-}
-
-void SetEnabled(const LightingResources& res, bool enabled) {
-  const int value = enabled ? 1 : 0;
-  SetShaderValue(*res.shader, res.checker.enabled, &value, SHADER_UNIFORM_INT);
+void SetFlag(const LightingResources& res, int location, bool on) {
+  const int value = on ? 1 : 0;
+  SetShaderValue(*res.shader, location, &value, SHADER_UNIFORM_INT);
 }
 
 }  // namespace
@@ -49,6 +45,7 @@ CheckerUniforms SetupCheckerUniforms(const ::Shader& shader) {
   SetShaderValue(shader, GetShaderLocation(shader, kCellSizeUniform.data()), &cell_size, SHADER_UNIFORM_FLOAT);
   return {
       .enabled = GetShaderLocation(shader, kEnabledUniform.data()),
+      .emissive = GetShaderLocation(shader, kEmissiveUniform.data()),
       .first = GetShaderLocation(shader, kFirstUniform.data()),
       .second = GetShaderLocation(shader, kSecondUniform.data()),
   };
@@ -59,14 +56,16 @@ void UseChecker(const Lighting& lighting, const z13::building::primitives::Check
     return;
   }
   const LightingResources& res = *lighting.res;
-  SetEnabled(res, true);
-  SetShaderValue(*res.shader, res.checker.first, ToVec4(material.first).data(), SHADER_UNIFORM_VEC4);
-  SetShaderValue(*res.shader, res.checker.second, ToVec4(material.second).data(), SHADER_UNIFORM_VEC4);
+  SetFlag(res, res.checker.enabled, true);
+  SetFlag(res, res.checker.emissive, material.emissive);
+  SetShaderValue(*res.shader, res.checker.first, ToUnitColor(material.first).data(), SHADER_UNIFORM_VEC4);
+  SetShaderValue(*res.shader, res.checker.second, ToUnitColor(material.second).data(), SHADER_UNIFORM_VEC4);
 }
 
 void StopChecker(const Lighting& lighting) {
   if (lighting.res) {
-    SetEnabled(*lighting.res, false);
+    SetFlag(*lighting.res, lighting.res->checker.enabled, false);
+    SetFlag(*lighting.res, lighting.res->checker.emissive, false);
   }
 }
 

@@ -68,6 +68,8 @@ float StatsOverlay::Draw(const RenderStats* render, float top) const {
     if (render != nullptr) {
       ImGui::Text("Chunks %zu / %zu, meshes %zu", render->chunks_drawn, render->chunks, render->meshes_drawn);
       ImGui::Text("Glass chunks %zu / %zu", render->glass_chunks_drawn, render->glass_chunks);
+      ImGui::Text("Lamps %zu, with shadows %zu, %.2f ms", render->lights, render->shadowed_lights,
+                  render->times.shadows_ms);
       if (render->rooms_seen) {
         ImGui::Text("Rooms seen %zu, %.0f us", *render->rooms_seen, render->culling_us);
       } else {

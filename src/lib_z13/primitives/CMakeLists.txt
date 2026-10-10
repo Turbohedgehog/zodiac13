@@ -13,6 +13,7 @@ set(
   src/cut.cpp
   src/draw_order.cpp
   src/geometry.cpp
+  src/lights.cpp
   src/palette.cpp
   src/placement.cpp
   src/station_assets.cpp

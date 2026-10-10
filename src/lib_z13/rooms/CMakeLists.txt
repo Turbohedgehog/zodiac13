@@ -10,6 +10,7 @@ set(
   PROJECT_SOURCE_FILES
   src/column_map.cpp
   src/disjoint_sets.cpp
+  src/light_reach.cpp
   src/portal_source.cpp
   src/room_builder.cpp
   src/room_cache.cpp

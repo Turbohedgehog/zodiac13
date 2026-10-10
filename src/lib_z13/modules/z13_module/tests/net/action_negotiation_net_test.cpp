@@ -111,7 +111,7 @@ void ShiftLocalIds(flecs::world world) {
 }
 
 ActionInfo::IdType MoveForwardId(Z13TestWorld& world) {
-  return IdOf(world, "z13.fbs.actions.Action", static_cast<ActionInfo::EnumValueType>(z13::fbs::actions::Action::MOVE_FORWARD))
+  return IdOf(world, z13::gameplay::input::kActionsEnumName, static_cast<ActionInfo::EnumValueType>(z13::fbs::actions::Action::MOVE_FORWARD))
       .value();
 }
 

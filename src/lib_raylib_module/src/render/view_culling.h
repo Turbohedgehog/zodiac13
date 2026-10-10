@@ -48,7 +48,7 @@ struct CameraView {
 // portals (rooms/room_visibility.h).
 class ViewCulling {
  public:
-  using OptionalGraph = std::optional<std::reference_wrapper<const z13::station::rooms::RoomGraph>>;
+  using OptionalGraph = z13::station::rooms::OptionalRoomGraph;
 
   // Without a graph, or with the eye inside a block or in the vacuum, only the frustum culls.
   ViewCulling(const CameraView& view, OptionalGraph graph);

@@ -62,6 +62,15 @@ enum PrimitiveFlags : uint (bit_flags) {
 table Checker {
   first: Rgba;
   second: Rgba;
+  // Drawn at full color whatever lights it, as a lamp glows.
+  emissive: bool = false;
+}
+
+// A point light just below the primitive's bottom face (its own -Z), reaching `radius_cells`.
+table LightSource {
+  color: Rgba;
+  radius_cells: ushort;
+  intensity: float = 1;
 }
 
 table Primitive {
@@ -74,6 +83,7 @@ table Primitive {
   max_size: Cells;
   material: Checker;
   flags: PrimitiveFlags;
+  light: LightSource;
 }
 
 table Palette {

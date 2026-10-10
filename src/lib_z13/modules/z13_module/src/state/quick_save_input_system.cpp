@@ -45,7 +45,7 @@ namespace z13::state {
 
 namespace {
 
-constexpr std::string_view kActionsEnumName = "z13.fbs.actions.Action";
+using z13::gameplay::input::kActionsEnumName;
 
 struct QuickSaveActionIds {
   using Singleton = void;

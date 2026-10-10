@@ -19,12 +19,16 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include <z13/components/input.h>
 
 #include <lib_core/utils/status.h>
 
 namespace z13::gameplay::input {
+
+// The gameplay actions' enum (actions.fbs), as the action map names it.
+inline constexpr std::string_view kActionsEnumName = "z13.fbs.actions.Action";
 
 class InputConfigLoader {
  public:
