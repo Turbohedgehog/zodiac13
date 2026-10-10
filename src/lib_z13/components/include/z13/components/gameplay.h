@@ -96,4 +96,12 @@ struct PlayerCollider {
   float radius {};
 };
 
+// A player under gravity (z13/components/gravity.h) walks; without it, flies freely.
+struct PlayerMotion {
+  using State = void;
+  bool grounded {};
+  // Along the gravity, negative while rising after a jump.
+  float fall_speed {};
+};
+
 }  // namespace z13::gameplay

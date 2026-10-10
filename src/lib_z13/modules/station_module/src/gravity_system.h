@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
 #include <flecs.h>
 
-#include "gravity_system.h"
-#include "room_overlay_system.h"
-#include "room_system.h"
-
 namespace z13::station {
 
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-  GravitySystem::Register(world);
-}
+// After the rooms are rebuilt.
+struct GravityPhase {};
+
+// Keeps RoomGravity in step with the rooms and gives every body with Gravity that of the
+// room it is in.
+class GravitySystem {
+ public:
+  static void Register(flecs::world& world);
+};
 
 }  // namespace z13::station

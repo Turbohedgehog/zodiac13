@@ -69,6 +69,7 @@ set(
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
+  ${MODULES_DIR}/station_module/tests/gravity_system_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
@@ -144,7 +145,7 @@ target_link_libraries(
   zodiac13::station_module
   zodiac13::net_module
   zodiac13::z13_launcher
-  zodiac13::z13_settings
+  zodiac13::settings
   zodiac13::primitives
   zodiac13::z13_grid
   zodiac13::rooms

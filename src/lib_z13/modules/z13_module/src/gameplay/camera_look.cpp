@@ -58,19 +58,26 @@ LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform) {
   };
 }
 
+namespace {
+
+Eigen::Matrix3f Turn(const CameraMoveAxes& axes, LookAngles& look, Eigen::Matrix4f& transform) {
+  look = Normalized(axes.absolute_look);
+  const Eigen::Matrix3f rotation =
+      (Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
+       Eigen::AngleAxisf(z13::math::ToRadians(look.pitch_deg), Eigen::Vector3f::UnitY()))
+          .toRotationMatrix();
+  transform.block<3, 3>(0, 0) = rotation;
+  return rotation;
+}
+
+}  // namespace
+
 void ApplyCameraMove(
     const CameraMoveAxes& axes,
     float delta_time,
     LookAngles& look,
     Eigen::Matrix4f& transform) {
-  look = Normalized(axes.absolute_look);
-
-  auto rotation =
-      Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
-      Eigen::AngleAxisf(z13::math::ToRadians(look.pitch_deg), Eigen::Vector3f::UnitY());
-
-  auto new_rotation_matrix = rotation.toRotationMatrix();
-  transform.block<3, 3>(0, 0) = new_rotation_matrix;
+  const Eigen::Matrix3f new_rotation_matrix = Turn(axes, look, transform);
 
   auto forward_axis = new_rotation_matrix.col(0);
   auto side_axis = new_rotation_matrix.col(1);
@@ -83,6 +90,30 @@ void ApplyCameraMove(
   Eigen::Vector3f position = transform.col(3).head<3>();
   position += x_delta + y_delta + z_delta;
   transform.block<3, 1>(0, 3) = position;
+}
+
+void ApplyWalkMove(
+    const CameraMoveAxes& axes, const WalkStep& step, LookAngles& look, PlayerMotion& motion,
+    Eigen::Matrix4f& transform) {
+  const Eigen::Matrix3f rotation = Turn(axes, look, transform);
+  const Eigen::Vector3f down = step.gravity.normalized();
+  // The camera stays upright along Z; its heading is laid onto the floor across the gravity.
+  const Eigen::Vector3f facing = rotation.col(0) - (rotation.col(0).dot(down) * down);
+  const Eigen::Vector3f forward = facing.isZero() ? Eigen::Vector3f::Zero() : facing.normalized();
+  const Eigen::Vector3f left = forward.cross(down);
+  Eigen::Vector3f heading = forward * (axes.forward - axes.backward) + left * (axes.left - axes.right);
+  // Diagonal keys don't walk faster than one.
+  if (heading.squaredNorm() > 1.f) {
+    heading.normalize();
+  }
+
+  if (motion.grounded && axes.up > 0.f) {
+    motion = {.fall_speed = -step.jump_speed};
+  }
+  motion.fall_speed += step.gravity.norm() * step.delta_time;
+
+  transform.block<3, 1>(0, 3) +=
+      ((heading * step.walk_speed) + (down * motion.fall_speed)) * step.delta_time;
 }
 
 }  // namespace z13::gameplay

@@ -81,7 +81,7 @@ target_link_libraries(
   zodiac13::components
   zodiac13::primitives
   zodiac13::rooms
-  zodiac13::z13_settings
+  zodiac13::settings
   raylib
   SDL3::SDL3
   imgui::imgui

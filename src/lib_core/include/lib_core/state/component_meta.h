@@ -40,8 +40,8 @@ namespace z13::flecs_tools {
 // Call once per world before registering components that have std::string members.
 void RegisterStdStringMeta(flecs::world& world);
 
-// Registers Eigen::Matrix4f and Eigen::Vector3i as opaque arrays of their scalars, so
-// transforms and grid cells serialize like any other component. Call once per world.
+// Registers the Eigen types components hold as opaque arrays of their scalars, so they
+// serialize like any other member. Call once per world.
 void RegisterEigenMeta(flecs::world& world);
 
 // Registers T as a flecs component and derives its meta members from reflect-cpp

@@ -14,20 +14,29 @@
  * limitations under the License.
  */
 
-#include "station_module.h"
+#pragma once
 
-#include <flecs.h>
+#include <cstdint>
+#include <optional>
+#include <vector>
 
-#include "gravity_system.h"
-#include "room_overlay_system.h"
-#include "room_system.h"
+#include <Eigen/Dense>
 
 namespace z13::station {
 
-StationModule::StationModule(flecs::world& world) {
-  RoomSystem::Register(world);
-  RoomOverlaySystem::Register(world);
-  GravitySystem::Register(world);
-}
+struct RoomGravitySource {
+  uint64_t fingerprint {};
+  float gravity {};
+
+  bool operator==(const RoomGravitySource&) const = default;
+};
+
+// Each room's gravity: for now physics.gravity down, zero in vacuum; gravity generators
+// (f/gravity) will set it per room or over an area. Derived, never state.
+struct RoomGravity {
+  using Singleton = void;
+  std::optional<RoomGravitySource> source;
+  std::vector<Eigen::Vector3f> by_room;
+};
 
 }  // namespace z13::station

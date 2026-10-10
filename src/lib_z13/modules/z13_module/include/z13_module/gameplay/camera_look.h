@@ -18,6 +18,8 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/gameplay.h>
+
 namespace z13::gameplay {
 
 // Persistent yaw/pitch for mouse-look: re-deriving via eulerAngles() every frame
@@ -55,6 +57,19 @@ void ApplyCameraMove(
     const CameraMoveAxes& axes,
     float delta_time,
     LookAngles& look,
+    Eigen::Matrix4f& transform);
+
+struct WalkStep {
+  float delta_time {};
+  Eigen::Vector3f gravity = Eigen::Vector3f::Zero();
+  float walk_speed {};
+  float jump_speed {};
+};
+
+// Turns like ApplyCameraMove, but steps across the gravity whatever the pitch, jumps with
+// `axes.up` from the ground and falls by `motion.fall_speed`; `axes.down` does nothing.
+void ApplyWalkMove(
+    const CameraMoveAxes& axes, const WalkStep& step, LookAngles& look, PlayerMotion& motion,
     Eigen::Matrix4f& transform);
 
 }  // namespace z13::gameplay
