@@ -101,8 +101,7 @@ void SyncBlockBody(
   const BlockShapeKey shape {.type_id = block.spec.type_id, .size = block.spec.size};
   physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
     std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
-    // Doors can't be opened before f/doors, so a closed one lets players through; its room
-    // portal stays closed.
+    // Until f/doors opens doors, a closed one lets players through.
     std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
       return solid.role == z13::building::primitives::PartRole::kDoorLeaf;
     });
@@ -174,16 +173,14 @@ struct Footing {
   float step_height {};
 };
 
-// Where the head was, was moved to, and ended up after the collision sweep.
 struct HeadPath {
   btVector3 origin;
   btVector3 intended;
   btVector3 resolved;
 };
 
-// A falling player lands; a walking one also steps down onto a floor within step_height.
-// Nullopt when a walking player's floor under `head` is more than step_height above the
-// feet: an obstacle, not a step. A falling one stands up whatever the height.
+// Lands a falling player and steps a walking one up or down within step_height; nullopt
+// when a walking player meets a higher floor, an obstacle.
 std::optional<btVector3> StandOnFloor(
     const btVector3& head, const Footing& footing, PhysicsWorld& physics_world, z13::gameplay::PlayerMotion& motion) {
   if (motion.fall_speed < 0.f) {
@@ -209,7 +206,7 @@ std::optional<btVector3> StandOnFloor(
 
 btVector3 ApplyGravity(
     const HeadPath& path, const Footing& footing, PhysicsWorld& physics_world, z13::gameplay::PlayerMotion& motion) {
-  // A jump stops at a ceiling; sliding along a wall pushes back far less.
+  // A jump stops at a ceiling.
   if (motion.fall_speed < 0.f && (path.resolved - path.intended).dot(footing.down) > kCeilingPush) {
     motion.fall_speed = 0.f;
   }

@@ -100,3 +100,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 
 - A branch's total diff should average no more than 1000 lines of code. Exceeding this is acceptable only in exceptional cases.
 - If a branch exceeds this limit, flag it immediately during code review.
+
+## Code review
+
+- Every review also checks the comments the branch adds (`git diff main -U0 | grep '^+\s*//'`): report as a finding each one that restates a name or the code, repeats another comment or a convention from this file, or runs longer than the "Comments" section allows, with the shorter wording or "delete" as the fix.

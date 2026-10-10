@@ -24,7 +24,6 @@
 
 namespace z13::station {
 
-// What RoomGravity was built from: the room graph's fingerprint and physics.gravity.
 struct RoomGravitySource {
   uint64_t fingerprint {};
   float gravity {};
@@ -32,9 +31,8 @@ struct RoomGravitySource {
   bool operator==(const RoomGravitySource&) const = default;
 };
 
-// The gravity of each room of the current room graph, zero in vacuum. For now every room
-// pulls down with physics.gravity; gravity generators (f/gravity) will set it per room or
-// over an area. Derived, never state.
+// Each room's gravity: for now physics.gravity down, zero in vacuum; gravity generators
+// (f/gravity) will set it per room or over an area. Derived, never state.
 struct RoomGravity {
   using Singleton = void;
   std::optional<RoomGravitySource> source;

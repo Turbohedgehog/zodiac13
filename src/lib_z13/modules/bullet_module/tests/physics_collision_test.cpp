@@ -344,7 +344,7 @@ TEST(StationCollisionTest, AWallStopsThePlayer) {
   EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
 }
 
-// Until f/doors opens doors, a closed one is walked through; its frame still stops the player.
+// Until f/doors; the frame still stops the player.
 TEST(StationCollisionTest, AClosedDoorLetsThePlayerThrough) {
   z13::testing::Z13TestWorld test_world;
   PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);

@@ -20,8 +20,7 @@
 
 namespace z13::station {
 
-// After the rooms are rebuilt. Outside the anonymous namespace: its path breaks phase-order
-// ties (see phase_order.h).
+// After the rooms are rebuilt.
 struct GravityPhase {};
 
 // Keeps RoomGravity in step with the rooms and gives every body with Gravity that of the

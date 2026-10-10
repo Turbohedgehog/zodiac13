@@ -59,7 +59,6 @@ void ApplyCameraMove(
     LookAngles& look,
     Eigen::Matrix4f& transform);
 
-// One tick of walking under `gravity`, with the PhysicsTuning speeds.
 struct WalkStep {
   float delta_time {};
   Eigen::Vector3f gravity = Eigen::Vector3f::Zero();

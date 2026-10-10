@@ -83,7 +83,6 @@ class GravitySystemTest : public ::testing::Test {
     }
   }
 
-  // Holds `key` for `ticks`.
   void Walk(z13::fbs::input::Keycode key, int ticks) {
     world_.EmitInput(z13::testing::KeyDown(key));
     Advance(ticks);
@@ -137,8 +136,7 @@ TEST_F(GravitySystemTest, AnyBodyGetsTheGravityOfItsRoom) {
   EXPECT_FALSE(outside.get<Gravity>().Pulls());
 }
 
-// The door's leaf has no collision until doors open (f/doors): the player walks into the
-// next room and keeps its gravity.
+// The door's leaf has no collision until f/doors.
 TEST_F(GravitySystemTest, APlayerWalksThroughAClosedDoorKeepingGravity) {
   testing::AddBlocks(world_, testing::DoorPartition());
   world_.Tick(kTick);
@@ -164,8 +162,7 @@ TEST_F(GravitySystemTest, APlayerStepsUpOntoALowSlab) {
   EXPECT_NEAR(PositionOf(player).z(), FloorTop() + kCellSize + kTuning.eye_height, kStandTolerance);
 }
 
-// One meter high: the head passes over it, but the walk stops instead of lifting the player
-// on top.
+// One meter high: the head passes over it, the walk stops.
 TEST_F(GravitySystemTest, AWaistHighBlockStopsTheWalk) {
   constexpr int kWallY = 7;
   testing::AddBlock(world_, testing::At(testing::kWall, {testing::kSide, 1, 4}, {}, {1, kWallY, 1}));
