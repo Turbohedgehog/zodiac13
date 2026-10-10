@@ -17,7 +17,10 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -52,6 +55,16 @@ class BlockChunks {
 
   // Counts the chunks and meshes drawn in `stats`.
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
+
+  // Changes whenever the opaque chunks do.
+  uint64_t Version() const;
+  // Where the opaque chunks changed since `version`, in meters; empty if nowhere.
+  Eigen::AlignedBox3f ChangedSince(uint64_t version) const;
+  // Of the opaque chunks; nothing without them.
+  std::optional<Eigen::AlignedBox3f> OpaqueBounds() const;
+  // The opaque chunks whose bounds (in meters) `keep` keeps, with `material`: what casts shadows.
+  void DrawShadowCasters(const std::function<bool(const Eigen::AlignedBox3f&)>& keep,
+                         const ::Material& material) const;
 
   // The glass in view from the farthest chunk, `eye` in meters; counts its chunks drawn in
   // `stats`.

@@ -117,6 +117,21 @@
         "second": {"r": 70, "g": 175, "b": 70, "a": 255}
       },
       "flags": "Solid"
+    },
+    {
+      "id": 10,
+      "name": "Lamp",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 2, "y": 2, "z": 1},
+      "max_size": {"x": 2, "y": 2, "z": 1},
+      "material": {
+        "first": {"r": 255, "g": 247, "b": 225, "a": 255},
+        "second": {"r": 245, "g": 235, "b": 205, "a": 255},
+        "emissive": true
+      },
+      "flags": "Solid",
+      "light": {"color": {"r": 255, "g": 238, "b": 205, "a": 255}, "radius_cells": 64, "intensity": 0.6}
     }
   ]
 }

@@ -12,4 +12,4 @@ Deck 9 (Command deck): berths 13, rooms 38, doors 36, area 2515 m2, air cells 56
 
 Single cabins: 261. Rooms 528, doors 517.
 Air cells (0.25 m grid): 7,358,624.
-Blueprint blocks (spire.json): 6219 - Floor 1225, Window 779, Wall 3564, HiddenDoor 14, Door 517, Slope 112, SpawnPoint 8.
+Blueprint blocks (spire.json): 7334 - Floor 1225, Window 779, Wall 3564, HiddenDoor 14, Door 517, Slope 112, SpawnPoint 8, Lamp 1115.

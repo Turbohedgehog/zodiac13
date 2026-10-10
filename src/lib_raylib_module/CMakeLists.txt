@@ -41,7 +41,10 @@ set(
   src/render/lights.cpp
   src/render/render_resources.cpp
   src/render/render_tour.cpp
+  src/render/shadow_maps.cpp
+  src/render/shadow_maps_state.cpp
   src/render/skybox.cpp
+  src/render/station_lights.cpp
   src/render/view_culling.cpp
   src/tools/asset_path.cpp
   src/tools/assimp_loader.cpp

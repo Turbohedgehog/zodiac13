@@ -30,6 +30,8 @@ enum Action : int16 (action, action_group: "Control") {
   HORIZONTAL_LOOK (absolute),
   SAVE_SCENE (display_text: "Quick save", default_keycodes: "KEY_F5"),
   LOAD_SCENE (display_text: "Quick load", default_keycodes: "KEY_F9"),
+  // KEY_F also turns the brush in the Building group, which comes first while building.
+  TOGGLE_FLASHLIGHT (display_text: "Flashlight", default_keycodes: "KEY_F"),
 }
 
 table ActionsTable {

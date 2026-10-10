@@ -44,7 +44,7 @@ std::expected<std::reference_wrapper<const RoomGraph>, std::string> RoomCache::S
   return std::cref(entries_.back().graph);
 }
 
-std::optional<std::reference_wrapper<const RoomGraph>> RoomCache::Current() const {
+OptionalRoomGraph RoomCache::Current() const {
   if (!current_) {
     return std::nullopt;
   }

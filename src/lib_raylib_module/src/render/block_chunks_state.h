@@ -18,6 +18,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -58,23 +60,40 @@ struct ChunkSyncKey {
   bool operator==(const ChunkSyncKey&) const = default;
 };
 
+// Where the opaque chunks changed, as of a version.
+struct ChunkChange {
+  uint64_t version {};
+  Eigen::AlignedBox3f bounds;
+};
+
 class BlockChunks::State {
  public:
   explicit State(::Shader lighting_shader) : lighting_shader_(lighting_shader) {}
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
+  uint64_t Version() const { return version_; }
+  Eigen::AlignedBox3f ChangedSince(uint64_t version) const;
+  std::optional<Eigen::AlignedBox3f> OpaqueBounds() const;
+  void DrawShadowCasters(const std::function<bool(const Eigen::AlignedBox3f&)>& keep,
+                         const ::Material& material) const;
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
   void DrawTransparent(
       const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats);
 
  private:
-  void SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
+  // The bounds of the chunks rebuilt or dropped, before and after.
+  Eigen::AlignedBox3f SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
                   int chunk_cells) const;
   ChunkModels Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) const;
 
   ::Shader lighting_shader_ {};
   std::optional<ChunkSyncKey> synced_with_;
+  uint64_t version_ {};
+  // The latest changes; one older than these counts as a change of all of extent_.
+  std::deque<ChunkChange> changes_;
+  // Of every opaque chunk there has been.
+  Eigen::AlignedBox3f extent_;
   ChunkMap opaque_;
   ChunkMap transparent_;
   // Kept between frames so drawing allocates nothing.

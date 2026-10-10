@@ -65,6 +65,39 @@ TEST(PaletteTest, ParsesSizesFlagsAndColors) {
   EXPECT_FALSE(wall.Has(PrimitiveFlags::GasSealing));
 }
 
+// A glowing box with `light`, a LightSource in JSON.
+std::string Lamp(std::string_view light) {
+  return std::format(
+      R"({{"id": 1, "name": "Lamp", "shape_type": "Box", "shape": {{}}, "min_size": {{"x": 2, "y": 2, "z": 1}},
+           "max_size": {{"x": 2, "y": 2, "z": 1}},
+           "material": {{"first": {{"r": 9, "g": 9, "b": 9, "a": 255}}, "second": {{"r": 9, "g": 9, "b": 9, "a": 255}},
+                         "emissive": true}},
+           "light": {}}})",
+      light);
+}
+
+TEST(PaletteTest, ParsesALampsLightAndGlow) {
+  const auto palette =
+      ParsePalette(Palette(Lamp(R"({"color": {"r": 255, "g": 240, "b": 200, "a": 255}, "radius_cells": 40,
+                                    "intensity": 1.5})")));
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  const Primitive& lamp = palette->primitives.front();
+  EXPECT_TRUE(lamp.material.emissive);
+  ASSERT_TRUE(lamp.light.has_value());
+  EXPECT_EQ(*lamp.light, (LightSource {.color = {255, 240, 200, 255}, .radius_cells = 40, .intensity = 1.5f}));
+  EXPECT_FALSE(ParsePalette(Palette(Entry(1, "Wall")))->primitives.front().light.has_value());
+}
+
+TEST(PaletteTest, RejectsALightThatReachesNothing) {
+  EXPECT_FALSE(ParsePalette(Palette(Lamp(R"({"color": {"r": 1, "g": 1, "b": 1, "a": 255}, "radius_cells": 0})")))
+                   .has_value());
+  EXPECT_FALSE(ParsePalette(Palette(Lamp(R"({"color": {"r": 1, "g": 1, "b": 1, "a": 255}, "radius_cells": 4,
+                                             "intensity": 0})")))
+                   .has_value());
+  EXPECT_FALSE(ParsePalette(Palette(Lamp(R"({"radius_cells": 4})"))).has_value());
+}
+
 TEST(PaletteTest, HashDependsOnContentNotLayout) {
   const std::string entry = Entry(1, "Floor");
   const auto compact = ParsePalette(Palette(entry));

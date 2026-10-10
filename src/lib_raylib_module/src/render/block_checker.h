@@ -27,6 +27,7 @@ struct Lighting;
 // Locations of the checker uniforms in assets/shaders/lighting.fs.
 struct CheckerUniforms {
   int enabled {};
+  int emissive {};
   int first {};
   int second {};
 };

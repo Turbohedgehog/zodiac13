@@ -11,6 +11,7 @@ set(
   PROJECT_SOURCE_FILES
   src/bootstrap/bootstrap_system.cpp
   src/gameplay/camera_look.cpp
+  src/gameplay/flashlight_system.cpp
   src/gameplay/gameplay_entities.cpp
   src/gameplay/gameplay_system.cpp
   src/input/action_negotiation.cpp

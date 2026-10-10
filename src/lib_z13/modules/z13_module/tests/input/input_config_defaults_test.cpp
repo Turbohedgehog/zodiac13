@@ -15,6 +15,7 @@
  */
 #include <gtest/gtest.h>
 
+#include <format>
 #include <optional>
 #include <set>
 #include <string>
@@ -32,7 +33,7 @@ namespace {
 
 using Action = z13::fbs::actions::Action;
 using Keycode = z13::fbs::input::Keycode;
-constexpr std::string_view kActionsEnum = "z13.fbs.actions.Action";
+constexpr std::string_view kActionsEnum = z13::gameplay::input::kActionsEnumName;
 
 constexpr std::string_view kConfigTemplate = R"({
   "mouse_config": {"mouse_sensitivity": 5, "invert_x": false, "invert_y": false},
@@ -46,8 +47,7 @@ std::string Config(const std::string& bindings) {
 }
 
 std::string Binding(std::string_view action, std::string_view key) {
-  return R"({"action_name": "z13.fbs.actions.Action:)" + std::string(action) + R"(", "key_code": ")" +
-         std::string(key) + R"("})";
+  return std::format(R"({{"action_name": "{}:{}", "key_code": "{}"}})", kActionsEnum, action, key);
 }
 
 class InputConfigDefaultsTest : public ::testing::Test {

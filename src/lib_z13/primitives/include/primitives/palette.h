@@ -48,8 +48,18 @@ using Rgba = z13::Rgba;
 struct Checker {
   Rgba first {};
   Rgba second {};
+  bool emissive {};
 
   bool operator==(const Checker&) const = default;
+};
+
+// A point light just below the primitive's bottom face (primitives/lights.h).
+struct LightSource {
+  Rgba color {};
+  int radius_cells {};
+  float intensity {};
+
+  bool operator==(const LightSource&) const = default;
 };
 
 // One palette entry, as plain data so a flecs component can hold it.
@@ -61,6 +71,7 @@ struct Primitive {
   Eigen::Vector3i max_size = Eigen::Vector3i::Ones();
   Checker material;
   PrimitiveFlags flags {};
+  std::optional<LightSource> light;
 
   bool Has(PrimitiveFlags flag) const { return (flags & flag) == flag; }
 };
@@ -82,8 +93,8 @@ struct BlockPalette {
 };
 
 // Parses palette JSON (primitives.fbs) and rejects duplicate ids or names, size limits
-// outside 1..max_size_cells or min above max, stretchable door frames, and shapes that
-// can't be built at those sizes.
+// outside 1..max_size_cells or min above max, stretchable door frames, shapes that can't
+// be built at those sizes, and lights without color, reach or intensity.
 std::expected<Palette, std::string> ParsePalette(std::string_view json);
 
 }  // namespace z13::building::primitives

@@ -41,8 +41,8 @@ constexpr std::array kCullRooms {true, false};
 
 constexpr std::string_view kCsvHeader =
     "viewpoint,room,room_cells,eye_x,eye_y,eye_z,target_x,target_y,target_z,culling,chunk_cells,frames,"
-    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_chunks_drawn,glass_chunks,rooms_seen,"
-    "background_ms,players_ms,opaque_ms,glass_ms,previews_ms,overlay_ms,release_ms,flush_ms\n";
+    "avg_ms,worst_ms,culling_us,chunks_drawn,chunks,meshes_drawn,glass_chunks_drawn,glass_chunks,lights,shadowed_lights,"
+    "rooms_seen,background_ms,shadows_ms,players_ms,opaque_ms,glass_ms,previews_ms,overlay_ms,release_ms,flush_ms\n";
 constexpr std::string_view kSystemsCsvHeader = "viewpoint,culling,chunk_cells,system,ms_per_frame\n";
 constexpr std::string_view kSystemsFileSuffix = "_systems";
 // Systems below this per frame are left out of the systems CSV.
@@ -134,14 +134,14 @@ void RenderTour::Step(Clock::time_point now, const RenderStats& stats, const z13
   const RenderStats& drawn = tally_.last;
   const double frames = std::max(tally_.frames, 1);
   rows_.push_back(std::format(
-      "{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{},{},{},{:.3f},{:.3f},{:.1f},{},{},{},{},{},{},"
-      "{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}\n",
+      "{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{},{},{},{:.3f},{:.3f},{:.1f},{},{},{},{},{},{},{},{},"
+      "{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f},{:.3f}\n",
       stop_ / kCullRooms.size(), stop->view.room, stop->room_cells, eye.x(), eye.y(), eye.z(), target.x(), target.y(),
       target.z(), culling, chunk_cells_, tally_.frames,
       tally_.total_ms / frames, tally_.worst_ms, tally_.culling_us / frames, drawn.chunks_drawn, drawn.chunks,
-      drawn.meshes_drawn, drawn.glass_chunks_drawn, drawn.glass_chunks,
+      drawn.meshes_drawn, drawn.glass_chunks_drawn, drawn.glass_chunks, drawn.lights, drawn.shadowed_lights,
       drawn.rooms_seen ? std::to_string(*drawn.rooms_seen) : std::string(), tally_.times.background_ms / frames,
-      tally_.times.players_ms / frames, tally_.times.opaque_ms / frames, tally_.times.glass_ms / frames,
+      tally_.times.shadows_ms / frames, tally_.times.players_ms / frames, tally_.times.opaque_ms / frames, tally_.times.glass_ms / frames,
       tally_.times.previews_ms / frames, tally_.times.overlay_ms / frames, tally_.times.release_ms / frames,
       tally_.times.flush_ms / frames));
   ++stop_;

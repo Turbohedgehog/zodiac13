@@ -48,7 +48,7 @@ class RoomCache {
   std::expected<std::reference_wrapper<const RoomGraph>, std::string> Select(
       uint64_t fingerprint, const Build& build);
 
-  std::optional<std::reference_wrapper<const RoomGraph>> Current() const;
+  OptionalRoomGraph Current() const;
   std::optional<uint64_t> CurrentFingerprint() const;
 
   size_t BlocksSeen() const { return blocks_seen_; }

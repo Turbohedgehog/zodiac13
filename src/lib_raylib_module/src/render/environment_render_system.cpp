@@ -73,7 +73,9 @@
 #include "render_resources.h"
 #include "render_stats.h"
 #include "render_tour.h"
+#include "shadow_maps.h"
 #include "skybox.h"
+#include "station_lights.h"
 #include "view_culling.h"
 
 namespace z13::raylib {
@@ -93,16 +95,22 @@ constexpr ::Color kRefusedBuildTint {255, 90, 90, 128};
 constexpr ::Color kValidCutTint {255, 170, 60, 128};
 
 constexpr float kAvatarRadius = 0.5f;
-constexpr float kMaxColorChannel = 255.f;
 
-// One directional "sun", Z-up world.
-constexpr ::Vector3 kSunPosition{60.f, 40.f, 80.f};
-constexpr ::Vector3 kSunTarget{0.f, 0.f, 0.f};
+// One directional "sun", Z-up world, shining from above (60, 40, 80) towards the origin.
+const Eigen::Vector3f kSunDirection = Eigen::Vector3f(-60.f, -40.f, -80.f).normalized();
+const Eigen::Vector3f kSunColor = Eigen::Vector3f::Ones();
+// Bluish, as light from the sky around would be; scaled by render.outside_fill.
+const Eigen::Vector3f kFillTint(0.8f, 0.87f, 1.f);
+// Warm, as an LED torch; scaled by render.flashlight_intensity.
+const Eigen::Vector3f kFlashlightTint(1.f, 0.95f, 0.85f);
+// Keeps the ship scene's faces the sun misses from going black.
+const Eigen::Vector3f kShipAmbientSky(0.30f, 0.32f, 0.40f);
+const Eigen::Vector3f kShipAmbientGround(0.12f, 0.10f, 0.09f);
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, RenderStats, RenderTour, z13::VisualSmoothing,
-                                         z13::RenderTuning>(world);
+                                         BlockChunks, ShadowMaps, StationLights, RenderStats, RenderTour,
+                                         z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
 // Everything not the local player's own chases its simulated transform in real time, so
@@ -133,14 +141,7 @@ Lighting LoadLighting() {
   auto res = std::make_shared<LightingResources>();
   res->shader = MakeManagedShader(shader);
   res->checker = SetupCheckerUniforms(shader);
-
-  Light sun{};
-  sun.kind = LightKind::Directional;
-  sun.position = kSunPosition;
-  sun.target = kSunTarget;
-  sun.color = WHITE;
-  SetupLight(sun, *res->shader, 0);
-
+  res->lights = FindLightUniforms(shader);
   return Lighting{.res = std::move(res)};
 }
 
@@ -236,6 +237,7 @@ AvatarModel LoadAvatar(const Lighting& lighting) {
 
 using RemotePlayerQuery = flecs::query<const gameplay::Player, const Eigen::Matrix4f>;
 using DrawnQuery = flecs::query<const Eigen::Matrix4f>;
+using FlashlightQuery = flecs::query<const gameplay::Flashlight, const Eigen::Matrix4f>;
 
 void ChaseDrawnPoses(SmoothedDrawing& drawing, const VisualSmoothing& settings, const DrawnQuery& drawn_query) {
   const auto now = std::chrono::steady_clock::now();
@@ -503,6 +505,127 @@ void SetViewPosition(const flecs::world& world, const ::Vector3& eye) {
   }
 }
 
+// Every player as its avatar, the local one too: it is drawn only in shadows.
+std::vector<MovingCaster> PlayerCasters(const DrawnQuery& players, const z13::DrawnPoses& drawn) {
+  const Eigen::Vector3f reach = Eigen::Vector3f::Constant(kAvatarRadius);
+  std::vector<MovingCaster> casters;
+  players.each([&](flecs::entity e, const Eigen::Matrix4f& transform) {
+    const Eigen::Matrix4f drawn_transform = z13::DrawnTransform(drawn, e, transform);
+    const Eigen::Vector3f centre = z13::math::ExtractTranslation<float>(drawn_transform);
+    casters.push_back({.entity = e.id(), .transform = drawn_transform, .box = {centre - reach, centre + reach}});
+  });
+  return casters;
+}
+
+ShadowCasters CastersOf(const BlockChunks& chunks, const AvatarModel* avatar, std::vector<MovingCaster> players) {
+  ShadowCasters casters {
+      .draw_static = [&chunks](const CasterFilter& filter,
+                               const ::Material& material) { chunks.DrawShadowCasters(filter, material); },
+      .static_version = chunks.Version(),
+      .changed_since = [&chunks](uint64_t version) { return chunks.ChangedSince(version); },
+      .static_bounds = chunks.OpaqueBounds(),
+      .draw_moving = [](const MovingCaster&, const ::Material&) {},
+  };
+  if (avatar == nullptr || !avatar->res || avatar->res->model->meshCount == 0) {
+    return casters;
+  }
+  const ::Mesh& mesh = avatar->res->model->meshes[0];
+  casters.draw_moving = [&mesh](const MovingCaster& caster, const ::Material& material) {
+    DrawMesh(mesh, material, EigenToRaylibMatrix(caster.transform));
+  };
+  casters.moving = std::move(players);
+  return casters;
+}
+
+// The flashlights switched on, from each player's eye along its look, nearest first.
+std::vector<FrameLight> FlashlightsOf(const FlashlightQuery& flashlights, const z13::DrawnPoses& drawn,
+                                      const ViewCulling& culling, const Eigen::Vector3f& eye,
+                                      const z13::RenderTuning& tuning) {
+  const float range = tuning.flashlight_range_m;
+  const float cos_half_angle = std::cos(z13::math::ToRadians(tuning.flashlight_half_angle_deg));
+  std::vector<FrameLight> lights;
+  flashlights.each([&](flecs::entity e, const gameplay::Flashlight& flashlight, const Eigen::Matrix4f& transform) {
+    if (!flashlight.on) {
+      return;
+    }
+    const Eigen::Matrix4f drawn_transform = z13::DrawnTransform(drawn, e, transform);
+    const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(drawn_transform);
+    const Eigen::AlignedBox3f radius_box(position - Eigen::Vector3f::Constant(range),
+                                         position + Eigen::Vector3f::Constant(range));
+    if (!culling.Visible(radius_box)) {
+      return;
+    }
+    lights.push_back({
+        .position = position,
+        .radius = range,
+        .color = kFlashlightTint * tuning.flashlight_intensity,
+        .reach = radius_box,
+        .radius_box = radius_box,
+        .cone = SpotCone {.direction = drawn_transform.block<3, 1>(0, 0).normalized(), .cos_half_angle = cos_half_angle},
+        .owner = e.id(),
+    });
+  });
+  std::ranges::sort(lights, {}, [&eye](const FrameLight& light) { return (light.position - eye).squaredNorm(); });
+  return lights;
+}
+
+struct LitScene {
+  std::vector<FrameLight> lights;
+  SceneLight scene;
+  ShadowAtlasLayout atlas;
+};
+
+// A station is lit by its lamps, and by the sun and the fill only where the hull lets them in.
+// Flashlights come first, so they get their shadows before any lamp.
+LitScene LightScene(const flecs::world& world, const ViewCulling& culling, const Eigen::Vector3f& eye,
+                    std::vector<FrameLight> flashlights, const StationLights* station_lights, ShadowMaps* shadows,
+                    const ShadowCasters& casters, const z13::RenderTuning& tuning) {
+  LitScene lit {.lights = std::move(flashlights)};
+  lit.lights.resize(std::min(lit.lights.size(), static_cast<size_t>(kMaxLights)));
+  if (!world.has<z13::station::StationMode>()) {
+    lit.scene.sun = DirectionalLight {.direction = kSunDirection, .color = kSunColor};
+    lit.scene.ambient_sky = kShipAmbientSky;
+    lit.scene.ambient_ground = kShipAmbientGround;
+    return lit;
+  }
+  if (station_lights != nullptr) {
+    std::ranges::move(station_lights->Visible(culling, eye, kMaxLights - lit.lights.size()),
+                      std::back_inserter(lit.lights));
+  }
+  // Without the hull's shadows the sun and the fill would light the rooms too.
+  if (shadows == nullptr) {
+    return lit;
+  }
+  if (const Status lamps = shadows->UpdateLamps(lit.lights, casters, tuning); !lamps) {
+    log_error("[raylib] shadows: {}", lamps.error());
+  }
+  lit.atlas = shadows->AtlasLayout();
+  if (const auto sun_shadow = shadows->UpdateDirectional(DirectionalMap::kSun, kSunDirection, casters, tuning)) {
+    lit.scene.sun =
+        DirectionalLight {.direction = kSunDirection, .color = kSunColor, .shadow_view_projection = sun_shadow};
+  }
+  if (const auto fill_shadow = shadows->UpdateDirectional(DirectionalMap::kFill, -kSunDirection, casters, tuning)) {
+    lit.scene.fill = DirectionalLight {
+        .direction = -kSunDirection, .color = kFillTint * tuning.outside_fill, .shadow_view_projection = fill_shadow};
+  }
+  return lit;
+}
+
+void UploadLighting(const flecs::world& world, const LitScene& lit, const ShadowMaps* shadows) {
+  if (!world.has<Lighting>()) {
+    return;
+  }
+  const Lighting& lighting = world.get<Lighting>();
+  if (!lighting.res) {
+    return;
+  }
+  UploadLights(*lighting.res->shader, lighting.res->lights, lit.lights, lit.atlas);
+  UploadSceneLight(*lighting.res->shader, lighting.res->lights, lit.scene);
+  if (shadows != nullptr) {
+    shadows->Bind();
+  }
+}
+
 // The skybox and the spaceship model, drawn before the scene.
 void DrawBackground(const flecs::world& world) {
   if (world.has<Skybox>()) {
@@ -594,6 +717,12 @@ void RegisterSystems(flecs::world world) {
         const ::Shader shader = lighting.res ? *lighting.res->shader : ::Shader {};
         world.set<BlockMeshes>(BlockMeshes(shader));
         world.set<BlockChunks>(BlockChunks(shader));
+        const ::Shader shadow_shader = LoadShadowShader();
+        if (shadow_shader.id == 0) {
+          log_error("[raylib] the shadow shader didn't load: nothing casts shadows, the sun is off in a station");
+        }
+        world.set<ShadowMaps>(ShadowMaps(shadow_shader));
+        world.set<StationLights>({});
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox());
         const auto config = z13::GetCoreConfig(world);
@@ -651,6 +780,11 @@ void RegisterSystems(flecs::world world) {
                                .with<gameplay::Player>()
                                .build();
 
+  const FlashlightQuery flashlight_query =
+      world.query_builder<const gameplay::Flashlight, const Eigen::Matrix4f>("EnvironmentRenderSystem::FlashlightQuery")
+          .with<gameplay::Player>()
+          .build();
+
   world.system<const VisualSmoothing>("EnvironmentRenderSystem::ChaseDrawnPoses")
       .kind<Render>()
       .tick_source<RenderGate>()
@@ -668,6 +802,26 @@ void RegisterSystems(flecs::world world) {
                           const z13::building::primitives::BlockPalette* palette) {
         SyncBlockChunks(chunks, block_query, tuning,
                         palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt);
+      });
+
+  // Its own query: SyncBlockChunks resets the other's changed state.
+  const BlockQuery light_block_query =
+      world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::LightBlockQuery")
+          .detect_changes()
+          .build();
+  world.system<StationLights, const z13::building::primitives::BlockPalette*,
+               const z13::station::rooms::RoomCache*>("EnvironmentRenderSystem::SyncStationLights")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .read<z13::station::Block>()
+      .each([light_block_query](StationLights& lights, const z13::building::primitives::BlockPalette* palette,
+                                const z13::station::rooms::RoomCache* rooms) {
+        const BlockMeshes::OptionalPalette shown =
+            palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
+        const auto fingerprint = rooms != nullptr ? rooms->CurrentFingerprint() : std::nullopt;
+        if (light_block_query.changed() || !lights.SyncedWith(shown, fingerprint)) {
+          lights.Sync(CollectBlocks(light_block_query), shown, CurrentRooms(rooms), fingerprint);
+        }
       });
 
   // After SyncRaylibCamera, so the tour's camera wins.
@@ -692,18 +846,18 @@ void RegisterSystems(flecs::world world) {
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize, RenderStats, const z13::station::rooms::RoomCache*,
-               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning>(
-           "EnvironmentRenderSystem::Draw")
+               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const StationLights*,
+               ShadowMaps*>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
-      .each([world, brush_query, remote_player_query, drawing](
+      .each([world, brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
-                const RenderTour* tour, const z13::RenderTuning& tuning) {
+                const RenderTour* tour, const z13::RenderTuning& tuning, const StationLights* station_lights,
+                ShadowMaps* shadows) {
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);
-        background_ms += MsOf([&] { DrawBackground(world); });
 
         const ::Vector3& eye = raylib_camera.camera.position;
         const auto culling_start = std::chrono::steady_clock::now();
@@ -718,9 +872,33 @@ void RegisterSystems(flecs::world world) {
         };
         const double culling_us =
             std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - culling_start).count();
+
+        LitScene lit;
+        const double shadows_ms = MsOf([&] {
+          if (!world.has<BlockChunks>()) {
+            return;
+          }
+          const ShadowCasters casters = CastersOf(world.get<BlockChunks>(), world.try_get<AvatarModel>(),
+                                                  PlayerCasters(drawn_query, drawing->poses));
+          lit = LightScene(world, view.culling, camera.eye,
+                           FlashlightsOf(flashlight_query, drawing->poses, view.culling, camera.eye, tuning),
+                           station_lights, shadows, casters, tuning);
+          // The shadow passes drew elsewhere, with their own viewport and matrices.
+          rlViewport(0, 0, size.size.x(), size.size.y());
+          BeginScene3D(raylib_camera.camera, size.size);
+        });
+        background_ms += MsOf([&] {
+          UploadLighting(world, lit, shadows);
+          DrawBackground(world);
+        });
+
         DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
         stats.culling_us = culling_us;
         stats.times.background_ms = background_ms;
+        stats.times.shadows_ms = shadows_ms;
+        stats.lights = lit.lights.size();
+        stats.shadowed_lights =
+            std::ranges::count_if(lit.lights, [](const FrameLight& light) { return light.shadow_slot.has_value(); });
         const ::Camera3D& pose = raylib_camera.camera;
         stats.camera = z13::PoseLookingAt(Eigen::Vector3f(pose.position.x, pose.position.y, pose.position.z),
                                           Eigen::Vector3f(pose.target.x, pose.target.y, pose.target.z));

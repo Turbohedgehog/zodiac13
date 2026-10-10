@@ -66,6 +66,17 @@ std::expected<Shape, std::string> ToShape(const fbs_station::ShapeUnion& shape) 
   return Error("no shape");
 }
 
+std::expected<std::optional<LightSource>, std::string> ToLight(const fbs_station::LightSourceT* source) {
+  if (source == nullptr) {
+    return std::nullopt;
+  }
+  if (!source->color || source->radius_cells == 0 || !(source->intensity > 0.f)) {
+    return Error("a light needs a color, a radius and a positive intensity");
+  }
+  return LightSource {
+      .color = ToRgba(*source->color), .radius_cells = source->radius_cells, .intensity = source->intensity};
+}
+
 std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT& source, int max_size_cells) {
   if (source.name.empty()) {
     return Error("no name");
@@ -81,14 +92,24 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
     return Error(shape.error());
   }
 
+  const auto light = ToLight(source.light.get());
+  if (!light) {
+    return Error(light.error());
+  }
+
   Primitive primitive {
       .id = source.id,
       .name = source.name,
       .shape = *shape,
       .min_size = ToCells(*source.min_size),
       .max_size = ToCells(*source.max_size),
-      .material = {.first = ToRgba(*source.material->first), .second = ToRgba(*source.material->second)},
+      .material = {
+          .first = ToRgba(*source.material->first),
+          .second = ToRgba(*source.material->second),
+          .emissive = source.material->emissive,
+      },
       .flags = source.flags,
+      .light = *light,
   };
   if ((primitive.min_size.array() < 1).any() || (primitive.max_size.array() > max_size_cells).any()) {
     return Error(std::format("sizes must be 1..{} cells", max_size_cells));

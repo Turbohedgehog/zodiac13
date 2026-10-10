@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -63,5 +64,7 @@ struct RoomGraph {
 
   std::optional<RoomIndex> RoomAt(const Eigen::Vector3i& cell) const { return columns.RoomAt(cell); }
 };
+
+using OptionalRoomGraph = std::optional<std::reference_wrapper<const RoomGraph>>;
 
 }  // namespace z13::station::rooms

@@ -21,6 +21,7 @@
 #include <raylib.h>
 
 #include "block_checker.h"
+#include "lights.h"
 
 namespace z13::raylib {
 
@@ -67,6 +68,7 @@ struct AvatarModel {
 struct LightingResources {
   std::shared_ptr<::Shader> shader;
   CheckerUniforms checker;
+  LightUniforms lights;
 };
 
 struct Lighting {

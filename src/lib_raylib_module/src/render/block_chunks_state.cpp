@@ -35,6 +35,9 @@ namespace z13::raylib {
 
 namespace {
 
+// Enough for every change between two frames a lamp is redrawn in.
+constexpr size_t kKeptChanges = 64;
+
 ChunkSyncKey KeyOf(int chunk_cells, BlockChunks::OptionalPalette palette) {
   return {
       .chunk_cells = chunk_cells,
@@ -72,21 +75,81 @@ void BlockChunks::State::Sync(
   for (const z13::station::Block& block : blocks) {
     (z13::building::primitives::IsTransparent(block, palette) ? transparent : opaque).push_back(block);
   }
-  SyncChunks(opaque_, opaque, palette, chunk_cells);
+  // Only the opaque chunks cast shadows.
+  if (const Eigen::AlignedBox3f changed = SyncChunks(opaque_, opaque, palette, chunk_cells); !changed.isEmpty()) {
+    ++version_;
+    changes_.push_back({.version = version_, .bounds = changed});
+    if (changes_.size() > kKeptChanges) {
+      changes_.pop_front();
+    }
+    extent_.extend(changed);
+  }
   SyncChunks(transparent_, transparent, palette, chunk_cells);
 }
 
-void BlockChunks::State::SyncChunks(
+Eigen::AlignedBox3f BlockChunks::State::ChangedSince(uint64_t version) const {
+  if (version >= version_) {
+    return {};
+  }
+  if (changes_.empty() || changes_.front().version > version + 1) {
+    return extent_;
+  }
+  Eigen::AlignedBox3f changed;
+  for (const ChunkChange& change : changes_) {
+    if (change.version > version) {
+      changed.extend(change.bounds);
+    }
+  }
+  return changed;
+}
+
+std::optional<Eigen::AlignedBox3f> BlockChunks::State::OpaqueBounds() const {
+  if (opaque_.empty()) {
+    return std::nullopt;
+  }
+  Eigen::AlignedBox3f bounds;
+  for (const auto& [key, chunk] : opaque_) {
+    bounds.extend(chunk.bounds);
+  }
+  return bounds;
+}
+
+void BlockChunks::State::DrawShadowCasters(const std::function<bool(const Eigen::AlignedBox3f&)>& keep,
+                                           const ::Material& material) const {
+  for (const auto& [key, chunk] : opaque_) {
+    if (!keep(chunk.bounds)) {
+      continue;
+    }
+    for (const ChunkPart& part : chunk.parts) {
+      for (int mesh = 0; mesh < part.model->meshCount; ++mesh) {
+        DrawMesh(part.model->meshes[mesh], material, part.model->transform);
+      }
+    }
+  }
+}
+
+Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
     ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) const {
   z13::building::primitives::ChunkBlocks grouped = z13::building::primitives::GroupByChunk(blocks, chunk_cells);
-  std::erase_if(chunks, [&grouped](const auto& chunk) { return !grouped.contains(chunk.first); });
+  Eigen::AlignedBox3f changed;
+  std::erase_if(chunks, [&grouped, &changed](const auto& chunk) {
+    if (grouped.contains(chunk.first)) {
+      return false;
+    }
+    changed.extend(chunk.second.bounds);
+    return true;
+  });
   for (auto& [key, chunk_blocks] : grouped) {
     z13::building::primitives::SortBlocks(chunk_blocks);
     const auto existing = chunks.find(key);
     if (existing == chunks.end() || existing->second.blocks != chunk_blocks) {
-      chunks.insert_or_assign(key, Build(std::move(chunk_blocks), palette));
+      if (existing != chunks.end()) {
+        changed.extend(existing->second.bounds);
+      }
+      changed.extend(chunks.insert_or_assign(key, Build(std::move(chunk_blocks), palette)).first->second.bounds);
     }
   }
+  return changed;
 }
 
 ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) const {

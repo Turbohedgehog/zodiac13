@@ -43,6 +43,21 @@ table RenderTuning {
   chunk_cells: int32 = 64 (min: 1, max: 1024, cli: "--render-chunk-cells");
   // Rooms seen only through portals narrower than this on screen, in pixels, aren't drawn.
   min_portal_pixels: float = 2 (min: "0", max: "100", cli: "--render-min-portal-pixels");
+  // Lamps nearest the camera that cast shadows (up to the 32 lit at once); the rest light
+  // their room without them.
+  shadow_lights: int32 = 16 (min: 0, max: 32, cli: "--render-shadow-lights");
+  // Edge of each face of a lamp's shadow cube, in pixels.
+  shadow_map_size: int32 = 256 (min: 64, max: 512, cli: "--render-shadow-map-size");
+  // Lamps that get their shadow drawn per frame as they come into view.
+  shadow_updates_per_frame: int32 = 4 (min: 1, max: 32, cli: "--render-shadow-updates");
+  // Edge of the sun's and the fill's shadow maps over the whole station, in pixels.
+  sun_shadow_map_size: int32 = 4096 (min: 256, max: 8192, cli: "--render-sun-shadow-map-size");
+  // Brightness of the dim fill that keeps the hull's shaded faces from going black.
+  outside_fill: float = 0.25 (min: "0", max: "1", cli: "--render-outside-fill");
+  // A player's flashlight: how far it reaches, in meters, half its cone's angle and its brightness.
+  flashlight_range_m: float = 20 (min: "1", max: "100", cli: "--render-flashlight-range");
+  flashlight_half_angle_deg: float = 35 (min: "5", max: "80", cli: "--render-flashlight-angle");
+  flashlight_intensity: float = 1.5 (min: "0", max: "10", cli: "--render-flashlight-intensity");
 }
 
 table Settings {

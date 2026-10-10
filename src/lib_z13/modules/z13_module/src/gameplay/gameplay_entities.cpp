@@ -107,6 +107,7 @@ flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen
       .set(Player{.id = id})
       .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius})
       .set(PlayerMotion {})
+      .set(Flashlight {})
       .set(z13::gravity::Gravity {});
 }
 
