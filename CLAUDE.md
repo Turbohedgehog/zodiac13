@@ -67,6 +67,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 - A constant (asset path, file name, CLI flag, scene name, ...) is defined once, by the code that owns it, and reused everywhere else, tests included; grep for an existing definition before declaring one. Tests reach shipped assets through `z13_tests/shipped_station.h`, not their own path constants.
 - A small closed set of values (orientations, modes) is an `enum class` naming every value, not an integer with a count and `IsValid...()` checks: an invalid value then doesn't compile, and the snapshot codec rejects unknown constants.
 - Don't reset, copy or compare an object member by member (`a_.clear(); b_.clear();`); reassign or compare the whole object, so a new member can't be forgotten.
+- A `std::array` initialized from its elements lets the compiler deduce type and size (`std::array view_pos = {x, y, z};`, `constexpr std::array kModes {...};`), rather than spelling out `std::array<float, 3>`.
 - Prefer std algorithms and ranges (`std::accumulate`, `std::ranges::transform`, ...) over hand-written loops, and Eigen over home-made matrix/vector types.
 - Namespaces are named by domain (`z13::building::primitives`, not `z13::primitives`).
 - Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`, also between stacked empty `case` labels.

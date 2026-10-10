@@ -492,7 +492,7 @@ void SetViewPosition(const flecs::world& world, const ::Vector3& eye) {
   }
   const Lighting& lighting = world.get<Lighting>();
   if (lighting.res) {
-    const std::array<float, 3> view_pos = {eye.x, eye.y, eye.z};
+    const std::array view_pos = {eye.x, eye.y, eye.z};
     SetShaderValue(*lighting.res->shader, lighting.res->shader->locs[SHADER_LOC_VECTOR_VIEW], view_pos.data(),
                    SHADER_UNIFORM_VEC3);
   }
