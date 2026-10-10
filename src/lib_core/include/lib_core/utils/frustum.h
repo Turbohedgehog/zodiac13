@@ -27,6 +27,10 @@ class Frustum {
  public:
   // `view_projection` maps world points into OpenGL clip space (-w..w on every axis).
   explicit Frustum(const Eigen::Matrix4f& view_projection);
+  // Narrowed to the part of the screen `ndc` covers (x, y in -1..1), as seen through a portal.
+  Frustum(const Eigen::Matrix4f& view_projection, const Eigen::AlignedBox2f& ndc);
+
+  static Eigen::AlignedBox2f FullScreen();
 
   // Conservative: a box near a corner of the frustum may pass though it lies outside.
   bool Intersects(const Eigen::AlignedBox3f& box) const;

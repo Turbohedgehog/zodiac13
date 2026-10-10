@@ -19,6 +19,9 @@
 #include <algorithm>
 #include <optional>
 #include <format>
+#include <numeric>
+#include <ranges>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,6 +30,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/enum_cycle.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
@@ -50,6 +54,7 @@ using z13::testing::Z13TestWorld;
 constexpr std::string_view kFloor = "Floor";
 constexpr std::string_view kWall = "Wall";
 constexpr std::string_view kDoor = "Door";
+constexpr std::string_view kWindow = "Window";
 
 // Far from anything the site scene builds.
 const Eigen::Vector3i kRoomCorner {30, 30, 5};
@@ -151,24 +156,120 @@ TEST(RoomSystemTest, ADoorPartitionSplitsTheBoxAndLeavesAClosedPortal) {
   EXPECT_FALSE(portal->visible);
 }
 
-TEST(RoomSystemTest, TheOverlayShowsABoxShapedRoomAsOneBox) {
+// The renderer isn't in the tests: they name the seen rooms themselves.
+void ShowRooms(Z13TestWorld& world, RoomOverlayMode mode, std::optional<std::vector<uint32_t>> seen = std::nullopt,
+               uint64_t fingerprint_offset = 0) {
+  std::optional<RoomsDrawn> drawn;
+  if (seen) {
+    const uint64_t fingerprint = world.World().get<RoomCache>().CurrentFingerprint().value_or(0) + fingerprint_offset;
+    drawn = RoomsDrawn {.fingerprint = fingerprint, .rooms = std::move(*seen)};
+  }
+  world.World().set(RoomOverlay {.mode = mode, .drawn = std::move(drawn)});
+  world.Tick();
+}
+
+size_t CountColoured(Z13TestWorld& world, const Rgba& color) {
+  return static_cast<size_t>(std::ranges::count(world.World().get<RoomOverlay>().boxes, color, &OverlayBox::color));
+}
+
+TEST(RoomSystemTest, TheOverlayShowsASeenBoxShapedRoomAsOneBox) {
   Z13TestWorld world = StationWorld();
   world.Tick();
   AddBlocks(world, SealedBox());
   world.Tick();
-  world.World().get_mut<RoomOverlay>().enabled = true;
-  Z13TestWorld& w = world;
-  w.World().query_builder<const z13::gameplay::Player, Eigen::Matrix4f>().build().each(
-      [](const z13::gameplay::Player&, Eigen::Matrix4f& transform) {
-        transform.col(3).head<3>() = (kRoomCorner + Eigen::Vector3i(5, 5, 5)).cast<float>() * kCellSize;
-      });
+  const auto inside = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(1, 1, 1));
+  ASSERT_TRUE(inside.has_value());
 
-  world.Tick();
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*inside});
 
   const auto& boxes = world.World().get<RoomOverlay>().boxes;
   ASSERT_EQ(boxes.size(), 1U);
   EXPECT_EQ(boxes.front().min, kRoomCorner + Eigen::Vector3i(1, 1, 1));
   EXPECT_EQ(boxes.front().extent, Eigen::Vector3i(kSide, kSide, kHeight));
+}
+
+TEST(RoomSystemTest, TheOverlayShowsOnlyTheSeenRooms) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  AddBlocks(world, DoorPartition());
+  world.Tick();
+  const auto west = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(1, 5, 5));
+  ASSERT_TRUE(west.has_value());
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*west});
+  EXPECT_EQ(CountColoured(world, kSeenRoomOverlayColor), 1U);
+  EXPECT_EQ(CountColoured(world, kRoomOverlayColor), 0U);
+  EXPECT_EQ(CountColoured(world, kDoorOverlayColor), 0U);
+
+  ShowRooms(world, RoomOverlayMode::kSeen);
+  EXPECT_TRUE(world.World().get<RoomOverlay>().boxes.empty());
+}
+
+TEST(RoomSystemTest, TheOverlayMarksTheVisiblePortalsBetweenSeenRooms) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  AddBlock(world, At(kWindow, {kSide, 1, kHeight}, kAlongY, {5, 1, 1}));
+  world.Tick();
+  const auto west = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(1, 5, 5));
+  const auto east = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(8, 5, 5));
+  ASSERT_TRUE(west && east);
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {std::min(*west, *east), std::max(*west, *east)});
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 1U);
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*west});
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 0U);
+
+  ShowRooms(world, RoomOverlayMode::kAll);
+  EXPECT_EQ(CountColoured(world, kSeenPortalOverlayColor), 0U);
+  EXPECT_EQ(CountColoured(world, kWindowOverlayColor), 1U);
+}
+
+TEST(RoomSystemTest, TheOverlayIgnoresRoomsDrawnWithAnotherGraph) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  world.Tick();
+  const auto inside = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(1, 1, 1));
+  ASSERT_TRUE(inside.has_value());
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*inside}, 1);
+
+  EXPECT_TRUE(world.World().get<RoomOverlay>().boxes.empty());
+}
+
+TEST(RoomSystemTest, TheOverlayShowsEveryRoomAndPortalInAllMode) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  AddBlocks(world, DoorPartition());
+  world.Tick();
+
+  ShowRooms(world, RoomOverlayMode::kAll);
+
+  EXPECT_GE(CountColoured(world, kRoomOverlayColor), 2U);
+  EXPECT_EQ(CountColoured(world, kDoorOverlayColor), 1U);
+}
+
+TEST(RoomSystemTest, TheOverlayIsEmptyWhenOff) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  world.Tick();
+  ShowRooms(world, RoomOverlayMode::kAll);
+
+  ShowRooms(world, RoomOverlayMode::kOff);
+
+  EXPECT_TRUE(world.World().get<RoomOverlay>().boxes.empty());
+  EXPECT_TRUE(world.World().get<RoomOverlay>().label.empty());
+}
+
+TEST(RoomSystemTest, F4StepsThroughSeenAllAndOff) {
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kOff), RoomOverlayMode::kSeen);
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kSeen), RoomOverlayMode::kAll);
+  EXPECT_EQ(z13::NextEnumerator(RoomOverlayMode::kAll), RoomOverlayMode::kOff);
 }
 
 TEST(RoomSystemTest, TheVersionGrowsOnlyWhenTheBlocksChange) {
@@ -284,14 +385,13 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
   if (Graph(world).rooms.size() < 2) {
     GTEST_SKIP() << "no rooms";
   }
-  world.World().get_mut<RoomOverlay>().enabled = true;
-  world.Tick();
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector<uint32_t> {1});
 
   const RoomGraph& graph = Graph(world);
   int64_t covered = 0;
   std::optional<rooms::RoomIndex> room;
   for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
-    if (box.color != kRoomOverlayColor) {
+    if (box.color != kSeenRoomOverlayColor) {
       continue;
     }
     for (int z = box.min.z(); z < box.min.z() + box.extent.z(); ++z) {
@@ -307,6 +407,25 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
   }
   ASSERT_TRUE(room.has_value());
   EXPECT_EQ(covered, graph.rooms[*room].volume_cells);
+}
+
+TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), GetParam()});
+  world.Tick();
+
+  ShowRooms(world, RoomOverlayMode::kAll);
+
+  const RoomGraph& graph = Graph(world);
+  const auto inside_rooms = graph.rooms | std::views::drop(1);
+  const int64_t rooms_volume = std::accumulate(inside_rooms.begin(), inside_rooms.end(), int64_t {},
+                                               [](int64_t sum, const rooms::Room& room) { return sum + room.volume_cells; });
+  int64_t boxes_volume = 0;
+  for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
+    if (box.color == kRoomOverlayColor) {
+      boxes_volume += static_cast<int64_t>(box.extent.x()) * box.extent.y() * box.extent.z();
+    }
+  }
+  EXPECT_EQ(boxes_volume, rooms_volume);
 }
 
 INSTANTIATE_TEST_SUITE_P(

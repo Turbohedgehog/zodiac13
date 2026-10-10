@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -52,6 +53,8 @@ struct Portal {
 struct RoomGraph {
   std::vector<Room> rooms;
   std::vector<Portal> portals;
+  // Per room, the indices of the portals it is a side of.
+  std::vector<std::vector<size_t>> room_portals;
   ColumnMap columns;
 
   std::optional<RoomIndex> RoomAt(const Eigen::Vector3i& cell) const { return columns.RoomAt(cell); }

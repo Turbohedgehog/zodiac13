@@ -28,6 +28,7 @@
 #include <rlgl.h>
 
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/enum_cycle.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
@@ -186,9 +187,9 @@ void RegisterSystems(flecs::world world) {
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {
-            rooms->enabled = !rooms->enabled;
+            rooms->mode = z13::NextEnumerator(rooms->mode);
           }
-          if (rooms->enabled) {
+          if (rooms->mode != z13::station::RoomOverlayMode::kOff) {
             gui::DrawRoomLabel(rooms->label);
           }
         }

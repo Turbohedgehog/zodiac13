@@ -23,7 +23,6 @@
 
 #include <raylib.h>
 
-#include <lib_core/utils/frustum.h>
 #include <z13/components/station.h>
 #include <primitives/geometry.h>
 
@@ -31,6 +30,7 @@ namespace z13::raylib {
 
 struct Lighting;
 struct RenderStats;
+class ViewCulling;
 
 // Opaque blocks merged into one model per render chunk and material
 // (primitives/chunk_mesh.h); transparent ones are kept apart, to be drawn one by one
@@ -50,7 +50,7 @@ class BlockChunks {
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
 
   // Counts the chunks and meshes drawn in `stats`.
-  void DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting, RenderStats& stats) const;
+  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
 
   const std::vector<z13::station::Block>& Transparent() const;
 

@@ -14,6 +14,7 @@ set(
   src/room_builder.cpp
   src/room_cache.cpp
   src/room_overlap.cpp
+  src/room_visibility.cpp
   src/topology_fingerprint.cpp
 )
 

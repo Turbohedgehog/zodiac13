@@ -14,23 +14,20 @@
  * limitations under the License.
  */
 
-#pragma once
+#include <gtest/gtest.h>
 
-#include <cstddef>
-#include <optional>
+#include <lib_core/utils/enum_cycle.h>
 
-namespace z13::raylib {
+namespace z13 {
+namespace {
 
-// What the last frame drew, for the stats overlay; never state.
-struct RenderStats {
-  using Singleton = void;
-  size_t chunks {};
-  size_t chunks_drawn {};
-  size_t meshes_drawn {};
-  size_t glass {};
-  size_t glass_drawn {};
-  // Nothing while rooms don't cull.
-  std::optional<size_t> rooms_seen;
-};
+enum class Gapped : int { kFirst = 1, kSecond = 5, kThird = 7 };
 
-}  // namespace z13::raylib
+TEST(EnumCycleTest, StepsThroughTheValuesAndWrapsAround) {
+  EXPECT_EQ(NextEnumerator(Gapped::kFirst), Gapped::kSecond);
+  EXPECT_EQ(NextEnumerator(Gapped::kSecond), Gapped::kThird);
+  EXPECT_EQ(NextEnumerator(Gapped::kThird), Gapped::kFirst);
+}
+
+}  // namespace
+}  // namespace z13

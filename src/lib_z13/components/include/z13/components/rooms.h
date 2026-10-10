@@ -43,6 +43,9 @@ struct TopologyVersion {
 inline constexpr Rgba kRoomOverlayColor {80, 200, 120, 255};
 inline constexpr Rgba kWindowOverlayColor {80, 160, 255, 255};
 inline constexpr Rgba kDoorOverlayColor {255, 160, 60, 255};
+// The rooms the renderer drew and the portals it saw through, shown only in RoomOverlayMode::kSeen.
+inline constexpr Rgba kSeenRoomOverlayColor {240, 230, 70, 255};
+inline constexpr Rgba kSeenPortalOverlayColor {230, 80, 230, 255};
 
 struct OverlayBox {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();
@@ -52,15 +55,35 @@ struct OverlayBox {
   bool operator==(const OverlayBox&) const = default;
 };
 
-// Debug view of the local player's room and its portals, filled only while `enabled`.
+// What the room overlay draws: the rooms the renderer drew, in one colour, or every room
+// and portal; F4 steps through them in this order.
+enum class RoomOverlayMode : uint8_t { kOff, kSeen, kAll };
+
+// What the overlay's boxes and label were made for, so they are rebuilt only when it changes.
+struct RoomOverlayShown {
+  RoomOverlayMode mode {};
+  uint64_t fingerprint {};
+  std::optional<uint32_t> player_room;
+  std::optional<std::vector<uint32_t>> seen_rooms;
+
+  bool operator==(const RoomOverlayShown&) const = default;
+};
+
+// The rooms the renderer drew, sorted, numbered as in the graph of `fingerprint`.
+struct RoomsDrawn {
+  uint64_t fingerprint {};
+  std::vector<uint32_t> rooms;
+};
+
+// Debug view of the rooms, with a label for the local player's room; empty while off.
 struct RoomOverlay {
   using Singleton = void;
-  bool enabled {};
+  RoomOverlayMode mode {};
+  // Set by the renderer each frame in kSeen; nothing while rooms don't cull.
+  std::optional<RoomsDrawn> drawn;
   std::vector<OverlayBox> boxes;
   std::string label;
-  // What boxes and label were made for, so they are rebuilt only when it changes.
-  std::optional<uint64_t> shown_fingerprint;
-  std::optional<uint32_t> shown_room;
+  std::optional<RoomOverlayShown> shown;
 };
 
 }  // namespace z13::station

@@ -27,7 +27,6 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
-#include <lib_core/utils/frustum.h>
 #include <z13/components/station.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
@@ -62,7 +61,7 @@ class BlockChunks::State {
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
-  void DrawOpaque(const z13::math::Frustum& frustum, const Lighting& lighting, RenderStats& stats) const;
+  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
   const std::vector<z13::station::Block>& Transparent() const { return transparent_; }
 
  private:
