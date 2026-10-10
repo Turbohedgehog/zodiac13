@@ -17,7 +17,6 @@
 #include <primitives/draw_order.h>
 
 #include <algorithm>
-#include <numeric>
 
 #include <primitives/palette.h>
 
@@ -28,23 +27,16 @@ bool IsTransparent(const z13::station::Block& block, OptionalPalette palette) {
   return primitive && primitive->get().Has(PrimitiveFlags::Transparent);
 }
 
-std::vector<size_t> FarthestFirst(std::span<const ChunkBounds> chunks, const Eigen::Vector3f& eye) {
-  std::vector<float> distances(chunks.size());
-  std::ranges::transform(chunks, distances.begin(), [&eye](const ChunkBounds& chunk) {
-    return (chunk.bounds.center() - eye).squaredNorm();
-  });
-  std::vector<size_t> order(chunks.size());
-  std::iota(order.begin(), order.end(), size_t {});
-  std::ranges::sort(order, [&chunks, &distances](size_t a, size_t b) {
-    if (distances[a] != distances[b]) {
-      return distances[a] > distances[b];
+void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye) {
+  std::ranges::sort(chunks, [&eye](const ChunkBounds& a, const ChunkBounds& b) {
+    const float distance_a = (a.bounds.center() - eye).squaredNorm();
+    const float distance_b = (b.bounds.center() - eye).squaredNorm();
+    if (distance_a != distance_b) {
+      return distance_a > distance_b;
     }
-    const Eigen::Vector3i& key_a = chunks[a].key;
-    const Eigen::Vector3i& key_b = chunks[b].key;
-    return std::lexicographical_compare(key_a.data(), key_a.data() + key_a.size(), key_b.data(),
-                                        key_b.data() + key_b.size());
+    return std::lexicographical_compare(a.key.data(), a.key.data() + a.key.size(), b.key.data(),
+                                        b.key.data() + b.key.size());
   });
-  return order;
 }
 
 }  // namespace z13::building::primitives

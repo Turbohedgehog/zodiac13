@@ -177,6 +177,7 @@ TEST(ConfigTest, RenderTourTakesItsFileAndNeedsAStationScene) {
 constexpr std::string_view kRenderTourViewArg = "--render-tour-view";
 constexpr std::string_view kDockView = "11.64,48.4,13.75,-0.5,12.8";
 constexpr std::string_view kOriginView = "0,0,0,90,0";
+constexpr std::string_view kNegativeXView = "-3.5,10,2,90,0";
 
 TEST(ConfigTest, RenderTourViewsAreRepeatableAndNeedATour) {
   const auto parsed = ParseArgs(
@@ -187,18 +188,27 @@ TEST(ConfigTest, RenderTourViewsAreRepeatableAndNeedATour) {
   const std::vector<CameraPose>& views = parsed.config.GetRenderTourViews();
   ASSERT_EQ(views.size(), 2U);
   EXPECT_TRUE(views[0].eye.isApprox(Eigen::Vector3f(11.64f, 48.4f, 13.75f)));
-  EXPECT_FLOAT_EQ(views[0].yaw_deg, -0.5f);
-  EXPECT_FLOAT_EQ(views[0].pitch_deg, 12.8f);
-  EXPECT_FLOAT_EQ(views[1].yaw_deg, 90.f);
+  EXPECT_FLOAT_EQ(views[0].look.yaw_deg, -0.5f);
+  EXPECT_FLOAT_EQ(views[0].look.pitch_deg, 12.8f);
+  EXPECT_FLOAT_EQ(views[1].look.yaw_deg, 90.f);
   EXPECT_FALSE(ParseArgs({kStationSceneArg, kTestScene, kRenderTourViewArg, kDockView}).result.has_value());
 }
 
 TEST(ConfigTest, ARenderTourViewNeedsFiveNumbers) {
-  for (const std::string_view view : {"1,2,3,4", "1,2,3,4,5,6", "1,2,x,4,5", ""}) {
+  for (const std::string_view view : {"1,2,3,4", "1,2,3,4,5,6", "1,2,x,4,5", "", "nan,0,0,0,0", "0,inf,0,0,0"}) {
     EXPECT_FALSE(ParseArgs({kStationSceneArg, kTestScene, kRenderTourArg, kTourFile, kRenderTourViewArg, view})
                      .result.has_value())
         << view;
   }
+}
+
+TEST(ConfigTest, ARenderTourViewMayStartWithAMinus) {
+  const auto parsed =
+      ParseArgs({kStationSceneArg, kTestScene, kRenderTourArg, kTourFile, kRenderTourViewArg, kNegativeXView});
+
+  ASSERT_TRUE(parsed.result.has_value()) << parsed.result.error();
+  ASSERT_EQ(parsed.config.GetRenderTourViews().size(), 1U);
+  EXPECT_FLOAT_EQ(parsed.config.GetRenderTourViews()[0].eye.x(), -3.5f);
 }
 
 // A client takes the mode from the server it joins.

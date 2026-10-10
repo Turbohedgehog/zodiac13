@@ -18,17 +18,12 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/utils/camera_pose.h>
 #include <z13/components/gameplay.h>
 
 namespace z13::gameplay {
 
-// Persistent yaw/pitch for mouse-look: re-deriving via eulerAngles() every frame
-// let float error near +/-90 deg pitch leak into an unintended roll.
-struct LookAngles {
-  using State = void;
-  float yaw_deg {};
-  float pitch_deg {};
-};
+using z13::LookAngles;
 
 // Move-axis inputs for ApplyCameraMove, already resolved to plain floats so this
 // function has no ECS/InputConfig dependency and is unit-testable on its own.

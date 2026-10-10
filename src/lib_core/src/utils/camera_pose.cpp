@@ -37,15 +37,17 @@ CameraPose PoseLookingAt(const Eigen::Vector3f& eye, const Eigen::Vector3f& targ
   const Eigen::Vector3f look = target - eye;
   return {
       .eye = eye,
-      .yaw_deg = math::ToDegrees(std::atan2(look.y(), look.x())),
-      .pitch_deg = math::ToDegrees(std::atan2(look.z(), look.head<2>().norm())),
+      .look = {
+          .yaw_deg = math::ToDegrees(std::atan2(look.y(), look.x())),
+          .pitch_deg = math::ToDegrees(std::atan2(-look.z(), look.head<2>().norm())),
+      },
   };
 }
 
 Eigen::Vector3f Forward(const CameraPose& pose) {
-  const float yaw = math::ToRadians(pose.yaw_deg);
-  const float pitch = math::ToRadians(pose.pitch_deg);
-  return {std::cos(pitch) * std::cos(yaw), std::cos(pitch) * std::sin(yaw), std::sin(pitch)};
+  const float yaw = math::ToRadians(pose.look.yaw_deg);
+  const float pitch = math::ToRadians(pose.look.pitch_deg);
+  return {std::cos(pitch) * std::cos(yaw), std::cos(pitch) * std::sin(yaw), -std::sin(pitch)};
 }
 
 std::expected<CameraPose, std::string> ParseCameraPose(std::string_view text) {
@@ -57,7 +59,7 @@ std::expected<CameraPose, std::string> ParseCameraPose(std::string_view text) {
       return std::unexpected(std::format("'{}' has more than {} numbers", text, kFields));
     }
     const auto [end, error] = std::from_chars(field.data(), field.data() + field.size(), values[count]);
-    if (error != std::errc {} || end != field.data() + field.size()) {
+    if (error != std::errc {} || end != field.data() + field.size() || !std::isfinite(values[count])) {
       return std::unexpected(std::format("'{}' is not a number in '{}'", field, text));
     }
     ++count;
@@ -65,7 +67,10 @@ std::expected<CameraPose, std::string> ParseCameraPose(std::string_view text) {
   if (count != kFields) {
     return std::unexpected(std::format("'{}' needs x,y,z,yaw,pitch", text));
   }
-  return CameraPose {.eye = {values[0], values[1], values[2]}, .yaw_deg = values[3], .pitch_deg = values[4]};
+  return CameraPose {
+      .eye = {values[0], values[1], values[2]},
+      .look = {.yaw_deg = values[3], .pitch_deg = values[4]},
+  };
 }
 
 }  // namespace z13

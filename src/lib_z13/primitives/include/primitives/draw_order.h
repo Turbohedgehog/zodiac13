@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <cstddef>
 #include <span>
-#include <vector>
 
 #include <Eigen/Dense>
 
@@ -35,9 +33,9 @@ struct ChunkBounds {
   Eigen::AlignedBox3f bounds;
 };
 
-// Indices of `chunks` from the farthest centre to the nearest, so each chunk's glass blends
-// over what lies behind it; equally far ones by key, whatever order they come in. `eye` in
-// the units of the bounds.
-std::vector<size_t> FarthestFirst(std::span<const ChunkBounds> chunks, const Eigen::Vector3f& eye);
+// Sorts `chunks` from the farthest centre to the nearest, so each chunk's glass blends over
+// what lies behind it; equally far ones by key, whatever order they come in. `eye` in the
+// units of the bounds.
+void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye);
 
 }  // namespace z13::building::primitives

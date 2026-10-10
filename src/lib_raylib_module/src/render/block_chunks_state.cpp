@@ -17,7 +17,6 @@
 #include "block_chunks_state.h"
 
 #include <algorithm>
-#include <functional>
 #include <iterator>
 #include <utility>
 
@@ -73,7 +72,6 @@ void BlockChunks::State::Sync(
   for (const z13::station::Block& block : blocks) {
     (z13::building::primitives::IsTransparent(block, palette) ? transparent : opaque).push_back(block);
   }
-  transparent_blocks_ = transparent.size();
   SyncChunks(opaque_, opaque, palette, chunk_cells);
   SyncChunks(transparent_, transparent, palette, chunk_cells);
 }
@@ -113,19 +111,18 @@ void BlockChunks::State::DrawOpaque(
 
 // Whole chunks go from the farthest; panes within one rarely overlap (flat windows).
 void BlockChunks::State::DrawTransparent(
-    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const {
-  stats.glass = transparent_blocks_;
-  std::vector<std::reference_wrapper<const ChunkModels>> visible;
-  std::vector<z13::building::primitives::ChunkBounds> bounds;
+    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) {
+  stats.glass_chunks = transparent_.size();
+  visible_transparent_.clear();
   for (const auto& [key, chunk] : transparent_) {
     if (culling.Visible(chunk.bounds)) {
-      visible.emplace_back(chunk);
-      bounds.push_back({.key = key, .bounds = chunk.bounds});
+      visible_transparent_.push_back({.key = key, .bounds = chunk.bounds});
     }
   }
-  for (const size_t i : z13::building::primitives::FarthestFirst(bounds, eye)) {
-    stats.glass_drawn += visible[i].get().blocks.size();
-    DrawChunk(visible[i], lighting, stats);
+  z13::building::primitives::SortFarthestFirst(visible_transparent_, eye);
+  stats.glass_chunks_drawn = visible_transparent_.size();
+  for (const z13::building::primitives::ChunkBounds& visible : visible_transparent_) {
+    DrawChunk(transparent_.at(visible.key), lighting, stats);
   }
 }
 

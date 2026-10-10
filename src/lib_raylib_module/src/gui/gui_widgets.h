@@ -60,9 +60,11 @@ inline void PlaceOverlay(float top) {
   ImGui::SetNextWindowBgAlpha(kOverlayBackgroundAlpha);
 }
 
-// Where the overlay below the current window starts; call between Begin and End.
+// Where the overlay below the current window starts; call after its content, before End.
+// Measured from this frame's content: an auto-resized window's size lags a frame behind.
 inline float OverlayTopBelow() {
-  return ImGui::GetWindowPos().y + ImGui::GetWindowSize().y + Em(kOverlayMarginEm);
+  const ImGuiStyle& style = ImGui::GetStyle();
+  return ImGui::GetCursorScreenPos().y - style.ItemSpacing.y + style.WindowPadding.y + Em(kOverlayMarginEm);
 }
 
 }  // namespace z13::raylib::gui

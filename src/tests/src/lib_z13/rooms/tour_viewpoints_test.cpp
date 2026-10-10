@@ -85,14 +85,28 @@ TEST(TourViewpointsTest, FirstLooksTowardsTheRoomsCentre) {
 
 // Where portals reach the most rooms: through windows onto space.
 TEST(TourViewpointsTest, LooksOutOfTheRoomWithTheMostWindowOntoSpace) {
-  // In the small room's end wall at x = 0.
+  // In the large room's end wall; the one room spread is the small one.
+  const PortalSource window {
+      .opening = {.min = {kLength + 1, 4, 4}, .extent = {1, 2, 2}}, .axis = Axis::kX, .visible = true};
+  const RoomGraph graph = Hall({window});
+
+  const std::vector<Viewpoint> viewpoints = TourViewpoints(graph, 1);
+
+  ASSERT_EQ(viewpoints.size(), (2 * kHeadingsPerRoom) + 1);
+  const Viewpoint& looking_out = viewpoints[kHeadingsPerRoom];
+  EXPECT_EQ(looking_out.room, graph.RoomAt({kLength, 4, 4}));
+  EXPECT_GT(looking_out.target.x(), looking_out.eye.x());
+}
+
+// Its corner views then start towards the window instead of being taken twice.
+TEST(TourViewpointsTest, ASpreadRoomWithTheMostWindowIsSeenOnce) {
   const PortalSource window {.opening = {.min = {0, 4, 4}, .extent = {1, 2, 2}}, .axis = Axis::kX, .visible = true};
   const RoomGraph graph = Hall({window});
 
   const std::vector<Viewpoint> viewpoints = TourViewpoints(graph, 2);
 
-  ASSERT_EQ(viewpoints.size(), (3 * kHeadingsPerRoom) + 1);
-  const Viewpoint& looking_out = viewpoints[2 * kHeadingsPerRoom];
+  ASSERT_EQ(viewpoints.size(), (2 * kHeadingsPerRoom) + 1);
+  const Viewpoint& looking_out = viewpoints.front();
   EXPECT_EQ(looking_out.room, graph.RoomAt({1, 4, 4}));
   EXPECT_LT(looking_out.target.x(), looking_out.eye.x());
 }

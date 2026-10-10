@@ -24,12 +24,19 @@
 
 namespace z13 {
 
-// Where a camera stands and looks: the eye in meters, the heading around +Z from +X and the
-// pitch, up positive, in degrees.
-struct CameraPose {
-  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
+// Persistent yaw/pitch for mouse-look: re-deriving via eulerAngles() every frame
+// let float error near +/-90 deg pitch leak into an unintended roll. Yaw turns around +Z
+// from +X, pitch is positive looking down, both in degrees.
+struct LookAngles {
+  using State = void;
   float yaw_deg {};
   float pitch_deg {};
+};
+
+// Where a camera stands, in meters, and looks.
+struct CameraPose {
+  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
+  LookAngles look;
 };
 
 CameraPose PoseLookingAt(const Eigen::Vector3f& eye, const Eigen::Vector3f& target);

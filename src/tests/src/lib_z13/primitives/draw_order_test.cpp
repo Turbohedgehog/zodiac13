@@ -16,8 +16,9 @@
 
 #include <gtest/gtest.h>
 
-#include <cstddef>
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -56,24 +57,29 @@ ChunkBounds ChunkAt(int x) {
   return {.key = {x, 0, 0}, .bounds = {min, min + Eigen::Vector3f::Ones()}};
 }
 
-TEST(DrawOrderTest, ChunksGoFarthestFirst) {
-  const std::vector<ChunkBounds> chunks {ChunkAt(10), ChunkAt(30), ChunkAt(20)};
+// The keys' x of `chunks` sorted for `eye`.
+std::vector<int> SortedXs(std::vector<ChunkBounds> chunks, const Eigen::Vector3f& eye) {
+  SortFarthestFirst(chunks, eye);
+  std::vector<int> xs;
+  std::ranges::transform(chunks, std::back_inserter(xs), [](const ChunkBounds& chunk) { return chunk.key.x(); });
+  return xs;
+}
 
-  EXPECT_EQ(FarthestFirst(chunks, Eigen::Vector3f::Zero()), std::vector<size_t>({1, 2, 0}));
+TEST(DrawOrderTest, ChunksGoFarthestFirst) {
+  EXPECT_EQ(SortedXs({ChunkAt(10), ChunkAt(30), ChunkAt(20)}, Eigen::Vector3f::Zero()),
+            std::vector<int>({30, 20, 10}));
 }
 
 TEST(DrawOrderTest, TheOrderFollowsTheEye) {
-  const std::vector<ChunkBounds> chunks {ChunkAt(10), ChunkAt(30)};
-
-  EXPECT_EQ(FarthestFirst(chunks, Eigen::Vector3f(40.f, 0.f, 0.f)), std::vector<size_t>({0, 1}));
+  EXPECT_EQ(SortedXs({ChunkAt(10), ChunkAt(30)}, Eigen::Vector3f(40.f, 0.f, 0.f)), std::vector<int>({10, 30}));
 }
 
 // Chunk keys come from a hash map, whose order a rehash changes.
 TEST(DrawOrderTest, EquallyFarChunksGoByKeyWhateverTheirOrder) {
   const Eigen::Vector3f between(20.5f, 0.5f, 0.5f);
 
-  EXPECT_EQ(FarthestFirst(std::vector {ChunkAt(30), ChunkAt(10)}, between), std::vector<size_t>({1, 0}));
-  EXPECT_EQ(FarthestFirst(std::vector {ChunkAt(10), ChunkAt(30)}, between), std::vector<size_t>({0, 1}));
+  EXPECT_EQ(SortedXs({ChunkAt(30), ChunkAt(10)}, between), std::vector<int>({10, 30}));
+  EXPECT_EQ(SortedXs({ChunkAt(10), ChunkAt(30)}, between), std::vector<int>({10, 30}));
 }
 
 }  // namespace

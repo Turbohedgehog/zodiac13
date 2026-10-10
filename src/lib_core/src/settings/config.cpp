@@ -20,6 +20,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace z13 {
 
@@ -34,6 +35,19 @@ constexpr std::string_view kStationOption = "station";
 constexpr std::string_view kStationSceneOption = "station-scene";
 constexpr std::string_view kRenderTourOption = "render-tour";
 constexpr std::string_view kRenderTourViewOption = "render-tour-view";
+
+// Takes the token after --render-tour-view as its value even when it starts with '-' (a
+// negative x), which boost::program_options would read as an option.
+std::vector<po::option> ParseRenderTourView(std::vector<std::string>& args) {
+  const std::string flag = std::format("--{}", kRenderTourViewOption);
+  if (args.size() < 2 || args[0] != flag) {
+    return {};
+  }
+  po::option view(std::string(kRenderTourViewOption), {args[1]});
+  view.original_tokens = {args[0], args[1]};
+  args.erase(args.begin(), args.begin() + 2);
+  return {view};
+}
 
 }  // namespace
 
@@ -74,7 +88,12 @@ boost::program_options::options_description& Config::GetOptionsDescription() {
 Status Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
   try {
-    po::store(po::parse_command_line(argc, argv, options_description_), variables_map_);
+    po::store(
+        po::command_line_parser(argc, argv)
+            .options(options_description_)
+            .extra_style_parser(ParseRenderTourView)
+            .run(),
+        variables_map_);
     po::notify(variables_map_);
   } catch (const po::error& ex) {
     return std::unexpected(ex.what());

@@ -96,17 +96,25 @@ std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
     return graph.rooms[candidate.first].volume_cells;
   });
 
+  const auto window = LargestSpaceWindow(graph);
+  const std::optional<RoomIndex> window_room =
+      window ? std::optional(graph.portals[*window].b) : std::nullopt;
+  const auto toward = [&](RoomIndex room) {
+    return room == window_room ? CentreOf(graph.portals[*window].opening) : CentreOf(graph.rooms[room].bounds);
+  };
+
   std::vector<Viewpoint> viewpoints;
+  bool window_seen = false;
   const size_t picked = std::min(rooms, candidates.size());
   for (size_t i = 0; i < picked; ++i) {
     const size_t at = picked == 1 ? 0 : i * (candidates.size() - 1) / (picked - 1);
     const auto& [room, eye] = candidates[at];
-    AddHeadings(room, eye, CentreOf(graph.rooms[room].bounds), viewpoints);
+    AddHeadings(room, eye, toward(room), viewpoints);
+    window_seen = window_seen || room == window_room;
   }
-  if (const auto window = LargestSpaceWindow(graph)) {
-    const Portal& portal = graph.portals[*window];
-    if (const auto eye = EyeIn(graph, portal.b)) {
-      AddHeadings(portal.b, *eye, CentreOf(portal.opening), viewpoints);
+  if (window_room && !window_seen) {
+    if (const auto eye = EyeIn(graph, *window_room)) {
+      AddHeadings(*window_room, *eye, toward(*window_room), viewpoints);
     }
   }
   if (!graph.rooms.empty() && !graph.rooms[kVacuumRoom].bounds.extent.isZero()) {

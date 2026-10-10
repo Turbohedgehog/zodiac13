@@ -28,6 +28,7 @@
 #include <raylib.h>
 
 #include <z13/components/station.h>
+#include <primitives/draw_order.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 
@@ -65,7 +66,7 @@ class BlockChunks::State {
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
   void DrawTransparent(
-      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const;
+      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats);
 
  private:
   void SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
@@ -76,7 +77,8 @@ class BlockChunks::State {
   std::optional<ChunkSyncKey> synced_with_;
   ChunkMap opaque_;
   ChunkMap transparent_;
-  size_t transparent_blocks_ {};
+  // Kept between frames so drawing allocates nothing.
+  std::vector<z13::building::primitives::ChunkBounds> visible_transparent_;
 };
 
 }  // namespace z13::raylib

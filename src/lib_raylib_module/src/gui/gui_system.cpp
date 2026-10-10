@@ -41,6 +41,7 @@
 
 #include <raylib_module/raylib_components.h>
 
+#include "gui_widgets.h"
 #include "gui_windows.h"
 #include "main_menu_window.h"
 #include "palette_window.h"
@@ -48,7 +49,6 @@
 #include "platform/sdl_platform.h"
 #include "render/render_stats.h"
 #include "room_label.h"
-#include "gui_widgets.h"
 #include "stats_overlay.h"
 
 namespace z13::raylib {

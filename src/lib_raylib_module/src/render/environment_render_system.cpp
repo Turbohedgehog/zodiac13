@@ -307,7 +307,7 @@ void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {
 using BlockQuery = flecs::query<const z13::station::Block>;
 using BrushQuery = flecs::query<const z13::building::Brush, const Eigen::Matrix4f>;
 
-// Blocks drawn one by one, past the chunks: glass and previews.
+// Brush previews, drawn one by one past the chunks.
 struct SingleBlockDrawing {
   std::reference_wrapper<BlockMeshes> meshes;
   std::reference_wrapper<const Lighting> lighting;

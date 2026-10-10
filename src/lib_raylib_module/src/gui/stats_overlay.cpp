@@ -67,7 +67,7 @@ float StatsOverlay::Draw(const RenderStats* render, float top) const {
     ImGui::Text("%.0f fps, %.1f ms, worst %.1f ms", fps_, average_ms_, worst_ms_);
     if (render != nullptr) {
       ImGui::Text("Chunks %zu / %zu, meshes %zu", render->chunks_drawn, render->chunks, render->meshes_drawn);
-      ImGui::Text("Glass %zu / %zu", render->glass_drawn, render->glass);
+      ImGui::Text("Glass chunks %zu / %zu", render->glass_chunks_drawn, render->glass_chunks);
       if (render->rooms_seen) {
         ImGui::Text("Rooms seen %zu, %.0f us", *render->rooms_seen, render->culling_us);
       } else {
@@ -77,7 +77,7 @@ float StatsOverlay::Draw(const RenderStats* render, float top) const {
       const Eigen::Vector3i cell = (camera.eye / z13::station::kCellSize).array().floor().cast<int>();
       ImGui::Text("Eye x %.2f, y %.2f, z %.2f m", camera.eye.x(), camera.eye.y(), camera.eye.z());
       ImGui::Text("Cell x %d, y %d, z %d", cell.x(), cell.y(), cell.z());
-      ImGui::Text("Yaw %.1f, pitch %.1f", camera.yaw_deg, camera.pitch_deg);
+      ImGui::Text("Yaw %.1f, pitch %.1f", camera.look.yaw_deg, camera.look.pitch_deg);
     }
     below = OverlayTopBelow();
   }

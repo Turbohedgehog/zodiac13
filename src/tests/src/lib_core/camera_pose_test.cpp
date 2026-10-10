@@ -25,9 +25,9 @@ namespace {
 
 constexpr float kAngleTolerance = 1e-3f;
 
-TEST(CameraPoseTest, YawTurnsFromXTowardsYAndPitchLooksUp) {
-  EXPECT_TRUE(Forward({.yaw_deg = 90.f}).isApprox(Eigen::Vector3f::UnitY(), kAngleTolerance));
-  EXPECT_TRUE(Forward({.pitch_deg = 90.f}).isApprox(Eigen::Vector3f::UnitZ(), kAngleTolerance));
+TEST(CameraPoseTest, YawTurnsFromXTowardsYAndPitchLooksDown) {
+  EXPECT_TRUE(Forward({.look = {.yaw_deg = 90.f}}).isApprox(Eigen::Vector3f::UnitY(), kAngleTolerance));
+  EXPECT_TRUE(Forward({.look = {.pitch_deg = 90.f}}).isApprox(-Eigen::Vector3f::UnitZ(), kAngleTolerance));
 }
 
 // The overlay shows PoseLookingAt; --render-tour-view looks along Forward.

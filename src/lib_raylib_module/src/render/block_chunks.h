@@ -53,7 +53,7 @@ class BlockChunks {
   // Counts the chunks and meshes drawn in `stats`.
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
 
-  // The glass in view from the farthest chunk, `eye` in meters; counts the glass drawn in
+  // The glass in view from the farthest chunk, `eye` in meters; counts its chunks drawn in
   // `stats`.
   void DrawTransparent(
       const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const;
