@@ -116,6 +116,39 @@ void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& s
   ConfirmInputThrough(world, sequenced.player_id, sequenced.through_tick);
 }
 
+void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
+  const uint32_t local_id = *world.get<z13::gameplay::LocalPlayer>().id;
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  auto& log = world.get_mut<z13::gameplay::PlayerActionLog>().log;
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  std::optional<uint64_t> earliest;
+  for (const fbn::CommandMove& move : retimed.moves) {
+    const z13::gameplay::PlayerActionRecord moved {
+        .tick = move.to_tick(),
+        .player_id = local_id,
+        .action_id = move.action_id(),
+        .value = z13::gameplay::DequantizeActionValue(move.value()),
+    };
+    // One record, matched by value too: an earlier move may have put another of this action on that tick.
+    bool removed = false;
+    log.RemoveIf([&](const z13::gameplay::PlayerActionRecord& record) {
+      const bool match = !removed && record.tick == move.from_tick() && record.player_id == local_id &&
+                         record.action_id == moved.action_id && record.value == moved.value;
+      removed = removed || match;
+      return match;
+    });
+    if (moved.tick > now) {
+      QueueInOrder(queue, moved);
+    } else {
+      log.MergeSorted({moved}, RecordLess);
+    }
+    earliest = std::min({earliest.value_or(moved.tick), move.from_tick(), moved.tick});
+  }
+  if (earliest && *earliest < now && *earliest > 0) {
+    ft::DeferRollback(world, *earliest - 1);
+  }
+}
+
 void HandleClientReceived(flecs::world world, const TransportEvent& event) {
   const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
@@ -148,6 +181,11 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       [world, welcomed](const fbn::ResyncT& resync) {
         if (welcomed) {
           HandleResync(world, resync);
+        }
+      },
+      [world, welcomed](const fbn::CommandsRetimedT& retimed) {
+        if (welcomed) {
+          MoveOwnCommands(world, retimed);
         }
       },
       [world, welcomed](const fbn::StateDigestT& digest) {

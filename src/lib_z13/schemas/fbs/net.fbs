@@ -34,6 +34,13 @@ struct CommandWire {
   value: short;
 }
 
+struct CommandMove {
+  from_tick: ulong;
+  to_tick: ulong;
+  action_id: ushort;
+  value: short;
+}
+
 // Only for StateDigest's coarse position check -- not a pose-sync message (movement
 // goes through commands, see the plan's "Модель синхронизации"). Position-specific by
 // design for now (epsilon tolerance absorbs cross-platform FP drift, see the plan's
@@ -134,6 +141,11 @@ table SequencedCommands {
   through_tick: ulong;  // as in CommandBatch
 }
 
+// To the sender only: the others get the moved commands in SequencedCommands.
+table CommandsRetimed {
+  moves: [CommandMove];
+}
+
 table StateDigest {
   tick: ulong;
   entity_count: uint;
@@ -143,7 +155,7 @@ table StateDigest {
 
 union MessageBody {
   ClientHello, CommandBatch, ResyncRequest, Ping, Pong,
-  Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest,
+  Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest, CommandsRetimed,
 }
 
 table MessageEnvelope {

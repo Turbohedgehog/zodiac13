@@ -16,13 +16,16 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 
 #include <flecs.h>
 
 #include <lib_core/utils/status.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 
 #include <net_module/transport.h>
 
@@ -46,6 +49,35 @@ struct CommandRateLimits {
   using Singleton = void;
   using SessionScoped = void;
   std::unordered_map<ConnectionId, ConnectionRateLimit> by_connection;
+};
+
+struct PlayerActionKey {
+  uint32_t player_id {};
+  z13::input::ActionInfo::IdType action_id {};
+  bool operator==(const PlayerActionKey&) const = default;
+};
+
+struct PlayerActionKeyHash {
+  size_t operator()(const PlayerActionKey& key) const {
+    return std::hash<uint64_t> {}((static_cast<uint64_t>(key.player_id) << 32) ^ key.action_id);
+  }
+};
+
+struct ScheduleWindow {
+  uint64_t earliest {};
+  uint64_t latest {};
+};
+
+struct ScheduledCommandTick {
+  uint64_t tick {};
+  bool moved {};
+};
+
+// The newest tick each client's action is scheduled for, so a moved command keeps its order.
+struct LastCommandTicks {
+  using Singleton = void;
+  using SessionScoped = void;
+  std::unordered_map<PlayerActionKey, ScheduledCommandTick, PlayerActionKeyHash> by_action;
 };
 
 Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters);

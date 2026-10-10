@@ -193,6 +193,18 @@ TEST(CodecTest, SequencedCommandsRoundTrips) {
   EXPECT_EQ(decoded.commands[0].action_id(), 4);
 }
 
+TEST(CodecTest, CommandsRetimedRoundTrips) {
+  fbn::CommandsRetimedT retimed;
+  retimed.moves.emplace_back(100, 250, 4, -7);
+
+  const auto decoded = RoundTrip(retimed);
+  ASSERT_EQ(decoded.moves.size(), 1u);
+  EXPECT_EQ(decoded.moves[0].from_tick(), 100u);
+  EXPECT_EQ(decoded.moves[0].to_tick(), 250u);
+  EXPECT_EQ(decoded.moves[0].action_id(), 4);
+  EXPECT_EQ(decoded.moves[0].value(), -7);
+}
+
 TEST(CodecTest, StateDigestRoundTripsPositions) {
   fbn::StateDigestT digest;
   digest.tick = 60;

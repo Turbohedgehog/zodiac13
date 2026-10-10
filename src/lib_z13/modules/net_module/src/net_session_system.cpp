@@ -181,7 +181,7 @@ void ServiceNetSession(flecs::world world) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, PlayerIdAllocator, StateDigests,
+      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, LastCommandTicks, PlayerIdAllocator, StateDigests,
       NetTuning, z13::ConnectTimeout, AdoptedSettings>(world);
 }
 
@@ -190,6 +190,7 @@ void RegisterSystems(flecs::world world) {
   world.set<ScheduledSessionDeltas>({});
   world.set<ClockSync>({});
   world.set<CommandRateLimits>({});
+  world.set<LastCommandTicks>({});
   world.set<PlayerIdAllocator>({});
   world.set<StateDigests>({});
   // The launcher overwrites these with the loaded settings (z13::InstallSettings).

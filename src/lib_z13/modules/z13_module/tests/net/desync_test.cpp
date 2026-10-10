@@ -288,6 +288,37 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }
 
+// Delivered later than the server still accepts: moved to the window's start, on both sides.
+TEST_F(DesyncTest, ACommandPastTheLateWindowIsMovedNotDropped) {
+  const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
+  const auto own_presses = [local_id](Z13TestWorld& world) {
+    std::vector<uint64_t> ticks;
+    for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+      if (record.player_id == local_id && record.value != 0.f) {
+        ticks.push_back(record.tick);
+      }
+    }
+    return ticks;
+  };
+  const auto spike_ticks = static_cast<uint32_t>(NetTuning {}.max_late_ticks + kSettleTicks);
+  network_->SetFaultConfig({.min_delay_ticks = spike_ticks, .max_delay_ticks = spike_ticks});
+  const uint64_t pressed_at = client_.World().get<ft::SimulationClock>().tick;
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  Run(kNetSendIntervalTicks, [] { return false; });
+  network_->SetFaultConfig({});
+
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !own_presses(server_).empty(); })) << "the press was dropped";
+  EXPECT_GT(own_presses(server_).front(), pressed_at);
+  EXPECT_LT(own_presses(server_).front(), pressed_at + spike_ticks) << "moved to the server's present, not the window's start";
+  client_.EmitInput(KeyUp(Keycode::KEY_W));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&, checked = Digests(client_).checked] {
+    return Digests(client_).checked >= checked + 2;
+  }));
+  EXPECT_EQ(own_presses(client_), own_presses(server_));
+  EXPECT_EQ(Digests(client_).resyncs, 0u);
+  EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
 TEST_F(DesyncTest, ReplayNeitherResendsNorRerecordsCommands) {
   constexpr uint64_t kRollbacks = 3;
   constexpr uint64_t kRollbackDepthTicks = 10;
