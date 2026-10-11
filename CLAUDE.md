@@ -63,6 +63,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 - Default member initializers (every member, pointers included: `ecs_world_t* world_ {};`): use brace-init (`int x {};`, `bool y {};`) instead of `= 0`/`= false`; for Eigen members use `Type::Zero()` instead of `{0.f, 0.f}`.
 - Don't expose `void*` or raw-pointer-plus-count pairs in APIs. Forward-declare the concrete type instead of erasing it to `void*`, and return a standard container/view (e.g. `const std::vector<T>&`, `std::span<T>`) instead of a pointer-and-length out-parameter.
 - Group related scalar fields that travel together (e.g. width/height, x/y) into a single `Eigen::Vector2i`/`Eigen::Vector2f` rather than separate members.
+- Vectors, points, colors and texels (anything with x/y/z/w components) are Eigen types (`Eigen::Vector3f`, `Eigen::Vector4f`, `Eigen::Array2f`, ...), never `std::array<float, N>`; `std::array` holds fixed collections of other things (texture ids, cube faces).
 - Fields repeated across components or types go into one shared struct both hold (`BlockSpec` in `Block` and `BlockBrush`). A map key is a struct with named fields and a hash functor, never a `std::tuple`; a key or helper two modules need is defined once in a shared library.
 - A constant (asset path, file name, CLI flag, scene name, ...) is defined once, by the code that owns it, and reused everywhere else, tests included; grep for an existing definition before declaring one. Tests reach shipped assets through `z13_tests/shipped_station.h`, not their own path constants.
 - A small closed set of values (orientations, modes) is an `enum class` naming every value, not an integer with a count and `IsValid...()` checks: an invalid value then doesn't compile, and the snapshot codec rejects unknown constants.
@@ -73,7 +74,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 - Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`, also between stacked empty `case` labels.
 - Prefer `std::format` over `snprintf`/manual char buffers or string concatenation (`+`) for building strings.
 - Represent filesystem paths as named `std::filesystem::path` constants, not bare string literals passed inline.
-- Avoid magic numbers; give them a named `constexpr` constant. Numbers that tune behaviour (reach distances, clearances, chunk sizes) aren't constants: they go into a settings.json table (FlatBuffers schema with `min`/`max`/`cli`, cross-field rules in `ValidateSettings`), are sent to clients in `Welcome` like `PhysicsTuning`, and are read by systems as a singleton term.
+- Avoid magic numbers, small ones included (a 2 for double buffering); give them a named `constexpr` constant whose name, or a short comment, says why it has that value. Numbers that tune behaviour (reach distances, clearances, chunk sizes) aren't constants: they go into a settings.json table (FlatBuffers schema with `min`/`max`/`cli`, cross-field rules in `ValidateSettings`), are sent to clients in `Welcome` like `PhysicsTuning`, and are read by systems as a singleton term.
 - Always use braces for `if`/loop bodies, even single-statement ones.
 
 ## Working in this repo

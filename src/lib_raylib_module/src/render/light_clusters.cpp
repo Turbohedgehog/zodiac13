@@ -40,8 +40,10 @@ constexpr float kNoShadow = -1.f;
 // The cone of a light shining every way: below any cosine.
 constexpr float kNoCone = -2.f;
 
-std::array<float, 4> WithW(const Eigen::Vector3f& xyz, float w) {
-  return {xyz.x(), xyz.y(), xyz.z(), w};
+Eigen::Vector4f WithW(const Eigen::Vector3f& xyz, float w) {
+  Eigen::Vector4f texel;
+  texel << xyz, w;
+  return texel;
 }
 
 int SliceOf(float depth, const ClusterLayout& layout) {
@@ -55,48 +57,36 @@ int TileOf(float ndc, int screen, int tiles, int tile) {
 }
 
 // The box around `box` in view space; one that reaches behind the near plane covers the whole
-// screen. In scalars: Eigen's small expressions cost most in a Debug build.
+// screen.
 std::optional<ClusterRange> RangeOf(const Eigen::AlignedBox3f& box, const ClusterView& view,
                                     const ClusterLayout& layout) {
-  const Eigen::Vector3f& low = box.min();
-  const Eigen::Vector3f& high = box.max();
-  const std::array middle {(low.x() + high.x()) / 2.f, (low.y() + high.y()) / 2.f, (low.z() + high.z()) / 2.f};
-  const std::array half {(high.x() - low.x()) / 2.f, (high.y() - low.y()) / 2.f, (high.z() - low.z()) / 2.f};
-  std::array<float, 3> centre {};
-  std::array<float, 3> extent {};
-  for (int row = 0; row < 3; ++row) {
-    centre[row] = view.view(row, 3);
-    for (int column = 0; column < 3; ++column) {
-      centre[row] += view.view(row, column) * middle[column];
-      extent[row] += std::abs(view.view(row, column)) * half[column];
-    }
-  }
-  const float nearest = -centre[2] - extent[2];
-  const float farthest = -centre[2] + extent[2];
+  const Eigen::Matrix3f rotation = view.view.topLeftCorner<3, 3>();
+  const Eigen::Vector3f centre = (rotation * box.center()) + view.view.topRightCorner<3, 1>();
+  const Eigen::Vector3f extent = rotation.cwiseAbs() * (box.sizes() / 2.f);
+  // The view looks down its -Z.
+  const float nearest = -centre.z() - extent.z();
+  const float farthest = -centre.z() + extent.z();
   if (farthest < view.near || nearest > view.far) {
     return std::nullopt;
   }
-  std::array ndc_low {-1.f, -1.f};
-  std::array ndc_high {1.f, 1.f};
+  Eigen::AlignedBox2f ndc(Eigen::Vector2f::Constant(-1.f), Eigen::Vector2f::Ones());
   if (nearest >= view.near) {
     // Over a positive depth, x and y are most apart at the nearest or the farthest one.
-    for (int axis = 0; axis < 2; ++axis) {
-      const float from = centre[axis] - extent[axis];
-      const float to = centre[axis] + extent[axis];
-      const float focal = view.focal[axis];
-      ndc_low[axis] = std::max(ndc_low[axis], focal * std::min(from / nearest, from / farthest));
-      ndc_high[axis] = std::min(ndc_high[axis], focal * std::max(to / nearest, to / farthest));
-    }
+    const Eigen::Array2f from = (centre - extent).head<2>().array();
+    const Eigen::Array2f to = (centre + extent).head<2>().array();
+    const Eigen::Array2f focal = view.focal.array();
+    ndc = ndc.intersection(Eigen::AlignedBox2f((focal * (from / nearest).min(from / farthest)).matrix(),
+                                               (focal * (to / nearest).max(to / farthest)).matrix()));
   }
-  if (ndc_low[0] > ndc_high[0] || ndc_low[1] > ndc_high[1]) {
+  if (ndc.isEmpty()) {
     return std::nullopt;
   }
   return ClusterRange {
-      .min = {TileOf(ndc_low[0], view.screen.x(), layout.counts.x(), layout.tile),
-              TileOf(ndc_low[1], view.screen.y(), layout.counts.y(), layout.tile),
+      .min = {TileOf(ndc.min().x(), view.screen.x(), layout.counts.x(), layout.tile),
+              TileOf(ndc.min().y(), view.screen.y(), layout.counts.y(), layout.tile),
               SliceOf(std::max(nearest, view.near), layout)},
-      .max = {TileOf(ndc_high[0], view.screen.x(), layout.counts.x(), layout.tile),
-              TileOf(ndc_high[1], view.screen.y(), layout.counts.y(), layout.tile),
+      .max = {TileOf(ndc.max().x(), view.screen.x(), layout.counts.x(), layout.tile),
+              TileOf(ndc.max().y(), view.screen.y(), layout.counts.y(), layout.tile),
               SliceOf(std::min(farthest, view.far), layout)},
   };
 }
@@ -203,16 +193,17 @@ void LightClusters::CountLights(int cap) {
   const size_t row = columns + 1;
   const size_t plane = row * (rows + 1);
   sums_.assign(plane * (slices + 1), 0);
+  const Eigen::Vector3i strides(1, static_cast<int>(row), static_cast<int>(plane));
   for (const auto& range : ranges_) {
     if (!range) {
       continue;
     }
-    const std::array xs {static_cast<size_t>(range->min.x()), static_cast<size_t>(range->max.x()) + 1};
-    const std::array ys {static_cast<size_t>(range->min.y()), static_cast<size_t>(range->max.y()) + 1};
-    const std::array zs {static_cast<size_t>(range->min.z()), static_cast<size_t>(range->max.z()) + 1};
+    const Eigen::Vector3i past = range->max + Eigen::Vector3i::Ones();
     for (unsigned corner = 0; corner < (1U << 3); ++corner) {
-      const size_t cell = (zs[(corner >> 2) & 1] * plane) + (ys[(corner >> 1) & 1] * row) + xs[corner & 1];
-      sums_[cell] += std::popcount(corner) % 2 == 0 ? 1 : -1;
+      // Bit i of `corner` picks the far bound along axis i.
+      const Eigen::Array3i far_along(corner & 1U, (corner >> 1) & 1U, (corner >> 2) & 1U);
+      const Eigen::Vector3i cell = (far_along == 1).select(past, range->min);
+      sums_[static_cast<size_t>(cell.dot(strides))] += std::popcount(corner) % 2 == 0 ? 1 : -1;
     }
   }
   for (size_t i = 0; i < sums_.size(); ++i) {
@@ -256,7 +247,7 @@ void LightClusters::UploadTable() {
 }
 
 void LightClusters::Upload(const ::Shader& shader, const LightUniforms& uniforms) const {
-  const std::array depth {layout_.near, layout_.log_depth};
+  const Eigen::Vector2f depth(layout_.near, layout_.log_depth);
   SetShaderValue(shader, uniforms.cluster_headers, &layout_.headers, SHADER_UNIFORM_INT);
   SetShaderValue(shader, uniforms.cluster_indices, &layout_.indices, SHADER_UNIFORM_INT);
   SetShaderValue(shader, uniforms.cluster_counts, layout_.counts.data(), SHADER_UNIFORM_IVEC3);

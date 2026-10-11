@@ -31,6 +31,9 @@
 
 namespace z13::raylib {
 
+// Copies of the light table: the CPU fills one while the GPU may still read the last frame's.
+inline constexpr size_t kTableBuffers = 2;
+
 // The view the clusters split, in meters.
 struct ClusterView {
   // World to view space, which looks down its -Z.
@@ -95,9 +98,8 @@ class LightClusters {
   std::vector<int> offsets_;
   std::vector<int> filled_;
   std::vector<float> indices_;
-  // Written in turn, so a frame doesn't wait for the GPU to finish reading the last one.
-  std::array<unsigned int, 2> textures_ {};
-  std::array<int, 2> texture_rows_ {};
+  std::array<unsigned int, kTableBuffers> textures_ {};
+  std::array<int, kTableBuffers> texture_rows_ {};
   size_t current_ {};
 };
 
