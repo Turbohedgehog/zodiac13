@@ -16,13 +16,10 @@
 
 #include "lights.h"
 
-#include <algorithm>
-#include <array>
 #include <filesystem>
 #include <format>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -39,12 +36,14 @@ const std::filesystem::path kLightingFragmentShaderPath = "shaders/lighting.fs";
 
 // Uniform names in assets/shaders/lighting.fs.
 constexpr std::string_view kViewPosUniform = "viewPos";
-constexpr std::string_view kLightCountUniform = "lightCount";
-constexpr std::string_view kPositionRadiusUniform = "lightPositionRadius";
-constexpr std::string_view kColorShadowUniform = "lightColorShadow";
-constexpr std::string_view kReachMinUniform = "lightReachMin";
-constexpr std::string_view kReachMaxUniform = "lightReachMax";
-constexpr std::string_view kDirectionConeUniform = "lightDirectionCone";
+constexpr std::string_view kLightTableUniform = "lightTable";
+constexpr std::string_view kLightTableWidthUniform = "lightTableWidth";
+constexpr std::string_view kClusterHeadersUniform = "clusterHeaders";
+constexpr std::string_view kClusterIndicesUniform = "clusterIndices";
+constexpr std::string_view kClusterCountsUniform = "clusterCounts";
+constexpr std::string_view kClusterTileUniform = "clusterTile";
+constexpr std::string_view kClusterDepthUniform = "clusterDepth";
+constexpr std::string_view kViewForwardUniform = "viewForward";
 constexpr std::string_view kShadowAtlasUniform = "shadowAtlas";
 constexpr std::string_view kShadowTileSizeUniform = "shadowTileSize";
 constexpr std::string_view kShadowColumnsUniform = "shadowColumns";
@@ -60,13 +59,6 @@ constexpr std::string_view kShadowSuffix = "Shadow";
 constexpr std::string_view kAmbientSkyUniform = "ambient";
 constexpr std::string_view kAmbientGroundUniform = "ambientGround";
 
-// The shader's slot for a light without a shadow.
-constexpr float kNoShadow = -1.f;
-// The cone of a light shining every way: below any cosine.
-constexpr float kNoCone = -2.f;
-
-using Vec4 = std::array<float, 4>;
-
 int Location(const ::Shader& shader, std::string_view name) {
   return GetShaderLocation(shader, std::string(name).c_str());
 }
@@ -77,14 +69,6 @@ void SetInt(const ::Shader& shader, int location, int value) {
 
 void SetVec3(const ::Shader& shader, int location, const Eigen::Vector3f& value) {
   SetShaderValue(shader, location, value.data(), SHADER_UNIFORM_VEC3);
-}
-
-void SetVec4Array(const ::Shader& shader, int location, const std::vector<Vec4>& values) {
-  SetShaderValueV(shader, location, values.data(), SHADER_UNIFORM_VEC4, static_cast<int>(values.size()));
-}
-
-Vec4 WithW(const Eigen::Vector3f& xyz, float w) {
-  return {xyz.x(), xyz.y(), xyz.z(), w};
 }
 
 int Location(const ::Shader& shader, std::string_view prefix, std::string_view suffix) {
@@ -130,17 +114,19 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
   SetInt(shader, Location(shader, kSunPrefix, kShadowSuffix), kSunShadowUnit);
   SetInt(shader, Location(shader, kFillPrefix, kShadowSuffix), kFillShadowUnit);
   SetInt(shader, Location(shader, kShadowAtlasUniform), kShadowAtlasUnit);
+  SetInt(shader, Location(shader, kLightTableUniform), kLightTableUnit);
+  SetInt(shader, Location(shader, kLightTableWidthUniform), kLightTableWidth);
   return shader;
 }
 
 LightUniforms FindLightUniforms(const ::Shader& shader) {
   return {
-      .count = Location(shader, kLightCountUniform),
-      .position_radius = Location(shader, kPositionRadiusUniform),
-      .color_shadow = Location(shader, kColorShadowUniform),
-      .reach_min = Location(shader, kReachMinUniform),
-      .reach_max = Location(shader, kReachMaxUniform),
-      .direction_cone = Location(shader, kDirectionConeUniform),
+      .cluster_headers = Location(shader, kClusterHeadersUniform),
+      .cluster_indices = Location(shader, kClusterIndicesUniform),
+      .cluster_counts = Location(shader, kClusterCountsUniform),
+      .cluster_tile = Location(shader, kClusterTileUniform),
+      .cluster_depth = Location(shader, kClusterDepthUniform),
+      .view_forward = Location(shader, kViewForwardUniform),
       .shadow_tile_size = Location(shader, kShadowTileSizeUniform),
       .shadow_columns = Location(shader, kShadowColumnsUniform),
       .sun = FindDirectional(shader, kSunPrefix),
@@ -150,34 +136,9 @@ LightUniforms FindLightUniforms(const ::Shader& shader) {
   };
 }
 
-void UploadLights(const ::Shader& shader, const LightUniforms& uniforms, std::span<const FrameLight> lights,
-                  const ShadowAtlasLayout& atlas) {
-  const std::span<const FrameLight> shown = lights.first(std::min(lights.size(), static_cast<size_t>(kMaxLights)));
-  SetInt(shader, uniforms.count, static_cast<int>(shown.size()));
+void UploadShadowAtlas(const ::Shader& shader, const LightUniforms& uniforms, const ShadowAtlasLayout& atlas) {
   SetInt(shader, uniforms.shadow_tile_size, atlas.tile_size);
   SetInt(shader, uniforms.shadow_columns, atlas.columns);
-  if (shown.empty()) {
-    return;
-  }
-  std::vector<Vec4> position_radius;
-  std::vector<Vec4> color_shadow;
-  std::vector<Vec4> reach_min;
-  std::vector<Vec4> reach_max;
-  std::vector<Vec4> direction_cone;
-  for (const FrameLight& light : shown) {
-    position_radius.push_back(WithW(light.position, light.radius));
-    color_shadow.push_back(
-        WithW(light.color, light.shadow_slot ? static_cast<float>(*light.shadow_slot) : kNoShadow));
-    reach_min.push_back(WithW(light.reach.min(), 0.f));
-    reach_max.push_back(WithW(light.reach.max(), 0.f));
-    direction_cone.push_back(light.cone ? WithW(light.cone->direction, light.cone->cos_half_angle)
-                                        : WithW(Eigen::Vector3f::Zero(), kNoCone));
-  }
-  SetVec4Array(shader, uniforms.position_radius, position_radius);
-  SetVec4Array(shader, uniforms.color_shadow, color_shadow);
-  SetVec4Array(shader, uniforms.reach_min, reach_min);
-  SetVec4Array(shader, uniforms.reach_max, reach_max);
-  SetVec4Array(shader, uniforms.direction_cone, direction_cone);
 }
 
 void UploadSceneLight(const ::Shader& shader, const LightUniforms& uniforms, const SceneLight& light) {

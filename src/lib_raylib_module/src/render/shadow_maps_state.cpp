@@ -299,7 +299,7 @@ void ShadowMaps::State::DrawFaces(size_t slot, const FrameLight& light, const Sh
 
 Status ShadowMaps::State::UpdateLamps(
     std::span<FrameLight> lights, const ShadowCasters& casters, const z13::RenderTuning& tuning) {
-  Status resized = ResizeAtlas(std::clamp(tuning.shadow_lights, 0, kMaxLights), tuning.shadow_map_size);
+  Status resized = ResizeAtlas(tuning.shadow_lights, tuning.shadow_map_size);
   const std::span<FrameLight> candidates = lights.first(std::min(lights.size(), slots_.size()));
   const std::vector<std::optional<size_t>> assigned = AssignSlots(candidates, tuning.shadow_updates_per_frame);
   int redraws_left = tuning.shadow_updates_per_frame;

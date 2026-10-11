@@ -33,8 +33,9 @@ struct LightReach {
   // Its room and those it shines into through visible portals (windows, open doors) within
   // its radius, sorted; the vacuum isn't one.
   std::vector<RoomIndex> lit_rooms;
-  // For a light without shadows: radius_box cut to its room and the room's walls, so it
-  // doesn't light the next room through a wall; all of radius_box outside rooms.
+  // For a light without shadows: radius_box cut to its room's free cells, which the faces it
+  // lights look into, so it doesn't light the next room through a wall; all of radius_box
+  // outside rooms.
   Eigen::AlignedBox3f reach;
   // The whole box around its radius, for a light whose shadows stop it at the walls.
   Eigen::AlignedBox3f radius_box;
