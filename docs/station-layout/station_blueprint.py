@@ -452,18 +452,29 @@ def lamp_spots(area):
 
 def lamp_blocks(deck, z, blocks):
     """Lamps under the ceiling of every free area of the deck, on a lattice; a lamp needs a block
-    above it to hang from and none where it hangs, so open slabs and stairs get none."""
+    above it to hang from and none where it hangs. A spot under an open slab moves to the nearest
+    cell of its area within half a lattice step that has a ceiling, such as a gallery's edge."""
     top = z + WALL_HEIGHT_CELLS - 1
     near = [box for box in map(occupied_box, blocks) if box[0][2] < top + 2 and top < box[1][2]]
+    reach = LAMP_SPACING_M // 2
+
+    def fits(x, y):
+        low = [x * CELLS_PER_M + 1, y * CELLS_PER_M + 1, top]
+        high = [low[0] + LAMP_CELLS, low[1] + LAMP_CELLS, top + 1]
+        hung = all(any(overlaps(box, [cx, cy, top + 1], [cx + 1, cy + 1, top + 2]) for box in near)
+                   for cx in range(low[0], high[0]) for cy in range(low[1], high[1]))
+        return low if hung and not any(overlaps(box, low, high) for box in near) else None
+
     lamps = []
     for area in free_areas(deck.grid):
         for x, y in lamp_spots(area):
-            low = [x * CELLS_PER_M + 1, y * CELLS_PER_M + 1, top]
-            high = [low[0] + LAMP_CELLS, low[1] + LAMP_CELLS, top + 1]
-            hung = all(any(overlaps(box, [cx, cy, top + 1], [cx + 1, cy + 1, top + 2]) for box in near)
-                       for cx in range(low[0], high[0]) for cy in range(low[1], high[1]))
-            if hung and not any(overlaps(box, low, high) for box in near):
-                lamps.append(block(LAMP, low, (LAMP_CELLS, LAMP_CELLS, 1)))
+            window = ((x + dx, y + dy) for dx in range(-reach, reach + 1) for dy in range(-reach, reach + 1))
+            around = sorted((c for c in window if c in area), key=lambda c: ((c[0] - x) ** 2 + (c[1] - y) ** 2, c))
+            low = next(filter(None, (fits(cx, cy) for cx, cy in around)), None)
+            if low:
+                lamp = block(LAMP, low, (LAMP_CELLS, LAMP_CELLS, 1))
+                lamps.append(lamp)
+                near.append(occupied_box(lamp))
     return lamps
 
 

@@ -21,6 +21,7 @@
 #include <raylib.h>
 
 #include "block_checker.h"
+#include "light_clusters.h"
 #include "lights.h"
 
 namespace z13::raylib {
@@ -69,6 +70,7 @@ struct LightingResources {
   std::shared_ptr<::Shader> shader;
   CheckerUniforms checker;
   LightUniforms lights;
+  LightClusters clusters;
 };
 
 struct Lighting {

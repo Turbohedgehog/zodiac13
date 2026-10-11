@@ -128,6 +128,9 @@ Status ValidateSettings(const Settings& settings) {
   if (physics.step_height > physics.eye_height - physics.player_collider_radius) {
     return Invalid("physics.step_height", "must not exceed physics.eye_height minus physics.player_collider_radius");
   }
+  if (settings.render->light_cluster_far_m <= settings.render->light_cluster_near_m) {
+    return Invalid("render.light_cluster_far_m", "must be above render.light_cluster_near_m");
+  }
   if (settings.connect_timeout->max_timeout_ms < settings.connect_timeout->min_timeout_ms) {
     return Invalid("connect_timeout.max_timeout_ms", "must not be below connect_timeout.min_timeout_ms");
   }

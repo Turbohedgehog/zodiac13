@@ -581,7 +581,8 @@ LitScene LightScene(const flecs::world& world, const ViewCulling& culling, const
                     std::vector<FrameLight> flashlights, const StationLights* station_lights, ShadowMaps* shadows,
                     const ShadowCasters& casters, const z13::RenderTuning& tuning) {
   LitScene lit {.lights = std::move(flashlights)};
-  lit.lights.resize(std::min(lit.lights.size(), static_cast<size_t>(kMaxLights)));
+  const auto frame_lights = static_cast<size_t>(tuning.frame_lights);
+  lit.lights.resize(std::min(lit.lights.size(), frame_lights));
   if (!world.has<z13::station::StationMode>()) {
     lit.scene.sun = DirectionalLight {.direction = kSunDirection, .color = kSunColor};
     lit.scene.ambient_sky = kShipAmbientSky;
@@ -589,7 +590,7 @@ LitScene LightScene(const flecs::world& world, const ViewCulling& culling, const
     return lit;
   }
   if (station_lights != nullptr) {
-    std::ranges::move(station_lights->Visible(culling, eye, kMaxLights - lit.lights.size()),
+    std::ranges::move(station_lights->Visible(culling, eye, frame_lights - lit.lights.size()),
                       std::back_inserter(lit.lights));
   }
   // Without the hull's shadows the sun and the fill would light the rooms too.
@@ -611,7 +612,23 @@ LitScene LightScene(const flecs::world& world, const ViewCulling& culling, const
   return lit;
 }
 
-void UploadLighting(const flecs::world& world, const LitScene& lit, const ShadowMaps* shadows) {
+// As BeginScene3D set it up.
+ClusterView CurrentClusterView(const Eigen::Vector2i& size) {
+  const Eigen::Matrix4f view = RaylibToEigenMatrix(rlGetMatrixModelview());
+  const ::Matrix projection = rlGetMatrixProjection();
+  return {
+      .view = view,
+      .focal = {projection.m0, projection.m5},
+      // The view looks down its -Z.
+      .forward = -view.block<1, 3>(2, 0).transpose(),
+      .screen = size,
+      .near = static_cast<float>(rlGetCullDistanceNear()),
+      .far = static_cast<float>(rlGetCullDistanceFar()),
+  };
+}
+
+void UploadLighting(const flecs::world& world, const LitScene& lit, const ShadowMaps* shadows,
+                    const ClusterView& view, const z13::RenderTuning& tuning) {
   if (!world.has<Lighting>()) {
     return;
   }
@@ -619,7 +636,10 @@ void UploadLighting(const flecs::world& world, const LitScene& lit, const Shadow
   if (!lighting.res) {
     return;
   }
-  UploadLights(*lighting.res->shader, lighting.res->lights, lit.lights, lit.atlas);
+  lighting.res->clusters.Update(lit.lights, view, tuning);
+  lighting.res->clusters.Upload(*lighting.res->shader, lighting.res->lights);
+  lighting.res->clusters.Bind();
+  UploadShadowAtlas(*lighting.res->shader, lighting.res->lights, lit.atlas);
   UploadSceneLight(*lighting.res->shader, lighting.res->lights, lit.scene);
   if (shadows != nullptr) {
     shadows->Bind();
@@ -888,7 +908,7 @@ void RegisterSystems(flecs::world world) {
           BeginScene3D(raylib_camera.camera, size.size);
         });
         background_ms += MsOf([&] {
-          UploadLighting(world, lit, shadows);
+          UploadLighting(world, lit, shadows, CurrentClusterView(size.size), tuning);
           DrawBackground(world);
         });
 

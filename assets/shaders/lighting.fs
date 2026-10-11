@@ -10,19 +10,20 @@ uniform vec4 colDiffuse;
 
 out vec4 finalColor;
 
-// lights.h: kMaxLights.
-#define MAX_LIGHTS 32
 #define CUBE_FACES 6
 
-// Point lights in meters: position and radius, color scaled by intensity and the shadow
-// slot (-1 without one), and the box a light without a shadow stays in (its room).
-uniform int lightCount;
-uniform vec4 lightPositionRadius[MAX_LIGHTS];
-uniform vec4 lightColorShadow[MAX_LIGHTS];
-uniform vec4 lightReachMin[MAX_LIGHTS];
-uniform vec4 lightReachMax[MAX_LIGHTS];
-// A spot's direction and the cosine of half its cone; a cosine below -1 shines every way.
-uniform vec4 lightDirectionCone[MAX_LIGHTS];
+// light_clusters.h: the frame's point lights (kLightTexels each, laid out there), then a header
+// per cluster (offset and count) and the clusters' light indices, four to a texel.
+uniform sampler2D lightTable;
+uniform int lightTableWidth;
+uniform int clusterHeaders;
+uniform int clusterIndices;
+// Tiles of clusterTile pixels times depth slices even in log(depth): clusterDepth is near and
+// log(far/near).
+uniform ivec3 clusterCounts;
+uniform int clusterTile;
+uniform vec2 clusterDepth;
+uniform vec3 viewForward;
 // Tiles of shadowTileSize pixels, shadowColumns to a row, one per slot and cube face in
 // order: the distance to the nearest caster over the light's radius.
 uniform sampler2D shadowAtlas;
@@ -66,6 +67,7 @@ const float kConeSoftness = 0.25;
 const float kFillFloor = 0.3;
 // The light above which it is compressed toward 1, so many lamps together don't burn out.
 const float kKnee = 0.6;
+const int kLightTexels = 5;
 
 // shadow_maps_state.cpp: kCubeFaceViews, the way each face looks and its up.
 const vec3 kFaceForward[CUBE_FACES] = vec3[](vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 1, 0), vec3(0, -1, 0),
@@ -133,6 +135,19 @@ vec3 Fill(vec3 normal, bool twoSided, vec3 toLight, vec3 color)
     return color*mix(kFillFloor, 1.0, dot(FacingNormal(normal, twoSided, toLight), toLight)*0.5 + 0.5);
 }
 
+vec4 TableTexel(int index)
+{
+    return texelFetch(lightTable, ivec2(index % lightTableWidth, index/lightTableWidth), 0);
+}
+
+int ClusterOf(vec3 position)
+{
+    ivec2 tile = min(ivec2(gl_FragCoord.xy)/clusterTile, clusterCounts.xy - 1);
+    float depth = max(dot(position - viewPos, viewForward), clusterDepth.x);
+    int slice = clamp(int(log(depth/clusterDepth.x)/clusterDepth.y*float(clusterCounts.z)), 0, clusterCounts.z - 1);
+    return (slice*clusterCounts.y + tile.y)*clusterCounts.x + tile.x;
+}
+
 // Unchanged up to kKnee, then rising ever slower toward 1 with no kink.
 vec3 Compress(vec3 light)
 {
@@ -158,26 +173,33 @@ void main()
     bool twoSided = texelColor.a < 1.0;
     vec3 toView = normalize(viewPos - fragPosition);
     vec3 offset = fragPosition + normal*kNormalOffset;
-    // Inside the solid, so faces on a room's walls count as the room's.
-    vec3 inward = fragPosition - normal*cellSize*0.5;
+    // In the free cell the face looks into: a wall between two rooms shows each its own side.
+    vec3 facing = fragPosition + normal*cellSize*0.5;
     vec3 light = vec3(0.0);
 
-    for (int i = 0; i < lightCount; i++)
+    vec4 header = TableTexel(clusterHeaders + ClusterOf(fragPosition));
+    int first = int(header.x);
+    int count = int(header.y);
+    for (int n = first; n < first + count; n++)
     {
-        if (any(lessThan(inward, lightReachMin[i].xyz)) || any(greaterThan(inward, lightReachMax[i].xyz))) continue;
-        vec3 fromLight = fragPosition - lightPositionRadius[i].xyz;
-        float radius = lightPositionRadius[i].w;
+        int base = int(TableTexel(clusterIndices + n/4)[n % 4])*kLightTexels;
+        vec4 positionRadius = TableTexel(base);
+        vec4 reachMin = TableTexel(base + 2);
+        vec4 reachMax = TableTexel(base + 3);
+        if (any(lessThan(facing, reachMin.xyz)) || any(greaterThan(facing, reachMax.xyz))) continue;
+        vec3 fromLight = fragPosition - positionRadius.xyz;
+        float radius = positionRadius.w;
         float distance = length(fromLight);
         if (distance >= radius) continue;
         float fade = 1.0 - (distance*distance)/(radius*radius);
-        float cone = lightDirectionCone[i].w;
-        float along = dot(fromLight/distance, lightDirectionCone[i].xyz);
-        if (along <= cone) continue;
-        fade *= smoothstep(cone, mix(cone, 1.0, kConeSoftness), along);
-        vec3 shaded = Shade(normal, twoSided, -fromLight/distance, toView, lightColorShadow[i].rgb);
+        vec4 directionCone = TableTexel(base + 4);
+        float along = dot(fromLight/distance, directionCone.xyz);
+        if (along <= directionCone.w) continue;
+        fade *= smoothstep(directionCone.w, mix(directionCone.w, 1.0, kConeSoftness), along);
+        vec4 colorShadow = TableTexel(base + 1);
+        vec3 shaded = Shade(normal, twoSided, -fromLight/distance, toView, colorShadow.rgb);
         if (shaded == vec3(0.0)) continue;
-        int slot = int(lightColorShadow[i].w);
-        light += shaded*fade*fade*PointShadow(slot, offset - lightPositionRadius[i].xyz, radius);
+        light += shaded*fade*fade*PointShadow(int(colorShadow.w), offset - positionRadius.xyz, radius);
     }
     if (sunEnabled == 1)
     {

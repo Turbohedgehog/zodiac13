@@ -68,8 +68,8 @@ TEST(LightReachTest, ALightStopsAtItsRoomsWalls) {
   ASSERT_TRUE(light.room.has_value());
   EXPECT_EQ(light.room, graph.RoomAt(kInA.cast<int>()));
   EXPECT_EQ(light.lit_rooms, std::vector {*light.room});
-  EXPECT_TRUE(light.reach.min().isApprox(Eigen::Vector3f::Zero()));
-  EXPECT_TRUE(light.reach.max().isApprox(Eigen::Vector3f(kWall + 1, kSide + 2, kHeight + 2)));
+  EXPECT_TRUE(light.reach.min().isApprox(Eigen::Vector3f::Ones()));
+  EXPECT_TRUE(light.reach.max().isApprox(Eigen::Vector3f(kWall, kSide + 1, kHeight + 1)));
 }
 
 TEST(LightReachTest, ALightShinesThroughAWindowIntoTheNextRoom) {
@@ -82,7 +82,7 @@ TEST(LightReachTest, ALightShinesThroughAWindowIntoTheNextRoom) {
   ASSERT_TRUE(next.has_value());
   EXPECT_EQ(light.lit_rooms, std::vector({std::min(*light.room, *next), std::max(*light.room, *next)}));
   // Its shadow lets it through the window; without one it stays in its room.
-  EXPECT_TRUE(light.reach.max().isApprox(Eigen::Vector3f(kWall + 1, kSide + 2, kHeight + 2)));
+  EXPECT_TRUE(light.reach.max().isApprox(Eigen::Vector3f(kWall, kSide + 1, kHeight + 1)));
 }
 
 TEST(LightReachTest, AWindowBeyondTheRadiusLetsNoLightThrough) {

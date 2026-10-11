@@ -19,21 +19,21 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <span>
 
 #include <Eigen/Dense>
 #include <raylib.h>
 
 namespace z13::raylib {
 
-// assets/shaders/lighting.fs: MAX_LIGHTS.
-inline constexpr int kMaxLights = 32;
+// Texels to a row of the light table (light_clusters.h).
+inline constexpr int kLightTableWidth = 1024;
 // raylib's MAX_MATERIAL_MAPS (its config.h, not exported): DrawMesh binds this many units.
 inline constexpr size_t kMaterialMaps = 12;
 // Texture units of the shadow maps, past those DrawMesh binds; GL 3.3 has at least 16.
 inline constexpr int kSunShadowUnit = kMaterialMaps;
 inline constexpr int kFillShadowUnit = kSunShadowUnit + 1;
 inline constexpr int kShadowAtlasUnit = kFillShadowUnit + 1;
+inline constexpr int kLightTableUnit = kShadowAtlasUnit + 1;
 
 // What narrows a point light to a spot.
 struct SpotCone {
@@ -91,12 +91,12 @@ struct DirectionalUniforms {
 
 // Locations of the light uniforms in assets/shaders/lighting.fs.
 struct LightUniforms {
-  int count {};
-  int position_radius {};
-  int color_shadow {};
-  int reach_min {};
-  int reach_max {};
-  int direction_cone {};
+  int cluster_headers {};
+  int cluster_indices {};
+  int cluster_counts {};
+  int cluster_tile {};
+  int cluster_depth {};
+  int view_forward {};
   int shadow_tile_size {};
   int shadow_columns {};
   DirectionalUniforms sun;
@@ -105,14 +105,12 @@ struct LightUniforms {
   int ambient_ground {};
 };
 
-// Loads assets/shaders/lighting.{vs,fs} with its shadow samplers on their units. Returns an
-// empty Shader (id 0) on compile failure.
+// Loads assets/shaders/lighting.{vs,fs} with its samplers on their units. Returns an empty
+// Shader (id 0) on compile failure.
 ::Shader LoadLightingShader();
 LightUniforms FindLightUniforms(const ::Shader& shader);
 
-// At most kMaxLights of `lights`.
-void UploadLights(const ::Shader& shader, const LightUniforms& uniforms, std::span<const FrameLight> lights,
-                  const ShadowAtlasLayout& atlas);
+void UploadShadowAtlas(const ::Shader& shader, const LightUniforms& uniforms, const ShadowAtlasLayout& atlas);
 void UploadSceneLight(const ::Shader& shader, const LightUniforms& uniforms, const SceneLight& light);
 
 }  // namespace z13::raylib

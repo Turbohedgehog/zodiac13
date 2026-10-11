@@ -44,6 +44,7 @@ set(
   src/render/shadow_maps.cpp
   src/render/shadow_maps_state.cpp
   src/render/skybox.cpp
+  src/render/light_clusters.cpp
   src/render/station_lights.cpp
   src/render/view_culling.cpp
   src/tools/asset_path.cpp

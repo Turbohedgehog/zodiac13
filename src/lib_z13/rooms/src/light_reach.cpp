@@ -25,10 +25,6 @@ namespace {
 
 using z13::building::primitives::CellBox;
 
-Eigen::AlignedBox3f WithWalls(const CellBox& bounds) {
-  return {(bounds.min - Eigen::Vector3i::Ones()).cast<float>(), (bounds.End() + Eigen::Vector3i::Ones()).cast<float>()};
-}
-
 Eigen::AlignedBox3f BoxOf(const CellBox& cells) {
   return {cells.min.cast<float>(), cells.End().cast<float>()};
 }
@@ -70,7 +66,7 @@ std::optional<LightReach> ReachOf(const z13::building::primitives::PointLight& l
   return LightReach {
       .room = *room,
       .lit_rooms = LitRooms(*graph, *room, light.position, radius),
-      .reach = radius_box.intersection(WithWalls(graph->get().rooms[*room].bounds)),
+      .reach = radius_box.intersection(BoxOf(graph->get().rooms[*room].bounds)),
       .radius_box = radius_box,
   };
 }
