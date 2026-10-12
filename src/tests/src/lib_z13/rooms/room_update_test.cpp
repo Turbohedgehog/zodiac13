@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <tuple>
@@ -41,7 +42,9 @@ constexpr int kOuter = kSide + 2;
 constexpr int kTall = kHeight + 2;
 constexpr int kSteps = 150;
 constexpr int kPanel = 4;
-// Seeds 7 and 2026 once caught pockets the new blocks closed off; 13 is the first tried.
+// The first panels of ShellPanels.
+constexpr size_t kFloorAndRoof = 2;
+// Three of the 40 seeds checked once (1-30 and a few more), to keep the run short.
 constexpr std::array kSeeds {7U, 13U, 2026U};
 // Cells are compared on a sparser lattice: every room's anchor, volume and bounds already
 // are, and a full comparison per step would cost seconds in Debug.
@@ -152,6 +155,28 @@ std::vector<CellBox> ShellPanels() {
 }
 
 enum class Edit : uint8_t { kWall, kWindow, kRemoveInside, kTogglePanel, kOutside, kRemoveOutside, kSwapWindow };
+// Weights of the edits above, in their order.
+constexpr std::array kEditWeights {30U, 15U, 20U, 10U, 10U, 5U, 10U};
+
+// The std distributions differ between standard libraries, and mt19937 itself doesn't, so
+// numbers are drawn from its raw output: a seed is the same sequence on every platform.
+int Between(std::mt19937& random, int low, int high) {
+  return low + static_cast<int>(random() % static_cast<uint32_t>(high - low + 1));
+}
+
+size_t Below(std::mt19937& random, size_t count) {
+  return random() % count;
+}
+
+Edit NextEdit(std::mt19937& random) {
+  uint32_t roll = random() % std::accumulate(kEditWeights.begin(), kEditWeights.end(), 0U);
+  size_t chosen = 0;
+  while (roll >= kEditWeights[chosen]) {
+    roll -= kEditWeights[chosen];
+    ++chosen;
+  }
+  return static_cast<Edit>(chosen);
+}
 
 // What the random edits went through, so the test fails if they stop covering the cases.
 struct Coverage {
@@ -185,27 +210,25 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
   const auto free = [&](const CellBox& box) {
     return std::ranges::none_of(sources().sealed, [&box](const CellBox& other) { return other.Overlaps(box); });
   };
-  std::discrete_distribution<int> edit({30, 15, 20, 10, 10, 5, 10});
-  std::uniform_int_distribution<int> across(1, kSide);
-  std::uniform_int_distribution<int> length(2, kSide / 2);
-  std::uniform_int_distribution<int> beyond(kOuter + 1, kOuter + 3 * kChunkCells);
-  std::bernoulli_distribution along_x(0.5);
+  const auto across = [&random] { return Between(random, 1, kSide); };
   const CellBox region {.min = Eigen::Vector3i::Constant(-kChunkCells),
                         .extent = Eigen::Vector3i::Constant(kOuter + 5 * kChunkCells)};
   RoomGraph graph = Full(sources());
   Coverage coverage;
   for (int step = 0; step < kSteps; ++step) {
-    const auto chosen = static_cast<Edit>(edit(random));
+    const Edit chosen = NextEdit(random);
     switch (chosen) {
       case Edit::kWall:
         [[fallthrough]];
       case Edit::kWindow: {
-        const bool x = along_x(random);
+        const bool x = random() % 2 == 0;
         // Half of them wall to wall, so rooms split.
-        const bool span = across(random) % 2 == 0;
-        const int run = span ? kSide : length(random);
-        const Eigen::Vector2i at(x ? (span ? 1 : across(random)) : across(random),
-                                 x ? across(random) : (span ? 1 : across(random)));
+        const bool span = random() % 2 == 0;
+        const int run = span ? kSide : Between(random, 2, kSide / 2);
+        // Drawn one by one: the order of a constructor's arguments differs between compilers.
+        const int along = span ? 1 : across();
+        const int other = across();
+        const Eigen::Vector2i at = x ? Eigen::Vector2i(along, other) : Eigen::Vector2i(other, along);
         const CellBox wall {.min = {at.x(), at.y(), 1}, .extent = {x ? run : 1, x ? 1 : run, kHeight}};
         const bool fits = (wall.End().head<2>().array() <= kSide + 1).all() && free(wall);
         if (fits) {
@@ -218,8 +241,7 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
       }
       case Edit::kRemoveInside:
         if (!inside.empty()) {
-          std::uniform_int_distribution<size_t> pick(0, inside.size() - 1);
-          const CellBox removed = inside[pick(random)];
+          const CellBox removed = inside[Below(random, inside.size())];
           std::erase(inside, removed);
           std::erase_if(windows, [&removed](const PortalSource& window) { return window.opening == removed; });
         }
@@ -231,14 +253,14 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
         if (hole != panel_in.end()) {
           *hole = true;
         } else {
-          std::uniform_int_distribution<size_t> pick(2, panels.size() - 1);
-          panel_in[pick(random)] = false;
+          panel_in[kFloorAndRoof + Below(random, panels.size() - kFloorAndRoof)] = false;
           ++coverage.holes;
         }
         break;
       }
       case Edit::kOutside: {
-        const CellBox box {.min = {beyond(random), across(random), 1}, .extent = {2, 2, 2}};
+        const CellBox box {.min = {Between(random, kOuter + 1, kOuter + 3 * kChunkCells), across(), 1},
+                           .extent = {2, 2, 2}};
         if (free(box)) {
           outside.push_back(box);
           ++coverage.outside;
@@ -253,8 +275,7 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
       case Edit::kSwapWindow:
         // The same cells as a wall or as a window: only the portal sources change.
         if (!inside.empty()) {
-          std::uniform_int_distribution<size_t> pick(0, inside.size() - 1);
-          const CellBox& wall = inside[pick(random)];
+          const CellBox& wall = inside[Below(random, inside.size())];
           const auto window = std::ranges::find(windows, wall, &PortalSource::opening);
           if (window == windows.end()) {
             windows.push_back({.opening = wall, .axis = wall.extent.x() == 1 ? Axis::kX : Axis::kY, .visible = true});
