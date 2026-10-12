@@ -25,13 +25,13 @@ namespace z13::station::rooms {
 namespace {
 
 using z13::building::primitives::CellBox;
+using z13::building::primitives::kCellAxes;
 
-constexpr int kAxes = 3;
 
 // The leaves in `side`, one cell thick across `axis`, as patches on the face.
 std::vector<FacePatch> PatchesOn(const RoomGraph& graph, const CellBox& side, size_t axis) {
-  const auto u = static_cast<Eigen::Index>((axis + 1) % kAxes);
-  const auto v = static_cast<Eigen::Index>((axis + 2) % kAxes);
+  const auto u = static_cast<Eigen::Index>((axis + 1) % kCellAxes);
+  const auto v = static_cast<Eigen::Index>((axis + 2) % kCellAxes);
   std::vector<FacePatch> patches;
   for (const LeafRef& ref : graph.space.LeavesIn(side)) {
     const CellBox cut = graph.space.Leaf(ref).Intersection(side);

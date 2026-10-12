@@ -87,8 +87,10 @@ void ApplyRoomGravity(flecs::iter& it) {
         continue;
       }
       const Eigen::Vector3f cell = z13::math::ExtractTranslation<float>(transforms[i]) / kCellSize;
-      if (const std::optional<rooms::RoomId> room = graph->get().RoomAt(cell.array().floor().cast<int>())) {
-        SetAcceleration(bodies[i], rooms_gravity.by_room.at(*room));
+      const std::optional<rooms::RoomId> room = graph->get().RoomAt(cell.array().floor().cast<int>());
+      if (const auto pull = room ? rooms_gravity.by_room.find(*room) : rooms_gravity.by_room.end();
+          pull != rooms_gravity.by_room.end()) {
+        SetAcceleration(bodies[i], pull->second);
       }
     }
   }

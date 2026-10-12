@@ -34,10 +34,11 @@ using z13::station::rooms::RoomId;
 constexpr int kWallCells = 1;
 
 std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomId room) {
-  if (room == z13::station::rooms::kVacuumRoom) {
+  const auto found = graph.FindRoom(room);
+  if (room == z13::station::rooms::kVacuumRoom || !found) {
     return std::nullopt;
   }
-  const auto& cells = graph.rooms.at(room).bounds;
+  const auto& cells = found->get().bounds;
   const Eigen::Vector3i low = cells.min - Eigen::Vector3i::Constant(kWallCells);
   const Eigen::Vector3i high = cells.End() + Eigen::Vector3i::Constant(kWallCells);
   return Eigen::AlignedBox3f(low.cast<float>() * kCellSize, high.cast<float>() * kCellSize);

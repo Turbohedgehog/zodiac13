@@ -29,6 +29,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include "numbered_leaves.h"
 #include "room_parts.h"
 
 namespace z13::station::rooms {
@@ -38,35 +39,15 @@ namespace {
 using z13::building::primitives::CellBox;
 using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
-// Every leaf of the free space, numbered chunk by chunk in OrderedChunks().
-struct NumberedLeaves {
-  std::vector<LeafRef> leaves;
-  std::unordered_map<Eigen::Vector3i, size_t, z13::building::primitives::CellHash> first_of_chunk;
-
-  size_t Number(const LeafRef& ref) const { return first_of_chunk.at(ref.chunk) + ref.leaf; }
-};
-
-NumberedLeaves NumberLeaves(const FreeSpace& space) {
-  NumberedLeaves numbered;
-  for (const Eigen::Vector3i& key : space.OrderedChunks()) {
-    numbered.first_of_chunk.emplace(key, numbered.leaves.size());
-    const auto count = static_cast<uint32_t>(space.AllChunks().at(key)->leaves.size());
-    for (uint32_t leaf = 0; leaf < count; ++leaf) {
-      numbered.leaves.push_back({.chunk = key, .leaf = leaf});
-    }
-  }
-  return numbered;
-}
-
 // Per leaf, its connected set; the leaves open to space join the vertex after the last leaf.
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered) {
-  const size_t vacuum = numbered.leaves.size();
+  const size_t vacuum = numbered.Leaves().size();
   LeafGraph graph(vacuum + 1);
-  for (size_t i = 0; i < numbered.leaves.size(); ++i) {
-    if (space.OnOuterFace(space.Leaf(numbered.leaves[i]))) {
+  for (size_t i = 0; i < numbered.Leaves().size(); ++i) {
+    if (space.OnOuterFace(space.Leaf(numbered.Leaves()[i]))) {
       boost::add_edge(i, vacuum, graph);
     }
-    for (const LeafRef& neighbour : space.Neighbours(numbered.leaves[i])) {
+    for (const LeafRef& neighbour : space.Neighbours(numbered.Leaves()[i])) {
       if (const size_t j = numbered.Number(neighbour); j > i) {
         boost::add_edge(i, j, graph);
       }
@@ -82,11 +63,11 @@ std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& 
 void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of, RoomId first_id, RoomGraph& graph) {
   const size_t vacuum_set = set_of.back();
   std::unordered_map<size_t, RoomExtent> extents;
-  for (size_t i = 0; i < numbered.leaves.size(); ++i) {
+  for (size_t i = 0; i < numbered.Leaves().size(); ++i) {
     if (set_of[i] == vacuum_set) {
       continue;
     }
-    const CellBox& leaf = graph.space.Leaf(numbered.leaves[i]);
+    const CellBox& leaf = graph.space.Leaf(numbered.Leaves()[i]);
     const auto [extent, added] = extents.try_emplace(set_of[i], ExtentOf(leaf));
     if (!added) {
       Absorb(extent->second, leaf);
@@ -105,7 +86,7 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
   graph.next_id = next_id;
   for (const auto& [key, chunk] : graph.space.AllChunks()) {
     std::vector<RoomId> rooms(chunk->leaves.size());
-    const size_t first = numbered.first_of_chunk.at(key);
+    const size_t first = numbered.FirstOf(key);
     for (size_t leaf = 0; leaf < rooms.size(); ++leaf) {
       rooms[leaf] = id_of_set.at(set_of[first + leaf]);
     }
@@ -121,7 +102,7 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, Roo
     return std::unexpected(std::move(space.error()));
   }
   RoomGraph graph {.space = std::move(*space), .next_id = first_id};
-  const NumberedLeaves numbered = NumberLeaves(graph.space);
+  const NumberedLeaves numbered(graph.space);
   NameRooms(numbered, ConnectedSets(graph.space, numbered), first_id, graph);
   std::vector<PortalSource> ordered = sources.portals;
   std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
@@ -133,6 +114,7 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, Roo
   graph.room_portals = PortalsByRoom(graph.portals);
   graph.sources = sources;
   std::ranges::sort(graph.sources.sealed, SealedBefore);
+  std::ranges::sort(graph.sources.portals, PortalSourceBefore);
   return graph;
 }
 

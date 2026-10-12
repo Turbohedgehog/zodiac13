@@ -22,7 +22,6 @@ namespace z13::building::primitives {
 
 namespace {
 
-constexpr int kAxes = 3;
 
 bool WithinLimits(const Eigen::Vector3i& size, const Primitive& primitive) {
   return (size.array() >= primitive.min_size.array()).all() && (size.array() <= primitive.max_size.array()).all();
@@ -42,7 +41,7 @@ std::vector<z13::station::Block> LeftAfterCut(
 
   std::vector<CellBox> boxes;
   CellBox rest = whole;
-  for (int axis = 0; axis < kAxes; ++axis) {
+  for (int axis = 0; axis < kCellAxes; ++axis) {
     const int below = removed.min[axis] - rest.min[axis];
     const int above = rest.End()[axis] - removed.End()[axis];
     if (below > 0) {

@@ -11,6 +11,8 @@ set(
   PROJECT_SOURCE_FILES
   src/free_space.cpp
   src/light_reach.cpp
+  src/local_leaves.cpp
+  src/numbered_leaves.cpp
   src/portal_source.cpp
   src/room_builder.cpp
   src/room_cache.cpp

@@ -31,6 +31,13 @@ bool SealedBefore(const z13::building::primitives::CellBox& first, const z13::bu
                     second.extent.z());
 }
 
+bool PortalSourceBefore(const PortalSource& first, const PortalSource& second) {
+  if (first.opening != second.opening) {
+    return SealedBefore(first.opening, second.opening);
+  }
+  return std::tuple(first.axis, first.visible, first.passable) < std::tuple(second.axis, second.visible, second.passable);
+}
+
 std::vector<RoomId> RoomGraph::ByAnchor() const {
   std::vector<RoomId> ids;
   ids.reserve(rooms.size());
@@ -52,6 +59,11 @@ std::optional<RoomId> RoomGraph::RoomAt(const Eigen::Vector3i& cell) const {
     return std::nullopt;
   }
   return RoomOf(*leaf);
+}
+
+std::optional<std::reference_wrapper<const Room>> RoomGraph::FindRoom(RoomId room) const {
+  const auto found = rooms.find(room);
+  return found == rooms.end() ? std::nullopt : std::optional(std::cref(found->second));
 }
 
 std::span<const size_t> RoomGraph::PortalsOf(RoomId room) const {

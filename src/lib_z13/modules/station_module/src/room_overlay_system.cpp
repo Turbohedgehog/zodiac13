@@ -82,9 +82,11 @@ std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& 
   }
   const auto portals = std::ranges::count_if(
       graph.portals, [&room](const rooms::Portal& portal) { return portal.a == *room || portal.b == *room; });
-  return *room == rooms::kVacuumRoom
-             ? std::format("Open to space, {} portals", portals)
-             : std::format("Room {}: {} cells, {} portals", *room, graph.rooms.at(*room).volume_cells, portals);
+  const auto found = graph.FindRoom(*room);
+  if (*room == rooms::kVacuumRoom || !found) {
+    return std::format("Open to space, {} portals", portals);
+  }
+  return std::format("Room {}: {} cells, {} portals", *room, found->get().volume_cells, portals);
 }
 
 OverlayBox PortalBox(const rooms::Portal& portal, const Rgba& color) {

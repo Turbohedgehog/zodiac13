@@ -27,7 +27,7 @@ namespace {
 using z13::station::rooms::RoomGraph;
 using z13::station::rooms::RoomId;
 
-constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
+constexpr Eigen::Index kAxisCount = z13::building::primitives::kCellAxes;
 
 bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
   const Eigen::Index u = (axis + 1) % kAxisCount;

@@ -60,13 +60,14 @@ std::optional<LightReach> ReachOf(const z13::building::primitives::PointLight& l
   if (!room) {
     return std::nullopt;
   }
-  if (*room == kVacuumRoom) {
+  const auto found = graph->get().FindRoom(*room);
+  if (*room == kVacuumRoom || !found) {
     return LightReach {.reach = radius_box, .radius_box = radius_box};
   }
   return LightReach {
       .room = *room,
       .lit_rooms = LitRooms(*graph, *room, light.position, radius),
-      .reach = radius_box.intersection(BoxOf(graph->get().rooms.at(*room).bounds)),
+      .reach = radius_box.intersection(BoxOf(found->get().bounds)),
       .radius_box = radius_box,
   };
 }

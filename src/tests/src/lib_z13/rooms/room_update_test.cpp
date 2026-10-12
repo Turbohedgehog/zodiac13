@@ -151,7 +151,7 @@ std::vector<CellBox> ShellPanels() {
   return panels;
 }
 
-enum class Edit : uint8_t { kWall, kWindow, kRemoveInside, kTogglePanel, kOutside, kRemoveOutside };
+enum class Edit : uint8_t { kWall, kWindow, kRemoveInside, kTogglePanel, kOutside, kRemoveOutside, kSwapWindow };
 
 // What the random edits went through, so the test fails if they stop covering the cases.
 struct Coverage {
@@ -159,6 +159,7 @@ struct Coverage {
   size_t portals {};
   int holes {};
   int outside {};
+  int swaps {};
 };
 
 class RandomRoomEditsTest : public ::testing::TestWithParam<uint32_t> {};
@@ -184,7 +185,7 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
   const auto free = [&](const CellBox& box) {
     return std::ranges::none_of(sources().sealed, [&box](const CellBox& other) { return other.Overlaps(box); });
   };
-  std::discrete_distribution<int> edit({35, 20, 20, 10, 10, 5});
+  std::discrete_distribution<int> edit({30, 15, 20, 10, 10, 5, 10});
   std::uniform_int_distribution<int> across(1, kSide);
   std::uniform_int_distribution<int> length(2, kSide / 2);
   std::uniform_int_distribution<int> beyond(kOuter + 1, kOuter + 3 * kChunkCells);
@@ -249,6 +250,20 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
           outside.erase(outside.begin());
         }
         break;
+      case Edit::kSwapWindow:
+        // The same cells as a wall or as a window: only the portal sources change.
+        if (!inside.empty()) {
+          std::uniform_int_distribution<size_t> pick(0, inside.size() - 1);
+          const CellBox& wall = inside[pick(random)];
+          const auto window = std::ranges::find(windows, wall, &PortalSource::opening);
+          if (window == windows.end()) {
+            windows.push_back({.opening = wall, .axis = wall.extent.x() == 1 ? Axis::kX : Axis::kY, .visible = true});
+            ++coverage.swaps;
+          } else {
+            windows.erase(window);
+          }
+        }
+        break;
     }
     graph = Update(graph, sources());
     coverage.most_rooms = std::max(coverage.most_rooms, graph.rooms.size());
@@ -259,6 +274,7 @@ TEST_P(RandomRoomEditsTest, EndWhereAFullBuildDoes) {
   EXPECT_GT(coverage.portals, 0U);
   EXPECT_GT(coverage.holes, 0);
   EXPECT_GT(coverage.outside, 0);
+  EXPECT_GT(coverage.swaps, 0);
 }
 
 INSTANTIATE_TEST_SUITE_P(Seeds, RandomRoomEditsTest, ::testing::ValuesIn(kSeeds));
@@ -314,6 +330,55 @@ TEST(RoomUpdateTest, BuildingOutsideGrowsTheArea) {
   EXPECT_TRUE(after.space.Area().Contains(far.min));
   EXPECT_EQ(after.RoomAt(far.min), std::nullopt);
   EXPECT_NE(IdAt(after, {5, 5, 3}), kVacuumRoom);
+}
+
+TEST(RoomUpdateTest, AWallTurnedWindowOfTheSameCellsBecomesAPortal) {
+  RoomSources sources {.sealed = Shell()};
+  sources.sealed.push_back(kWall);
+  const RoomGraph wall = Full(sources);
+  ASSERT_TRUE(wall.portals.empty());
+  sources.portals.push_back({.opening = kWall, .axis = Axis::kX, .visible = true});
+
+  const RoomGraph window = Update(wall, sources);
+  sources.portals.clear();
+  const RoomGraph wall_again = Update(window, sources);
+
+  ASSERT_EQ(window.portals.size(), 1U);
+  EXPECT_EQ(window.portals.front().area_cells, kSide * kHeight);
+  EXPECT_TRUE(wall_again.portals.empty());
+}
+
+TEST(RoomUpdateTest, AChunkFilledAndOpenedAgainKeepsNoStaleRooms) {
+  RoomSources sources {.sealed = Shell()};
+  const RoomGraph open = Full(sources);
+  // A chunk of the room's inside, filled solid, then opened by one cell.
+  const CellBox chunk {.min = Eigen::Vector3i(kChunkCells, kChunkCells, 0),
+                       .extent = Eigen::Vector3i::Constant(kChunkCells)};
+  sources.sealed.push_back(chunk);
+  const RoomGraph filled = Update(open, sources);
+  ASSERT_TRUE(filled.leaf_rooms.at(Eigen::Vector3i(1, 1, 0))->empty());
+  sources.sealed.back() = {.min = chunk.min, .extent = {kChunkCells - 1, kChunkCells, kChunkCells}};
+
+  const auto opened = UpdateRooms(filled, sources, filled.next_id, kChunkCells);
+
+  ASSERT_TRUE(opened.has_value()) << opened.error();
+  const CellBox region {.min = Eigen::Vector3i::Constant(-1), .extent = Eigen::Vector3i::Constant(kOuter + 2)};
+  EXPECT_EQ(CanonicalOf(*opened, region), CanonicalOf(Full(sources), region));
+}
+
+TEST(RoomUpdateTest, TheAreaFollowsTheBoundsBackAfterAFarBlockGoes) {
+  RoomSources sources {.sealed = Shell()};
+  const RoomGraph before = Full(sources);
+  sources.sealed.push_back({.min = {kOuter + 5 * kChunkCells, 2, 2}, .extent = {1, 1, 1}});
+  const RoomGraph far = Update(before, sources);
+  sources.sealed.pop_back();
+
+  const RoomGraph back = Update(far, sources);
+
+  EXPECT_EQ(back.space.Area(), before.space.Area());
+  EXPECT_EQ(back.space.AllChunks().size(), before.space.AllChunks().size());
+  EXPECT_EQ(back.leaf_rooms.size(), back.space.AllChunks().size());
+  EXPECT_NE(IdAt(back, {5, 5, 3}), kVacuumRoom);
 }
 
 TEST(RoomUpdateTest, AnEditSharesTheChunksItDoesNotTouch) {

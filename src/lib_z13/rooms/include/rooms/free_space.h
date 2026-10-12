@@ -80,7 +80,7 @@ class FreeSpace {
   static std::expected<FreeSpace, std::string> Build(const std::vector<z13::building::primitives::CellBox>& sealed,
                                                      int chunk_cells);
   // A copy with the chunks the `changed` boxes touch cut again from `sealed`, and the area
-  // grown to cover the new bounds (it never shrinks); every other chunk is shared.
+  // fitted to the new bounds; every other chunk is shared.
   std::expected<RebuiltSpace, std::string> Rebuilt(const std::vector<z13::building::primitives::CellBox>& sealed,
                                                    const std::vector<z13::building::primitives::CellBox>& changed) const;
 

@@ -36,8 +36,8 @@ namespace {
 namespace bgi = boost::geometry::index;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::ChunkOf;
+using z13::building::primitives::kCellAxes;
 
-constexpr int kAxes = 3;
 // Free cells kept around the sealed ones: whatever reaches them is open to space.
 constexpr int kMargin = 1;
 
@@ -55,7 +55,7 @@ bool ContainsBox(const CellBox& outer, const CellBox& inner) {
 // Whether two boxes with disjoint insides share part of a face.
 bool ShareFace(const CellBox& a, const CellBox& b) {
   int touching {};
-  for (int axis = 0; axis < kAxes; ++axis) {
+  for (int axis = 0; axis < kCellAxes; ++axis) {
     const int overlap = std::min(a.End()[axis], b.End()[axis]) - std::max(a.min[axis], b.min[axis]);
     if (overlap < 0) {
       return false;
@@ -86,7 +86,7 @@ struct Split {
 // cheap cuts run along walls and floors and leave whole free boxes on one side.
 Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
   Split best {.cost = std::numeric_limits<double>::max()};
-  for (int axis = 0; axis < kAxes; ++axis) {
+  for (int axis = 0; axis < kCellAxes; ++axis) {
     std::vector<int> mins;
     std::vector<int> ends;
     std::ranges::transform(boxes, std::back_inserter(mins), [axis](const CellBox& box) { return box.min[axis]; });
@@ -247,19 +247,22 @@ std::expected<RebuiltSpace, std::string> FreeSpace::Rebuilt(const std::vector<Ce
   RebuiltSpace rebuilt {.space = *this};
   FreeSpace& space = rebuilt.space;
   space.bounds_ = BoundsOf(sealed);
-  const ChunkRange old_range = RangeOf(area_, chunk_cells_);
-  const ChunkRange new_range = RangeOf(space.bounds_, chunk_cells_);
-  const ChunkRange range {.first = old_range.first.cwiseMin(new_range.first),
-                          .last = old_range.last.cwiseMax(new_range.last)};
+  const ChunkRange range = RangeOf(space.bounds_, chunk_cells_);
   auto area = AreaOf(range, chunk_cells_);
   if (!area) {
     return std::unexpected(std::move(area.error()));
   }
   space.area_ = *area;
+  // Chunks left outside the new bounds hold nothing sealed and only vacuum: dropped as they are.
+  std::erase_if(space.chunks_, [&](const auto& chunk) { return !area->Contains(chunk.first * chunk_cells_); });
   KeySet keys;
   for (const CellBox& box : changed) {
     const ChunkRange touched = RangeOf(box, chunk_cells_);
-    ForEachChunk(touched.first, touched.last, [&](const Eigen::Vector3i& chunk) { keys.insert(chunk); });
+    ForEachChunk(touched.first, touched.last, [&](const Eigen::Vector3i& chunk) {
+      if (area->Contains(chunk * chunk_cells_)) {
+        keys.insert(chunk);
+      }
+    });
   }
   ForEachChunk(range.first, range.last, [&](const Eigen::Vector3i& chunk) {
     if (!chunks_.contains(chunk)) {
@@ -357,7 +360,7 @@ std::vector<LeafRef> FreeSpace::Neighbours(const LeafRef& ref) const {
   // A leaf shares faces only with leaves of its chunk and of the chunks across the chunk
   // faces it lies on.
   const CellBox chunk_box {.min = ref.chunk * chunk_cells_, .extent = Eigen::Vector3i::Constant(chunk_cells_)};
-  for (int axis = 0; axis < kAxes; ++axis) {
+  for (int axis = 0; axis < kCellAxes; ++axis) {
     const Eigen::Vector3i step = Eigen::Vector3i::Unit(axis);
     if (leaf.min[axis] == chunk_box.min[axis]) {
       search(ref.chunk - step);

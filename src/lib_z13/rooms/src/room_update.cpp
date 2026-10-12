@@ -34,6 +34,7 @@
 
 #include <rooms/room_builder.h>
 
+#include "local_leaves.h"
 #include "room_parts.h"
 
 namespace z13::station::rooms {
@@ -43,22 +44,7 @@ namespace {
 using z13::building::primitives::CellBox;
 using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 using KeySet = std::unordered_set<Eigen::Vector3i, z13::building::primitives::CellHash>;
-using LeafIndex = std::unordered_map<LeafRef, size_t, LeafRefHash>;
 
-constexpr int kAxes = 3;
-
-// The leaves whose rooms are found again, numbered for the graph of their connections.
-struct LocalLeaves {
-  std::vector<LeafRef> leaves;
-  LeafIndex index;
-
-  void Add(const LeafRef& ref) {
-    if (index.try_emplace(ref, leaves.size()).second) {
-      leaves.push_back(ref);
-    }
-  }
-  bool Contains(const LeafRef& ref) const { return index.contains(ref); }
-};
 
 // A new room before it has an id: its extent and the old rooms it took cells from.
 struct FoundRoom {
@@ -67,16 +53,26 @@ struct FoundRoom {
   std::optional<RoomId> id;
 };
 
-std::vector<CellBox> Changed(const std::vector<CellBox>& before, const std::vector<CellBox>& after) {
-  std::vector<CellBox> changed;
-  std::ranges::set_symmetric_difference(before, after, std::back_inserter(changed), SealedBefore);
-  return changed;
-}
+// What an update changes in the sources: the sealed boxes added or removed, and the
+// openings of the portal sources added, removed or changed.
+struct SourceChanges {
+  std::vector<CellBox> sealed;
+  bool sealed_added {};
+  std::vector<CellBox> openings;
+};
 
-bool AnyAdded(const std::vector<CellBox>& before, const std::vector<CellBox>& after) {
-  std::vector<CellBox> added;
-  std::ranges::set_difference(after, before, std::back_inserter(added), SealedBefore);
-  return !added.empty();
+SourceChanges ChangesBetween(const RoomSources& before, const RoomSources& after) {
+  SourceChanges changes;
+  std::ranges::set_symmetric_difference(before.sealed, after.sealed, std::back_inserter(changes.sealed),
+                                        SealedBefore);
+  changes.sealed_added = std::ranges::any_of(changes.sealed, [&after](const CellBox& box) {
+    return std::ranges::binary_search(after.sealed, box, SealedBefore);
+  });
+  std::vector<PortalSource> portals;
+  std::ranges::set_symmetric_difference(before.portals, after.portals, std::back_inserter(portals),
+                                        PortalSourceBefore);
+  std::ranges::transform(portals, std::back_inserter(changes.openings), &PortalSource::opening);
+  return changes;
 }
 
 // How many cells the leaf lies from the outside of the area, where space begins.
@@ -86,10 +82,10 @@ int DistanceToSpace(const CellBox& leaf, const CellBox& area) {
   return std::min(below.minCoeff(), above.minCoeff());
 }
 
-// The leaves of the vacuum next to `local` that the new blocks closed off from space: each
-// such pocket is searched towards the nearest edge of the area and given up on reaching it.
-// Taking in a pocket that is still open is harmless, the flood finds it open; only leaves
-// that stayed vacuum are left out of the flood.
+// The leaves of the vacuum that the new blocks closed off from space: each such pocket is
+// searched towards the nearest edge of the area, through the old vacuum and the leaves
+// found again anyway, and given up on reaching it. Taking in a pocket that is still open is
+// harmless, the flood finds it open; only leaves that stayed vacuum are left out of it.
 std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& space, const LocalLeaves& local,
                                    const KeySet& rebuilt) {
   const auto old_vacuum = [&](const LeafRef& ref) {
@@ -99,9 +95,7 @@ std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& s
   std::vector<LeafRef> starts;
   for (const Eigen::Vector3i& key : rebuilt) {
     const CellBox chunk {.min = key * space.ChunkCells(), .extent = Eigen::Vector3i::Constant(space.ChunkCells())};
-    CellBox around = chunk;
-    around.min -= Eigen::Vector3i::Ones();
-    around.extent += Eigen::Vector3i::Constant(2);
+    const CellBox around = chunk.Grown(Eigen::Vector3i::Ones());
     std::ranges::copy_if(space.LeavesIn(around), std::back_inserter(starts), old_vacuum);
   }
   std::unordered_map<LeafRef, bool, LeafRefHash> open_to_space;
@@ -122,14 +116,14 @@ std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& s
       const auto known = open_to_space.find(leaf);
       open = space.OnOuterFace(space.Leaf(leaf)) || (known != open_to_space.end() && known->second);
       for (const LeafRef& next : open ? std::vector<LeafRef> {} : space.Neighbours(leaf)) {
-        if (old_vacuum(next) && seen.insert(next).second) {
+        if ((old_vacuum(next) || local.Contains(next)) && seen.insert(next).second) {
           pending.emplace(DistanceToSpace(space.Leaf(next), space.Area()), next);
         }
       }
     }
     for (const LeafRef& leaf : seen) {
       open_to_space[leaf] = open;
-      if (!open) {
+      if (!open && old_vacuum(leaf)) {
         pockets.push_back(leaf);
       }
     }
@@ -140,18 +134,18 @@ std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& s
 // Per local leaf, its connected set; leaves open to space, or next to the old vacuum left
 // out of the flood, join the vertex after the last leaf.
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const LocalLeaves& local) {
-  const size_t vacuum = local.leaves.size();
+  const size_t vacuum = local.Leaves().size();
   LeafGraph graph(vacuum + 1);
-  for (size_t i = 0; i < local.leaves.size(); ++i) {
-    if (space.OnOuterFace(space.Leaf(local.leaves[i]))) {
+  for (size_t i = 0; i < local.Leaves().size(); ++i) {
+    if (space.OnOuterFace(space.Leaf(local.Leaves()[i]))) {
       boost::add_edge(i, vacuum, graph);
     }
-    for (const LeafRef& neighbour : space.Neighbours(local.leaves[i])) {
-      const auto found = local.index.find(neighbour);
-      if (found == local.index.end()) {
+    for (const LeafRef& neighbour : space.Neighbours(local.Leaves()[i])) {
+      const auto found = local.IndexOf(neighbour);
+      if (!found) {
         boost::add_edge(i, vacuum, graph);
-      } else if (found->second > i) {
-        boost::add_edge(i, found->second, graph);
+      } else if (*found > i) {
+        boost::add_edge(i, *found, graph);
       }
     }
   }
@@ -207,32 +201,31 @@ void NameRooms(const RoomGraph& previous, const std::vector<RoomId>& old_rooms,
 
 // The opening and the cells on both sides of it, which its portals depend on.
 CellBox PortalReach(const CellBox& opening, Axis axis) {
-  const auto index = static_cast<Eigen::Index>(axis);
-  CellBox reach = opening;
-  --reach.min[index];
-  reach.extent[index] += 2;
-  return reach;
+  return opening.Grown(Eigen::Vector3i::Unit(static_cast<Eigen::Index>(axis)));
 }
 
 }  // namespace
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
                                                   RoomId first_id, int chunk_cells) {
-  std::vector<CellBox> sealed = sources.sealed;
-  std::ranges::sort(sealed, SealedBefore);
-  if (previous.space.AllChunks().empty() || sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
+  RoomSources sorted = sources;
+  std::ranges::sort(sorted.sealed, SealedBefore);
+  std::ranges::sort(sorted.portals, PortalSourceBefore);
+  if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
     return BuildRooms(sources, first_id, chunk_cells);
   }
-  const std::vector<CellBox> changed = Changed(previous.sources.sealed, sealed);
-  auto rebuilt_space = previous.space.Rebuilt(sealed, changed);
+  const SourceChanges changes = ChangesBetween(previous.sources, sorted);
+  auto rebuilt_space = previous.space.Rebuilt(sorted.sealed, changes.sealed);
   if (!rebuilt_space) {
-    return std::unexpected(std::move(rebuilt_space.error()));
+    // The area kept from earlier graphs may be what grew too wide; a fresh one may not be.
+    return BuildRooms(sources, first_id, chunk_cells);
   }
   RoomGraph graph {.rooms = previous.rooms,
                    .space = std::move(rebuilt_space->space),
                    .leaf_rooms = previous.leaf_rooms,
                    .next_id = first_id,
-                   .sources = {.sealed = std::move(sealed), .portals = sources.portals}};
+                   .sources = std::move(sorted)};
+  std::erase_if(graph.leaf_rooms, [&graph](const auto& entry) { return !graph.space.AllChunks().contains(entry.first); });
   const KeySet rebuilt(rebuilt_space->rebuilt.begin(), rebuilt_space->rebuilt.end());
 
   // The leaves whose rooms may change: those of the rebuilt chunks, and every leaf of the
@@ -266,7 +259,7 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
       }
     }
   }
-  if (touched.contains(kVacuumRoom) && AnyAdded(previous.sources.sealed, graph.sources.sealed)) {
+  if (touched.contains(kVacuumRoom) && changes.sealed_added) {
     std::ranges::for_each(ClosedPockets(previous, graph.space, local, rebuilt),
                           [&local](const LeafRef& ref) { local.Add(ref); });
   }
@@ -275,25 +268,25 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
   const size_t vacuum_set = set_of.back();
   std::unordered_map<size_t, size_t> found_of_set;
   std::vector<FoundRoom> found;
-  std::vector<std::optional<size_t>> found_of_leaf(local.leaves.size());
-  for (size_t i = 0; i < local.leaves.size(); ++i) {
+  std::vector<std::optional<size_t>> found_of_leaf(local.Leaves().size());
+  for (size_t i = 0; i < local.Leaves().size(); ++i) {
     if (set_of[i] == vacuum_set) {
       continue;
     }
-    const CellBox& leaf = graph.space.Leaf(local.leaves[i]);
+    const CellBox& leaf = graph.space.Leaf(local.Leaves()[i]);
     const auto [entry, added] = found_of_set.try_emplace(set_of[i], found.size());
     if (added) {
       found.push_back({.extent = ExtentOf(leaf)});
     } else {
       Absorb(found[entry->second].extent, leaf);
     }
-    found[entry->second].old_rooms.merge(OldRoomsOf(previous, rebuilt, local.leaves[i], leaf));
+    found[entry->second].old_rooms.merge(OldRoomsOf(previous, rebuilt, local.Leaves()[i], leaf));
     found_of_leaf[i] = entry->second;
   }
   const auto found_at = [&](const Eigen::Vector3i& cell) -> std::optional<size_t> {
     const auto leaf = graph.space.LeafAt(cell);
-    const auto entry = leaf ? local.index.find(*leaf) : local.index.end();
-    return entry == local.index.end() ? std::nullopt : found_of_leaf[entry->second];
+    const auto index = leaf ? local.IndexOf(*leaf) : std::nullopt;
+    return index ? found_of_leaf[*index] : std::nullopt;
   };
   RoomId next_id = first_id;
   NameRooms(previous, old_rooms, found_at, found, next_id);
@@ -310,15 +303,17 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
   }
   graph.rooms.at(kVacuumRoom).bounds = graph.space.Bounds();
 
+  // Every rebuilt chunk gets new labels, even one left without leaves: the old ones name
+  // rooms that may be gone.
   std::unordered_map<Eigen::Vector3i, std::vector<RoomId>, z13::building::primitives::CellHash> relabelled;
-  for (size_t i = 0; i < local.leaves.size(); ++i) {
-    const LeafRef& ref = local.leaves[i];
+  for (const Eigen::Vector3i& key : rebuilt_space->rebuilt) {
+    relabelled.emplace(key, std::vector<RoomId>(graph.space.AllChunks().at(key)->leaves.size()));
+  }
+  for (size_t i = 0; i < local.Leaves().size(); ++i) {
+    const LeafRef& ref = local.Leaves()[i];
     auto [labels, added] = relabelled.try_emplace(ref.chunk);
     if (added) {
-      const auto old = previous.leaf_rooms.find(ref.chunk);
-      labels->second = rebuilt.contains(ref.chunk) || old == previous.leaf_rooms.end()
-                           ? std::vector<RoomId>(graph.space.AllChunks().at(ref.chunk)->leaves.size())
-                           : *old->second;
+      labels->second = *previous.leaf_rooms.at(ref.chunk);
     }
     labels->second[ref.leaf] = found_of_leaf[i] ? *found[*found_of_leaf[i]].id : kVacuumRoom;
   }
@@ -330,6 +325,7 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
     changed_bounds.push_back(
         {.min = key * graph.space.ChunkCells(), .extent = Eigen::Vector3i::Constant(graph.space.ChunkCells())});
   }
+  std::ranges::copy(changes.openings, std::back_inserter(changed_bounds));
   const auto dirty = [&changed_bounds](const CellBox& reach) {
     return std::ranges::any_of(changed_bounds, [&reach](const CellBox& box) { return box.Overlaps(reach); });
   };
