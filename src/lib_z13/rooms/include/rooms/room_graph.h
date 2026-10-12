@@ -48,6 +48,9 @@ struct Room {
   Eigen::Vector3i anchor = Eigen::Vector3i::Zero();
   int64_t volume_cells {};
   z13::building::primitives::CellBox bounds;
+  // The sum of its cells' coordinates: how the leaves cut it doesn't change it, while a
+  // block moved inside the room does, though volume and bounds stay.
+  Eigen::Vector3<int64_t> cell_sum = Eigen::Vector3<int64_t>::Zero();
 
   bool operator==(const Room&) const = default;
 };

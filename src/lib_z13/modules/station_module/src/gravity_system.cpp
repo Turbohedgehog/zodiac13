@@ -16,6 +16,7 @@
 
 #include "gravity_system.h"
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 
@@ -48,6 +49,10 @@ void RegisterPipeline(flecs::world world) {
   world.component<GravityPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
 }
 
+Eigen::Vector3f RoomPull(rooms::RoomId room, float gravity) {
+  return room == rooms::kVacuumRoom ? Eigen::Vector3f::Zero() : Eigen::Vector3f(0.f, 0.f, -gravity);
+}
+
 // Without rooms (a failed rebuild) RoomGravity is empty and nothing pulls.
 void UpdateRoomGravity(RoomGravity& gravity, const RoomCache& cache, const z13::PhysicsTuning& tuning) {
   const auto graph = cache.Current();
@@ -55,14 +60,24 @@ void UpdateRoomGravity(RoomGravity& gravity, const RoomCache& cache, const z13::
     gravity = {};
     return;
   }
-  const RoomGravitySource source {.fingerprint = *cache.CurrentFingerprint(), .gravity = tuning.gravity};
+  const RoomGravitySource source {.switches = cache.Switches(), .gravity = tuning.gravity};
   if (gravity.source == source) {
+    return;
+  }
+  const auto changes = gravity.source && gravity.source->gravity == tuning.gravity
+                           ? cache.ChangesSince(gravity.source->switches)
+                           : std::nullopt;
+  if (changes) {
+    std::ranges::for_each(changes->removed, [&gravity](rooms::RoomId room) { gravity.by_room.erase(room); });
+    for (const rooms::RoomId room : changes->added) {
+      gravity.by_room.emplace(room, RoomPull(room, tuning.gravity));
+    }
+    gravity.source = source;
     return;
   }
   RoomGravity updated {.source = source};
   for (const auto& [id, room] : graph->get().rooms) {
-    updated.by_room.emplace(id, id == rooms::kVacuumRoom ? Eigen::Vector3f::Zero()
-                                                         : Eigen::Vector3f(0.f, 0.f, -tuning.gravity));
+    updated.by_room.emplace(id, RoomPull(id, tuning.gravity));
   }
   gravity = std::move(updated);
 }

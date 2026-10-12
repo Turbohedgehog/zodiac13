@@ -24,6 +24,7 @@
 #include <optional>
 #include <string>
 
+#include <rooms/room_changes.h>
 #include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
@@ -54,9 +55,20 @@ class RoomCache {
   OptionalRoomGraph Current() const;
   std::optional<uint64_t> CurrentFingerprint() const;
 
+  // How many times the current graph has changed, failed builds included.
+  uint64_t Switches() const { return switches_; }
+  // The rooms changed since a consumer saw `seen` switches: none when it has seen them all,
+  // those of the last switch when it missed only that one. Nothing otherwise, or when either
+  // side of the last switch had no graph: any room may have changed.
+  std::optional<RoomChanges> ChangesSince(uint64_t seen) const;
+
  private:
+  void Switch(std::optional<RoomChanges> changes);
+
   std::deque<RoomCacheEntry> entries_;
   std::optional<uint64_t> current_;
+  uint64_t switches_ {};
+  std::optional<RoomChanges> last_changes_;
   RoomId next_id_ {kVacuumRoom + 1};
 };
 

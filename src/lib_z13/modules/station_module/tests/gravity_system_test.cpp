@@ -175,6 +175,16 @@ TEST_F(GravitySystemTest, AWaistHighBlockStopsTheWalk) {
   EXPECT_NEAR(PositionOf(player).z(), FloorTop() + kTuning.eye_height, kStandTolerance);
 }
 
+// The box's middle falls in the new room east of the partition, the west part keeping the old room.
+TEST_F(GravitySystemTest, ARoomAWallSplitsOffPullsToo) {
+  testing::AddBlocks(world_, testing::DoorPartition());
+  const flecs::entity body = world_.World().entity().set(At(InBox(1.f))).set(Gravity {});
+
+  world_.Tick(kTick);
+
+  EXPECT_TRUE(body.get<Gravity>().Pulls());
+}
+
 // A session's physics.gravity replaces the player's own without the rooms changing.
 TEST_F(GravitySystemTest, RoomGravityFollowsTheGravitySetting) {
   constexpr float kLowGravity = 1.6f;

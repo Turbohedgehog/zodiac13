@@ -38,6 +38,7 @@ struct RoomExtent {
   Eigen::Vector3i low = Eigen::Vector3i::Zero();
   Eigen::Vector3i high = Eigen::Vector3i::Zero();
   int64_t volume {};
+  Eigen::Vector3<int64_t> cell_sum = Eigen::Vector3<int64_t>::Zero();
 };
 
 // A leaf's part of one side of an opening, on the opening's face: the face's two other

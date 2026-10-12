@@ -106,12 +106,13 @@ void AddSeenPortals(const RoomGraph& graph, const std::vector<uint32_t>& seen, s
   }
 }
 
-std::vector<OverlayBox> Boxes(const RoomGraph& graph, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
+std::vector<OverlayBox> Boxes(const RoomCache& cache, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
+  const RoomGraph& graph = cache.Current()->get();
   std::vector<OverlayBox> boxes;
   const Rgba room_color = shown.mode == RoomOverlayMode::kSeen ? kSeenRoomOverlayColor : kRoomOverlayColor;
   const auto add_room = [&](RoomId room) {
     if (room != rooms::kVacuumRoom && graph.rooms.contains(room)) {
-      std::ranges::transform(box_cache.BoxesOf(graph, shown.fingerprint, room), std::back_inserter(boxes),
+      std::ranges::transform(box_cache.BoxesOf(cache, room), std::back_inserter(boxes),
                              [&room_color](OverlayBox box) {
                                box.color = room_color;
                                return box;
@@ -155,7 +156,7 @@ void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCach
   if (overlay.shown == wanted) {
     return;
   }
-  overlay.boxes = Boxes(graph, wanted, box_cache);
+  overlay.boxes = Boxes(cache, wanted, box_cache);
   overlay.label = Label(graph, cell, room);
   overlay.shown = std::move(wanted);
 }

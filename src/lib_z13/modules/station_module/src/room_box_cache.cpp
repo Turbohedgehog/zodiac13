@@ -77,14 +77,20 @@ std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomId room) {
 
 }  // namespace
 
-const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const RoomGraph& graph, uint64_t fingerprint, RoomId room) {
-  if (fingerprint_ != fingerprint) {
-    boxes_ = {};
-    fingerprint_ = fingerprint;
+const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const rooms::RoomCache& cache, RoomId room) {
+  if (switches_ != cache.Switches()) {
+    const auto changes = switches_ ? cache.ChangesSince(*switches_) : std::nullopt;
+    if (changes) {
+      std::ranges::for_each(changes->removed, [this](RoomId gone) { boxes_.erase(gone); });
+      std::ranges::for_each(changes->changed, [this](RoomId changed) { boxes_.erase(changed); });
+    } else {
+      boxes_ = {};
+    }
+    switches_ = cache.Switches();
   }
   auto found = boxes_.find(room);
   if (found == boxes_.end()) {
-    found = boxes_.emplace(room, RoomBoxes(graph, room)).first;
+    found = boxes_.emplace(room, RoomBoxes(cache.Current()->get(), room)).first;
   }
   return found->second;
 }

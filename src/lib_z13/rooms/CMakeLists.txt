@@ -16,6 +16,7 @@ set(
   src/portal_source.cpp
   src/room_builder.cpp
   src/room_cache.cpp
+  src/room_changes.cpp
   src/room_graph.cpp
   src/room_overlap.cpp
   src/room_parts.cpp

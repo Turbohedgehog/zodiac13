@@ -94,5 +94,45 @@ TEST(RoomCacheTest, AFailedBuildLeavesNoCurrentGraph) {
   EXPECT_TRUE(cache.Current().has_value());
 }
 
+TEST(RoomCacheTest, ASwitchReportsTheRoomsItChanged) {
+  RoomCache cache;
+  int builds {};
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
+  const uint64_t seen = cache.Switches();
+
+  ASSERT_TRUE(cache.Select(kSecond, Counting(builds, 2)).has_value());
+
+  const RoomChanges expected {.added = {kVacuumRoom + 2, kVacuumRoom + 3}, .removed = {kVacuumRoom + 1}};
+  EXPECT_EQ(cache.ChangesSince(seen), expected);
+  EXPECT_EQ(cache.ChangesSince(cache.Switches()), RoomChanges {});
+}
+
+TEST(RoomCacheTest, ACachedGraphSelectedAgainIsASwitchTooButTheCurrentOneIsNot) {
+  RoomCache cache;
+  int builds {};
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
+  ASSERT_TRUE(cache.Select(kSecond, Counting(builds, 2)).has_value());
+  const uint64_t seen = cache.Switches();
+
+  ASSERT_TRUE(cache.Select(kSecond, Counting(builds, 9)).has_value());
+  EXPECT_EQ(cache.Switches(), seen);
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 9)).has_value());
+
+  const RoomChanges expected {.added = {kVacuumRoom + 1}, .removed = {kVacuumRoom + 2, kVacuumRoom + 3}};
+  EXPECT_EQ(cache.ChangesSince(seen), expected);
+}
+
+TEST(RoomCacheTest, AConsumerThatMissedASwitchOrHadNoGraphGetsNoChanges) {
+  RoomCache cache;
+  int builds {};
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
+  EXPECT_FALSE(cache.ChangesSince(0).has_value());
+  const uint64_t seen = cache.Switches();
+  ASSERT_TRUE(cache.Select(kSecond, Counting(builds, 1)).has_value());
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
+
+  EXPECT_FALSE(cache.ChangesSince(seen).has_value());
+}
+
 }  // namespace
 }  // namespace z13::station::rooms

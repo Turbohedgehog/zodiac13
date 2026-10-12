@@ -27,7 +27,8 @@
 namespace z13::station {
 
 struct RoomGravitySource {
-  uint64_t fingerprint {};
+  // RoomCache::Switches() when by_room was last brought up to date.
+  uint64_t switches {};
   float gravity {};
 
   bool operator==(const RoomGravitySource&) const = default;
