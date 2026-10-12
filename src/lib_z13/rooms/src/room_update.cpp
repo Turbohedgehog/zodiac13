@@ -217,8 +217,7 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
   const SourceChanges changes = ChangesBetween(previous.sources, sorted);
   auto rebuilt_space = previous.space.Rebuilt(sorted.sealed, changes.sealed);
   if (!rebuilt_space) {
-    // The area kept from earlier graphs may be what grew too wide; a fresh one may not be.
-    return BuildRooms(sources, first_id, chunk_cells);
+    return std::unexpected(std::move(rebuilt_space.error()));
   }
   RoomGraph graph {.rooms = previous.rooms,
                    .space = std::move(rebuilt_space->space),
