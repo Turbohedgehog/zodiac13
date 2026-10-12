@@ -21,6 +21,7 @@
 #include <tuple>
 #include <utility>
 
+#include <z13/components/block_changes.h>
 #include <primitives/cut.h>
 
 #include "block_entities.h"
@@ -62,13 +63,13 @@ std::expected<CutPlan, std::string> PlanCut(
   for (const auto& [entity, block] : hit) {
     const auto primitive = palette.Find(block.spec.type_id);
     if (!primitive) {
-      plan.removed.push_back(entity);
+      plan.removed.emplace_back(entity, block);
       continue;
     }
     if (primitive->get().Has(PrimitiveFlags::Spawn)) {
       ++plan.spawn_points_removed;
     }
-    plan.removed.push_back(entity);
+    plan.removed.emplace_back(entity, block);
     for (const Block& remainder : z13::building::primitives::LeftAfterCut(block, primitive->get(), cells)) {
       plan.remainders.push_back(remainder);
     }
@@ -81,10 +82,10 @@ std::expected<CutPlan, std::string> PlanCut(
 }
 
 void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
-  for (const flecs::entity entity : plan.removed) {
+  for (const auto& [entity, block] : plan.removed) {
     run.index.get().Erase(entity.id());
     run.made.erase(entity.id());
-    entity.destruct();
+    z13::station::DestroyBlock(entity, block);
   }
   for (const Block& remainder : plan.remainders) {
     const flecs::entity created =

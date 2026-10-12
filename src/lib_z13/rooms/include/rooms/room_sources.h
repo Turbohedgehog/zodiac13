@@ -31,4 +31,10 @@ struct RoomSources {
   std::vector<PortalSource> portals;
 };
 
+// Sources added and removed since a graph was built.
+struct RoomSourceEdits {
+  RoomSources added;
+  RoomSources removed;
+};
+
 }  // namespace z13::station::rooms

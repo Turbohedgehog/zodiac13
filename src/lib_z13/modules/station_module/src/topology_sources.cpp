@@ -22,21 +22,50 @@
 
 namespace z13::station {
 
+namespace {
+
+// Adds a sealing block's sources to `sources`; false for a block that isn't one.
+bool AddSources(const Block& block, const z13::building::primitives::BlockPalette& palette,
+                rooms::RoomSources& sources) {
+  const auto primitive = palette.palette.Find(block.spec.type_id);
+  if (!primitive || !rooms::IsSealing(*primitive)) {
+    return false;
+  }
+  sources.sealed.push_back(z13::building::primitives::OccupiedCells(block));
+  if (const auto portal = rooms::PortalOf(block, *primitive)) {
+    sources.portals.push_back(*portal);
+  }
+  return true;
+}
+
+}  // namespace
+
 TopologySources GatherSources(
     const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette) {
   TopologySources gathered;
   blocks.each([&](const Block& block) {
-    const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (!primitive || !rooms::IsSealing(*primitive)) {
-      return;
-    }
-    gathered.fingerprint += rooms::BlockFingerprint(block);
-    gathered.sources.sealed.push_back(z13::building::primitives::OccupiedCells(block));
-    if (const auto portal = rooms::PortalOf(block, *primitive)) {
-      gathered.sources.portals.push_back(*portal);
+    if (AddSources(block, palette, gathered.sources)) {
+      gathered.fingerprint += rooms::BlockFingerprint(block);
     }
   });
   return gathered;
+}
+
+// The fingerprint is a sum, so a change adds or subtracts its block's.
+TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building::primitives::BlockPalette& palette) {
+  TopologyEdits edits;
+  for (const BlockChange& change : changes) {
+    const bool added = change.kind == BlockChangeKind::kAdded;
+    if (AddSources(change.block, palette, added ? edits.edits.added : edits.edits.removed)) {
+      const uint64_t fingerprint = rooms::BlockFingerprint(change.block);
+      if (added) {
+        edits.fingerprint_change += fingerprint;
+      } else {
+        edits.fingerprint_change -= fingerprint;
+      }
+    }
+  }
+  return edits;
 }
 
 }  // namespace z13::station

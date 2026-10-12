@@ -54,13 +54,9 @@ class RoomCache {
   OptionalRoomGraph Current() const;
   std::optional<uint64_t> CurrentFingerprint() const;
 
-  size_t BlocksSeen() const { return blocks_seen_; }
-  void SetBlocksSeen(size_t blocks) { blocks_seen_ = blocks; }
-
  private:
   std::deque<RoomCacheEntry> entries_;
   std::optional<uint64_t> current_;
-  size_t blocks_seen_ {};
   RoomId next_id_ {kVacuumRoom + 1};
 };
 

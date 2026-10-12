@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -32,7 +33,9 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/input.h>
 #include <z13/components/station.h>
+#include <z13_grid/block_index.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <primitives/placement.h>
 
@@ -125,6 +128,30 @@ TEST(BlockBuildingTest, SameTickBuildsDoNotOverlap) {
   ASSERT_EQ(walls.size(), 2u);
   EXPECT_FALSE(z13::building::primitives::OccupiedCells(walls[0]).Overlaps(
       z13::building::primitives::OccupiedCells(walls[1])));
+}
+
+// The cut takes a wall built earlier in the same tick, before its Block is merged.
+TEST(BlockBuildingTest, ACutTakesAWallBuiltThisTick) {
+  const Eigen::Matrix4f transform = Facing(kBuilderPosition, Eigen::Vector3f::UnitX());
+  Z13TestWorld alone = StationWorld();
+  Request(alone, {AddBuilder(alone, kBuilderId, transform)}, /*build=*/true);
+  const auto built = BlocksOfType(alone.World(), kWallId);
+  ASSERT_EQ(built.size(), 1u);
+
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, transform);
+  const flecs::entity cutter = AddBuilder(test_world, kBuilderId + 1, transform);
+  // Held after the input clears the modifier, as the key would hold it.
+  test_world.World()
+      .system("Test::HoldCut")
+      .kind<z13::input::ApplyActionFramePhase>()
+      .write<z13::building::CutModifier>()
+      .run([cutter](flecs::iter&) { cutter.add<z13::building::CutModifier>(); });
+  Request(test_world, {builder, cutter}, /*build=*/true);
+
+  EXPECT_FALSE(std::ranges::contains(BlocksOfType(test_world.World(), kWallId), built[0]));
+  EXPECT_EQ(test_world.World().get<z13::building::grid::BlockIndex>().Size(),
+            static_cast<size_t>(test_world.World().count<Block>()));
 }
 
 TEST(BlockBuildingTest, DestroyRemovesTheWholeBlockInSight) {

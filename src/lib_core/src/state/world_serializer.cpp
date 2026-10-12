@@ -135,6 +135,13 @@ void CaptureRelationships(flecs::entity e, const EntityFilter& accept_target, En
             });
 }
 
+// Bare test worlds have no WorldRestores.
+void CountRestore(flecs::world& world) {
+  if (auto* restores = world.try_get_mut<WorldRestores>()) {
+    ++restores->count;
+  }
+}
+
 }  // namespace
 
 bool DefaultEntityFilter(flecs::entity e) {
@@ -342,7 +349,11 @@ EntityRefs AllEntities(const WorldSnapshot& snapshot) {
 }
 
 Status ApplyWorld(flecs::world& world, const WorldSnapshot& snapshot) {
-  return ApplyEntities(world, AllEntities(snapshot));
+  auto applied = ApplyEntities(world, AllEntities(snapshot));
+  if (applied) {
+    CountRestore(world);
+  }
+  return applied;
 }
 
 // A singleton's value lives on its component entity, so those are state only for
@@ -536,6 +547,7 @@ Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
     }
     PruneToSnapshot(e, s);
   }
+  CountRestore(world);
   return {};
 }
 
@@ -556,6 +568,7 @@ Status ApplyWorldStateDelta(flecs::world& world, const WorldSnapshot& snapshot) 
     }
     PruneToSnapshot(e, s);
   }
+  CountRestore(world);
   return {};
 }
 

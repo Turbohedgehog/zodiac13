@@ -246,7 +246,7 @@ TEST(RoomSystemTest, TheVersionGrowsOnlyWhenTheBlocksChange) {
   world.Tick();
   EXPECT_EQ(Version(world), start + 1);
 
-  wall.destruct();
+  DestroyBlock(wall, wall.get<Block>());
   world.Tick();
   EXPECT_EQ(Version(world), start + 2);
 }

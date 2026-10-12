@@ -33,4 +33,9 @@ namespace z13::station::rooms {
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
                                                   RoomId first_id, int chunk_cells);
 
+// The same for the sources `edits` makes of `previous.sources`, without comparing them all;
+// fails when it removes a source `previous` lacks.
+std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
+                                                  RoomId first_id, int chunk_cells);
+
 }  // namespace z13::station::rooms

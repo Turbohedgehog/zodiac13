@@ -20,7 +20,7 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
+#include <z13/components/block_changes.h>
 
 namespace z13::building {
 
@@ -73,7 +73,7 @@ std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counter
 flecs::entity CreateBlock(
     flecs::world world, const std::string& name, const Block& block, const z13::building::primitives::Palette& palette,
     const BuildingTuning& tuning) {
-  flecs::entity entity = world.entity(name.c_str()).add<z13::flecs_tools::StateEntity>().set(block);
+  flecs::entity entity = z13::station::SpawnBlock(world.entity(name.c_str()), block);
   const auto primitive = palette.Find(block.spec.type_id);
   if (primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
     entity.set(SpawnPoint {.transform = SpawnTransform(block, tuning.spawn_height_above_marker)});

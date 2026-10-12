@@ -18,6 +18,7 @@
 
 #include <expected>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <flecs.h>
@@ -34,7 +35,7 @@ namespace z13::building {
 // What taking a box of cells out of the station does: the blocks it touches go, and what
 // of them lies outside the box comes back as new blocks.
 struct CutPlan {
-  std::vector<flecs::entity> removed;
+  std::vector<std::pair<flecs::entity, z13::station::Block>> removed;
   std::vector<z13::station::Block> remainders;
   int spawn_points_removed {};
 };

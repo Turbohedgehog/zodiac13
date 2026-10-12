@@ -137,12 +137,13 @@ void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
 
 void RegisterRollback(flecs::world& world) {
   RegisterComponents<ActiveCoreSettings, RollbackRequest, ReplayInProgress, RollbackFailed, RollbackMetrics, ClockAdjustRequest,
-                     FrameStartCallbacks>(world);
+                     FrameStartCallbacks, WorldRestores>(world);
   world.set<ActiveCoreSettings>({});
   world.set<FrameStartCallbacks>({});
   world.set<RollbackRequest>({});
   world.set<ClockAdjustRequest>({});
   world.set<RollbackMetrics>({});
+  world.set<WorldRestores>({});
 
   world.system<const SimulationClock, const ReplayInProgress>("Rollback::FinishReplay")
       .kind(flecs::PostFrame)
