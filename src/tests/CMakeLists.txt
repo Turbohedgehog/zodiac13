@@ -112,6 +112,7 @@ if(Z13_BUILD_BENCHMARKS)
     APPEND
     PROJECT_SOURCE_FILES
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
