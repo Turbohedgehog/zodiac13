@@ -24,6 +24,7 @@
 #include <iterator>
 #include <numeric>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 
 #include <rooms/disjoint_sets.h>
@@ -38,11 +39,6 @@ using z13::building::primitives::CellBox;
 
 // Free cells kept around the sealed ones: whatever reaches them is open to space.
 constexpr int kMargin = 1;
-
-// The lowest cell by (z, y, x): rooms are ordered and named by it.
-bool AnchorBefore(const Eigen::Vector3i& first, const Eigen::Vector3i& second) {
-  return std::tuple(first.z(), first.y(), first.x()) < std::tuple(second.z(), second.y(), second.x());
-}
 
 Bounds Surround(const std::vector<CellBox>& boxes) {
   Eigen::Vector3i low = boxes.front().min;
@@ -170,8 +166,9 @@ Room ToRoom(const RoomExtent& extent) {
 }
 
 // Sets every interval's room: the vacuum for the ones open to space, otherwise rooms
-// numbered by anchor. Returns the rooms, the vacuum first.
-std::vector<Room> NameRooms(ColumnMap& columns, const Bounds& bounds, DisjointSets& sets) {
+// numbered by anchor from `first_id`. Returns the rooms, the vacuum included.
+std::unordered_map<RoomId, Room> NameRooms(ColumnMap& columns, const Bounds& bounds, DisjointSets& sets,
+                                           RoomId first_id) {
   const std::span<FreeInterval> intervals = columns.MutableIntervals();
   const size_t vacuum_node = intervals.size();
   const auto width = static_cast<size_t>(columns.Size().x());
@@ -212,14 +209,16 @@ std::vector<Room> NameRooms(ColumnMap& columns, const Bounds& bounds, DisjointSe
   std::vector<size_t> by_anchor(parts.size());
   std::iota(by_anchor.begin(), by_anchor.end(), size_t {});
   std::ranges::sort(by_anchor, [&named](size_t a, size_t b) { return AnchorBefore(named[a].anchor, named[b].anchor); });
-  std::vector<RoomIndex> index_of_part(parts.size());
-  std::vector<Room> rooms {{.bounds = {.min = bounds.low, .extent = bounds.high - bounds.low}}};
+  std::vector<RoomId> id_of_part(parts.size());
+  std::unordered_map<RoomId, Room> rooms;
+  rooms.emplace(kVacuumRoom, Room {.bounds = {.min = bounds.low, .extent = bounds.high - bounds.low}});
+  RoomId next_id = first_id;
   for (const size_t part : by_anchor) {
-    index_of_part[part] = static_cast<RoomIndex>(rooms.size());
-    rooms.push_back(named[part]);
+    id_of_part[part] = next_id;
+    rooms.emplace(next_id++, named[part]);
   }
   for (size_t i = 0; i < intervals.size(); ++i) {
-    intervals[i].room = part_of_interval[i] == kNone ? kVacuumRoom : index_of_part[part_of_interval[i]];
+    intervals[i].room = part_of_interval[i] == kNone ? kVacuumRoom : id_of_part[part_of_interval[i]];
   }
   return rooms;
 }
@@ -247,7 +246,7 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
           const auto after =
               graph.columns.RoomAt(x + step[0] * thickness, y + step[1] * thickness, z + step[2] * thickness);
           if (before && after && *before != *after) {
-            const std::pair<RoomIndex, RoomIndex> pair {std::min(*before, *after), std::max(*before, *after)};
+            const std::pair<RoomId, RoomId> pair {std::min(*before, *after), std::max(*before, *after)};
             const auto found = std::ranges::find(shares, pair, &OpeningShare::rooms);
             if (found == shares.end()) {
               shares.push_back({.rooms = pair, .area_cells = 1, .low_side = *before});
@@ -272,8 +271,8 @@ void AddPortals(const RoomSources& sources, RoomGraph& graph) {
   }
 }
 
-std::vector<std::vector<size_t>> PortalsByRoom(const RoomGraph& graph) {
-  std::vector<std::vector<size_t>> by_room(graph.rooms.size());
+std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const RoomGraph& graph) {
+  std::unordered_map<RoomId, std::vector<size_t>> by_room;
   for (size_t i = 0; i < graph.portals.size(); ++i) {
     by_room[graph.portals[i].a].push_back(i);
     by_room[graph.portals[i].b].push_back(i);
@@ -283,10 +282,10 @@ std::vector<std::vector<size_t>> PortalsByRoom(const RoomGraph& graph) {
 
 }  // namespace
 
-std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources) {
-  RoomGraph graph;
+std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id) {
+  RoomGraph graph {.next_id = first_id};
   if (sources.sealed.empty()) {
-    graph.rooms.push_back({});
+    graph.rooms.emplace(kVacuumRoom, Room {});
     graph.room_portals = PortalsByRoom(graph);
     return graph;
   }
@@ -299,7 +298,8 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources) {
   graph.columns = FreeColumns(sources.sealed, bounds, size);
   DisjointSets sets(graph.columns.Intervals().size() + 1);
   JoinNeighbours(graph.columns, sets);
-  graph.rooms = NameRooms(graph.columns, bounds, sets);
+  graph.rooms = NameRooms(graph.columns, bounds, sets, first_id);
+  graph.next_id = first_id + static_cast<RoomId>(graph.rooms.size() - 1);
   AddPortals(sources, graph);
   graph.room_portals = PortalsByRoom(graph);
   return graph;

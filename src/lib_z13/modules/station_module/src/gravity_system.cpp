@@ -60,8 +60,10 @@ void UpdateRoomGravity(RoomGravity& gravity, const RoomCache& cache, const z13::
     return;
   }
   RoomGravity updated {.source = source};
-  updated.by_room.assign(graph->get().rooms.size(), Eigen::Vector3f(0.f, 0.f, -tuning.gravity));
-  updated.by_room[rooms::kVacuumRoom] = Eigen::Vector3f::Zero();
+  for (const auto& [id, room] : graph->get().rooms) {
+    updated.by_room.emplace(id, id == rooms::kVacuumRoom ? Eigen::Vector3f::Zero()
+                                                         : Eigen::Vector3f(0.f, 0.f, -tuning.gravity));
+  }
   gravity = std::move(updated);
 }
 
@@ -85,8 +87,8 @@ void ApplyRoomGravity(flecs::iter& it) {
         continue;
       }
       const Eigen::Vector3f cell = z13::math::ExtractTranslation<float>(transforms[i]) / kCellSize;
-      if (const std::optional<rooms::RoomIndex> room = graph->get().RoomAt(cell.array().floor().cast<int>())) {
-        SetAcceleration(bodies[i], rooms_gravity.by_room[*room]);
+      if (const std::optional<rooms::RoomId> room = graph->get().RoomAt(cell.array().floor().cast<int>())) {
+        SetAcceleration(bodies[i], rooms_gravity.by_room.at(*room));
       }
     }
   }

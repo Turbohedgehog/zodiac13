@@ -61,9 +61,9 @@ struct RoomExtent {
 // The cells of one opening's face between a pair of rooms.
 struct OpeningShare {
   // Lower index first.
-  std::pair<RoomIndex, RoomIndex> rooms;
+  std::pair<RoomId, RoomId> rooms;
   int area_cells {};
-  RoomIndex low_side {};
+  RoomId low_side {};
 };
 
 }  // namespace z13::station::rooms

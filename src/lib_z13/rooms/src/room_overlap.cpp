@@ -67,7 +67,7 @@ std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGrap
     z_low = std::min(z_low, grid.Heights().x());
     z_high = std::max(z_high, grid.Heights().y());
   }
-  std::map<std::pair<RoomIndex, RoomIndex>, int64_t> cells;
+  std::map<std::pair<RoomId, RoomId>, int64_t> cells;
   for (int y = low.y(); y < high.y(); ++y) {
     for (int x = low.x(); x < high.x(); ++x) {
       const std::vector<FreeInterval> before_column = ColumnOver(before, {x, y}, z_low, z_high);

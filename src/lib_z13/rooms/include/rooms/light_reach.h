@@ -29,10 +29,10 @@ namespace z13::station::rooms {
 // The room a light belongs to and what it can light, in cells.
 struct LightReach {
   // Nothing in the vacuum or without a graph.
-  std::optional<RoomIndex> room;
+  std::optional<RoomId> room;
   // Its room and those it shines into through visible portals (windows, open doors) within
   // its radius, sorted; the vacuum isn't one.
-  std::vector<RoomIndex> lit_rooms;
+  std::vector<RoomId> lit_rooms;
   // For a light without shadows: radius_box cut to its room's free cells, which the faces it
   // lights look into, so it doesn't light the next room through a wall; all of radius_box
   // outside rooms.

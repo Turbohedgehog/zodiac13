@@ -31,11 +31,12 @@ std::expected<std::reference_wrapper<const RoomGraph>, std::string> RoomCache::S
     current_ = fingerprint;
     return std::cref(entries_.back().graph);
   }
-  auto graph = build();
+  auto graph = build(next_id_);
   if (!graph) {
     current_.reset();
     return std::unexpected(std::move(graph.error()));
   }
+  next_id_ = graph->next_id;
   entries_.push_back({.fingerprint = fingerprint, .graph = std::move(*graph)});
   if (entries_.size() > kCapacity) {
     entries_.pop_front();

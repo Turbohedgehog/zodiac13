@@ -30,12 +30,12 @@ Eigen::AlignedBox3f BoxOf(const CellBox& cells) {
 }
 
 // From `room`, through every visible portal whose opening the light reaches.
-std::vector<RoomIndex> LitRooms(const RoomGraph& graph, RoomIndex room, const Eigen::Vector3f& light, float radius) {
-  std::vector<RoomIndex> lit {room};
+std::vector<RoomId> LitRooms(const RoomGraph& graph, RoomId room, const Eigen::Vector3f& light, float radius) {
+  std::vector<RoomId> lit {room};
   for (size_t next = 0; next < lit.size(); ++next) {
-    for (const size_t index : graph.room_portals[lit[next]]) {
+    for (const size_t index : graph.PortalsOf(lit[next])) {
       const Portal& portal = graph.portals[index];
-      const RoomIndex other = portal.a == lit[next] ? portal.b : portal.a;
+      const RoomId other = portal.a == lit[next] ? portal.b : portal.a;
       if (!portal.visible || other == kVacuumRoom || std::ranges::contains(lit, other) ||
           BoxOf(portal.opening).exteriorDistance(light) >= radius) {
         continue;
@@ -66,7 +66,7 @@ std::optional<LightReach> ReachOf(const z13::building::primitives::PointLight& l
   return LightReach {
       .room = *room,
       .lit_rooms = LitRooms(*graph, *room, light.position, radius),
-      .reach = radius_box.intersection(BoxOf(graph->get().rooms[*room].bounds)),
+      .reach = radius_box.intersection(BoxOf(graph->get().rooms.at(*room).bounds)),
       .radius_box = radius_box,
   };
 }

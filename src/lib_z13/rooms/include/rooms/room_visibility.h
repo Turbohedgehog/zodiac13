@@ -16,8 +16,7 @@
 
 #pragma once
 
-#include <optional>
-#include <vector>
+#include <unordered_map>
 
 #include <Eigen/Dense>
 
@@ -25,12 +24,11 @@
 
 namespace z13::station::rooms {
 
-// Per room (by RoomIndex), the part of the screen in normalized device coordinates it is
-// seen through; nothing for a room out of sight.
-using ScreenRegions = std::vector<std::optional<Eigen::AlignedBox2f>>;
+// Per room in sight, the part of the screen in normalized device coordinates it is seen through.
+using ScreenRegions = std::unordered_map<RoomId, Eigen::AlignedBox2f>;
 
 struct RoomView {
-  RoomIndex eye_room {};
+  RoomId eye_room {};
   // In cells.
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
   // Maps cells into OpenGL clip space.

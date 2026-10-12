@@ -62,8 +62,8 @@ TEST(RoomBuilderTest, ASealedShellEnclosesOneRoom) {
   const RoomGraph graph = Build({.sealed = Shell()});
 
   ASSERT_EQ(graph.rooms.size(), 2U);
-  EXPECT_EQ(graph.rooms[1].volume_cells, kSide * kSide * kHeight);
-  EXPECT_EQ(graph.rooms[1].anchor, Eigen::Vector3i(1, 1, 1));
+  EXPECT_EQ(graph.rooms.at(1).volume_cells, kSide * kSide * kHeight);
+  EXPECT_EQ(graph.rooms.at(1).anchor, Eigen::Vector3i(1, 1, 1));
   EXPECT_EQ(graph.RoomAt({5, 5, 3}), 1U);
   EXPECT_EQ(graph.RoomAt({-1, 5, 3}), kVacuumRoom);
   EXPECT_EQ(graph.RoomAt({5, 5, 0}), std::nullopt);
@@ -77,9 +77,9 @@ TEST(RoomBuilderTest, AWallSplitsTheRoom) {
 
   ASSERT_EQ(graph.rooms.size(), 3U);
   EXPECT_NE(graph.RoomAt({2, 5, 3}), graph.RoomAt({8, 5, 3}));
-  EXPECT_EQ(graph.rooms[1].volume_cells + graph.rooms[2].volume_cells, (kSide - 1) * kSide * kHeight);
-  EXPECT_EQ(graph.rooms[1].anchor, Eigen::Vector3i(1, 1, 1));
-  EXPECT_EQ(graph.rooms[2].anchor, Eigen::Vector3i(6, 1, 1));
+  EXPECT_EQ(graph.rooms.at(1).volume_cells + graph.rooms.at(2).volume_cells, (kSide - 1) * kSide * kHeight);
+  EXPECT_EQ(graph.rooms.at(1).anchor, Eigen::Vector3i(1, 1, 1));
+  EXPECT_EQ(graph.rooms.at(2).anchor, Eigen::Vector3i(6, 1, 1));
 }
 
 TEST(RoomBuilderTest, AHoleInTheHullOpensTheRoomToTheVacuum) {
@@ -108,8 +108,8 @@ TEST(RoomBuilderTest, RoomsStackedOnTwoLevelsAreSeparate) {
   const RoomGraph graph = Build(sources);
 
   ASSERT_EQ(graph.rooms.size(), 3U);
-  EXPECT_EQ(graph.rooms[1].anchor, Eigen::Vector3i(1, 1, 1));
-  EXPECT_EQ(graph.rooms[2].anchor, Eigen::Vector3i(1, 1, 5));
+  EXPECT_EQ(graph.rooms.at(1).anchor, Eigen::Vector3i(1, 1, 1));
+  EXPECT_EQ(graph.rooms.at(2).anchor, Eigen::Vector3i(1, 1, 5));
 }
 
 TEST(RoomBuilderTest, ADoorJoinsTheRoomsOnBothSidesAsAPortal) {
@@ -198,7 +198,7 @@ TEST(RoomOverlapTest, ARoomBuiltWhereThereWasNothingOverlapsTheVacuum) {
   const std::vector<RoomOverlap> grown = OverlapsBetween(empty, built);
   const std::vector<RoomOverlap> shrunk = OverlapsBetween(built, empty);
 
-  const auto cells = [](const std::vector<RoomOverlap>& overlaps, RoomIndex before, RoomIndex after) {
+  const auto cells = [](const std::vector<RoomOverlap>& overlaps, RoomId before, RoomId after) {
     const auto it = std::ranges::find_if(
         overlaps, [&](const RoomOverlap& o) { return o.before == before && o.after == after; });
     return it == overlaps.end() ? int64_t {} : it->cells;

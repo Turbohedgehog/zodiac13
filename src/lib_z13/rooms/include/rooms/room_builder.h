@@ -38,6 +38,7 @@ struct RoomSources {
 
 // Splits the free space into rooms by flood fill over column intervals. Free space that
 // reaches the edge of the station's bounds, or has no floor or roof, is the vacuum.
-std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources);
+// Rooms get ids from `first_id` on, by anchor.
+std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id = kVacuumRoom + 1);
 
 }  // namespace z13::station::rooms

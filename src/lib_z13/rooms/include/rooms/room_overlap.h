@@ -24,8 +24,8 @@
 namespace z13::station::rooms {
 
 struct RoomOverlap {
-  RoomIndex before {};
-  RoomIndex after {};
+  RoomId before {};
+  RoomId after {};
   int64_t cells {};
 
   bool operator==(const RoomOverlap&) const = default;

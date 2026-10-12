@@ -63,9 +63,10 @@ const RoomGraph& Graph(Z13TestWorld& world) {
 
 // The anchor of the largest room: a panel there changes the topology without touching the hull.
 Eigen::Vector3i LargestRoomAnchor(const RoomGraph& graph) {
-  const auto largest = std::ranges::max_element(graph.rooms.begin() + 1, graph.rooms.end(), {},
-                                                &z13::station::rooms::Room::volume_cells);
-  return largest->anchor;
+  const std::vector<z13::station::rooms::RoomId> rooms = graph.ByAnchor();
+  const auto largest = std::ranges::max_element(
+      rooms, {}, [&graph](z13::station::rooms::RoomId room) { return graph.rooms.at(room).volume_cells; });
+  return graph.rooms.at(*largest).anchor;
 }
 
 void PrintTick(const std::string& label, double ms, const std::vector<SystemTime>& systems) {

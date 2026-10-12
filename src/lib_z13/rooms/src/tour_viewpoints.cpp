@@ -18,8 +18,8 @@
 
 #include <algorithm>
 #include <array>
-#include <iterator>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 namespace z13::station::rooms {
@@ -39,9 +39,9 @@ Eigen::Vector3f CentreOf(const CellBox& box) {
 }
 
 // The anchor is the room's lowest cell, a corner of its floor.
-std::optional<Eigen::Vector3f> EyeIn(const RoomGraph& graph, RoomIndex room) {
+std::optional<Eigen::Vector3f> EyeIn(const RoomGraph& graph, RoomId room) {
   for (const Eigen::Vector3i& offset : kCornerOffsets) {
-    const Eigen::Vector3i cell = graph.rooms[room].anchor + offset;
+    const Eigen::Vector3i cell = graph.rooms.at(room).anchor + offset;
     if (graph.RoomAt(cell) == room) {
       return cell.cast<float>() + Eigen::Vector3f::Constant(0.5f);
     }
@@ -50,7 +50,7 @@ std::optional<Eigen::Vector3f> EyeIn(const RoomGraph& graph, RoomIndex room) {
 }
 
 // Towards the room's centre first, then a quarter turn at a time.
-void AddHeadings(RoomIndex room, const Eigen::Vector3f& eye, const Eigen::Vector3f& toward,
+void AddHeadings(RoomId room, const Eigen::Vector3f& eye, const Eigen::Vector3f& toward,
                  std::vector<Viewpoint>& viewpoints) {
   Eigen::Vector2f direction = (toward - eye).head<2>();
   direction = direction.isZero() ? Eigen::Vector2f::UnitX() : direction.normalized();
@@ -60,10 +60,11 @@ void AddHeadings(RoomIndex room, const Eigen::Vector3f& eye, const Eigen::Vector
   }
 }
 
-// The largest window onto space of the room with the most window area onto space.
+// The largest window onto space of the room with the most window area onto space; ties
+// go to the room first by anchor.
 std::optional<size_t> LargestSpaceWindow(const RoomGraph& graph) {
-  std::vector<int> area(graph.rooms.size());
-  std::vector<std::optional<size_t>> largest(graph.rooms.size());
+  std::unordered_map<RoomId, int> area;
+  std::unordered_map<RoomId, size_t> largest;
   for (size_t i = 0; i < graph.portals.size(); ++i) {
     const Portal& portal = graph.portals[i];
     // a < b, so the vacuum is always a.
@@ -71,36 +72,42 @@ std::optional<size_t> LargestSpaceWindow(const RoomGraph& graph) {
       continue;
     }
     area[portal.b] += portal.area_cells;
-    if (!largest[portal.b] || graph.portals[*largest[portal.b]].area_cells < portal.area_cells) {
-      largest[portal.b] = i;
+    const auto [found, added] = largest.try_emplace(portal.b, i);
+    if (!added && graph.portals[found->second].area_cells < portal.area_cells) {
+      found->second = i;
     }
   }
-  const auto windowiest = std::ranges::max_element(area);
-  if (windowiest == area.end() || *windowiest == 0) {
+  std::optional<RoomId> windowiest;
+  for (const RoomId room : graph.ByAnchor()) {
+    if (area.contains(room) && (!windowiest || area.at(*windowiest) < area.at(room))) {
+      windowiest = room;
+    }
+  }
+  if (!windowiest || area.at(*windowiest) == 0) {
     return std::nullopt;
   }
-  return largest[static_cast<size_t>(std::distance(area.begin(), windowiest))];
+  return largest.at(*windowiest);
 }
 
 }  // namespace
 
 std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
-  std::vector<std::pair<RoomIndex, Eigen::Vector3f>> candidates;
-  for (RoomIndex room = kVacuumRoom + 1; room < graph.rooms.size(); ++room) {
+  std::vector<std::pair<RoomId, Eigen::Vector3f>> candidates;
+  for (const RoomId room : graph.ByAnchor()) {
     if (const auto eye = EyeIn(graph, room)) {
       candidates.emplace_back(room, *eye);
     }
   }
   // Rooms come sorted by anchor, so equal volumes keep one order on every run.
   std::ranges::stable_sort(candidates, {}, [&graph](const auto& candidate) {
-    return graph.rooms[candidate.first].volume_cells;
+    return graph.rooms.at(candidate.first).volume_cells;
   });
 
   const auto window = LargestSpaceWindow(graph);
-  const std::optional<RoomIndex> window_room =
+  const std::optional<RoomId> window_room =
       window ? std::optional(graph.portals[*window].b) : std::nullopt;
-  const auto toward = [&](RoomIndex room) {
-    return room == window_room ? CentreOf(graph.portals[*window].opening) : CentreOf(graph.rooms[room].bounds);
+  const auto toward = [&](RoomId room) {
+    return room == window_room ? CentreOf(graph.portals[*window].opening) : CentreOf(graph.rooms.at(room).bounds);
   };
 
   std::vector<Viewpoint> viewpoints;
@@ -117,8 +124,9 @@ std::vector<Viewpoint> TourViewpoints(const RoomGraph& graph, size_t rooms) {
       AddHeadings(*window_room, *eye, toward(*window_room), viewpoints);
     }
   }
-  if (!graph.rooms.empty() && !graph.rooms[kVacuumRoom].bounds.extent.isZero()) {
-    const CellBox& station = graph.rooms[kVacuumRoom].bounds;
+  const auto vacuum = graph.rooms.find(kVacuumRoom);
+  if (vacuum != graph.rooms.end() && !vacuum->second.bounds.extent.isZero()) {
+    const CellBox& station = vacuum->second.bounds;
     const Eigen::Vector3f centre = CentreOf(station);
     const Eigen::Vector3f away = station.extent.cast<float>().cwiseProduct(Eigen::Vector3f(-1.f, -1.f, 1.f));
     viewpoints.push_back({.room = kVacuumRoom, .eye = centre + (kOutsideDistance * away), .target = centre});

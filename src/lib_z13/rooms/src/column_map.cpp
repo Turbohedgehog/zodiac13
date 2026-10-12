@@ -42,7 +42,7 @@ std::span<const FreeInterval> ColumnMap::Column(const Eigen::Vector2i& xy) const
   return ColumnAt(static_cast<size_t>(y) * static_cast<size_t>(size_.x()) + static_cast<size_t>(x));
 }
 
-std::optional<RoomIndex> ColumnMap::RoomAt(int x, int y, int z) const {
+std::optional<RoomId> ColumnMap::RoomAt(int x, int y, int z) const {
   const bool outside = x < origin_.x() || y < origin_.y() || x >= origin_.x() + size_.x() ||
                        y >= origin_.y() + size_.y() || z < heights_.x() || z >= heights_.y();
   if (outside) {

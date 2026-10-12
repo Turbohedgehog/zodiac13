@@ -68,7 +68,8 @@ void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache&
     topology.fingerprint = gathered.fingerprint;
     ++topology.version;
   }
-  const auto graph = cache.Select(gathered.fingerprint, [&gathered] { return rooms::BuildRooms(gathered.sources); });
+  const auto graph = cache.Select(
+      gathered.fingerprint, [&gathered](rooms::RoomId first_id) { return rooms::BuildRooms(gathered.sources, first_id); });
   if (!graph) {
     log_error("station: no rooms: {}", graph.error());
   }

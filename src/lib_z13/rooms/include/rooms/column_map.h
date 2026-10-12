@@ -26,15 +26,17 @@
 
 namespace z13::station::rooms {
 
-// Index into RoomGraph::rooms; the vacuum outside the station is always room 0.
-using RoomIndex = uint32_t;
-inline constexpr RoomIndex kVacuumRoom = 0;
+// A room's key in RoomGraph::rooms; the vacuum outside the station is always room 0.
+using RoomId = uint32_t;
+inline constexpr RoomId kVacuumRoom = 0;
 
 // The cells (x, y, z) of one column with z in [begin, end) that no sealing block occupies.
 struct FreeInterval {
   int begin {};
   int end {};
-  RoomIndex room {};
+  RoomId room {};
+
+  bool operator==(const FreeInterval&) const = default;
 };
 
 // The free space of the station as intervals along z for each column (x, y) of a dense
@@ -60,8 +62,10 @@ class ColumnMap {
   std::span<FreeInterval> MutableIntervals() { return intervals_; }
 
   // Nothing for a sealed cell; the vacuum outside the grid.
-  std::optional<RoomIndex> RoomAt(const Eigen::Vector3i& cell) const { return RoomAt(cell.x(), cell.y(), cell.z()); }
-  std::optional<RoomIndex> RoomAt(int x, int y, int z) const;
+  std::optional<RoomId> RoomAt(const Eigen::Vector3i& cell) const { return RoomAt(cell.x(), cell.y(), cell.z()); }
+  std::optional<RoomId> RoomAt(int x, int y, int z) const;
+
+  bool operator==(const ColumnMap&) const = default;
 
  private:
   Eigen::Vector2i origin_ = Eigen::Vector2i::Zero();

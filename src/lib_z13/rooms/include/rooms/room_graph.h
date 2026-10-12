@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -29,6 +31,9 @@
 #include <rooms/portal_source.h>
 
 namespace z13::station::rooms {
+
+// Orders cells by (z, y, x), as anchors are compared.
+bool AnchorBefore(const Eigen::Vector3i& first, const Eigen::Vector3i& second);
 
 // A connected free volume. Its identity is `anchor`, the lowest cell by (z, y, x): it
 // survives a rebuild that doesn't change the room's lowest cell.
@@ -41,28 +46,37 @@ struct Room {
 };
 
 struct Portal {
-  RoomIndex a {};
-  RoomIndex b {};
+  RoomId a {};
+  RoomId b {};
   int area_cells {};
   bool visible {};
   bool passable {};
   z13::building::primitives::CellBox opening;
   // The axis the opening is crossed along, and which of a and b lies on its low side.
   Axis axis {};
-  RoomIndex low_side {};
+  RoomId low_side {};
 
   bool operator==(const Portal&) const = default;
 };
 
-// Rooms sorted by anchor after the vacuum (room 0), portals sorted by where their opening is.
+// Portals are sorted by where their opening is. Room ids carry no order: whatever depends
+// on the order of rooms goes by ByAnchor().
 struct RoomGraph {
-  std::vector<Room> rooms;
+  std::unordered_map<RoomId, Room> rooms;
   std::vector<Portal> portals;
   // Per room, the indices of the portals it is a side of.
-  std::vector<std::vector<size_t>> room_portals;
+  std::unordered_map<RoomId, std::vector<size_t>> room_portals;
   ColumnMap columns;
+  // The first id no room of this graph or of the graphs it was built from has had.
+  RoomId next_id {kVacuumRoom + 1};
 
-  std::optional<RoomIndex> RoomAt(const Eigen::Vector3i& cell) const { return columns.RoomAt(cell); }
+  std::optional<RoomId> RoomAt(const Eigen::Vector3i& cell) const { return columns.RoomAt(cell); }
+  // The ids of every room but the vacuum, by anchor.
+  std::vector<RoomId> ByAnchor() const;
+  // Empty for a room without portals.
+  std::span<const size_t> PortalsOf(RoomId room) const;
+
+  bool operator==(const RoomGraph&) const = default;
 };
 
 using OptionalRoomGraph = std::optional<std::reference_wrapper<const RoomGraph>>;

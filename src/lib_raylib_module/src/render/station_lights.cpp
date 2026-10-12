@@ -66,7 +66,7 @@ void StationLights::Sync(std::span<const z13::station::Block> blocks, OptionalPa
     if (!reach) {
       continue;
     }
-    for (const z13::station::rooms::RoomIndex room : reach->lit_rooms) {
+    for (const z13::station::rooms::RoomId room : reach->lit_rooms) {
       by_room_[room].push_back(lights_.size());
     }
     lights_.push_back({.light = InMeters(light, *reach), .room = reach->room});
@@ -80,7 +80,7 @@ std::vector<FrameLight> StationLights::Visible(
   const auto seen_rooms = culling.SeenRooms();
   std::vector<bool> seen(lights_.size());
   if (seen_rooms) {
-    for (const z13::station::rooms::RoomIndex room : *seen_rooms) {
+    for (const z13::station::rooms::RoomId room : *seen_rooms) {
       if (const auto lights = by_room_.find(room); lights != by_room_.end()) {
         std::ranges::for_each(lights->second, [&seen](size_t index) { seen[index] = true; });
       }

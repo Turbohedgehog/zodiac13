@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 
 namespace z13::station::rooms {
 
@@ -64,7 +65,7 @@ std::optional<Eigen::AlignedBox2f> Through(
 
 // Whether the eye, looking from `from`, sees the opening's face toward `from` rather than
 // its back: it is not past the opening's far face.
-bool FacesEye(const Portal& portal, RoomIndex from, const Eigen::Vector3f& eye) {
+bool FacesEye(const Portal& portal, RoomId from, const Eigen::Vector3f& eye) {
   const auto axis = static_cast<Eigen::Index>(portal.axis);
   const float along = eye[axis];
   if (from == portal.low_side) {
@@ -82,27 +83,32 @@ bool TooSmall(const Eigen::AlignedBox2f& region, const Eigen::Vector2f& min_exte
 // A room reached again through another portal grows its region and is walked again;
 // regions only grow, from a finite set of edges, so the walk ends.
 ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view) {
-  ScreenRegions seen(graph.rooms.size());
-  if (view.eye_room >= graph.room_portals.size()) {
+  ScreenRegions seen;
+  if (!graph.rooms.contains(view.eye_room)) {
     return seen;
   }
-  seen[view.eye_room] = view.screen;
-  std::vector<RoomIndex> pending {view.eye_room};
+  seen.emplace(view.eye_room, view.screen);
+  std::vector<RoomId> pending {view.eye_room};
   while (!pending.empty()) {
-    const RoomIndex room = pending.back();
+    const RoomId room = pending.back();
     pending.pop_back();
-    for (const size_t index : graph.room_portals[room]) {
+    for (const size_t index : graph.PortalsOf(room)) {
       const Portal& portal = graph.portals[index];
       if (!portal.visible || portal.a == portal.b || !FacesEye(portal, room, view.eye)) {
         continue;
       }
-      const RoomIndex other = portal.a == room ? portal.b : portal.a;
-      const auto through = Through(*seen[room], portal.opening, view.view_projection);
-      std::optional<Eigen::AlignedBox2f>& region = seen[other];
-      if (!through || TooSmall(*through, view.min_extent) || (region && region->contains(*through))) {
+      const RoomId other = portal.a == room ? portal.b : portal.a;
+      const auto through = Through(seen.at(room), portal.opening, view.view_projection);
+      if (!through || TooSmall(*through, view.min_extent)) {
         continue;
       }
-      region = region ? region->merged(*through) : *through;
+      const auto [region, added] = seen.try_emplace(other, *through);
+      if (!added) {
+        if (region->second.contains(*through)) {
+          continue;
+        }
+        region->second.extend(*through);
+      }
       pending.push_back(other);
     }
   }

@@ -25,7 +25,7 @@ namespace z13::station {
 namespace {
 
 using z13::station::rooms::RoomGraph;
-using z13::station::rooms::RoomIndex;
+using z13::station::rooms::RoomId;
 
 constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
 
@@ -67,9 +67,9 @@ void MergeBoxes(std::vector<OverlayBox>& boxes) {
   }
 }
 
-std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomIndex room) {
+std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomId room) {
   std::vector<OverlayBox> boxes;
-  const auto& bounds = graph.rooms[room].bounds;
+  const auto& bounds = graph.rooms.at(room).bounds;
   for (int y = bounds.min.y(); y < bounds.End().y(); ++y) {
     for (int x = bounds.min.x(); x < bounds.End().x(); ++x) {
       for (const auto& interval : graph.columns.Column({x, y})) {
@@ -85,7 +85,7 @@ std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomIndex room) {
 
 }  // namespace
 
-const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const RoomGraph& graph, uint64_t fingerprint, RoomIndex room) {
+const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const RoomGraph& graph, uint64_t fingerprint, RoomId room) {
   if (fingerprint_ != fingerprint) {
     boxes_ = {};
     fingerprint_ = fingerprint;

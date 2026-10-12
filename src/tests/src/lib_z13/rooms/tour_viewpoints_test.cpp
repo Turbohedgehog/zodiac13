@@ -69,8 +69,8 @@ TEST(TourViewpointsTest, GoesFromTheSmallestRoomToTheLargest) {
   const std::vector<Viewpoint> viewpoints = TourViewpoints(graph, 2);
 
   ASSERT_GT(viewpoints.size(), kHeadingsPerRoom);
-  EXPECT_LT(graph.rooms[viewpoints.front().room].volume_cells,
-            graph.rooms[viewpoints[kHeadingsPerRoom].room].volume_cells);
+  EXPECT_LT(graph.rooms.at(viewpoints.front().room).volume_cells,
+            graph.rooms.at(viewpoints[kHeadingsPerRoom].room).volume_cells);
 }
 
 TEST(TourViewpointsTest, FirstLooksTowardsTheRoomsCentre) {
@@ -78,7 +78,7 @@ TEST(TourViewpointsTest, FirstLooksTowardsTheRoomsCentre) {
 
   const Viewpoint first = TourViewpoints(graph, 1).front();
 
-  const CellBox& bounds = graph.rooms[first.room].bounds;
+  const CellBox& bounds = graph.rooms.at(first.room).bounds;
   const Eigen::Vector3f centre = (bounds.min.cast<float>() + bounds.End().cast<float>()) / 2.f;
   EXPECT_GT((first.target - first.eye).head<2>().dot((centre - first.eye).head<2>()), 0.f);
 }
