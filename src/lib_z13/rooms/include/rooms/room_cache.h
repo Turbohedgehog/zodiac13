@@ -34,12 +34,15 @@ struct RoomCacheEntry {
 };
 
 // The room graphs of the last few block fingerprints, the newest being the current one: a
-// rollback through a build finds the graph again instead of building it twice. Derived,
+// rollback through a build finds the graph again instead of building it twice. Room ids
+// come from one counter across all of them, so an id never names two rooms. Derived,
 // never state.
 class RoomCache {
  public:
   using Singleton = void;
-  using Build = std::function<std::expected<RoomGraph, std::string>()>;
+  // Builds a graph whose new rooms get ids from the one given on, from the current graph
+  // if there is one.
+  using Build = std::function<std::expected<RoomGraph, std::string>(RoomId, OptionalRoomGraph)>;
 
   static constexpr size_t kCapacity = 4;
 
@@ -58,6 +61,7 @@ class RoomCache {
   std::deque<RoomCacheEntry> entries_;
   std::optional<uint64_t> current_;
   size_t blocks_seen_ {};
+  RoomId next_id_ {kVacuumRoom + 1};
 };
 
 }  // namespace z13::station::rooms

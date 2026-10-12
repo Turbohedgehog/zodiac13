@@ -18,9 +18,11 @@
 
 #include <cstdint>
 #include <optional>
-#include <vector>
+#include <unordered_map>
 
 #include <Eigen/Dense>
+
+#include <rooms/room_id.h>
 
 namespace z13::station {
 
@@ -36,7 +38,7 @@ struct RoomGravitySource {
 struct RoomGravity {
   using Singleton = void;
   std::optional<RoomGravitySource> source;
-  std::vector<Eigen::Vector3f> by_room;
+  std::unordered_map<rooms::RoomId, Eigen::Vector3f> by_room;
 };
 
 }  // namespace z13::station

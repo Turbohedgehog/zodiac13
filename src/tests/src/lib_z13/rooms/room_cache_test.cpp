@@ -29,10 +29,12 @@ constexpr uint64_t kFirst = 1;
 constexpr uint64_t kSecond = 2;
 
 RoomCache::Build Counting(int& builds, size_t rooms) {
-  return [&builds, rooms]() -> std::expected<RoomGraph, std::string> {
+  return [&builds, rooms](RoomId first_id, OptionalRoomGraph) -> std::expected<RoomGraph, std::string> {
     ++builds;
-    RoomGraph graph;
-    graph.rooms.resize(rooms);
+    RoomGraph graph {.next_id = first_id};
+    for (size_t i = 0; i < rooms; ++i) {
+      graph.rooms.emplace(graph.next_id++, Room {});
+    }
     return graph;
   };
 }
@@ -63,12 +65,23 @@ TEST(RoomCacheTest, TheOldestGraphsAreDroppedPastTheCapacity) {
   EXPECT_EQ(builds, static_cast<int>(RoomCache::kCapacity) + 2);
 }
 
+TEST(RoomCacheTest, AnotherBuildGivesNewRoomIds) {
+  RoomCache cache;
+  int builds {};
+  ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 2)).has_value());
+
+  const auto second = cache.Select(kSecond, Counting(builds, 1));
+
+  ASSERT_TRUE(second.has_value());
+  EXPECT_TRUE(second->get().rooms.contains(kVacuumRoom + 3));
+}
+
 TEST(RoomCacheTest, AFailedBuildLeavesNoCurrentGraph) {
   RoomCache cache;
   int builds {};
   ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
 
-  const auto failed = cache.Select(kSecond, []() -> std::expected<RoomGraph, std::string> {
+  const auto failed = cache.Select(kSecond, [](RoomId, OptionalRoomGraph) -> std::expected<RoomGraph, std::string> {
     return std::unexpected("too wide");
   });
 

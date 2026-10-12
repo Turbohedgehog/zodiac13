@@ -93,7 +93,9 @@ void RenderTour::Start(const z13::station::rooms::RoomGraph& graph, int chunk_ce
   }
   for (const z13::station::rooms::Viewpoint& view : viewpoints) {
     for (const bool cull_rooms : kCullRooms) {
-      stops_.push_back({.view = view, .room_cells = graph.rooms[view.room].volume_cells, .cull_rooms = cull_rooms});
+      const auto room = graph.FindRoom(view.room);
+      stops_.push_back(
+          {.view = view, .room_cells = room ? room->get().volume_cells : int64_t {}, .cull_rooms = cull_rooms});
     }
   }
   started_ = true;

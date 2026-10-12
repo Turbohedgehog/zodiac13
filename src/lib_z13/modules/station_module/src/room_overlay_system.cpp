@@ -42,7 +42,7 @@ namespace {
 
 using z13::station::rooms::RoomCache;
 using z13::station::rooms::RoomGraph;
-using z13::station::rooms::RoomIndex;
+using z13::station::rooms::RoomId;
 
 using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
 
@@ -64,7 +64,7 @@ std::optional<Eigen::Vector3i> PlayerCell(const PlayerQuery& players, const z13:
 
 // The room at the cell, or the first free cell above it: a player resting on the floor can
 // have its position inside the floor's top cell.
-std::optional<RoomIndex> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) {
+std::optional<RoomId> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) {
   for (int i = 0; i < kProbeCellsAbove; ++i, ++cell.z()) {
     if (const auto room = graph.RoomAt(cell)) {
       return room;
@@ -73,7 +73,7 @@ std::optional<RoomIndex> RoomNear(const RoomGraph& graph, Eigen::Vector3i cell) 
   return std::nullopt;
 }
 
-std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& cell, std::optional<RoomIndex> room) {
+std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& cell, std::optional<RoomId> room) {
   if (!cell) {
     return {};
   }
@@ -82,9 +82,11 @@ std::string Label(const RoomGraph& graph, const std::optional<Eigen::Vector3i>& 
   }
   const auto portals = std::ranges::count_if(
       graph.portals, [&room](const rooms::Portal& portal) { return portal.a == *room || portal.b == *room; });
-  return *room == rooms::kVacuumRoom
-             ? std::format("Open to space, {} portals", portals)
-             : std::format("Room {}: {} cells, {} portals", *room, graph.rooms[*room].volume_cells, portals);
+  const auto found = graph.FindRoom(*room);
+  if (*room == rooms::kVacuumRoom || !found) {
+    return std::format("Open to space, {} portals", portals);
+  }
+  return std::format("Room {}: {} cells, {} portals", *room, found->get().volume_cells, portals);
 }
 
 OverlayBox PortalBox(const rooms::Portal& portal, const Rgba& color) {
@@ -107,8 +109,8 @@ void AddSeenPortals(const RoomGraph& graph, const std::vector<uint32_t>& seen, s
 std::vector<OverlayBox> Boxes(const RoomGraph& graph, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
   std::vector<OverlayBox> boxes;
   const Rgba room_color = shown.mode == RoomOverlayMode::kSeen ? kSeenRoomOverlayColor : kRoomOverlayColor;
-  const auto add_room = [&](RoomIndex room) {
-    if (room != rooms::kVacuumRoom && room < graph.rooms.size()) {
+  const auto add_room = [&](RoomId room) {
+    if (room != rooms::kVacuumRoom && graph.rooms.contains(room)) {
       std::ranges::transform(box_cache.BoxesOf(graph, shown.fingerprint, room), std::back_inserter(boxes),
                              [&room_color](OverlayBox box) {
                                box.color = room_color;
@@ -120,9 +122,7 @@ std::vector<OverlayBox> Boxes(const RoomGraph& graph, const RoomOverlayShown& sh
     std::ranges::for_each(*shown.seen_rooms, add_room);
     AddSeenPortals(graph, *shown.seen_rooms, boxes);
   } else if (shown.mode == RoomOverlayMode::kAll) {
-    for (RoomIndex room = 0; room < graph.rooms.size(); ++room) {
-      add_room(room);
-    }
+    std::ranges::for_each(graph.ByAnchor(), add_room);
     std::ranges::transform(graph.portals, std::back_inserter(boxes), PortalBoxByKind);
   }
   return boxes;
@@ -145,7 +145,7 @@ void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCach
   }
   const RoomGraph& graph = cache.Current()->get();
   const auto cell = PlayerCell(players, local);
-  const std::optional<RoomIndex> room = cell ? RoomNear(graph, *cell) : std::nullopt;
+  const std::optional<RoomId> room = cell ? RoomNear(graph, *cell) : std::nullopt;
   RoomOverlayShown wanted {
       .mode = overlay.mode,
       .fingerprint = *fingerprint,

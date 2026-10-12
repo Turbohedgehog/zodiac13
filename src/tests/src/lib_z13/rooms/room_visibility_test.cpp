@@ -105,7 +105,7 @@ ScreenRegions SeenFrom(const RoomGraph& graph, const Eigen::Vector3f& eye, const
 
 bool Seen(const RoomGraph& graph, const ScreenRegions& seen, const Eigen::Vector3i& cell) {
   const auto room = graph.RoomAt(cell);
-  return room && seen[*room].has_value();
+  return room && seen.contains(*room);
 }
 
 const Eigen::Vector3i kCellInB(14, 5, 3);
@@ -119,7 +119,7 @@ TEST(RoomVisibilityTest, AWindowInViewShowsTheRoomBehindIt) {
   EXPECT_TRUE(Seen(graph, seen, kEyeInA.cast<int>()));
   EXPECT_TRUE(Seen(graph, seen, kCellInB));
   EXPECT_FALSE(Seen(graph, seen, kCellInC));
-  EXPECT_FALSE(seen[kVacuumRoom].has_value());
+  EXPECT_FALSE(seen.contains(kVacuumRoom));
 }
 
 TEST(RoomVisibilityTest, AWindowBehindTheEyeShowsNothing) {
@@ -162,7 +162,7 @@ TEST(RoomVisibilityTest, AnEyeInTheOpeningSeesThroughAllOfIt) {
                            .screen = z13::math::Frustum::FullScreen()});
 
   ASSERT_TRUE(Seen(graph, seen, kCellInB));
-  EXPECT_TRUE(seen[*graph.RoomAt(kCellInB)]->isApprox(z13::math::Frustum::FullScreen()));
+  EXPECT_TRUE(seen.at(*graph.RoomAt(kCellInB)).isApprox(z13::math::Frustum::FullScreen()));
 }
 
 TEST(RoomVisibilityTest, AWindowTooSmallOnScreenShowsNothing) {
@@ -200,7 +200,7 @@ TEST(RoomVisibilityTest, AWindowSeenFromBehindShowsNothing) {
       Build({Window(0, kInLine, {1, 1, 1}), Window(-3, kInLine, {1, 1, 1})}, HallAndRoomD());
 
   const ScreenRegions away = SeenFrom(facing_away, kEyeInA, -Eigen::Vector3f::UnitX());
-  EXPECT_TRUE(away[kVacuumRoom].has_value());
+  EXPECT_TRUE(away.contains(kVacuumRoom));
   EXPECT_FALSE(Seen(facing_away, away, cell_in_d));
   EXPECT_TRUE(Seen(facing_the_eye, SeenFrom(facing_the_eye, kEyeInA, -Eigen::Vector3f::UnitX()), cell_in_d));
 }

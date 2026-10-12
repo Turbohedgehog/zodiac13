@@ -25,9 +25,11 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
+#include <z13_settings/building_tuning.h>
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>
 #include <rooms/room_cache.h>
+#include <rooms/room_update.h>
 
 #include "topology_sources.h"
 
@@ -59,7 +61,8 @@ bool BlocksChanged(const BlockQuery& blocks, const RoomCache& cache) {
   return changed || static_cast<size_t>(blocks.count()) != cache.BlocksSeen();
 }
 
-void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette) {
+void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette,
+                 const z13::BuildingTuning& tuning) {
   if (!BlocksChanged(blocks, cache)) {
     return;
   }
@@ -68,7 +71,11 @@ void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache&
     topology.fingerprint = gathered.fingerprint;
     ++topology.version;
   }
-  const auto graph = cache.Select(gathered.fingerprint, [&gathered] { return rooms::BuildRooms(gathered.sources); });
+  const auto graph = cache.Select(
+      gathered.fingerprint, [&gathered, &tuning](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
+        return current ? rooms::UpdateRooms(*current, gathered.sources, first_id, tuning.room_chunk_cells)
+                       : rooms::BuildRooms(gathered.sources, first_id, tuning.room_chunk_cells);
+      });
   if (!graph) {
     log_error("station: no rooms: {}", graph.error());
   }
@@ -79,13 +86,12 @@ void RegisterSystems(flecs::world world) {
   InstallSingletons(world);
 
   const BlockQuery blocks = world.query_builder<const Block>("RoomSystem::BlockQuery").detect_changes().build();
-  world.system<TopologyVersion, RoomCache, const BlockPalette>("RoomSystem::UpdateRooms")
+  world.system<TopologyVersion, RoomCache, const BlockPalette, const z13::BuildingTuning>("RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
-      .each([blocks](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette) {
-        UpdateRooms(blocks, topology, cache, palette);
-      });
+      .each([blocks](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette,
+                     const z13::BuildingTuning& tuning) { UpdateRooms(blocks, topology, cache, palette, tuning); });
 }
 
 }  // namespace

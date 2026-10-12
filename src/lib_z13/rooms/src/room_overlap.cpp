@@ -14,77 +14,47 @@
  * limitations under the License.
  */
 
+
 #include <rooms/room_overlap.h>
 
-#include <algorithm>
-#include <array>
-#include <functional>
-#include <limits>
 #include <map>
-#include <span>
 #include <utility>
 
 namespace z13::station::rooms {
 
 namespace {
 
-// A column of `graph` over the z range [low, high): its free intervals, with the vacuum
-// above, below and outside its grid.
-std::vector<FreeInterval> ColumnOver(const RoomGraph& graph, const Eigen::Vector2i& xy, int low, int high) {
-  const ColumnMap& columns = graph.columns;
-  const Eigen::Vector2i local = xy - columns.Origin();
-  const bool inside = (local.array() >= 0).all() && (local.array() < columns.Size().array()).all();
-  if (!inside) {
-    return {{.begin = low, .end = high, .room = kVacuumRoom}};
-  }
-  std::vector<FreeInterval> column;
-  if (low < columns.Heights().x()) {
-    column.push_back({.begin = low, .end = columns.Heights().x(), .room = kVacuumRoom});
-  }
-  const std::span<const FreeInterval> own = columns.Column(xy);
-  column.insert(column.end(), own.begin(), own.end());
-  if (columns.Heights().y() < high) {
-    column.push_back({.begin = columns.Heights().y(), .end = high, .room = kVacuumRoom});
-  }
-  return column;
+using z13::building::primitives::CellBox;
+
+int64_t Volume(const CellBox& box) {
+  return box.extent.cast<int64_t>().prod();
+}
+
+int64_t VolumeInside(const CellBox& box, const CellBox& area) {
+  return box.Overlaps(area) ? Volume(box.Intersection(area)) : 0;
 }
 
 }  // namespace
 
 std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGraph& after) {
-  // The grids of both graphs, which all else is vacuum to; one without blocks has none.
-  const std::array grids {std::cref(before.columns), std::cref(after.columns)};
-  Eigen::Vector2i low = Eigen::Vector2i::Constant(std::numeric_limits<int>::max());
-  Eigen::Vector2i high = Eigen::Vector2i::Constant(std::numeric_limits<int>::min());
-  int z_low = std::numeric_limits<int>::max();
-  int z_high = std::numeric_limits<int>::min();
-  for (const ColumnMap& grid : grids) {
-    if (grid.ColumnCount() == 0) {
-      continue;
+  std::map<std::pair<RoomId, RoomId>, int64_t> cells;
+  for (const auto& [key, chunk] : after.space.AllChunks()) {
+    for (uint32_t i = 0; i < chunk->leaves.size(); ++i) {
+      const CellBox& leaf = chunk->leaves[i];
+      const RoomId room = after.RoomOf({.chunk = key, .leaf = i});
+      for (const LeafRef& old : before.space.LeavesIn(leaf)) {
+        cells[{before.RoomOf(old), room}] += Volume(before.space.Leaf(old).Intersection(leaf));
+      }
+      if (const int64_t outside = Volume(leaf) - VolumeInside(leaf, before.space.Area()); outside > 0) {
+        cells[{kVacuumRoom, room}] += outside;
+      }
     }
-    low = low.cwiseMin(grid.Origin());
-    high = high.cwiseMax(grid.Origin() + grid.Size());
-    z_low = std::min(z_low, grid.Heights().x());
-    z_high = std::max(z_high, grid.Heights().y());
   }
-  std::map<std::pair<RoomIndex, RoomIndex>, int64_t> cells;
-  for (int y = low.y(); y < high.y(); ++y) {
-    for (int x = low.x(); x < high.x(); ++x) {
-      const std::vector<FreeInterval> before_column = ColumnOver(before, {x, y}, z_low, z_high);
-      const std::vector<FreeInterval> after_column = ColumnOver(after, {x, y}, z_low, z_high);
-      size_t i {};
-      size_t j {};
-      while (i < before_column.size() && j < after_column.size()) {
-        const int overlap = std::min(before_column[i].end, after_column[j].end) -
-                            std::max(before_column[i].begin, after_column[j].begin);
-        if (overlap > 0) {
-          cells[{before_column[i].room, after_column[j].room}] += overlap;
-        }
-        if (before_column[i].end < after_column[j].end) {
-          ++i;
-        } else {
-          ++j;
-        }
+  for (const auto& [key, chunk] : before.space.AllChunks()) {
+    for (uint32_t i = 0; i < chunk->leaves.size(); ++i) {
+      const CellBox& leaf = chunk->leaves[i];
+      if (const int64_t outside = Volume(leaf) - VolumeInside(leaf, after.space.Area()); outside > 0) {
+        cells[{before.RoomOf({.chunk = key, .leaf = i}), kVacuumRoom}] += outside;
       }
     }
   }

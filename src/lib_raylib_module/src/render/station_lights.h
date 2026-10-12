@@ -46,7 +46,7 @@ struct LightsSyncKey {
 // A lamp and the room it belongs to; nothing in the vacuum.
 struct StationLight {
   FrameLight light;
-  std::optional<z13::station::rooms::RoomIndex> room;
+  std::optional<z13::station::rooms::RoomId> room;
 };
 
 // The station's lamps, each kept to its room (rooms/light_reach.h). Singleton; never state.
@@ -66,7 +66,7 @@ class StationLights {
  private:
   std::vector<StationLight> lights_;
   // Indices into lights_, per room they light.
-  std::unordered_map<z13::station::rooms::RoomIndex, std::vector<size_t>> by_room_;
+  std::unordered_map<z13::station::rooms::RoomId, std::vector<size_t>> by_room_;
   std::optional<LightsSyncKey> synced_with_;
 };
 

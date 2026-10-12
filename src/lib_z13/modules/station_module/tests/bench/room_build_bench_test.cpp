@@ -58,8 +58,8 @@ TEST(RoomBuildBench, DISABLED_FullRebuild) {
       const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
       ASSERT_TRUE(graph.has_value()) << graph.error();
       std::cout << std::format(
-          "[ bench ] '{}' run {}: {} sealing blocks, {} rooms, {} portals, {} intervals, built in {:.1f} ms\n", scene,
-          run, sources.sealed.size(), graph->rooms.size(), graph->portals.size(), graph->columns.Intervals().size(),
+          "[ bench ] '{}' run {}: {} sealing blocks, {} rooms, {} portals, {} free leaves, built in {:.1f} ms\n", scene,
+          run, sources.sealed.size(), graph->rooms.size(), graph->portals.size(), graph->space.LeafCount(),
           ms)
                 << std::flush;
     }

@@ -25,13 +25,9 @@ namespace z13::station {
 namespace {
 
 using z13::station::rooms::RoomGraph;
-using z13::station::rooms::RoomIndex;
+using z13::station::rooms::RoomId;
 
-constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
-
-OverlayBox RunOf(int x, int y, const rooms::FreeInterval& interval) {
-  return {.min = {x, y, interval.begin}, .extent = {1, 1, interval.end - interval.begin}, .color = kRoomOverlayColor};
-}
+constexpr Eigen::Index kAxisCount = z13::building::primitives::kCellAxes;
 
 bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
   const Eigen::Index u = (axis + 1) % kAxisCount;
@@ -67,16 +63,12 @@ void MergeBoxes(std::vector<OverlayBox>& boxes) {
   }
 }
 
-std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomIndex room) {
+std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomId room) {
   std::vector<OverlayBox> boxes;
-  const auto& bounds = graph.rooms[room].bounds;
-  for (int y = bounds.min.y(); y < bounds.End().y(); ++y) {
-    for (int x = bounds.min.x(); x < bounds.End().x(); ++x) {
-      for (const auto& interval : graph.columns.Column({x, y})) {
-        if (interval.room == room) {
-          boxes.push_back(RunOf(x, y, interval));
-        }
-      }
+  for (const rooms::LeafRef& leaf : graph.space.LeavesIn(graph.rooms.at(room).bounds)) {
+    if (graph.RoomOf(leaf) == room) {
+      const auto& cells = graph.space.Leaf(leaf);
+      boxes.push_back({.min = cells.min, .extent = cells.extent, .color = kRoomOverlayColor});
     }
   }
   MergeBoxes(boxes);
@@ -85,7 +77,7 @@ std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomIndex room) {
 
 }  // namespace
 
-const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const RoomGraph& graph, uint64_t fingerprint, RoomIndex room) {
+const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const RoomGraph& graph, uint64_t fingerprint, RoomId room) {
   if (fingerprint_ != fingerprint) {
     boxes_ = {};
     fingerprint_ = fingerprint;

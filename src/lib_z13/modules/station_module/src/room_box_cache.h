@@ -32,11 +32,11 @@ class RoomBoxCache {
   using Singleton = void;
 
   const std::vector<OverlayBox>& BoxesOf(
-      const z13::station::rooms::RoomGraph& graph, uint64_t fingerprint, z13::station::rooms::RoomIndex room);
+      const z13::station::rooms::RoomGraph& graph, uint64_t fingerprint, z13::station::rooms::RoomId room);
 
  private:
   std::optional<uint64_t> fingerprint_;
-  std::unordered_map<z13::station::rooms::RoomIndex, std::vector<OverlayBox>> boxes_;
+  std::unordered_map<z13::station::rooms::RoomId, std::vector<OverlayBox>> boxes_;
 };
 
 }  // namespace z13::station

@@ -46,10 +46,10 @@ set(
   src/lib_z13/primitives/lights_test.cpp
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
-  src/lib_z13/rooms/disjoint_sets_test.cpp
   src/lib_z13/rooms/light_reach_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
+  src/lib_z13/rooms/room_update_test.cpp
   src/lib_z13/rooms/room_visibility_test.cpp
   src/lib_z13/rooms/tour_viewpoints_test.cpp
   src/test_runner.cpp
@@ -112,6 +112,7 @@ if(Z13_BUILD_BENCHMARKS)
     APPEND
     PROJECT_SOURCE_FILES
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp

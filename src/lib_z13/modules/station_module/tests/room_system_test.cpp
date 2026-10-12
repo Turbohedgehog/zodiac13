@@ -89,8 +89,8 @@ TEST(RoomSystemTest, ABoxOfBlocksIsOneRoom) {
   const auto inside = graph.RoomAt(kRoomCorner + Eigen::Vector3i(1, 1, 1));
   ASSERT_TRUE(inside.has_value());
   EXPECT_NE(*inside, rooms::kVacuumRoom);
-  EXPECT_EQ(graph.rooms[*inside].volume_cells, kSide * kSide * kHeight);
-  EXPECT_EQ(graph.rooms[*inside].anchor, kRoomCorner + Eigen::Vector3i(1, 1, 1));
+  EXPECT_EQ(graph.rooms.at(*inside).volume_cells, kSide * kSide * kHeight);
+  EXPECT_EQ(graph.rooms.at(*inside).anchor, kRoomCorner + Eigen::Vector3i(1, 1, 1));
 }
 
 TEST(RoomSystemTest, ADoorPartitionSplitsTheBoxAndLeavesAClosedPortal) {
@@ -317,7 +317,7 @@ TEST_P(ShippedRoomsTest, TheStationHasRoomsAndEveryPortalJoinsTwoOfThem) {
   const RoomGraph& graph = current->get();
   EXPECT_GT(Version(world), 0U);
   EXPECT_TRUE(std::ranges::all_of(graph.portals, [&graph](const rooms::Portal& portal) {
-    return portal.a != portal.b && portal.a < graph.rooms.size() && portal.b < graph.rooms.size() &&
+    return portal.a != portal.b && graph.rooms.contains(portal.a) && graph.rooms.contains(portal.b) &&
            portal.area_cells > 0;
   }));
 }
@@ -348,7 +348,7 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
 
   const RoomGraph& graph = Graph(world);
   int64_t covered = 0;
-  std::optional<rooms::RoomIndex> room;
+  std::optional<rooms::RoomId> room;
   for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
     if (box.color != kSeenRoomOverlayColor) {
       continue;
@@ -365,7 +365,7 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
     }
   }
   ASSERT_TRUE(room.has_value());
-  EXPECT_EQ(covered, graph.rooms[*room].volume_cells);
+  EXPECT_EQ(covered, graph.rooms.at(*room).volume_cells);
 }
 
 TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
@@ -375,9 +375,10 @@ TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
   ShowRooms(world, RoomOverlayMode::kAll);
 
   const RoomGraph& graph = Graph(world);
-  const auto inside_rooms = graph.rooms | std::views::drop(1);
-  const int64_t rooms_volume = std::accumulate(inside_rooms.begin(), inside_rooms.end(), int64_t {},
-                                               [](int64_t sum, const rooms::Room& room) { return sum + room.volume_cells; });
+  const std::vector<rooms::RoomId> inside_rooms = graph.ByAnchor();
+  const int64_t rooms_volume =
+      std::accumulate(inside_rooms.begin(), inside_rooms.end(), int64_t {},
+                      [&graph](int64_t sum, rooms::RoomId room) { return sum + graph.rooms.at(room).volume_cells; });
   int64_t boxes_volume = 0;
   for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
     if (box.color == kRoomOverlayColor) {

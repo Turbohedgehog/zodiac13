@@ -50,6 +50,8 @@ enum class TurnAxis : uint8_t { kX, kY, kZ };
 // `orientation` turned a further 90° counterclockwise around the world `axis`.
 z13::station::Orientation QuarterTurn(z13::station::Orientation orientation, TurnAxis axis);
 
+inline constexpr int kCellAxes = Eigen::Vector3i::SizeAtCompileTime;
+
 // The cells [min, min + extent).
 struct CellBox {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();
@@ -60,6 +62,8 @@ struct CellBox {
   bool Overlaps(const CellBox& other) const;
   // The cells both boxes hold; an empty box (zero extent) if they share none.
   CellBox Intersection(const CellBox& other) const;
+  // The box with `cells` more cells on both sides along each axis.
+  CellBox Grown(const Eigen::Vector3i& cells) const;
 
   bool operator==(const CellBox&) const = default;
 };

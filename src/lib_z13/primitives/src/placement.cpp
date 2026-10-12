@@ -133,6 +133,12 @@ CellBox CellBox::Intersection(const CellBox& other) const {
   return {.min = low, .extent = (high - low).cwiseMax(Eigen::Vector3i::Zero())};
 }
 
+CellBox CellBox::Grown(const Eigen::Vector3i& cells) const {
+  // A box has two sides along each axis.
+  constexpr int kSides = 2;
+  return {.min = min - cells, .extent = extent + kSides * cells};
+}
+
 size_t CellHash::operator()(const Eigen::Vector3i& cell) const {
   return static_cast<size_t>(cell.x()) ^ (static_cast<size_t>(cell.y()) * kHashY) ^
          (static_cast<size_t>(cell.z()) * kHashZ);

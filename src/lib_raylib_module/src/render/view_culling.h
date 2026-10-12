@@ -30,7 +30,7 @@ namespace z13::raylib {
 
 // A room the camera sees, and the frustum narrowed to the portals it is seen through.
 struct SeenRoom {
-  z13::station::rooms::RoomIndex room {};
+  z13::station::rooms::RoomId room {};
   // Nothing for the vacuum, which has no bounds.
   std::optional<Eigen::AlignedBox3f> bounds;
   z13::math::Frustum frustum;
@@ -56,7 +56,7 @@ class ViewCulling {
   bool Visible(const Eigen::AlignedBox3f& box) const;
 
   // Sorted; nothing while rooms don't cull.
-  std::optional<std::vector<z13::station::rooms::RoomIndex>> SeenRooms() const;
+  std::optional<std::vector<z13::station::rooms::RoomId>> SeenRooms() const;
   std::optional<size_t> SeenRoomCount() const;
 
  private:

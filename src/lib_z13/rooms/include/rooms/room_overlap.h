@@ -24,8 +24,8 @@
 namespace z13::station::rooms {
 
 struct RoomOverlap {
-  RoomIndex before {};
-  RoomIndex after {};
+  RoomId before {};
+  RoomId after {};
   int64_t cells {};
 
   bool operator==(const RoomOverlap&) const = default;
@@ -33,8 +33,8 @@ struct RoomOverlap {
 
 // Every pair of rooms sharing cells, sorted by (before, after): what a rebuild did to
 // each room, from which a room's state is split or merged into the new rooms by volume.
-// Cells outside a graph's grid count as its vacuum, so a room built where there was none
-// overlaps the vacuum. Sealed cells overlap nothing.
+// Cells outside the area of a graph's free space count as its vacuum, so a room built where
+// there was none overlaps the vacuum. Sealed cells overlap nothing.
 std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGraph& after);
 
 }  // namespace z13::station::rooms

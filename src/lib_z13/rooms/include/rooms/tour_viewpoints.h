@@ -27,7 +27,7 @@ namespace z13::station::rooms {
 
 // Where a measuring camera stands and looks, in cells.
 struct Viewpoint {
-  RoomIndex room {};
+  RoomId room {};
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
   Eigen::Vector3f target = Eigen::Vector3f::Zero();
 };

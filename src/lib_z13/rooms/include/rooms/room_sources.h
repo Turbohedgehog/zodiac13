@@ -14,31 +14,21 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
 
-#include <rooms/disjoint_sets.h>
+#pragma once
+
+#include <vector>
+
+#include <primitives/placement.h>
+#include <rooms/portal_source.h>
 
 namespace z13::station::rooms {
-namespace {
 
-TEST(DisjointSetsTest, ItemsAreAloneUntilJoined) {
-  DisjointSets sets(4);
+// What the rooms are built from: the cells of the sealing blocks and the openings of the
+// doors and windows among them.
+struct RoomSources {
+  std::vector<z13::building::primitives::CellBox> sealed;
+  std::vector<PortalSource> portals;
+};
 
-  EXPECT_NE(sets.Find(0), sets.Find(1));
-  EXPECT_NE(sets.Find(2), sets.Find(3));
-}
-
-TEST(DisjointSetsTest, JoiningIsTransitive) {
-  DisjointSets sets(5);
-
-  sets.Union(0, 1);
-  sets.Union(1, 2);
-  sets.Union(3, 4);
-
-  EXPECT_EQ(sets.Find(0), sets.Find(2));
-  EXPECT_EQ(sets.Find(3), sets.Find(4));
-  EXPECT_NE(sets.Find(2), sets.Find(3));
-}
-
-}  // namespace
 }  // namespace z13::station::rooms

@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
+
 #pragma once
 
-#include <cstddef>
-#include <vector>
+#include <cstdint>
 
 namespace z13::station::rooms {
 
-// Union-find over the items 0..size-1: which items were joined, directly or not.
-class DisjointSets {
- public:
-  explicit DisjointSets(size_t size);
-
-  size_t Find(size_t item);
-  void Union(size_t first, size_t second);
-
- private:
-  std::vector<size_t> parent_;
-};
+// A room's key in RoomGraph::rooms, never given to two rooms (RoomCache); the vacuum
+// outside the station is always room 0.
+using RoomId = uint32_t;
+inline constexpr RoomId kVacuumRoom = 0;
 
 }  // namespace z13::station::rooms

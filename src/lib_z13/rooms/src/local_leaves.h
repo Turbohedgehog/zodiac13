@@ -14,26 +14,30 @@
  * limitations under the License.
  */
 
-#include <rooms/disjoint_sets.h>
 
-#include <numeric>
+#pragma once
+
+#include <cstddef>
+#include <optional>
+#include <unordered_map>
+#include <vector>
+
+#include <rooms/free_space.h>
 
 namespace z13::station::rooms {
 
-DisjointSets::DisjointSets(size_t size) : parent_(size) {
-  std::iota(parent_.begin(), parent_.end(), size_t {});
-}
+// The leaves whose rooms an update finds again, numbered in the order they were added.
+class LocalLeaves {
+ public:
+  void Add(const LeafRef& ref);
+  bool Contains(const LeafRef& ref) const { return index_.contains(ref); }
+  std::optional<size_t> IndexOf(const LeafRef& ref) const;
 
-size_t DisjointSets::Find(size_t item) {
-  while (parent_[item] != item) {
-    parent_[item] = parent_[parent_[item]];
-    item = parent_[item];
-  }
-  return item;
-}
+  const std::vector<LeafRef>& Leaves() const { return leaves_; }
 
-void DisjointSets::Union(size_t first, size_t second) {
-  parent_[Find(first)] = Find(second);
-}
+ private:
+  std::vector<LeafRef> leaves_;
+  std::unordered_map<LeafRef, size_t, LeafRefHash> index_;
+};
 
 }  // namespace z13::station::rooms

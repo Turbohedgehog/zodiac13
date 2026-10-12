@@ -28,16 +28,17 @@ namespace {
 
 using z13::station::kCellSize;
 using z13::station::rooms::RoomGraph;
-using z13::station::rooms::RoomIndex;
+using z13::station::rooms::RoomId;
 
 // The blocks around a room lie just outside its free cells.
 constexpr int kWallCells = 1;
 
-std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomIndex room) {
-  if (room == z13::station::rooms::kVacuumRoom) {
+std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomId room) {
+  const auto found = graph.FindRoom(room);
+  if (room == z13::station::rooms::kVacuumRoom || !found) {
     return std::nullopt;
   }
-  const auto& cells = graph.rooms[room].bounds;
+  const auto& cells = found->get().bounds;
   const Eigen::Vector3i low = cells.min - Eigen::Vector3i::Constant(kWallCells);
   const Eigen::Vector3i high = cells.End() + Eigen::Vector3i::Constant(kWallCells);
   return Eigen::AlignedBox3f(low.cast<float>() * kCellSize, high.cast<float>() * kCellSize);
@@ -58,13 +59,12 @@ std::optional<std::vector<SeenRoom>> RoomsInView(const CameraView& view, const R
               .screen = z13::math::Frustum::FullScreen(),
               .min_extent = view.min_portal_extent});
   std::vector<SeenRoom> seen;
-  for (RoomIndex room = 0; room < regions.size(); ++room) {
-    if (regions[room]) {
-      seen.push_back({.room = room,
-                      .bounds = BoundsOf(graph, room),
-                      .frustum = z13::math::Frustum(view.view_projection, *regions[room])});
-    }
+  for (const auto& [room, region] : regions) {
+    seen.push_back({.room = room,
+                    .bounds = BoundsOf(graph, room),
+                    .frustum = z13::math::Frustum(view.view_projection, region)});
   }
+  std::ranges::sort(seen, {}, &SeenRoom::room);
   return seen;
 }
 
@@ -83,11 +83,11 @@ bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {
   });
 }
 
-std::optional<std::vector<RoomIndex>> ViewCulling::SeenRooms() const {
+std::optional<std::vector<RoomId>> ViewCulling::SeenRooms() const {
   if (!rooms_) {
     return std::nullopt;
   }
-  std::vector<RoomIndex> seen;
+  std::vector<RoomId> seen;
   std::ranges::transform(*rooms_, std::back_inserter(seen), &SeenRoom::room);
   return seen;
 }
