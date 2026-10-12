@@ -24,11 +24,13 @@
 #include <vector>
 
 #include <Eigen/Dense>
-#include <boost/geometry/geometries/box.hpp>
-#include <boost/geometry/geometries/point.hpp>
+// The whole of it: the R-tree alone lacks the strategies it needs for 3D boxes.
+#include <boost/geometry.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
 #include <primitives/placement.h>
+
+#include "counting_allocator.h"
 
 namespace z13::testing::partition {
 
@@ -38,7 +40,9 @@ using LeafBox = boost::geometry::model::box<CellPoint>;
 using LeafEntry = std::pair<LeafBox, uint32_t>;
 // Nodes of up to this many entries, the R*-tree's usual choice for small boxes.
 inline constexpr size_t kRtreeNodeEntries = 16;
-using LeafTree = boost::geometry::index::rtree<LeafEntry, boost::geometry::index::rstar<kRtreeNodeEntries>>;
+using LeafTree = boost::geometry::index::rtree<LeafEntry, boost::geometry::index::rstar<kRtreeNodeEntries>,
+                                               boost::geometry::index::indexable<LeafEntry>,
+                                               boost::geometry::index::equal_to<LeafEntry>, CountingAllocator<LeafEntry>>;
 
 struct KdChunk {
   std::vector<z13::building::primitives::CellBox> leaves;
@@ -64,6 +68,12 @@ class KdPartition {
 
   size_t LeafCount() const;
   size_t ChunkCount() const { return chunks_.size(); }
+  int ChunkCells() const { return chunk_cells_; }
+  const std::unordered_map<Eigen::Vector3i, KdChunk, z13::building::primitives::CellHash>& Chunks() const {
+    return chunks_;
+  }
+  // The leaves and their R-trees.
+  size_t Bytes() const;
 
   // The free leaf holding the cell; nothing for a sealed cell or one outside the chunks.
   std::optional<z13::building::primitives::CellBox> LeafAt(const Eigen::Vector3i& cell) const;

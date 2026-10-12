@@ -24,12 +24,16 @@
 #include <chrono>
 #include <cstdlib>
 #include <format>
+#include <functional>
+#include <optional>
 #include <iostream>
 #include <map>
 #include <random>
 #include <string>
 #include <tuple>
 #include <vector>
+
+#include <boost/iterator/function_output_iterator.hpp>
 
 #include <primitives/station_assets.h>
 #include <rooms/portal_source.h>
@@ -193,7 +197,12 @@ void Measure(const std::string& name, const RoomSources& sources) {
     size_t portal_leaves {};
     const double portals_ms = Ms([&] {
       for (const auto& portal : sources.portals) {
-        portal_leaves += kd->LeavesIn(portal.opening).size();
+        // The opening itself is sealed for a window: the cells on its two sides are what count.
+        CellBox sides = portal.opening;
+        const auto axis = static_cast<Eigen::Index>(portal.axis);
+        --sides.min[axis];
+        sides.extent[axis] += 2;
+        portal_leaves += kd->LeavesIn(sides).size();
       }
     });
     std::vector<double> rebuilds;
@@ -205,15 +214,120 @@ void Measure(const std::string& name, const RoomSources& sources) {
     EXPECT_EQ(kd_rooms, column_rooms) << name << ", chunk " << chunk_cells;
     EXPECT_EQ(kd_free_cells, free_cells) << name << ", chunk " << chunk_cells;
     std::cout << std::format(
-        "[ bench ] '{}' kd chunk {}: {} chunks, {} free leaves, {} nodes, {:.2f} MB, built in {:.0f} ms, "
-        "flood {:.0f} ms, rooms {}, {} LeafAt in {:.1f} ms, portal openings {:.1f} ms ({} leaves), "
+        "[ bench ] '{}' kd chunk {}: {} chunks, {} free leaves, {:.2f} MB, built in {:.0f} ms, "
+        "flood {:.0f} ms, rooms {}, {} LeafAt in {:.1f} ms, both sides of every portal {:.1f} ms ({} leaves), "
         "rebuild of one block's chunks median/max {:.1f}/{:.1f} ms\n",
-        name, chunk_cells, kd->ChunkCount(), kd->LeafCount(), kd->NodeCount(),
+        name, chunk_cells, kd->ChunkCount(), kd->LeafCount(),
         static_cast<double>(kd->Bytes()) / kBytesPerMb, build_ms, flood_ms,
         kd_rooms == column_rooms ? "match" : "DIFFER", kQueries, kd_queries_ms, portals_ms, portal_leaves,
         rebuilds[rebuilds.size() / 2], rebuilds.back())
               << std::flush;
   }
+}
+
+namespace bg = boost::geometry;
+namespace bgi = boost::geometry::index;
+
+using ChunkLeaves = std::vector<std::vector<partition::LeafEntry>>;
+
+// Whether the cell lies in the leaf's half-open box [min, max).
+bool HoldsCell(const partition::LeafBox& box, const partition::CellPoint& cell) {
+  return bg::get<0>(cell) < bg::get<bg::max_corner, 0>(box) && bg::get<1>(cell) < bg::get<bg::max_corner, 1>(box) &&
+         bg::get<2>(cell) < bg::get<bg::max_corner, 2>(box);
+}
+
+// One chunk's leaves, R-trees of `Params`, and the queries rooms make of them.
+template <typename Params>
+void MeasureTrees(const std::string& label, const partition::KdPartition& kd, const std::vector<Eigen::Vector3i>& cells) {
+  using Tree = bgi::rtree<partition::LeafEntry, Params>;
+  std::unordered_map<Eigen::Vector3i, size_t, primitives::CellHash> index_of_chunk;
+  ChunkLeaves leaves;
+  for (const auto& [key, chunk] : kd.Chunks()) {
+    index_of_chunk[key] = leaves.size();
+    std::vector<partition::LeafEntry>& entries = leaves.emplace_back();
+    for (uint32_t i = 0; i < chunk.leaves.size(); ++i) {
+      const CellBox& leaf = chunk.leaves[i];
+      entries.emplace_back(partition::LeafBox({leaf.min.x(), leaf.min.y(), leaf.min.z()},
+                                              {leaf.End().x(), leaf.End().y(), leaf.End().z()}),
+                           i);
+    }
+  }
+  std::vector<Tree> packed;
+  const double packed_ms = Ms([&] {
+    for (const auto& entries : leaves) {
+      packed.emplace_back(entries);
+    }
+  });
+  std::vector<Tree> inserted(leaves.size());
+  const double inserted_ms = Ms([&] {
+    for (size_t i = 0; i < leaves.size(); ++i) {
+      for (const partition::LeafEntry& entry : leaves[i]) {
+        inserted[i].insert(entry);
+      }
+    }
+  });
+  const auto tree_of = [&](const Eigen::Vector3i& cell) -> std::optional<std::reference_wrapper<const Tree>> {
+    const auto found = index_of_chunk.find(primitives::ChunkOf(cell, kd.ChunkCells()));
+    if (found == index_of_chunk.end()) {
+      return std::nullopt;
+    }
+    return std::cref(packed[found->second]);
+  };
+  size_t by_box {};
+  const double box_ms = Ms([&] {
+    for (const Eigen::Vector3i& cell : cells) {
+      if (const auto tree = tree_of(cell)) {
+        const partition::LeafBox query({cell.x(), cell.y(), cell.z()}, {cell.x() + 1, cell.y() + 1, cell.z() + 1});
+        tree->get().query(bgi::contains(query), boost::make_function_output_iterator([&](const auto&) { ++by_box; }));
+      }
+    }
+  });
+  size_t by_point {};
+  const double point_ms = Ms([&] {
+    for (const Eigen::Vector3i& cell : cells) {
+      if (const auto tree = tree_of(cell)) {
+        const partition::CellPoint point(cell.x(), cell.y(), cell.z());
+        tree->get().query(bgi::intersects(point) && bgi::satisfies([&point](const partition::LeafEntry& entry) {
+                      return HoldsCell(entry.first, point);
+                    }),
+                    boost::make_function_output_iterator([&](const auto&) { ++by_point; }));
+      }
+    }
+  });
+  size_t neighbours {};
+  const double neighbours_ms = Ms([&] {
+    for (size_t i = 0; i < leaves.size(); ++i) {
+      for (const partition::LeafEntry& entry : leaves[i]) {
+        packed[i].query(bgi::intersects(entry.first),
+                        boost::make_function_output_iterator([&](const auto&) { ++neighbours; }));
+      }
+    }
+  });
+  EXPECT_EQ(by_box, by_point) << label;
+  std::cout << std::format(
+      "[ bench ] rtree {:<14} packed {:6.1f} ms, inserted {:6.1f} ms, {} LeafAt by box {:6.1f} ms / by point {:6.1f} ms, "
+      "leaf neighbours {:6.1f} ms ({})\n",
+      label, packed_ms, inserted_ms, cells.size(), box_ms, point_ms, neighbours_ms, neighbours)
+            << std::flush;
+}
+
+TEST(PartitionBench, DISABLED_RtreeVariants) {
+  const primitives::Palette palette = ShippedPalette().value();
+  const RoomSources sources = ShippedSources("spire", palette);
+  const RoomGraph graph = z13::station::rooms::BuildRooms(sources).value();
+  const partition::KdPartition kd(sources.sealed, kChunkSizes[0]);
+  const std::vector<Eigen::Vector3i> cells = RandomCells(graph);
+  std::cout << std::format("[ bench ] 'spire' chunk {}: {} chunks, {} leaves\n", kd.ChunkCells(), kd.ChunkCount(),
+                           kd.LeafCount());
+  MeasureTrees<bgi::linear<4>>("linear<4>", kd, cells);
+  MeasureTrees<bgi::linear<8>>("linear<8>", kd, cells);
+  MeasureTrees<bgi::linear<16>>("linear<16>", kd, cells);
+  MeasureTrees<bgi::quadratic<4>>("quadratic<4>", kd, cells);
+  MeasureTrees<bgi::quadratic<8>>("quadratic<8>", kd, cells);
+  MeasureTrees<bgi::quadratic<16>>("quadratic<16>", kd, cells);
+  MeasureTrees<bgi::rstar<4>>("rstar<4>", kd, cells);
+  MeasureTrees<bgi::rstar<8>>("rstar<8>", kd, cells);
+  MeasureTrees<bgi::rstar<16>>("rstar<16>", kd, cells);
 }
 
 TEST(PartitionBench, DISABLED_ColumnsAgainstKdTree) {

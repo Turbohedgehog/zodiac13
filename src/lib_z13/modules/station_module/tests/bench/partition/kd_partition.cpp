@@ -89,6 +89,8 @@ Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
     std::ranges::sort(ends);
     const int low = region.min[axis];
     const int high = region.End()[axis];
+    // The area of a cut across this axis, so cuts along different axes compare by volume.
+    const double cross = static_cast<double>(Volume(region)) / (high - low);
     for (const std::vector<int>* faces : {&mins, &ends}) {
       for (const int at : *faces) {
         if (at <= low || at >= high) {
@@ -96,8 +98,8 @@ Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
         }
         const auto on_low = std::ranges::lower_bound(mins, at) - mins.begin();
         const auto on_high = ends.end() - std::ranges::upper_bound(ends, at);
-        const double cost = static_cast<double>(at - low) * static_cast<double>(on_low) +
-                            static_cast<double>(high - at) * static_cast<double>(on_high);
+        const double cost = cross * (static_cast<double>(at - low) * static_cast<double>(on_low) +
+                                     static_cast<double>(high - at) * static_cast<double>(on_high));
         if (cost < best.cost) {
           best = {.axis = axis, .at = at, .cost = cost};
         }
@@ -207,6 +209,12 @@ void KdPartition::BuildChunk(const Eigen::Vector3i& chunk, const std::vector<Cel
 size_t KdPartition::LeafCount() const {
   return std::accumulate(chunks_.begin(), chunks_.end(), size_t {},
                          [](size_t sum, const auto& chunk) { return sum + chunk.second.leaves.size(); });
+}
+
+size_t KdPartition::Bytes() const {
+  return std::accumulate(chunks_.begin(), chunks_.end(), size_t {}, [](size_t sum, const auto& chunk) {
+    return sum + chunk.second.leaves.capacity() * sizeof(CellBox) + chunk.second.tree.get_allocator().Bytes();
+  });
 }
 
 std::optional<CellBox> KdPartition::LeafAt(const Eigen::Vector3i& cell) const {
