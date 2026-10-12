@@ -29,10 +29,6 @@ using z13::station::rooms::RoomId;
 
 constexpr Eigen::Index kAxisCount = Eigen::Vector3i::SizeAtCompileTime;
 
-OverlayBox RunOf(int x, int y, const rooms::FreeInterval& interval) {
-  return {.min = {x, y, interval.begin}, .extent = {1, 1, interval.end - interval.begin}, .color = kRoomOverlayColor};
-}
-
 bool MergeAlong(std::vector<OverlayBox>& boxes, Eigen::Index axis) {
   const Eigen::Index u = (axis + 1) % kAxisCount;
   const Eigen::Index v = (axis + 2) % kAxisCount;
@@ -69,14 +65,10 @@ void MergeBoxes(std::vector<OverlayBox>& boxes) {
 
 std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomId room) {
   std::vector<OverlayBox> boxes;
-  const auto& bounds = graph.rooms.at(room).bounds;
-  for (int y = bounds.min.y(); y < bounds.End().y(); ++y) {
-    for (int x = bounds.min.x(); x < bounds.End().x(); ++x) {
-      for (const auto& interval : graph.columns.Column({x, y})) {
-        if (interval.room == room) {
-          boxes.push_back(RunOf(x, y, interval));
-        }
-      }
+  for (const rooms::LeafRef& leaf : graph.space.LeavesIn(graph.rooms.at(room).bounds)) {
+    if (graph.RoomOf(leaf) == room) {
+      const auto& cells = graph.space.Leaf(leaf);
+      boxes.push_back({.min = cells.min, .extent = cells.extent, .color = kRoomOverlayColor});
     }
   }
   MergeBoxes(boxes);

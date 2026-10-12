@@ -21,24 +21,23 @@
 #include <string>
 #include <vector>
 
+#include <building_tuning_generated.h>
 #include <primitives/placement.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
 
-// The most columns (x, y) the grid spanning the station may have, which keeps a stray
-// block far from the rest from allocating the whole plane in between.
-inline constexpr size_t kMaxColumns = 16u * 1024u * 1024u;
-
 struct RoomSources {
   std::vector<z13::building::primitives::CellBox> sealed;
   std::vector<PortalSource> portals;
 };
 
-// Splits the free space into rooms by flood fill over column intervals. Free space that
-// reaches the edge of the station's bounds, or has no floor or roof, is the vacuum.
-// Rooms get ids from `first_id` on, by anchor.
-std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id = kVacuumRoom + 1);
+// Splits the free space into rooms, the connected sets of its leaves (FreeSpace). Free
+// space that reaches the edge of the station's bounds, or has no floor or roof, is the
+// vacuum. Rooms get ids from `first_id` on, by anchor.
+std::expected<RoomGraph, std::string> BuildRooms(
+    const RoomSources& sources, RoomId first_id = kVacuumRoom + 1,
+    int chunk_cells = fbs::building::BuildingTuningT {}.room_chunk_cells);
 
 }  // namespace z13::station::rooms

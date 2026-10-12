@@ -14,53 +14,38 @@
  * limitations under the License.
  */
 
+
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include <Eigen/Dense>
 
-#include <rooms/column_map.h>
+#include <primitives/placement.h>
+#include <rooms/room_id.h>
 
 namespace z13::station::rooms {
 
-struct Span {
-  int begin {};
-  int end {};
-};
-
-struct Bounds {
-  Eigen::Vector3i low;
-  Eigen::Vector3i high;
-};
-
-// The z-spans the sealed boxes take in each column, in compressed rows, sorted by start.
-struct SealedColumns {
-  std::vector<size_t> offsets;
-  std::vector<Span> spans;
-};
-
-// A room's extent while its intervals are gathered: plain ints, as this runs once per
-// interval.
+// A room's extent while its leaves are gathered.
 struct RoomExtent {
-  int anchor_x {};
-  int anchor_y {};
-  int anchor_z {};
-  int low_x {};
-  int low_y {};
-  int high_x {};
-  int high_y {};
-  int low_z {};
-  int high_z {};
+  Eigen::Vector3i anchor = Eigen::Vector3i::Zero();
+  Eigen::Vector3i low = Eigen::Vector3i::Zero();
+  Eigen::Vector3i high = Eigen::Vector3i::Zero();
   int64_t volume {};
+};
+
+// A leaf's part of one side of an opening, on the opening's face: the face's two other
+// axes, in order.
+struct FacePatch {
+  Eigen::Vector2i min = Eigen::Vector2i::Zero();
+  Eigen::Vector2i end = Eigen::Vector2i::Zero();
+  RoomId room {};
 };
 
 // The cells of one opening's face between a pair of rooms.
 struct OpeningShare {
-  // Lower index first.
+  // Lower id first.
   std::pair<RoomId, RoomId> rooms;
   int area_cells {};
   RoomId low_side {};

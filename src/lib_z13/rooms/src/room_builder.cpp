@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
+
 #include <rooms/room_builder.h>
 
 #include <algorithm>
 #include <array>
-#include <format>
-#include <limits>
-#include <map>
-#include <iterator>
+#include <cstddef>
+#include <memory>
 #include <numeric>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 
-#include <rooms/disjoint_sets.h>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/connected_components.hpp>
 
 #include "room_builder_types.h"
 
@@ -36,224 +35,145 @@ namespace z13::station::rooms {
 namespace {
 
 using z13::building::primitives::CellBox;
+using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
-// Free cells kept around the sealed ones: whatever reaches them is open to space.
-constexpr int kMargin = 1;
+// Every leaf of the free space, numbered chunk by chunk in OrderedChunks().
+struct NumberedLeaves {
+  std::vector<LeafRef> leaves;
+  std::unordered_map<Eigen::Vector3i, size_t, z13::building::primitives::CellHash> first_of_chunk;
 
-Bounds Surround(const std::vector<CellBox>& boxes) {
-  Eigen::Vector3i low = boxes.front().min;
-  Eigen::Vector3i high = boxes.front().End();
-  for (const CellBox& box : boxes) {
-    low = low.cwiseMin(box.min);
-    high = high.cwiseMax(box.End());
-  }
-  return {.low = low - Eigen::Vector3i::Constant(kMargin), .high = high + Eigen::Vector3i::Constant(kMargin)};
-}
+  size_t Number(const LeafRef& ref) const { return first_of_chunk.at(ref.chunk) + ref.leaf; }
+};
 
-template <typename Visit>
-void ForEachColumn(const CellBox& box, const Bounds& bounds, int width, Visit visit) {
-  const int x_begin = box.min.x() - bounds.low.x();
-  const int x_end = box.End().x() - bounds.low.x();
-  for (int y = box.min.y() - bounds.low.y(); y < box.End().y() - bounds.low.y(); ++y) {
-    const size_t row = static_cast<size_t>(y) * static_cast<size_t>(width);
-    for (int x = x_begin; x < x_end; ++x) {
-      visit(row + static_cast<size_t>(x));
+NumberedLeaves NumberLeaves(const FreeSpace& space) {
+  NumberedLeaves numbered;
+  for (const Eigen::Vector3i& key : space.OrderedChunks()) {
+    numbered.first_of_chunk.emplace(key, numbered.leaves.size());
+    const auto count = static_cast<uint32_t>(space.AllChunks().at(key)->leaves.size());
+    for (uint32_t leaf = 0; leaf < count; ++leaf) {
+      numbered.leaves.push_back({.chunk = key, .leaf = leaf});
     }
   }
+  return numbered;
 }
 
-SealedColumns SealedSpans(const std::vector<CellBox>& boxes, const Bounds& bounds, const Eigen::Vector2i& size) {
-  SealedColumns sealed;
-  sealed.offsets.assign(static_cast<size_t>(size.x()) * static_cast<size_t>(size.y()) + 1, 0);
-  for (const CellBox& box : boxes) {
-    ForEachColumn(box, bounds, size.x(), [&](size_t column) { ++sealed.offsets[column + 1]; });
-  }
-  std::partial_sum(sealed.offsets.begin(), sealed.offsets.end(), sealed.offsets.begin());
-  sealed.spans.resize(sealed.offsets.back());
-  std::vector<size_t> next(sealed.offsets.begin(), sealed.offsets.end() - 1);
-  for (const CellBox& box : boxes) {
-    const Span span {.begin = box.min.z(), .end = box.End().z()};
-    ForEachColumn(box, bounds, size.x(), [&](size_t column) { sealed.spans[next[column]++] = span; });
-  }
-  for (size_t column = 0; column + 1 < sealed.offsets.size(); ++column) {
-    const auto first = sealed.spans.begin() + static_cast<std::ptrdiff_t>(sealed.offsets[column]);
-    const auto last = sealed.spans.begin() + static_cast<std::ptrdiff_t>(sealed.offsets[column + 1]);
-    if (last - first > 1) {
-      std::sort(first, last, [](const Span& a, const Span& b) { return a.begin < b.begin; });
+// Per leaf, its connected set; the leaves open to space join the vertex after the last leaf.
+std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered) {
+  const size_t vacuum = numbered.leaves.size();
+  LeafGraph graph(vacuum + 1);
+  for (size_t i = 0; i < numbered.leaves.size(); ++i) {
+    if (space.OnOuterFace(space.Leaf(numbered.leaves[i]))) {
+      boost::add_edge(i, vacuum, graph);
     }
-  }
-  return sealed;
-}
-
-ColumnMap FreeColumns(const std::vector<CellBox>& boxes, const Bounds& bounds, const Eigen::Vector2i& size) {
-  const SealedColumns sealed = SealedSpans(boxes, bounds, size);
-  std::vector<size_t> offsets {0};
-  std::vector<FreeInterval> intervals;
-  for (size_t column = 0; column + 1 < sealed.offsets.size(); ++column) {
-    int free_from = bounds.low.z();
-    for (size_t i = sealed.offsets[column]; i < sealed.offsets[column + 1]; ++i) {
-      const Span& span = sealed.spans[i];
-      if (span.begin > free_from) {
-        intervals.push_back({.begin = free_from, .end = span.begin});
+    for (const LeafRef& neighbour : space.Neighbours(numbered.leaves[i])) {
+      if (const size_t j = numbered.Number(neighbour); j > i) {
+        boost::add_edge(i, j, graph);
       }
-      free_from = std::max(free_from, span.end);
-    }
-    if (free_from < bounds.high.z()) {
-      intervals.push_back({.begin = free_from, .end = bounds.high.z()});
-    }
-    offsets.push_back(intervals.size());
-  }
-  return ColumnMap(bounds.low.head<2>(), size, {bounds.low.z(), bounds.high.z()}, std::move(offsets),
-                   std::move(intervals));
-}
-
-void JoinColumns(const ColumnMap& columns, size_t first, size_t second, DisjointSets& sets) {
-  const std::span<const FreeInterval> all = columns.Intervals();
-  size_t i = columns.FirstInterval(first);
-  size_t j = columns.FirstInterval(second);
-  const size_t i_end = columns.FirstInterval(first + 1);
-  const size_t j_end = columns.FirstInterval(second + 1);
-  while (i < i_end && j < j_end) {
-    if (all[i].begin < all[j].end && all[j].begin < all[i].end) {
-      sets.Union(i, j);
-    }
-    if (all[i].end < all[j].end) {
-      ++i;
-    } else {
-      ++j;
     }
   }
+  std::vector<size_t> set_of(vacuum + 1);
+  boost::connected_components(graph, set_of.data());
+  return set_of;
 }
 
-void JoinNeighbours(const ColumnMap& columns, DisjointSets& sets) {
-  const auto width = static_cast<size_t>(columns.Size().x());
-  for (size_t column = 0; column < columns.ColumnCount(); ++column) {
-    if (column % width + 1 < width) {
-      JoinColumns(columns, column, column + 1, sets);
-    }
-    if (column + width < columns.ColumnCount()) {
-      JoinColumns(columns, column, column + width, sets);
-    }
+void Absorb(RoomExtent& room, const CellBox& leaf) {
+  if (AnchorBefore(leaf.min, room.anchor)) {
+    room.anchor = leaf.min;
   }
-}
-
-void Absorb(RoomExtent& room, int x, int y, const FreeInterval& interval) {
-  if (std::tuple(interval.begin, y, x) < std::tuple(room.anchor_z, room.anchor_y, room.anchor_x)) {
-    room.anchor_x = x;
-    room.anchor_y = y;
-    room.anchor_z = interval.begin;
-  }
-  room.low_x = std::min(room.low_x, x);
-  room.low_y = std::min(room.low_y, y);
-  room.high_x = std::max(room.high_x, x + 1);
-  room.high_y = std::max(room.high_y, y + 1);
-  room.low_z = std::min(room.low_z, interval.begin);
-  room.high_z = std::max(room.high_z, interval.end);
-  room.volume += interval.end - interval.begin;
-}
-
-RoomExtent ExtentOf(int x, int y, const FreeInterval& interval) {
-  return {.anchor_x = x, .anchor_y = y, .anchor_z = interval.begin, .low_x = x, .low_y = y, .high_x = x + 1,
-          .high_y = y + 1, .low_z = interval.begin, .high_z = interval.end,
-          .volume = interval.end - interval.begin};
+  room.low = room.low.cwiseMin(leaf.min);
+  room.high = room.high.cwiseMax(leaf.End());
+  room.volume += leaf.extent.cast<int64_t>().prod();
 }
 
 Room ToRoom(const RoomExtent& extent) {
-  const Eigen::Vector3i low(extent.low_x, extent.low_y, extent.low_z);
-  const Eigen::Vector3i high(extent.high_x, extent.high_y, extent.high_z);
-  return {.anchor = {extent.anchor_x, extent.anchor_y, extent.anchor_z}, .volume_cells = extent.volume,
-          .bounds = {.min = low, .extent = high - low}};
+  return {.anchor = extent.anchor,
+          .volume_cells = extent.volume,
+          .bounds = {.min = extent.low, .extent = extent.high - extent.low}};
 }
 
-// Sets every interval's room: the vacuum for the ones open to space, otherwise rooms
-// numbered by anchor from `first_id`. Returns the rooms, the vacuum included.
-std::unordered_map<RoomId, Room> NameRooms(ColumnMap& columns, const Bounds& bounds, DisjointSets& sets,
-                                           RoomId first_id) {
-  const std::span<FreeInterval> intervals = columns.MutableIntervals();
-  const size_t vacuum_node = intervals.size();
-  const auto width = static_cast<size_t>(columns.Size().x());
-  for (size_t column = 0; column < columns.ColumnCount(); ++column) {
-    const bool edge = column % width == 0 || column % width + 1 == width || column < width ||
-                      column + width >= columns.ColumnCount();
-    for (size_t i = columns.FirstInterval(column); i < columns.FirstInterval(column + 1); ++i) {
-      if (edge || intervals[i].begin == bounds.low.z() || intervals[i].end == bounds.high.z()) {
-        sets.Union(i, vacuum_node);
-      }
+// Names the connected sets: the vacuum's set is room 0, the rest get ids by anchor from
+// `first_id`. Fills the graph's rooms and the room of every leaf.
+void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of, RoomId first_id, RoomGraph& graph) {
+  const size_t vacuum_set = set_of.back();
+  std::unordered_map<size_t, RoomExtent> extents;
+  for (size_t i = 0; i < numbered.leaves.size(); ++i) {
+    if (set_of[i] == vacuum_set) {
+      continue;
     }
+    const CellBox& leaf = graph.space.Leaf(numbered.leaves[i]);
+    auto& extent = extents.try_emplace(set_of[i], RoomExtent {.anchor = leaf.min, .low = leaf.min, .high = leaf.End()})
+                       .first->second;
+    Absorb(extent, leaf);
   }
-  const size_t vacuum_root = sets.Find(vacuum_node);
-  constexpr size_t kNone = std::numeric_limits<size_t>::max();
-  std::vector<size_t> part_of_root(intervals.size() + 1, kNone);
-  std::vector<RoomExtent> parts;
-  std::vector<size_t> part_of_interval(intervals.size(), kNone);
-  for (size_t column = 0; column < columns.ColumnCount(); ++column) {
-    const int x = columns.Origin().x() + static_cast<int>(column % width);
-    const int y = columns.Origin().y() + static_cast<int>(column / width);
-    for (size_t i = columns.FirstInterval(column); i < columns.FirstInterval(column + 1); ++i) {
-      const size_t root = sets.Find(i);
-      if (root == vacuum_root) {
-        continue;
-      }
-      if (part_of_root[root] == kNone) {
-        part_of_root[root] = parts.size();
-        parts.push_back(ExtentOf(x, y, intervals[i]));
-      } else {
-        Absorb(parts[part_of_root[root]], x, y, intervals[i]);
-      }
-      part_of_interval[i] = part_of_root[root];
-    }
-  }
-  std::vector<Room> named;
-  named.reserve(parts.size());
-  std::ranges::transform(parts, std::back_inserter(named), ToRoom);
-  std::vector<size_t> by_anchor(parts.size());
-  std::iota(by_anchor.begin(), by_anchor.end(), size_t {});
-  std::ranges::sort(by_anchor, [&named](size_t a, size_t b) { return AnchorBefore(named[a].anchor, named[b].anchor); });
-  std::vector<RoomId> id_of_part(parts.size());
-  std::unordered_map<RoomId, Room> rooms;
-  rooms.emplace(kVacuumRoom, Room {.bounds = {.min = bounds.low, .extent = bounds.high - bounds.low}});
+  std::vector<std::pair<size_t, RoomExtent>> by_anchor(extents.begin(), extents.end());
+  std::ranges::sort(by_anchor,
+                    [](const auto& a, const auto& b) { return AnchorBefore(a.second.anchor, b.second.anchor); });
+  std::unordered_map<size_t, RoomId> id_of_set {{vacuum_set, kVacuumRoom}};
+  graph.rooms.emplace(kVacuumRoom, Room {.bounds = graph.space.Bounds()});
   RoomId next_id = first_id;
-  for (const size_t part : by_anchor) {
-    id_of_part[part] = next_id;
-    rooms.emplace(next_id++, named[part]);
+  for (const auto& [set, extent] : by_anchor) {
+    id_of_set.emplace(set, next_id);
+    graph.rooms.emplace(next_id++, ToRoom(extent));
   }
-  for (size_t i = 0; i < intervals.size(); ++i) {
-    intervals[i].room = part_of_interval[i] == kNone ? kVacuumRoom : id_of_part[part_of_interval[i]];
+  graph.next_id = next_id;
+  for (const auto& [key, chunk] : graph.space.AllChunks()) {
+    std::vector<RoomId> rooms(chunk->leaves.size());
+    const size_t first = numbered.first_of_chunk.at(key);
+    for (size_t leaf = 0; leaf < rooms.size(); ++leaf) {
+      rooms[leaf] = id_of_set.at(set_of[first + leaf]);
+    }
+    graph.leaf_rooms.emplace(key, std::make_shared<const std::vector<RoomId>>(std::move(rooms)));
   }
-  return rooms;
 }
 
-// The rooms on both sides of each cell of an opening's face, counted per pair of rooms.
+// The leaves in `side`, one cell thick across `axis`, as patches on the face.
+std::vector<FacePatch> PatchesOn(const RoomGraph& graph, const CellBox& side, size_t axis) {
+  const auto u = static_cast<Eigen::Index>((axis + 1) % 3);
+  const auto v = static_cast<Eigen::Index>((axis + 2) % 3);
+  std::vector<FacePatch> patches;
+  for (const LeafRef& ref : graph.space.LeavesIn(side)) {
+    const CellBox cut = graph.space.Leaf(ref).Intersection(side);
+    patches.push_back(
+        {.min = {cut.min[u], cut.min[v]}, .end = {cut.End()[u], cut.End()[v]}, .room = graph.RoomOf(ref)});
+  }
+  return patches;
+}
+
+int OverlapArea(const FacePatch& a, const FacePatch& b) {
+  const Eigen::Vector2i size = a.end.cwiseMin(b.end) - a.min.cwiseMax(b.min);
+  return (size.array() > 0).all() ? size.x() * size.y() : 0;
+}
+
+// The rooms on the two sides of each opening's face, counted per pair of rooms by the
+// cells where the leaves on both sides meet.
 void AddPortals(const RoomSources& sources, RoomGraph& graph) {
   std::vector<PortalSource> ordered = sources.portals;
   std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
     return AnchorBefore(a.opening.min, b.opening.min);
   });
   for (const PortalSource& source : ordered) {
-    const CellBox& box = source.opening;
     const auto axis = static_cast<size_t>(source.axis);
-    const int thickness = box.extent[static_cast<Eigen::Index>(axis)];
-    std::array step {0, 0, 0};
-    step[axis] = 1;
-    CellBox face = box;
-    face.extent[static_cast<Eigen::Index>(axis)] = 1;
-    // Few pairs per opening: a linear search beats a map for every cell.
+    const auto index = static_cast<Eigen::Index>(axis);
+    CellBox before = source.opening;
+    before.extent[index] = 1;
+    --before.min[index];
+    CellBox after = before;
+    after.min[index] += source.opening.extent[index] + 1;
+    const std::vector<FacePatch> low_patches = PatchesOn(graph, before, axis);
+    const std::vector<FacePatch> high_patches = PatchesOn(graph, after, axis);
     std::vector<OpeningShare> shares;
-    for (int z = face.min.z(); z < face.End().z(); ++z) {
-      for (int y = face.min.y(); y < face.End().y(); ++y) {
-        for (int x = face.min.x(); x < face.End().x(); ++x) {
-          const auto before = graph.columns.RoomAt(x - step[0], y - step[1], z - step[2]);
-          const auto after =
-              graph.columns.RoomAt(x + step[0] * thickness, y + step[1] * thickness, z + step[2] * thickness);
-          if (before && after && *before != *after) {
-            const std::pair<RoomId, RoomId> pair {std::min(*before, *after), std::max(*before, *after)};
-            const auto found = std::ranges::find(shares, pair, &OpeningShare::rooms);
-            if (found == shares.end()) {
-              shares.push_back({.rooms = pair, .area_cells = 1, .low_side = *before});
-            } else {
-              ++found->area_cells;
-            }
-          }
+    for (const FacePatch& low : low_patches) {
+      for (const FacePatch& high : high_patches) {
+        const int area = OverlapArea(low, high);
+        if (area == 0 || low.room == high.room) {
+          continue;
+        }
+        const std::pair pair {std::min(low.room, high.room), std::max(low.room, high.room)};
+        const auto found = std::ranges::find(shares, pair, &OpeningShare::rooms);
+        if (found == shares.end()) {
+          shares.push_back({.rooms = pair, .area_cells = area, .low_side = low.room});
+        } else {
+          found->area_cells += area;
         }
       }
     }
@@ -282,24 +202,14 @@ std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const RoomGraph& g
 
 }  // namespace
 
-std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id) {
-  RoomGraph graph {.next_id = first_id};
-  if (sources.sealed.empty()) {
-    graph.rooms.emplace(kVacuumRoom, Room {});
-    graph.room_portals = PortalsByRoom(graph);
-    return graph;
+std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id, int chunk_cells) {
+  auto space = FreeSpace::Build(sources.sealed, chunk_cells);
+  if (!space) {
+    return std::unexpected(std::move(space.error()));
   }
-  const Bounds bounds = Surround(sources.sealed);
-  const Eigen::Vector2i size = (bounds.high - bounds.low).head<2>();
-  if (static_cast<size_t>(size.x()) * static_cast<size_t>(size.y()) > kMaxColumns) {
-    return std::unexpected(std::format(
-        "the station spans {}x{} columns, more than the {} rooms are built over", size.x(), size.y(), kMaxColumns));
-  }
-  graph.columns = FreeColumns(sources.sealed, bounds, size);
-  DisjointSets sets(graph.columns.Intervals().size() + 1);
-  JoinNeighbours(graph.columns, sets);
-  graph.rooms = NameRooms(graph.columns, bounds, sets, first_id);
-  graph.next_id = first_id + static_cast<RoomId>(graph.rooms.size() - 1);
+  RoomGraph graph {.space = std::move(*space), .next_id = first_id};
+  const NumberedLeaves numbered = NumberLeaves(graph.space);
+  NameRooms(numbered, ConnectedSets(graph.space, numbered), first_id, graph);
   AddPortals(sources, graph);
   graph.room_portals = PortalsByRoom(graph);
   return graph;

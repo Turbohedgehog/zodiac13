@@ -5,11 +5,11 @@ project(rooms)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(Boost REQUIRED COMPONENTS geometry graph)
 
 set(
   PROJECT_SOURCE_FILES
-  src/column_map.cpp
-  src/disjoint_sets.cpp
+  src/free_space.cpp
   src/light_reach.cpp
   src/portal_source.cpp
   src/room_builder.cpp
@@ -40,6 +40,8 @@ target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC
   Eigen3::Eigen
+  Boost::geometry
+  Boost::graph
   zodiac13::fbs_schemas
   zodiac13::primitives
 )

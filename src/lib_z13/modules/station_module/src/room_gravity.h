@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <rooms/column_map.h>
+#include <rooms/room_id.h>
 
 namespace z13::station {
 

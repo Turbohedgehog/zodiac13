@@ -37,6 +37,17 @@ std::vector<RoomId> RoomGraph::ByAnchor() const {
   return ids;
 }
 
+std::optional<RoomId> RoomGraph::RoomAt(const Eigen::Vector3i& cell) const {
+  if (!space.Area().Contains(cell)) {
+    return kVacuumRoom;
+  }
+  const auto leaf = space.LeafAt(cell);
+  if (!leaf) {
+    return std::nullopt;
+  }
+  return RoomOf(*leaf);
+}
+
 std::span<const size_t> RoomGraph::PortalsOf(RoomId room) const {
   const auto found = room_portals.find(room);
   return found == room_portals.end() ? std::span<const size_t> {} : std::span<const size_t>(found->second);

@@ -33,6 +33,10 @@ ALLOWED = [
      "by id, and nothing changes the path locale"),
     (r"^\(anonymous namespace\)::g_(path_locale|path_locale_deleter|dot_path|dot_dot_path)$",
      "Boost.Filesystem path globals, as above"),
+    (r"^boost::(parameter::keyword<boost::graph::keywords::|graph::keywords::\(anonymous namespace\)::_|"
+     r"detail::make_color_map_from_arg_pack$|g_param_not_found$|integral_constant<)",
+     "Boost.Graph named-parameter keywords and tags, header-only in rooms (station_module, raylib_module): "
+     "empty constants"),
     (r"^z13::(\w+::)*k[A-Z]\w*$", "constexpr constants from our headers"),
     (r"::data\(\)::bfbsData$", "binary FlatBuffers schemas embedded by flatc"),
 ]

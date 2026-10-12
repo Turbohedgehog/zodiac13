@@ -24,6 +24,7 @@
 #include <chrono>
 #include <format>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -61,9 +62,13 @@ const RoomGraph& Graph(Z13TestWorld& world) {
   return world.World().get<RoomCache>().Current()->get();
 }
 
-// The anchor of the largest room: a panel there changes the topology without touching the hull.
-Eigen::Vector3i LargestRoomAnchor(const RoomGraph& graph) {
+// The anchor of the largest room: a panel there changes the topology without touching the
+// hull. Nothing for a scene without rooms.
+std::optional<Eigen::Vector3i> LargestRoomAnchor(const RoomGraph& graph) {
   const std::vector<z13::station::rooms::RoomId> rooms = graph.ByAnchor();
+  if (rooms.empty()) {
+    return std::nullopt;
+  }
   const auto largest = std::ranges::max_element(
       rooms, {}, [&graph](z13::station::rooms::RoomId room) { return graph.rooms.at(room).volume_cells; });
   return graph.rooms.at(*largest).anchor;
@@ -91,13 +96,16 @@ TEST(RoomEditBench, DISABLED_BuildAndDestroyAWall) {
     Z13TestWorld world({std::string(kStationSceneArg), scene});
     world.Tick();
     world.Tick();
-    const Eigen::Vector3i anchor = LargestRoomAnchor(Graph(world));
-    std::cout << std::format("[ bench ] '{}': {} rooms, {} intervals\n", scene, Graph(world).rooms.size(),
-                             Graph(world).columns.Intervals().size());
+    const auto anchor = LargestRoomAnchor(Graph(world));
+    if (!anchor) {
+      continue;
+    }
+    std::cout << std::format("[ bench ] '{}': {} rooms, {} free leaves\n", scene, Graph(world).rooms.size(),
+                             Graph(world).space.LeafCount());
     for (int edit = 0; edit < kEdits; ++edit) {
       const z13::station::Block panel {
           .spec = {.type_id = z13::station::testing::IdOf(z13::station::testing::kWall), .size = kPanel},
-          .cell = anchor + Eigen::Vector3i(0, 0, edit)};
+          .cell = *anchor + Eigen::Vector3i(0, 0, edit)};
       flecs::entity built = z13::station::testing::AddBlock(world, panel);
       TimedTick(world, std::format("'{}' build {}", scene, edit));
       built.destruct();
