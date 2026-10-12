@@ -17,11 +17,18 @@
 #include "room_system.h"
 
 #include <cstdint>
+#include <expected>
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/block_change_reader.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
@@ -48,6 +55,7 @@ void RegisterComponents(flecs::world world) {
 
 void RegisterPipeline(flecs::world world) {
   world.component<StationTopologyPhase>().add(flecs::Phase).depends_on<z13::gameplay::PostUpdatePhase>();
+  world.component<ClearBlockChangesPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
 }
 
 void InstallSingletons(flecs::world world) {
@@ -55,43 +63,72 @@ void InstallSingletons(flecs::world world) {
   world.set(RoomCache {});
 }
 
-// The count catches a removal change detection misses.
-bool BlocksChanged(const BlockQuery& blocks, const RoomCache& cache) {
-  const bool changed = blocks.changed();
-  return changed || static_cast<size_t>(blocks.count()) != cache.BlocksSeen();
+rooms::RoomCache::Build FromSources(rooms::RoomSources sources, int chunk_cells) {
+  return [sources = std::move(sources), chunk_cells](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
+    return current ? rooms::UpdateRooms(*current, sources, first_id, chunk_cells)
+                   : rooms::BuildRooms(sources, first_id, chunk_cells);
+  };
 }
 
-void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette,
-                 const z13::BuildingTuning& tuning) {
-  if (!BlocksChanged(blocks, cache)) {
+// The edits apply to the graph of the blocks before them, which `edits_apply` tells is the
+// current one; otherwise, or when they don't apply, the rooms come from every block.
+rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks,
+                                  const BlockPalette& palette, int chunk_cells) {
+  return [edits = std::move(edits), edits_apply, &blocks, &palette, chunk_cells](
+             rooms::RoomId first_id,
+             rooms::OptionalRoomGraph current) -> std::expected<rooms::RoomGraph, std::string> {
+    if (current && edits_apply) {
+      if (auto updated = rooms::UpdateRooms(*current, edits.edits, first_id, chunk_cells)) {
+        return updated;
+      }
+    }
+    return FromSources(GatherSources(blocks, palette).sources, chunk_cells)(first_id, current);
+  };
+}
+
+void UpdateRooms(BlockChangeReader& reader, uint64_t restores, TopologyVersion& topology, RoomCache& cache,
+                 const BlockPalette& palette, const z13::BuildingTuning& tuning) {
+  const BlockChangeBatch batch = reader.Read(restores, cache.BlocksSeen());
+  if (!batch.resync && batch.changes.empty()) {
     return;
   }
-  const TopologySources gathered = GatherSources(blocks, palette);
-  if (topology.fingerprint != gathered.fingerprint) {
-    topology.fingerprint = gathered.fingerprint;
+  uint64_t fingerprint {};
+  rooms::RoomCache::Build build;
+  if (batch.resync) {
+    TopologySources gathered = GatherSources(reader.Blocks(), palette);
+    fingerprint = gathered.fingerprint;
+    build = FromSources(std::move(gathered.sources), tuning.room_chunk_cells);
+  } else {
+    TopologyEdits edits = EditsOf(batch.changes, palette);
+    fingerprint = topology.fingerprint + edits.fingerprint_change;
+    const bool edits_apply = cache.CurrentFingerprint() == topology.fingerprint;
+    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, tuning.room_chunk_cells);
+  }
+  if (topology.fingerprint != fingerprint) {
+    topology.fingerprint = fingerprint;
     ++topology.version;
   }
-  const auto graph = cache.Select(
-      gathered.fingerprint, [&gathered, &tuning](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
-        return current ? rooms::UpdateRooms(*current, gathered.sources, first_id, tuning.room_chunk_cells)
-                       : rooms::BuildRooms(gathered.sources, first_id, tuning.room_chunk_cells);
-      });
-  if (!graph) {
+  if (const auto graph = cache.Select(fingerprint, build); !graph) {
     log_error("station: no rooms: {}", graph.error());
   }
-  cache.SetBlocksSeen(static_cast<size_t>(blocks.count()));
+  cache.SetBlocksSeen(static_cast<size_t>(reader.Blocks().count()));
 }
 
 void RegisterSystems(flecs::world world) {
   InstallSingletons(world);
 
-  const BlockQuery blocks = world.query_builder<const Block>("RoomSystem::BlockQuery").detect_changes().build();
-  world.system<TopologyVersion, RoomCache, const BlockPalette, const z13::BuildingTuning>("RoomSystem::UpdateRooms")
+  const auto reader = std::make_shared<BlockChangeReader>(world);
+  world.system<TopologyVersion, RoomCache, const z13::flecs_tools::WorldRestores, const BlockPalette,
+               const z13::BuildingTuning>("RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
-      .each([blocks](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache, const BlockPalette& palette,
-                     const z13::BuildingTuning& tuning) { UpdateRooms(blocks, topology, cache, palette, tuning); });
+      .read<BlockChange>()
+      .each([reader](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache,
+                     const z13::flecs_tools::WorldRestores& restores, const BlockPalette& palette,
+                     const z13::BuildingTuning& tuning) {
+        UpdateRooms(*reader, restores.count, topology, cache, palette, tuning);
+      });
 }
 
 }  // namespace

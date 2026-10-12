@@ -24,6 +24,7 @@
 #include <Eigen/Dense>
 
 
+#include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
@@ -129,9 +130,9 @@ flecs::entity SpawnCube(flecs::world world, z13::gameplay::IdCounters& counters,
     name = std::format("Block_{}", ++counters.last_block_id);
   } while (world.lookup(name.c_str()));
 
-  return world.entity(name.c_str())
-      .add<z13::flecs_tools::StateEntity>()
-      .set(z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec()));
+  return z13::station::SpawnBlock(
+      world.entity(name.c_str()),
+      z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec()));
 }
 
 // The ship scene's free building: a cube at the brush, overlaps allowed. Station mode
@@ -196,6 +197,7 @@ void RegisterSystems(flecs::world world) {
     .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
     .read<z13::station::StationMode>()
     .write<z13::station::Block>()
+    .write<z13::station::BlockChange>()
     .each(ProcessBuildBlockRequest);
 
   // RequestDestroyBlock itself is handled in bullet_module (raycast against

@@ -19,6 +19,7 @@
 #include "physics_world.h"
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -29,12 +30,15 @@
 
 #include <bullet_module/bullet_components.h>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/block_change_reader.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/gravity.h>
@@ -128,14 +132,10 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
 }
 
 void SyncBlockTables(
-    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, OptionalPalette palette,
-    bool changed_only) {
+    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, OptionalPalette palette) {
   ReleaseOrphanBodies(world, physics_world);
-  blocks.run([&physics_world, palette, changed_only](flecs::iter& it) {
+  blocks.run([&physics_world, palette](flecs::iter& it) {
     while (it.next()) {
-      if (changed_only && !it.changed()) {
-        continue;
-      }
       const auto blocks_field = it.field<const z13::station::Block>(0);
       for (const size_t i : it) {
         SyncBlockBody(it.entity(i), blocks_field[i], physics_world, palette);
@@ -144,16 +144,25 @@ void SyncBlockTables(
   });
 }
 
-// Syncs only changed block tables; a body count still off afterwards (e.g. a fresh
-// PhysicsWorld) forces a full pass.
-void SyncBlockBodies(
-    const flecs::world& world, PhysicsWorld& physics_world, const BlockQuery& blocks, OptionalPalette palette) {
-  // Checked before count(): iterating the query resets its changed state.
-  if (blocks.changed()) {
-    SyncBlockTables(world, blocks, physics_world, palette, /*changed_only=*/true);
+void ApplyBlockChange(const flecs::world& world, const z13::station::BlockChange& change, PhysicsWorld& physics_world,
+                      OptionalPalette palette) {
+  if (change.kind == z13::station::BlockChangeKind::kRemoved) {
+    physics_world.RemoveBody(change.entity);
+  } else if (world.is_alive(change.entity)) {
+    SyncBlockBody(world.entity(change.entity), change.block, physics_world, palette);
   }
-  if (static_cast<size_t>(blocks.count()) != physics_world.BodyCount()) {
-    SyncBlockTables(world, blocks, physics_world, palette, /*changed_only=*/false);
+}
+
+// A fresh PhysicsWorld has no bodies, so its count makes the reader resync.
+void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, z13::station::BlockChangeReader& reader,
+                     uint64_t restores, OptionalPalette palette) {
+  const z13::station::BlockChangeBatch batch = reader.Read(restores, physics_world.BodyCount());
+  if (batch.resync) {
+    SyncBlockTables(world, reader.Blocks(), physics_world, palette);
+    return;
+  }
+  for (const z13::station::BlockChange& change : batch.changes) {
+    ApplyBlockChange(world, change, physics_world, palette);
   }
 }
 
@@ -270,7 +279,7 @@ void ProcessDestroyBlockRequest(
       btVector3(origin.x(), origin.y(), origin.z()), btVector3(target.x(), target.y(), target.z()));
   if (hit) {
     physics_world.RemoveBody(*hit);
-    player.world().entity(*hit).destruct();
+    z13::station::DestroyBlock(player.world().entity(*hit));
   }
 }
 
@@ -296,19 +305,20 @@ void RegisterSystems(flecs::world world) {
       .kind<PhysicsStepPhase>()
       .each(StepPhysicsWorld);
 
-  const BlockQuery blocks =
-      world.query_builder<const z13::station::Block>("PhysicsSystem::BlockQuery").detect_changes().build();
+  const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
-  world.system<PhysicsWorld, const BlockPalette*>("PhysicsSystem::SyncBlockBodies")
+  world.system<PhysicsWorld, const z13::flecs_tools::WorldRestores, const BlockPalette*>(
+           "PhysicsSystem::SyncBlockBodies")
       .kind<z13::gameplay::PostUpdatePhase>()
       .read<z13::station::Block>()
+      .read<z13::station::BlockChange>()
       .write<RigidBody>()
-      .each([blocks](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
-        SyncBlockBodies(
-            it.world(), physics_world, blocks,
-            palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
+      .each([reader](flecs::iter& it, size_t, PhysicsWorld& physics_world,
+                     const z13::flecs_tools::WorldRestores& restores, const BlockPalette* palette) {
+        SyncBlockBodies(it.world(), physics_world, *reader, restores.count,
+                        palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
       });
 
   // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.
@@ -331,6 +341,7 @@ void RegisterSystems(flecs::world world) {
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::station::StationMode>()
       .write<z13::station::Block>()
+      .write<z13::station::BlockChange>()
       .each(ProcessDestroyBlockRequest);
 }
 

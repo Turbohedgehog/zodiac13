@@ -19,6 +19,7 @@
 #include <flecs.h>
 
 #include "block_building_system.h"
+#include "block_change_system.h"
 #include "block_snapshot_system.h"
 #include "brush_system.h"
 #include "building_input_system.h"
@@ -29,6 +30,7 @@
 namespace z13::building {
 
 BuildingModule::BuildingModule(flecs::world& world) {
+  BlockChangeSystem::Register(world);
   BuildingSystem::Register(world);
   BuildingInputSystem::Register(world);
   PaletteSystem::Register(world);

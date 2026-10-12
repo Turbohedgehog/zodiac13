@@ -24,8 +24,7 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
-
+#include <z13/components/block_changes.h>
 #include <z13/components/station.h>
 #include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
@@ -87,7 +86,7 @@ inline flecs::entity AddBlock(z13::testing::Z13TestWorld& world, const Block& bl
   // Named, as the game names its blocks: a restore matches state entities by name.
   const std::string name =
       std::format("RoomTest_{}_{}_{}_{}", block.spec.type_id, block.cell.x(), block.cell.y(), block.cell.z());
-  return world.World().entity(name.c_str()).add<z13::flecs_tools::StateEntity>().set(block);
+  return SpawnBlock(world.World().entity(name.c_str()), block);
 }
 
 inline void AddBlocks(z13::testing::Z13TestWorld& world, const std::vector<Block>& blocks) {

@@ -95,6 +95,13 @@ bool StateComponentFilter(flecs::entity component);
 // Updates SnapshotGrouping's cache of groups, so the world isn't taken as const.
 std::expected<WorldSnapshot, std::string> CaptureState(flecs::world world);
 
+// Counts the restores and applies below that succeeded: what they change comes with no
+// change events, so a system deriving from state syncs in full when the count moves.
+struct WorldRestores {
+  using Singleton = void;
+  uint64_t count {};
+};
+
 // Makes the world's state equal to the snapshot, updating in place: state entities,
 // components and relationships it lacks are removed. Validated first; on error the
 // world is left untouched.

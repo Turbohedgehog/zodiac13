@@ -101,7 +101,7 @@ double TimedTick(Z13TestWorld& world, const std::string& label) {
 void BuildAndDestroy(Z13TestWorld& world, const std::string& label, const z13::station::Block& block) {
   flecs::entity built = z13::station::testing::AddBlock(world, block);
   TimedTick(world, std::format("{}: build", label));
-  built.destruct();
+  z13::station::DestroyBlock(built);
   TimedTick(world, std::format("{}: destroy", label));
 }
 
@@ -117,7 +117,7 @@ void DestroyAndRestore(Z13TestWorld& world, const std::string& label) {
   if (!wall) {
     return;
   }
-  wall->first.destruct();
+  z13::station::DestroyBlock(wall->first);
   TimedTick(world, std::format("{}: destroy", label));
   z13::station::testing::AddBlock(world, wall->second);
   TimedTick(world, std::format("{}: restore", label));

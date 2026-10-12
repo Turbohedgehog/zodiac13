@@ -17,9 +17,11 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 
 #include <flecs.h>
 
+#include <z13/components/block_changes.h>
 #include <z13/components/station.h>
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>
@@ -31,7 +33,15 @@ struct TopologySources {
   uint64_t fingerprint {};
 };
 
+// What the block changes did to the room sources, and to their fingerprint.
+struct TopologyEdits {
+  z13::station::rooms::RoomSourceEdits edits;
+  uint64_t fingerprint_change {};
+};
+
 TopologySources GatherSources(
     const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette);
+
+TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building::primitives::BlockPalette& palette);
 
 }  // namespace z13::station

@@ -25,11 +25,13 @@
 
 #include "../src/physics_world.h"
 
+#include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/input.h>
 #include <z13/components/station.h>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
@@ -60,7 +62,7 @@ Eigen::Matrix4f TranslatedIdentity(float x, float y, float z) {
 }
 
 flecs::entity SpawnBlockAt(flecs::world& world, const Eigen::Matrix4f& transform) {
-  return world.entity().set(z13::testing::CubeAt(z13::math::ExtractTranslation<float>(transform)));
+  return z13::station::SpawnBlock(world.entity(), z13::testing::CubeAt(z13::math::ExtractTranslation<float>(transform)));
 }
 
 // Puts the player at `x` and lets the collision system run for a frame.
@@ -214,19 +216,24 @@ TEST(PhysicsBodySyncTest, DestroyedBlockReleasesBody) {
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
 
-  block.destruct();
+  z13::station::DestroyBlock(block);
   test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f resolved = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
   EXPECT_NEAR(resolved.x(), kBlockX + kInsideOffset, z13::testing::kTestEpsilon);
 }
 
-TEST(PhysicsBodySyncTest, ChangingBlockCellInPlaceMovesBody) {
+// A block changed in place tells no change; a restore that does it resyncs the bodies.
+TEST(PhysicsBodySyncTest, RestoringABlockElsewhereMovesBody) {
   z13::testing::Z13TestWorld test_world;
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
 
   block.set(z13::testing::CubeAt({kFarX, 0.f, 0.f}));
+  flecs::world world = test_world.World();
+  const auto moved = z13::flecs_tools::CaptureState(world);
+  ASSERT_TRUE(moved.has_value());
+  ASSERT_TRUE(z13::flecs_tools::RestoreWorld(world, *moved).has_value());
   test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f at_old_place = SettlePlayerAt(test_world, kBlockX + kInsideOffset);
@@ -297,7 +304,7 @@ TEST(PhysicsBodySyncTest, SlopeCollidesByItsShape) {
   const Eigen::Vector3f clear_of_the_slope {0.1f, 0.5f, 0.9f};
   z13::testing::Z13TestWorld test_world;
   flecs::entity player = test_world.Player();
-  test_world.World().entity().set(z13::station::Block {.spec = {.type_id = kSlopeId, .size = {4, 4, 4}}});
+  z13::station::SpawnBlock(test_world.World().entity(), {.spec = {.type_id = kSlopeId, .size = {4, 4, 4}}});
   test_world.Tick(kTestDeltaTime);
 
   player.set(TranslatedIdentity(clear_of_the_slope.x(), clear_of_the_slope.y(), clear_of_the_slope.z()));
@@ -323,8 +330,8 @@ constexpr float kChestZ = 1.f;
 
 flecs::entity PlaceBlock(z13::testing::Z13TestWorld& test_world, uint32_t type_id, const Eigen::Vector3i& size,
                          const Eigen::Vector3i& cell) {
-  flecs::entity block = test_world.World().entity().set(
-      z13::station::Block {.spec = {.type_id = type_id, .size = size}, .cell = cell});
+  flecs::entity block = z13::station::SpawnBlock(
+      test_world.World().entity(), {.spec = {.type_id = type_id, .size = size}, .cell = cell});
   test_world.Tick(kTestDeltaTime);
   return block;
 }

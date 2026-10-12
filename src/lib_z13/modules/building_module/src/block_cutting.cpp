@@ -21,6 +21,7 @@
 #include <tuple>
 #include <utility>
 
+#include <z13/components/block_changes.h>
 #include <primitives/cut.h>
 
 #include "block_entities.h"
@@ -84,7 +85,7 @@ void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
   for (const flecs::entity entity : plan.removed) {
     run.index.get().Erase(entity.id());
     run.made.erase(entity.id());
-    entity.destruct();
+    z13::station::DestroyBlock(entity);
   }
   for (const Block& remainder : plan.remainders) {
     const flecs::entity created =

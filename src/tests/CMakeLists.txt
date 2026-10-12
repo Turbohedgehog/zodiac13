@@ -72,6 +72,7 @@ set(
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
+  ${MODULES_DIR}/station_module/tests/block_change_test.cpp
   ${MODULES_DIR}/station_module/tests/gravity_system_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp

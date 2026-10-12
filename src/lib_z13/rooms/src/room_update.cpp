@@ -204,17 +204,28 @@ CellBox PortalReach(const CellBox& opening, Axis axis) {
   return opening.Grown(Eigen::Vector3i::Unit(static_cast<Eigen::Index>(axis)));
 }
 
-}  // namespace
-
-std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
-                                                  RoomId first_id, int chunk_cells) {
-  RoomSources sorted = sources;
-  std::ranges::sort(sorted.sealed, SealedBefore);
-  std::ranges::sort(sorted.portals, PortalSourceBefore);
-  if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
-    return BuildRooms(sources, first_id, chunk_cells);
+// `sorted` less `removed`, plus `added`, all three sorted by `before`; nullopt when
+// `removed` holds one `sorted` lacks.
+template <typename T, typename Before>
+std::optional<std::vector<T>> Edited(const std::vector<T>& sorted, const std::vector<T>& added,
+                                     const std::vector<T>& removed, Before before) {
+  std::vector<T> kept;
+  std::ranges::set_difference(sorted, removed, std::back_inserter(kept), before);
+  if (kept.size() + removed.size() != sorted.size()) {
+    return std::nullopt;
   }
-  const SourceChanges changes = ChangesBetween(previous.sources, sorted);
+  std::vector<T> edited;
+  edited.reserve(kept.size() + added.size());
+  std::ranges::merge(kept, added, std::back_inserter(edited), before);
+  return edited;
+}
+
+// `sorted` as UpdateRooms takes it, sorted, with what changed since `previous.sources`.
+std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
+                                                   const SourceChanges& changes, RoomId first_id, int chunk_cells) {
+  if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
+    return BuildRooms(sorted, first_id, chunk_cells);
+  }
   auto rebuilt_space = previous.space.Rebuilt(sorted.sealed, changes.sealed);
   if (!rebuilt_space) {
     return std::unexpected(std::move(rebuilt_space.error()));
@@ -339,6 +350,33 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
   std::ranges::sort(graph.portals, PortalBefore);
   graph.room_portals = PortalsByRoom(graph.portals);
   return graph;
+}
+
+}  // namespace
+
+std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
+                                                  RoomId first_id, int chunk_cells) {
+  RoomSources sorted = sources;
+  std::ranges::sort(sorted.sealed, SealedBefore);
+  std::ranges::sort(sorted.portals, PortalSourceBefore);
+  const SourceChanges changes = ChangesBetween(previous.sources, sorted);
+  return UpdateSorted(previous, std::move(sorted), changes, first_id, chunk_cells);
+}
+
+std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
+                                                  RoomId first_id, int chunk_cells) {
+  RoomSourceEdits sorted = edits;
+  for (RoomSources* sources : {&sorted.added, &sorted.removed}) {
+    std::ranges::sort(sources->sealed, SealedBefore);
+    std::ranges::sort(sources->portals, PortalSourceBefore);
+  }
+  auto sealed = Edited(previous.sources.sealed, sorted.added.sealed, sorted.removed.sealed, SealedBefore);
+  auto portals = Edited(previous.sources.portals, sorted.added.portals, sorted.removed.portals, PortalSourceBefore);
+  if (!sealed || !portals) {
+    return std::unexpected(std::string {"the edits remove a room source the graph lacks"});
+  }
+  return UpdateSorted(previous, {.sealed = std::move(*sealed), .portals = std::move(*portals)},
+                      ChangesBetween(sorted.removed, sorted.added), first_id, chunk_cells);
 }
 
 }  // namespace z13::station::rooms

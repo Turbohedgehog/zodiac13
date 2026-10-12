@@ -17,6 +17,7 @@
 #include "block_building_system.h"
 
 #include <format>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -24,12 +25,15 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/status.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/block_change_reader.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/station.h>
@@ -83,11 +87,21 @@ void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTun
   blocks.each([&index](flecs::entity e, const Block& block) { index.Insert(e.id(), OccupiedCells(block)); });
 }
 
-// Checked before count(): iterating the query resets its changed state.
-void SyncBlockIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning) {
-  if (blocks.changed() || static_cast<size_t>(blocks.count()) != index.Size() ||
-      index.ChunkCells() != tuning.index_chunk_cells) {
-    RebuildIndex(blocks, index, tuning);
+// The build and destroy requests keep the index themselves, for the requests after them in
+// the same tick; the changes catch the other builders up.
+void SyncBlockIndex(z13::station::BlockChangeReader& reader, uint64_t restores, BlockIndex& index,
+                    const BuildingTuning& tuning) {
+  const z13::station::BlockChangeBatch batch = reader.Read(restores, index.Size());
+  if (batch.resync || index.ChunkCells() != tuning.index_chunk_cells) {
+    RebuildIndex(reader.Blocks(), index, tuning);
+    return;
+  }
+  for (const z13::station::BlockChange& change : batch.changes) {
+    if (change.kind == z13::station::BlockChangeKind::kRemoved) {
+      index.Erase(change.entity);
+    } else {
+      index.Insert(change.entity, OccupiedCells(change.block));
+    }
   }
 }
 
@@ -277,7 +291,7 @@ void ProcessDestroyRequests(flecs::iter& it) {
         --spawn_points;
       }
       index.Erase(*hit);
-      target.destruct();
+      z13::station::DestroyBlock(target);
     }
   }
 }
@@ -317,14 +331,15 @@ void InstallIndex(flecs::world world) {
 void RegisterSystems(flecs::world world) {
   InstallIndex(world);
 
-  const BlockQuery blocks = world.query_builder<const Block>("BlockBuildingSystem::BlockQuery").detect_changes().build();
-  world.system<BlockIndex, const BuildingTuning>("BlockBuildingSystem::SyncBlockIndex")
+  const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
+  world.system<BlockIndex, const z13::flecs_tools::WorldRestores, const BuildingTuning>(
+           "BlockBuildingSystem::SyncBlockIndex")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .read<Block>()
-      .each([blocks](flecs::iter&, size_t, BlockIndex& index, const BuildingTuning& tuning) {
-        SyncBlockIndex(blocks, index, tuning);
-      });
+      .read<z13::station::BlockChange>()
+      .each([reader](flecs::iter&, size_t, BlockIndex& index, const z13::flecs_tools::WorldRestores& restores,
+                     const BuildingTuning& tuning) { SyncBlockIndex(*reader, restores.count, index, tuning); });
 
   world.system<RequestBrushDrag, const BlockIndex>("BlockBuildingSystem::StartBrushDrag")
       .kind<StationBuildPhase>()
@@ -351,6 +366,7 @@ void RegisterSystems(flecs::world world) {
       .read<BuildPermission>()
       .write<BrushDrag>()
       .write<Block>()
+      .write<z13::station::BlockChange>()
       .write<SpawnPoint>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
@@ -363,6 +379,7 @@ void RegisterSystems(flecs::world world) {
       .read<BuildPermission>()
       .read<SpawnPoint>()
       .write<Block>()
+      .write<z13::station::BlockChange>()
       .run(ProcessDestroyRequests);
 
   // Last, so the preview shows this frame's blocks; the render draws it in OnStore.
