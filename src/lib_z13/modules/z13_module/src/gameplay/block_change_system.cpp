@@ -24,13 +24,13 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/gameplay.h>
 
-namespace z13::building {
+namespace z13::gameplay {
 
 namespace {
 
-// The index (StationBuildPhase) and the bodies read the changes by PostUpdatePhase.
+// The index and the bodies read the changes by PostUpdatePhase.
 void RegisterPipeline(flecs::world world) {
-  world.component<z13::station::ClearBlockChangesPhase>().add(flecs::Phase).depends_on<z13::gameplay::PostUpdatePhase>();
+  world.component<z13::station::ClearBlockChangesPhase>().add(flecs::Phase).depends_on<PostUpdatePhase>();
 }
 
 void RegisterSystems(flecs::world world) {
@@ -49,4 +49,4 @@ void BlockChangeSystem::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);
 }
 
-}  // namespace z13::building
+}  // namespace z13::gameplay

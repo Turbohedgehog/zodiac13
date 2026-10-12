@@ -31,7 +31,7 @@ struct RoomSources {
   std::vector<PortalSource> portals;
 };
 
-// The sources added and removed since a graph was built, from a caller that tracks them.
+// Sources added and removed since a graph was built.
 struct RoomSourceEdits {
   RoomSources added;
   RoomSources removed;

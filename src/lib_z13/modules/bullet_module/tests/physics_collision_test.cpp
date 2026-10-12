@@ -216,7 +216,7 @@ TEST(PhysicsBodySyncTest, DestroyedBlockReleasesBody) {
   const flecs::entity block = SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
 
-  z13::station::DestroyBlock(block);
+  z13::station::DestroyBlock(block, block.get<z13::station::Block>());
   test_world.Tick(kTestDeltaTime);
 
   const Eigen::Vector3f resolved = SettlePlayerAt(test_world, kBlockX + kInsideOffset);

@@ -220,7 +220,6 @@ std::optional<std::vector<T>> Edited(const std::vector<T>& sorted, const std::ve
   return edited;
 }
 
-// `sorted` as UpdateRooms takes it, sorted, with what changed since `previous.sources`.
 std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
                                                    const SourceChanges& changes, RoomId first_id, int chunk_cells) {
   if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
@@ -365,11 +364,13 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
                                                   RoomId first_id, int chunk_cells) {
+  const auto sort = [](RoomSources& sources) {
+    std::ranges::sort(sources.sealed, SealedBefore);
+    std::ranges::sort(sources.portals, PortalSourceBefore);
+  };
   RoomSourceEdits sorted = edits;
-  for (RoomSources* sources : {&sorted.added, &sorted.removed}) {
-    std::ranges::sort(sources->sealed, SealedBefore);
-    std::ranges::sort(sources->portals, PortalSourceBefore);
-  }
+  sort(sorted.added);
+  sort(sorted.removed);
   auto sealed = Edited(previous.sources.sealed, sorted.added.sealed, sorted.removed.sealed, SealedBefore);
   auto portals = Edited(previous.sources.portals, sorted.added.portals, sorted.removed.portals, PortalSourceBefore);
   if (!sealed || !portals) {

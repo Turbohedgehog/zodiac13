@@ -33,26 +33,25 @@ struct ClearBlockChangesPhase {};
 
 enum class BlockChangeKind : uint8_t { kAdded, kRemoved };
 
-// A block built or destroyed, on an entity of its own until ClearBlockChangesPhase: systems
-// deriving from the blocks apply these instead of walking them all. Not state: a replayed
-// tick makes them again, and a restore is told by WorldRestores instead.
+// A block built or destroyed, on an entity of its own until ClearBlockChangesPhase. Not
+// state: a replayed tick makes it again, and restores are told by WorldRestores.
 struct BlockChange {
   BlockChangeKind kind {};
   flecs::entity_t entity {};
   Block block;
 };
 
-// Every block enters and leaves the world through these two, so that its change is told.
+// Every block enters and leaves the world through these two. `block` is the entity's
+// Block, passed in: a block spawned earlier in the same deferred system has none yet.
 inline flecs::entity SpawnBlock(flecs::entity entity, const Block& block) {
   entity.add<z13::flecs_tools::StateEntity>().set(block);
   entity.world().entity().set(BlockChange {.kind = BlockChangeKind::kAdded, .entity = entity.id(), .block = block});
   return entity;
 }
 
-inline void DestroyBlock(flecs::entity block) {
-  block.world().entity().set(
-      BlockChange {.kind = BlockChangeKind::kRemoved, .entity = block.id(), .block = block.get<Block>()});
-  block.destruct();
+inline void DestroyBlock(flecs::entity entity, const Block& block) {
+  entity.world().entity().set(BlockChange {.kind = BlockChangeKind::kRemoved, .entity = entity.id(), .block = block});
+  entity.destruct();
 }
 
 }  // namespace z13::station

@@ -32,6 +32,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/world/components.h>
@@ -155,8 +156,8 @@ void ApplyBlockChange(const flecs::world& world, const z13::station::BlockChange
 
 // A fresh PhysicsWorld has no bodies, so its count makes the reader resync.
 void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, z13::station::BlockChangeReader& reader,
-                     uint64_t restores, OptionalPalette palette) {
-  const z13::station::BlockChangeBatch batch = reader.Read(restores, physics_world.BodyCount());
+                     uint64_t restores, uint64_t tick, OptionalPalette palette) {
+  const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, physics_world.BodyCount());
   if (batch.resync) {
     SyncBlockTables(world, reader.Blocks(), physics_world, palette);
     return;
@@ -279,7 +280,8 @@ void ProcessDestroyBlockRequest(
       btVector3(origin.x(), origin.y(), origin.z()), btVector3(target.x(), target.y(), target.z()));
   if (hit) {
     physics_world.RemoveBody(*hit);
-    z13::station::DestroyBlock(player.world().entity(*hit));
+    const flecs::entity block = player.world().entity(*hit);
+    z13::station::DestroyBlock(block, block.get<z13::station::Block>());
   }
 }
 
@@ -309,15 +311,16 @@ void RegisterSystems(flecs::world world) {
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
-  world.system<PhysicsWorld, const z13::flecs_tools::WorldRestores, const BlockPalette*>(
-           "PhysicsSystem::SyncBlockBodies")
+  world.system<PhysicsWorld, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock,
+               const BlockPalette*>("PhysicsSystem::SyncBlockBodies")
       .kind<z13::gameplay::PostUpdatePhase>()
       .read<z13::station::Block>()
       .read<z13::station::BlockChange>()
       .write<RigidBody>()
       .each([reader](flecs::iter& it, size_t, PhysicsWorld& physics_world,
-                     const z13::flecs_tools::WorldRestores& restores, const BlockPalette* palette) {
-        SyncBlockBodies(it.world(), physics_world, *reader, restores.count,
+                     const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
+                     const BlockPalette* palette) {
+        SyncBlockBodies(it.world(), physics_world, *reader, restores.count, clock.tick,
                         palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
       });
 

@@ -135,7 +135,7 @@ void CaptureRelationships(flecs::entity e, const EntityFilter& accept_target, En
             });
 }
 
-// Worlds without the core registration (bare test worlds) have nothing to tell.
+// Bare test worlds have no WorldRestores.
 void CountRestore(flecs::world& world) {
   if (auto* restores = world.try_get_mut<WorldRestores>()) {
     ++restores->count;

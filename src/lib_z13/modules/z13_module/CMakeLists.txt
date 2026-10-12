@@ -10,6 +10,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 set(
   PROJECT_SOURCE_FILES
   src/bootstrap/bootstrap_system.cpp
+  src/gameplay/block_change_system.cpp
   src/gameplay/camera_look.cpp
   src/gameplay/flashlight_system.cpp
   src/gameplay/gameplay_entities.cpp

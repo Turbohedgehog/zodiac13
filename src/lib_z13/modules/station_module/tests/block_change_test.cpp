@@ -29,6 +29,7 @@
 
 #include <lib_core/state/world_serializer.h>
 
+#include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station.h>
@@ -123,8 +124,7 @@ int Between(std::mt19937& random, int low, int high) {
   return low + static_cast<int>(Below(random, static_cast<uint32_t>(high - low + 1)));
 }
 
-// A wall, floor, window or cube somewhere in the reach, drawn from raw mt19937 output so a
-// seed is the same on every platform.
+// A wall, floor, window or cube somewhere in the reach.
 Block RandomBlock(std::mt19937& random) {
   constexpr std::array kKinds {testing::kWall, testing::kWall, testing::kFloor, testing::kWindow};
   const Eigen::Vector3i offset(Between(random, 0, kReach), Between(random, 0, kReach), Between(random, 0, kReach));
@@ -183,7 +183,8 @@ TEST_P(BlockChangeTest, DerivedStateFollowsRandomEditsAndRestores) {
         }
         case Op::kDestroy:
           if (!ours.empty()) {
-            DestroyBlock(ours[Below(random, static_cast<uint32_t>(ours.size()))]);
+            const flecs::entity doomed = ours[Below(random, static_cast<uint32_t>(ours.size()))];
+            DestroyBlock(doomed, doomed.get<Block>());
           }
           break;
         case Op::kCapture: {
@@ -215,6 +216,52 @@ TEST_P(BlockChangeTest, DerivedStateFollowsRandomEditsAndRestores) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Seeds, BlockChangeTest, ::testing::ValuesIn(kSeeds));
+
+class BlockChangeReaderTest : public ::testing::Test {
+ protected:
+  // Unread changes cleared, as ClearBlockChangesPhase does on a tick the reader skipped.
+  void Clear() { world_.delete_with<BlockChange>(); }
+
+  flecs::world world_;
+  BlockChangeReader reader_ {world_};
+  const Block wall_ {.spec = CubeSpec()};
+};
+
+TEST_F(BlockChangeReaderTest, AMissedTickResyncs) {
+  const flecs::entity first = SpawnBlock(world_.entity(), wall_);
+  ASSERT_TRUE(reader_.Read(0, 1).resync);
+  Clear();
+  ASSERT_FALSE(reader_.Read(0, 2).resync);
+
+  // The count is the same, so only the skipped tick tells.
+  SpawnBlock(world_.entity(), wall_);
+  DestroyBlock(first, wall_);
+  Clear();
+
+  EXPECT_TRUE(reader_.Read(0, 4).resync);
+}
+
+TEST_F(BlockChangeReaderTest, ABlockBuiltAndDestroyedInOneTickIsNoChange) {
+  ASSERT_TRUE(reader_.Read(0, 1).resync);
+  const flecs::entity built = SpawnBlock(world_.entity(), wall_);
+  DestroyBlock(built, wall_);
+
+  const BlockChangeBatch batch = reader_.Read(0, 2);
+
+  EXPECT_FALSE(batch.resync);
+  EXPECT_TRUE(batch.changes.empty());
+}
+
+TEST_F(BlockChangeReaderTest, OnlyARestoreThatChangedBlocksResyncs) {
+  const flecs::entity block = SpawnBlock(world_.entity(), wall_);
+  ASSERT_TRUE(reader_.Read(0, 1).resync);
+  Clear();
+
+  EXPECT_FALSE(reader_.Read(1, 2).resync);
+
+  block.set(Block {.spec = CubeSpec(), .cell = Eigen::Vector3i::UnitX()});
+  EXPECT_TRUE(reader_.Read(2, 3).resync);
+}
 
 // What the systems see comes only through SpawnBlock and DestroyBlock: a block moved past
 // them stays where it was for them, and the check above tells.

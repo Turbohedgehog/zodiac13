@@ -33,7 +33,6 @@ struct TopologySources {
   uint64_t fingerprint {};
 };
 
-// What the block changes did to the room sources, and to their fingerprint.
 struct TopologyEdits {
   z13::station::rooms::RoomSourceEdits edits;
   uint64_t fingerprint_change {};

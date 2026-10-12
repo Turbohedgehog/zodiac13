@@ -37,6 +37,7 @@
 #include <flecs.h>
 
 #include "bootstrap/bootstrap_system.h"
+#include "gameplay/block_change_system.h"
 #include "gameplay/flashlight_system.h"
 #include "gameplay/gameplay_system.h"
 #include "input/gameplay_input_system.h"
@@ -87,6 +88,7 @@ Z13Module::Z13Module(flecs::world& world) {
 
   z13::bootstrap::BootstrapSystem::Register(world);
   z13::gameplay::GameplaySystem::Register(world);
+  z13::gameplay::BlockChangeSystem::Register(world);
   z13::gameplay::input::GameplayInputSystem::Register(world);
   z13::state::QuickSaveInputSystem::Register(world);
   z13::gameplay::FlashlightSystem::Register(world);

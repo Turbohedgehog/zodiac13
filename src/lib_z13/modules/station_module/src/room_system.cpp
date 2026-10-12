@@ -25,6 +25,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -70,8 +71,8 @@ rooms::RoomCache::Build FromSources(rooms::RoomSources sources, int chunk_cells)
   };
 }
 
-// The edits apply to the graph of the blocks before them, which `edits_apply` tells is the
-// current one; otherwise, or when they don't apply, the rooms come from every block.
+// `edits_apply`: the current graph is that of the blocks before the edits. Otherwise, or
+// when the edits fail, the rooms come from every block.
 rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks,
                                   const BlockPalette& palette, int chunk_cells) {
   return [edits = std::move(edits), edits_apply, &blocks, &palette, chunk_cells](
@@ -86,9 +87,9 @@ rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const B
   };
 }
 
-void UpdateRooms(BlockChangeReader& reader, uint64_t restores, TopologyVersion& topology, RoomCache& cache,
-                 const BlockPalette& palette, const z13::BuildingTuning& tuning) {
-  const BlockChangeBatch batch = reader.Read(restores, cache.BlocksSeen());
+void UpdateRooms(BlockChangeReader& reader, uint64_t restores, uint64_t tick, TopologyVersion& topology,
+                 RoomCache& cache, const BlockPalette& palette, const z13::BuildingTuning& tuning) {
+  const BlockChangeBatch batch = reader.Read(restores, tick);
   if (!batch.resync && batch.changes.empty()) {
     return;
   }
@@ -111,23 +112,23 @@ void UpdateRooms(BlockChangeReader& reader, uint64_t restores, TopologyVersion& 
   if (const auto graph = cache.Select(fingerprint, build); !graph) {
     log_error("station: no rooms: {}", graph.error());
   }
-  cache.SetBlocksSeen(static_cast<size_t>(reader.Blocks().count()));
 }
 
 void RegisterSystems(flecs::world world) {
   InstallSingletons(world);
 
   const auto reader = std::make_shared<BlockChangeReader>(world);
-  world.system<TopologyVersion, RoomCache, const z13::flecs_tools::WorldRestores, const BlockPalette,
-               const z13::BuildingTuning>("RoomSystem::UpdateRooms")
+  world.system<TopologyVersion, RoomCache, const z13::flecs_tools::WorldRestores,
+               const z13::flecs_tools::SimulationClock, const BlockPalette, const z13::BuildingTuning>(
+      "RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<BlockChange>()
       .each([reader](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache,
-                     const z13::flecs_tools::WorldRestores& restores, const BlockPalette& palette,
-                     const z13::BuildingTuning& tuning) {
-        UpdateRooms(*reader, restores.count, topology, cache, palette, tuning);
+                     const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
+                     const BlockPalette& palette, const z13::BuildingTuning& tuning) {
+        UpdateRooms(*reader, restores.count, clock.tick, topology, cache, palette, tuning);
       });
 }
 

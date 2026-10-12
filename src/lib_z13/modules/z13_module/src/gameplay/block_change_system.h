@@ -19,13 +19,12 @@
 
 #include <lib_core/world/core_types.h>
 
-namespace z13::building {
+namespace z13::gameplay {
 
-// Clears the block changes (z13/components/block_changes.h) in ClearBlockChangesPhase;
-// changes made between ticks are read in the next one.
+// Clears the block changes (z13/components/block_changes.h) in ClearBlockChangesPhase.
 class BlockChangeSystem {
  public:
   static void Register(flecs::world& world);
 };
 
-}  // namespace z13::building
+}  // namespace z13::gameplay
