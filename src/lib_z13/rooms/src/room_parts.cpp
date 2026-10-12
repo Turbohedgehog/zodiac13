@@ -46,10 +46,23 @@ int OverlapArea(const FacePatch& a, const FacePatch& b) {
   return (size.array() > 0).all() ? size.x() * size.y() : 0;
 }
 
+// Per axis, the sum of that coordinate over the box's cells.
+Eigen::Vector3<int64_t> CellSum(const CellBox& box) {
+  const Eigen::Array3<int64_t> min = box.min.cast<int64_t>();
+  const Eigen::Array3<int64_t> extent = box.extent.cast<int64_t>();
+  // min + ... + (min + extent - 1) along the axis, once per cell across it.
+  const Eigen::Array3<int64_t> series = extent * (2 * min + extent - 1) / 2;
+  return (series * (extent.prod() / extent)).matrix();
+}
+
 }  // namespace
 
 RoomExtent ExtentOf(const CellBox& leaf) {
-  return {.anchor = leaf.min, .low = leaf.min, .high = leaf.End(), .volume = leaf.extent.cast<int64_t>().prod()};
+  return {.anchor = leaf.min,
+          .low = leaf.min,
+          .high = leaf.End(),
+          .volume = leaf.extent.cast<int64_t>().prod(),
+          .cell_sum = CellSum(leaf)};
 }
 
 void Absorb(RoomExtent& room, const CellBox& leaf) {
@@ -59,12 +72,14 @@ void Absorb(RoomExtent& room, const CellBox& leaf) {
   room.low = room.low.cwiseMin(leaf.min);
   room.high = room.high.cwiseMax(leaf.End());
   room.volume += leaf.extent.cast<int64_t>().prod();
+  room.cell_sum += CellSum(leaf);
 }
 
 Room ToRoom(const RoomExtent& extent) {
   return {.anchor = extent.anchor,
           .volume_cells = extent.volume,
-          .bounds = {.min = extent.low, .extent = extent.high - extent.low}};
+          .bounds = {.min = extent.low, .extent = extent.high - extent.low},
+          .cell_sum = extent.cell_sum};
 }
 
 // The rooms on the two sides of the opening's face, counted per pair of rooms by the cells

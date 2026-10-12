@@ -22,20 +22,21 @@
 #include <vector>
 
 #include <z13/components/rooms.h>
-#include <rooms/room_graph.h>
+#include <rooms/room_cache.h>
 
 namespace z13::station {
 
-// Each room's merged overlay boxes, made once per room graph. Derived, never state.
+// Each room's merged overlay boxes, made once per room and dropped when it changes.
+// Derived, never state.
 class RoomBoxCache {
  public:
   using Singleton = void;
 
-  const std::vector<OverlayBox>& BoxesOf(
-      const z13::station::rooms::RoomGraph& graph, uint64_t fingerprint, z13::station::rooms::RoomId room);
+  const std::vector<OverlayBox>& BoxesOf(const z13::station::rooms::RoomCache& cache, z13::station::rooms::RoomId room);
 
  private:
-  std::optional<uint64_t> fingerprint_;
+  // RoomCache::Switches() when the boxes were last brought up to date.
+  std::optional<uint64_t> switches_;
   std::unordered_map<z13::station::rooms::RoomId, std::vector<OverlayBox>> boxes_;
 };
 

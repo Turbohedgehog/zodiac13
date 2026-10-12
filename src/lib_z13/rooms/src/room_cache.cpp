@@ -25,6 +25,10 @@ std::expected<std::reference_wrapper<const RoomGraph>, std::string> RoomCache::S
     uint64_t fingerprint, const Build& build) {
   const auto cached = std::ranges::find(entries_, fingerprint, &RoomCacheEntry::fingerprint);
   if (cached != entries_.end()) {
+    if (current_ != fingerprint) {
+      const OptionalRoomGraph before = Current();
+      Switch(before ? std::optional(ChangesBetween(*before, cached->graph)) : std::nullopt);
+    }
     RoomCacheEntry entry = std::move(*cached);
     entries_.erase(cached);
     entries_.push_back(std::move(entry));
@@ -34,8 +38,11 @@ std::expected<std::reference_wrapper<const RoomGraph>, std::string> RoomCache::S
   auto graph = build(next_id_, Current());
   if (!graph) {
     current_.reset();
+    Switch(std::nullopt);
     return std::unexpected(std::move(graph.error()));
   }
+  const OptionalRoomGraph before = Current();
+  Switch(before ? std::optional(ChangesBetween(*before, *graph)) : std::nullopt);
   next_id_ = graph->next_id;
   entries_.push_back({.fingerprint = fingerprint, .graph = std::move(*graph)});
   if (entries_.size() > kCapacity) {
@@ -54,6 +61,21 @@ OptionalRoomGraph RoomCache::Current() const {
 
 std::optional<uint64_t> RoomCache::CurrentFingerprint() const {
   return current_;
+}
+
+std::optional<RoomChanges> RoomCache::ChangesSince(uint64_t seen) const {
+  if (seen == switches_) {
+    return RoomChanges {};
+  }
+  if (seen + 1 == switches_) {
+    return last_changes_;
+  }
+  return std::nullopt;
+}
+
+void RoomCache::Switch(std::optional<RoomChanges> changes) {
+  ++switches_;
+  last_changes_ = std::move(changes);
 }
 
 }  // namespace z13::station::rooms

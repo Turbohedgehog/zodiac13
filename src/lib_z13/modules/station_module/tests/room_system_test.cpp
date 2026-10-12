@@ -131,6 +131,23 @@ size_t CountColoured(Z13TestWorld& world, const Rgba& color) {
   return static_cast<size_t>(std::ranges::count(world.World().get<RoomOverlay>().boxes, color, &OverlayBox::color));
 }
 
+int64_t RoomsVolume(Z13TestWorld& world) {
+  const RoomGraph& graph = Graph(world);
+  const std::vector<rooms::RoomId> inside_rooms = graph.ByAnchor();
+  return std::accumulate(inside_rooms.begin(), inside_rooms.end(), int64_t {},
+                         [&graph](int64_t sum, rooms::RoomId room) { return sum + graph.rooms.at(room).volume_cells; });
+}
+
+int64_t RoomBoxesVolume(Z13TestWorld& world) {
+  int64_t volume = 0;
+  for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
+    if (box.color == kRoomOverlayColor) {
+      volume += static_cast<int64_t>(box.extent.x()) * box.extent.y() * box.extent.z();
+    }
+  }
+  return volume;
+}
+
 TEST(RoomSystemTest, TheOverlayShowsASeenBoxShapedRoomAsOneBox) {
   Z13TestWorld world = StationWorld();
   world.Tick();
@@ -210,6 +227,21 @@ TEST(RoomSystemTest, TheOverlayShowsEveryRoomAndPortalInAllMode) {
 
   EXPECT_GE(CountColoured(world, kRoomOverlayColor), 2U);
   EXPECT_EQ(CountColoured(world, kDoorOverlayColor), 1U);
+}
+
+// The boxes of a room split by the partition are made again, the others' kept.
+TEST(RoomSystemTest, TheOverlayFollowsTheRoomsAnEditChanges) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  world.Tick();
+  ShowRooms(world, RoomOverlayMode::kAll);
+
+  AddBlocks(world, DoorPartition());
+  ShowRooms(world, RoomOverlayMode::kAll);
+
+  EXPECT_EQ(Graph(world).ByAnchor().size(), 2U);
+  EXPECT_EQ(RoomBoxesVolume(world), RoomsVolume(world));
 }
 
 TEST(RoomSystemTest, TheOverlayIsEmptyWhenOff) {
@@ -374,18 +406,7 @@ TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
 
   ShowRooms(world, RoomOverlayMode::kAll);
 
-  const RoomGraph& graph = Graph(world);
-  const std::vector<rooms::RoomId> inside_rooms = graph.ByAnchor();
-  const int64_t rooms_volume =
-      std::accumulate(inside_rooms.begin(), inside_rooms.end(), int64_t {},
-                      [&graph](int64_t sum, rooms::RoomId room) { return sum + graph.rooms.at(room).volume_cells; });
-  int64_t boxes_volume = 0;
-  for (const OverlayBox& box : world.World().get<RoomOverlay>().boxes) {
-    if (box.color == kRoomOverlayColor) {
-      boxes_volume += static_cast<int64_t>(box.extent.x()) * box.extent.y() * box.extent.z();
-    }
-  }
-  EXPECT_EQ(boxes_volume, rooms_volume);
+  EXPECT_EQ(RoomBoxesVolume(world), RoomsVolume(world));
 }
 
 INSTANTIATE_TEST_SUITE_P(
