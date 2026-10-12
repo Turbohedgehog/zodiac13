@@ -113,6 +113,8 @@ if(Z13_BUILD_BENCHMARKS)
     PROJECT_SOURCE_FILES
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/partition_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/partition/kd_partition.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
@@ -122,6 +124,12 @@ endif()
 # Standalone DLL exercising lib_core and lib_z13.
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+if(Z13_BUILD_BENCHMARKS)
+  # The space partition prototype (station_module/tests/bench/partition).
+  find_package(Boost REQUIRED COMPONENTS geometry graph)
+  target_link_libraries(${PROJECT_NAME} PRIVATE Boost::geometry Boost::graph)
+endif()
 
 # Third-party test headers (reflect-cpp, gtest, flecs meta) are noisy under /W4.
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_WARNING_AS_ERROR OFF)

@@ -15,6 +15,8 @@
     "boost-multi-index",
     "boost-algorithm",
     "boost-container",
+    "boost-geometry",
+    "boost-graph",
     "eigen3",
     "flecs",
     "gtest",
@@ -59,6 +61,14 @@
     },
     {
       "name": "boost-container",
+      "version": "1.91.0#0"
+    },
+    {
+      "name": "boost-geometry",
+      "version": "1.91.0#0"
+    },
+    {
+      "name": "boost-graph",
       "version": "1.91.0#0"
     },
     {
