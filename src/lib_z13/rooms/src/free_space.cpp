@@ -22,7 +22,9 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <unordered_set>
 
+#include <boost/container_hash/hash.hpp>
 #include <boost/iterator/function_output_iterator.hpp>
 
 #include <rooms/room_graph.h>
@@ -40,6 +42,7 @@ constexpr int kAxes = 3;
 constexpr int kMargin = 1;
 
 using Binned = std::unordered_map<Eigen::Vector3i, std::vector<CellBox>, z13::building::primitives::CellHash>;
+using KeySet = std::unordered_set<Eigen::Vector3i, z13::building::primitives::CellHash>;
 
 LeafBox ToLeafBox(const CellBox& box) {
   return {{box.min.x(), box.min.y(), box.min.z()}, {box.End().x(), box.End().y(), box.End().z()}};
@@ -155,14 +158,8 @@ std::shared_ptr<const FreeChunk> BuildChunk(const CellBox& region, const std::ve
   return std::make_shared<const FreeChunk>(std::move(chunk));
 }
 
-}  // namespace
-
-std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox>& sealed, int chunk_cells) {
-  FreeSpace space;
-  space.chunk_cells_ = chunk_cells;
-  if (sealed.empty()) {
-    return space;
-  }
+// The sealed boxes' bounds and a free cell around them.
+CellBox BoundsOf(const std::vector<CellBox>& sealed) {
   Eigen::Vector3i low = sealed.front().min;
   Eigen::Vector3i high = sealed.front().End();
   for (const CellBox& box : sealed) {
@@ -171,26 +168,111 @@ std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox
   }
   low -= Eigen::Vector3i::Constant(kMargin);
   high += Eigen::Vector3i::Constant(kMargin);
-  space.bounds_ = {.min = low, .extent = high - low};
-  const Eigen::Vector3i first = ChunkOf(low, chunk_cells);
-  const Eigen::Vector3i last = ChunkOf(high - Eigen::Vector3i::Ones(), chunk_cells);
-  const Eigen::Vector3i counts = last - first + Eigen::Vector3i::Ones();
+  return {.min = low, .extent = high - low};
+}
+
+struct ChunkRange {
+  Eigen::Vector3i first = Eigen::Vector3i::Zero();
+  Eigen::Vector3i last = Eigen::Vector3i::Zero();
+};
+
+ChunkRange RangeOf(const CellBox& cells, int chunk_cells) {
+  return {.first = ChunkOf(cells.min, chunk_cells), .last = ChunkOf(cells.End() - Eigen::Vector3i::Ones(), chunk_cells)};
+}
+
+std::expected<CellBox, std::string> AreaOf(const ChunkRange& range, int chunk_cells) {
+  const Eigen::Vector3i counts = range.last - range.first + Eigen::Vector3i::Ones();
   if (static_cast<size_t>(counts.cast<int64_t>().prod()) > kMaxChunks) {
     return std::unexpected(std::format("the station spans {}x{}x{} chunks, more than the {} rooms are built over",
                                        counts.x(), counts.y(), counts.z(), kMaxChunks));
   }
-  space.area_ = {.min = first * chunk_cells, .extent = counts * chunk_cells};
+  return CellBox {.min = range.first * chunk_cells, .extent = counts * chunk_cells};
+}
+
+// The sealed boxes touching each of `keys`.
+Binned BinInto(const std::vector<CellBox>& sealed, const KeySet& keys, int chunk_cells) {
   Binned binned;
   for (const CellBox& box : sealed) {
-    ForEachChunk(ChunkOf(box.min, chunk_cells), ChunkOf(box.End() - Eigen::Vector3i::Ones(), chunk_cells),
-                 [&](const Eigen::Vector3i& chunk) { binned[chunk].push_back(box); });
+    const ChunkRange range = RangeOf(box, chunk_cells);
+    ForEachChunk(range.first, range.last, [&](const Eigen::Vector3i& chunk) {
+      if (keys.contains(chunk)) {
+        binned[chunk].push_back(box);
+      }
+    });
   }
-  ForEachChunk(first, last, [&](const Eigen::Vector3i& chunk) {
-    const auto found = binned.find(chunk);
-    const CellBox region {.min = chunk * chunk_cells, .extent = Eigen::Vector3i::Constant(chunk_cells)};
-    space.chunks_.emplace(chunk, BuildChunk(region, found == binned.end() ? std::vector<CellBox> {} : found->second));
-  });
+  return binned;
+}
+
+std::shared_ptr<const FreeChunk> BuildChunkAt(const Eigen::Vector3i& key, const Binned& binned, int chunk_cells) {
+  const auto found = binned.find(key);
+  const CellBox region {.min = key * chunk_cells, .extent = Eigen::Vector3i::Constant(chunk_cells)};
+  return BuildChunk(region, found == binned.end() ? std::vector<CellBox> {} : found->second);
+}
+
+}  // namespace
+
+std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox>& sealed, int chunk_cells) {
+  FreeSpace space;
+  space.chunk_cells_ = chunk_cells;
+  if (sealed.empty()) {
+    return space;
+  }
+  space.bounds_ = BoundsOf(sealed);
+  const ChunkRange range = RangeOf(space.bounds_, chunk_cells);
+  auto area = AreaOf(range, chunk_cells);
+  if (!area) {
+    return std::unexpected(std::move(area.error()));
+  }
+  space.area_ = *area;
+  KeySet keys;
+  ForEachChunk(range.first, range.last, [&](const Eigen::Vector3i& chunk) { keys.insert(chunk); });
+  const Binned binned = BinInto(sealed, keys, chunk_cells);
+  for (const Eigen::Vector3i& key : keys) {
+    space.chunks_.emplace(key, BuildChunkAt(key, binned, chunk_cells));
+  }
   return space;
+}
+
+std::expected<RebuiltSpace, std::string> FreeSpace::Rebuilt(const std::vector<CellBox>& sealed,
+                                                            const std::vector<CellBox>& changed) const {
+  if (sealed.empty() || chunks_.empty()) {
+    auto built = Build(sealed, chunk_cells_);
+    if (!built) {
+      return std::unexpected(std::move(built.error()));
+    }
+    RebuiltSpace rebuilt {.space = std::move(*built)};
+    rebuilt.rebuilt = rebuilt.space.OrderedChunks();
+    return rebuilt;
+  }
+  RebuiltSpace rebuilt {.space = *this};
+  FreeSpace& space = rebuilt.space;
+  space.bounds_ = BoundsOf(sealed);
+  const ChunkRange old_range = RangeOf(area_, chunk_cells_);
+  const ChunkRange new_range = RangeOf(space.bounds_, chunk_cells_);
+  const ChunkRange range {.first = old_range.first.cwiseMin(new_range.first),
+                          .last = old_range.last.cwiseMax(new_range.last)};
+  auto area = AreaOf(range, chunk_cells_);
+  if (!area) {
+    return std::unexpected(std::move(area.error()));
+  }
+  space.area_ = *area;
+  KeySet keys;
+  for (const CellBox& box : changed) {
+    const ChunkRange touched = RangeOf(box, chunk_cells_);
+    ForEachChunk(touched.first, touched.last, [&](const Eigen::Vector3i& chunk) { keys.insert(chunk); });
+  }
+  ForEachChunk(range.first, range.last, [&](const Eigen::Vector3i& chunk) {
+    if (!chunks_.contains(chunk)) {
+      keys.insert(chunk);
+    }
+  });
+  const Binned binned = BinInto(sealed, keys, chunk_cells_);
+  for (const Eigen::Vector3i& key : keys) {
+    space.chunks_[key] = BuildChunkAt(key, binned, chunk_cells_);
+    rebuilt.rebuilt.push_back(key);
+  }
+  std::ranges::sort(rebuilt.rebuilt, AnchorBefore);
+  return rebuilt;
 }
 
 std::vector<Eigen::Vector3i> FreeSpace::OrderedChunks() const {
@@ -198,6 +280,12 @@ std::vector<Eigen::Vector3i> FreeSpace::OrderedChunks() const {
   std::ranges::transform(chunks_, std::back_inserter(keys), [](const auto& chunk) { return chunk.first; });
   std::ranges::sort(keys, AnchorBefore);
   return keys;
+}
+
+size_t LeafRefHash::operator()(const LeafRef& ref) const {
+  size_t hash = z13::building::primitives::CellHash {}(ref.chunk);
+  boost::hash_combine(hash, ref.leaf);
+  return hash;
 }
 
 size_t FreeSpace::LeafCount() const {

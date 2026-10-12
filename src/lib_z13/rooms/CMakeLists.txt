@@ -16,6 +16,8 @@ set(
   src/room_cache.cpp
   src/room_graph.cpp
   src/room_overlap.cpp
+  src/room_parts.cpp
+  src/room_update.cpp
   src/room_visibility.cpp
   src/topology_fingerprint.cpp
   src/tour_viewpoints.cpp

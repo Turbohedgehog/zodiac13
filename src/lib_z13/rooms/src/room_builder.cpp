@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <cstddef>
 #include <memory>
 #include <numeric>
@@ -28,7 +29,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
-#include "room_builder_types.h"
+#include "room_parts.h"
 
 namespace z13::station::rooms {
 
@@ -76,21 +77,6 @@ std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& 
   return set_of;
 }
 
-void Absorb(RoomExtent& room, const CellBox& leaf) {
-  if (AnchorBefore(leaf.min, room.anchor)) {
-    room.anchor = leaf.min;
-  }
-  room.low = room.low.cwiseMin(leaf.min);
-  room.high = room.high.cwiseMax(leaf.End());
-  room.volume += leaf.extent.cast<int64_t>().prod();
-}
-
-Room ToRoom(const RoomExtent& extent) {
-  return {.anchor = extent.anchor,
-          .volume_cells = extent.volume,
-          .bounds = {.min = extent.low, .extent = extent.high - extent.low}};
-}
-
 // Names the connected sets: the vacuum's set is room 0, the rest get ids by anchor from
 // `first_id`. Fills the graph's rooms and the room of every leaf.
 void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of, RoomId first_id, RoomGraph& graph) {
@@ -101,9 +87,10 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
       continue;
     }
     const CellBox& leaf = graph.space.Leaf(numbered.leaves[i]);
-    auto& extent = extents.try_emplace(set_of[i], RoomExtent {.anchor = leaf.min, .low = leaf.min, .high = leaf.End()})
-                       .first->second;
-    Absorb(extent, leaf);
+    const auto [extent, added] = extents.try_emplace(set_of[i], ExtentOf(leaf));
+    if (!added) {
+      Absorb(extent->second, leaf);
+    }
   }
   std::vector<std::pair<size_t, RoomExtent>> by_anchor(extents.begin(), extents.end());
   std::ranges::sort(by_anchor,
@@ -126,80 +113,6 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
   }
 }
 
-// The leaves in `side`, one cell thick across `axis`, as patches on the face.
-std::vector<FacePatch> PatchesOn(const RoomGraph& graph, const CellBox& side, size_t axis) {
-  const auto u = static_cast<Eigen::Index>((axis + 1) % 3);
-  const auto v = static_cast<Eigen::Index>((axis + 2) % 3);
-  std::vector<FacePatch> patches;
-  for (const LeafRef& ref : graph.space.LeavesIn(side)) {
-    const CellBox cut = graph.space.Leaf(ref).Intersection(side);
-    patches.push_back(
-        {.min = {cut.min[u], cut.min[v]}, .end = {cut.End()[u], cut.End()[v]}, .room = graph.RoomOf(ref)});
-  }
-  return patches;
-}
-
-int OverlapArea(const FacePatch& a, const FacePatch& b) {
-  const Eigen::Vector2i size = a.end.cwiseMin(b.end) - a.min.cwiseMax(b.min);
-  return (size.array() > 0).all() ? size.x() * size.y() : 0;
-}
-
-// The rooms on the two sides of each opening's face, counted per pair of rooms by the
-// cells where the leaves on both sides meet.
-void AddPortals(const RoomSources& sources, RoomGraph& graph) {
-  std::vector<PortalSource> ordered = sources.portals;
-  std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
-    return AnchorBefore(a.opening.min, b.opening.min);
-  });
-  for (const PortalSource& source : ordered) {
-    const auto axis = static_cast<size_t>(source.axis);
-    const auto index = static_cast<Eigen::Index>(axis);
-    CellBox before = source.opening;
-    before.extent[index] = 1;
-    --before.min[index];
-    CellBox after = before;
-    after.min[index] += source.opening.extent[index] + 1;
-    const std::vector<FacePatch> low_patches = PatchesOn(graph, before, axis);
-    const std::vector<FacePatch> high_patches = PatchesOn(graph, after, axis);
-    std::vector<OpeningShare> shares;
-    for (const FacePatch& low : low_patches) {
-      for (const FacePatch& high : high_patches) {
-        const int area = OverlapArea(low, high);
-        if (area == 0 || low.room == high.room) {
-          continue;
-        }
-        const std::pair pair {std::min(low.room, high.room), std::max(low.room, high.room)};
-        const auto found = std::ranges::find(shares, pair, &OpeningShare::rooms);
-        if (found == shares.end()) {
-          shares.push_back({.rooms = pair, .area_cells = area, .low_side = low.room});
-        } else {
-          found->area_cells += area;
-        }
-      }
-    }
-    std::ranges::sort(shares, {}, &OpeningShare::rooms);
-    for (const OpeningShare& share : shares) {
-      graph.portals.push_back({.a = share.rooms.first,
-                               .b = share.rooms.second,
-                               .area_cells = share.area_cells,
-                               .visible = source.visible,
-                               .passable = source.passable,
-                               .opening = source.opening,
-                               .axis = source.axis,
-                               .low_side = share.low_side});
-    }
-  }
-}
-
-std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const RoomGraph& graph) {
-  std::unordered_map<RoomId, std::vector<size_t>> by_room;
-  for (size_t i = 0; i < graph.portals.size(); ++i) {
-    by_room[graph.portals[i].a].push_back(i);
-    by_room[graph.portals[i].b].push_back(i);
-  }
-  return by_room;
-}
-
 }  // namespace
 
 std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id, int chunk_cells) {
@@ -210,8 +123,16 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, Roo
   RoomGraph graph {.space = std::move(*space), .next_id = first_id};
   const NumberedLeaves numbered = NumberLeaves(graph.space);
   NameRooms(numbered, ConnectedSets(graph.space, numbered), first_id, graph);
-  AddPortals(sources, graph);
-  graph.room_portals = PortalsByRoom(graph);
+  std::vector<PortalSource> ordered = sources.portals;
+  std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
+    return AnchorBefore(a.opening.min, b.opening.min);
+  });
+  for (const PortalSource& source : ordered) {
+    std::ranges::copy(PortalsThrough(graph, source), std::back_inserter(graph.portals));
+  }
+  graph.room_portals = PortalsByRoom(graph.portals);
+  graph.sources = sources;
+  std::ranges::sort(graph.sources.sealed, SealedBefore);
   return graph;
 }
 

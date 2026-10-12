@@ -29,7 +29,7 @@ constexpr uint64_t kFirst = 1;
 constexpr uint64_t kSecond = 2;
 
 RoomCache::Build Counting(int& builds, size_t rooms) {
-  return [&builds, rooms](RoomId first_id) -> std::expected<RoomGraph, std::string> {
+  return [&builds, rooms](RoomId first_id, OptionalRoomGraph) -> std::expected<RoomGraph, std::string> {
     ++builds;
     RoomGraph graph {.next_id = first_id};
     for (size_t i = 0; i < rooms; ++i) {
@@ -81,7 +81,7 @@ TEST(RoomCacheTest, AFailedBuildLeavesNoCurrentGraph) {
   int builds {};
   ASSERT_TRUE(cache.Select(kFirst, Counting(builds, 1)).has_value());
 
-  const auto failed = cache.Select(kSecond, [](RoomId) -> std::expected<RoomGraph, std::string> {
+  const auto failed = cache.Select(kSecond, [](RoomId, OptionalRoomGraph) -> std::expected<RoomGraph, std::string> {
     return std::unexpected("too wide");
   });
 

@@ -31,7 +31,7 @@ std::expected<std::reference_wrapper<const RoomGraph>, std::string> RoomCache::S
     current_ = fingerprint;
     return std::cref(entries_.back().graph);
   }
-  auto graph = build(next_id_);
+  auto graph = build(next_id_, Current());
   if (!graph) {
     current_.reset();
     return std::unexpected(std::move(graph.error()));

@@ -25,13 +25,9 @@
 #include <primitives/placement.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_graph.h>
+#include <rooms/room_sources.h>
 
 namespace z13::station::rooms {
-
-struct RoomSources {
-  std::vector<z13::building::primitives::CellBox> sealed;
-  std::vector<PortalSource> portals;
-};
 
 // Splits the free space into rooms, the connected sets of its leaves (FreeSpace). Free
 // space that reaches the edge of the station's bounds, or has no floor or roof, is the

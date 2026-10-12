@@ -29,6 +29,7 @@
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>
 #include <rooms/room_cache.h>
+#include <rooms/room_update.h>
 
 #include "topology_sources.h"
 
@@ -70,9 +71,11 @@ void UpdateRooms(const BlockQuery& blocks, TopologyVersion& topology, RoomCache&
     topology.fingerprint = gathered.fingerprint;
     ++topology.version;
   }
-  const auto graph = cache.Select(gathered.fingerprint, [&gathered, &tuning](rooms::RoomId first_id) {
-    return rooms::BuildRooms(gathered.sources, first_id, tuning.room_chunk_cells);
-  });
+  const auto graph = cache.Select(
+      gathered.fingerprint, [&gathered, &tuning](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
+        return current ? rooms::UpdateRooms(*current, gathered.sources, first_id, tuning.room_chunk_cells)
+                       : rooms::BuildRooms(gathered.sources, first_id, tuning.room_chunk_cells);
+      });
   if (!graph) {
     log_error("station: no rooms: {}", graph.error());
   }

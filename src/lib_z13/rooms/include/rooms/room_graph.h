@@ -31,11 +31,15 @@
 #include <rooms/free_space.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_id.h>
+#include <rooms/room_sources.h>
 
 namespace z13::station::rooms {
 
 // Orders cells by (z, y, x), as anchors are compared.
 bool AnchorBefore(const Eigen::Vector3i& first, const Eigen::Vector3i& second);
+
+// A strict order of sealed boxes, so two source lists compare by a merge.
+bool SealedBefore(const z13::building::primitives::CellBox& first, const z13::building::primitives::CellBox& second);
 
 // A connected free volume. Its identity is `anchor`, the lowest cell by (z, y, x): it
 // survives a rebuild that doesn't change the room's lowest cell.
@@ -75,6 +79,9 @@ struct RoomGraph {
       leaf_rooms;
   // The first id no room of this graph or of the graphs it was built from has had.
   RoomId next_id {kVacuumRoom + 1};
+  // What the graph was built from, sealed boxes sorted by SealedBefore: the next update
+  // compares the new sources with these.
+  RoomSources sources;
 
   // Nothing for a sealed cell; the vacuum outside the free space's area.
   std::optional<RoomId> RoomAt(const Eigen::Vector3i& cell) const;

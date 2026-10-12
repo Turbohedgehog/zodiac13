@@ -17,12 +17,17 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <Eigen/Dense>
 
 #include <primitives/placement.h>
+#include <rooms/portal_source.h>
+#include <rooms/room_graph.h>
 #include <rooms/room_id.h>
 
 namespace z13::station::rooms {
@@ -50,5 +55,15 @@ struct OpeningShare {
   int area_cells {};
   RoomId low_side {};
 };
+
+RoomExtent ExtentOf(const z13::building::primitives::CellBox& leaf);
+void Absorb(RoomExtent& room, const z13::building::primitives::CellBox& leaf);
+Room ToRoom(const RoomExtent& extent);
+
+// The portals of one opening, a portal per pair of rooms its face joins, by pair.
+std::vector<Portal> PortalsThrough(const RoomGraph& graph, const PortalSource& source);
+// Portals in the graph's order: by opening, then by pair.
+bool PortalBefore(const Portal& first, const Portal& second);
+std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const std::vector<Portal>& portals);
 
 }  // namespace z13::station::rooms

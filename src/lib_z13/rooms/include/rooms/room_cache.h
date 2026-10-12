@@ -40,8 +40,9 @@ struct RoomCacheEntry {
 class RoomCache {
  public:
   using Singleton = void;
-  // Builds a graph whose new rooms get ids from the one given on.
-  using Build = std::function<std::expected<RoomGraph, std::string>(RoomId)>;
+  // Builds a graph whose new rooms get ids from the one given on, from the current graph
+  // if there is one.
+  using Build = std::function<std::expected<RoomGraph, std::string>(RoomId, OptionalRoomGraph)>;
 
   static constexpr size_t kCapacity = 4;
 

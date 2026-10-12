@@ -58,6 +58,12 @@ struct LeafRef {
   bool operator==(const LeafRef&) const = default;
 };
 
+struct LeafRefHash {
+  size_t operator()(const LeafRef& ref) const;
+};
+
+struct RebuiltSpace;
+
 // The most chunks the station's free space may span, which keeps a stray block far from
 // the rest from filling the space in between.
 inline constexpr size_t kMaxChunks = 64u * 1024u;
@@ -73,6 +79,10 @@ class FreeSpace {
   FreeSpace() = default;
   static std::expected<FreeSpace, std::string> Build(const std::vector<z13::building::primitives::CellBox>& sealed,
                                                      int chunk_cells);
+  // A copy with the chunks the `changed` boxes touch cut again from `sealed`, and the area
+  // grown to cover the new bounds (it never shrinks); every other chunk is shared.
+  std::expected<RebuiltSpace, std::string> Rebuilt(const std::vector<z13::building::primitives::CellBox>& sealed,
+                                                   const std::vector<z13::building::primitives::CellBox>& changed) const;
 
   int ChunkCells() const { return chunk_cells_; }
   // The sealed boxes' bounds and a free cell around them; zero without any.
@@ -99,6 +109,12 @@ class FreeSpace {
   z13::building::primitives::CellBox bounds_;
   z13::building::primitives::CellBox area_;
   Chunks chunks_;
+};
+
+struct RebuiltSpace {
+  FreeSpace space;
+  // The chunks cut again or added, by AnchorBefore.
+  std::vector<Eigen::Vector3i> rebuilt;
 };
 
 }  // namespace z13::station::rooms

@@ -25,6 +25,12 @@ bool AnchorBefore(const Eigen::Vector3i& first, const Eigen::Vector3i& second) {
   return std::tuple(first.z(), first.y(), first.x()) < std::tuple(second.z(), second.y(), second.x());
 }
 
+bool SealedBefore(const z13::building::primitives::CellBox& first, const z13::building::primitives::CellBox& second) {
+  return std::tuple(first.min.x(), first.min.y(), first.min.z(), first.extent.x(), first.extent.y(), first.extent.z()) <
+         std::tuple(second.min.x(), second.min.y(), second.min.z(), second.extent.x(), second.extent.y(),
+                    second.extent.z());
+}
+
 std::vector<RoomId> RoomGraph::ByAnchor() const {
   std::vector<RoomId> ids;
   ids.reserve(rooms.size());
