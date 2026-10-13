@@ -22,6 +22,7 @@
 
 #include <raymath.h>
 
+#include <lib_profile/profile.h>
 #include <primitives/chunk_mesh.h>
 #include <primitives/draw_order.h>
 
@@ -65,6 +66,7 @@ bool BlockChunks::State::SyncedWith(int chunk_cells, OptionalPalette palette) co
 
 void BlockChunks::State::Sync(
     std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) {
+  Z13_PROFILE_ZONE("BlockChunks::Sync");
   if (!SyncedWith(chunk_cells, palette)) {
     opaque_ = {};
     transparent_ = {};

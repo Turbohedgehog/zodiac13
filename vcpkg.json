@@ -33,7 +33,14 @@
         "opengl3-binding"
       ]
     },
-    "reflectcpp"
+    "reflectcpp",
+    {
+      "name": "tracy",
+      "default-features": false,
+      "features": [
+        "on-demand"
+      ]
+    }
   ],
   "overrides": [
     {

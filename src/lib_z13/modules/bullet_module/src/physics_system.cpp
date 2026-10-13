@@ -37,6 +37,7 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
@@ -138,6 +139,7 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
 
 void SyncBlockTables(
     const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, OptionalPalette palette) {
+  Z13_PROFILE_ZONE("SyncBlockTables");
   ReleaseOrphanBodies(world, physics_world);
   blocks.run([&physics_world, palette](flecs::iter& it) {
     while (it.next()) {

@@ -48,6 +48,7 @@
 #include <lib_core/utils/drawn_poses.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
@@ -409,6 +410,7 @@ BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
 }
 
 std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
+  Z13_PROFILE_ZONE("CollectBlocks");
   std::vector<z13::station::Block> blocks;
   query.each([&blocks](const z13::station::Block& block) { blocks.push_back(block); });
   return blocks;

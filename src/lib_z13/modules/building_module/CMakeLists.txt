@@ -90,7 +90,7 @@ install(EXPORT ${PROJECT_NAME}Targets
 )
 
 set(MODULE_TARGET_PATH "modules/building_module")
-set(MODULE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${MODULE_TARGET_PATH}")
+set(MODULE_OUTPUT_DIR "${Z13_BIN_DIR}/${MODULE_TARGET_PATH}")
 
 # Output layout matches z13_module/CMakeLists.txt and the path in z13_config.yaml.
 set_target_properties(${PROJECT_NAME} PROPERTIES

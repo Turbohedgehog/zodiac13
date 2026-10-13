@@ -32,6 +32,7 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/status.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
@@ -90,6 +91,7 @@ void RegisterComponents(flecs::world world) {
 }
 
 void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning) {
+  Z13_PROFILE_ZONE("RebuildIndex");
   index = BlockIndex(tuning.index_chunk_cells);
   blocks.each([&index](flecs::entity e, const Block& block) { index.Insert(e.id(), OccupiedCells(block)); });
 }

@@ -29,6 +29,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include <lib_profile/profile.h>
 #include <rooms/openings.h>
 
 #include "numbered_leaves.h"
@@ -43,6 +44,7 @@ using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirec
 
 // Per leaf, its connected set; the leaves open to space join the vertex after the last leaf.
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered) {
+  Z13_PROFILE_ZONE("ConnectedSets");
   const size_t vacuum = numbered.Leaves().size();
   LeafGraph graph(vacuum + 1);
   for (size_t i = 0; i < numbered.Leaves().size(); ++i) {
@@ -100,6 +102,7 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
 
 std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id,
                                                  const RoomSettings& settings) {
+  Z13_PROFILE_ZONE("BuildRooms");
   std::vector<PortalSource> openings = FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells);
   auto space = FreeSpace::Build(SealedWith(sources.sealed, openings), settings.chunk_cells);
   if (!space) {

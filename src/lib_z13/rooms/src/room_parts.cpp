@@ -21,6 +21,8 @@
 #include <iterator>
 #include <tuple>
 
+#include <lib_profile/profile.h>
+
 namespace z13::station::rooms {
 
 namespace {
@@ -85,6 +87,7 @@ Room ToRoom(const RoomExtent& extent) {
 // The rooms on the two sides of the opening's face, counted per pair of rooms by the cells
 // where the leaves on both sides meet.
 std::vector<Portal> PortalsThrough(const RoomGraph& graph, const PortalSource& source) {
+  Z13_PROFILE_ZONE("PortalsThrough");
   const auto axis = static_cast<size_t>(source.axis);
   const auto index = static_cast<Eigen::Index>(axis);
   CellBox before = source.opening;

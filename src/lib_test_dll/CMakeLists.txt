@@ -56,11 +56,11 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
 # on Unix, since the module path in z13_config.yaml has no such prefix.
 set_target_properties(${PROJECT_NAME} PROPERTIES
     PREFIX ""
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/modules/test_dll
+    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/modules/test_dll
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/modules/test_dll
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/modules/test_dll
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/modules/test_dll
 )
 

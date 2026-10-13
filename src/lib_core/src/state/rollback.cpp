@@ -26,6 +26,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_profile/profile.h>
 
 namespace z13::flecs_tools {
 
@@ -67,6 +68,7 @@ void ApplyPendingRollback(flecs::world& world) {
   if (!request.to_tick) {
     return;
   }
+  Z13_PROFILE_ZONE("ApplyPendingRollback");
   const uint64_t to_tick = *request.to_tick;
   const uint64_t target_tick = request.target_tick;
   request.to_tick.reset();
@@ -124,6 +126,7 @@ bool IsLastReplayFrame(flecs::world& world) {
 void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
   const uint64_t max_frames = world.get<ActiveCoreSettings>().max_catch_up_ticks_per_frame;
   for (uint64_t frame = 0; frame <= max_frames; ++frame) {
+    Z13_PROFILE_ZONE("SimulationFrame");
     StartFrame(world, frame == 0 || IsLastReplayFrame(world) ? kind : FrameKind::kReplay);
     world.progress(delta_time);
     ApplyPendingRollback(world);
@@ -183,6 +186,7 @@ bool IsCatchingUp(flecs::world world) {
 }
 
 void TickWorld(flecs::world& world, float delta_time, FrameKind kind) {
+  Z13_PROFILE_ZONE("TickWorld");
   ApplySimulationFreeze(world);
   const int64_t adjust = world.has<ClockAdjustRequest>() ? std::exchange(world.get_mut<ClockAdjustRequest>().ticks, 0) : 0;
   if (adjust < 0) {

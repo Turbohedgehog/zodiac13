@@ -52,6 +52,7 @@ target_link_libraries(
   zodiac13::fbs_schemas
   zodiac13::primitives
   zodiac13::z13_grid
+  zodiac13::z13_profile
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

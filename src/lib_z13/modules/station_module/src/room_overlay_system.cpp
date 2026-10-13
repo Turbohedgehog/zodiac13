@@ -28,6 +28,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/player.h>
 #include <z13/components/rooms.h>
@@ -108,6 +109,7 @@ void AddSeenPortals(const RoomGraph& graph, const std::vector<uint32_t>& seen, s
 }
 
 std::vector<OverlayBox> Boxes(const RoomCache& cache, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
+  Z13_PROFILE_ZONE("RoomOverlay::Boxes");
   const RoomGraph& graph = cache.Current()->get();
   std::vector<OverlayBox> boxes;
   const Rgba room_color = shown.mode == RoomOverlayMode::kSeen ? kSeenRoomOverlayColor : kRoomOverlayColor;

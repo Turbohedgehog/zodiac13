@@ -26,6 +26,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
@@ -58,6 +59,7 @@ namespace fbn = fbs::net;
 namespace zgi = z13::gameplay::input;
 
 Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
+  Z13_PROFILE_ZONE("JoinFromWelcome");
   auto payload = DecodeCatchUp(welcome.catch_up);
   if (!payload) {
     return std::unexpected("corrupt snapshot");
@@ -97,6 +99,7 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
 
 // Unlike a join, never moves this clock backwards.
 void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
+  Z13_PROFILE_ZONE("HandleResync");
   auto payload = DecodeCatchUp(resync.catch_up);
   const uint64_t target_tick = std::max(payload ? payload->server_tick : 0, world.get<ft::SimulationClock>().tick);
   if (!payload || !IsPlausibleCatchUp(world, payload->snapshot_tick, target_tick)) {

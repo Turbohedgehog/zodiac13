@@ -28,6 +28,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/block_change_reader.h>
 #include <z13/components/gameplay_phases.h>
@@ -94,6 +95,7 @@ void UpdateRooms(BlockChangeReader& reader, uint64_t restores, uint64_t tick, To
   if (!batch.resync && batch.changes.empty()) {
     return;
   }
+  Z13_PROFILE_ZONE("RoomSystem::UpdateRooms");
   const rooms::RoomSettings settings = RoomSettingsOf(tuning);
   uint64_t fingerprint {};
   rooms::RoomCache::Build build;

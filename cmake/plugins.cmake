@@ -1,8 +1,6 @@
 # Z13_PLUGINS: every shared library that builds into bin/modules/ — the plugins the
 # launcher loads at runtime. Include after all add_subdirectory() calls.
 
-set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
-
 function(z13_collect_plugins directory out_var)
     set(plugins ${${out_var}})
     get_property(targets DIRECTORY ${directory} PROPERTY BUILDSYSTEM_TARGETS)

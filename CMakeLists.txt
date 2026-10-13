@@ -49,6 +49,10 @@ set(PROJECT_VERSION 0.2.0 CACHE PATH "Z13 version" FORCE)
 
 # Benchmarks (tests/bench/) run for minutes and only matter when measuring: `make.py --bench`.
 option(Z13_BUILD_BENCHMARKS "Build the benchmark tests under tests/bench/" OFF)
+# Tracy zones (lib_profile/profile.h); off, they compile to nothing.
+option(Z13_PROFILE "Build with Tracy profiler zones" OFF)
+# One per build directory, so a Release build (make.py -br: bin-release/) doesn't overwrite Debug.
+set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE PATH "Where the executable, plugins, tests, config/ and assets/ go")
 
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -69,6 +73,7 @@ else()
     add_compile_options(-ffp-contract=off)
 endif()
 
+add_subdirectory(src/lib_profile)
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/zodiac13)
@@ -82,7 +87,7 @@ add_subdirectory(src/tests)
 add_custom_target(z13_config ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/config
-            ${CMAKE_SOURCE_DIR}/bin/config
+            ${Z13_BIN_DIR}/config
     COMMENT "Copying config/ -> bin/config/"
     VERBATIM
 )
@@ -90,7 +95,7 @@ add_custom_target(z13_config ALL
 add_custom_target(z13_assets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
             ${CMAKE_SOURCE_DIR}/assets
-            ${CMAKE_SOURCE_DIR}/bin/assets
+            ${Z13_BIN_DIR}/assets
     COMMENT "Copying assets/ -> bin/assets/"
     VERBATIM
 )

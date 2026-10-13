@@ -31,6 +31,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/action_map.h>
 #include <z13/components/player_action.h>
@@ -80,6 +81,7 @@ ScheduledCommandTick ScheduleTick(
 Status SendWelcome(
     NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id,
     std::vector<uint32_t> action_ids) {
+  Z13_PROFILE_ZONE("SendWelcome");
   auto catch_up = MakeCatchUp(world);
   if (!catch_up) {
     return std::unexpected(catch_up.error());

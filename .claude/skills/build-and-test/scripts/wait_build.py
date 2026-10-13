@@ -38,7 +38,8 @@ def errors(log: str) -> list[str]:
 
 def status(log_dir: Path) -> int:
     build = read(log_dir / "build.log")
-    steps = re.findall(r"^\[\d+/\d+\]", build, re.M)
+    # Ninja prints [n/N], Make [ nn%].
+    steps = re.findall(r"^\[(?:\d+/\d+| *\d+%)\]", build, re.M)
     print(f"build: {steps[-1] if steps else 'not started'} exit={exit_code(build)}")
     print(f"errors so far: {sum(1 for line in build.splitlines() if ERROR.search(line))}")
     print("\n".join(errors(build)))
