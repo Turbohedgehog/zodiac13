@@ -43,7 +43,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/gravity.h>
-#include <z13/components/input.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/station.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>

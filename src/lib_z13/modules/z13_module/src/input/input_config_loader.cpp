@@ -35,7 +35,8 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/status.h>
 #include <z13_settings/environment.h>
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
 
 #include <input_config_generated.h>
 
@@ -91,7 +92,7 @@ void AppendDefaultKeycodes(z13::input::InputConfig& input_config, const z13::inp
 void AddDefaultsForUnboundActions(
     z13::input::InputConfig& input_config,
     const z13::input::ActionMap& action_map,
-    const std::unordered_set<z13::input::ActionInfo::IdType>& explicitly_unbound) {
+    const std::unordered_set<z13::input::ActionId>& explicitly_unbound) {
   const auto& bound_actions = input_config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
   for (const auto& action_info : action_map.action_map) {
     if (bound_actions.count(action_info.id) == 0 && !explicitly_unbound.contains(action_info.id)) {
@@ -140,7 +141,7 @@ Status InputConfigLoader::LoadConfigFromJson(
 
   std::vector<std::string> action_tokens;
   std::vector<z13::input::KeyCodeAction> bindings;
-  std::unordered_set<z13::input::ActionInfo::IdType> explicitly_unbound;
+  std::unordered_set<z13::input::ActionId> explicitly_unbound;
 
   const auto& enum_action_names = action_map.action_map.get<z13::input::ActionMap::EnumActionNameTag>();
 
@@ -343,14 +344,14 @@ Status InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
   return {};
 }
 
-std::optional<z13::input::ActionInfo::IdType> InputConfigLoader::FindActionId(
+std::optional<z13::input::ActionId> InputConfigLoader::FindActionId(
   const z13::input::ActionMap::ActionMapContainer& action_map_container,
   std::string_view action_enum_name,
   z13::input::ActionInfo::EnumValueType action_enum_value
 ) {
   const auto& enum_to_value_map = action_map_container.get<z13::input::ActionMap::EnumNameEnumValueTag>();
   auto it = enum_to_value_map.find(std::make_tuple(action_enum_name, action_enum_value));
-  return it != enum_to_value_map.end() ? std::optional<z13::input::ActionInfo::IdType>(it->id) : std::nullopt;
+  return it != enum_to_value_map.end() ? std::optional<z13::input::ActionId>(it->id) : std::nullopt;
 }
 
 }  // namespace z13::gameplay::input

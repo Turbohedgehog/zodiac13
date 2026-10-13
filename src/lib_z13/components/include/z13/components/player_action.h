@@ -30,7 +30,7 @@
 
 #include <lib_core/state/bounded_history.h>
 
-#include <z13/components/input.h>
+#include <z13/components/action_id.h>
 
 namespace z13::gameplay {
 
@@ -58,7 +58,7 @@ inline float CanonicalActionValue(float value) {
 struct PlayerActionRecord {
   uint64_t tick {};
   uint32_t player_id {};
-  z13::input::ActionInfo::IdType action_id {};
+  z13::input::ActionId action_id {};
   float value {};
 };
 
@@ -78,7 +78,7 @@ struct OutgoingCommands {
 struct LastRecordedActionValues {
   using Singleton = void;
   using SessionScoped = void;
-  boost::container::flat_map<z13::input::ActionInfo::IdType, float> values;
+  boost::container::flat_map<z13::input::ActionId, float> values;
 };
 
 // Sorted by (tick, player_id, action_id), a key every participant derives itself.
@@ -101,7 +101,7 @@ struct PlayerActionLog {
 
 struct RemoteActionState {
   using Singleton = void;
-  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> current_values;
+  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionId>, float> current_values;
   // Nullopt until the first run; anything but synced_tick + 1 means rebuild from the log.
   std::optional<uint64_t> synced_tick;
 };

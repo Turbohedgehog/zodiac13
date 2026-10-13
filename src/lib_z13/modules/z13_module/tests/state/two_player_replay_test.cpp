@@ -35,6 +35,8 @@
 #include <z13/components/station.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player_action.h>
+#include <z13/components/action_listener.h>
+#include <input_config_generated.h>
 #include <z13_settings/physics_tuning.h>
 
 #include "../support/block_test_helpers.h"

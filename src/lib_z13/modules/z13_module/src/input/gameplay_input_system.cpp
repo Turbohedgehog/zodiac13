@@ -36,7 +36,12 @@
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/gravity.h>
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
+#include <z13/components/input_phases.h>
+#include <z13/components/input_state.h>
 #include <z13/components/player_action.h>
 #include <z13_settings/environment.h>
 #include <z13_settings/physics_tuning.h>
@@ -54,14 +59,14 @@ namespace {
 
 struct MoveActionIds {
   using Singleton = void;
-  z13::input::ActionInfo::IdType move_forward_id = 0;
-  z13::input::ActionInfo::IdType move_backward_id = 0;
-  z13::input::ActionInfo::IdType move_right_id = 0;
-  z13::input::ActionInfo::IdType move_left_id = 0;
-  z13::input::ActionInfo::IdType move_up_id = 0;
-  z13::input::ActionInfo::IdType move_down_id = 0;
-  z13::input::ActionInfo::IdType vertical_look_id = 0;
-  z13::input::ActionInfo::IdType horizontal_look_id = 0;
+  z13::input::ActionId move_forward_id = 0;
+  z13::input::ActionId move_backward_id = 0;
+  z13::input::ActionId move_right_id = 0;
+  z13::input::ActionId move_left_id = 0;
+  z13::input::ActionId move_up_id = 0;
+  z13::input::ActionId move_down_id = 0;
+  z13::input::ActionId vertical_look_id = 0;
+  z13::input::ActionId horizontal_look_id = 0;
 };
 
 struct InputListenerQueryComponent {
@@ -107,7 +112,7 @@ void ApplyMoveActionListener(
   }
   auto& look = e.ensure<LookAngles>();
 
-  const auto value_of = [&action_listener](z13::input::ActionInfo::IdType action_id) {
+  const auto value_of = [&action_listener](z13::input::ActionId action_id) {
     const std::optional<z13::input::ActionValueHolder> value = action_listener.Value(action_id);
     return value ? value->current_value : 0.f;
   };

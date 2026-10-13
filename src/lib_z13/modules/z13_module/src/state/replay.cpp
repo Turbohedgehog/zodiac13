@@ -32,7 +32,9 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 
@@ -42,7 +44,7 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
-using ActionValues = boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float>;
+using ActionValues = boost::container::flat_map<std::pair<uint32_t, z13::input::ActionId>, float>;
 
 bool IsLogDriven(flecs::world world, flecs::entity player) {
   return !player.has<z13::input::CurrentActionListenerTag>() || world.has<z13::net::ClientRole>() ||

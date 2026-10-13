@@ -20,7 +20,8 @@
 
 #include <imgui.h>
 
-#include <z13/components/input.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
 
 #include "gui_widgets.h"
 #include "key_bindings_window.h"

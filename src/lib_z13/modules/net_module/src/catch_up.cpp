@@ -31,6 +31,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include <net_module/state_digest.h>
+#include <z13/components/action_id.h>
 
 #include "scheduled_commands.h"
 #include "wire_records.h"
@@ -51,7 +52,7 @@ std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, ui
   const auto& entries = world.get<z13::gameplay::PlayerActionLog>().log.Entries();
   const auto up_to_snapshot = std::ranges::subrange(
       entries.begin(), std::ranges::upper_bound(entries, snapshot_tick, {}, &z13::gameplay::PlayerActionRecord::tick));
-  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> values;
+  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionId>, float> values;
   std::ranges::for_each(up_to_snapshot, [&values](const z13::gameplay::PlayerActionRecord& record) {
     values[{record.player_id, record.action_id}] = record.value;
   });

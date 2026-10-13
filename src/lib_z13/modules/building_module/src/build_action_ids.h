@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <optional>
 
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
 
 namespace z13::building {
 
@@ -30,7 +30,7 @@ inline constexpr float kHeldActionValue = 0.5f;
 // The building actions' ids in the loaded action map, refreshed when the input config changes.
 struct BuildActionIds {
   using Singleton = void;
-  using IdType = z13::input::ActionInfo::IdType;
+  using IdType = z13::input::ActionId;
   std::optional<IdType> toggle_building_mode;
   std::optional<IdType> build_block;
   std::optional<IdType> destroy_block;

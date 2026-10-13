@@ -33,8 +33,9 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/station.h>
+#include <input_config_generated.h>
 #include <z13_grid/block_index.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <primitives/placement.h>

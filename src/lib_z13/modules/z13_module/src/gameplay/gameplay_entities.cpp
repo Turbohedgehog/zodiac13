@@ -32,7 +32,9 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/gravity.h>
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_state.h>
 #include <z13/components/station.h>
 #include <z13_settings/physics_tuning.h>
 

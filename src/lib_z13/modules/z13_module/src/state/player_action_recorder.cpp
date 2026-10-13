@@ -37,7 +37,8 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 
@@ -78,7 +79,7 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
   log.retained_since_tick = current_tick > retention_ticks ? current_tick - retention_ticks : 0;
 
   const uint64_t retained_since = log.retained_since_tick;
-  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionInfo::IdType>, float> pruned;
+  boost::container::flat_map<std::pair<uint32_t, z13::input::ActionId>, float> pruned;
   log.log.PruneOlderThan([retained_since, &pruned](const z13::gameplay::PlayerActionRecord& record) {
     if (record.tick >= retained_since) {
       return false;

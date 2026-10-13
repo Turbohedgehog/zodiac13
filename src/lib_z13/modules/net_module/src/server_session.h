@@ -25,7 +25,7 @@
 
 #include <lib_core/utils/status.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/action_id.h>
 
 #include <net_module/transport.h>
 
@@ -54,7 +54,7 @@ struct CommandRateLimits {
 
 struct PlayerActionKey {
   uint32_t player_id {};
-  z13::input::ActionInfo::IdType action_id {};
+  z13::input::ActionId action_id {};
   bool operator==(const PlayerActionKey&) const = default;
 };
 

@@ -26,7 +26,8 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/player_action.h>
 
 #include "scheduled_commands.h"
