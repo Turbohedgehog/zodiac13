@@ -64,13 +64,13 @@ std::vector<CellBox> Shell() {
 const CellBox kWall {.min = {kSide / 2, 1, 1}, .extent = {1, kSide, kHeight}};
 
 RoomGraph Full(const RoomSources& sources) {
-  auto graph = BuildRooms(sources, kVacuumRoom + 1, kChunkCells);
+  auto graph = BuildRooms(sources, kVacuumRoom + 1, {.chunk_cells = kChunkCells});
   EXPECT_TRUE(graph.has_value()) << graph.error();
   return graph.value_or(RoomGraph {});
 }
 
 RoomGraph Update(const RoomGraph& previous, const RoomSources& sources) {
-  auto graph = UpdateRooms(previous, sources, previous.next_id, kChunkCells);
+  auto graph = UpdateRooms(previous, sources, previous.next_id, {.chunk_cells = kChunkCells});
   EXPECT_TRUE(graph.has_value()) << graph.error();
   return graph.value_or(RoomGraph {});
 }
@@ -380,7 +380,7 @@ TEST(RoomUpdateTest, AChunkFilledAndOpenedAgainKeepsNoStaleRooms) {
   ASSERT_TRUE(filled.leaf_rooms.at(Eigen::Vector3i(1, 1, 0))->empty());
   sources.sealed.back() = {.min = chunk.min, .extent = {kChunkCells - 1, kChunkCells, kChunkCells}};
 
-  const auto opened = UpdateRooms(filled, sources, filled.next_id, kChunkCells);
+  const auto opened = UpdateRooms(filled, sources, filled.next_id, {.chunk_cells = kChunkCells});
 
   ASSERT_TRUE(opened.has_value()) << opened.error();
   const CellBox region {.min = Eigen::Vector3i::Constant(-1), .extent = Eigen::Vector3i::Constant(kOuter + 2)};

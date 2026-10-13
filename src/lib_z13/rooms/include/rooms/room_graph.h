@@ -28,6 +28,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/placement.h>
+#include <building_tuning_generated.h>
 #include <rooms/free_space.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_id.h>
@@ -69,6 +70,14 @@ struct Portal {
   bool operator==(const Portal&) const = default;
 };
 
+// The "building" settings rooms are built by.
+struct RoomSettings {
+  int chunk_cells = fbs::building::BuildingTuningT {}.room_chunk_cells;
+  int max_opening_cells = fbs::building::BuildingTuningT {}.room_max_opening_cells;
+
+  bool operator==(const RoomSettings&) const = default;
+};
+
 // Portals are sorted by where their opening is. Room ids carry no order: whatever depends
 // on the order of rooms goes by ByAnchor().
 struct RoomGraph {
@@ -86,6 +95,10 @@ struct RoomGraph {
   // What the graph was built from, sorted by SealedBefore and PortalSourceBefore: the next
   // update compares the new sources with these.
   RoomSources sources;
+  // The holes found as doorways (FindOpenings), sorted by PortalSourceBefore: the free space
+  // holds them as sealed, and each is a portal.
+  std::vector<PortalSource> openings;
+  RoomSettings settings;
 
   // Nothing for a sealed cell; the vacuum outside the free space's area.
   std::optional<RoomId> RoomAt(const Eigen::Vector3i& cell) const;

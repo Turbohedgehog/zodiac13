@@ -29,6 +29,8 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include <rooms/openings.h>
+
 #include "numbered_leaves.h"
 #include "room_parts.h"
 
@@ -96,15 +98,18 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
 
 }  // namespace
 
-std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id, int chunk_cells) {
-  auto space = FreeSpace::Build(sources.sealed, chunk_cells);
+std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id,
+                                                 const RoomSettings& settings) {
+  std::vector<PortalSource> openings = FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells);
+  auto space = FreeSpace::Build(SealedWith(sources.sealed, openings), settings.chunk_cells);
   if (!space) {
     return std::unexpected(std::move(space.error()));
   }
-  RoomGraph graph {.space = std::move(*space), .next_id = first_id};
+  RoomGraph graph {.space = std::move(*space), .next_id = first_id, .settings = settings};
   const NumberedLeaves numbered(graph.space);
   NameRooms(numbered, ConnectedSets(graph.space, numbered), first_id, graph);
   std::vector<PortalSource> ordered = sources.portals;
+  std::ranges::copy(openings, std::back_inserter(ordered));
   std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
     return AnchorBefore(a.opening.min, b.opening.min);
   });
@@ -115,6 +120,7 @@ std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, Roo
   graph.sources = sources;
   std::ranges::sort(graph.sources.sealed, SealedBefore);
   std::ranges::sort(graph.sources.portals, PortalSourceBefore);
+  graph.openings = std::move(openings);
   return graph;
 }
 

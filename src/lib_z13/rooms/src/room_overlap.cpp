@@ -20,15 +20,13 @@
 #include <map>
 #include <utility>
 
+#include "cell_boxes.h"
+
 namespace z13::station::rooms {
 
 namespace {
 
 using z13::building::primitives::CellBox;
-
-int64_t Volume(const CellBox& box) {
-  return box.extent.cast<int64_t>().prod();
-}
 
 int64_t VolumeInside(const CellBox& box, const CellBox& area) {
   return box.Overlaps(area) ? Volume(box.Intersection(area)) : 0;

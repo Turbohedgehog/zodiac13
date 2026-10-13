@@ -29,13 +29,13 @@ namespace z13::station::rooms {
 // rooms around them and their portals; the rest is shared with `previous`. A room keeps its
 // id while it lasts: split, its id stays with the part holding its old anchor; merged, the
 // one with the lowest anchor keeps its id. New rooms get ids from `first_id` on, by anchor.
-// Built whole without a previous graph or with another chunk size.
+// Built whole without a previous graph or with other settings.
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
-                                                  RoomId first_id, int chunk_cells);
+                                                  RoomId first_id, const RoomSettings& settings);
 
 // The same for the sources `edits` makes of `previous.sources`, without comparing them all;
 // fails when it removes a source `previous` lacks.
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
-                                                  RoomId first_id, int chunk_cells);
+                                                  RoomId first_id, const RoomSettings& settings);
 
 }  // namespace z13::station::rooms

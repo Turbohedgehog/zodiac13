@@ -18,6 +18,7 @@
 #include "room_parts.h"
 
 #include <algorithm>
+#include <iterator>
 #include <tuple>
 
 namespace z13::station::rooms {
@@ -139,6 +140,12 @@ std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const std::vector<
     by_room[portals[i].b].push_back(i);
   }
   return by_room;
+}
+
+std::vector<CellBox> SealedWith(const std::vector<CellBox>& sealed, const std::vector<PortalSource>& openings) {
+  std::vector<CellBox> all = sealed;
+  std::ranges::transform(openings, std::back_inserter(all), &PortalSource::opening);
+  return all;
 }
 
 }  // namespace z13::station::rooms

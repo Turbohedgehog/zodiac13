@@ -35,6 +35,8 @@ struct PortalSource {
   Axis axis {};
   bool visible {};
   bool passable {};
+
+  bool operator==(const PortalSource&) const = default;
 };
 
 bool IsSealing(const z13::building::primitives::Primitive& primitive);

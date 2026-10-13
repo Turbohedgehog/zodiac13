@@ -9,10 +9,12 @@ find_package(Boost REQUIRED COMPONENTS geometry graph)
 
 set(
   PROJECT_SOURCE_FILES
+  src/cell_boxes.cpp
   src/free_space.cpp
   src/light_reach.cpp
   src/local_leaves.cpp
   src/numbered_leaves.cpp
+  src/openings.cpp
   src/portal_source.cpp
   src/room_builder.cpp
   src/room_cache.cpp
@@ -49,6 +51,7 @@ target_link_libraries(
   Boost::graph
   zodiac13::fbs_schemas
   zodiac13::primitives
+  zodiac13::z13_grid
 )
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)

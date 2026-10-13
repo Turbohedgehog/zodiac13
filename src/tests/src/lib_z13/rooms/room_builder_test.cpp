@@ -88,7 +88,8 @@ TEST(RoomBuilderTest, AHoleInTheHullOpensTheRoomToTheVacuum) {
   sources.sealed.push_back({.min = {kSide + 1, 0, 1}, .extent = {1, 4, kHeight}});
   sources.sealed.push_back({.min = {kSide + 1, 6, 1}, .extent = {1, 6, kHeight}});
 
-  const RoomGraph graph = Build(sources);
+  // Narrower than the hole: as wide a hole is a doorway (OpeningsTest).
+  const RoomGraph graph = BuildRooms(sources, kVacuumRoom + 1, {.max_opening_cells = 1}).value();
 
   EXPECT_EQ(graph.rooms.size(), 1U);
   EXPECT_EQ(graph.RoomAt({5, 5, 3}), kVacuumRoom);

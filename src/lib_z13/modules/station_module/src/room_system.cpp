@@ -64,26 +64,26 @@ void InstallSingletons(flecs::world world) {
   world.set(RoomCache {});
 }
 
-rooms::RoomCache::Build FromSources(rooms::RoomSources sources, int chunk_cells) {
-  return [sources = std::move(sources), chunk_cells](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
-    return current ? rooms::UpdateRooms(*current, sources, first_id, chunk_cells)
-                   : rooms::BuildRooms(sources, first_id, chunk_cells);
+rooms::RoomCache::Build FromSources(rooms::RoomSources sources, const rooms::RoomSettings& settings) {
+  return [sources = std::move(sources), settings](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
+    return current ? rooms::UpdateRooms(*current, sources, first_id, settings)
+                   : rooms::BuildRooms(sources, first_id, settings);
   };
 }
 
 // `edits_apply`: the current graph is that of the blocks before the edits. Otherwise, or
 // when the edits fail, the rooms come from every block.
 rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks,
-                                  const BlockPalette& palette, int chunk_cells) {
-  return [edits = std::move(edits), edits_apply, &blocks, &palette, chunk_cells](
+                                  const BlockPalette& palette, const rooms::RoomSettings& settings) {
+  return [edits = std::move(edits), edits_apply, &blocks, &palette, settings](
              rooms::RoomId first_id,
              rooms::OptionalRoomGraph current) -> std::expected<rooms::RoomGraph, std::string> {
     if (current && edits_apply) {
-      if (auto updated = rooms::UpdateRooms(*current, edits.edits, first_id, chunk_cells)) {
+      if (auto updated = rooms::UpdateRooms(*current, edits.edits, first_id, settings)) {
         return updated;
       }
     }
-    return FromSources(GatherSources(blocks, palette).sources, chunk_cells)(first_id, current);
+    return FromSources(GatherSources(blocks, palette).sources, settings)(first_id, current);
   };
 }
 
@@ -93,17 +93,19 @@ void UpdateRooms(BlockChangeReader& reader, uint64_t restores, uint64_t tick, To
   if (!batch.resync && batch.changes.empty()) {
     return;
   }
+  const rooms::RoomSettings settings {.chunk_cells = tuning.room_chunk_cells,
+                                      .max_opening_cells = tuning.room_max_opening_cells};
   uint64_t fingerprint {};
   rooms::RoomCache::Build build;
   if (batch.resync) {
     TopologySources gathered = GatherSources(reader.Blocks(), palette);
     fingerprint = gathered.fingerprint;
-    build = FromSources(std::move(gathered.sources), tuning.room_chunk_cells);
+    build = FromSources(std::move(gathered.sources), settings);
   } else {
     TopologyEdits edits = EditsOf(batch.changes, palette);
     fingerprint = topology.fingerprint + edits.fingerprint_change;
     const bool edits_apply = cache.CurrentFingerprint() == topology.fingerprint;
-    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, tuning.room_chunk_cells);
+    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, settings);
   }
   if (topology.fingerprint != fingerprint) {
     topology.fingerprint = fingerprint;
