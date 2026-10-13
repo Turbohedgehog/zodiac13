@@ -102,13 +102,10 @@ std::string Mismatch(Z13TestWorld& world) {
   if (w.get<TopologyVersion>().fingerprint != gathered.fingerprint) {
     found += "topology fingerprint; ";
   }
-  const auto full = rooms::BuildRooms(gathered.sources, rooms::RoomId {1}, w.get<z13::BuildingTuning>().room_chunk_cells);
+  const auto full = rooms::BuildRooms(gathered.sources, rooms::RoomId {1}, RoomSettingsOf(w.get<z13::BuildingTuning>()));
   const RoomGraph& kept = w.get<RoomCache>().Current()->get();
-  const auto same_portal = [](const rooms::PortalSource& a, const rooms::PortalSource& b) {
-    return !rooms::PortalSourceBefore(a, b) && !rooms::PortalSourceBefore(b, a);
-  };
   if (!full || kept.sources.sealed != full->sources.sealed ||
-      !std::ranges::equal(kept.sources.portals, full->sources.portals, same_portal)) {
+      kept.sources.portals != full->sources.portals) {
     found += "room sources; ";
   } else if (RoomsByAnchor(kept) != RoomsByAnchor(*full) || kept.portals.size() != full->portals.size()) {
     found += "rooms; ";

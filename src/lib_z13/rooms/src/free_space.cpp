@@ -29,6 +29,8 @@
 
 #include <rooms/room_graph.h>
 
+#include "cell_boxes.h"
+
 namespace z13::station::rooms {
 
 namespace {
@@ -44,25 +46,8 @@ constexpr int kMargin = 1;
 using Binned = std::unordered_map<Eigen::Vector3i, std::vector<CellBox>, z13::building::primitives::CellHash>;
 using KeySet = std::unordered_set<Eigen::Vector3i, z13::building::primitives::CellHash>;
 
-LeafBox ToLeafBox(const CellBox& box) {
-  return {{box.min.x(), box.min.y(), box.min.z()}, {box.End().x(), box.End().y(), box.End().z()}};
-}
-
 bool ContainsBox(const CellBox& outer, const CellBox& inner) {
   return (outer.min.array() <= inner.min.array()).all() && (inner.End().array() <= outer.End().array()).all();
-}
-
-// Whether two boxes with disjoint insides share part of a face.
-bool ShareFace(const CellBox& a, const CellBox& b) {
-  int touching {};
-  for (int axis = 0; axis < kCellAxes; ++axis) {
-    const int overlap = std::min(a.End()[axis], b.End()[axis]) - std::max(a.min[axis], b.min[axis]);
-    if (overlap < 0) {
-      return false;
-    }
-    touching += overlap == 0 ? 1 : 0;
-  }
-  return touching == 1;
 }
 
 template <typename Visit>

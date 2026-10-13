@@ -25,6 +25,7 @@
 #include <z13/components/station.h>
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>
+#include <z13_settings/building_tuning.h>
 
 namespace z13::station {
 
@@ -42,5 +43,7 @@ TopologySources GatherSources(
     const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette);
 
 TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building::primitives::BlockPalette& palette);
+
+z13::station::rooms::RoomSettings RoomSettingsOf(const z13::BuildingTuning& tuning);
 
 }  // namespace z13::station

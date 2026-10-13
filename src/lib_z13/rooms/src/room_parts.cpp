@@ -18,6 +18,7 @@
 #include "room_parts.h"
 
 #include <algorithm>
+#include <iterator>
 #include <tuple>
 
 namespace z13::station::rooms {
@@ -46,7 +47,6 @@ int OverlapArea(const FacePatch& a, const FacePatch& b) {
   return (size.array() > 0).all() ? size.x() * size.y() : 0;
 }
 
-// Per axis, the sum of that coordinate over the box's cells.
 Eigen::Vector3<int64_t> CellSum(const CellBox& box) {
   const Eigen::Array3<int64_t> min = box.min.cast<int64_t>();
   const Eigen::Array3<int64_t> extent = box.extent.cast<int64_t>();
@@ -139,6 +139,12 @@ std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const std::vector<
     by_room[portals[i].b].push_back(i);
   }
   return by_room;
+}
+
+std::vector<CellBox> SealedWith(const std::vector<CellBox>& sealed, const std::vector<PortalSource>& openings) {
+  std::vector<CellBox> all = sealed;
+  std::ranges::transform(openings, std::back_inserter(all), &PortalSource::opening);
+  return all;
 }
 
 }  // namespace z13::station::rooms

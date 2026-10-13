@@ -32,6 +32,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include <rooms/openings.h>
 #include <rooms/room_builder.h>
 
 #include "local_leaves.h"
@@ -59,6 +60,13 @@ struct SourceChanges {
   std::vector<CellBox> sealed;
   bool sealed_added {};
   std::vector<CellBox> openings;
+};
+
+struct SpaceUpdate {
+  FreeSpace space;
+  std::vector<Eigen::Vector3i> rebuilt;
+  std::vector<PortalSource> openings;
+  SourceChanges changes;
 };
 
 SourceChanges ChangesBetween(const RoomSources& before, const RoomSources& after) {
@@ -220,20 +228,78 @@ std::optional<std::vector<T>> Edited(const std::vector<T>& sorted, const std::ve
   return edited;
 }
 
-std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
-                                                   const SourceChanges& changes, RoomId first_id, int chunk_cells) {
-  if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.space.ChunkCells() != chunk_cells) {
-    return BuildRooms(sorted, first_id, chunk_cells);
+// The free space of `sealed` and its openings: those of `previous` far from the changed
+// boxes kept, the rest found again. Openings that came or went join `changes`.
+std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, const std::vector<CellBox>& sealed,
+                                                    SourceChanges changes) {
+  const int max_cells = previous.settings.max_opening_cells;
+  // An opening depends on its cells and those next to them, so a change reaches no farther.
+  const Eigen::Vector3i reach = Eigen::Vector3i::Constant(max_cells + 2);
+  const auto grown_by = [&changes, &reach](int cells) {
+    std::vector<CellBox> areas;
+    std::ranges::transform(changes.sealed, std::back_inserter(areas), [&](const CellBox& box) {
+      return box.Grown(reach + Eigen::Vector3i::Constant(cells));
+    });
+    return areas;
+  };
+  const auto overlaps_any = [](const std::vector<CellBox>& areas, const CellBox& box) {
+    return std::ranges::any_of(areas, [&box](const CellBox& area) { return area.Overlaps(box); });
+  };
+  const std::vector<CellBox> near = grown_by(0);
+  const std::vector<CellBox> near_walls = grown_by(1);
+  const std::vector<CellBox> near_around = grown_by(2 * max_cells + 2);
+  const auto within = [&](const CellBox& box) { return overlaps_any(near, box); };
+  std::vector<CellBox> walls;
+  std::ranges::copy_if(sealed, std::back_inserter(walls),
+                       [&](const CellBox& box) { return overlaps_any(near_walls, box); });
+  std::vector<CellBox> around;
+  std::ranges::copy_if(sealed, std::back_inserter(around),
+                       [&](const CellBox& box) { return overlaps_any(near_around, box); });
+  std::vector<PortalSource> openings;
+  std::ranges::copy_if(previous.openings, std::back_inserter(openings),
+                       [&within](const PortalSource& opening) { return !within(opening.opening); });
+  for (const PortalSource& opening : FindOpenings(around, walls, max_cells)) {
+    if (within(opening.opening)) {
+      openings.push_back(opening);
+    }
   }
-  auto rebuilt_space = previous.space.Rebuilt(sorted.sealed, changes.sealed);
+  std::ranges::sort(openings, PortalSourceBefore);
+  std::vector<PortalSource> came_or_went;
+  std::ranges::set_symmetric_difference(previous.openings, openings, std::back_inserter(came_or_went),
+                                        PortalSourceBefore);
+  for (const PortalSource& opening : came_or_went) {
+    changes.sealed.push_back(opening.opening);
+    changes.openings.push_back(opening.opening);
+    changes.sealed_added = changes.sealed_added || std::ranges::binary_search(openings, opening, PortalSourceBefore);
+  }
+  auto space = previous.space.Rebuilt(SealedWith(sealed, openings), changes.sealed);
+  if (!space) {
+    return std::unexpected(std::move(space.error()));
+  }
+  return SpaceUpdate {.space = std::move(space->space),
+                      .rebuilt = std::move(space->rebuilt),
+                      .openings = std::move(openings),
+                      .changes = std::move(changes)};
+}
+
+std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
+                                                   const SourceChanges& source_changes, RoomId first_id,
+                                                   const RoomSettings& settings) {
+  if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.settings != settings) {
+    return BuildRooms(sorted, first_id, settings);
+  }
+  auto rebuilt_space = UpdateSpace(previous, sorted.sealed, source_changes);
   if (!rebuilt_space) {
     return std::unexpected(std::move(rebuilt_space.error()));
   }
+  const SourceChanges& changes = rebuilt_space->changes;
   RoomGraph graph {.rooms = previous.rooms,
                    .space = std::move(rebuilt_space->space),
                    .leaf_rooms = previous.leaf_rooms,
                    .next_id = first_id,
-                   .sources = std::move(sorted)};
+                   .sources = std::move(sorted),
+                   .openings = rebuilt_space->openings,
+                   .settings = settings};
   std::erase_if(graph.leaf_rooms, [&graph](const auto& entry) { return !graph.space.AllChunks().contains(entry.first); });
   const KeySet rebuilt(rebuilt_space->rebuilt.begin(), rebuilt_space->rebuilt.end());
 
@@ -341,9 +407,11 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
   graph.portals.clear();
   std::ranges::copy_if(previous.portals, std::back_inserter(graph.portals),
                        [&](const Portal& portal) { return !dirty(PortalReach(portal.opening, portal.axis)); });
-  for (const PortalSource& source : graph.sources.portals) {
-    if (dirty(PortalReach(source.opening, source.axis))) {
-      std::ranges::copy(PortalsThrough(graph, source), std::back_inserter(graph.portals));
+  for (const auto& sources : {std::cref(graph.sources.portals), std::cref(graph.openings)}) {
+    for (const PortalSource& source : sources.get()) {
+      if (dirty(PortalReach(source.opening, source.axis))) {
+        std::ranges::copy(PortalsThrough(graph, source), std::back_inserter(graph.portals));
+      }
     }
   }
   std::ranges::sort(graph.portals, PortalBefore);
@@ -354,16 +422,16 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
 }  // namespace
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
-                                                  RoomId first_id, int chunk_cells) {
+                                                  RoomId first_id, const RoomSettings& settings) {
   RoomSources sorted = sources;
   std::ranges::sort(sorted.sealed, SealedBefore);
   std::ranges::sort(sorted.portals, PortalSourceBefore);
   const SourceChanges changes = ChangesBetween(previous.sources, sorted);
-  return UpdateSorted(previous, std::move(sorted), changes, first_id, chunk_cells);
+  return UpdateSorted(previous, std::move(sorted), changes, first_id, settings);
 }
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
-                                                  RoomId first_id, int chunk_cells) {
+                                                  RoomId first_id, const RoomSettings& settings) {
   const auto sort = [](RoomSources& sources) {
     std::ranges::sort(sources.sealed, SealedBefore);
     std::ranges::sort(sources.portals, PortalSourceBefore);
@@ -377,7 +445,7 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
     return std::unexpected(std::string {"the edits remove a room source the graph lacks"});
   }
   return UpdateSorted(previous, {.sealed = std::move(*sealed), .portals = std::move(*portals)},
-                      ChangesBetween(sorted.removed, sorted.added), first_id, chunk_cells);
+                      ChangesBetween(sorted.removed, sorted.added), first_id, settings);
 }
 
 }  // namespace z13::station::rooms

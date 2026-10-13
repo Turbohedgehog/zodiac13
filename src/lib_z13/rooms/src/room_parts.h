@@ -66,5 +66,8 @@ std::vector<Portal> PortalsThrough(const RoomGraph& graph, const PortalSource& s
 // Portals in the graph's order: by opening, then by pair.
 bool PortalBefore(const Portal& first, const Portal& second);
 std::unordered_map<RoomId, std::vector<size_t>> PortalsByRoom(const std::vector<Portal>& portals);
+// The sealed boxes and the openings, which the free space holds as sealed too.
+std::vector<z13::building::primitives::CellBox> SealedWith(const std::vector<z13::building::primitives::CellBox>& sealed,
+                                                           const std::vector<PortalSource>& openings);
 
 }  // namespace z13::station::rooms

@@ -17,6 +17,7 @@
     "boost-container",
     "boost-geometry",
     "boost-graph",
+    "boost-polygon",
     "eigen3",
     "flecs",
     "gtest",
@@ -69,6 +70,10 @@
     },
     {
       "name": "boost-graph",
+      "version": "1.91.0#0"
+    },
+    {
+      "name": "boost-polygon",
       "version": "1.91.0#0"
     },
     {
