@@ -50,18 +50,21 @@ class ViewCulling {
  public:
   using OptionalGraph = z13::station::rooms::OptionalRoomGraph;
 
-  // Without a graph, or with the eye inside a block or in the vacuum, only the frustum culls.
+  // Without a graph, or with the eye inside a block, only the frustum culls; from the
+  // vacuum, it alone culls blocks, and the rooms seen through windows pick the lamps.
   ViewCulling(const CameraView& view, OptionalGraph graph);
 
   bool Visible(const Eigen::AlignedBox3f& box) const;
 
-  // Sorted; nothing while rooms don't cull.
-  std::optional<std::vector<z13::station::rooms::RoomId>> SeenRooms() const;
+  // Sorted; nothing without a graph or with the eye inside a block.
+  const std::optional<std::vector<z13::station::rooms::RoomId>>& SeenRooms() const;
   std::optional<size_t> SeenRoomCount() const;
 
  private:
   z13::math::Frustum frustum_;
-  std::optional<std::vector<SeenRoom>> rooms_;
+  std::optional<std::vector<z13::station::rooms::RoomId>> seen_rooms_;
+  // Also nothing in the vacuum, which has no bounds to cull by.
+  std::optional<std::vector<SeenRoom>> culling_rooms_;
 };
 
 }  // namespace z13::raylib
