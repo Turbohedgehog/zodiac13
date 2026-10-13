@@ -371,7 +371,6 @@ void SyncLocalPlayerListener(
   }
 }
 
-// In arrival order, but a key changed this tick keeps its later transitions for the next ticks.
 void ApplyKeyTransitions(z13::input::InputState& input_state) {
   std::vector<z13::fbs::input::Keycode> changed;
   std::vector<z13::input::KeyTransition> later;
@@ -381,7 +380,7 @@ void ApplyKeyTransitions(z13::input::InputState& input_state) {
       continue;
     }
     float& state = input_state.input_state[KeyCodeToArrayIndex(transition.key)];
-    // A repeated press of a held key changes nothing and waits for no tick.
+    // Auto-repeat of a held key.
     if (state == transition.value) {
       continue;
     }
@@ -562,7 +561,6 @@ void RegisterSystems(flecs::world world) {
 
   world.system<z13::input::InputState>("gameplay_input_system::ApplyKeyTransitions")
       .kind<z13::input::ApplyKeyTransitionsPhase>()
-      // Live input waits for the next live tick rather than land in re-simulated ones.
       .without<z13::flecs_tools::ReplayInProgress>()
       .each(ApplyKeyTransitions);
 

@@ -91,7 +91,6 @@ std::vector<float> Values(const std::vector<PlayerActionRecord>& records) {
   return values;
 }
 
-// A frame as long as a hitch: both events arrive before the simulation reads input.
 TEST(PlayerActionLogTest, AKeyTappedWithinOneFrameIsPressedOnOneTickAndReleasedOnTheNext) {
   Z13TestWorld test_world;
 
