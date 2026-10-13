@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 
 #include <Eigen/Dense>
 #include <raylib.h>
@@ -36,6 +37,11 @@ inline constexpr int kSunShadowUnit = kMaterialMaps;
 inline constexpr int kFillShadowUnit = kSunShadowUnit + 1;
 inline constexpr int kShadowAtlasUnit = kFillShadowUnit + 1;
 inline constexpr int kLightTableUnit = kShadowAtlasUnit + 1;
+// The baked lamps (cell_lighting.h): past GL 3.3's guaranteed 16 units, so checked against the driver.
+inline constexpr int kCellLabelsUnit = kLightTableUnit + 1;
+inline constexpr int kCellLightUnit = kCellLabelsUnit + 1;
+// Lamps players cast shadows from at once; assets/shaders/lighting.fs sizes its arrays by this.
+inline constexpr size_t kMaxPlayerShadowLamps = 32;
 
 // What narrows a point light to a spot.
 struct SpotCone {
@@ -44,16 +50,20 @@ struct SpotCone {
   float cos_half_angle {};
 };
 
+// A flashlight lights what it reaches; a lamp's light is baked, and its shadow only takes it
+// back where a player stands in it.
+enum class LightUse : uint8_t { kLights, kPlayerShadows };
+
 // A point light as the shader takes it, in meters.
 struct FrameLight {
   Eigen::Vector3f position = Eigen::Vector3f::Zero();
   float radius {};
   // Scaled by the intensity.
   Eigen::Vector3f color = Eigen::Vector3f::Zero();
-  // Without a shadow, it lights only this box, its room (rooms/light_reach.h); with one, its
-  // shadow stops it at the walls and lets it through openings in all of radius_box.
+  // What it may light; with a shadow, the shadow stops it at the walls within it.
   Eigen::AlignedBox3f reach;
   Eigen::AlignedBox3f radius_box;
+  LightUse use {};
   std::optional<int> shadow_slot;
   std::optional<SpotCone> cone;
   // The entity carrying it, whose own shape doesn't shadow it: a player's flashlight.
@@ -105,6 +115,12 @@ struct LightUniforms {
   DirectionalUniforms fill;
   int ambient_sky {};
   int ambient_ground {};
+  int cell_light_enabled {};
+  int cell_origin {};
+  int cell_cubes {};
+  int player_shadow_count {};
+  int player_shadow_lamps {};
+  int player_shadow_colors {};
 };
 
 // Loads assets/shaders/lighting.{vs,fs} with its samplers on their units. Returns an empty
@@ -114,5 +130,7 @@ LightUniforms FindLightUniforms(const ::Shader& shader);
 
 void UploadShadowAtlas(const ::Shader& shader, const LightUniforms& uniforms, const ShadowAtlasLayout& atlas);
 void UploadSceneLight(const ::Shader& shader, const LightUniforms& uniforms, const SceneLight& light);
+// The first kMaxPlayerShadowLamps of the lamps among `lights` that have a shadow slot.
+void UploadPlayerShadows(const ::Shader& shader, const LightUniforms& uniforms, std::span<const FrameLight> lights);
 
 }  // namespace z13::raylib

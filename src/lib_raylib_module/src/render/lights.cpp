@@ -20,6 +20,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -58,6 +59,14 @@ constexpr std::string_view kViewProjectionSuffix = "ViewProjection";
 constexpr std::string_view kShadowSuffix = "Shadow";
 constexpr std::string_view kAmbientSkyUniform = "ambient";
 constexpr std::string_view kAmbientGroundUniform = "ambientGround";
+constexpr std::string_view kCellLightEnabledUniform = "cellLightEnabled";
+constexpr std::string_view kCellLabelsUniform = "cellLabels";
+constexpr std::string_view kCellLightUniform = "cellLight";
+constexpr std::string_view kCellOriginUniform = "cellOrigin";
+constexpr std::string_view kCellCubesUniform = "cellCubes";
+constexpr std::string_view kPlayerShadowCountUniform = "playerShadowCount";
+constexpr std::string_view kPlayerShadowLampsUniform = "playerShadowLamps";
+constexpr std::string_view kPlayerShadowColorsUniform = "playerShadowColors";
 
 int Location(const ::Shader& shader, std::string_view name) {
   return GetShaderLocation(shader, std::string(name).c_str());
@@ -115,6 +124,8 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
   SetInt(shader, Location(shader, kShadowAtlasUniform), kShadowAtlasUnit);
   SetInt(shader, Location(shader, kLightTableUniform), kLightTableUnit);
   SetInt(shader, Location(shader, kLightTableWidthUniform), kLightTableWidth);
+  SetInt(shader, Location(shader, kCellLabelsUniform), kCellLabelsUnit);
+  SetInt(shader, Location(shader, kCellLightUniform), kCellLightUnit);
   return shader;
 }
 
@@ -132,6 +143,12 @@ LightUniforms FindLightUniforms(const ::Shader& shader) {
       .fill = FindDirectional(shader, kFillPrefix),
       .ambient_sky = Location(shader, kAmbientSkyUniform),
       .ambient_ground = Location(shader, kAmbientGroundUniform),
+      .cell_light_enabled = Location(shader, kCellLightEnabledUniform),
+      .cell_origin = Location(shader, kCellOriginUniform),
+      .cell_cubes = Location(shader, kCellCubesUniform),
+      .player_shadow_count = Location(shader, kPlayerShadowCountUniform),
+      .player_shadow_lamps = Location(shader, kPlayerShadowLampsUniform),
+      .player_shadow_colors = Location(shader, kPlayerShadowColorsUniform),
   };
 }
 
@@ -145,6 +162,23 @@ void UploadSceneLight(const ::Shader& shader, const LightUniforms& uniforms, con
   UploadDirectional(shader, uniforms.fill, light.fill);
   SetVec3(shader, uniforms.ambient_sky, light.ambient_sky);
   SetVec3(shader, uniforms.ambient_ground, light.ambient_ground);
+}
+
+void UploadPlayerShadows(const ::Shader& shader, const LightUniforms& uniforms, std::span<const FrameLight> lights) {
+  std::vector<Eigen::Vector4f> positions;
+  std::vector<Eigen::Vector4f> colors;
+  for (const FrameLight& lamp : lights) {
+    if (lamp.use == LightUse::kPlayerShadows && lamp.shadow_slot && positions.size() < kMaxPlayerShadowLamps) {
+      positions.emplace_back(lamp.position.x(), lamp.position.y(), lamp.position.z(), lamp.radius);
+      colors.emplace_back(lamp.color.x(), lamp.color.y(), lamp.color.z(), static_cast<float>(*lamp.shadow_slot));
+    }
+  }
+  const int count = static_cast<int>(positions.size());
+  SetInt(shader, uniforms.player_shadow_count, count);
+  if (count > 0) {
+    SetShaderValueV(shader, uniforms.player_shadow_lamps, positions.data()->data(), SHADER_UNIFORM_VEC4, count);
+    SetShaderValueV(shader, uniforms.player_shadow_colors, colors.data()->data(), SHADER_UNIFORM_VEC4, count);
+  }
 }
 
 }  // namespace z13::raylib

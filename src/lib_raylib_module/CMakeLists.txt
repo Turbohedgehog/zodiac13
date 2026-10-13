@@ -38,7 +38,10 @@ set(
   src/render/block_meshes.cpp
   src/render/block_meshes_state.cpp
   src/render/block_model.cpp
+  src/render/cell_lighting.cpp
+  src/render/cell_lighting_state.cpp
   src/render/environment_render_system.cpp
+  src/render/gl_volumes.cpp
   src/render/lights.cpp
   src/render/render_resources.cpp
   src/render/render_tour.cpp
@@ -46,7 +49,6 @@ set(
   src/render/shadow_maps_state.cpp
   src/render/skybox.cpp
   src/render/light_clusters.cpp
-  src/render/station_lights.cpp
   src/render/view_culling.cpp
   src/tools/assimp_loader.cpp
   src/tools/input_publisher.cpp
@@ -84,6 +86,7 @@ target_link_libraries(
   zodiac13::components
   zodiac13::primitives
   zodiac13::rooms
+  zodiac13::cell_light
   zodiac13::settings
   zodiac13::touch
   raylib
