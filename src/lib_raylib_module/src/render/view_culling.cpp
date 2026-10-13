@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 #include <z13/components/block.h>
 #include <rooms/room_visibility.h>
@@ -29,13 +30,15 @@ namespace {
 using z13::station::kCellSize;
 using z13::station::rooms::RoomGraph;
 using z13::station::rooms::RoomId;
+using z13::station::rooms::ScreenRegions;
+using z13::station::rooms::kVacuumRoom;
 
 // The blocks around a room lie just outside its free cells.
 constexpr int kWallCells = 1;
 
 std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomId room) {
   const auto found = graph.FindRoom(room);
-  if (room == z13::station::rooms::kVacuumRoom || !found) {
+  if (room == kVacuumRoom || !found) {
     return std::nullopt;
   }
   const auto& cells = found->get().bounds;
@@ -44,56 +47,67 @@ std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomId room)
   return Eigen::AlignedBox3f(low.cast<float>() * kCellSize, high.cast<float>() * kCellSize);
 }
 
-std::optional<std::vector<SeenRoom>> RoomsInView(const CameraView& view, const RoomGraph& graph) {
-  const Eigen::Vector3f eye = view.eye / kCellSize;
-  // From the vacuum, which has no bounds, rooms cull nothing yet and cost more than the frustum.
-  const auto eye_room = graph.RoomAt(eye.array().floor().cast<int>());
-  if (!eye_room || *eye_room == z13::station::rooms::kVacuumRoom) {
-    return std::nullopt;
-  }
+Eigen::Vector3f EyeInCells(const CameraView& view) {
+  return view.eye / kCellSize;
+}
+
+ScreenRegions RegionsInView(const CameraView& view, const RoomGraph& graph, RoomId eye_room) {
   const Eigen::Matrix4f cells_to_clip = view.view_projection * Eigen::Affine3f(Eigen::Scaling(kCellSize)).matrix();
-  const z13::station::rooms::ScreenRegions regions = z13::station::rooms::VisibleRooms(
-      graph, {.eye_room = *eye_room,
-              .eye = eye,
-              .view_projection = cells_to_clip,
-              .screen = z13::math::Frustum::FullScreen(),
-              .min_extent = view.min_portal_extent});
-  std::vector<SeenRoom> seen;
+  // What a window shows from the vacuum is drawn however small.
+  const Eigen::Vector2f min_extent = eye_room == kVacuumRoom ? Eigen::Vector2f::Zero() : view.min_portal_extent;
+  return z13::station::rooms::VisibleRooms(graph, {.eye_room = eye_room,
+                                                   .eye = EyeInCells(view),
+                                                   .view_projection = cells_to_clip,
+                                                   .screen = z13::math::Frustum::FullScreen(),
+                                                   .min_extent = min_extent});
+}
+
+std::vector<SeenRoom> CullingRooms(const CameraView& view, const RoomGraph& graph, const ScreenRegions& regions) {
+  std::vector<SeenRoom> rooms;
   for (const auto& [room, region] : regions) {
-    seen.push_back({.room = room,
-                    .bounds = BoundsOf(graph, room),
-                    .frustum = z13::math::Frustum(view.view_projection, region)});
+    rooms.push_back({.room = room,
+                     .bounds = BoundsOf(graph, room),
+                     .frustum = z13::math::Frustum(view.view_projection, region)});
   }
-  std::ranges::sort(seen, {}, &SeenRoom::room);
-  return seen;
+  return rooms;
 }
 
 }  // namespace
 
-ViewCulling::ViewCulling(const CameraView& view, OptionalGraph graph)
-    : frustum_(view.view_projection), rooms_(graph ? RoomsInView(view, *graph) : std::nullopt) {
+ViewCulling::ViewCulling(const CameraView& view, OptionalGraph graph) : frustum_(view.view_projection) {
+  if (!graph) {
+    return;
+  }
+  const RoomGraph& rooms = graph->get();
+  const auto eye_room = rooms.RoomAt(EyeInCells(view).array().floor().cast<int>());
+  if (!eye_room) {
+    return;
+  }
+  const ScreenRegions regions = RegionsInView(view, rooms, *eye_room);
+  std::vector<RoomId> seen;
+  std::ranges::transform(regions, std::back_inserter(seen), [](const auto& entry) { return entry.first; });
+  std::ranges::sort(seen);
+  seen_rooms_ = std::move(seen);
+  if (*eye_room != kVacuumRoom) {
+    culling_rooms_ = CullingRooms(view, rooms, regions);
+  }
 }
 
 bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {
   if (!frustum_.Intersects(box)) {
     return false;
   }
-  return !rooms_ || std::ranges::any_of(*rooms_, [&box](const SeenRoom& room) {
+  return !culling_rooms_ || std::ranges::any_of(*culling_rooms_, [&box](const SeenRoom& room) {
     return (!room.bounds || room.bounds->intersects(box)) && room.frustum.Intersects(box);
   });
 }
 
-std::optional<std::vector<RoomId>> ViewCulling::SeenRooms() const {
-  if (!rooms_) {
-    return std::nullopt;
-  }
-  std::vector<RoomId> seen;
-  std::ranges::transform(*rooms_, std::back_inserter(seen), &SeenRoom::room);
-  return seen;
+const std::optional<std::vector<RoomId>>& ViewCulling::SeenRooms() const {
+  return seen_rooms_;
 }
 
 std::optional<size_t> ViewCulling::SeenRoomCount() const {
-  return rooms_ ? std::optional(rooms_->size()) : std::nullopt;
+  return seen_rooms_ ? std::optional(seen_rooms_->size()) : std::nullopt;
 }
 
 }  // namespace z13::raylib

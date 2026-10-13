@@ -175,6 +175,19 @@ TEST(RoomVisibilityTest, AWindowTooSmallOnScreenShowsNothing) {
   EXPECT_FALSE(Seen(graph, SeenFrom(graph, kEyeInA, Eigen::Vector3f::UnitX(), too_wide), kCellInB));
 }
 
+// The eye in space before the hall's x = 0 wall; the window in the far wall faces away.
+TEST(RoomVisibilityTest, FromSpaceOnlyTheRoomsBehindWindowsFacingTheEyeShow) {
+  const Eigen::Vector3f eye_in_space(-10.f, 5.5f, 4.5f);
+  const RoomGraph graph = Build({Window(0, kInLine, {1, 1, 1}), Window(kLength + 1, kInLine, {1, 1, 1})});
+
+  const ScreenRegions seen = SeenFrom(graph, eye_in_space, Eigen::Vector3f::UnitX());
+
+  EXPECT_TRUE(seen.contains(kVacuumRoom));
+  EXPECT_TRUE(Seen(graph, seen, kEyeInA.cast<int>()));
+  EXPECT_FALSE(Seen(graph, seen, kCellInB));
+  EXPECT_FALSE(Seen(graph, seen, kCellInC));
+}
+
 // Room D stands in space beyond the hall's x = 0 wall, x [-13, -2).
 std::vector<CellBox> HallAndRoomD() {
   constexpr int kDLow = -13;
