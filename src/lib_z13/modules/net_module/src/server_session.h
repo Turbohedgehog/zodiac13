@@ -40,9 +40,10 @@ struct PlayerIdAllocator {
   uint32_t next_player_id {};
 };
 
+// Commands a connection may still send, refilled every tick (AllowCommand).
 struct ConnectionRateLimit {
-  uint64_t window_start_tick {};
-  uint32_t commands_this_window {};
+  uint64_t refilled_tick {};
+  uint64_t commands_left {};
 };
 
 struct CommandRateLimits {
