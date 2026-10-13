@@ -57,8 +57,6 @@
 namespace z13::net {
 namespace {
 
-const uint32_t kMaxCommandsPerRateLimitWindow = NetTuning {}.max_commands_per_rate_limit_window;
-
 using z13::gameplay::Gameplay;
 using z13::gameplay::IdCounters;
 using z13::gameplay::LocalPlayer;
@@ -528,28 +526,102 @@ TEST(NetSessionTest, UnknownActionIdIsDroppedButOtherCommandsInTheBatchAreKept) 
   EXPECT_EQ(records.front().action_id, valid_action_id);
 }
 
-TEST(NetSessionTest, CommandsPastTheRateLimitAreDroppedForThatConnection) {
+std::vector<uint16_t> AllActionIds(flecs::world world) {
+  std::vector<uint16_t> ids;
+  for (const z13::input::ActionInfo& action : world.get<z13::input::ActionMap>().action_map) {
+    ids.push_back(static_cast<uint16_t>(action.id));
+  }
+  return ids;
+}
+
+size_t CommittedBy(flecs::world world, uint32_t player_id) {
+  return static_cast<size_t>(std::ranges::count(CommittedCommands(world), player_id, &z13::gameplay::PlayerActionRecord::player_id));
+}
+
+// A raw client welcomed as player 1.
+std::unique_ptr<Transport> WelcomedRawClient(InMemoryNetwork& network, Z13TestWorld& server, ConnectionId& connection) {
+  auto raw = ConnectRawClient(network, server, connection);
+  EXPECT_NE(connection, kInvalidConnectionId);
+  SendRaw(*raw, connection, HelloWithoutActions(server.World()));
+  EXPECT_TRUE(RunNetworkUntil(network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str()));
+  }));
+  return raw;
+}
+
+uint64_t ServerTick(Z13TestWorld& server) {
+  return server.World().get<z13::flecs_tools::SimulationClock>().tick;
+}
+
+TEST(NetSessionTest, CommandsPastWhatAnyClientCouldSendAreDroppedForThatConnection) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
-
   ConnectionId connection = kInvalidConnectionId;
-  const auto raw = ConnectRawClient(*network, server, connection);
-  ASSERT_NE(connection, kInvalidConnectionId);
-  SendRaw(*raw, connection, HelloWithoutActions(server.World()));
-  ASSERT_TRUE(RunNetworkUntil(
-      *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return static_cast<bool>(server.World().lookup(PlayerEntityName(1).c_str())); }));
+  const auto raw = WelcomedRawClient(*network, server, connection);
 
+  const NetTuning& tuning = server.World().get<NetTuning>();
+  const size_t budget = AllActionIds(server.World()).size() * (tuning.max_late_ticks + tuning.max_schedule_ahead_ticks);
   const uint16_t valid_action_id = AnyKnownActionId(server.World());
   fbs::net::CommandBatchT batch;
-  batch.base_tick = server.World().get<z13::flecs_tools::SimulationClock>().tick + 1;
-  for (uint32_t i = 0; i < kMaxCommandsPerRateLimitWindow + 20; ++i) {
+  batch.base_tick = ServerTick(server) + 1;
+  for (size_t i = 0; i < budget + 20; ++i) {
     batch.commands.emplace_back(0, valid_action_id, 100);
   }
   SendRaw(*raw, connection, batch);
 
   ASSERT_TRUE(RunNetworkUntil(
       *network, {server}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return !CommittedCommands(server.World()).empty(); }));
-  EXPECT_EQ(CommittedCommands(server.World()).size(), kMaxCommandsPerRateLimitWindow);
+  EXPECT_EQ(CommittedBy(server.World(), 1), budget);
+}
+
+// Past the old limit of 128 commands in 60 ticks, and under the late window, so the log still
+// holds them all.
+TEST(NetSessionTest, AClientChangingEveryActionEveryTickLosesNoCommand) {
+  constexpr uint64_t kTicks = 90;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  ConnectionId connection = kInvalidConnectionId;
+  const auto raw = WelcomedRawClient(*network, server, connection);
+
+  const std::vector<uint16_t> actions = AllActionIds(server.World());
+  size_t sent = 0;
+  for (uint64_t tick = 0; tick < kTicks; ++tick) {
+    fbs::net::CommandBatchT batch;
+    batch.base_tick = ServerTick(server) + 1;
+    for (const uint16_t action : actions) {
+      batch.commands.emplace_back(0, action, static_cast<int16_t>(tick % 2));
+    }
+    sent += batch.commands.size();
+    SendRaw(*raw, connection, batch);
+    RunNetworkUntil(*network, {server}, kNetTestDeltaTime, 1, [] { return false; });
+  }
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, 2, [] { return false; });
+
+  EXPECT_GT(sent, size_t {128});
+  EXPECT_EQ(CommittedBy(server.World(), 1), sent);
+}
+
+// A client whose uplink stalled sends the input it held back in one batch.
+TEST(NetSessionTest, InputHeldBackByAStallArrivesWhole) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  ConnectionId connection = kInvalidConnectionId;
+  const auto raw = WelcomedRawClient(*network, server, connection);
+  const uint64_t stall_ticks = server.World().get<NetTuning>().max_late_ticks / 2;
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, stall_ticks, [] { return false; });
+
+  const std::vector<uint16_t> actions = AllActionIds(server.World());
+  fbs::net::CommandBatchT batch;
+  batch.base_tick = ServerTick(server) - stall_ticks;
+  for (uint64_t tick = 0; tick < stall_ticks; ++tick) {
+    for (const uint16_t action : actions) {
+      batch.commands.emplace_back(static_cast<uint8_t>(tick), action, static_cast<int16_t>(tick % 2));
+    }
+  }
+  SendRaw(*raw, connection, batch);
+  RunNetworkUntil(*network, {server}, kNetTestDeltaTime, 2, [] { return false; });
+
+  EXPECT_EQ(CommittedBy(server.World(), 1), batch.commands.size());
 }
 
 TEST(NetSessionTest, ALateCommandMovedNextToItsActionsCommandKeepsItsOwnTick) {

@@ -31,7 +31,4 @@ table NetTuning {
   clock_catch_up_threshold_ticks: int64 = 2 (min: 1, cli);
   clock_catch_up_every_ticks: uint64 = 4 (min: 1, cli);
   clock_jump_threshold_ticks: int64 = 15 (min: 1, cli);
-
-  command_rate_limit_window_ticks: uint64 = 60 (min: 1, cli);
-  max_commands_per_rate_limit_window: uint32 = 128 (min: 1, cli);
 }
