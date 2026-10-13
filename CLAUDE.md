@@ -2,18 +2,13 @@
 
 ## Build & test
 
-- Requires `VCPKG_ROOT` set (vcpkg manifest mode; deps come from `vcpkg.json`).
-- Configure + build (Linux, Ninja generator, already the default): `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)`.
-- Build a single target (faster iteration): `cmake --build build --target <target>` (e.g. `raylib_module`).
-- If running inside PRoot (check `uname -a` for `PRoot-Distro` in the kernel string), cap parallel build jobs at 2-3 (e.g. `-j3`) instead of `-j$(nproc)` — higher counts have hung the session before. `-j3` was verified safe (incremental and full clean rebuilds, no hang) on 2026-09-16.
-- A full vcpkg rebuild inside PRoot (e.g. after a triplet change) ignores `-jN` for ports: also set `VCPKG_MAX_CONCURRENCY`; only `-j1` with `VCPKG_MAX_CONCURRENCY=1` completed without hanging. Launch it detached (`setsid -f bash -c '...' > log 2>&1 < /dev/null`) and read the log, since a long foreground or background tool call gets killed with the build. GitHub downloads drop intermittently: retry configure. Never `pkill -f` a pattern that also appears in your own command line — it kills the calling shell.
-- `ccache` is auto-detected by `CMakeLists.txt` (`CMAKE_CXX_COMPILER_LAUNCHER`) when installed — install it (`apt install ccache`) to speed up rebuilds.
+How to build, test and wait on builds is in the build-and-test skill; the rules:
+
+- Requires `VCPKG_ROOT` set (vcpkg manifest mode; deps come from `vcpkg.json`). Configure + build: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build`; tests: `ctest --test-dir build`.
+- Inside PRoot (`uname -a` shows `PRoot-Distro`): cap parallel jobs at `-j3` — higher counts have hung the session. A full vcpkg rebuild only with `-j1` and `VCPKG_MAX_CONCURRENCY=1`, launched detached. Long builds run detached with a log, never as a long foreground call.
+- Never `pkill -f` a pattern that also appears in your own command line — it kills the calling shell.
 - Sources and schemas are listed explicitly in each `CMakeLists.txt` (no globs): add a new `.cpp`/`.fbs` there; CI's `.github/scripts/check_listed_sources.py` fails on an unlisted one.
-- Run tests: `ctest --test-dir build` (or run `bin/tests/z13_test_runner` directly for gtest filters, e.g. `--gtest_filter=...`).
-- `triplets/` overrides the built-in `x64-linux`/`arm64-linux` so flecs, spdlog and fmt are shared libraries there, as on `x64-windows`, and `lib_core` is itself shared (`z13_core`, next to the executable): every plugin must see the same flecs and spdlog process state, and links one copy instead of its own. A dependency with process-wide state that plugins share must be shared too; CI's `.github/scripts/check_duplicated_state.py` fails on data defined in more than one binary (known constants are allowed there, each with a reason). `z13_plugin_smoke` (ctest `PluginSmoke`) loads the server plugins the launcher's way to check this. Editing a triplet changes every port's ABI hash, i.e. rebuilds all dependencies; per-port build flags go in an overlay port (`ports/`).
-- ARM Linux in CI: `arm64-linux` builds natively on `ubuntu-24.04-arm`. 32-bit ARM (`arm-linux-gnueabihf`) is not supported: vcpkg marks `raylib` as `!arm32`.
-- `python3 make.py -b` / `-br` wraps the Debug/Release configure+build+install cycle end-to-end (used for full local builds, not incremental iteration); it caps jobs at 3 inside PRoot (`-j` overrides). `--bench` also builds the benchmarks under `*/tests/bench/` (CMake option `Z13_BUILD_BENCHMARKS`, off by default, so CI and plain builds skip them).
-- `python3 z13.py` runs what was built: the game (default, `--game`), a dedicated server (`--server [PORT]`), the tests (`--tests`, with `--filter` for a gtest filter) or the benchmarks (`--bench [--filter ...]`); arguments after `--` pass through.
+- flecs, spdlog, fmt and `lib_core` (`z13_core`) are shared libraries (`triplets/`) so every plugin sees one process state; a dependency with process-wide state that plugins share must be shared too (CI's `check_duplicated_state.py`, ctest `PluginSmoke`). Editing a triplet rebuilds every dependency; per-port flags go in an overlay port (`ports/`).
 
 ## Codebase map
 
@@ -21,7 +16,7 @@
 - `src/lib_z13/components/include/z13/components` — flecs component structs shared across modules (`building.h`, `gameplay.h` (game flags; `gameplay_phases.h`, `player.h`, `player_parts.h` beside it), `bootstrap.h`, `status.h`, `z13.h`; station split by topic: `block.h`, `block_brush.h`, `station_mode.h`, `spawn_point.h`; input split by topic: `action_id.h`, `action_map.h`, `action_listener.h`, `input_config.h`, `input_events.h`, `input_phases.h`, `input_state.h`) and `constants/constants.h`.
 - `src/lib_z13/modules/z13_module` — main gameplay module: `bootstrap/`, `gameplay/`, `input/` (`gameplay_input_system`, input config loading). Factory in `z13_module_factory.cpp`. Its own tests live under `tests/`, with the `Z13TestWorld` harness in `tests/support/z13_test_world.h`.
 - `src/lib_z13/modules/bullet_module` — Bullet physics plugin. `bullet_components.h` exposes only `RigidBody` (component used outside the module); `PhysicsWorld` (the Bullet dynamics-world singleton) is declared in `physics_world.h`/`physics_world.cpp`, private to the module. Factory in `bullet_module_factory.cpp`.
-- `src/lib_z13/modules/building_module` — building plugin (`docs/station-primitives-plan.md`, "Модули строительства и станции"): the building tool and its input (`building_system`, `building_input_system`: the ship scene's free cubes), the block palette (`palette_system`), and in station mode (the `StationMode` singleton, `z13/components/station_mode.h`, set by `--station`/`--station-scene` or the menu, with `StationSceneChoice` naming the blueprint a new game starts from) `StationSceneSystem`, which fills a new station scene with that blueprint (`assets/station/blueprints/<scene>.json`: `site` a construction site, `test` the test station written by `docs/station-layout/generate_layout.py`; none leaves it empty) through `PopulateSceneEvent` (`GameplaySystem::OnInit` emits it before the local player spawns), `BrushSystem`, which applies the brush actions (pick, turn) to the player's `BlockBrush`, and `BlockBuildingSystem`, which builds (on release, sized by the drag) and destroys grid blocks (`Block` in `block.h`) through the derived `BlockIndex` and `ValidateBuild` and leaves a `BrushPreview` on each brush for the renderer. Loaded right after `z13_module`. Factory in `building_module_factory.cpp`.
+- `src/lib_z13/modules/building_module` — building plugin, loaded right after `z13_module`: the ship scene's building tool, the block palette (`BlockPalette`), and in station mode (`StationMode`, `z13/components/station_mode.h`) filling a new scene from a blueprint (`assets/station/blueprints/`), the brush (`BlockBrush`) and building/destroying grid blocks (`Block` in `block.h`) through `BlockIndex` and `ValidateBuild`. Systems in detail: plan-and-debt skill, references/modules.md. Factory in `building_module_factory.cpp`.
 - `src/lib_z13/modules/station_module` — station core plugin (`docs/station-systems-plan.md`): `RoomSystem` keeps the `RoomCache` singleton (rooms and portals, derived from the blocks by `rooms`) and `TopologyVersion` (state), `RoomOverlaySystem` fills `RoomOverlay` (F4); doors come with `f/doors`. Factory in `station_module_factory.cpp`.
 - `src/lib_z13/primitives` — `primitives`, a stateless static library: parses/validates the block palette (`assets/station/palette.json`, schema `primitives.fbs`) into plain types (`BlockPalette` singleton, loaded by `building_module`) and blueprints (`blueprint.fbs`, blocks naming palette primitives) and the lights of lamp blocks (`lights.h`), and builds each primitive shape as convex solids in cell units, from which both the mesh and the collision hull come, and places it on the grid (`placement.h`: 24 orientations, occupied cells, pose).
 - `src/lib_z13/rooms` — `rooms`, a stateless static library without flecs: `BuildRooms` splits the free space into rooms (column intervals, flood fill) and finds the portals of doors and windows; `RoomCache` (graphs by block fingerprint), `OverlapsBetween` (what a rebuild did to each room), `ReachOf` (a lamp's room and what it lights).
@@ -80,14 +75,12 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 
 ## Working in this repo
 
-- Comment-only edits need no rebuild or test run.
-- Before committing, scan the added comments (`git diff main -U0 | grep '^+\s*//'`) and delete those that restate a name or the code; comments running long has been the most frequent review remark.
-- For a sweep over many files (renames, comment trimming), take the whole diff/grep once and read the targets together, then edit straight through the list.
-- Some files are CRLF on purpose (e.g. `vcpkg.json`): edit them with the Edit tool or open them with `newline=''`; a text-mode Python rewrite turns them into a whole-file diff. Check `git diff --stat` for unexpected sizes.
+- Some files are CRLF on purpose (e.g. `vcpkg.json`): edit them with the Edit tool, or as bytes / with `newline=''` in a script; a text-mode rewrite turns them into a whole-file diff.
 - The player's experience comes first: every action the player performs is registered and reaches the simulation, never dropped, held back or collapsed into its last value (a resync, rollback or lag included; input the pause menu swallows is not a gameplay action). When a network or performance mechanism would cost input, change the mechanism, not the input (see `AdoptCatchUp`, which merges own input a Resync lacks).
 - Render-side mechanisms (smoothing, effects) work for every rendered entity with the relevant component, keyed per entity in a side table — not special-cased for today's brush or camera; more meshes and animations are coming.
 - Pre-alpha: changing the save/snapshot format needs no migration of player data; only regenerate saves checked into the repo or tests.
 - Tests reuse the project's registration helpers (`RegisterComponent`, `RegisterComponentMeta`) and say why when they can't.
+- The user opens and merges pull requests; push the branch and give the link.
 
 ## Comments
 
@@ -101,8 +94,18 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 ## Branch size
 
 - A branch's total diff should average no more than 1000 lines of code. Exceeding this is acceptable only in exceptional cases.
-- If a branch exceeds this limit, flag it immediately during code review.
+- If a branch exceeds this limit, flag it immediately during code review. Branches of the station plans (`docs/station-primitives-plan.md`, `docs/station-systems-plan.md`) may exceed it when a stage can't be split meaningfully (user decision 2026-10-05): mention the size, don't treat it as a defect.
 
 ## Code review
 
-- Every review also checks the comments the branch adds (`git diff main -U0 | grep '^+\s*//'`): report as a finding each one that restates a name or the code, repeats another comment or a convention from this file, or runs longer than the "Comments" section allows, with the shorter wording or "delete" as the fix.
+- Every review also checks the comments the branch adds (`git diff main -U0 | grep '^+\s*//'`), moved ones included: each one that restates a name or the code, repeats another comment or a convention from this file, or runs longer than the "Comments" section allows is deleted or shortened in the same review, without being asked.
+
+## Skills
+
+Procedures live in `.claude/skills/`, loaded when the task needs them:
+
+- `build-and-test` — building and testing, detached builds and their status in PRoot, stopping a stale build, CI checks before a push.
+- `finish-branch` — code review (with comment trimming), commit, push, conflicts after a squash merge, updating main after a merge.
+- `perf-measure` — benchmarks, trustworthy measurements on the dev box, prototyping in a benchmark, header width.
+- `plan-and-debt` — where plans and debts are, what's next, recording a finished stage or resolved debt.
+- `github-pr` — reading PR state and review comments through the GitHub API.
