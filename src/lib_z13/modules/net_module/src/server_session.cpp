@@ -195,16 +195,21 @@ void HandlePing(NetSession& session, flecs::world world, ConnectionId connection
   session.Send(connection, Channel::kUnreliable, envelope);
 }
 
-bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now, const NetTuning& tuning) {
-  ConnectionRateLimit& state = limits.by_connection[connection];
-  if (now - state.window_start_tick >= tuning.command_rate_limit_window_ticks) {
-    state.window_start_tick = now;
-    state.commands_this_window = 0;
-  }
-  if (state.commands_this_window >= tuning.max_commands_per_rate_limit_window) {
+// Refills by what an honest client records a tick (a command per action at most) and holds what
+// it may bring after a stall (the late and ahead windows), so player input is never dropped.
+bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t now, const NetTuning& tuning,
+                  size_t actions) {
+  const uint64_t capacity = actions * (tuning.max_late_ticks + tuning.max_schedule_ahead_ticks);
+  const auto [entry, added] =
+      limits.by_connection.try_emplace(connection, ConnectionRateLimit {.refilled_tick = now, .commands_left = capacity});
+  ConnectionRateLimit& budget = entry->second;
+  const uint64_t elapsed = now > budget.refilled_tick ? now - budget.refilled_tick : 0;
+  budget.commands_left = std::min(capacity, budget.commands_left + actions * elapsed);
+  budget.refilled_tick = now;
+  if (budget.commands_left == 0) {
     return false;
   }
-  ++state.commands_this_window;
+  --budget.commands_left;
   return true;
 }
 
@@ -233,7 +238,7 @@ void HandleCommandBatch(
           connection);
       continue;
     }
-    if (!AllowCommand(rate_limits, connection, now, tuning)) {
+    if (!AllowCommand(rate_limits, connection, now, tuning, action_map.action_map.size())) {
       log_warn("NetSession(server): connection {} exceeded its command rate limit, dropping the rest of this batch",
           connection);
       break;
