@@ -85,6 +85,49 @@ TEST(PlayerActionLogTest, RecordsPressAndReleaseEdgesOnce) {
   EXPECT_EQ(after_release[1].value, 0.f);
 }
 
+std::vector<float> Values(const std::vector<PlayerActionRecord>& records) {
+  std::vector<float> values;
+  std::ranges::transform(records, std::back_inserter(values), &PlayerActionRecord::value);
+  return values;
+}
+
+TEST(PlayerActionLogTest, AKeyTappedWithinOneFrameIsPressedOnOneTickAndReleasedOnTheNext) {
+  Z13TestWorld test_world;
+
+  test_world.EmitInput(KeyDown(Keycode::KEY_W));
+  test_world.EmitInput(KeyUp(Keycode::KEY_W));
+  Frames(test_world, 2);
+
+  const auto records = Records(test_world);
+  ASSERT_EQ(records.size(), 2u);
+  EXPECT_EQ(Values(records), (std::vector {1.f, 0.f}));
+  EXPECT_EQ(records[1].tick, records[0].tick + 1);
+}
+
+TEST(PlayerActionLogTest, TwoTapsWithinOneFrameAreBothRecorded) {
+  Z13TestWorld test_world;
+
+  for (int tap = 0; tap < 2; ++tap) {
+    test_world.EmitInput(KeyDown(Keycode::KEY_W));
+    test_world.EmitInput(KeyUp(Keycode::KEY_W));
+  }
+  Frames(test_world, 4);
+
+  EXPECT_EQ(Values(Records(test_world)), (std::vector {1.f, 0.f, 1.f, 0.f}));
+}
+
+TEST(PlayerActionLogTest, AutoRepeatOfAHeldKeyDoesNotDelayItsRelease) {
+  Z13TestWorld test_world;
+  test_world.EmitInput(KeyDown(Keycode::KEY_W));
+  Frames(test_world, 1);
+
+  test_world.EmitInput(KeyDown(Keycode::KEY_W));
+  test_world.EmitInput(KeyUp(Keycode::KEY_W));
+  Frames(test_world, 1);
+
+  EXPECT_EQ(Values(Records(test_world)), (std::vector {1.f, 0.f}));
+}
+
 TEST(PlayerActionLogTest, HoldingLongerThanOneIntervalAddsNoExtraRecordsBeforeTheBoundary) {
   Z13TestWorld test_world;
   const uint64_t interval_ticks = IntervalTicks(test_world);
