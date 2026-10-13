@@ -27,8 +27,8 @@
 
 #include <Eigen/Dense>
 
-#include <primitives/placement.h>
 #include <building_tuning_generated.h>
+#include <primitives/placement.h>
 #include <rooms/free_space.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_id.h>

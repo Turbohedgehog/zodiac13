@@ -68,4 +68,8 @@ TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building:
   return edits;
 }
 
+rooms::RoomSettings RoomSettingsOf(const z13::BuildingTuning& tuning) {
+  return {.chunk_cells = tuning.room_chunk_cells, .max_opening_cells = tuning.room_max_opening_cells};
+}
+
 }  // namespace z13::station

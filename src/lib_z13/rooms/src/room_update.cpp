@@ -64,7 +64,6 @@ struct SourceChanges {
 
 struct SpaceUpdate {
   FreeSpace space;
-  // The chunks cut again or added, by AnchorBefore.
   std::vector<Eigen::Vector3i> rebuilt;
   std::vector<PortalSource> openings;
   SourceChanges changes;

@@ -24,15 +24,11 @@
 
 namespace z13::station::rooms {
 
-// Doorways and windows without a block in them: a box-shaped hole one cell thick in a wall or
-// floor, no wider than `max_cells` along either side, free on both sides, sealed all round
-// in its plane, and held on two opposite sides by thin wall (cells free on both sides). Rooms
-// are split at such a hole, and it is a visible, passable portal. A corridor one cell wide or
-// a gap by the shell, a perpendicular wall or a slope isn't one: what holds it isn't thin.
-//
-// The holes are those of each plane's union of sealed cross-sections, in the planes of the
-// thin `walls`. `sealed` must hold every sealed box within max_cells + 2 cells of the holes
-// sought, or a hole is seen where a box is missing. Sorted by PortalSourceBefore.
+// Doorways and windows without a block in them: holes of a wall plane's union of sealed
+// cross-sections that are boxes no wider than `max_cells`, free on both sides of the plane
+// and held on two opposite sides by thin wall (free on both sides). Searched in the planes of
+// the thin `walls`; `sealed` must hold every box within max_cells + 2 cells of the holes
+// sought. Sorted by PortalSourceBefore.
 std::vector<PortalSource> FindOpenings(std::span<const z13::building::primitives::CellBox> sealed,
                                        std::span<const z13::building::primitives::CellBox> walls, int max_cells);
 

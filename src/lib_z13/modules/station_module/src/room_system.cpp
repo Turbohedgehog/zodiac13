@@ -93,8 +93,7 @@ void UpdateRooms(BlockChangeReader& reader, uint64_t restores, uint64_t tick, To
   if (!batch.resync && batch.changes.empty()) {
     return;
   }
-  const rooms::RoomSettings settings {.chunk_cells = tuning.room_chunk_cells,
-                                      .max_opening_cells = tuning.room_max_opening_cells};
+  const rooms::RoomSettings settings = RoomSettingsOf(tuning);
   uint64_t fingerprint {};
   rooms::RoomCache::Build build;
   if (batch.resync) {
