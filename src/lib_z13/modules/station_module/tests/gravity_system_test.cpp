@@ -175,7 +175,7 @@ TEST_F(GravitySystemTest, AWaistHighBlockStopsTheWalk) {
   EXPECT_NEAR(PositionOf(player).z(), FloorTop() + kTuning.eye_height, kStandTolerance);
 }
 
-// The box's middle falls in the new room east of the partition, the west part keeping the old room.
+// The box's middle falls in the room the partition splits off, under a new id.
 TEST_F(GravitySystemTest, ARoomAWallSplitsOffPullsToo) {
   testing::AddBlocks(world_, testing::DoorPartition());
   const flecs::entity body = world_.World().entity().set(At(InBox(1.f))).set(Gravity {});

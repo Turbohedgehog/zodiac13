@@ -46,7 +46,6 @@ int OverlapArea(const FacePatch& a, const FacePatch& b) {
   return (size.array() > 0).all() ? size.x() * size.y() : 0;
 }
 
-// Per axis, the sum of that coordinate over the box's cells.
 Eigen::Vector3<int64_t> CellSum(const CellBox& box) {
   const Eigen::Array3<int64_t> min = box.min.cast<int64_t>();
   const Eigen::Array3<int64_t> extent = box.extent.cast<int64_t>();

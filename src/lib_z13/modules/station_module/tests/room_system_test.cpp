@@ -229,7 +229,6 @@ TEST(RoomSystemTest, TheOverlayShowsEveryRoomAndPortalInAllMode) {
   EXPECT_EQ(CountColoured(world, kDoorOverlayColor), 1U);
 }
 
-// The boxes of a room split by the partition are made again, the others' kept.
 TEST(RoomSystemTest, TheOverlayFollowsTheRoomsAnEditChanges) {
   Z13TestWorld world = StationWorld();
   world.Tick();
