@@ -22,7 +22,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/station.h>
+#include <z13/components/station_mode.h>
 
 namespace z13::raylib::gui {
 

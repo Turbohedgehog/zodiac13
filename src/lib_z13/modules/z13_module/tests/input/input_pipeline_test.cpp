@@ -18,8 +18,8 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/player.h>
+#include <z13/components/input_events.h>
 #include <z13_module/gameplay/camera_look.h>
 
 #include "../support/z13_test_world.h"

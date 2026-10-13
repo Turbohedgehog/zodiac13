@@ -21,7 +21,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
 
 namespace z13::building {
 

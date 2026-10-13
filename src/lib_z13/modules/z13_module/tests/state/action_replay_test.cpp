@@ -31,6 +31,8 @@
 
 #include <z13/components/building.h>
 #include <z13/components/player_action.h>
+#include <z13/components/input_events.h>
+#include <z13/components/player.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/world_json_test_helpers.h"

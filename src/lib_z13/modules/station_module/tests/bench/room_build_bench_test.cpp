@@ -28,6 +28,7 @@
 #include <rooms/portal_source.h>
 #include <rooms/room_builder.h>
 #include <z13_tests/shipped_station.h>
+#include <z13/components/block.h>
 
 namespace z13::testing {
 namespace {

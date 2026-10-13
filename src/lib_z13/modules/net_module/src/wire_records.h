@@ -25,7 +25,7 @@
 #include <vector>
 
 #include <lib_core/state/world_serializer.h>
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
 #include <z13/components/player_action.h>
 
 #include <net_module/protocol.h>
@@ -49,7 +49,7 @@ std::expected<CommandRun, std::string> ToCommandRun(
     const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t empty_base_tick);
 
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id);
-bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionInfo::IdType action_id);
+bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionId action_id);
 
 // The transport gives std::byte, the codec takes uint8_t.
 std::span<const uint8_t> AsUint8(std::span<const std::byte> data);

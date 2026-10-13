@@ -22,6 +22,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/cut.h>
+#include <z13/components/block.h>
 
 namespace z13::building::primitives {
 namespace {

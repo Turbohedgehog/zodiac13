@@ -37,7 +37,13 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/station.h>
+#include <z13/components/gameplay_phases.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
+#include <z13/components/block.h>
+#include <z13/components/block_brush.h>
+#include <z13/components/spawn_point.h>
+#include <z13/components/station_mode.h>
 #include <z13_grid/block_index.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>

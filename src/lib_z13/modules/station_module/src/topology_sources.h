@@ -22,7 +22,7 @@
 #include <flecs.h>
 
 #include <z13/components/block_changes.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>
 #include <z13_settings/building_tuning.h>

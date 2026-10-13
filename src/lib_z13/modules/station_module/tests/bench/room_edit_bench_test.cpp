@@ -33,7 +33,7 @@
 
 #include <lib_core/utils/system_times.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/station_assets.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>

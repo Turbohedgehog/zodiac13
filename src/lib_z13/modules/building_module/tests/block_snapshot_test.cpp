@@ -29,9 +29,10 @@
 
 #include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/state/world_serializer.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>
 

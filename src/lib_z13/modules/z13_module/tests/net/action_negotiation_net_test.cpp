@@ -31,7 +31,8 @@
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/player.h>
+#include <z13/components/action_map.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -50,6 +51,7 @@ namespace {
 using z13::gameplay::input::AdoptActionIds;
 using z13::gameplay::input::DescribeActions;
 using z13::gameplay::input::InputConfigLoader;
+using z13::input::ActionId;
 using z13::input::ActionInfo;
 using z13::input::ActionMap;
 using z13::testing::kConnectArg;
@@ -88,7 +90,7 @@ bool HasFailed(Z13TestWorld& world) {return world.World().get<ConnectionStatus>(
 
 void AddActionFromMissingModule(flecs::world world, std::string_view enum_name, std::string_view value_name, ActionInfo::EnumValueType value) {
   auto& map = world.get_mut<ActionMap>();
-  const ActionInfo::IdType id = map.action_map.get<ActionMap::IdTag>().rbegin()->id + 1;
+  const ActionId id = map.action_map.get<ActionMap::IdTag>().rbegin()->id + 1;
   map.action_map.emplace_back(ActionInfo {
       .enum_name = enum_name,
       .value_name = value_name,
@@ -100,7 +102,7 @@ void AddActionFromMissingModule(flecs::world world, std::string_view enum_name, 
   });
 }
 
-std::optional<ActionInfo::IdType> IdOf(Z13TestWorld& world, std::string_view enum_name, ActionInfo::EnumValueType value) {
+std::optional<ActionId> IdOf(Z13TestWorld& world, std::string_view enum_name, ActionInfo::EnumValueType value) {
   return InputConfigLoader::FindActionId(world.World().get<ActionMap>().action_map, enum_name, value);
 }
 
@@ -110,7 +112,7 @@ void ShiftLocalIds(flecs::world world) {
   ASSERT_TRUE(AdoptActionIds(world, shifted).has_value());
 }
 
-ActionInfo::IdType MoveForwardId(Z13TestWorld& world) {
+ActionId MoveForwardId(Z13TestWorld& world) {
   return IdOf(world, z13::gameplay::input::kActionsEnumName, static_cast<ActionInfo::EnumValueType>(z13::fbs::actions::Action::MOVE_FORWARD))
       .value();
 }

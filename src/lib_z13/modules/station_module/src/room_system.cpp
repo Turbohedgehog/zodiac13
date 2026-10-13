@@ -30,9 +30,10 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/block_change_reader.h>
-#include <z13/components/gameplay.h>
+#include <z13/components/gameplay_phases.h>
 #include <z13/components/rooms.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/station_mode.h>
 #include <z13_settings/building_tuning.h>
 #include <primitives/palette.h>
 #include <rooms/room_builder.h>

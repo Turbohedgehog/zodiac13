@@ -22,7 +22,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/input.h>
+#include <input_config_generated.h>
 
 namespace z13::raylib::gui {
 

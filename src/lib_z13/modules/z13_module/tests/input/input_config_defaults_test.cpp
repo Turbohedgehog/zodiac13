@@ -21,7 +21,8 @@
 #include <string>
 #include <tuple>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
 #include <z13_module/input/input_config_loader.h>
 
 #include "../support/z13_test_world.h"
@@ -54,7 +55,7 @@ class InputConfigDefaultsTest : public ::testing::Test {
  protected:
   const z13::input::ActionMap& ActionMap() { return test_world_.World().get<z13::input::ActionMap>(); }
 
-  z13::input::ActionInfo::IdType IdOf(Action action) {
+  z13::input::ActionId IdOf(Action action) {
     return InputConfigLoader::FindActionId(ActionMap().action_map, kActionsEnum, action).value();
   }
 
@@ -64,7 +65,7 @@ class InputConfigDefaultsTest : public ::testing::Test {
     return it == by_action.end() ? std::nullopt : std::optional<Keycode>(it->keycode);
   }
 
-  using BindingSet = std::set<std::tuple<z13::input::ActionInfo::IdType, Keycode>>;
+  using BindingSet = std::set<std::tuple<z13::input::ActionId, Keycode>>;
 
   static BindingSet Bindings(const z13::input::InputConfig& config) {
     BindingSet bindings;

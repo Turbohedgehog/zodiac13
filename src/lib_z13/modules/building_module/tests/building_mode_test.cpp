@@ -20,8 +20,10 @@
 #include <Eigen/Dense>
 
 #include <z13/components/building.h>
-#include <z13/components/input.h>
-#include <z13/components/station.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/block.h>
+#include <z13/components/player.h>
+#include <input_config_generated.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"

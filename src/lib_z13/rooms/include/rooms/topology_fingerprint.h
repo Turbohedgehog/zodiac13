@@ -18,7 +18,7 @@
 
 #include <cstdint>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 namespace z13::station::rooms {
 

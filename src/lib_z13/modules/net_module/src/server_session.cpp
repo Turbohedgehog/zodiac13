@@ -32,7 +32,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
 #include <z13/components/player_action.h>
 #include <z13_module/input/action_negotiation.h>
 #include <z13_settings/settings.h>

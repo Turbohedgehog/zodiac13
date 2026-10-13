@@ -21,9 +21,9 @@
 
 #include <flecs.h>
 
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 namespace z13::station {
 

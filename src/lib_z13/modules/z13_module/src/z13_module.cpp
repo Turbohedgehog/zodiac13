@@ -27,8 +27,12 @@
 #include <z13/components/z13.h>
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/state/replay.h>
 #include <z13_settings/building_tuning.h>

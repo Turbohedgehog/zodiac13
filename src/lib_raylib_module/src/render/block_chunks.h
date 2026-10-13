@@ -27,7 +27,7 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/geometry.h>
 
 namespace z13::raylib {

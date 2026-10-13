@@ -42,9 +42,13 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/gameplay_phases.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
-#include <z13/components/input.h>
-#include <z13/components/station.h>
+#include <z13/components/input_phases.h>
+#include <z13/components/block.h>
+#include <z13/components/station_mode.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>

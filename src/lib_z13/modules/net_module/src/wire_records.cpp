@@ -20,6 +20,7 @@
 #include <format>
 #include <iterator>
 #include <limits>
+#include <z13/components/action_map.h>
 
 namespace z13::net {
 
@@ -84,10 +85,10 @@ z13::gameplay::PlayerActionRecord FromWire(
 
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id) {
   const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
-  return by_id.find(static_cast<z13::input::ActionInfo::IdType>(action_id)) != by_id.end();
+  return by_id.find(static_cast<z13::input::ActionId>(action_id)) != by_id.end();
 }
 
-bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionInfo::IdType action_id) {
+bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionId action_id) {
   const auto& by_id = action_map.action_map.get<z13::input::ActionMap::IdTag>();
   const auto info = by_id.find(action_id);
   return info != by_id.end() && info->absolute;

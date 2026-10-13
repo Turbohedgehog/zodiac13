@@ -28,7 +28,7 @@
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/status.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 namespace z13 {
 

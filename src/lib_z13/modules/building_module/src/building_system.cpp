@@ -27,11 +27,13 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <z13/components/station.h>
+#include <z13/components/gameplay_phases.h>
+#include <z13/components/player.h>
+#include <z13/components/input_phases.h>
+#include <z13/components/block.h>
+#include <z13/components/station_mode.h>
 #include <primitives/placement.h>
 
-#include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>

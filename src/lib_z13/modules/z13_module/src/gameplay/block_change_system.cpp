@@ -22,7 +22,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/block_changes.h>
-#include <z13/components/gameplay.h>
+#include <z13/components/gameplay_phases.h>
 
 namespace z13::gameplay {
 

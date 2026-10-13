@@ -29,7 +29,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_json_store.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 
 #include <net_module/clock_sync.h>
@@ -38,9 +38,10 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 #include "../support/block_test_helpers.h"
 #include "../support/building_test_helpers.h"

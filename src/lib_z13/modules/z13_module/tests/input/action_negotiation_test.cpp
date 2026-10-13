@@ -24,7 +24,8 @@
 #include <string_view>
 #include <vector>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
 #include <z13_module/input/action_negotiation.h>
 #include <z13_module/input/input_config_loader.h>
 
@@ -33,6 +34,7 @@
 namespace z13::gameplay::input {
 namespace {
 
+using z13::input::ActionId;
 using z13::input::ActionInfo;
 using z13::input::ActionMap;
 using z13::input::InputConfig;
@@ -49,7 +51,7 @@ ActionDescriptor Extra(std::string value_name = std::string(kExtraValue), Action
   return {.enum_name = std::string(kExtraEnum), .value_name = std::move(value_name), .enum_value = enum_value};
 }
 
-ActionInfo::IdType MaxId(const ActionMap& map) {
+ActionId MaxId(const ActionMap& map) {
   return map.action_map.get<ActionMap::IdTag>().rbegin()->id;
 }
 
@@ -71,7 +73,7 @@ TEST(ActionNegotiationTest, KnownActionsKeepTheirIds) {
 
 TEST(ActionNegotiationTest, UnknownActionGetsTheNextFreeIdAndStaysOutOfTheConfig) {
   Z13TestWorld test_world;
-  const ActionInfo::IdType first_free = MaxId(Map(test_world)) + 1;
+  const ActionId first_free = MaxId(Map(test_world)) + 1;
 
   const auto ids = RegisterRemoteActions(Map(test_world), std::vector {Extra()});
 
@@ -212,7 +214,7 @@ TEST(ActionNegotiationTest, AdoptingIdsRenumbersTheMapAndKeepsTheKeyBindings) {
 TEST(ActionNegotiationTest, AdoptingAWrongSizedOrRepeatedListChangesNothing) {
   Z13TestWorld test_world;
   const size_t count = Map(test_world).action_map.size();
-  const ActionInfo::IdType first_id = Map(test_world).action_map.get<ActionMap::IdTag>().begin()->id;
+  const ActionId first_id = Map(test_world).action_map.get<ActionMap::IdTag>().begin()->id;
 
   EXPECT_FALSE(AdoptActionIds(test_world.World(), std::vector<uint32_t>(count + 1, 1)).has_value());
   EXPECT_FALSE(AdoptActionIds(test_world.World(), std::vector<uint32_t>(count, 1)).has_value());

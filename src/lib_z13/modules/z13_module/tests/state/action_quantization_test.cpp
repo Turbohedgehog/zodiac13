@@ -21,8 +21,12 @@
 #include <limits>
 #include <string_view>
 
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
 #include <z13/components/player_action.h>
+#include <z13/components/player.h>
 #include <z13_tests/test_time.h>
 
 #include "../support/z13_test_world.h"
@@ -35,14 +39,14 @@ using z13::testing::Z13TestWorld;
 
 constexpr std::string_view kHorizontalLook = "HORIZONTAL_LOOK";
 
-z13::input::ActionInfo::IdType HorizontalLookId(Z13TestWorld& test_world) {
+z13::input::ActionId HorizontalLookId(Z13TestWorld& test_world) {
   const auto& by_name = test_world.World().get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::ActionNameTag>();
   const auto found = by_name.find(kHorizontalLook);
   EXPECT_NE(found, by_name.end());
   return found->id;
 }
 
-float LiveValue(Z13TestWorld& test_world, z13::input::ActionInfo::IdType action_id) {
+float LiveValue(Z13TestWorld& test_world, z13::input::ActionId action_id) {
   const auto holder = test_world.Player().get<z13::input::ActionListener>().Value(action_id);
   return holder ? **holder : 0.f;
 }

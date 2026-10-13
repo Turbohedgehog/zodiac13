@@ -36,7 +36,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/input_events.h>
 #include <z13/components/rooms.h>
 
 #include <raylib_module/raylib_components.h>

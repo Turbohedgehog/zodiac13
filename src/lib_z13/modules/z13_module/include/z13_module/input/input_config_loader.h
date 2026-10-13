@@ -21,7 +21,8 @@
 #include <string>
 #include <string_view>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
 
 #include <lib_core/utils/status.h>
 
@@ -51,14 +52,14 @@ class InputConfigLoader {
   static Status AppendFlatbufActionsFromBinarySchema(
       const z13::input::FlatbufferBinarySchema& binary_schema,
       z13::input::ActionMap& action_map);
-  static std::optional<z13::input::ActionInfo::IdType> FindActionId(
+  static std::optional<z13::input::ActionId> FindActionId(
     const z13::input::ActionMap::ActionMapContainer& action_map_container,
     std::string_view action_enum_name,
     z13::input::ActionInfo::EnumValueType action_enum_value
   );
 
   template <typename T>
-  static std::optional<z13::input::ActionInfo::IdType> FindActionId(
+  static std::optional<z13::input::ActionId> FindActionId(
     const z13::input::ActionMap::ActionMapContainer& action_map_container,
     std::string_view action_enum_name,
     T action_enum_value

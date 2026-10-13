@@ -29,18 +29,23 @@
 #include <utility>
 
 #include <lib_core/utils/status.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
 
 namespace z13::gameplay::input {
 
 namespace {
 
+using z13::input::ActionId;
 using z13::input::ActionInfo;
 using z13::input::ActionMap;
 using z13::input::InputConfig;
 
 struct NewAction {
   const ActionDescriptor* descriptor {};
-  ActionInfo::IdType id {};
+  ActionId id {};
   ActionInfo::EnumValueType enum_value {};
 };
 
@@ -79,7 +84,7 @@ std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
   const auto& by_value = action_map.action_map.get<ActionMap::EnumNameEnumValueTag>();
   const auto& by_id = action_map.action_map.get<ActionMap::IdTag>();
 
-  ActionInfo::IdType next_id = by_id.empty() ? 0 : std::prev(by_id.end())->id + 1;
+  ActionId next_id = by_id.empty() ? 0 : std::prev(by_id.end())->id + 1;
   std::vector<uint32_t> ids;
   std::vector<NewAction> to_register;
   std::map<std::pair<std::string_view, std::string_view>, NewAction> pending_by_name;
@@ -88,7 +93,7 @@ std::expected<std::vector<uint32_t>, std::string> RegisterRemoteActions(
       std::ranges::count(action_map.action_map, z13::input::kRemoteActionGroup, &ActionInfo::group_name));
 
   const auto find_registered = [&](std::string_view enum_name,
-                                   std::string_view value_name) -> std::optional<ActionInfo::IdType> {
+                                   std::string_view value_name) -> std::optional<ActionId> {
     if (const auto known = by_name.find(std::make_tuple(enum_name, value_name)); known != by_name.end()) {
       return known->id;
     }
@@ -153,11 +158,11 @@ Status AdoptActionIds(flecs::world world, std::span<const uint32_t> ids) {
     return std::unexpected(std::string {"the server returned a repeated action id"});
   }
 
-  std::unordered_map<ActionInfo::IdType, ActionInfo::IdType> new_id_of;
+  std::unordered_map<ActionId, ActionId> new_id_of;
   ActionMap::ActionMapContainer renumbered;
   size_t index = 0;
   for (const ActionInfo& info : action_map.action_map) {
-    const ActionInfo::IdType new_id = ids[index++];
+    const ActionId new_id = ids[index++];
     new_id_of.emplace(info.id, new_id);
     renumbered.emplace_back(ActionInfo {
         .enum_name = info.enum_name,

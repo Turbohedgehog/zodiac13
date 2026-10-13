@@ -30,16 +30,21 @@
 
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/world_snapshot_history.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/player.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_events.h>
+#include <z13/components/input_state.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
 #include <primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 

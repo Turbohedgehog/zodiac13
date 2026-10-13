@@ -33,9 +33,11 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/input_events.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/settings.h>

@@ -27,9 +27,10 @@
 
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <z13/components/station.h>
+#include <z13/components/player.h>
+#include <z13/components/input_phases.h>
+#include <z13/components/block.h>
+#include <input_config_generated.h>
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/math.h>

@@ -20,10 +20,10 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/station.h>
+#include <z13/components/spawn_point.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
 #include "../support/z13_test_world.h"

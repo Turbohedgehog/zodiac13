@@ -25,7 +25,7 @@
 #include <lib_core/utils/flecs_utils.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/input_config.h>
 #include <z13_settings/environment.h>
 
 #include "z13_module.h"

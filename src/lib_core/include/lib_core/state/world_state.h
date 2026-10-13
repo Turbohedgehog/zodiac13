@@ -17,40 +17,15 @@
 #pragma once
 
 #include <string>
-#include <type_traits>
 
 #include <flecs.h>
 
 #include <lib_core/state/component_meta.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/status.h>
 
 namespace z13::flecs_tools {
-
-// Tag on an entity that is part of the world state (snapshot).
-struct StateEntity {};
-
-// Trait on a component type whose values are world state; other components on a
-// state entity are derived runtime data.
-struct StateComponent {};
-
-// Trait on a singleton that belongs to one network session, see ResetSessionScopedComponents.
-struct SessionScopedComponent {};
-
-// Component properties, declared as nested types: `using State = void;` (values are
-// world state; empty structs become state tags), `using Singleton = void;` (flecs
-// singleton) and `using SessionScoped = void;` (a singleton reset per network session).
-// Nested types don't affect reflect-cpp; a base class would.
-// The alias must be void: an ordinary nested type that happens to be called State would
-// otherwise enrol its component into every snapshot.
-template <class T>
-concept StateComponentType = requires { requires std::is_void_v<typename T::State>; };
-
-template <class T>
-concept SingletonComponentType = requires { requires std::is_void_v<typename T::Singleton>; };
-
-template <class T>
-concept SessionScopedComponentType = requires { requires std::is_void_v<typename T::SessionScoped>; };
 
 // Registers T and applies its properties: State builds reflect-cpp meta and adds the
 // StateComponent trait, Singleton the flecs Singleton trait. Only state components need

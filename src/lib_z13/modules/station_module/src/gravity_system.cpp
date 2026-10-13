@@ -28,7 +28,8 @@
 
 #include <z13/components/gravity.h>
 #include <z13/components/rooms.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/station_mode.h>
 #include <rooms/room_cache.h>
 #include <z13_settings/physics_tuning.h>
 

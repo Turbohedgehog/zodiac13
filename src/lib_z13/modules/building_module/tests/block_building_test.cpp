@@ -26,15 +26,19 @@
 
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/world_serializer.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
-#include <z13/components/station.h>
+#include <z13/components/player.h>
+#include <z13/components/input_phases.h>
+#include <z13/components/block.h>
+#include <z13/components/block_brush.h>
+#include <z13/components/spawn_point.h>
+#include <input_config_generated.h>
 #include <z13_grid/block_index.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <primitives/placement.h>

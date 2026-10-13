@@ -18,7 +18,7 @@
 
 #include <functional>
 
-#include <z13/components/input.h>
+#include <z13/components/input_events.h>
 #include <z13_tests/test_time.h>
 
 #include "z13_test_world.h"

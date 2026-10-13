@@ -18,13 +18,15 @@
 
 #include <flecs.h>
 
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/gameplay_phases.h>
+#include <z13/components/player.h>
 #include <z13/components/net.h>
 
 #include <z13_module/gameplay/gameplay_entities.h>

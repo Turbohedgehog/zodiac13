@@ -29,6 +29,7 @@
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 

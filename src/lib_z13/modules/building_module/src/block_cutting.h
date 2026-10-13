@@ -25,7 +25,7 @@
 
 #include <lib_core/utils/status.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 #include "build_run.h"
 #include "build_validation.h"

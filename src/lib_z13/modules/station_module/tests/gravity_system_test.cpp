@@ -18,12 +18,12 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_settings/physics_tuning.h>
 

@@ -29,9 +29,10 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/rooms.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/station_mode.h>
 #include <rooms/room_cache.h>
 
 #include "room_box_cache.h"

@@ -28,7 +28,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/station.h>
+#include <z13/components/station_mode.h>
 #include <primitives/blueprint.h>
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>

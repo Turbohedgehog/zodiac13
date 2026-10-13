@@ -23,7 +23,7 @@
 
 #include <imgui.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block_brush.h>
 #include <primitives/palette.h>
 
 #include "gui_widgets.h"

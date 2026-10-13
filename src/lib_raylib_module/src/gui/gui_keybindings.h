@@ -25,7 +25,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/input.h>
+#include <z13/components/action_id.h>
+#include <input_config_generated.h>
 
 namespace z13::raylib::gui {
 
@@ -33,7 +34,7 @@ inline constexpr int kKeyBindingSlots = 2;
 
 struct KeyBindingAction {
   std::string display_text;
-  z13::input::ActionInfo::IdType action_id {};
+  z13::input::ActionId action_id {};
   std::array<z13::fbs::input::Keycode, kKeyBindingSlots> keycodes{};
 };
 

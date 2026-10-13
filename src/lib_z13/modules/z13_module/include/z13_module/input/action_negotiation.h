@@ -26,7 +26,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/input.h>
+#include <z13/components/action_map.h>
 
 #include <lib_core/utils/status.h>
 

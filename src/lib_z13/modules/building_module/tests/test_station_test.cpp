@@ -32,7 +32,9 @@
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
+#include <z13/components/station_mode.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <primitives/blueprint.h>
 #include <primitives/palette.h>

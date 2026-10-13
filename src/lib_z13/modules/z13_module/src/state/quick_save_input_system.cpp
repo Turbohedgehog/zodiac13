@@ -37,7 +37,10 @@
 #include <lib_core/utils/status.h>
 
 #include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/action_listener.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_events.h>
+#include <z13/components/input_phases.h>
 #include <z13/components/net.h>
 #include <z13_module/input/input_config_loader.h>
 
@@ -49,7 +52,7 @@ using z13::gameplay::input::kActionsEnumName;
 
 struct QuickSaveActionIds {
   using Singleton = void;
-  using IdType = z13::input::ActionInfo::IdType;
+  using IdType = z13::input::ActionId;
   std::optional<IdType> save;
   std::optional<IdType> load;
 };

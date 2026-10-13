@@ -23,6 +23,9 @@
 #include <flatbuffers/reflection.h>
 
 #include <input_config_generated.h>
+#include <z13/components/action_map.h>
+#include <z13/components/input_config.h>
+#include <z13/components/input_events.h>
 
 namespace z13::raylib::gui {
 
@@ -64,7 +67,7 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
   const auto& config = world.ensure<z13::input::InputConfig>();
 
   std::unordered_map<std::string, int> group_index;
-  std::unordered_map<z13::input::ActionInfo::IdType, std::pair<int, int>> action_slot;
+  std::unordered_map<z13::input::ActionId, std::pair<int, int>> action_slot;
 
   const auto& actions_by_id = action_map.get<z13::input::ActionMap::IdTag>();
   for (const auto& action_info : actions_by_id) {

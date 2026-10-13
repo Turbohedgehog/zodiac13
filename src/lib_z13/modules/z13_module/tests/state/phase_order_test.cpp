@@ -31,8 +31,8 @@
 
 #include <z13_tests/test_time.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input.h>
+#include <z13/components/gameplay_phases.h>
+#include <z13/components/input_phases.h>
 
 #include "../support/z13_test_world.h"
 

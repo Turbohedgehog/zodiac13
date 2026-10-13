@@ -29,6 +29,7 @@
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/time/simulation_clock.h>
+#include <z13/components/input_events.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"

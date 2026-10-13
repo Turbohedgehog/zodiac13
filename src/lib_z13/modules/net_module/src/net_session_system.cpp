@@ -33,6 +33,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13_settings/settings.h>
 
