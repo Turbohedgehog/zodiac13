@@ -16,8 +16,11 @@
 
 #include "gameplay_input_system.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
+#include <vector>
 
 #include <Eigen/Dense>
 #include <flecs.h>
@@ -168,7 +171,7 @@ void OnMouseDown(
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
-  input_state.input_state[KeyCodeToArrayIndex(mouse_down.button)] = 1.f;
+  input_state.pending.push_back({.key = mouse_down.button, .value = 1.f});
   
   auto world = it.world();
   if (world.has<z13::gameplay::Pause>()) {
@@ -184,7 +187,7 @@ void OnMouseUp(
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
-  input_state.input_state[KeyCodeToArrayIndex(mouse_up.button)] = 0.f;
+  input_state.pending.push_back({.key = mouse_up.button, .value = 0.f});
 }
 
 void OnKeyboardDown(
@@ -210,7 +213,7 @@ void OnKeyboardDown(
         .entity(world.entity().set<z13::input::WindowKeyDownEvent>({.key_code = key_down.keycode.code,}))
         .enqueue();
   }
-  input_state.input_state[KeyCodeToArrayIndex(key_down.keycode.code)] = 1.f;
+  input_state.pending.push_back({.key = key_down.keycode.code, .value = 1.f});
 }
 
 void OnKeyboardUp(
@@ -218,7 +221,7 @@ void OnKeyboardUp(
     const InputListenerQueryComponent& input_listener_query,
     const z13::input::InputConfig& input_config,
     z13::input::InputState& input_state) {
-  input_state.input_state[KeyCodeToArrayIndex(key_up.keycode.code)] = 0.f;
+  input_state.pending.push_back({.key = key_up.keycode.code, .value = 0.f});
 }
 
 void SaveInputConfig(const z13::input::InputConfig& input_config, const z13::input::ActionMap& action_map) {
@@ -368,6 +371,26 @@ void SyncLocalPlayerListener(
   }
 }
 
+// In arrival order, but a key changed this tick keeps its later transitions for the next ticks.
+void ApplyKeyTransitions(z13::input::InputState& input_state) {
+  std::vector<z13::fbs::input::Keycode> changed;
+  std::vector<z13::input::KeyTransition> later;
+  for (const z13::input::KeyTransition& transition : input_state.pending) {
+    if (std::ranges::contains(changed, transition.key)) {
+      later.push_back(transition);
+      continue;
+    }
+    float& state = input_state.input_state[KeyCodeToArrayIndex(transition.key)];
+    // A repeated press of a held key changes nothing and waits for no tick.
+    if (state == transition.value) {
+      continue;
+    }
+    changed.push_back(transition.key);
+    state = transition.value;
+  }
+  input_state.pending = std::move(later);
+}
+
 void ClearActionListenerCurrentState(
     z13::input::ActionListener& action_listener,
     const z13::input::ActionMap& action_map) {
@@ -451,7 +474,8 @@ void RegisterPhases(flecs::world world) {
   world.component<z13::input::ClearActionFramePhase>().add(flecs::Phase).depends_on<z13::input::ScheduledCommandsPhase>();
   world.get_alive(flecs::OnLoad).add(flecs::Phase).depends_on<z13::input::ClearActionFramePhase>();
 
-  world.component<z13::input::CalculateActionFramePhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
+  world.component<z13::input::ApplyKeyTransitionsPhase>().add(flecs::Phase).depends_on(flecs::OnUpdate);
+  world.component<z13::input::CalculateActionFramePhase>().add(flecs::Phase).depends_on<z13::input::ApplyKeyTransitionsPhase>();
   world.component<z13::input::RecordActionFramePhase>().add(flecs::Phase).depends_on<z13::input::CalculateActionFramePhase>();
   world.component<z13::input::OwnCommandsFramePhase>().add(flecs::Phase).depends_on<z13::input::RecordActionFramePhase>();
   world.component<z13::input::RemoteActionFramePhase>().add(flecs::Phase).depends_on<z13::input::OwnCommandsFramePhase>();
@@ -535,6 +559,12 @@ void RegisterSystems(flecs::world world) {
       .write<z13::input::InputListener>()
       .write<z13::input::CurrentActionListenerTag>()
       .each(SyncLocalPlayerListener);
+
+  world.system<z13::input::InputState>("gameplay_input_system::ApplyKeyTransitions")
+      .kind<z13::input::ApplyKeyTransitionsPhase>()
+      // Live input waits for the next live tick rather than land in re-simulated ones.
+      .without<z13::flecs_tools::ReplayInProgress>()
+      .each(ApplyKeyTransitions);
 
   world.system<z13::input::ActionListener, z13::input::ActionMap>("gameplay_input_system::ClearActionListenerCurrentState")
       .kind<z13::input::ClearActionFramePhase>()

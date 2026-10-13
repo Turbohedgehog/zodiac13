@@ -38,6 +38,8 @@
 namespace z13::input {
 
 struct ClearActionFramePhase {};
+// Right before CalculateActionFramePhase, after the platform has published this frame's input.
+struct ApplyKeyTransitionsPhase {};
 struct CalculateActionFramePhase {};
 struct ApplyActionFramePhase {};
 
@@ -228,9 +230,18 @@ struct InputConfigPersistenceSettings {
   bool load_config_from_file {true};
 };
 
+// A key or mouse button going down (1) or up (0).
+struct KeyTransition {
+  z13::fbs::input::Keycode key {};
+  float value {};
+};
+
 struct InputState {
   using Singleton = void;
   std::array<float, static_cast<size_t>(z13::fbs::input::Keycode::MAX) + 1> input_state = {};
+  // Transitions not yet in input_state: applied one per key a tick, so a press and its release
+  // within one frame both reach the simulation.
+  std::vector<KeyTransition> pending;
 
   // This frame's accumulated mouse-look delta; folded into action_values and
   // reset every frame in CalculateInputValues.
