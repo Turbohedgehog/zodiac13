@@ -29,12 +29,11 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_serializer.h>
-#include <lib_core/state/world_state.h>
 #include <lib_core/utils/enum_cycle.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/rooms.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>
 #include <rooms/room_cache.h>

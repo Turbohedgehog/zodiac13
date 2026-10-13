@@ -36,7 +36,8 @@
 #include <z13/components/input_events.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/building.h>
-#include <z13/components/station.h>
+#include <z13/components/block_brush.h>
+#include <z13/components/station_mode.h>
 #include <z13_module/input/input_config_loader.h>
 #include <lib_core/state/rollback.h>
 

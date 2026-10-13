@@ -27,6 +27,8 @@
 #include <z13/components/z13.h>
 #include <z13/components/status.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
 #include <z13/components/action_map.h>
 #include <z13/components/input_config.h>

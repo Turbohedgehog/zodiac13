@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/chunk_mesh.h>
 #include <primitives/draw_order.h>
 #include <primitives/station_assets.h>

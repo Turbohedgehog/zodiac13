@@ -31,7 +31,10 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/net.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/block_brush.h>
+#include <z13/components/spawn_point.h>
+#include <z13/components/station_mode.h>
 #include <primitives/placement.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 

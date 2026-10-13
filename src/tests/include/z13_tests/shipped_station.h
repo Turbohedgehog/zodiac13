@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <lib_core/utils/file_io.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/blueprint.h>
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>

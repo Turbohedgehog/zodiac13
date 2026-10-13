@@ -16,15 +16,9 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <optional>
-#include <string>
 
 #include <Eigen/Dense>
-
-#include <z13/components/player_action.h>
 
 namespace z13::station {
 
@@ -34,20 +28,6 @@ inline constexpr float kCellSize = 0.25f;
 // The ordinary scene's building cube (assets/station/palette.json).
 inline constexpr uint32_t kCubePrimitiveId = 9;
 inline constexpr int kCubeEdgeCells = 2;
-
-// The world is a station-building game rather than the ship scene. State, so a joining
-// client gets the server's mode with Welcome's snapshot.
-struct StationMode {
-  using State = void;
-  using Singleton = void;
-};
-
-// The blueprint (assets/station/blueprints/<scene>.json) the host fills a new station game
-// with; none leaves it empty. Not state: a save or a joining client gets the blocks themselves.
-struct StationSceneChoice {
-  using Singleton = void;
-  std::optional<std::string> scene;
-};
 
 // The 24 turns that map the grid onto itself, named by where the primitive's +X faces and
 // where its +Z points. The identity comes first.
@@ -98,54 +78,6 @@ struct Block {
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
 
   bool operator==(const Block&) const = default;
-};
-
-// What a player's next build places, at the brush.
-struct BlockBrush {
-  using State = void;
-  BlockSpec spec;
-};
-
-// A player dragging out a block: the brush's cell where the drag began, and the normal of
-// the face it was aimed at (zero in free space).
-struct BrushDrag {
-  using State = void;
-  Eigen::Vector3i anchor_cell = Eigen::Vector3i::Zero();
-  Eigen::Vector3i anchor_normal = Eigen::Vector3i::Zero();
-};
-
-// The right to build and destroy blocks; every station player gets it for now.
-struct BuildPermission {
-  using State = void;
-};
-
-// What a brush's build would place right now and whether it would be accepted; derived
-// every frame on the brush entity, never state.
-struct BrushPreview {
-  enum class Kind : uint8_t { kBuild, kCutIn, kCut };
-
-  Block block;
-  bool valid {};
-  // A cut's block is a plain box of the cells it would take.
-  Kind kind {};
-};
-
-// The palette window's pick goes out as an action value, slot + 1, which a logged action
-// value can hold only up to this many slots.
-inline constexpr size_t kPaletteWindowSlots =
-    static_cast<size_t>(std::numeric_limits<int16_t>::max() / z13::gameplay::kActionValueScale);
-
-// The local player's pick in the palette window (an index into the palette), until it is
-// sent as an action.
-struct PaletteChoice {
-  using Singleton = void;
-  std::optional<size_t> slot;
-};
-
-// A spot SpawnPlayer puts players on, with their facing.
-struct SpawnPoint {
-  using State = void;
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 };
 
 }  // namespace z13::station

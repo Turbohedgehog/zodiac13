@@ -27,13 +27,14 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_snapshot_history.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
-#include <z13/components/station.h>
-#include <z13/components/gameplay.h>
+#include <z13/components/block.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/player_action.h>
 #include <z13/components/action_listener.h>
 #include <input_config_generated.h>

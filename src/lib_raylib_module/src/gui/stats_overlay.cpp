@@ -20,7 +20,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 #include "gui_widgets.h"
 #include "render/render_stats.h"

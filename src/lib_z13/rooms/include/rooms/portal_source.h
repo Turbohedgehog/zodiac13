@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <optional>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 

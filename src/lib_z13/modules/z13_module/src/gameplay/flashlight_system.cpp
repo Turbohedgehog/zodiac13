@@ -24,7 +24,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/action_map.h>
 #include <z13/components/input_events.h>

@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>

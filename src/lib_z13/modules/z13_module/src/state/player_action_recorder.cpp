@@ -36,7 +36,7 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/net.h>

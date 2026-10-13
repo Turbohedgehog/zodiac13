@@ -32,7 +32,7 @@
 #include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/rooms.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <z13_grid/block_index.h>
 #include <primitives/placement.h>
 #include <rooms/room_builder.h>

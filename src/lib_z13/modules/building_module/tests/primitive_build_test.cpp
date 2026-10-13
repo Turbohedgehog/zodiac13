@@ -34,7 +34,9 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/station.h>
+#include <z13/components/player.h>
+#include <z13/components/block.h>
+#include <z13/components/block_brush.h>
 #include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 

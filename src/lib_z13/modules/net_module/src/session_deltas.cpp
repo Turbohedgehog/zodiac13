@@ -29,6 +29,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/player_action.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>

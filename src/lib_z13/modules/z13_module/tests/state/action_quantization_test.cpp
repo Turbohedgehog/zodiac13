@@ -26,6 +26,7 @@
 #include <z13/components/input_config.h>
 #include <z13/components/input_events.h>
 #include <z13/components/player_action.h>
+#include <z13/components/player.h>
 #include <z13_tests/test_time.h>
 
 #include "../support/z13_test_world.h"

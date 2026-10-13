@@ -31,6 +31,7 @@
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 #include <z13/components/action_map.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>

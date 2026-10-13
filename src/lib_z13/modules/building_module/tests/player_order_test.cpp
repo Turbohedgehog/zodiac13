@@ -26,8 +26,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_tests/test_time.h>
 

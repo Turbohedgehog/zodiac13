@@ -27,8 +27,12 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/bootstrap.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/gameplay_phases.h>
 #include <z13/components/net.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/block_brush.h>
+#include <z13/components/spawn_point.h>
+#include <z13/components/station_mode.h>
 
 namespace z13::bootstrap {
 

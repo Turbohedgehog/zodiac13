@@ -26,11 +26,11 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/fnv_hash.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player.h>
 
 #include <net_module/clock_sync.h>
 

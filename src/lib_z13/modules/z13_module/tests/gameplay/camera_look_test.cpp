@@ -19,6 +19,7 @@
 #include <Eigen/Dense>
 
 #include <z13_module/gameplay/camera_look.h>
+#include <z13/components/player_parts.h>
 
 // Exercises ApplyCameraMove() directly: it's pure math, with no flecs/ECS,
 // InputConfig, SDL or raylib dependency.

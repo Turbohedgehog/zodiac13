@@ -26,16 +26,17 @@
 
 #include <Eigen/Dense>
 
-#include <lib_core/state/world_state.h>
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/player.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/action_map.h>
 #include <z13/components/input_state.h>
-#include <z13/components/station.h>
+#include <z13/components/spawn_point.h>
 #include <z13_settings/physics_tuning.h>
 
 namespace z13::gameplay {

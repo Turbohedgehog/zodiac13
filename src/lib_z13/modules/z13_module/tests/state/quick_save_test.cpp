@@ -25,7 +25,8 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/player.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/world_json_test_helpers.h"

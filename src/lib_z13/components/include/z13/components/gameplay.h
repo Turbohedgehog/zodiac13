@@ -18,16 +18,8 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <optional>
-#include <string>
-
-#include <flecs.h>
 
 namespace z13::gameplay {
-
-struct PreUpdatePhase {};
-struct UpdatePhase {};
-struct PostUpdatePhase {};
 
 // Emitted while a new scene starts on a host (not a client), before the local player
 // spawns, so other modules can add scene content such as spawn points.
@@ -59,55 +51,10 @@ struct WindowFocusEvent {
   bool has_focus = false;
 };
 
-struct Player {
-  using State = void;
-  uint32_t id {};
-};
-
-// For `.order_by<Player>()` on systems where players compete (same-tick builds/destroys):
-// ECS iteration order follows entity creation, which differs between participants.
-inline int CompareByPlayerId(flecs::entity_t, const Player* a, flecs::entity_t, const Player* b) {
-  return (a->id > b->id) - (a->id < b->id);
-}
-
-// Which Player.id this participant controls; not state, since it's set locally (0 at
-// spawn, or from Welcome/Resync's player_id on join). Optional because a connecting
-// client briefly has none.
-struct LocalPlayer {
-  using Singleton = void;
-  using SessionScoped = void;
-  std::optional<uint32_t> id;
-};
-
-struct Camera {
-  using State = void;
-  float fov = 90.f;
-  std::string name;
-};
-
 // Where the quick save/load actions read and write the scene; runtime settings, not state.
 struct QuickSaveSettings {
   using Singleton = void;
   std::filesystem::path path;
-};
-
-struct PlayerCollider {
-  using State = void;
-  float radius {};
-};
-
-// A light along the player's look, from the eye.
-struct Flashlight {
-  using State = void;
-  bool on {};
-};
-
-// A player under gravity (z13/components/gravity.h) walks; without it, flies freely.
-struct PlayerMotion {
-  using State = void;
-  bool grounded {};
-  // Along the gravity, negative while rising after a jump.
-  float fall_speed {};
 };
 
 }  // namespace z13::gameplay

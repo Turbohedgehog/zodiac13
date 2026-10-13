@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <iterator>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 #include <rooms/room_visibility.h>
 
 namespace z13::raylib {

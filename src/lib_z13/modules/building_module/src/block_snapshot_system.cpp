@@ -31,7 +31,8 @@
 #include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
+#include <z13/components/spawn_point.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 

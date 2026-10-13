@@ -1,0 +1,46 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include <cstdint>
+#include <optional>
+
+#include <flecs.h>
+
+namespace z13::gameplay {
+
+struct Player {
+  using State = void;
+  uint32_t id {};
+};
+
+// For `.order_by<Player>()` on systems where players compete (same-tick builds/destroys):
+// ECS iteration order follows entity creation, which differs between participants.
+inline int CompareByPlayerId(flecs::entity_t, const Player* a, flecs::entity_t, const Player* b) {
+  return (a->id > b->id) - (a->id < b->id);
+}
+
+// Which Player.id this participant controls; not state, since it's set locally (0 at
+// spawn, or from Welcome/Resync's player_id on join). Optional because a connecting
+// client briefly has none.
+struct LocalPlayer {
+  using Singleton = void;
+  using SessionScoped = void;
+  std::optional<uint32_t> id;
+};
+
+}  // namespace z13::gameplay

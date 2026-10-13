@@ -19,7 +19,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/utils/camera_pose.h>
-#include <z13/components/gameplay.h>
+#include <z13/components/player_parts.h>
 
 namespace z13::gameplay {
 

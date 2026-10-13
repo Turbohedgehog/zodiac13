@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station.h>
+#include <z13/components/block.h>
 
 // Placing a block on the grid: which cells it occupies and where its primitive's own frame
 // (see geometry.h) lands, in cells.
