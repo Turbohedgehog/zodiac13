@@ -30,12 +30,8 @@ struct StateComponent {};
 // Trait on a singleton that belongs to one network session, see ResetSessionScopedComponents.
 struct SessionScopedComponent {};
 
-// Component properties, declared as nested types: `using State = void;` (values are
-// world state; empty structs become state tags), `using Singleton = void;` (flecs
-// singleton) and `using SessionScoped = void;` (a singleton reset per network session).
-// Nested types don't affect reflect-cpp; a base class would.
-// The alias must be void: an ordinary nested type that happens to be called State would
-// otherwise enrol its component into every snapshot.
+// Component properties as nested types (CLAUDE.md, "Flecs components"). The alias must be void, or
+// any nested type that happens to be called State would enrol its component into every snapshot.
 template <class T>
 concept StateComponentType = requires { requires std::is_void_v<typename T::State>; };
 

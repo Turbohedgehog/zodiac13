@@ -51,7 +51,6 @@ struct InputConfig {
   using KeyBindingType = bmi::multi_index_container<
     KeyCodeAction,
     bmi::indexed_by<
-      // bmi::sequenced<>,
       bmi::ordered_non_unique<
         bmi::tag<KeycodeIdTag>,
         bmi::member<KeyCodeAction, decltype(KeyCodeAction::keycode), &KeyCodeAction::keycode>

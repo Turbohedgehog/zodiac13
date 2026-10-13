@@ -31,7 +31,6 @@ struct PlayerCollider {
   float radius {};
 };
 
-// A light along the player's look, from the eye.
 struct Flashlight {
   using State = void;
   bool on {};
