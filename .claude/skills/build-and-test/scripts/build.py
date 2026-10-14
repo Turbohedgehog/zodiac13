@@ -48,7 +48,7 @@ def run(args: argparse.Namespace) -> int:
         build += ["--", "-k", "0"]
     if run_logged(build, args.log_dir / "build.log", repo) != 0 or not args.tests:
         return 0
-    ctest = ["ctest", "--test-dir", args.build_dir] + (["-C", args.config] if args.config else [])
+    ctest = ["ctest", "--test-dir", args.build_dir, "--parallel", str(jobs())] + (["-C", args.config] if args.config else [])
     run_logged(ctest, args.log_dir / "ctest.log", repo)
     return 0
 

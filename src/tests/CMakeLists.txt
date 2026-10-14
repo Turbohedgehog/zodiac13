@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 
 project(z13_tests)
 
@@ -197,9 +197,18 @@ set_target_properties(z13_test_runner PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
 )
 
+set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*")
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
+    TEST_FILTER "-${Z13_REAL_NETWORK_TESTS}"
+)
+# Real sockets and wall-clock bounds: alone, so the load of a parallel run can't time them out.
+gtest_discover_tests(z13_test_runner
+    DISCOVERY_MODE PRE_TEST
+    WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
+    TEST_FILTER "${Z13_REAL_NETWORK_TESTS}"
+    PROPERTIES RUN_SERIAL TRUE
 )
 
 # The launcher's plugin path, out of process: z13_test_runner links the plugins directly
