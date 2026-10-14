@@ -11,7 +11,6 @@ set(
   PROJECT_SOURCE_FILES
   src/cell_boxes.cpp
   src/free_space.cpp
-  src/light_reach.cpp
   src/local_leaves.cpp
   src/numbered_leaves.cpp
   src/openings.cpp

@@ -40,6 +40,7 @@ set(
   src/lib_core/schema_attributes_test.cpp
   src/lib_core/thread_pool_test.cpp
   src/lib_core/tick_pacer_test.cpp
+  src/lib_z13/cell_light/cell_light_test.cpp
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/primitives/chunk_mesh_test.cpp
   src/lib_z13/primitives/cut_test.cpp
@@ -48,7 +49,6 @@ set(
   src/lib_z13/primitives/lights_test.cpp
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
-  src/lib_z13/rooms/light_reach_test.cpp
   src/lib_z13/rooms/openings_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
@@ -120,6 +120,7 @@ if(Z13_BUILD_BENCHMARKS)
     APPEND
     PROJECT_SOURCE_FILES
     src/lib_core/bench/thread_pool_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/cell_light_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
@@ -162,6 +163,7 @@ target_link_libraries(
   zodiac13::settings
   zodiac13::primitives
   zodiac13::grid
+  zodiac13::cell_light
   zodiac13::rooms
   zodiac13::touch
   GTest::gtest

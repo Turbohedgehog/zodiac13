@@ -38,9 +38,12 @@ std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, Op
     }
     const CellPose pose = PoseOf(block);
     const Eigen::Vector3f below_centre(block.spec.size.x() / 2.f, block.spec.size.y() / 2.f, -kBelowFaceCells);
+    const Eigen::Vector3f above_centre(below_centre.x(), below_centre.y(),
+                                       static_cast<float>(block.spec.size.z()) + kBelowFaceCells);
     const Eigen::Vector3f position = pose.origin.cast<float>() + pose.rotation.cast<float>() * below_centre;
     lights.push_back({
         .position = position,
+        .behind = pose.origin.cast<float>() + pose.rotation.cast<float>() * above_centre,
         .cell = position.array().floor().cast<int>(),
         .source = *primitive->get().light,
     });

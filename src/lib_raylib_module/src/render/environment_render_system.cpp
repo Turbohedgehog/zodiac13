@@ -74,6 +74,7 @@
 #include "block_checker.h"
 #include "block_chunks.h"
 #include "block_meshes.h"
+#include "cell_lighting.h"
 #include "lights.h"
 #include "render_components.h"
 #include "render_resources.h"
@@ -81,7 +82,6 @@
 #include "render_tour.h"
 #include "shadow_maps.h"
 #include "skybox.h"
-#include "station_lights.h"
 #include "view_culling.h"
 
 namespace z13::raylib {
@@ -115,7 +115,7 @@ const Eigen::Vector3f kShipAmbientGround(0.12f, 0.10f, 0.09f);
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, ShadowMaps, StationLights, RenderStats, RenderTour,
+                                         BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour,
                                          z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
@@ -577,27 +577,68 @@ std::vector<FrameLight> FlashlightsOf(const FlashlightQuery& flashlights, const 
 }
 
 struct LitScene {
+  // The flashlights, then the lamps players cast shadows from.
   std::vector<FrameLight> lights;
   SceneLight scene;
   ShadowAtlasLayout atlas;
 };
 
-// A station is lit by its lamps, and by the sun and the fill only where the hull lets them in.
-// Flashlights come first, so they get their shadows before any lamp.
-LitScene LightScene(const flecs::world& world, const ViewCulling& culling, const Eigen::Vector3f& eye,
-                    std::vector<FrameLight> flashlights, const StationLights* station_lights, ShadowMaps* shadows,
-                    const ShadowCasters& casters, const z13::RenderTuning& tuning) {
+// The lamps whose radius holds a player, nearest a player first, at most `count`. Per
+// component: this runs over every lamp each frame.
+std::vector<FrameLight> PlayerShadowLamps(const CellLighting& lighting, std::span<const MovingCaster> players,
+                                          size_t count) {
+  std::vector<Eigen::Vector3f> centres;
+  std::ranges::transform(players, std::back_inserter(centres),
+                         [](const MovingCaster& player) { return player.box.center(); });
+  const float cell = z13::station::kCellSize;
+  std::vector<std::pair<float, size_t>> near;
+  const std::vector<z13::station::light::Lamp>& lamps = lighting.ShiningLamps();
+  for (size_t i = 0; i < lamps.size(); ++i) {
+    const Eigen::Vector3f& position = lamps[i].position;
+    const float radius = lamps[i].radius * cell;
+    float nearest = radius * radius;
+    for (const Eigen::Vector3f& centre : centres) {
+      const float dx = (position.x() * cell) - centre.x();
+      const float dy = (position.y() * cell) - centre.y();
+      const float dz = (position.z() * cell) - centre.z();
+      nearest = std::min(nearest, (dx * dx) + (dy * dy) + (dz * dz));
+    }
+    if (nearest < radius * radius) {
+      near.emplace_back(nearest, i);
+    }
+  }
+  std::ranges::sort(near);
+  std::vector<FrameLight> chosen;
+  for (size_t i = 0; i < std::min(count, near.size()); ++i) {
+    const z13::station::light::Lamp& lamp = lamps[near[i].second];
+    const Eigen::Vector3f position = lamp.position * cell;
+    const Eigen::Vector3f reach = Eigen::Vector3f::Constant(lamp.radius * cell);
+    const Eigen::AlignedBox3f radius_box(position - reach, position + reach);
+    chosen.push_back({.position = position,
+                      .radius = lamp.radius * cell,
+                      .color = lamp.color,
+                      .reach = radius_box,
+                      .radius_box = radius_box,
+                      .use = LightUse::kPlayerShadows});
+  }
+  return chosen;
+}
+
+// A station is lit by its lamps' baked light, and by the sun and the fill only where the hull
+// lets them in. Flashlights come first, so they get their shadows before any lamp.
+LitScene LightScene(const flecs::world& world, std::vector<FrameLight> flashlights, const CellLighting* cell_lighting,
+                    ShadowMaps* shadows, const ShadowCasters& casters, const z13::RenderTuning& tuning) {
   LitScene lit {.lights = std::move(flashlights)};
-  const auto frame_lights = static_cast<size_t>(tuning.frame_lights);
-  lit.lights.resize(std::min(lit.lights.size(), frame_lights));
+  lit.lights.resize(std::min(lit.lights.size(), static_cast<size_t>(tuning.frame_lights)));
   if (!world.has<z13::station::StationMode>()) {
     lit.scene.sun = DirectionalLight {.direction = kSunDirection, .color = kSunColor};
     lit.scene.ambient_sky = kShipAmbientSky;
     lit.scene.ambient_ground = kShipAmbientGround;
     return lit;
   }
-  if (station_lights != nullptr) {
-    std::ranges::move(station_lights->Visible(culling, eye, frame_lights - lit.lights.size()),
+  const auto shadow_lights = static_cast<size_t>(tuning.shadow_lights);
+  if (cell_lighting != nullptr && !casters.moving.empty() && lit.lights.size() < shadow_lights) {
+    std::ranges::move(PlayerShadowLamps(*cell_lighting, casters.moving, shadow_lights - lit.lights.size()),
                       std::back_inserter(lit.lights));
   }
   // Without the hull's shadows the sun and the fill would light the rooms too.
@@ -643,13 +684,26 @@ void UploadLighting(const flecs::world& world, const LitScene& lit, const Shadow
   if (!lighting.res) {
     return;
   }
-  lighting.res->clusters.Update(lit.lights, view, tuning);
+  std::vector<FrameLight> lit_lights;
+  std::ranges::copy_if(lit.lights, std::back_inserter(lit_lights),
+                       [](const FrameLight& light) { return light.use == LightUse::kLights; });
+  lighting.res->clusters.Update(lit_lights, view, tuning);
   lighting.res->clusters.Upload(*lighting.res->shader, lighting.res->lights);
   lighting.res->clusters.Bind();
   UploadShadowAtlas(*lighting.res->shader, lighting.res->lights, lit.atlas);
   UploadSceneLight(*lighting.res->shader, lighting.res->lights, lit.scene);
+  UploadPlayerShadows(*lighting.res->shader, lighting.res->lights, lit.lights);
   if (shadows != nullptr) {
     shadows->Bind();
+  }
+  const auto* cell_lighting = world.try_get<CellLighting>();
+  const int cell_light_off = 0;
+  if (cell_lighting != nullptr && world.has<z13::station::StationMode>()) {
+    cell_lighting->Upload(*lighting.res->shader, lighting.res->lights);
+    cell_lighting->Bind();
+  } else {
+    SetShaderValue(*lighting.res->shader, lighting.res->lights.cell_light_enabled, &cell_light_off,
+                   SHADER_UNIFORM_INT);
   }
 }
 
@@ -751,7 +805,7 @@ void RegisterSystems(flecs::world world) {
           log_error("[raylib] the shadow shader didn't load: nothing casts shadows, the sun is off in a station");
         }
         world.set<ShadowMaps>(ShadowMaps(shadow_shader));
-        world.set<StationLights>({});
+        world.set<CellLighting>({});
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox(assets.source));
         const auto config = z13::GetCoreConfig(world);
@@ -840,18 +894,17 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::LightBlockQuery")
           .detect_changes()
           .build();
-  world.system<StationLights, const z13::building::primitives::BlockPalette*,
-               const z13::station::rooms::RoomCache*>("EnvironmentRenderSystem::SyncStationLights")
+  world.system<CellLighting, const z13::building::primitives::BlockPalette*>("EnvironmentRenderSystem::SyncCellLighting")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([light_block_query](StationLights& lights, const z13::building::primitives::BlockPalette* palette,
-                                const z13::station::rooms::RoomCache* rooms) {
+      .each([light_block_query](CellLighting& lighting, const z13::building::primitives::BlockPalette* palette) {
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
-        const auto fingerprint = rooms != nullptr ? rooms->CurrentFingerprint() : std::nullopt;
-        if (light_block_query.changed() || !lights.SyncedWith(shown, fingerprint)) {
-          lights.Sync(CollectBlocks(light_block_query), shown, CurrentRooms(rooms), fingerprint);
+        if (light_block_query.changed() || !lighting.SyncedWith(shown)) {
+          if (const Status synced = lighting.Sync(CollectBlocks(light_block_query), shown); !synced) {
+            log_error("[raylib] lamps: {}", synced.error());
+          }
         }
       });
 
@@ -877,7 +930,7 @@ void RegisterSystems(flecs::world world) {
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
   world.system<const RaylibCamera, const WindowSize, RenderStats, const z13::station::rooms::RoomCache*,
-               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const StationLights*,
+               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const CellLighting*,
                ShadowMaps*>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
@@ -885,7 +938,7 @@ void RegisterSystems(flecs::world world) {
       .each([world, brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
                 const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
-                const RenderTour* tour, const z13::RenderTuning& tuning, const StationLights* station_lights,
+                const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
                 ShadowMaps* shadows) {
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);
@@ -911,9 +964,8 @@ void RegisterSystems(flecs::world world) {
           }
           const ShadowCasters casters = CastersOf(world.get<BlockChunks>(), world.try_get<AvatarModel>(),
                                                   PlayerCasters(drawn_query, drawing->poses));
-          lit = LightScene(world, view.culling, camera.eye,
-                           FlashlightsOf(flashlight_query, drawing->poses, view.culling, camera.eye, tuning),
-                           station_lights, shadows, casters, tuning);
+          lit = LightScene(world, FlashlightsOf(flashlight_query, drawing->poses, view.culling, camera.eye, tuning),
+                           cell_lighting, shadows, casters, tuning);
           // The shadow passes drew elsewhere, with their own viewport and matrices.
           rlViewport(0, 0, size.size.x(), size.size.y());
           BeginScene3D(raylib_camera.camera, size.size);

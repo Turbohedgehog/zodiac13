@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <optional>
 #include <numbers>
 #include <string_view>
 #include <utility>
@@ -31,6 +32,7 @@
 
 #include "../platform/sdl_platform.h"
 #include "../tools/math_convert.h"
+#include "gl_depth_buffer.h"
 #include "render_resources.h"
 
 namespace z13::raylib {
@@ -151,8 +153,8 @@ Eigen::AlignedBox2i PixelRect(const Eigen::AlignedBox2f& rect, int size) {
   return {low.cwiseMax(0), high.cwiseMin(size)};
 }
 
-Eigen::Vector2i TileCorner(const ShadowAtlasLayout& layout, size_t slot, int face) {
-  const int tile = (static_cast<int>(slot) * kCubeFaces) + face;
+Eigen::Vector2i TileCorner(const ShadowAtlasLayout& layout, size_t slot, ShadowLayer layer, int face) {
+  const int tile = (((static_cast<int>(slot) * kShadowLayers) + static_cast<int>(layer)) * kCubeFaces) + face;
   return Eigen::Vector2i(tile % layout.columns, tile / layout.columns) * layout.tile_size;
 }
 
@@ -208,15 +210,18 @@ Status ShadowMaps::State::ResizeAtlas(int slots, int tile_size) {
   if (slots == 0) {
     return {};
   }
-  const int tiles = slots * kCubeFaces;
+  const int tiles = slots * kShadowLayers * kCubeFaces;
   const int columns = static_cast<int>(std::ceil(std::sqrt(static_cast<float>(tiles))));
   const Eigen::Vector2i size = Eigen::Vector2i(columns, (tiles + columns - 1) / columns) * tile_size;
-  atlas_texture_ = rlLoadTexture(nullptr, size.x(), size.y(), RL_PIXELFORMAT_UNCOMPRESSED_R32, 1);
+  // A half float keeps the distance over the radius to a thousandth, well inside the shader's bias.
+  atlas_texture_ = rlLoadTexture(nullptr, size.x(), size.y(), RL_PIXELFORMAT_UNCOMPRESSED_R16, 1);
   atlas_framebuffer_ = rlLoadFramebuffer();
-  rlFramebufferAttach(atlas_framebuffer_, rlLoadTextureDepth(size.x(), size.y(), true), RL_ATTACHMENT_DEPTH,
-                      RL_ATTACHMENT_RENDERBUFFER, 0);
+  const std::optional<unsigned int> depth = CreateDepth16Buffer(size);
+  if (depth) {
+    rlFramebufferAttach(atlas_framebuffer_, *depth, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
+  }
   rlFramebufferAttach(atlas_framebuffer_, atlas_texture_, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
-  if (atlas_texture_ == 0 || !rlFramebufferComplete(atlas_framebuffer_)) {
+  if (atlas_texture_ == 0 || !depth || !rlFramebufferComplete(atlas_framebuffer_)) {
     ReleaseAtlas();
     failed_atlas_ = Eigen::Vector2i(slots, tile_size);
     return std::unexpected(std::format("can't make a shadow atlas of {} x {} px", size.x(), size.y()));
@@ -261,7 +266,11 @@ std::vector<std::optional<size_t>> ShadowMaps::State::AssignSlots(
   return assigned;
 }
 
-void ShadowMaps::State::DrawFaces(size_t slot, const FrameLight& light, const ShadowCasters& casters, uint8_t faces) {
+void ShadowMaps::State::DrawFaces(
+    size_t slot, const FrameLight& light, const ShadowCasters& casters, ShadowLayer layer, uint8_t faces) {
+  if (faces == 0) {
+    return;
+  }
   BeginShadowPass(atlas_framebuffer_);
   rlEnableScissorTest();
   SetShaderValue(*shader_, light_position_location_, light.position.data(), SHADER_UNIFORM_VEC3);
@@ -273,7 +282,7 @@ void ShadowMaps::State::DrawFaces(size_t slot, const FrameLight& light, const Sh
     if ((faces & (1 << face)) == 0) {
       continue;
     }
-    const Eigen::Vector2i corner = TileCorner(layout_, slot, face);
+    const Eigen::Vector2i corner = TileCorner(layout_, slot, layer, face);
     rlViewport(corner.x(), corner.y(), layout_.tile_size, layout_.tile_size);
     rlScissor(corner.x(), corner.y(), layout_.tile_size, layout_.tile_size);
     rlClearScreenBuffers();
@@ -282,14 +291,17 @@ void ShadowMaps::State::DrawFaces(size_t slot, const FrameLight& light, const Sh
     rlSetMatrixProjection(projection);
     rlSetMatrixModelview(look);
     const z13::math::Frustum frustum(RaylibToEigenMatrix(projection) * RaylibToEigenMatrix(look));
-    casters.draw_static(
-        [&](const Eigen::AlignedBox3f& bounds) {
-          return Overlap(bounds, light.radius_box) && frustum.Intersects(bounds);
-        },
-        material);
-    for (const MovingCaster& caster : casters.moving) {
-      if (caster.entity != light.owner && Overlap(caster.box, light.radius_box) && frustum.Intersects(caster.box)) {
-        casters.draw_moving(caster, material);
+    if (layer == ShadowLayer::kBlocks) {
+      casters.draw_static(
+          [&](const Eigen::AlignedBox3f& bounds) {
+            return Overlap(bounds, light.radius_box) && frustum.Intersects(bounds);
+          },
+          material);
+    } else {
+      for (const MovingCaster& caster : casters.moving) {
+        if (caster.entity != light.owner && Overlap(caster.box, light.radius_box) && frustum.Intersects(caster.box)) {
+          casters.draw_moving(caster, material);
+        }
       }
     }
     rlDrawRenderBatchActive();
@@ -318,20 +330,22 @@ Status ShadowMaps::State::UpdateLamps(
     std::optional<SlotView>& drawn = slots_[*assigned[i]];
     const uint8_t sampled = light.cone ? FacesInCone(*light.cone) : kAllFaces;
     uint8_t moving_faces {};
+    std::vector<DrawnMover> movers;
     for (const MovingCaster& caster : casters.moving) {
       if (caster.entity != light.owner && Overlap(caster.box, light.radius_box)) {
         moving_faces |= FacesSeeing(caster.box, light.position);
+        movers.push_back({.entity = caster.entity, .transform = caster.transform});
       }
     }
     const bool same_view = drawn && SameLight(*drawn, light) && drawn->light == light.position &&
                            drawn->direction == DirectionOf(light) && drawn->radius == light.radius;
-    const auto [redrawn, static_version] =
-        same_view ? FacesToRedraw(*drawn, light, casters, moving_faces, redraws_left)
-                  : std::pair(kAllFaces, casters.static_version);
-    const uint8_t faces = sampled & redrawn;
-    if (faces != 0) {
-      DrawFaces(*assigned[i], light, casters, faces);
-    }
+    const auto [block_faces, static_version] =
+        same_view ? FacesToRedraw(*drawn, light, casters, redraws_left) : std::pair(kAllFaces, casters.static_version);
+    // Where players are, and where they were, so the faces they left are cleared.
+    const uint8_t player_faces =
+        !same_view ? kAllFaces : drawn->movers == movers ? uint8_t {} : moving_faces | drawn->moving_faces;
+    DrawFaces(*assigned[i], light, casters, ShadowLayer::kBlocks, sampled & block_faces);
+    DrawFaces(*assigned[i], light, casters, ShadowLayer::kPlayers, sampled & player_faces);
     drawn = SlotView {
         .owner = light.owner,
         .light = light.position,
@@ -339,6 +353,7 @@ Status ShadowMaps::State::UpdateLamps(
         .radius = light.radius,
         .static_version = static_version,
         .moving_faces = moving_faces,
+        .movers = std::move(movers),
     };
     light.shadow_slot = static_cast<int>(*assigned[i]);
     light.reach = light.radius_box;
@@ -347,21 +362,19 @@ Status ShadowMaps::State::UpdateLamps(
 }
 
 std::pair<uint8_t, uint64_t> ShadowMaps::State::FacesToRedraw(
-    const SlotView& drawn, const FrameLight& light, const ShadowCasters& casters, uint8_t moving_faces,
-    int& redraws_left) const {
-  const uint8_t faces = moving_faces | drawn.moving_faces;
+    const SlotView& drawn, const FrameLight& light, const ShadowCasters& casters, int& redraws_left) const {
   if (drawn.static_version == casters.static_version) {
-    return {faces, drawn.static_version};
+    return {0, drawn.static_version};
   }
   const Eigen::AlignedBox3f changed = casters.changed_since(drawn.static_version).intersection(light.radius_box);
   if (changed.isEmpty()) {
-    return {faces, casters.static_version};
+    return {0, casters.static_version};
   }
   if (redraws_left <= 0) {
-    return {faces, drawn.static_version};
+    return {0, drawn.static_version};
   }
   --redraws_left;
-  return {faces | FacesSeeing(changed, light.position), casters.static_version};
+  return {FacesSeeing(changed, light.position), casters.static_version};
 }
 
 bool ShadowMaps::State::ResizeDirectional(DirectionalShadow& shadow, int size) {

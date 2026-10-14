@@ -51,6 +51,13 @@ inline constexpr ImGuiWindowFlags kOverlayFlags = ImGuiWindowFlags_NoDecoration 
                                                   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing |
                                                   ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings;
 
+// Whether an overlay takes the mouse: only while the cursor is free, so its text can be copied.
+enum class OverlayInput { kPassThrough, kSelectable };
+
+inline ImGuiWindowFlags OverlayFlags(OverlayInput input) {
+  return input == OverlayInput::kSelectable ? kOverlayFlags & ~ImGuiWindowFlags_NoInputs : kOverlayFlags;
+}
+
 inline float FirstOverlayTop() {
   return Em(kOverlayMarginEm);
 }
