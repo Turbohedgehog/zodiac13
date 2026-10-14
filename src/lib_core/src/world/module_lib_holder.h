@@ -34,7 +34,7 @@ struct LibHolder {
 
 class ModuleLibHolder {
  public:
-  std::expected<ModuleFactoryPtr, std::string> AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension = true);
+  std::expected<ModuleFactoryPtr, std::string> AppendModuleLib(const std::filesystem::path& full_path);
 
  private:
   std::map<std::filesystem::path, LibHolder> lib_holders_;

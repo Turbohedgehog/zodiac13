@@ -34,13 +34,7 @@ constexpr std::string_view kFactoryAlias = "create_module_factory";
 
 }  // namespace
 
-std::expected<ModuleFactoryPtr, std::string> ModuleLibHolder::AppendModuleLib(std::filesystem::path lib_path, bool append_platform_extension) {
-  std::filesystem::path abs_path = boost::dll::program_location().parent_path().string();
-  auto full_path = std::filesystem::absolute(abs_path / lib_path);
-  if (append_platform_extension) {
-    full_path.replace_extension(boost::dll::shared_library::suffix().native());
-  }
-
+std::expected<ModuleFactoryPtr, std::string> ModuleLibHolder::AppendModuleLib(const std::filesystem::path& full_path) {
   if (lib_holders_.contains(full_path)) {
     return std::unexpected(std::format("lib '{}' already loaded", full_path.string()));
   }

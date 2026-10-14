@@ -1,0 +1,39 @@
+// Packs what the CMake target z13_android_stage staged (-Pz13StageDir) with SDL's Java
+// sources of the vcpkg SDL3 version (-Pz13SdlJavaDir); see .github/workflows/android.yml.
+plugins {
+    id 'com.android.application'
+}
+
+def stageDir = file(providers.gradleProperty('z13StageDir').get())
+
+android {
+    namespace 'org.zodiac13.game'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'org.zodiac13.game'
+        minSdk 26  // Android 8, docs/android-plan.md
+        targetSdk 35
+        versionCode providers.gradleProperty('z13VersionCode').getOrElse('1').toInteger()
+        versionName providers.gradleProperty('z13VersionName').getOrElse('0.0.0')
+    }
+
+    sourceSets.main {
+        java.srcDirs += [providers.gradleProperty('z13SdlJavaDir').get()]
+        jniLibs.srcDirs = [new File(stageDir, 'jniLibs')]
+        assets.srcDirs = [new File(stageDir, 'assets')]
+    }
+
+    // Plugins are found as files in nativeLibraryDir (ModuleLibraryPath), so they're unpacked
+    // at install instead of being loaded straight from the APK.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

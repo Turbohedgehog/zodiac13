@@ -80,8 +80,11 @@ add_subdirectory(src/zodiac13)
 add_subdirectory(src/lib_raylib_module)
 add_subdirectory(src/lib_test_dll)
 
-enable_testing()
-add_subdirectory(src/tests)
+# Android builds the app alone: the tests run on the desktop platforms.
+if(NOT ANDROID)
+    enable_testing()
+    add_subdirectory(src/tests)
+endif()
 
 # config/ is copied next to the binaries on every build and read from there at startup.
 add_custom_target(z13_config ALL
@@ -101,13 +104,19 @@ add_custom_target(z13_assets ALL
 )
 add_dependencies(building_module z13_assets)
 add_dependencies(raylib_module z13_assets)
-add_dependencies(z13_tests z13_assets)
-add_dependencies(z13_plugin_smoke z13_assets)
+if(NOT ANDROID)
+    add_dependencies(z13_tests z13_assets)
+    add_dependencies(z13_plugin_smoke z13_assets)
+endif()
 
 # The exe loads these DLLs at runtime (not linked), so make building it also
 # build them — otherwise `--target zodiac13` / the IDE build produces a useless exe.
 include(cmake/plugins.cmake)
 add_dependencies(zodiac13 z13_config ${Z13_PLUGINS})
 
-include(cmake/packaging.cmake)
+if(ANDROID)
+    include(cmake/android.cmake)
+else()
+    include(cmake/packaging.cmake)
+endif()
 

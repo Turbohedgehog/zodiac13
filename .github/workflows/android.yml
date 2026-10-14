@@ -1,0 +1,100 @@
+name: Android
+
+on:
+  pull_request:
+    branches: [ main ]
+  # main keeps the caches warm for PRs; f/android-* branches get a build before their PR.
+  push:
+    branches: [ main, 'f/android-*' ]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    env:
+      VCPKG_ROOT: ""
+      VCPKG_BUILD_TYPE: release
+      TRIPLET: arm64-android
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # vcpkg's Android toolchain reads ANDROID_NDK_HOME; the image's default NDK is older.
+      - name: Select the NDK
+        run: echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: arm64-android
+          max-size: 2G
+
+      - uses: ./.github/actions/setup-vcpkg-build
+        with:
+          triplet: arm64-android
+          cache-suffix: -arm64-android
+          extra-cmake-args: >-
+            -G Ninja
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake
+            -DANDROID_ABI=arm64-v8a
+            -DANDROID_PLATFORM=android-26
+            -DANDROID_STL=c++_shared
+            -DZ13_VERSION_PATCH=${{ github.run_number }}
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build and stage the libraries
+        run: |
+          set -o pipefail
+          cmake --build build --target z13_android_stage --parallel 4 2>&1 | tee build-android.log
+
+      # vcpkg's sdl3 port doesn't install SDLActivity's Java sources: take them from the same release.
+      - name: Fetch SDL's Java sources
+        run: |
+          version=$(sed -n 's/^set(PACKAGE_VERSION "\(.*\)")$/\1/p' "vcpkg_installed/$TRIPLET/share/sdl3/SDL3ConfigVersion.cmake")
+          echo "SDL3 $version"
+          mkdir -p sdl
+          curl -sSfL "https://github.com/libsdl-org/SDL/archive/refs/tags/release-$version.tar.gz" \
+            | tar xz -C sdl --strip-components=1 "SDL-release-$version/android-project/app/src/main/java"
+          echo "SDL_JAVA_DIR=$PWD/sdl/android-project/app/src/main/java" >> "$GITHUB_ENV"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build the APK
+        run: |
+          set -o pipefail
+          version=$(tr -d '[:space:]' < version.txt).${{ github.run_number }}
+          gradle -p android assembleDebug \
+            -Pz13StageDir="$PWD/build/android" -Pz13SdlJavaDir="$SDL_JAVA_DIR" \
+            -Pz13VersionCode=${{ github.run_number }} -Pz13VersionName="$version" 2>&1 | tee gradle.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zodiac13-android-arm64
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Annotate the failure
+        if: failure()
+        run: >-
+          .github/scripts/annotate_failure.sh
+          build/vcpkg-manifest-install.log build-android.log gradle.log
+          'vcpkg/buildtrees/*/*-err.log' 'vcpkg/buildtrees/*/*-out.log'

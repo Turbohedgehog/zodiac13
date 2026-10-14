@@ -8,6 +8,23 @@ find_package(flecs CONFIG REQUIRED)
 
 set(CMAKE_CXX_STANDARD 23)
 
+if(ANDROID)
+  find_package(SDL3 CONFIG REQUIRED)
+  find_package(spdlog CONFIG REQUIRED)
+  add_library(${PROJECT_NAME} SHARED android_main.cpp)
+  set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME main)
+  target_link_libraries(
+    ${PROJECT_NAME}
+    PRIVATE
+    zodiac13::z13_launcher
+    zodiac13::core
+    SDL3::SDL3
+    spdlog::spdlog
+    log
+  )
+  return()
+endif()
+
 add_executable(${PROJECT_NAME} main.cpp)
 
 # message("~~~~ CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")

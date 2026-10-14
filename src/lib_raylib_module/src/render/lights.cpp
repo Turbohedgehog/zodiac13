@@ -23,7 +23,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "../tools/asset_path.h"
+#include "../tools/shader_asset.h"
 #include "../tools/math_convert.h"
 #include "render_resources.h"
 
@@ -102,8 +102,7 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
 }  // namespace
 
 ::Shader LoadLightingShader() {
-  ::Shader shader = LoadShader(AssetPath(kLightingVertexShaderPath).c_str(),
-                               AssetPath(kLightingFragmentShaderPath).c_str());
+  ::Shader shader = LoadShaderAsset(kLightingVertexShaderPath, kLightingFragmentShaderPath);
   if (Location(shader, kViewPosUniform) < 0) {
     spdlog::error("[raylib] lighting shader failed to compile");
     SafeUnloadShader(shader);

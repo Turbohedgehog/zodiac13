@@ -3,10 +3,7 @@
 #include <filesystem>
 #include <iostream>
 
-#include <boost/dll.hpp>
-#include <boost/dll/import.hpp>
-#include <boost/dll/shared_library.hpp>
-
+#include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/core.h>
 #include <lib_core/world/module_factory_base.h>
@@ -47,15 +44,15 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     return 1;
   }
 
-  const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
-  const std::filesystem::path assets_dir = exe_dir / kAssetsRelativePath;
+  const std::filesystem::path install_dir = InstallDir();
+  const std::filesystem::path assets_dir = install_dir / kAssetsRelativePath;
   const Status assets =
       CheckBlockPalette(assets_dir).and_then([&] { return CheckStationScene(core.GetConfig(), assets_dir); });
   if (!assets) {
     log_error("{}", assets.error());
     return 1;
   }
-  const auto config_path = exe_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);
+  const auto config_path = install_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);
 
   const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());
   if (!settings) {

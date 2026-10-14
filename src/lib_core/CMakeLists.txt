@@ -58,6 +58,7 @@ set(
   src/utils/file_io.cpp
   src/utils/flecs_utils.cpp
   src/utils/frustum.cpp
+  src/utils/install_dir.cpp
   src/utils/pose_smoothing.cpp
   src/utils/system_times.cpp
   src/world/core.cpp

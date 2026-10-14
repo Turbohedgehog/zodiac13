@@ -18,6 +18,8 @@
 
 #include <boost/dll/runtime_symbol_info.hpp>
 
+#include <lib_core/utils/install_dir.h>
+
 namespace z13::building {
 
 namespace {
@@ -27,8 +29,12 @@ const std::filesystem::path kAssetsDir = "assets";
 }  // namespace
 
 std::filesystem::path AssetFile(const std::filesystem::path& relative) {
+#if defined(__ANDROID__)
+  return InstallDir() / kAssetsDir / relative;
+#else
   const std::filesystem::path plugin_dir = boost::dll::this_line_location().parent_path().string();
   return plugin_dir.parent_path().parent_path() / kAssetsDir / relative;
+#endif
 }
 
 }  // namespace z13::building
