@@ -18,5 +18,6 @@
 | `multi-grid-plan.md` | several grids (asteroids, rotated builds) | stages `f/grid-model` ... `f/grid-docking`; planned before `f/utility-contract` |
 | `oblique-walls-plan.md` | oblique walls and space partition | stages 0-1 done (partition bench, incremental rooms) |
 | `dynamic-objects-plan.md` | items, kinematics, debris, asteroids | stage 0 `f/dynamic-bench` first |
+| `android-plan.md` | Android build and touch controls: joysticks, on-screen inventory, the building tool as an item, context actions | "Порядок работ" (`f/android-build` first), "Открытые вопросы" |
 | `ss13-reference.md` | Space Station 13 as the gameplay reference: what is repeated, and each difference with its reason | table "Отличия", grows with every gameplay decision |
 | `station-layout/` | generators of the shipped station blueprints (`generate_layout.py`, `generate_spire.py`) | scripts, deck plans |
