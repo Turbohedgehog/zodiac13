@@ -30,16 +30,20 @@ namespace z13::raylib {
 
 // Texels to a row of the light table (light_clusters.h).
 inline constexpr int kLightTableWidth = 1024;
-// raylib's MAX_MATERIAL_MAPS (its config.h, not exported): DrawMesh binds this many units.
+// raylib's MAX_MATERIAL_MAPS (its config.h, not exported).
 inline constexpr size_t kMaterialMaps = 12;
-// Texture units of the shadow maps, past those DrawMesh binds; GL 3.3 has at least 16.
-inline constexpr int kSunShadowUnit = kMaterialMaps;
+// The lighting shader's other textures. DrawMesh binds unit i only for a material map i with a
+// texture: lit materials carry just the diffuse map (unit 0) and the skybox its cubemap
+// (MATERIAL_MAP_CUBEMAP), so these take the units of the maps no material sets. Past the 12
+// maps they needed 18 units, more than the 16 of OpenGL ES 3.0 phones.
+inline constexpr int kSunShadowUnit = MATERIAL_MAP_METALNESS;
 inline constexpr int kFillShadowUnit = kSunShadowUnit + 1;
 inline constexpr int kShadowAtlasUnit = kFillShadowUnit + 1;
 inline constexpr int kLightTableUnit = kShadowAtlasUnit + 1;
-// The baked lamps (cell_lighting.h): past GL 3.3's guaranteed 16 units, so checked against the driver.
+// The baked lamps (cell_lighting.h).
 inline constexpr int kCellLabelsUnit = kLightTableUnit + 1;
 inline constexpr int kCellLightUnit = kCellLabelsUnit + 1;
+static_assert(kCellLightUnit < MATERIAL_MAP_CUBEMAP, "the skybox's draw unbinds the cubemap's unit");
 // Lamps players cast shadows from at once; assets/shaders/lighting.fs sizes its arrays by this.
 inline constexpr size_t kMaxPlayerShadowLamps = 32;
 

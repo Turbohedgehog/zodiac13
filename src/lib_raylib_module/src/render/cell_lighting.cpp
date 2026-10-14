@@ -34,6 +34,10 @@ Status CellLighting::Sync(std::span<const z13::station::Block> blocks,
   return state_->Sync(blocks, palette);
 }
 
+std::optional<std::string> CellLighting::Failure() const {
+  return state_->Failure();
+}
+
 const std::vector<z13::station::light::Lamp>& CellLighting::ShiningLamps() const {
   return state_->ShiningLamps();
 }

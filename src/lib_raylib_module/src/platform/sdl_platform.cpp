@@ -131,6 +131,9 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
   rlLoadExtensions(reinterpret_cast<void*>(SDL_GL_GetProcAddress));
   rlglInit(pixel_width, pixel_height);
 
+  gl_info_ = QueryGlInfo();
+  spdlog::info("[sdl] {}, {}, float color buffers: {}", gl_info_.renderer, gl_info_.version,
+               gl_info_.float_color_buffer);
   window_size_ = {pixel_width, pixel_height};
   quit_ = false;
   events_.reserve(64);
@@ -214,6 +217,8 @@ void SdlPlatform::EndFrame() {
 }
 
 Eigen::Vector2i SdlPlatform::Size() const { return window_size_; }
+
+const GlInfo& SdlPlatform::Gl() const { return gl_info_; }
 
 // The content scale, not SDL_GetWindowDisplayScale: that one includes the pixel density,
 // which ImGui's SDL3 backend already applies through the framebuffer scale.

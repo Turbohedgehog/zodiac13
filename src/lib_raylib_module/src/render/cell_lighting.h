@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <raylib.h>
@@ -45,6 +46,8 @@ class CellLighting {
   bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
   // Needs the GL context. Fails once when the textures can't be made; the lamps then light nothing.
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
+  // Why the textures couldn't be made, for the pause menu's diagnostics.
+  std::optional<std::string> Failure() const;
   // In cells, where each shines from (CellLight::ShiningLamps).
   const std::vector<z13::station::light::Lamp>& ShiningLamps() const;
 

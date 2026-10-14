@@ -24,6 +24,7 @@
 
 #include "gui_widgets.h"
 #include "input_settings_window.h"
+#include "render_diagnostics.h"
 
 namespace z13::raylib::gui {
 
@@ -45,6 +46,7 @@ void GameplayPauseMenuWindow::DrawBody() {
     World().remove<z13::gameplay::Gameplay>();
     RequestPop();
   }
+  DrawRenderDiagnostics(World());
 }
 
 WindowPtr MakeGameplayPauseMenu(flecs::world world) {

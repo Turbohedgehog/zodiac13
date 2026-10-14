@@ -58,6 +58,10 @@ ShadowAtlasLayout ShadowMaps::AtlasLayout() const {
   return state_ ? state_->AtlasLayout() : ShadowAtlasLayout {};
 }
 
+ShadowHealth ShadowMaps::Health() const {
+  return state_ ? state_->Health() : ShadowHealth {};
+}
+
 std::optional<Eigen::Matrix4f> ShadowMaps::UpdateDirectional(DirectionalMap map, const Eigen::Vector3f& direction,
                                                              const ShadowCasters& casters,
                                                              const z13::RenderTuning& tuning) {

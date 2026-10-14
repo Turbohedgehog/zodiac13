@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <cell_light/cell_light.h>
@@ -38,6 +39,7 @@ class CellLighting::State {
 
   bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
+  const std::optional<std::string>& Failure() const { return failure_; }
   const std::vector<z13::station::light::Lamp>& ShiningLamps() const { return shining_; }
 
   void Upload(const ::Shader& shader, const LightUniforms& uniforms) const;
@@ -60,7 +62,8 @@ class CellLighting::State {
   std::vector<z13::station::light::Lamp> lamps_;
   std::vector<z13::station::light::Lamp> shining_;
   std::optional<uint64_t> palette_hash_;
-  bool failed_ {};
+  // Why the textures couldn't be made; the lamps then light nothing.
+  std::optional<std::string> failure_;
 };
 
 }  // namespace z13::raylib

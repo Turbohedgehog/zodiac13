@@ -22,6 +22,8 @@
 
 #include <Eigen/Dense>
 
+#include "platform/gl_info.h"
+
 // Platform layer: SDL owns the window, GL context, event loop and timing; raylib
 // is used only as an rlgl render module on top of this context.
 
@@ -72,6 +74,9 @@ class SdlPlatform {
   Eigen::Vector2f MouseDelta() const;
   Eigen::Vector2f MousePosition() const;
 
+  // Queried once the context is up.
+  const GlInfo& Gl() const;
+
   // SDL events collected by the last PumpEvents(); valid until the next one.
   const std::vector<SDL_Event>& FrameEvents() const;
 
@@ -84,6 +89,7 @@ class SdlPlatform {
   Eigen::Vector2f mouse_delta_ = Eigen::Vector2f::Zero();
   Eigen::Vector2f mouse_pos_ = Eigen::Vector2f::Zero();
   std::vector<SDL_Event> events_;
+  GlInfo gl_info_;
 };
 
 // GPU-resource RAII wrappers can be destructed detached from any world/entity,
