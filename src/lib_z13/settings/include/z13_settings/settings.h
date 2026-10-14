@@ -58,6 +58,13 @@ struct RenderTuning : fbs::settings::RenderTuningT {
   explicit RenderTuning(const fbs::settings::RenderTuningT& values) : fbs::settings::RenderTuningT(values) {}
 };
 
+struct TouchLayout : fbs::settings::TouchLayoutT {
+  using Singleton = void;
+
+  TouchLayout() = default;
+  explicit TouchLayout(const fbs::settings::TouchLayoutT& values) : fbs::settings::TouchLayoutT(values) {}
+};
+
 // The part of Settings a client takes from the server it joins: peers must tick alike.
 struct SessionSettings {
   double fps {};
@@ -85,8 +92,8 @@ Status AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing and
-// RenderTuning singletons; the core part goes through Config::SetCoreSettings before the world is created.
+// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
+// RenderTuning and TouchLayout singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13

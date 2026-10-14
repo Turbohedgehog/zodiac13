@@ -18,6 +18,7 @@ set(
   src/input/action_negotiation.cpp
   src/input/gameplay_input_system.cpp
   src/input/input_config_loader.cpp
+  src/input/touch_input_system.cpp
   src/state/player_action_recorder.cpp
   src/state/quick_save_input_system.cpp
   src/state/replay.cpp
@@ -48,6 +49,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::settings
+  zodiac13::z13_touch
   Boost::dll
 )
 
@@ -74,6 +76,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::settings
+  zodiac13::z13_touch
   Boost::dll
 )
 

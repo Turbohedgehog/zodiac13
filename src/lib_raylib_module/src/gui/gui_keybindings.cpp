@@ -17,6 +17,7 @@
 #include "gui_keybindings.h"
 
 #include <algorithm>
+#include <iterator>
 #include <string_view>
 #include <unordered_map>
 
@@ -92,7 +93,7 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
   const auto& bindings_by_action = config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
   for (const auto& binding : bindings_by_action) {
     const auto slot_it = action_slot.find(binding.action_id);
-    if (slot_it == action_slot.end()) {
+    if (slot_it == action_slot.end() || z13::input::IsTouchKeycode(binding.keycode)) {
       continue;
     }
     KeyBindingAction& action = model.groups[slot_it->second.first].actions[slot_it->second.second];
@@ -133,7 +134,11 @@ void ApplyKeyBindingModel(flecs::world world, const KeyBindingModel& model) {
   const auto& actions_by_id = world.ensure<z13::input::ActionMap>().action_map.get<
       z13::input::ActionMap::IdTag>();
 
-  config.keycode_binding.clear();
+  // The window shows no touch keys, so it keeps their bindings (std::erase_if takes no multi_index).
+  auto& bindings = config.keycode_binding;
+  for (auto it = bindings.begin(); it != bindings.end();) {
+    it = z13::input::IsTouchKeycode(it->keycode) ? std::next(it) : bindings.erase(it);
+  }
   for (const KeyBindingGroup& group : model.groups) {
     for (const KeyBindingAction& action : group.actions) {
       const auto action_it = actions_by_id.find(action.action_id);

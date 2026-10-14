@@ -51,6 +51,7 @@
 #include "render/render_stats.h"
 #include "room_label.h"
 #include "stats_overlay.h"
+#include "touch_hud.h"
 
 namespace z13::raylib {
 
@@ -176,12 +177,13 @@ void RegisterSystems(flecs::world world) {
 
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
-  world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*>(
-          "GuiSystem::Draw")
+  world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
+               const z13::input::TouchControls*, const z13::TouchLayout*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([world](gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
-                    const RenderStats* render, z13::station::RoomOverlay* rooms) {
+                    const RenderStats* render, z13::station::RoomOverlay* rooms,
+                    const z13::input::TouchControls* touch, const z13::TouchLayout* touch_layout) {
         if (!state.imgui_ready) {
           return;
         }
@@ -196,6 +198,8 @@ void RegisterSystems(flecs::world world) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
           gui::MakePaletteWindow(world)->Draw();
+        } else if (touch != nullptr && touch_layout != nullptr) {
+          gui::DrawTouchHud(*touch, *touch_layout);
         }
         stats.CountFrame(std::chrono::steady_clock::now());
         if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {

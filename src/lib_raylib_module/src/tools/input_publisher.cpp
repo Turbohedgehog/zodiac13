@@ -81,6 +81,8 @@ constexpr auto kKeyMap = std::to_array<std::pair<SDL_Keycode, zkey::Keycode>>({
       {SDLK_UP, zkey::Keycode::KEY_UP}, {SDLK_DOWN, zkey::Keycode::KEY_DOWN},
       {SDLK_LEFT, zkey::Keycode::KEY_LEFT}, {SDLK_RIGHT, zkey::Keycode::KEY_RIGHT},
       {SDLK_SPACE, zkey::Keycode::KEY_SPACE}, {SDLK_ESCAPE, zkey::Keycode::KEY_ESCAPE},
+      // Android's back button.
+      {SDLK_AC_BACK, zkey::Keycode::KEY_ESCAPE},
       {SDLK_RETURN, zkey::Keycode::KEY_RETURN}, {SDLK_TAB, zkey::Keycode::KEY_TAB},
       {SDLK_BACKSPACE, zkey::Keycode::KEY_BACKSPACE}, {SDLK_DELETE, zkey::Keycode::KEY_DELETE},
       {SDLK_INSERT, zkey::Keycode::KEY_INSERT}, {SDLK_HOME, zkey::Keycode::KEY_HOME},
@@ -169,6 +171,16 @@ bool CursorShown(flecs::world world) {
   return world.has<z13::gameplay::Pause>() || world.has<z13::gameplay::FreeCursor>();
 }
 
+// SDL gives a finger's position as a fraction of the window.
+z13::input::TouchEvent ToTouchEvent(const SDL_TouchFingerEvent& finger, const SdlPlatform& platform) {
+  const Eigen::Vector2f screen_size = platform.Size().cast<float>();
+  return {
+      .finger = finger.fingerID,
+      .position = Eigen::Vector2f(finger.x, finger.y).cwiseProduct(screen_size),
+      .screen_size = screen_size,
+  };
+}
+
 void ReadInput(flecs::world world, SdlPlatform& platform) {
   // Pump here rather than in a separate system: same-phase order isn't
   // guaranteed, and a separate PumpEvents could run after this, one tick late.
@@ -203,6 +215,9 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
         [[fallthrough]];
       case SDL_EVENT_MOUSE_BUTTON_UP: {
+        if (event.button.which == SDL_TOUCH_MOUSEID) {
+          break;
+        }
         z13::input::MouseButtonEvent button{};
         // event.button.{x,y}, not the frame's aggregated `position`, which would
         // report the frame-end position for a fast move-then-click.
@@ -217,6 +232,9 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         break;
       }
       case SDL_EVENT_MOUSE_MOTION: {
+        if (event.motion.which == SDL_TOUCH_MOUSEID) {
+          break;
+        }
         z13::input::EmitInputEvent(
             world, source,
             z13::input::MousePos{static_cast<int>(event.motion.x),
@@ -226,6 +244,17 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         z13::input::EmitInputEvent(world, source, move);
         break;
       }
+      case SDL_EVENT_FINGER_DOWN:
+        z13::input::EmitInputEvent(world, source, z13::input::TouchDownEvent {ToTouchEvent(event.tfinger, platform)});
+        break;
+      case SDL_EVENT_FINGER_MOTION:
+        z13::input::EmitInputEvent(world, source, z13::input::TouchMoveEvent {ToTouchEvent(event.tfinger, platform)});
+        break;
+      case SDL_EVENT_FINGER_UP:
+        [[fallthrough]];
+      case SDL_EVENT_FINGER_CANCELED:
+        z13::input::EmitInputEvent(world, source, z13::input::TouchUpEvent {ToTouchEvent(event.tfinger, platform)});
+        break;
       case SDL_EVENT_WINDOW_FOCUS_GAINED:
         world.set(z13::gameplay::WindowFocusEvent{.has_focus = true});
         break;

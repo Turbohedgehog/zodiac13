@@ -18,6 +18,8 @@
 
 #include <cstdint>
 
+#include <Eigen/Core>
+
 #include <input_config_generated.h>
 
 namespace z13::input {
@@ -60,6 +62,23 @@ struct KeyboardDownEvent : KeyboardEvent {
 };
 
 struct KeyboardUpEvent : KeyboardEvent {
+};
+
+// A finger at `position` pixels of a screen_size window.
+struct TouchEvent {
+  uint64_t finger {};
+  Eigen::Vector2f position = Eigen::Vector2f::Zero();
+  Eigen::Vector2f screen_size = Eigen::Vector2f::Zero();
+};
+
+struct TouchDownEvent : TouchEvent {
+};
+
+struct TouchMoveEvent : TouchEvent {
+};
+
+// Also a cancelled touch.
+struct TouchUpEvent : TouchEvent {
 };
 
 struct SaveConfigEvent {};

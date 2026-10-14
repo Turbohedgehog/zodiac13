@@ -27,6 +27,7 @@ set(
   src/gui/start_game_window.cpp
   src/gui/start_server_window.cpp
   src/gui/stats_overlay.cpp
+  src/gui/touch_hud.cpp
   src/platform/sdl_platform.cpp
   src/raylib_module.cpp
   src/raylib_module_factory.cpp
@@ -87,6 +88,7 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::settings
+  zodiac13::z13_touch
   raylib
   SDL3::SDL3
   imgui::imgui
