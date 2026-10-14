@@ -27,6 +27,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/state_markers.h>
@@ -88,6 +89,16 @@ std::string Checkpoint(Z13TestWorld& test_world) {const auto json = ft::WorldJso
 
 size_t PlayerCount(flecs::world world) {
   return static_cast<size_t>(world.count<z13::gameplay::Player>());
+}
+
+std::vector<uint64_t> PressTicks(Z13TestWorld& world, uint32_t player_id) {
+  std::vector<uint64_t> ticks;
+  for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+    if (record.player_id == player_id && record.value != 0.f) {
+      ticks.push_back(record.tick);
+    }
+  }
+  return ticks;
 }
 
 bool HasDuplicateRecords(flecs::world world) {
@@ -292,15 +303,7 @@ TEST_F(DesyncTest, HeartbeatsWhileAResyncIsInFlightKeepConfirmingInput) {
 // Delivered later than the server still accepts: moved to the window's start, on both sides.
 TEST_F(DesyncTest, ACommandPastTheLateWindowIsMovedNotDropped) {
   const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
-  const auto own_presses = [local_id](Z13TestWorld& world) {
-    std::vector<uint64_t> ticks;
-    for (const auto& record : world.World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
-      if (record.player_id == local_id && record.value != 0.f) {
-        ticks.push_back(record.tick);
-      }
-    }
-    return ticks;
-  };
+  const auto own_presses = [local_id](Z13TestWorld& world) { return PressTicks(world, local_id); };
   const auto spike_ticks = static_cast<uint32_t>(NetTuning {}.max_late_ticks + kSettleTicks);
   network_->SetFaultConfig({.min_delay_ticks = spike_ticks, .max_delay_ticks = spike_ticks});
   const uint64_t pressed_at = client_.World().get<ft::SimulationClock>().tick;
@@ -316,6 +319,29 @@ TEST_F(DesyncTest, ACommandPastTheLateWindowIsMovedNotDropped) {
     return Digests(client_).checked >= checked + 2;
   }));
   EXPECT_EQ(own_presses(client_), own_presses(server_));
+  EXPECT_EQ(Digests(client_).resyncs, 0u);
+  EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
+// Only the upload stalls, so digests of ticks after the press reach the client before the
+// server has the press: they mustn't be checked against the client's prediction.
+TEST_F(DesyncTest, AStalledUploadPastTheLateWindowNeedsNoResync) {
+  const uint32_t local_id = *client_.World().get<z13::gameplay::LocalPlayer>().id;
+  const uint64_t digest_interval_ticks = ft::SnapshotIntervalTicks(client_.World()).value_or(0);
+  const auto stall_ticks = static_cast<uint32_t>(NetTuning {}.max_late_ticks + digest_interval_ticks + kSettleTicks);
+  network_->SetExtraDelayTo(kDefaultServerPort, stall_ticks);
+  const uint64_t pressed_at = client_.World().get<ft::SimulationClock>().tick;
+  client_.EmitInput(KeyDown(Keycode::KEY_W));
+  Run(kNetSendIntervalTicks, [] { return false; });
+  network_->SetExtraDelayTo(kDefaultServerPort, 0);
+
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return !PressTicks(server_, local_id).empty(); })) << "the press was dropped";
+  EXPECT_GT(PressTicks(server_, local_id).front(), pressed_at) << "the press arrived within the late window";
+  client_.EmitInput(KeyUp(Keycode::KEY_W));
+  ASSERT_TRUE(Run(kMaxNetTestTicks, [&, checked = Digests(client_).checked] {
+    return Digests(client_).checked >= checked + 2;
+  }));
+  EXPECT_EQ(PressTicks(client_, local_id), PressTicks(server_, local_id));
   EXPECT_EQ(Digests(client_).resyncs, 0u);
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
 }

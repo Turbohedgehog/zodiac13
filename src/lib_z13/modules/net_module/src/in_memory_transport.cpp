@@ -84,6 +84,7 @@ class InMemoryNetworkState {
   explicit InMemoryNetworkState(uint64_t seed) : rng_(seed) {}
 
   void SetFaultConfig(FaultConfig config) { fault_config_ = config; }
+  void SetExtraDelayTo(TransportId destination, uint32_t delay_ticks) { extra_delay_to_[destination] = delay_ticks; }
 
   void Tick();  // Defined below, once InMemoryTransport (which it calls into) exists.
 
@@ -114,7 +115,9 @@ class InMemoryNetworkState {
     if (channel == Channel::kUnreliable && RollDrop()) {
       return;
     }
-    uint64_t deliver_at_tick = current_tick_ + SampleDelayTicks();
+    const auto extra_delay = extra_delay_to_.find(destination);
+    uint64_t deliver_at_tick =
+        current_tick_ + SampleDelayTicks() + (extra_delay != extra_delay_to_.end() ? extra_delay->second : 0);
     std::optional<uint64_t> unreliable_sequence;
     // Like ENet's reliable channel, never overtakes an earlier reliable packet to the same peer.
     if (channel == Channel::kReliable) {
@@ -189,6 +192,7 @@ class InMemoryNetworkState {
   std::unordered_map<uint16_t, TransportId> listeners_;
   std::unordered_map<TransportId, InMemoryTransport*> transports_;  // live transports only
   std::unordered_map<TransportId, TrafficStats> traffic_to_;
+  std::unordered_map<TransportId, uint32_t> extra_delay_to_;
 
   std::vector<PendingConnect> pending_connects_;
   std::vector<PendingPacket> pending_packets_;
@@ -305,6 +309,10 @@ InMemoryNetwork::InMemoryNetwork(uint64_t seed) : state_(std::make_shared<InMemo
 
 void InMemoryNetwork::SetFaultConfig(FaultConfig config) {
   state_->SetFaultConfig(config);
+}
+
+void InMemoryNetwork::SetExtraDelayTo(uint16_t port, uint32_t delay_ticks) {
+  state_->SetExtraDelayTo(state_->FindListener(port), delay_ticks);
 }
 
 void InMemoryNetwork::Tick() {

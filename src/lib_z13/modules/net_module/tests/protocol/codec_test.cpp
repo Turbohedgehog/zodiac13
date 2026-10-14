@@ -205,12 +205,13 @@ TEST(CodecTest, CommandsRetimedRoundTrips) {
   EXPECT_EQ(decoded.moves[0].value(), -7);
 }
 
-TEST(CodecTest, StateDigestRoundTripsPositions) {
+TEST(CodecTest, StateDigestRoundTripsPositionsAndInputThrough) {
   fbn::StateDigestT digest;
   digest.tick = 60;
   digest.entity_count = 12;
   digest.name_hash = 0xDEADBEEF;
   digest.positions.emplace_back(1, 1.5f, 2.5f, 3.5f);
+  digest.input_through.emplace_back(1, 75);
 
   const auto decoded = RoundTrip(digest);
   EXPECT_EQ(decoded.tick, 60u);
@@ -219,6 +220,9 @@ TEST(CodecTest, StateDigestRoundTripsPositions) {
   ASSERT_EQ(decoded.positions.size(), 1u);
   EXPECT_EQ(decoded.positions[0].player_id(), 1u);
   EXPECT_FLOAT_EQ(decoded.positions[0].y(), 2.5f);
+  ASSERT_EQ(decoded.input_through.size(), 1u);
+  EXPECT_EQ(decoded.input_through[0].player_id(), 1u);
+  EXPECT_EQ(decoded.input_through[0].tick(), 75u);
 }
 
 TEST(CodecTest, TruncatedBytesAreRejectedNotCrashed) {

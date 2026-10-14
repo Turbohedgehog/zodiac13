@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@
 #include <lib_core/utils/fnv_hash.h>
 
 #include <z13/components/player.h>
+#include <z13/components/player_action.h>
 
 #include <net_module/clock_sync.h>
 
@@ -65,6 +67,25 @@ void RecordStateDigest(flecs::world world, uint64_t tick, StateDigests& digests)
   digests.local.insert_or_assign(tick, ComputeStateDigest(world, tick));
   std::erase_if(digests.local, [tick, retention = *retention_ticks](const auto& entry) {
     return entry.first + retention < tick;
+  });
+}
+
+std::vector<fbn::PlayerTickWire> InputThrough(const z13::gameplay::ConfirmedInputTicks& confirmed) {
+  std::vector<fbn::PlayerTickWire> through;
+  std::ranges::transform(confirmed.by_player, std::back_inserter(through), [](const auto& entry) {
+    return fbn::PlayerTickWire(entry.first, entry.second);
+  });
+  return through;
+}
+
+// An own command the server didn't have when it sent the digest may yet be moved past the
+// digest's tick (CommandsRetimed), so until then the client's prediction may differ from it.
+bool OwnCommandsSettled(const fbn::StateDigestT& remote, uint32_t local_id,
+                        const z13::gameplay::PlayerActionLog& actions) {
+  const auto through = std::ranges::find(remote.input_through, local_id, &fbn::PlayerTickWire::player_id);
+  return std::ranges::none_of(actions.log.Entries(), [&](const z13::gameplay::PlayerActionRecord& record) {
+    return record.player_id == local_id && record.tick <= remote.tick &&
+        (through == remote.input_through.end() || record.tick > through->tick());
   });
 }
 
@@ -117,8 +138,10 @@ void SendSettledStateDigests(flecs::world world, NetSession& session, StateDiges
     if (digests.last_sent_tick && tick <= *digests.last_sent_tick) {
       continue;
     }
+    fbn::StateDigestT sent(digest);
+    sent.input_through = InputThrough(world.get<z13::gameplay::ConfirmedInputTicks>());
     Envelope envelope;
-    envelope.body.Set(fbn::StateDigestT(digest));
+    envelope.body.Set(std::move(sent));
     session.Broadcast(Channel::kReliable, envelope);
     digests.last_sent_tick = tick;
   }
@@ -127,6 +150,8 @@ void SendSettledStateDigests(flecs::world world, NetSession& session, StateDiges
 std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
+  const std::optional<uint32_t> local_id = world.get<z13::gameplay::LocalPlayer>().id;
+  const auto& actions = world.get<z13::gameplay::PlayerActionLog>();
   std::optional<std::string> mismatch;
   std::erase_if(digests.received, [&](const fbn::StateDigestT& remote) {
     // Strictly past: tick `now`'s PostFrame, which records its digest, hasn't run yet.
@@ -134,7 +159,7 @@ std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDi
       return false;
     }
     const auto local = digests.local.find(remote.tick);
-    if (local == digests.local.end()) {
+    if (local == digests.local.end() || !local_id || !OwnCommandsSettled(remote, *local_id, actions)) {
       return true;
     }
     ++digests.checked;
