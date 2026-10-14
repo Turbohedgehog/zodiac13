@@ -23,6 +23,8 @@ namespace z13.fbs.building;
 table BuildingTuning {
   // How far along the player's forward axis a destroy raycast reaches, in meters.
   destroy_reach_distance: float = 5 (min: "0.01", cli);
+  // How far along the player's forward axis "use" reaches, in meters.
+  use_reach_distance: float = 2 (min: "0.01", cli);
   // Edge of the chunks the station's block index files blocks by.
   index_chunk_cells: int32 = 16 (min: 1, max: 1024, cli);
   // Edge of the chunks rooms cut the free space by: an edit rebuilds only its chunks.

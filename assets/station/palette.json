@@ -38,7 +38,8 @@
         "first": {"r": 70, "g": 110, "b": 170, "a": 255},
         "second": {"r": 55, "g": 90, "b": 145, "a": 255}
       },
-      "flags": "Solid GasSealing"
+      "flags": "Solid GasSealing",
+      "interaction": {"methods": "Hold Presence", "sensor_cells": 8}
     },
     {
       "id": 4,
@@ -90,7 +91,8 @@
         "first": {"r": 200, "g": 200, "b": 205, "a": 255},
         "second": {"r": 175, "g": 175, "b": 180, "a": 255}
       },
-      "flags": "Solid GasSealing Hidden"
+      "flags": "Solid GasSealing Hidden",
+      "interaction": {"methods": "Hold Presence", "sensor_cells": 8}
     },
     {
       "id": 8,
@@ -132,6 +134,20 @@
       },
       "flags": "Solid",
       "light": {"color": {"r": 255, "g": 238, "b": 205, "a": 255}, "radius_cells": 64, "intensity": 0.6}
+    },
+    {
+      "id": 11,
+      "name": "Switch",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 2},
+      "max_size": {"x": 1, "y": 1, "z": 2},
+      "material": {
+        "first": {"r": 190, "g": 60, "b": 50, "a": 255},
+        "second": {"r": 120, "g": 120, "b": 125, "a": 255}
+      },
+      "flags": "Solid Switch",
+      "interaction": {"methods": "Use"}
     }
   ]
 }

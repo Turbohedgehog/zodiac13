@@ -10,11 +10,13 @@ find_package(Boost REQUIRED COMPONENTS dll)
 set(
   PROJECT_SOURCE_FILES
   src/gravity_system.cpp
+  src/interaction_system.cpp
   src/room_box_cache.cpp
   src/room_overlay_system.cpp
   src/room_system.cpp
   src/station_module.cpp
   src/station_module_factory.cpp
+  src/switch_system.cpp
   src/topology_sources.cpp
 )
 
@@ -37,6 +39,8 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::settings
+  zodiac13::z13_grid
+  zodiac13::z13_module
   Boost::dll
 )
 
@@ -57,6 +61,8 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::settings
+  zodiac13::z13_grid
+  zodiac13::z13_module
   Boost::dll
 )
 

@@ -33,6 +33,7 @@
 namespace z13::building::primitives {
 
 using PrimitiveFlags = fbs::station::PrimitiveFlags;
+using InteractionMethods = fbs::station::InteractionMethods;
 
 // Temporary: a fixed set of shapes, to be replaced by data/models in a later stage.
 enum class ShapeKind : uint8_t { kBox, kWedge, kCornerWedge, kDoorFrame };
@@ -62,6 +63,15 @@ struct LightSource {
   bool operator==(const LightSource&) const = default;
 };
 
+// primitives.fbs's Interaction.
+struct Interaction {
+  InteractionMethods methods {};
+  int sensor_cells {};
+
+  bool Accepts(InteractionMethods method) const { return (methods & method) == method; }
+  bool operator==(const Interaction&) const = default;
+};
+
 // One palette entry, as plain data so a flecs component can hold it.
 struct Primitive {
   uint32_t id {};
@@ -72,6 +82,7 @@ struct Primitive {
   Checker material;
   PrimitiveFlags flags {};
   std::optional<LightSource> light;
+  std::optional<Interaction> interaction;
 
   bool Has(PrimitiveFlags flag) const { return (flags & flag) == flag; }
 };
@@ -94,7 +105,8 @@ struct BlockPalette {
 
 // Parses palette JSON (primitives.fbs) and rejects duplicate ids or names, size limits
 // outside 1..max_size_cells or min above max, stretchable door frames, shapes that can't
-// be built at those sizes, and lights without color, reach or intensity.
+// be built at those sizes, lights without color, reach or intensity, and interactions without a
+// method or with a sensor that only presence has.
 std::expected<Palette, std::string> ParsePalette(std::string_view json);
 
 }  // namespace z13::building::primitives
