@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <utility>
 
+#include <lib_profile/profile.h>
 #include <primitives/lights.h>
 #include <rooms/light_reach.h>
 
@@ -59,6 +60,7 @@ bool StationLights::SyncedWith(OptionalPalette palette, std::optional<uint64_t> 
 
 void StationLights::Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette,
                          z13::station::rooms::OptionalRoomGraph rooms, std::optional<uint64_t> rooms_fingerprint) {
+  Z13_PROFILE_ZONE("StationLights::Sync");
   lights_ = {};
   by_room_ = {};
   for (const z13::building::primitives::PointLight& light : z13::building::primitives::LightsOf(blocks, palette)) {

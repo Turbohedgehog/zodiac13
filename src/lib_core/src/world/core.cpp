@@ -32,6 +32,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_core/world/module_factory_base.h>
 #include <lib_core/utils/status.h>
+#include <lib_profile/profile.h>
 
 #include "module_lib_holder.h"
 
@@ -118,6 +119,7 @@ void Core::Update(float delta_time, flecs_tools::FrameKind kind) {
   for (auto& [_, world] : worlds_) {
     z13::flecs_tools::TickWorld(world, delta_time, kind);
   }
+  Z13_PROFILE_FRAME();
 }
 
 void Core::Shutdown(int exit_code) {

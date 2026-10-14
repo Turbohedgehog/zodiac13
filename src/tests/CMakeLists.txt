@@ -183,23 +183,23 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/tests
+    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
 )
 
 # Host executable CTest invokes; the test code stays in the DLL.
 add_executable(z13_test_runner runner/main.cpp)
 target_link_libraries(z13_test_runner PRIVATE ${PROJECT_NAME} GTest::gtest)
 set_target_properties(z13_test_runner PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/tests
+    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
 )
 
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
+    WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
 )
 
 # The launcher's plugin path, out of process: z13_test_runner links the plugins directly
@@ -210,9 +210,9 @@ target_link_libraries(z13_plugin_smoke PRIVATE zodiac13::core zodiac13::z13_laun
 # Only for test_dll_messages.h; the plugin itself is loaded, not linked.
 target_include_directories(z13_plugin_smoke PRIVATE ${CMAKE_SOURCE_DIR}/src/lib_test_dll/include)
 set_target_properties(z13_plugin_smoke PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin/tests
+    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
 )
 if(WIN32)
   add_custom_command(TARGET z13_plugin_smoke POST_BUILD

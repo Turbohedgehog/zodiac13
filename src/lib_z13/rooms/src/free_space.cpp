@@ -27,6 +27,7 @@
 #include <boost/container_hash/hash.hpp>
 #include <boost/iterator/function_output_iterator.hpp>
 
+#include <lib_profile/profile.h>
 #include <rooms/room_graph.h>
 
 #include "cell_boxes.h"
@@ -132,6 +133,7 @@ void CutFree(const CellBox& region, const std::vector<CellBox>& boxes, std::vect
 }
 
 std::shared_ptr<const FreeChunk> BuildChunk(const CellBox& region, const std::vector<CellBox>& sealed) {
+  Z13_PROFILE_ZONE("BuildChunk");
   FreeChunk chunk;
   CutFree(region, Clipped(sealed, region), chunk.leaves);
   std::vector<LeafEntry> entries;
@@ -197,6 +199,7 @@ std::shared_ptr<const FreeChunk> BuildChunkAt(const Eigen::Vector3i& key, const 
 }  // namespace
 
 std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox>& sealed, int chunk_cells) {
+  Z13_PROFILE_ZONE("FreeSpace::Build");
   FreeSpace space;
   space.chunk_cells_ = chunk_cells;
   if (sealed.empty()) {
@@ -220,6 +223,7 @@ std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox
 
 std::expected<RebuiltSpace, std::string> FreeSpace::Rebuilt(const std::vector<CellBox>& sealed,
                                                             const std::vector<CellBox>& changed) const {
+  Z13_PROFILE_ZONE("FreeSpace::Rebuilt");
   if (sealed.empty() || chunks_.empty()) {
     auto built = Build(sealed, chunk_cells_);
     if (!built) {

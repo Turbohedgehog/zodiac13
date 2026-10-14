@@ -24,6 +24,7 @@
 
 #include <boost/polygon/polygon.hpp>
 
+#include <lib_profile/profile.h>
 #include <rooms/room_graph.h>
 #include <z13_grid/block_index.h>
 
@@ -117,6 +118,7 @@ std::vector<CellBox> HolesOf(gtl::polygon_90_set_data<int>& section, const std::
 
 std::vector<PortalSource> FindOpenings(std::span<const CellBox> sealed, std::span<const CellBox> walls,
                                        int max_cells) {
+  Z13_PROFILE_ZONE("FindOpenings");
   ByPlane<gtl::polygon_90_set_data<int>> sections;
   for (const CellBox& wall : walls) {
     for (int axis = 0; axis < kCellAxes; ++axis) {

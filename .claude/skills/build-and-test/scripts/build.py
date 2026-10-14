@@ -3,7 +3,7 @@
 the calling shell. Writes build.log (and ctest.log), each ending in an "EXIT <code>" line, and
 build.pid for stop_build.py.
 
-Usage: build.py [--tests] [--keep-going] [--target TARGET] [--config CONFIG] [--log-dir DIR]
+Usage: build.py [--tests] [--keep-going] [--target TARGET] [--config CONFIG] [--build-dir DIR] [--log-dir DIR]
 """
 
 import argparse
@@ -39,7 +39,7 @@ def run_logged(command: list[str], log: Path, cwd: Path) -> int:
 
 def run(args: argparse.Namespace) -> int:
     repo = repo_root()
-    build = ["cmake", "--build", "build", f"-j{jobs()}"]
+    build = ["cmake", "--build", args.build_dir, f"-j{jobs()}"]
     if args.target:
         build += ["--target", args.target]
     if args.config:
@@ -48,7 +48,7 @@ def run(args: argparse.Namespace) -> int:
         build += ["--", "-k", "0"]
     if run_logged(build, args.log_dir / "build.log", repo) != 0 or not args.tests:
         return 0
-    ctest = ["ctest", "--test-dir", "build"] + (["-C", args.config] if args.config else [])
+    ctest = ["ctest", "--test-dir", args.build_dir] + (["-C", args.config] if args.config else [])
     run_logged(ctest, args.log_dir / "ctest.log", repo)
     return 0
 
@@ -75,6 +75,7 @@ def main() -> int:
     parser.add_argument("--keep-going", action="store_true", help="collect every compile error in one pass")
     parser.add_argument("--target")
     parser.add_argument("--config", help="for multi-config generators (Visual Studio)")
+    parser.add_argument("--build-dir", default="build", help="build-release for make.py's Release build")
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument("--run", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()

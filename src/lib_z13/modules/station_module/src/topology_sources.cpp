@@ -16,6 +16,7 @@
 
 #include "topology_sources.h"
 
+#include <lib_profile/profile.h>
 #include <primitives/placement.h>
 #include <rooms/portal_source.h>
 #include <rooms/topology_fingerprint.h>
@@ -42,6 +43,7 @@ bool AddSources(const Block& block, const z13::building::primitives::BlockPalett
 
 TopologySources GatherSources(
     const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette) {
+  Z13_PROFILE_ZONE("GatherSources");
   TopologySources gathered;
   blocks.each([&](const Block& block) {
     if (AddSources(block, palette, gathered.sources)) {

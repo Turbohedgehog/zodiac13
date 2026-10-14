@@ -32,6 +32,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
 
+#include <lib_profile/profile.h>
 #include <rooms/openings.h>
 #include <rooms/room_builder.h>
 
@@ -96,6 +97,7 @@ int DistanceToSpace(const CellBox& leaf, const CellBox& area) {
 // harmless, the flood finds it open; only leaves that stayed vacuum are left out of it.
 std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& space, const LocalLeaves& local,
                                    const KeySet& rebuilt) {
+  Z13_PROFILE_ZONE("ClosedPockets");
   const auto old_vacuum = [&](const LeafRef& ref) {
     return !rebuilt.contains(ref.chunk) && !local.Contains(ref) && previous.RoomOf(ref) == kVacuumRoom;
   };
@@ -142,6 +144,7 @@ std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& s
 // Per local leaf, its connected set; leaves open to space, or next to the old vacuum left
 // out of the flood, join the vertex after the last leaf.
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const LocalLeaves& local) {
+  Z13_PROFILE_ZONE("ConnectedSets");
   const size_t vacuum = local.Leaves().size();
   LeafGraph graph(vacuum + 1);
   for (size_t i = 0; i < local.Leaves().size(); ++i) {
@@ -232,6 +235,7 @@ std::optional<std::vector<T>> Edited(const std::vector<T>& sorted, const std::ve
 // boxes kept, the rest found again. Openings that came or went join `changes`.
 std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, const std::vector<CellBox>& sealed,
                                                     SourceChanges changes) {
+  Z13_PROFILE_ZONE("UpdateSpace");
   const int max_cells = previous.settings.max_opening_cells;
   // An opening depends on its cells and those next to them, so a change reaches no farther.
   const Eigen::Vector3i reach = Eigen::Vector3i::Constant(max_cells + 2);
@@ -285,6 +289,7 @@ std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, c
 std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
                                                    const SourceChanges& source_changes, RoomId first_id,
                                                    const RoomSettings& settings) {
+  Z13_PROFILE_ZONE("UpdateRooms");
   if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.settings != settings) {
     return BuildRooms(sorted, first_id, settings);
   }

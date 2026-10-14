@@ -36,8 +36,10 @@
 
 # build
 build/
+build-release/
 install/
 bin/
+bin-release/
 
 # vcpkg
 vcpkg_installed/

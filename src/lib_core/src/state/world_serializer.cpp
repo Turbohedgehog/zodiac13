@@ -34,6 +34,7 @@
 #include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/status.h>
+#include <lib_profile/profile.h>
 
 #include "group_bucket.h"
 
@@ -370,6 +371,7 @@ bool StateComponentFilter(flecs::entity component) {
 }
 
 std::expected<WorldSnapshot, std::string> CaptureState(flecs::world world) {
+  Z13_PROFILE_ZONE("CaptureState");
   return CaptureImpl(
       world, StateEntityFilter, StateComponentFilter, StateEntityFilter,
       ActiveGrouping(world.try_get<SnapshotGrouping>()));
@@ -497,6 +499,7 @@ EntityRefs EntitiesToApply(const WorldSnapshot& snapshot, const GroupIds& matchi
 }  // namespace
 
 Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
+  Z13_PROFILE_ZONE("RestoreWorld");
   const OptionalGrouping grouping = ActiveGrouping(world.try_get<SnapshotGrouping>());
   const GroupIds matching = MatchingGroups(world, snapshot, grouping);
   const EntityRefs entities = EntitiesToApply(snapshot, matching);

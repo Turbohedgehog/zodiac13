@@ -27,6 +27,7 @@
 #include <rlgl.h>
 
 #include <lib_core/utils/frustum.h>
+#include <lib_profile/profile.h>
 
 #include "../platform/sdl_platform.h"
 #include "../tools/math_convert.h"
@@ -299,6 +300,7 @@ void ShadowMaps::State::DrawFaces(size_t slot, const FrameLight& light, const Sh
 
 Status ShadowMaps::State::UpdateLamps(
     std::span<FrameLight> lights, const ShadowCasters& casters, const z13::RenderTuning& tuning) {
+  Z13_PROFILE_ZONE("ShadowMaps::UpdateLamps");
   Status resized = ResizeAtlas(tuning.shadow_lights, tuning.shadow_map_size);
   const std::span<FrameLight> candidates = lights.first(std::min(lights.size(), slots_.size()));
   const std::vector<std::optional<size_t>> assigned = AssignSlots(candidates, tuning.shadow_updates_per_frame);
