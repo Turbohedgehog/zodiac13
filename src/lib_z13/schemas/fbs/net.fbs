@@ -53,6 +53,12 @@ struct PoseWire {
   z: float;
 }
 
+// 16 bytes (padded).
+struct PlayerTickWire {
+  player_id: uint;
+  tick: ulong;
+}
+
 // 24 bytes (padded): a PlayerActionRecord with its absolute tick and player, for the
 // catch-up lists, which span several players and an arbitrary window of ticks.
 struct ActionRecordWire {
@@ -151,6 +157,8 @@ table StateDigest {
   entity_count: uint;
   name_hash: ulong;
   positions: [PoseWire];
+  // Per player, the tick through which the server had all their input when it sent the digest.
+  input_through: [PlayerTickWire];
 }
 
 union MessageBody {

@@ -50,6 +50,9 @@ class InMemoryNetwork {
   explicit InMemoryNetwork(uint64_t seed = 1);
 
   void SetFaultConfig(FaultConfig config);
+  // On top of FaultConfig, for every packet to the transport listening on `port`: a one-way
+  // delay, such as a stalled client upload while the server's own traffic flows.
+  void SetExtraDelayTo(uint16_t port, uint32_t delay_ticks);
 
   // Advances virtual time by one tick, delivering whatever's now due. Call once per
   // test "frame", after every transport has queued its sends for this tick.
