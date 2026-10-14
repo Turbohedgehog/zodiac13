@@ -28,7 +28,7 @@ set(
   src/tour_viewpoints.cpp
 )
 
-# Stateless, like z13_grid: each plugin linking its own copy shares nothing.
+# Stateless, like grid: each plugin linking its own copy shares nothing.
 add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -51,7 +51,7 @@ target_link_libraries(
   Boost::graph
   zodiac13::fbs_schemas
   zodiac13::primitives
-  zodiac13::z13_grid
+  zodiac13::grid
   zodiac13::z13_profile
 )
 

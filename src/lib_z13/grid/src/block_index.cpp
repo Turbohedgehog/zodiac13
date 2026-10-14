@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 
 #include <algorithm>
 #include <limits>

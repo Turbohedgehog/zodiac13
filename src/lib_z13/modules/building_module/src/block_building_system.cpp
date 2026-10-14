@@ -45,7 +45,7 @@
 #include <z13/components/block_brush.h>
 #include <z13/components/spawn_point.h>
 #include <z13/components/station_mode.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>

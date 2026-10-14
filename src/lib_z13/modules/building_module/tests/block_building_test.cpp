@@ -39,7 +39,7 @@
 #include <z13/components/block_brush.h>
 #include <z13/components/spawn_point.h>
 #include <input_config_generated.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <primitives/placement.h>
 

@@ -147,6 +147,15 @@ enum Keycode : int16 {
   MOUSE_BUTTON_X1 (display_text: "MX1"),
   MOUSE_BUTTON_X2 (display_text: "MX2"),
   MOUSE_BUTTON_UNKNOWN (display_text: "MUnknown"),
+  // The touch controls (docs/android-plan.md): the stick's axes hold fractions, buttons 0 or 1.
+  TOUCH_STICK_UP (display_text: "Stick up"),
+  TOUCH_STICK_DOWN (display_text: "Stick down"),
+  TOUCH_STICK_LEFT (display_text: "Stick left"),
+  TOUCH_STICK_RIGHT (display_text: "Stick right"),
+  TOUCH_JUMP (display_text: "Touch jump"),
+  TOUCH_CROUCH (display_text: "Touch crouch"),
+  TOUCH_USE (display_text: "Touch use"),
+  TOUCH_FLASHLIGHT (display_text: "Touch flashlight"),
 }
 
 table ActionBinding {

@@ -24,7 +24,11 @@
 
 namespace z13::input {
 
-// A key or mouse button going down (1) or up (0).
+inline size_t KeyIndex(z13::fbs::input::Keycode key) {
+  return static_cast<size_t>(static_cast<int>(key) - static_cast<int>(z13::fbs::input::Keycode::MIN));
+}
+
+// A key or mouse button going down (1) or up (0); a touch stick's axis anywhere between.
 struct KeyTransition {
   z13::fbs::input::Keycode key {};
   float value {};

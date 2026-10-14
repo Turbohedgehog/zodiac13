@@ -40,7 +40,7 @@
 #include <z13/components/player.h>
 #include <z13/components/rooms.h>
 #include <z13/components/station_mode.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 #include <z13_module/input/input_config_loader.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>

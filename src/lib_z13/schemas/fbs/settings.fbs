@@ -68,6 +68,30 @@ table RenderTuning {
   flashlight_intensity: float = 1.5 (min: "0", max: "10", cli: "--render-flashlight-intensity");
 }
 
+// The touch controls' layout (client only, never sent; docs/android-plan.md). Sizes are fractions
+// of the screen's height, positions fractions of its width (x) and height (y, from the top).
+table TouchLayout {
+  // Touches starting in this left part of the screen move (the floating stick), the rest look.
+  stick_zone_width: float = 0.5 (min: "0.1", max: "0.9", cli: "--touch-stick-zone");
+  // How far the finger goes from where it touched for full speed.
+  stick_radius: float = 0.12 (min: "0.02", max: "0.5", cli: "--touch-stick-radius");
+  // The part of stick_radius that doesn't move, so a resting finger's jitter sends no commands.
+  stick_dead_zone: float = 0.15 (min: "0", max: "0.9", cli: "--touch-stick-dead-zone");
+  // The stick's values move in these steps, each a command against the server's budget.
+  stick_step: float = 0.25 (min: "0.01", max: "1", cli: "--touch-stick-step");
+  // The turn a drag across the screen's height makes.
+  look_degrees: float = 180 (min: "1", max: "1440", cli: "--touch-look-degrees");
+  button_radius: float = 0.07 (min: "0.02", max: "0.25", cli: "--touch-button-radius");
+  jump_x: float = 0.9 (min: "0", max: "1", cli: "--touch-jump-x");
+  jump_y: float = 0.78 (min: "0", max: "1", cli: "--touch-jump-y");
+  crouch_x: float = 0.78 (min: "0", max: "1", cli: "--touch-crouch-x");
+  crouch_y: float = 0.88 (min: "0", max: "1", cli: "--touch-crouch-y");
+  use_x: float = 0.9 (min: "0", max: "1", cli: "--touch-use-x");
+  use_y: float = 0.52 (min: "0", max: "1", cli: "--touch-use-y");
+  flashlight_x: float = 0.9 (min: "0", max: "1", cli: "--touch-flashlight-x");
+  flashlight_y: float = 0.26 (min: "0", max: "1", cli: "--touch-flashlight-y");
+}
+
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
@@ -76,6 +100,7 @@ table Settings {
   building: z13.fbs.building.BuildingTuning;
   visual_smoothing: VisualSmoothing;
   render: RenderTuning;
+  touch: TouchLayout;
 }
 
 root_type Settings;

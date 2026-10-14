@@ -19,21 +19,21 @@ include "common.fbs";
 namespace z13.fbs.actions;
 
 enum Action : int16 (action, action_group: "Control") {
-  MOVE_FORWARD (display_text: "Move forward", default_keycodes: "KEY_W"),
-  MOVE_BACKWARD (display_text: "Move backward", default_keycodes: "KEY_S"),
-  MOVE_LEFT (display_text: "Move left", default_keycodes: "KEY_A"),
-  MOVE_RIGHT (display_text: "Move right", default_keycodes: "KEY_D"),
-  JUMP (display_text: "Move Jump", default_keycodes: "KEY_SPACE"),
-  CROUCH (display_text: "Move Crouch", default_keycodes: "KEY_LCTRL"),
+  MOVE_FORWARD (display_text: "Move forward", default_keycodes: "KEY_W TOUCH_STICK_UP"),
+  MOVE_BACKWARD (display_text: "Move backward", default_keycodes: "KEY_S TOUCH_STICK_DOWN"),
+  MOVE_LEFT (display_text: "Move left", default_keycodes: "KEY_A TOUCH_STICK_LEFT"),
+  MOVE_RIGHT (display_text: "Move right", default_keycodes: "KEY_D TOUCH_STICK_RIGHT"),
+  JUMP (display_text: "Move Jump", default_keycodes: "KEY_SPACE TOUCH_JUMP"),
+  CROUCH (display_text: "Move Crouch", default_keycodes: "KEY_LCTRL TOUCH_CROUCH"),
   ACTION_1 (display_text: "Action 1", default_keycodes: "MOUSE_BUTTON_LEFT"),
   VERTICAL_LOOK (absolute),
   HORIZONTAL_LOOK (absolute),
   SAVE_SCENE (display_text: "Quick save", default_keycodes: "KEY_F5"),
   LOAD_SCENE (display_text: "Quick load", default_keycodes: "KEY_F9"),
   // KEY_F also turns the brush in the Building group, which comes first while building.
-  TOGGLE_FLASHLIGHT (display_text: "Flashlight", default_keycodes: "KEY_F"),
+  TOGGLE_FLASHLIGHT (display_text: "Flashlight", default_keycodes: "KEY_F TOUCH_FLASHLIGHT"),
   // Uses the block ahead, and keeps using it while held. KEY_E picks the next primitive while building.
-  USE (display_text: "Use", default_keycodes: "KEY_E"),
+  USE (display_text: "Use", default_keycodes: "KEY_E TOUCH_USE"),
 }
 
 table ActionsTable {

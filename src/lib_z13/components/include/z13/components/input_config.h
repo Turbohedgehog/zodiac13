@@ -31,6 +31,12 @@ namespace z13::input {
 
 namespace bmi = boost::multi_index;
 
+// The touch controls' keys, bound like any other but laid out on screen (TouchLayout), not
+// rebound in the keyboard window.
+inline bool IsTouchKeycode(z13::fbs::input::Keycode code) {
+  return code >= z13::fbs::input::Keycode::TOUCH_STICK_UP && code <= z13::fbs::input::Keycode::TOUCH_FLASHLIGHT;
+}
+
 struct ActionBinding {
   z13::fbs::actions::Action action;
   std::vector<z13::fbs::input::Keycode> keys;

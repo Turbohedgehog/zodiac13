@@ -21,7 +21,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 
 namespace z13::building::grid {
 namespace {

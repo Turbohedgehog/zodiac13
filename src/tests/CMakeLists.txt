@@ -54,6 +54,7 @@ set(
   src/lib_z13/rooms/room_update_test.cpp
   src/lib_z13/rooms/room_visibility_test.cpp
   src/lib_z13/rooms/tour_viewpoints_test.cpp
+  src/lib_z13/touch/touch_mapping_test.cpp
   src/test_runner.cpp
   src/z13_launcher/module_list_test.cpp
   src/z13_launcher/settings_loader_test.cpp
@@ -87,6 +88,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/input/action_negotiation_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/input_config_defaults_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/input_pipeline_test.cpp
+  ${MODULES_DIR}/z13_module/tests/input/touch_input_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
@@ -156,8 +158,9 @@ target_link_libraries(
   zodiac13::z13_launcher
   zodiac13::settings
   zodiac13::primitives
-  zodiac13::z13_grid
+  zodiac13::grid
   zodiac13::rooms
+  zodiac13::touch
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

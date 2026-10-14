@@ -26,7 +26,7 @@
 
 #include <lib_profile/profile.h>
 #include <rooms/room_graph.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 
 #include "cell_boxes.h"
 

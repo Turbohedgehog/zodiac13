@@ -85,6 +85,8 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
   // Core owns the process lifecycle; don't let SDL turn a console Ctrl+C / SIGTERM
   // into a spurious SDL_EVENT_QUIT.
   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+  // Android's back button opens the pause menu (a key), not closes the app.
+  SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
 
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     spdlog::error("[sdl] SDL_Init: {}", SDL_GetError());

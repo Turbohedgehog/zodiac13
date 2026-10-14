@@ -39,7 +39,7 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::settings
-  zodiac13::z13_grid
+  zodiac13::grid
   zodiac13::z13_module
   Boost::dll
 )
@@ -61,7 +61,7 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::settings
-  zodiac13::z13_grid
+  zodiac13::grid
   zodiac13::z13_module
   Boost::dll
 )

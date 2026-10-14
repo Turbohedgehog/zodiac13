@@ -76,16 +76,6 @@ struct InputListenerQueryComponent {
   flecs::query<z13::input::CurrentActionListenerTag, z13::input::ActionListener> listener_query;
 };
 
-constexpr int kKeycodeMin = static_cast<int>(z13::fbs::input::Keycode::MIN);
-
-size_t KeyCodeToArrayIndex(z13::fbs::input::Keycode keyboard_code) {
-  return static_cast<size_t>(static_cast<int>(keyboard_code) - kKeycodeMin);
-}
-
-z13::fbs::input::Keycode ArrayIndexToKeyCode(size_t idx) {
-  return static_cast<z13::fbs::input::Keycode>(static_cast<int>(idx) + kKeycodeMin);
-}
-
 void OnMousePos(
     const z13::input::MousePos& mouse_pos,
     const InputListenerQueryComponent& listener_query_component,
@@ -386,7 +376,7 @@ void ApplyKeyTransitions(z13::input::InputState& input_state) {
       later.push_back(transition);
       continue;
     }
-    float& state = input_state.input_state[KeyCodeToArrayIndex(transition.key)];
+    float& state = input_state.input_state[z13::input::KeyIndex(transition.key)];
     // Auto-repeat of a held key.
     if (state == transition.value) {
       continue;
