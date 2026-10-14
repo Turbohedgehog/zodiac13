@@ -30,6 +30,7 @@
 
 #include "../platform/sdl_platform.h"
 #include "../tools/asset_path.h"
+#include "../tools/shader_asset.h"
 #include "render_resources.h"
 
 namespace z13::raylib {
@@ -92,8 +93,7 @@ constexpr std::string_view kVflippedUniform = "vflipped";              // cubema
 }
 
 ::Shader LoadSkyboxShader() {
-  ::Shader shader = LoadShader(AssetPath(kSkyboxVertexShaderPath).c_str(),
-                               AssetPath(kSkyboxFragmentShaderPath).c_str());
+  ::Shader shader = LoadShaderAsset(kSkyboxVertexShaderPath, kSkyboxFragmentShaderPath);
 
   if (GetShaderLocation(shader, kEnvironmentMapUniform.data()) < 0) {
     spdlog::error("[raylib] skybox: shader compile failed (no 'environmentMap' uniform)");

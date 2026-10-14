@@ -27,6 +27,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/tick_pacer.h>
+#include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
@@ -80,9 +81,8 @@ bool Core::RegisterModuleFactory(ModuleFactoryPtr module_factory) {
   return !!module_factories_.emplace_back(module_factory);
 }
 
-Status Core::RegisterModuleFactory(
-    const std::filesystem::path& module_lib_path, bool append_platform_extension) {
-  return module_lib_holder_->AppendModuleLib(module_lib_path, append_platform_extension)
+Status Core::RegisterModuleFactory(const std::filesystem::path& module_entry) {
+  return module_lib_holder_->AppendModuleLib(ModuleLibraryPath(module_entry))
       .transform([this](ModuleFactoryPtr module_factory) { RegisterModuleFactory(std::move(module_factory)); });
 }
 

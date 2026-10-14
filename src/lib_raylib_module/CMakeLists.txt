@@ -51,6 +51,7 @@ set(
   src/tools/assimp_loader.cpp
   src/tools/input_publisher.cpp
   src/tools/math_convert.cpp
+  src/tools/shader_asset.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
@@ -93,6 +94,12 @@ target_link_libraries(
   Eigen3::Eigen
   assimp::assimp
 )
+
+# imgui's and raylib's GL calls resolve against GLES there; rlgl.h must see the same API.
+if(ANDROID)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE GRAPHICS_API_OPENGL_ES3)
+  target_link_libraries(${PROJECT_NAME} PRIVATE GLESv3 EGL)
+endif()
 
 set(MODULE_TARGET_PATH "modules/raylib")
 

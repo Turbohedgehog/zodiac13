@@ -19,7 +19,7 @@
 #include <filesystem>
 #include <string_view>
 
-#include "../tools/asset_path.h"
+#include "../tools/shader_asset.h"
 #include "render_resources.h"
 #include "shadow_maps_state.h"
 
@@ -35,8 +35,7 @@ constexpr std::string_view kMvpUniform = "mvp";
 }  // namespace
 
 ::Shader LoadShadowShader() {
-  ::Shader shader =
-      LoadShader(AssetPath(kShadowVertexShaderPath).c_str(), AssetPath(kShadowFragmentShaderPath).c_str());
+  ::Shader shader = LoadShaderAsset(kShadowVertexShaderPath, kShadowFragmentShaderPath);
   if (GetShaderLocation(shader, kMvpUniform.data()) < 0) {
     SafeUnloadShader(shader);
     return {};

@@ -22,7 +22,7 @@ namespace z13::building {
 
 // `relative` under assets/, which sits two levels above this plugin
 // (bin/modules/building_module/) wherever it runs: the game, a dedicated server or the
-// test runner.
+// test runner. On Android, under InstallDir().
 std::filesystem::path AssetFile(const std::filesystem::path& relative);
 
 }  // namespace z13::building

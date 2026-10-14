@@ -22,7 +22,7 @@
 
 namespace z13::raylib {
 
-// Absolute path to <exe dir>/assets/<relative>.
+// Absolute path to InstallDir()/assets/<relative>.
 std::string AssetPath(std::string_view relative);
 std::string AssetPath(const std::filesystem::path& relative);
 

@@ -58,8 +58,8 @@ class Core {
     return RegisterModuleFactory(std::make_shared<T>(std::forward<Ts>(params)...));
   }
 
-  Status RegisterModuleFactory(
-      const std::filesystem::path& module_lib_path, bool append_platform_extension = true);
+  // A module list entry, see ModuleLibraryPath.
+  Status RegisterModuleFactory(const std::filesystem::path& module_entry);
 
   void Update(float delta_time, flecs_tools::FrameKind kind = flecs_tools::FrameKind::kLive);
   int Run();

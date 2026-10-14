@@ -51,3 +51,8 @@ compile_commands.json
 # Claude Code personal overrides
 .claude/settings.local.json
 __pycache__/
+
+# Gradle (android/)
+android/.gradle/
+android/build/
+android/app/build/

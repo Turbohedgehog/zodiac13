@@ -18,7 +18,7 @@
 
 #include <filesystem>
 
-#include <boost/dll/runtime_symbol_info.hpp>
+#include <lib_core/utils/install_dir.h>
 
 #ifndef Z13_ASSETS_DIR
 #define Z13_ASSETS_DIR "assets"
@@ -31,8 +31,7 @@ std::string AssetPath(std::string_view relative) {
 }
 
 std::string AssetPath(const std::filesystem::path& relative) {
-  const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
-  return (exe_dir / Z13_ASSETS_DIR / relative).string();
+  return (InstallDir() / Z13_ASSETS_DIR / relative).string();
 }
 
 }  // namespace z13::raylib

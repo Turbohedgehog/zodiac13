@@ -46,6 +46,7 @@
 #include "main_menu_window.h"
 #include "palette_window.h"
 #include "pause_menu_window.h"
+#include "platform/gl_profile.h"
 #include "platform/sdl_platform.h"
 #include "render/render_stats.h"
 #include "room_label.h"
@@ -54,8 +55,6 @@
 namespace z13::raylib {
 
 namespace {
-
-constexpr std::string_view kGlslVersion = "#version 330";
 
 // Singleton: whether the ImGui context/backends are up. Was a file-scope static;
 // moved into the world so nothing here is process-global state.

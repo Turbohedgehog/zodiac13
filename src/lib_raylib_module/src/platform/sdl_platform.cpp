@@ -27,6 +27,8 @@
 #include <rlgl.h>
 #include <spdlog/spdlog.h>
 
+#include "platform/gl_profile.h"
+
 namespace z13::raylib {
 
 namespace {
@@ -89,9 +91,9 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
     return false;
   }
 
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, kGlMajorVersion);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, kGlMinorVersion);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, kGlProfile);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
