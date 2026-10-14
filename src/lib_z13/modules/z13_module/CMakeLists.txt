@@ -49,7 +49,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::settings
-  zodiac13::z13_touch
+  zodiac13::touch
   Boost::dll
 )
 
@@ -76,7 +76,7 @@ target_link_libraries(
   zodiac13::core
   zodiac13::components
   zodiac13::settings
-  zodiac13::z13_touch
+  zodiac13::touch
   Boost::dll
 )
 

@@ -22,7 +22,7 @@
 #include <Eigen/Core>
 #include <imgui.h>
 
-#include <z13_touch/touch_mapping.h>
+#include <touch/touch_mapping.h>
 
 namespace z13::raylib::gui {
 

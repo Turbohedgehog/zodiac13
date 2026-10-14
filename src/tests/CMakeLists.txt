@@ -160,7 +160,7 @@ target_link_libraries(
   zodiac13::primitives
   zodiac13::z13_grid
   zodiac13::rooms
-  zodiac13::z13_touch
+  zodiac13::touch
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

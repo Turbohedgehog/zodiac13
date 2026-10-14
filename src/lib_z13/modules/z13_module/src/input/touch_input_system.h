@@ -20,7 +20,7 @@
 
 namespace z13::gameplay::input {
 
-// Turns touches into the touch keys and look turns (z13_touch) and keeps TouchControls.
+// Turns touches into the touch keys and look turns and keeps TouchControls.
 class TouchInputSystem {
  public:
   static void Register(flecs::world& world);

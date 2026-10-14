@@ -25,7 +25,7 @@
 #include <z13/components/player.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_settings/settings.h>
-#include <z13_touch/touch_mapping.h>
+#include <touch/touch_mapping.h>
 
 #include "../support/z13_test_world.h"
 

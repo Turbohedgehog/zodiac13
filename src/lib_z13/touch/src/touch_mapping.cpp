@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_touch/touch_mapping.h>
+#include <touch/touch_mapping.h>
 
 #include <algorithm>
 #include <cmath>

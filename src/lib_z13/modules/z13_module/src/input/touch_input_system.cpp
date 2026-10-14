@@ -28,7 +28,7 @@
 #include <z13/components/input_state.h>
 #include <z13/components/touch_controls.h>
 #include <z13_settings/settings.h>
-#include <z13_touch/touch_mapping.h>
+#include <touch/touch_mapping.h>
 
 namespace z13::gameplay::input {
 

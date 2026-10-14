@@ -18,7 +18,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_touch/touch_mapping.h>
+#include <touch/touch_mapping.h>
 
 namespace z13::input::touch {
 namespace {
