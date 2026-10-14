@@ -85,7 +85,7 @@ bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette 
 
 Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
                                  z13::building::primitives::OptionalPalette palette) {
-  if (failed_) {
+  if (failure_) {
     return {};
   }
   std::vector<CellBox> opaque;
@@ -140,9 +140,9 @@ Status CellLighting::State::Remake() {
     return {};
   }
   if (gl_->MaxTextureUnits() <= kCellLightUnit) {
-    failed_ = true;
-    return std::unexpected(std::format("cell light needs {} texture units, the driver has {}", kCellLightUnit + 1,
-                                       gl_->MaxTextureUnits()));
+    failure_ = std::format("cell light needs {} texture units, the driver has {}", kCellLightUnit + 1,
+                           gl_->MaxTextureUnits());
+    return std::unexpected(*failure_);
   }
   const Eigen::Vector3i colors_size(layout.cubes.x(), layout.cubes.y(),
                                     layout.cubes.z() * kPiecesPerNode * static_cast<int>(kNodeTexels.size()));
@@ -150,9 +150,9 @@ Status CellLighting::State::Remake() {
   colors_ = gl_->Create(VolumeFormat::kColors, colors_size);
   if (!labels_ || !colors_) {
     ReleaseVolumes();
-    failed_ = true;
-    return std::unexpected(std::format("can't make the cell light textures for {} x {} x {} cubes", layout.cubes.x(),
-                                       layout.cubes.y(), layout.cubes.z()));
+    failure_ = std::format("can't make the cell light textures for {} x {} x {} cubes", layout.cubes.x(),
+                           layout.cubes.y(), layout.cubes.z());
+    return std::unexpected(*failure_);
   }
   UploadLabels(layout.CellBounds());
   UploadLight({.min = Eigen::Vector3i::Zero(), .extent = layout.cubes});

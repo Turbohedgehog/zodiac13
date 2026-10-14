@@ -24,6 +24,7 @@
 #include <z13_settings/settings.h>
 
 #include "platform/sdl_platform.h"
+#include "render/cell_lighting.h"
 #include "render/shadow_maps.h"
 
 namespace z13::raylib::gui {
@@ -51,6 +52,10 @@ void DrawRenderDiagnostics(flecs::world world) {
     Line(std::format("Lamp shadow slots: {}{}", health.lamp_slots, health.atlas_failed ? " (atlas failed)" : ""));
     Line(health.last_gl_error ? std::format("GL errors: {}, last 0x{:04X}", health.gl_errors, *health.last_gl_error)
                               : std::string("GL errors: none"));
+  }
+  if (const auto* cell_lighting = world.try_get<CellLighting>(); cell_lighting != nullptr) {
+    const auto failure = cell_lighting->Failure();
+    Line(failure ? std::format("Baked lamp light: off, {}", *failure) : std::string("Baked lamp light: on"));
   }
   if (auto* tuning = world.try_get_mut<z13::RenderTuning>(); tuning != nullptr) {
     bool lamp_shadows = tuning->shadow_lights > 0;

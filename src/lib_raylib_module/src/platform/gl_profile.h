@@ -36,7 +36,9 @@ constexpr std::string_view kShaderHeader =
     "precision highp float;\n"
     "precision highp int;\n"
     "precision highp sampler2D;\n"
-    "precision highp samplerCube;\n";
+    "precision highp samplerCube;\n"
+    "precision highp sampler3D;\n"
+    "precision highp usampler3D;\n";
 #else
 constexpr int kGlMajorVersion = 3;
 constexpr int kGlMinorVersion = 3;
