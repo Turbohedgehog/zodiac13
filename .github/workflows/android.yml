@@ -7,13 +7,20 @@ on:
   push:
     branches: [ main, 'f/android-*' ]
   workflow_dispatch:
+  # build_release.yml adds the APK to its release.
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 
 concurrency:
-  group: android-${{ github.head_ref || github.ref }}
+  # The caller's name when called, so a release doesn't cancel main's own run.
+  group: android-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write  # the releases; nothing else writes
 
 jobs:
   apk:
@@ -29,6 +36,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0  # the commit count is the versionCode
+
+      # versionCode grows along main whichever workflow builds it; installs over an older build.
+      - name: Read the version
+        run: |
+          echo "VERSION_NAME=$(tr -d '[:space:]' < version.txt).${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
 
       # vcpkg's Android toolchain reads ANDROID_NDK_HOME; the image's default NDK is older.
       - name: Select the NDK
@@ -81,16 +95,39 @@ jobs:
       - name: Build the APK
         run: |
           set -o pipefail
-          version=$(tr -d '[:space:]' < version.txt).${{ github.run_number }}
           gradle -p android assembleDebug \
             -Pz13StageDir="$PWD/build/android" -Pz13SdlJavaDir="$SDL_JAVA_DIR" \
-            -Pz13VersionCode=${{ github.run_number }} -Pz13VersionName="$version" 2>&1 | tee gradle.log
+            -Pz13VersionCode="$VERSION_CODE" -Pz13VersionName="$VERSION_NAME" 2>&1 | tee gradle.log
+          mkdir -p apk
+          mv android/app/build/outputs/apk/debug/app-debug.apk "apk/zodiac13-$VERSION_NAME-android-arm64.apk"
 
-      - uses: actions/upload-artifact@v4
+      # The APK itself (an archive already), named after the file.
+      - uses: actions/upload-artifact@v7
         with:
-          name: zodiac13-android-arm64
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: apk/zodiac13-${{ env.VERSION_NAME }}-android-arm64.apk
+          archive: false
           if-no-files-found: error
+
+      # A fixed file name, so the link .../releases/download/android-latest/zodiac13-android-arm64.apk stays.
+      - name: Publish as android-latest (main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp apk/*.apk zodiac13-android-arm64.apk
+          gh release delete android-latest --cleanup-tag --yes || true
+          gh release create android-latest zodiac13-android-arm64.apk --prerelease --target "$GITHUB_SHA" \
+            --title "Android (latest main)" --notes "Debug APK of $GITHUB_SHA, version $VERSION_NAME."
+
+      - name: Add to the release
+        if: inputs.release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apk/*.apk
+          tag_name: v${{ env.VERSION_NAME }}
+          name: "Release v${{ env.VERSION_NAME }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Annotate the failure
         if: failure()
