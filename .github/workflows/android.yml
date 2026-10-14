@@ -101,6 +101,12 @@ jobs:
           mkdir -p apk
           mv android/app/build/outputs/apk/debug/app-debug.apk "apk/zodiac13-$VERSION_NAME-android-arm64.apk"
 
+      # What the APK's size is made of, readable without a token (check-runs/<id>/annotations).
+      - name: Report the APK's largest files
+        run: |
+          largest=$(unzip -l apk/*.apk | sort -k1 -n -r | head -n 25 | sed -e ':a;N;$!ba;s/\n/%0A/g')
+          echo "::notice title=APK contents::$largest"
+
       # The APK itself (an archive already), named after the file.
       - uses: actions/upload-artifact@v7
         with:
