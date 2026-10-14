@@ -158,7 +158,7 @@ target_link_libraries(
   zodiac13::z13_launcher
   zodiac13::settings
   zodiac13::primitives
-  zodiac13::z13_grid
+  zodiac13::grid
   zodiac13::rooms
   zodiac13::touch
   GTest::gtest

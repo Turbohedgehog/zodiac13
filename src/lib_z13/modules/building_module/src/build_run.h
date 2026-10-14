@@ -24,7 +24,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/block.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>

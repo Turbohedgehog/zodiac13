@@ -19,7 +19,7 @@
 #include <Eigen/Dense>
 
 #include <z13/components/block.h>
-#include <z13_grid/block_index.h>
+#include <grid/block_index.h>
 
 namespace z13::building {
 
