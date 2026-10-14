@@ -38,6 +38,7 @@ set(
   src/lib_core/lifecycle_test.cpp
   src/lib_core/pose_smoothing_test.cpp
   src/lib_core/schema_attributes_test.cpp
+  src/lib_core/thread_pool_test.cpp
   src/lib_core/tick_pacer_test.cpp
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/primitives/chunk_mesh_test.cpp
@@ -118,6 +119,7 @@ if(Z13_BUILD_BENCHMARKS)
   list(
     APPEND
     PROJECT_SOURCE_FILES
+    src/lib_core/bench/thread_pool_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp

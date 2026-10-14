@@ -10,6 +10,7 @@ find_package(flecs CONFIG REQUIRED)
 find_package(reflectcpp CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(flatbuffers CONFIG REQUIRED)
+find_package(Taskflow CONFIG REQUIRED)
 
 find_path(FLATBUFFERS_CMAKE_DIR BuildFlatBuffers.cmake
           HINTS ${flatbuffers_DIR} "${flatbuffers_DIR}/../../../share/flatbuffers")
@@ -62,6 +63,7 @@ set(
   src/utils/install_dir.cpp
   src/utils/pose_smoothing.cpp
   src/utils/system_times.cpp
+  src/utils/thread_pool.cpp
   src/world/core.cpp
   src/world/lifecycle.cpp
   src/world/module_lib_holder.cpp
@@ -105,6 +107,7 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   Boost::dll
+  Taskflow::Taskflow
 )
 
 target_link_libraries(
