@@ -1,0 +1,49 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Finding servers on the LAN (docs/server-plan.md, "Поиск сервера"): a client broadcasts a
+// query, each server answers it directly. Apart from the game protocol (net.fbs): it is read
+// from anyone on the network, before any session.
+
+namespace z13.fbs.discovery;
+
+table DiscoveryQuery {
+  // The discovery format's; a query of another is dropped unanswered.
+  format_version: uint32;
+  // The client's clock when sent, returned in the reply: the ping, with no state kept.
+  sent_at_ms: uint64;
+}
+
+// A server's answer; the master server's list will reuse it.
+table ServerInfo {
+  sent_at_ms: uint64;
+  name: string;
+  // The game protocol's (net_module's kProtocolVersion): a server of another is shown, greyed.
+  protocol_version: uint32;
+  // The station blueprint; absent for the spaceship.
+  scene: string;
+  players: uint32;
+  game_port: uint16;
+}
+
+union DiscoveryBody { DiscoveryQuery, ServerInfo }
+
+table DiscoveryMessage {
+  body: DiscoveryBody;
+}
+
+root_type DiscoveryMessage;
+file_identifier "Z13D";

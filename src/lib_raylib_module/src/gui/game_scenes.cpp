@@ -28,7 +28,6 @@ namespace z13::raylib::gui {
 
 namespace {
 
-constexpr std::string_view kSpaceshipLabel = "Spaceship";
 constexpr std::string_view kNewStationLabel = "New station";
 
 }  // namespace

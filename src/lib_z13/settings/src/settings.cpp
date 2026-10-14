@@ -83,6 +83,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.touch) {
     settings.touch = std::make_unique<fbs::settings::TouchLayoutT>();
   }
+  if (!settings.lan_discovery) {
+    settings.lan_discovery = std::make_unique<fbs::settings::LanDiscoveryT>();
+  }
 }
 
 SessionSettings SessionOf(const Settings& settings) {
@@ -105,7 +108,7 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
 
 Status ValidateSettings(const Settings& settings) {
   if (!settings.core || !settings.connect_timeout || !settings.net || !settings.physics || !settings.building ||
-      !settings.visual_smoothing || !settings.render || !settings.touch) {
+      !settings.visual_smoothing || !settings.render || !settings.touch || !settings.lan_discovery) {
     return Invalid("nested tables", "must be set");
   }
 
@@ -180,7 +183,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 
 void InstallSettings(flecs::world world, const Settings& settings) {
   flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
-                                  RenderTuning, TouchLayout>(world);
+                                  RenderTuning, TouchLayout, LanDiscoverySettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
   }
@@ -201,6 +204,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.touch) {
     world.set(TouchLayout(*settings.touch));
+  }
+  if (settings.lan_discovery) {
+    world.set(LanDiscoverySettings(*settings.lan_discovery));
   }
 }
 

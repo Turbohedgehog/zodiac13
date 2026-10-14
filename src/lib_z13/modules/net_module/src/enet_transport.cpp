@@ -22,35 +22,13 @@
 
 #include <enet/enet.h>
 
+#include "enet_lifetime.h"
+
 namespace z13::net {
 
 namespace {
 
 constexpr size_t kChannelCount = 2;  // Channel::kReliable, Channel::kUnreliable
-
-// enet_initialize()/enet_deinitialize() are process-global, not per-host, but
-// Transport instances are created and destroyed independently (one per test, per
-// connection...); this keeps them paired without a bare static counter. The weak_ptr
-// itself is the one justified exception to "no static/globals" (CLAUDE.md) -- ENet's
-// own init call has no other way to know "am I the last host" (mirrors
-// g_interruptible_core in z13_launcher.cpp).
-class EnetLifetime {
- public:
-  ~EnetLifetime() { enet_deinitialize(); }
-};
-
-std::expected<std::shared_ptr<EnetLifetime>, std::string> AcquireEnetLifetime() {
-  static std::weak_ptr<EnetLifetime> weak_instance;
-  if (auto existing = weak_instance.lock()) {
-    return existing;
-  }
-  if (enet_initialize() != 0) {
-    return std::unexpected("enet_initialize failed");
-  }
-  auto instance = std::make_shared<EnetLifetime>();
-  weak_instance = instance;
-  return instance;
-}
 
 struct EnetHostDeleter {
   void operator()(ENetHost* host) const {

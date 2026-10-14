@@ -26,7 +26,11 @@ namespace z13::raylib::gui {
 
 class JoinWindow : public Window {
  public:
+  // Looks for servers on the LAN (LanSearch) while open.
   explicit JoinWindow(flecs::world world);
+  ~JoinWindow() override;
+  JoinWindow(const JoinWindow&) = delete;
+  JoinWindow& operator=(const JoinWindow&) = delete;
 
   StackRequest OnBack() override;
 
@@ -34,6 +38,8 @@ class JoinWindow : public Window {
   void DrawBody() override;
 
  private:
+  // Picking one fills the address fields.
+  void DrawFoundServers();
   bool IsConnecting() const;
   void CancelIfConnecting();
 

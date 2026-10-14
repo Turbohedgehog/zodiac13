@@ -65,6 +65,13 @@ struct TouchLayout : fbs::settings::TouchLayoutT {
   explicit TouchLayout(const fbs::settings::TouchLayoutT& values) : fbs::settings::TouchLayoutT(values) {}
 };
 
+struct LanDiscoverySettings : fbs::settings::LanDiscoveryT {
+  using Singleton = void;
+
+  LanDiscoverySettings() = default;
+  explicit LanDiscoverySettings(const fbs::settings::LanDiscoveryT& values) : fbs::settings::LanDiscoveryT(values) {}
+};
+
 // The part of Settings a client takes from the server it joins: peers must tick alike.
 struct SessionSettings {
   double fps {};
@@ -93,7 +100,7 @@ Status AddSettingsOptions(Config& config);
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
 // Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
-// RenderTuning and TouchLayout singletons; the core part goes through Config::SetCoreSettings before the world is created.
+// RenderTuning, TouchLayout and LanDiscoverySettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13
