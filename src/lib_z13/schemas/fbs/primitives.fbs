@@ -56,6 +56,21 @@ enum PrimitiveFlags : uint (bit_flags) {
   Hidden,
   Climbable,
   Spawn,
+  // A switch: using it turns it on or off.
+  Switch,
+}
+
+// How players may interact with a block of the primitive (docs/station-systems-plan.md, "Взаимодействие").
+enum InteractionMethods : ubyte (bit_flags) {
+  Use,
+  Hold,
+  Presence,
+}
+
+table Interaction {
+  methods: InteractionMethods;
+  // Presence only: how far beyond the block, along every axis, its sensor reaches.
+  sensor_cells: ushort;
 }
 
 // Two-color checker with one square per grid cell.
@@ -84,6 +99,7 @@ table Primitive {
   material: Checker;
   flags: PrimitiveFlags;
   light: LightSource;
+  interaction: Interaction;
 }
 
 table Palette {

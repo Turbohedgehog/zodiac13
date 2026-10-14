@@ -77,6 +77,20 @@ std::expected<std::optional<LightSource>, std::string> ToLight(const fbs_station
       .color = ToRgba(*source->color), .radius_cells = source->radius_cells, .intensity = source->intensity};
 }
 
+std::expected<std::optional<Interaction>, std::string> ToInteraction(const fbs_station::InteractionT* source) {
+  if (source == nullptr) {
+    return std::nullopt;
+  }
+  const Interaction interaction {.methods = source->methods, .sensor_cells = source->sensor_cells};
+  if (interaction.methods == InteractionMethods::NONE) {
+    return Error("an interaction needs a method");
+  }
+  if (interaction.Accepts(InteractionMethods::Presence) != (interaction.sensor_cells > 0)) {
+    return Error("presence needs a sensor, and only presence has one");
+  }
+  return interaction;
+}
+
 std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT& source, int max_size_cells) {
   if (source.name.empty()) {
     return Error("no name");
@@ -96,6 +110,10 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
   if (!light) {
     return Error(light.error());
   }
+  const auto interaction = ToInteraction(source.interaction.get());
+  if (!interaction) {
+    return Error(interaction.error());
+  }
 
   Primitive primitive {
       .id = source.id,
@@ -110,6 +128,7 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
       },
       .flags = source.flags,
       .light = *light,
+      .interaction = *interaction,
   };
   if ((primitive.min_size.array() < 1).any() || (primitive.max_size.array() > max_size_cells).any()) {
     return Error(std::format("sizes must be 1..{} cells", max_size_cells));

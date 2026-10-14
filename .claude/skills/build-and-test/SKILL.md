@@ -29,6 +29,7 @@ A foreground build hung the session before, and a tool call over ~10 minutes is 
 - If new edits make a running build stale, stop it rather than let it finish: `python3 .claude/skills/build-and-test/scripts/stop_build.py` (stops the whole process group build.py recorded, never by matching command lines).
 - A refactor that touches many files (header splits, renames): build with `--keep-going` (`ninja -k 0`) so all errors arrive in one pass, fix them together, then one incremental build with `--tests`.
 - Comment-only edits after a green run need no rebuild.
+- While iterating, `build.py --target <module>` finds compile errors without the whole tree, and `bin/tests/z13_test_runner --gtest_filter=...` runs just the branch's tests; the test runner itself links every module, so it rebuilds nearly everything once a widely included header (schemas' `*_generated.h`, `building_tuning_generated.h`) changes. Before a push: one full build and all tests.
 
 ## Before a push
 
