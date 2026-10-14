@@ -34,6 +34,7 @@
       ]
     },
     "reflectcpp",
+    "taskflow",
     {
       "name": "tracy",
       "default-features": false,

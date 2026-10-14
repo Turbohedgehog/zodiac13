@@ -35,6 +35,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/install_dir.h>
+#include <lib_core/utils/thread_pool.h>
 #include <lib_core/utils/status.h>
 
 namespace z13 {
@@ -81,6 +82,8 @@ class Core {
   Config config_;
   std::optional<std::string> config_error_;
   AssetSource asset_source_ {InstallDir()};
+  // Made by the first CreateWorld, once the settings are final; every world shares it.
+  std::optional<ThreadPool> thread_pool_;
 
   std::map<WorldId, flecs::world> worlds_;
   WorldId new_world_id_ = 0;

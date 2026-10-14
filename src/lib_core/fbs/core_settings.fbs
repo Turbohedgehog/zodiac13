@@ -31,6 +31,9 @@ table CoreSettings {
   max_rollback_delay_ticks: uint64 = 6 (cli);
   // Safety bound, not a scheduler: a corrupt target tick spreads over calls.
   max_catch_up_ticks_per_frame: uint64 = 1024 (min: 1, max: 65536, cli);
+  // The process's ThreadPool. 1 runs parallel work on the caller (determinism checks); a server
+  // on a phone may want fewer, as it heats up.
+  threads: uint32 = 4 (min: 1, max: 64, cli);
 }
 
 root_type CoreSettings;

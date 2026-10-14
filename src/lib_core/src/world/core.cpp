@@ -100,6 +100,11 @@ std::expected<WorldRef, std::string> Core::CreateWorld() {
   world.set(ActiveCoreSettings(config_.GetCoreSettings()));
   flecs_tools::RegisterComponent<Assets>(world);
   world.set(Assets {.source = asset_source_});
+  if (!thread_pool_) {
+    thread_pool_.emplace(config_.GetCoreSettings().threads);
+  }
+  flecs_tools::RegisterComponent<ThreadPool>(world);
+  world.set(*thread_pool_);
   world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world.set(core_component);
