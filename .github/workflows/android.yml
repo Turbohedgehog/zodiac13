@@ -3,9 +3,9 @@ name: Android
 on:
   pull_request:
     branches: [ main ]
-  # main keeps the caches warm for PRs; f/android-* branches get a build before their PR.
+  # main keeps the caches warm for PRs; the Android plan's branches get an APK before their PR.
   push:
-    branches: [ main, 'f/android-*' ]
+    branches: [ main, 'f/android-*', 'f/touch-*' ]
   workflow_dispatch:
   # build_release.yml adds the APK to its release.
   workflow_call:
