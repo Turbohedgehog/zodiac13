@@ -96,5 +96,5 @@ jobs:
         if: failure()
         run: >-
           .github/scripts/annotate_failure.sh
-          'vcpkg/buildtrees/*/*-err.log' 'vcpkg/buildtrees/*/*-out.log'
           build/vcpkg-manifest-install.log build-android.log gradle.log
+          'vcpkg/buildtrees/*/*-err.log' 'vcpkg/buildtrees/*/*-out.log'
