@@ -32,6 +32,9 @@ constexpr std::string_view kRootName = "z13_asset_source_test";
 class AssetSourceTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    // Per test: ctest runs them as parallel processes.
+    root_ = std::filesystem::temp_directory_path() / kRootName /
+            ::testing::UnitTest::GetInstance()->current_test_info()->name();
     std::filesystem::remove_all(root_);
     ASSERT_TRUE(WriteFile(root_ / "assets" / "dir" / "b.json", "{}").has_value());
     ASSERT_TRUE(WriteFile(root_ / "assets" / "dir" / "a.bin", std::string("\0\1\2", 3)).has_value());
@@ -39,7 +42,7 @@ class AssetSourceTest : public ::testing::Test {
   }
   void TearDown() override { std::filesystem::remove_all(root_); }
 
-  const std::filesystem::path root_ = std::filesystem::temp_directory_path() / kRootName;
+  std::filesystem::path root_;
 };
 
 TEST_F(AssetSourceTest, ReadsAssetsAndConfigByteForByte) {
