@@ -81,7 +81,7 @@ void Measure(const std::string& scene, const std::vector<z13::station::Block>& b
 
 TEST(RenderChunkBench, DISABLED_ChunkSizes) {
   const primitives::Palette palette = ShippedPalette().value();
-  for (const std::string& scene : primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     const auto blocks = ShippedBlueprint(scene, palette);
     ASSERT_TRUE(blocks.has_value()) << blocks.error();
     for (const int chunk_cells : kChunkSizes) {

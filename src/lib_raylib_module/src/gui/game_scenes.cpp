@@ -23,7 +23,6 @@
 
 #include <primitives/station_assets.h>
 
-#include "../tools/asset_path.h"
 
 namespace z13::raylib::gui {
 
@@ -34,10 +33,10 @@ constexpr std::string_view kNewStationLabel = "New station";
 
 }  // namespace
 
-std::vector<GameScene> GameScenes() {
+std::vector<GameScene> GameScenes(const AssetSource& assets) {
   std::vector<GameScene> scenes {{.label = std::string(kSpaceshipLabel)}};
-  const std::vector<std::string> blueprints =
-      z13::building::primitives::BlueprintScenes(AssetPath(std::filesystem::path {}));
+  const std::vector<std::string> blueprints = z13::building::primitives::BlueprintScenes(
+      assets.ListAssets(z13::building::primitives::BlueprintsDir()));
   std::ranges::transform(blueprints, std::back_inserter(scenes), [](const std::string& blueprint) {
     return GameScene {.label = blueprint, .station = z13::station::StationSceneChoice {.scene = blueprint}};
   });

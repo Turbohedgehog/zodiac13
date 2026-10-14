@@ -20,7 +20,6 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <lib_core/utils/file_io.h>
 
 namespace z13 {
 
@@ -50,12 +49,9 @@ std::expected<std::vector<std::string>, std::string> ParseModuleList(const std::
   return modules;
 }
 
-std::expected<std::vector<std::string>, std::string> ReadModuleList(const std::filesystem::path& config_path) {
-  if (!std::filesystem::exists(config_path)) {
-    return std::unexpected(std::format("ReadModuleList: config file '{}' does not exist", config_path.string()));
-  }
-
-  return ReadFile(config_path).and_then(ParseModuleList);
+std::expected<std::vector<std::string>, std::string> ReadModuleList(const AssetSource& assets,
+                                                                    const std::filesystem::path& file) {
+  return assets.ReadConfig(file).and_then(ParseModuleList);
 }
 
 }  // namespace z13

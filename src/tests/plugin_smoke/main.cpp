@@ -39,9 +39,9 @@
 
 namespace {
 
-// Relative to bin/tests/, where this runs; module paths in the config are relative to bin/.
+// Relative to bin/tests/, where this runs; config/, assets/ and the module paths in the config
+// are relative to bin/.
 const std::filesystem::path kBinDir = "..";
-const std::filesystem::path kServerConfigPath = kBinDir / "config" / "z13_config_server.yaml";
 
 constexpr uint64_t kFrames {10};
 constexpr float kDeltaTime {1.f / 60.f};
@@ -61,7 +61,9 @@ int main() {
   z13::Core core(static_cast<int>(argv.size()), argv.data());
 
   const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
-  const auto modules = z13::ReadModuleList(exe_dir / kServerConfigPath);
+  const z13::AssetSource assets(exe_dir / kBinDir);
+  core.SetAssetSource(assets);
+  const auto modules = z13::ReadModuleList(assets, z13::kServerModuleList);
   if (!modules) {
     z13::log_error("{}", modules.error());
     return EXIT_FAILURE;

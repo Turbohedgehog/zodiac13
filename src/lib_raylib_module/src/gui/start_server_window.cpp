@@ -34,7 +34,7 @@ namespace z13::raylib::gui {
 StartServerWindow::StartServerWindow(flecs::world world)
     : Window(world, "Start Server"),
       port_(std::to_string(z13::kDefaultServerPort)),
-      scenes_(GameScenes()) {}
+      scenes_(GameScenes(world.get<z13::Assets>().source)) {}
 
 void StartServerWindow::DrawBody() {
   ImGui::SetNextItemWidth(AddressFieldWidth());

@@ -23,6 +23,8 @@
 
 #include <raylib.h>
 
+#include <lib_core/utils/asset_source.h>
+
 namespace z13::raylib {
 
 struct LoadedModel {
@@ -33,6 +35,6 @@ struct LoadedModel {
 
 // Loads an assimp-supported model from <assets>/<relative_path>, with node
 // transforms baked into vertices.
-std::expected<LoadedModel, std::string> LoadModelFromAsset(std::string_view relative_path);
+std::expected<LoadedModel, std::string> LoadModelFromAsset(const AssetSource& assets, std::string_view relative_path);
 
 }  // namespace z13::raylib

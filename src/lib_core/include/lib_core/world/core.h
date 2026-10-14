@@ -33,6 +33,8 @@
 #include <flecs.h>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/status.h>
 
 namespace z13 {
@@ -50,6 +52,9 @@ class Core {
   // callers that construct a Core directly.
   std::optional<std::string> GetConfigError() const;
   bool RegisterModuleFactory(ModuleFactoryPtr module_factory);
+  // Where worlds created afterwards read the game's files (the Assets singleton);
+  // InstallDir() until set.
+  void SetAssetSource(AssetSource source);
   // Fails if the modules' phases form a cycle or a State component can't be encoded.
   std::expected<WorldRef, std::string> CreateWorld();
 
@@ -75,6 +80,7 @@ class Core {
  private:
   Config config_;
   std::optional<std::string> config_error_;
+  AssetSource asset_source_ {InstallDir()};
 
   std::map<WorldId, flecs::world> worlds_;
   WorldId new_world_id_ = 0;

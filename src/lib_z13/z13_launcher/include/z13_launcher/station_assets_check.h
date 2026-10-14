@@ -16,19 +16,18 @@
 
 #pragma once
 
-#include <filesystem>
-
 #include <lib_core/settings/config.h>
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/status.h>
 
 namespace z13 {
 
-// The blueprint --station-scene names must lie under `assets_dir`; checked before any module
+// The blueprint --station-scene names must lie under `assets`; checked before any module
 // loads, so a mistyped name stops the launch instead of leaving an empty station.
-Status CheckStationScene(const Config& config, const std::filesystem::path& assets_dir);
+Status CheckStationScene(const Config& config, const AssetSource& assets);
 
-// The block palette under `assets_dir` must load: without it nothing builds blocks, the
+// The block palette under `assets` must load: without it nothing builds blocks, the
 // station scene included.
-Status CheckBlockPalette(const std::filesystem::path& assets_dir);
+Status CheckBlockPalette(const AssetSource& assets);
 
 }  // namespace z13

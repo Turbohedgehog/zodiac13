@@ -101,8 +101,8 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
 
 }  // namespace
 
-::Shader LoadLightingShader() {
-  ::Shader shader = LoadShaderAsset(kLightingVertexShaderPath, kLightingFragmentShaderPath);
+::Shader LoadLightingShader(const AssetSource& assets) {
+  ::Shader shader = LoadShaderAsset(assets, kLightingVertexShaderPath, kLightingFragmentShaderPath);
   if (Location(shader, kViewPosUniform) < 0) {
     spdlog::error("[raylib] lighting shader failed to compile");
     SafeUnloadShader(shader);

@@ -103,7 +103,7 @@ TEST(ChunkMeshTest, EveryBlockIsPlacedWithinItsCells) {
 // Each shipped station, split into chunks, keeps every block's triangles.
 TEST(ChunkMeshTest, ChunksOfAShippedStationHoldEveryBlock) {
   const Palette palette = z13::testing::ShippedPalette().value();
-  for (const std::string& scene : BlueprintScenes(z13::testing::SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     const std::vector<Block> blocks = z13::testing::ShippedBlueprint(scene, palette).value();
     size_t chunked = 0;
     for (const auto& [key, chunk_blocks] : GroupByChunk(blocks, kChunkCells)) {

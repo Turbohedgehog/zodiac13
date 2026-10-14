@@ -40,6 +40,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/file_io.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
@@ -137,8 +138,8 @@ unsigned int ApplyLightingShader(::Model& model, const Lighting& lighting) {
   return lighting.res->shader->id;
 }
 
-Lighting LoadLighting() {
-  ::Shader shader = LoadLightingShader();
+Lighting LoadLighting(const AssetSource& assets) {
+  ::Shader shader = LoadLightingShader(assets);
   if (shader.id == 0) {
     return Lighting{};
   }
@@ -150,8 +151,8 @@ Lighting LoadLighting() {
   return Lighting{.res = std::move(res)};
 }
 
-RenderModel LoadSpaceship(const Lighting& lighting) {
-  auto loaded = LoadModelFromAsset(kSpaceshipAsset);
+RenderModel LoadSpaceship(const Lighting& lighting, const AssetSource& assets) {
+  auto loaded = LoadModelFromAsset(assets, kSpaceshipAsset);
   if (!loaded) {
     log_error("[raylib] assimp: {}", loaded.error());
     return RenderModel{};
@@ -180,13 +181,13 @@ RenderModel LoadSpaceship(const Lighting& lighting) {
 
 // The ship belongs to the ordinary scene alone, so a station game never parses its model.
 // Waits out a pending restore: a joining client has Gameplay a frame before Welcome's mode.
-void ReconcileSpaceship(flecs::world world, const Lighting& lighting) {
+void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const AssetSource& assets) {
   if (z13::flecs_tools::IsCatchingUp(world)) {
     return;
   }
   const bool wanted = world.has<gameplay::Gameplay>() && !world.has<z13::station::StationMode>();
   if (wanted && !world.has<RenderModel>()) {
-    world.set<RenderModel>(LoadSpaceship(lighting));
+    world.set<RenderModel>(LoadSpaceship(lighting, assets));
   } else if (!wanted && world.has<RenderModel>()) {
     world.remove<RenderModel>();
   }
@@ -734,23 +735,25 @@ void RegisterSystems(flecs::world world) {
   auto drawing = std::make_shared<SmoothedDrawing>();
 
   // RaylibData is set right after InitWindow, so a live GL context is guaranteed.
-  world.observer<RaylibData>("EnvironmentRenderSystem::LoadEnvironment")
+  world.observer<RaylibData, const z13::Assets>("EnvironmentRenderSystem::LoadEnvironment")
       .event(flecs::OnAdd)
+      // Only RaylibData's arrival loads.
+      .term_at(1).filter()
       .yield_existing()
-      .each([world](RaylibData&) {
-        Lighting lighting = LoadLighting();
+      .each([world](RaylibData&, const z13::Assets& assets) {
+        Lighting lighting = LoadLighting(assets.source);
         world.set<AvatarModel>(LoadAvatar(lighting));
         const ::Shader shader = lighting.res ? *lighting.res->shader : ::Shader {};
         world.set<BlockMeshes>(BlockMeshes(shader));
         world.set<BlockChunks>(BlockChunks(shader));
-        const ::Shader shadow_shader = LoadShadowShader();
+        const ::Shader shadow_shader = LoadShadowShader(assets.source);
         if (shadow_shader.id == 0) {
           log_error("[raylib] the shadow shader didn't load: nothing casts shadows, the sun is off in a station");
         }
         world.set<ShadowMaps>(ShadowMaps(shadow_shader));
         world.set<StationLights>({});
         world.set<Lighting>(std::move(lighting));
-        world.set<Skybox>(LoadSkybox());
+        world.set<Skybox>(LoadSkybox(assets.source));
         const auto config = z13::GetCoreConfig(world);
         if (const auto tour = config ? config->get().GetRenderTourPath() : std::nullopt) {
           world.set(RenderTour(*tour, config->get().GetRenderTourViews()));
@@ -760,13 +763,15 @@ void RegisterSystems(flecs::world world) {
 
   // Everything below runs in the Render phase, ahead of Draw (systems in one phase run
   // in registration order), so the scene is synced with this frame's final state.
-  world.system<const Lighting>("EnvironmentRenderSystem::ReconcileSpaceship")
+  world.system<const Lighting, const z13::Assets>("EnvironmentRenderSystem::ReconcileSpaceship")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<gameplay::Gameplay>()
       .read<z13::station::StationMode>()
       .write<RenderModel>()
-      .each([](flecs::iter& it, size_t, const Lighting& lighting) { ReconcileSpaceship(it.world(), lighting); });
+      .each([](flecs::iter& it, size_t, const Lighting& lighting, const z13::Assets& assets) {
+        ReconcileSpaceship(it.world(), lighting, assets.source);
+      });
 
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
       .kind<Render>()

@@ -34,8 +34,8 @@ constexpr std::string_view kMvpUniform = "mvp";
 
 }  // namespace
 
-::Shader LoadShadowShader() {
-  ::Shader shader = LoadShaderAsset(kShadowVertexShaderPath, kShadowFragmentShaderPath);
+::Shader LoadShadowShader(const AssetSource& assets) {
+  ::Shader shader = LoadShaderAsset(assets, kShadowVertexShaderPath, kShadowFragmentShaderPath);
   if (GetShaderLocation(shader, kMvpUniform.data()) < 0) {
     SafeUnloadShader(shader);
     return {};

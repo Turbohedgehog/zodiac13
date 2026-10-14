@@ -42,6 +42,7 @@
 #include <z13/components/input_event_emitter.h>
 #include <z13_module/z13_module_factory.h>
 #include <z13_settings/settings.h>
+#include <z13_tests/shipped_station.h>
 #include <z13_tests/test_time.h>
 
 namespace z13::testing {
@@ -136,6 +137,7 @@ class Z13TestWorld {public:
   static z13::WorldRef CreateWorld(
       z13::Core& core, const std::shared_ptr<z13::net::InMemoryNetwork>& network, const z13::Settings& settings) {
     core.GetConfig().SetCoreSettings(*settings.core);
+    core.SetAssetSource(z13::testing::SourceAssets());
     auto factory = std::make_shared<z13::Z13ModuleFactory>();
     factory->SetLoadConfigFromFile(false);
     core.RegisterModuleFactory(factory);

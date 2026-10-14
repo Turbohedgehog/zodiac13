@@ -42,9 +42,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/log.h>
 
-#include "asset_path.h"
 
 namespace z13::raylib {
 
@@ -184,8 +184,9 @@ std::expected<::Mesh, std::string> BuildMesh(const TaggedMesh& tagged) {
 }
 
 // An empty texture if the material has none; an error if it has one that can't be found.
-std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const aiScene& scene, const aiMaterial& material,
-                                                             const fs::path& model_dir, const std::string& model_stem) {
+std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const AssetSource& assets, const aiScene& scene,
+                                                             const aiMaterial& material, const fs::path& model_dir,
+                                                             const std::string& model_stem) {
   aiString reference;
   if (material.GetTexture(aiTextureType_DIFFUSE, 0, &reference) != AI_SUCCESS &&
       material.GetTexture(aiTextureType_BASE_COLOR, 0, &reference) != AI_SUCCESS) {
@@ -211,14 +212,13 @@ std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const aiScene& sce
       relative,
   };
   for (const fs::path& candidate : candidates) {
-    const std::string candidate_path = candidate.string();
-    if (!FileExists(candidate_path.c_str())) {
+    const auto bytes = assets.ReadAsset(candidate);
+    if (!bytes) {
       continue;
     }
-    int size = 0;
-    unsigned char* file_data = LoadFileData(candidate_path.c_str(), &size);
-    ::Image image = DecodeImage(file_data, size, GetFileExtension(candidate_path.c_str()));
-    UnloadFileData(file_data);
+    const std::string extension = candidate.extension().string();
+    ::Image image = DecodeImage(reinterpret_cast<const unsigned char*>(bytes->data()), static_cast<int>(bytes->size()),
+                                extension.c_str());
     ::Texture2D result = LoadTextureFromImage(image);
     UnloadImage(image);
     return result;
@@ -229,13 +229,22 @@ std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const aiScene& sce
 
 }  // namespace
 
-std::expected<LoadedModel, std::string> LoadModelFromAsset(std::string_view relative_path) {
-  const std::string path = AssetPath(relative_path);
+std::expected<LoadedModel, std::string> LoadModelFromAsset(const AssetSource& assets, std::string_view relative_path) {
+  const std::string path(relative_path);
+  const auto bytes = assets.ReadAsset(path);
+  if (!bytes) {
+    return std::unexpected(bytes.error());
+  }
 
+  // From memory: the shipped models keep everything but textures (resolved below) in one file.
   Assimp::Importer importer;
-  const aiScene* scene = importer.ReadFile(
-      path, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_GenNormals |
-                aiProcess_FlipUVs);
+  // Assimp takes the extension without its dot.
+  std::string format_hint = fs::path(path).extension().string();
+  std::erase(format_hint, '.');
+  const aiScene* scene = importer.ReadFileFromMemory(
+      bytes->data(), bytes->size(),
+      aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_GenNormals | aiProcess_FlipUVs,
+      format_hint.c_str());
 
   if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 ||
       scene->mRootNode == nullptr) {
@@ -266,7 +275,7 @@ std::expected<LoadedModel, std::string> LoadModelFromAsset(std::string_view rela
   for (int m = 0; m < model.materialCount; ++m) {
     model.materials[m] = LoadMaterialDefault();
     if (m < static_cast<int>(scene->mNumMaterials)) {
-      const auto texture = ResolveDiffuseTexture(*scene, *scene->mMaterials[m], model_dir, model_stem);
+      const auto texture = ResolveDiffuseTexture(assets, *scene, *scene->mMaterials[m], model_dir, model_stem);
       if (!texture) {
         loaded.warnings.push_back(texture.error());
       } else if (texture->id != 0) {

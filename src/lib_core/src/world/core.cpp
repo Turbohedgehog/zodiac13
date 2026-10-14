@@ -21,6 +21,7 @@
 #include <iostream>
 #include <chrono>
 #include <limits>
+#include <utility>
 #include <thread>
 #include <typeinfo>
 
@@ -86,6 +87,10 @@ Status Core::RegisterModuleFactory(const std::filesystem::path& module_entry) {
       .transform([this](ModuleFactoryPtr module_factory) { RegisterModuleFactory(std::move(module_factory)); });
 }
 
+void Core::SetAssetSource(AssetSource source) {
+  asset_source_ = std::move(source);
+}
+
 std::expected<WorldRef, std::string> Core::CreateWorld() {
   auto it = worlds_.insert({new_world_id_, flecs::world()});
   ++new_world_id_;
@@ -93,6 +98,8 @@ std::expected<WorldRef, std::string> Core::CreateWorld() {
   auto& world = it.first->second;
   z13::flecs_tools::RegisterStateMeta(world);
   world.set(ActiveCoreSettings(config_.GetCoreSettings()));
+  flecs_tools::RegisterComponent<Assets>(world);
+  world.set(Assets {.source = asset_source_});
   world.component<CoreComponent>();
   CoreComponent core_component {.core = *this};
   world.set(core_component);

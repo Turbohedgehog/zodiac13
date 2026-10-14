@@ -23,6 +23,8 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
+#include <lib_core/utils/asset_source.h>
+
 namespace z13::raylib {
 
 // Texels to a row of the light table (light_clusters.h).
@@ -107,7 +109,7 @@ struct LightUniforms {
 
 // Loads assets/shaders/lighting.{vs,fs} with its samplers on their units. Returns an empty
 // Shader (id 0) on compile failure.
-::Shader LoadLightingShader();
+::Shader LoadLightingShader(const AssetSource& assets);
 LightUniforms FindLightUniforms(const ::Shader& shader);
 
 void UploadShadowAtlas(const ::Shader& shader, const LightUniforms& uniforms, const ShadowAtlasLayout& atlas);

@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 
-#include <lib_core/utils/file_io.h>
+#include <lib_core/utils/asset_source.h>
 #include <z13/components/block.h>
 #include <primitives/blueprint.h>
 #include <primitives/palette.h>
@@ -30,19 +30,24 @@
 
 namespace z13::testing {
 
-// The station assets in the source tree (Z13_SOURCE_ASSETS_DIR, set for the test runner).
-inline std::filesystem::path SourceAsset(const std::filesystem::path& relative) {
-  return std::filesystem::path(Z13_SOURCE_ASSETS_DIR) / relative;
+// The source tree's assets/ and config/ (Z13_SOURCE_ASSETS_DIR, set for the test runner).
+inline z13::AssetSource SourceAssets() {
+  return z13::AssetSource(std::filesystem::path(Z13_SOURCE_ASSETS_DIR).parent_path());
+}
+
+inline std::vector<std::string> ShippedScenes() {
+  return z13::building::primitives::BlueprintScenes(
+      SourceAssets().ListAssets(z13::building::primitives::BlueprintsDir()));
 }
 
 inline std::expected<z13::building::primitives::Palette, std::string> ShippedPalette() {
-  return z13::ReadFile(SourceAsset(z13::building::primitives::PaletteFile()))
+  return SourceAssets().ReadAsset(z13::building::primitives::PaletteFile())
       .and_then([](const std::string& json) { return z13::building::primitives::ParsePalette(json); });
 }
 
 inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBlueprint(
     std::string_view scene, const z13::building::primitives::Palette& palette) {
-  return z13::ReadFile(SourceAsset(z13::building::primitives::BlueprintFile(scene)))
+  return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
       .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); });
 }
 
