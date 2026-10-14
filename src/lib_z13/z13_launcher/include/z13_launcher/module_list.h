@@ -19,15 +19,23 @@
 #include <expected>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include <lib_core/utils/asset_source.h>
+
 namespace z13 {
+
+// The module lists under config/: the game's, and a dedicated server's (no display, so no raylib_module).
+inline constexpr std::string_view kGameModuleList = "z13_config.yaml";
+inline constexpr std::string_view kServerModuleList = "z13_config_server.yaml";
 
 // Parses a `modules:` sequence (bare path, or {path: ...}); a malformed entry is
 // logged and skipped. Split out from ReadModuleList() so it's testable without a file.
 std::expected<std::vector<std::string>, std::string> ParseModuleList(const std::string& yaml_text);
 
-// Reads and parses `config_path`.
-std::expected<std::vector<std::string>, std::string> ReadModuleList(const std::filesystem::path& config_path);
+// Reads and parses config/`file`.
+std::expected<std::vector<std::string>, std::string> ReadModuleList(const AssetSource& assets,
+                                                                    const std::filesystem::path& file);
 
 }  // namespace z13

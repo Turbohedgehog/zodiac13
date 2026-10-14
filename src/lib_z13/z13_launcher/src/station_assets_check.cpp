@@ -18,31 +18,29 @@
 
 #include <format>
 
-#include <lib_core/utils/file_io.h>
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>
 
 namespace z13 {
 
-Status CheckStationScene(const Config& config, const std::filesystem::path& assets_dir) {
+Status CheckStationScene(const Config& config, const AssetSource& assets) {
   const auto scene = config.GetStationScene();
   if (!scene) {
     return {};
   }
-  const std::filesystem::path file = assets_dir / z13::building::primitives::BlueprintFile(*scene);
-  if (!std::filesystem::is_regular_file(file)) {
-    return std::unexpected(std::format("--station-scene {}: no blueprint {}", *scene, file.string()));
-  }
-  return {};
+  return assets.ReadAsset(z13::building::primitives::BlueprintFile(*scene))
+      .transform([](const std::string&) {})
+      .transform_error([&scene](const std::string& error) {
+        return std::format("--station-scene {}: no blueprint: {}", *scene, error);
+      });
 }
 
-Status CheckBlockPalette(const std::filesystem::path& assets_dir) {
-  const std::filesystem::path file = assets_dir / z13::building::primitives::PaletteFile();
-  return ReadFile(file)
+Status CheckBlockPalette(const AssetSource& assets) {
+  return assets.ReadAsset(z13::building::primitives::PaletteFile())
       .and_then([](const std::string& json) { return z13::building::primitives::ParsePalette(json); })
       .transform([](const auto&) {})
-      .transform_error([&file](const std::string& error) {
-        return std::format("no block palette: {} ({})", error, file.string());
+      .transform_error([](const std::string& error) {
+        return std::format("no block palette: {} ({})", error, z13::building::primitives::PaletteFile().string());
       });
 }
 

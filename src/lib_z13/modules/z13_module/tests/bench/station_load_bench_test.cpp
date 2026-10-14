@@ -282,7 +282,7 @@ void Print(const std::string& title, const std::vector<Row>& rows) {
 }
 
 std::vector<std::string> Stations() {
-  return z13::building::primitives::BlueprintScenes(SourceAsset({}));
+  return z13::testing::ShippedScenes();
 }
 
 TEST(StationLoadBench, DISABLED_Scales) {

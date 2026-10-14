@@ -26,6 +26,7 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/status.h>
 #include <z13_settings/settings.h>
 
@@ -88,6 +89,6 @@ class ShadowMaps {
 };
 
 // assets/shaders/shadow.{vs,fs}; id 0 on compile failure.
-::Shader LoadShadowShader();
+::Shader LoadShadowShader(const AssetSource& assets);
 
 }  // namespace z13::raylib

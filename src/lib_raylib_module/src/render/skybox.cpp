@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #include <Eigen/Dense>
@@ -29,7 +30,6 @@
 #include <spdlog/spdlog.h>
 
 #include "../platform/sdl_platform.h"
-#include "../tools/asset_path.h"
 #include "../tools/shader_asset.h"
 #include "render_resources.h"
 
@@ -55,18 +55,26 @@ constexpr std::string_view kEnvironmentMapUniform = "environmentMap";  // skybox
 constexpr std::string_view kDoGammaUniform = "doGamma";                // apply gamma correction
 constexpr std::string_view kVflippedUniform = "vflipped";              // cubemap stored V-flipped
 
-::Texture2D LoadCubemap() {
+::Image LoadFace(const AssetSource& assets, std::string_view file) {
+  const auto bytes = assets.ReadAsset(file);
+  if (!bytes) {
+    return {};
+  }
+  const std::string extension = std::filesystem::path(file).extension().string();
+  return LoadImageFromMemory(extension.c_str(), reinterpret_cast<const unsigned char*>(bytes->data()),
+                             static_cast<int>(bytes->size()));
+}
+
+::Texture2D LoadCubemap(const AssetSource& assets) {
   std::array<::Image, kFaceFiles.size()> faces{};
-  std::transform(kFaceFiles.begin(), kFaceFiles.end(), faces.begin(), [](std::string_view file) {
-    return LoadImage(AssetPath(file).c_str());
-  });
+  std::ranges::transform(kFaceFiles, faces.begin(), [&assets](std::string_view file) { return LoadFace(assets, file); });
 
   const bool any_face_failed = std::any_of(
       faces.begin(), faces.end(), [](const ::Image& face) { return face.width == 0; });
   if (any_face_failed) {
     for (std::size_t i = 0; i < faces.size(); ++i) {
       if (faces[i].width == 0) {
-        spdlog::error("[raylib] skybox: cannot load face '{}'", AssetPath(kFaceFiles[i]));
+        spdlog::error("[raylib] skybox: cannot load face '{}'", kFaceFiles[i]);
       }
     }
     for (::Image& face : faces) {
@@ -92,8 +100,8 @@ constexpr std::string_view kVflippedUniform = "vflipped";              // cubema
   return cubemap;
 }
 
-::Shader LoadSkyboxShader() {
-  ::Shader shader = LoadShaderAsset(kSkyboxVertexShaderPath, kSkyboxFragmentShaderPath);
+::Shader LoadSkyboxShader(const AssetSource& assets) {
+  ::Shader shader = LoadShaderAsset(assets, kSkyboxVertexShaderPath, kSkyboxFragmentShaderPath);
 
   if (GetShaderLocation(shader, kEnvironmentMapUniform.data()) < 0) {
     spdlog::error("[raylib] skybox: shader compile failed (no 'environmentMap' uniform)");
@@ -114,13 +122,13 @@ constexpr std::string_view kVflippedUniform = "vflipped";              // cubema
 
 }  // namespace
 
-Skybox LoadSkybox() {
-  ::Texture2D cubemap = LoadCubemap();
+Skybox LoadSkybox(const AssetSource& assets) {
+  ::Texture2D cubemap = LoadCubemap(assets);
   if (cubemap.id == 0) {
     return Skybox{};
   }
 
-  ::Shader shader = LoadSkyboxShader();
+  ::Shader shader = LoadSkyboxShader(assets);
   if (shader.id == 0) {
     UnloadTexture(cubemap);
     return Skybox{};

@@ -1,8 +1,8 @@
 #include <z13_launcher/z13_launcher.h>
 
-#include <filesystem>
 #include <iostream>
 
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/core.h>
@@ -15,17 +15,6 @@
 #include <z13_settings/settings.h>
 
 namespace z13 {
-
-namespace {
-
-const std::filesystem::path kConfigRelativePath =
-    std::filesystem::path("config") / "z13_config.yaml";
-// Used instead of kConfigRelativePath for --server: no raylib_module (no display).
-const std::filesystem::path kServerConfigRelativePath =
-    std::filesystem::path("config") / "z13_config_server.yaml";
-const std::filesystem::path kAssetsRelativePath = "assets";
-
-}  // namespace
 
 int Zodiac13Launcher::Run(int argc, char *argv[]) {
   spdlog::flush_on(spdlog::level::debug);
@@ -44,15 +33,14 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     return 1;
   }
 
-  const std::filesystem::path install_dir = InstallDir();
-  const std::filesystem::path assets_dir = install_dir / kAssetsRelativePath;
-  const Status assets =
-      CheckBlockPalette(assets_dir).and_then([&] { return CheckStationScene(core.GetConfig(), assets_dir); });
-  if (!assets) {
-    log_error("{}", assets.error());
+  const AssetSource assets(InstallDir());
+  const Status checked =
+      CheckBlockPalette(assets).and_then([&] { return CheckStationScene(core.GetConfig(), assets); });
+  if (!checked) {
+    log_error("{}", checked.error());
     return 1;
   }
-  const auto config_path = install_dir / (core.GetConfig().IsServer() ? kServerConfigRelativePath : kConfigRelativePath);
+  core.SetAssetSource(assets);
 
   const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());
   if (!settings) {
@@ -67,7 +55,8 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
   core.GetConfig().SetCoreSettings(*effective->core);
 
-  const auto modules = ReadModuleList(config_path);
+  const auto modules =
+      ReadModuleList(assets, core.GetConfig().IsServer() ? kServerModuleList : kGameModuleList);
   if (!modules) {
     log_error("{}", modules.error());
     return 1;

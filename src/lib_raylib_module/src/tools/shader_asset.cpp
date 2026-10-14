@@ -18,9 +18,6 @@
 
 #include <string>
 
-#include <lib_core/utils/file_io.h>
-
-#include "asset_path.h"
 #include "platform/gl_profile.h"
 
 namespace z13::raylib {
@@ -38,9 +35,10 @@ std::string ForPlatform(const std::string& source) {
 
 }  // namespace
 
-::Shader LoadShaderAsset(const std::filesystem::path& vertex, const std::filesystem::path& fragment) {
-  const auto vertex_source = ReadFile(AssetPath(vertex));
-  const auto fragment_source = ReadFile(AssetPath(fragment));
+::Shader LoadShaderAsset(const AssetSource& assets, const std::filesystem::path& vertex,
+                         const std::filesystem::path& fragment) {
+  const auto vertex_source = assets.ReadAsset(vertex);
+  const auto fragment_source = assets.ReadAsset(fragment);
   if (!vertex_source || !fragment_source) {
     return {};
   }

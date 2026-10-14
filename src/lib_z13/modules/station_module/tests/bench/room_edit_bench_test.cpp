@@ -124,7 +124,7 @@ void DestroyAndRestore(Z13TestWorld& world, const std::string& label) {
 }
 
 TEST(RoomEditBench, DISABLED_BuildAndDestroyAWall) {
-  for (const std::string& scene : z13::building::primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     Z13TestWorld world({std::string(kStationSceneArg), scene});
     world.Tick();
     world.Tick();

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,9 +33,10 @@ inline constexpr std::string_view kBlueprintExtension = ".json";
 
 // Station asset files, relative to assets/.
 std::filesystem::path PaletteFile();
+std::filesystem::path BlueprintsDir();
 std::filesystem::path BlueprintFile(std::string_view scene);
 
-// The scenes whose blueprints lie in `assets_dir`, sorted.
-std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir);
+// The scenes among the file names in BlueprintsDir(), sorted.
+std::vector<std::string> BlueprintScenes(std::span<const std::string> file_names);
 
 }  // namespace z13::building::primitives

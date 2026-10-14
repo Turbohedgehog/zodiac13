@@ -39,7 +39,7 @@ constexpr int kRuns = 5;
 
 TEST(RoomBuildBench, DISABLED_FullRebuild) {
   const primitives::Palette palette = ShippedPalette().value();
-  for (const std::string& scene : primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     const auto blocks = ShippedBlueprint(scene, palette);
     ASSERT_TRUE(blocks.has_value()) << blocks.error();
     z13::station::rooms::RoomSources sources;

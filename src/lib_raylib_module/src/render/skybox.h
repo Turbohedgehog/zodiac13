@@ -16,12 +16,14 @@
 
 #pragma once
 
+#include <lib_core/utils/asset_source.h>
+
 #include "render_components.h"
 
 namespace z13::raylib {
 
 // Loads the vz_sunshine cubemap + skybox shader. Returns an empty Skybox on failure.
-Skybox LoadSkybox();
+Skybox LoadSkybox(const AssetSource& assets);
 
 // Draws the skybox around the currently active 3D camera (call inside BeginMode3D).
 void DrawSkybox(const SkyboxResources& skybox);

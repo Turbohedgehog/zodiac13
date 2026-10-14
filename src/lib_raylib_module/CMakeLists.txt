@@ -48,7 +48,6 @@ set(
   src/render/light_clusters.cpp
   src/render/station_lights.cpp
   src/render/view_culling.cpp
-  src/tools/asset_path.cpp
   src/tools/assimp_loader.cpp
   src/tools/input_publisher.cpp
   src/tools/math_convert.cpp
@@ -70,8 +69,6 @@ target_include_directories(
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_ASSETS_DIR="assets")
 
 # raylib.h and <windows.h> both declare CloseWindow/ShowCursor/DrawText/Rectangle/...
 # Drop the GDI/USER parts of windows.h (this module needs neither).

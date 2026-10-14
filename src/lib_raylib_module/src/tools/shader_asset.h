@@ -20,10 +20,13 @@
 
 #include <raylib.h>
 
+#include <lib_core/utils/asset_source.h>
+
 namespace z13::raylib {
 
 // Loads a shader pair from assets/ for this platform's GLSL dialect (kShaderHeader).
 // A missing file or a failed compile gives a shader without the pair's uniforms.
-::Shader LoadShaderAsset(const std::filesystem::path& vertex, const std::filesystem::path& fragment);
+::Shader LoadShaderAsset(const AssetSource& assets, const std::filesystem::path& vertex,
+                         const std::filesystem::path& fragment);
 
 }  // namespace z13::raylib

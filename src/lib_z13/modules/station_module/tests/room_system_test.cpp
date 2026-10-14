@@ -409,7 +409,7 @@ TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
 
 INSTANTIATE_TEST_SUITE_P(
     Scenes, ShippedRoomsTest,
-    ::testing::ValuesIn(z13::building::primitives::BlueprintScenes(z13::testing::SourceAsset({}))),
+    ::testing::ValuesIn(z13::testing::ShippedScenes()),
     [](const ::testing::TestParamInfo<std::string>& info) { return info.param; });
 
 }  // namespace

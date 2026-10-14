@@ -18,32 +18,26 @@
 
 #include <algorithm>
 #include <format>
-#include <system_error>
 
 namespace z13::building::primitives {
 
-namespace {
+std::filesystem::path PaletteFile() {
+  return std::filesystem::path(kStationDir) / kPaletteFileName;
+}
 
 std::filesystem::path BlueprintsDir() {
   return std::filesystem::path(kStationDir) / kBlueprintsDir;
-}
-
-}  // namespace
-
-std::filesystem::path PaletteFile() {
-  return std::filesystem::path(kStationDir) / kPaletteFileName;
 }
 
 std::filesystem::path BlueprintFile(std::string_view scene) {
   return BlueprintsDir() / std::format("{}{}", scene, kBlueprintExtension);
 }
 
-std::vector<std::string> BlueprintScenes(const std::filesystem::path& assets_dir) {
+std::vector<std::string> BlueprintScenes(std::span<const std::string> file_names) {
   std::vector<std::string> scenes;
-  std::error_code error;
-  for (const auto& entry : std::filesystem::directory_iterator(assets_dir / BlueprintsDir(), error)) {
-    if (entry.is_regular_file() && entry.path().extension() == kBlueprintExtension) {
-      scenes.push_back(entry.path().stem().string());
+  for (const std::filesystem::path name : file_names) {
+    if (name.extension() == kBlueprintExtension) {
+      scenes.push_back(name.stem().string());
     }
   }
   std::ranges::sort(scenes);

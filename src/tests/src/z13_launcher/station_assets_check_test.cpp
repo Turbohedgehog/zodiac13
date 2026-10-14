@@ -35,7 +35,7 @@ using z13::testing::kStationArg;
 using z13::testing::kStationSceneArg;
 using z13::testing::kTestScene;
 
-const std::filesystem::path kSourceAssets = z13::testing::SourceAsset({});
+const AssetSource kSourceAssets = z13::testing::SourceAssets();
 constexpr std::string_view kMissingAssetsDirName = "z13_no_assets";
 
 
@@ -75,7 +75,7 @@ TEST(BlockPaletteCheckTest, TheShippedPalettePasses) {
 }
 
 TEST(BlockPaletteCheckTest, AMissingPaletteStopsTheLaunch) {
-  const Status checked = CheckBlockPalette(std::filesystem::temp_directory_path() / kMissingAssetsDirName);
+  const Status checked = CheckBlockPalette(AssetSource(std::filesystem::temp_directory_path() / kMissingAssetsDirName));
 
   ASSERT_FALSE(checked.has_value());
   EXPECT_NE(checked.error().find(z13::building::primitives::kPaletteFileName), std::string::npos) << checked.error();

@@ -9,7 +9,6 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 set(
   PROJECT_SOURCE_FILES
-  src/asset_file.cpp
   src/block_building_system.cpp
   src/block_cutting.cpp
   src/block_entities.cpp

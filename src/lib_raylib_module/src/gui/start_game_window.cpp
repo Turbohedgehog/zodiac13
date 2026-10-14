@@ -28,7 +28,7 @@
 
 namespace z13::raylib::gui {
 
-StartGameWindow::StartGameWindow(flecs::world world) : Window(world, "Start Game"), scenes_(GameScenes()) {}
+StartGameWindow::StartGameWindow(flecs::world world) : Window(world, "Start Game"), scenes_(GameScenes(world.get<z13::Assets>().source)) {}
 
 void StartGameWindow::DrawBody() {
   // Blueprint names are free text: ids by index keep them apart from each other and from Back.

@@ -87,7 +87,7 @@ void TimeEdit(const std::string& label, const std::vector<CellBox>& sealed, cons
 TEST(OpeningBench, DISABLED_FullSearch) {
   const primitives::Palette palette = ShippedPalette().value();
   const int max_cells = rooms::RoomSettings {}.max_opening_cells;
-  for (const std::string& scene : primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     const std::vector<CellBox> sealed = SealedOf(scene, palette);
     for (int run = 0; run < kRuns; ++run) {
       const auto start = Clock::now();
@@ -104,7 +104,7 @@ TEST(OpeningBench, DISABLED_FullSearch) {
 TEST(OpeningBench, DISABLED_EditSearch) {
   const primitives::Palette palette = ShippedPalette().value();
   const int max_cells = rooms::RoomSettings {}.max_opening_cells;
-  for (const std::string& scene : primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
     std::vector<CellBox> sealed = SealedOf(scene, palette);
     const auto graph = rooms::BuildRooms({.sealed = sealed});
     ASSERT_TRUE(graph.has_value());

@@ -22,6 +22,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/utils/asset_source.h>
+
 #include <z13/components/station_mode.h>
 
 namespace z13::raylib::gui {
@@ -34,7 +36,7 @@ struct GameScene {
 
 // The spaceship, the station blueprints under assets/station/blueprints/, then a new, empty
 // station.
-std::vector<GameScene> GameScenes();
+std::vector<GameScene> GameScenes(const AssetSource& assets);
 
 // Puts the world in `scene`'s mode (StationMode, StationSceneChoice) for the game to start in.
 void SelectScene(flecs::world world, const GameScene& scene);
