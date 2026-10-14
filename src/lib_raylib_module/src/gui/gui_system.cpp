@@ -207,7 +207,9 @@ void RegisterSystems(flecs::world world) {
         }
         float overlay_top = gui::FirstOverlayTop();
         if (stats.Visible()) {
-          overlay_top = stats.Draw(render, overlay_top);
+          const bool cursor_free = paused || world.has<gameplay::FreeCursor>();
+          overlay_top = stats.Draw(render, overlay_top,
+                                   cursor_free ? gui::OverlayInput::kSelectable : gui::OverlayInput::kPassThrough);
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {

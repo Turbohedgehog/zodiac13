@@ -31,6 +31,20 @@
 
 namespace z13::raylib {
 
+// A shadow slot keeps two cubes: the distance to the nearest block, and to the nearest player.
+// A flashlight is stopped by either; a lamp, whose light is baked, takes it back only where a
+// player stands nearer than the blocks (assets/shaders/lighting.fs).
+enum class ShadowLayer : uint8_t { kBlocks, kPlayers };
+inline constexpr int kShadowLayers = 2;
+
+// A player as a shadow slot last drew it.
+struct DrawnMover {
+  uint64_t entity {};
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+
+  bool operator==(const DrawnMover&) const = default;
+};
+
 // What a lamp's shadow slot was last drawn for.
 struct SlotView {
   // A light with an owner keeps its slot as it moves.
@@ -42,6 +56,8 @@ struct SlotView {
   uint64_t static_version {};
   // One bit per cube face players were in: those faces are redrawn until they have left.
   uint8_t moving_faces {};
+  // While they stand still, the players' cubes are kept.
+  std::vector<DrawnMover> movers;
 };
 
 // What a directional map was last drawn for.
@@ -85,10 +101,11 @@ class ShadowMaps::State {
   void ReleaseAtlas();
   // The slot each of `lights` keeps or takes; nothing for those past `new_slots` new ones.
   std::vector<std::optional<size_t>> AssignSlots(std::span<const FrameLight> lights, int new_slots) const;
-  // The faces of a kept slot to redraw, and the blocks' version they then show.
+  // The block faces of a kept slot to redraw, and the blocks' version they then show.
   std::pair<uint8_t, uint64_t> FacesToRedraw(const SlotView& drawn, const FrameLight& light,
-                                             const ShadowCasters& casters, uint8_t moving_faces, int& redraws_left) const;
-  void DrawFaces(size_t slot, const FrameLight& light, const ShadowCasters& casters, uint8_t faces);
+                                             const ShadowCasters& casters, int& redraws_left) const;
+  // Clears the faces of one layer of the slot and draws its casters into them.
+  void DrawFaces(size_t slot, const FrameLight& light, const ShadowCasters& casters, ShadowLayer layer, uint8_t faces);
   // False if no depth map can be made at `size`.
   bool ResizeDirectional(DirectionalShadow& shadow, int size);
   // Clears and draws the casters `keep` keeps within `scissor`, in pixels, or all of the map.

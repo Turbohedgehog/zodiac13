@@ -21,6 +21,8 @@
 
 #include <imgui.h>
 
+#include "gui_widgets.h"
+
 namespace z13::raylib {
 struct RenderStats;
 }  // namespace z13::raylib
@@ -45,7 +47,7 @@ class StatsOverlay {
   void CountFrame(Clock::time_point now);
 
   // Returns where the next overlay starts.
-  float Draw(const RenderStats* render, float top) const;
+  float Draw(const RenderStats* render, float top, OverlayInput input) const;
 
  private:
   bool visible_ {};

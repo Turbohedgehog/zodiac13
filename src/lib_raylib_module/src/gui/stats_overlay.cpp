@@ -17,12 +17,14 @@
 #include "stats_overlay.h"
 
 #include <algorithm>
+#include <format>
+#include <iterator>
+#include <string>
 
 #include <Eigen/Dense>
 
 #include <z13/components/block.h>
 
-#include "gui_widgets.h"
 #include "render/render_stats.h"
 
 namespace z13::raylib::gui {
@@ -34,6 +36,37 @@ constexpr std::chrono::milliseconds kAveragingWindow {500};
 
 float Ms(StatsOverlay::Clock::duration duration) {
   return std::chrono::duration<float, std::milli>(duration).count();
+}
+
+std::string RenderLines(const RenderStats& render) {
+  std::string text;
+  auto out = std::back_inserter(text);
+  std::format_to(out, "Chunks {} / {}, meshes {}\n", render.chunks_drawn, render.chunks, render.meshes_drawn);
+  std::format_to(out, "Glass chunks {} / {}\n", render.glass_chunks_drawn, render.glass_chunks);
+  std::format_to(out, "Lamps {}, with shadows {}, {:.2f} ms\n", render.lights, render.shadowed_lights,
+                 render.times.shadows_ms);
+  if (render.rooms_seen) {
+    std::format_to(out, "Rooms seen {}, {:.0f} us\n", *render.rooms_seen, render.culling_us);
+  } else {
+    std::format_to(out, "Rooms don't cull\n");
+  }
+  const z13::CameraPose& camera = render.camera;
+  const Eigen::Vector3i cell = (camera.eye / z13::station::kCellSize).array().floor().cast<int>();
+  std::format_to(out, "Eye x {:.2f}, y {:.2f}, z {:.2f} m\n", camera.eye.x(), camera.eye.y(), camera.eye.z());
+  std::format_to(out, "Cell x {}, y {}, z {}\n", cell.x(), cell.y(), cell.z());
+  std::format_to(out, "Yaw {:.1f}, pitch {:.1f}", camera.look.yaw_deg, camera.look.pitch_deg);
+  return text;
+}
+
+// A read-only field the size of its text: drag to select, Ctrl+C to copy.
+void DrawSelectableText(std::string& text) {
+  const ImGuiStyle& style = ImGui::GetStyle();
+  const ImVec2 text_size = ImGui::CalcTextSize(text.c_str());
+  const ImVec2 size {text_size.x + style.FramePadding.x * 2.f + style.ScrollbarSize,
+                     text_size.y + style.FramePadding.y * 2.f};
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4 {});
+  ImGui::InputTextMultiline("##text", text.data(), text.size() + 1, size, ImGuiInputTextFlags_ReadOnly);
+  ImGui::PopStyleColor();
 }
 
 }  // namespace
@@ -60,26 +93,18 @@ void StatsOverlay::CountFrame(Clock::time_point now) {
   window_worst_ms_ = 0.f;
 }
 
-float StatsOverlay::Draw(const RenderStats* render, float top) const {
+float StatsOverlay::Draw(const RenderStats* render, float top, OverlayInput input) const {
+  std::string text = std::format("{:.0f} fps, {:.1f} ms, worst {:.1f} ms", fps_, average_ms_, worst_ms_);
+  if (render != nullptr) {
+    text += "\n" + RenderLines(*render);
+  }
   PlaceOverlay(top);
   float below = top;
-  if (ImGui::Begin("##stats", nullptr, kOverlayFlags)) {
-    ImGui::Text("%.0f fps, %.1f ms, worst %.1f ms", fps_, average_ms_, worst_ms_);
-    if (render != nullptr) {
-      ImGui::Text("Chunks %zu / %zu, meshes %zu", render->chunks_drawn, render->chunks, render->meshes_drawn);
-      ImGui::Text("Glass chunks %zu / %zu", render->glass_chunks_drawn, render->glass_chunks);
-      ImGui::Text("Lamps %zu, with shadows %zu, %.2f ms", render->lights, render->shadowed_lights,
-                  render->times.shadows_ms);
-      if (render->rooms_seen) {
-        ImGui::Text("Rooms seen %zu, %.0f us", *render->rooms_seen, render->culling_us);
-      } else {
-        ImGui::TextUnformatted("Rooms don't cull");
-      }
-      const z13::CameraPose& camera = render->camera;
-      const Eigen::Vector3i cell = (camera.eye / z13::station::kCellSize).array().floor().cast<int>();
-      ImGui::Text("Eye x %.2f, y %.2f, z %.2f m", camera.eye.x(), camera.eye.y(), camera.eye.z());
-      ImGui::Text("Cell x %d, y %d, z %d", cell.x(), cell.y(), cell.z());
-      ImGui::Text("Yaw %.1f, pitch %.1f", camera.look.yaw_deg, camera.look.pitch_deg);
+  if (ImGui::Begin("##stats", nullptr, OverlayFlags(input))) {
+    if (input == OverlayInput::kSelectable) {
+      DrawSelectableText(text);
+    } else {
+      ImGui::TextUnformatted(text.c_str());
     }
     below = OverlayTopBelow();
   }

@@ -30,6 +30,9 @@ namespace z13::building::primitives {
 // A lamp's light, in cells.
 struct PointLight {
   Eigen::Vector3f position = Eigen::Vector3f::Zero();
+  // As far past the opposite face: where it shines from when its bottom lies against a block
+  // (a lamp on the floor).
+  Eigen::Vector3f behind = Eigen::Vector3f::Zero();
   // The cell it shines from, to find its room.
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
   LightSource source;
