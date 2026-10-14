@@ -32,6 +32,8 @@ enum Action : int16 (action, action_group: "Control") {
   LOAD_SCENE (display_text: "Quick load", default_keycodes: "KEY_F9"),
   // KEY_F also turns the brush in the Building group, which comes first while building.
   TOGGLE_FLASHLIGHT (display_text: "Flashlight", default_keycodes: "KEY_F"),
+  // Uses the block ahead, and keeps using it while held. KEY_E picks the next primitive while building.
+  USE (display_text: "Use", default_keycodes: "KEY_E"),
 }
 
 table ActionsTable {

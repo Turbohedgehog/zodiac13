@@ -98,6 +98,36 @@ TEST(PaletteTest, RejectsALightThatReachesNothing) {
   EXPECT_FALSE(ParsePalette(Palette(Lamp(R"({"radius_cells": 4})"))).has_value());
 }
 
+// A switch-sized box with `interaction`, an Interaction in JSON.
+std::string Interactive(std::string_view interaction) {
+  return std::format(
+      R"({{"id": 1, "name": "Switch", "shape_type": "Box", "shape": {{}}, "min_size": {{"x": 1, "y": 1, "z": 2}},
+           "max_size": {{"x": 1, "y": 1, "z": 2}},
+           "material": {{"first": {{"r": 9, "g": 9, "b": 9, "a": 255}}, "second": {{"r": 9, "g": 9, "b": 9, "a": 255}}}},
+           "flags": "Solid Switch", "interaction": {}}})",
+      interaction);
+}
+
+TEST(PaletteTest, ParsesHowABlockIsInteractedWith) {
+  const auto palette = ParsePalette(Palette(Interactive(R"({"methods": "Hold Presence", "sensor_cells": 8})")));
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  const Primitive& primitive = palette->primitives.front();
+  EXPECT_TRUE(primitive.Has(PrimitiveFlags::Switch));
+  ASSERT_TRUE(primitive.interaction.has_value());
+  EXPECT_FALSE(primitive.interaction->Accepts(InteractionMethods::Use));
+  EXPECT_TRUE(primitive.interaction->Accepts(InteractionMethods::Hold));
+  EXPECT_TRUE(primitive.interaction->Accepts(InteractionMethods::Presence));
+  EXPECT_EQ(primitive.interaction->sensor_cells, 8);
+  EXPECT_FALSE(ParsePalette(Palette(Entry(1, "Wall")))->primitives.front().interaction.has_value());
+}
+
+TEST(PaletteTest, RejectsAnInteractionWithoutAMethodOrWithAStraySensor) {
+  EXPECT_FALSE(ParsePalette(Palette(Interactive(R"({})"))).has_value());
+  EXPECT_FALSE(ParsePalette(Palette(Interactive(R"({"methods": "Presence"})"))).has_value());
+  EXPECT_FALSE(ParsePalette(Palette(Interactive(R"({"methods": "Use", "sensor_cells": 4})"))).has_value());
+}
+
 TEST(PaletteTest, HashDependsOnContentNotLayout) {
   const std::string entry = Entry(1, "Floor");
   const auto compact = ParsePalette(Palette(entry));
