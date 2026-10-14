@@ -123,7 +123,7 @@ jobs:
           cp apk/*.apk zodiac13-android-arm64.apk
           gh release delete android-latest --cleanup-tag --yes || true
           gh release create android-latest zodiac13-android-arm64.apk --prerelease --target "$GITHUB_SHA" \
-            --title "Android (latest main)" --notes "Debug APK of $GITHUB_SHA, version $VERSION_NAME."
+            --title "Android $VERSION_NAME (latest main)" --notes "Debug APK of $GITHUB_SHA, version $VERSION_NAME."
 
       - name: Add to the release
         if: inputs.release

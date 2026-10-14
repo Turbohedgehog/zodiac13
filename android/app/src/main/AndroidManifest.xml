@@ -12,6 +12,7 @@
 
     <application
         android:label="Zodiac13"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
         android:allowBackup="true"
         android:hardwareAccelerated="true">
         <activity
