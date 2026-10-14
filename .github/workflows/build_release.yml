@@ -89,3 +89,10 @@ jobs:
           name: "Release v${{ env.FULL_VER }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      release: true
+    permissions:
+      contents: write
