@@ -16,8 +16,6 @@
 
 #include "gl_volumes.h"
 
-#include <SDL3/SDL_video.h>
-
 #include "gl_volume_functions.h"
 
 namespace z13::raylib {
@@ -25,11 +23,6 @@ namespace z13::raylib {
 namespace {
 
 using z13::building::primitives::CellBox;
-
-template <typename Function>
-Function Load(const char* name) {
-  return reinterpret_cast<Function>(SDL_GL_GetProcAddress(name));
-}
 
 struct TexelFormat {
   GLint internal {};
@@ -62,15 +55,15 @@ void ResetUnpack(const GlVolumeFunctions& gl) {
 
 GlVolumes::GlVolumes() {
   auto functions = std::make_shared<GlVolumeFunctions>();
-  functions->tex_image_3d = Load<PFNGLTEXIMAGE3DPROC>("glTexImage3D");
-  functions->tex_sub_image_3d = Load<PFNGLTEXSUBIMAGE3DPROC>("glTexSubImage3D");
-  functions->active_texture = Load<PFNGLACTIVETEXTUREPROC>("glActiveTexture");
-  functions->gen_textures = Load<decltype(functions->gen_textures)>("glGenTextures");
-  functions->delete_textures = Load<decltype(functions->delete_textures)>("glDeleteTextures");
-  functions->bind_texture = Load<decltype(functions->bind_texture)>("glBindTexture");
-  functions->tex_parameter_i = Load<decltype(functions->tex_parameter_i)>("glTexParameteri");
-  functions->pixel_store_i = Load<decltype(functions->pixel_store_i)>("glPixelStorei");
-  functions->get_integer_v = Load<decltype(functions->get_integer_v)>("glGetIntegerv");
+  functions->tex_image_3d = GlLoad<PFNGLTEXIMAGE3DPROC>("glTexImage3D");
+  functions->tex_sub_image_3d = GlLoad<PFNGLTEXSUBIMAGE3DPROC>("glTexSubImage3D");
+  functions->active_texture = GlLoad<PFNGLACTIVETEXTUREPROC>("glActiveTexture");
+  functions->gen_textures = GlLoad<decltype(functions->gen_textures)>("glGenTextures");
+  functions->delete_textures = GlLoad<decltype(functions->delete_textures)>("glDeleteTextures");
+  functions->bind_texture = GlLoad<decltype(functions->bind_texture)>("glBindTexture");
+  functions->tex_parameter_i = GlLoad<decltype(functions->tex_parameter_i)>("glTexParameteri");
+  functions->pixel_store_i = GlLoad<decltype(functions->pixel_store_i)>("glPixelStorei");
+  functions->get_integer_v = GlLoad<decltype(functions->get_integer_v)>("glGetIntegerv");
   const bool loaded = functions->tex_image_3d && functions->tex_sub_image_3d && functions->active_texture &&
                       functions->gen_textures && functions->delete_textures && functions->bind_texture &&
                       functions->tex_parameter_i && functions->pixel_store_i && functions->get_integer_v;

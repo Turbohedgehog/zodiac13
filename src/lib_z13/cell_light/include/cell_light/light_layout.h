@@ -29,7 +29,7 @@ namespace z13::station::light {
 // a side): a wall through a cube makes a node on each side of it.
 inline constexpr int kNodeCells = 4;
 // Pieces a cube keeps apart; more are joined into the last, which may let light through.
-inline constexpr int kPiecesPerNode = 4;
+inline constexpr int kPiecesPerNode = 3;
 // The label of a cell light doesn't pass; free cells are labelled with their piece.
 inline constexpr uint8_t kOpaqueLabel = 0xFF;
 

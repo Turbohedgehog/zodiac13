@@ -42,6 +42,7 @@ class CellLight::State {
   std::vector<Eigen::Vector4f> Texels(const z13::building::primitives::CellBox& cubes, uint8_t piece,
                                       NodeTexel texel) const;
   std::vector<Lamp> Lamps() const;
+  std::vector<Lamp> ShiningLamps() const;
 
  private:
   // Labels every cube and floods every lamp of a new layout, the blocks kept from `nodes`.

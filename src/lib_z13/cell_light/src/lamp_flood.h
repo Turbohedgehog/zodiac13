@@ -17,7 +17,10 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
+
+#include <Eigen/Dense>
 
 #include <cell_light/lamp.h>
 
@@ -34,6 +37,8 @@ struct Contribution {
 // A lamp and what it adds to each node it reaches, to take back when it changes.
 struct LampState {
   Lamp lamp;
+  // Where its light starts (EmitterOf); nothing while it is walled in.
+  std::optional<Eigen::Vector3f> emitter;
   std::vector<Contribution> contributions;
   // The cubes holding those nodes: an edit elsewhere can't change its light.
   z13::building::primitives::CellBox reached;
@@ -45,9 +50,13 @@ struct FloodMarks {
   uint32_t last_flood {};
 };
 
-// Floods the lamp's light from its node through the linked nodes within its radius. It fades
+// Where the lamp's light starts: its position, or behind it when that lies in a block.
+std::optional<Eigen::Vector3f> EmitterOf(const LightNodes& nodes, const Lamp& lamp);
+
+// Floods the lamp's light from `emitter`'s node through the linked nodes within its radius. It fades
 // as (1 - d²/r²)² with d the longer of the straight distance and the path's (light bending
 // round a wall reaches less far).
-std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, FloodMarks& marks);
+std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, const Eigen::Vector3f& emitter,
+                                    FloodMarks& marks);
 
 }  // namespace z13::station::light

@@ -58,6 +58,10 @@ std::vector<Lamp> CellLight::Lamps() const {
   return state_->Lamps();
 }
 
+std::vector<Lamp> CellLight::ShiningLamps() const {
+  return state_->ShiningLamps();
+}
+
 size_t CellLight::JoinedCubes() const {
   return state_->Nodes().JoinedCubes();
 }

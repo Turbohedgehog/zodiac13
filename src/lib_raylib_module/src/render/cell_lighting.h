@@ -45,8 +45,8 @@ class CellLighting {
   bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
   // Needs the GL context. Fails once when the textures can't be made; the lamps then light nothing.
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
-  // In cells.
-  const std::vector<z13::station::light::Lamp>& Lamps() const;
+  // In cells, where each shines from (CellLight::ShiningLamps).
+  const std::vector<z13::station::light::Lamp>& ShiningLamps() const;
 
   void Upload(const ::Shader& shader, const LightUniforms& uniforms) const;
   // On kCellLabelsUnit and kCellLightUnit (lights.h), for the lighting shader.

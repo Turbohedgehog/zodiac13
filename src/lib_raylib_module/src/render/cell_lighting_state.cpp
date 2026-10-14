@@ -49,8 +49,9 @@ bool BoxBefore(const CellBox& a, const CellBox& b) {
 
 bool LampBefore(const Lamp& a, const Lamp& b) {
   const auto key = [](const Lamp& lamp) {
-    return std::array {lamp.position.x(), lamp.position.y(), lamp.position.z(), lamp.color.x(),
-                       lamp.color.y(),    lamp.color.z(),    lamp.radius};
+    return std::array {lamp.position.x(), lamp.position.y(), lamp.position.z(), lamp.behind.x(),
+                       lamp.behind.y(),   lamp.behind.z(),   lamp.color.x(),    lamp.color.y(),
+                       lamp.color.z(),    lamp.radius};
   };
   return key(a) < key(b);
 }
@@ -104,6 +105,7 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
     palette_hash_ = palette ? std::optional(palette->get().hash) : std::nullopt;
     opaque_ = std::move(opaque);
     lamps_ = std::move(lamps);
+    shining_ = light_->ShiningLamps();
     return Remake();
   }
   const LightEdits edits {
@@ -115,6 +117,7 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   opaque_ = std::move(opaque);
   lamps_ = std::move(lamps);
   const z13::station::light::LightChanges changes = light_->Apply(edits);
+  shining_ = light_->ShiningLamps();
   if (changes.resized) {
     return Remake();
   }

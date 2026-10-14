@@ -38,7 +38,7 @@ class CellLighting::State {
 
   bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
-  const std::vector<z13::station::light::Lamp>& Lamps() const { return lamps_; }
+  const std::vector<z13::station::light::Lamp>& ShiningLamps() const { return shining_; }
 
   void Upload(const ::Shader& shader, const LightUniforms& uniforms) const;
   void Bind() const;
@@ -58,6 +58,7 @@ class CellLighting::State {
   // What the light was built from, sorted, to tell what changed.
   std::vector<z13::building::primitives::CellBox> opaque_;
   std::vector<z13::station::light::Lamp> lamps_;
+  std::vector<z13::station::light::Lamp> shining_;
   std::optional<uint64_t> palette_hash_;
   bool failed_ {};
 };

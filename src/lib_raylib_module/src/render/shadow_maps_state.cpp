@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <optional>
 #include <numbers>
 #include <string_view>
 #include <utility>
@@ -31,6 +32,7 @@
 
 #include "../platform/sdl_platform.h"
 #include "../tools/math_convert.h"
+#include "gl_depth_buffer.h"
 #include "render_resources.h"
 
 namespace z13::raylib {
@@ -211,12 +213,15 @@ Status ShadowMaps::State::ResizeAtlas(int slots, int tile_size) {
   const int tiles = slots * kShadowLayers * kCubeFaces;
   const int columns = static_cast<int>(std::ceil(std::sqrt(static_cast<float>(tiles))));
   const Eigen::Vector2i size = Eigen::Vector2i(columns, (tiles + columns - 1) / columns) * tile_size;
-  atlas_texture_ = rlLoadTexture(nullptr, size.x(), size.y(), RL_PIXELFORMAT_UNCOMPRESSED_R32, 1);
+  // A half float keeps the distance over the radius to a thousandth, well inside the shader's bias.
+  atlas_texture_ = rlLoadTexture(nullptr, size.x(), size.y(), RL_PIXELFORMAT_UNCOMPRESSED_R16, 1);
   atlas_framebuffer_ = rlLoadFramebuffer();
-  rlFramebufferAttach(atlas_framebuffer_, rlLoadTextureDepth(size.x(), size.y(), true), RL_ATTACHMENT_DEPTH,
-                      RL_ATTACHMENT_RENDERBUFFER, 0);
+  const std::optional<unsigned int> depth = CreateDepth16Buffer(size);
+  if (depth) {
+    rlFramebufferAttach(atlas_framebuffer_, *depth, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
+  }
   rlFramebufferAttach(atlas_framebuffer_, atlas_texture_, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
-  if (atlas_texture_ == 0 || !rlFramebufferComplete(atlas_framebuffer_)) {
+  if (atlas_texture_ == 0 || !depth || !rlFramebufferComplete(atlas_framebuffer_)) {
     ReleaseAtlas();
     failed_atlas_ = Eigen::Vector2i(slots, tile_size);
     return std::unexpected(std::format("can't make a shadow atlas of {} x {} px", size.x(), size.y()));

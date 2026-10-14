@@ -28,6 +28,7 @@ Lamp LampOf(const z13::building::primitives::PointLight& light) {
   const auto& color = light.source.color;
   return {
       .position = light.position,
+      .behind = light.behind,
       .color = Eigen::Vector3f(color[0], color[1], color[2]) * (light.source.intensity / kChannelMax),
       .radius = static_cast<float>(light.source.radius_cells),
   };

@@ -592,7 +592,7 @@ std::vector<FrameLight> PlayerShadowLamps(const CellLighting& lighting, std::spa
                          [](const MovingCaster& player) { return player.box.center(); });
   const float cell = z13::station::kCellSize;
   std::vector<std::pair<float, size_t>> near;
-  const std::vector<z13::station::light::Lamp>& lamps = lighting.Lamps();
+  const std::vector<z13::station::light::Lamp>& lamps = lighting.ShiningLamps();
   for (size_t i = 0; i < lamps.size(); ++i) {
     const Eigen::Vector3f& position = lamps[i].position;
     const float radius = lamps[i].radius * cell;

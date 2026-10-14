@@ -35,8 +35,18 @@ struct QueuedNode {
 
 }  // namespace
 
-std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, FloodMarks& marks) {
-  const auto seed = nodes.NodeAt(lamp.position.array().floor().cast<int>());
+std::optional<Eigen::Vector3f> EmitterOf(const LightNodes& nodes, const Lamp& lamp) {
+  for (const Eigen::Vector3f& side : {lamp.position, lamp.behind}) {
+    if (nodes.NodeAt(side.array().floor().cast<int>())) {
+      return side;
+    }
+  }
+  return std::nullopt;
+}
+
+std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, const Eigen::Vector3f& emitter,
+                                    FloodMarks& marks) {
+  const auto seed = nodes.NodeAt(emitter.array().floor().cast<int>());
   if (!seed || lamp.radius <= 0.f) {
     return {};
   }
@@ -49,9 +59,9 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, F
   for (size_t head = 0; head < queue.size(); ++head) {
     const QueuedNode current = queue[head];
     const Eigen::Vector3f& centre = nodes.Centre(current.node);
-    const float dx = centre.x() - lamp.position.x();
-    const float dy = centre.y() - lamp.position.y();
-    const float dz = centre.z() - lamp.position.z();
+    const float dx = centre.x() - emitter.x();
+    const float dy = centre.y() - emitter.y();
+    const float dz = centre.z() - emitter.z();
     const float straight = std::sqrt((dx * dx) + (dy * dy) + (dz * dz));
     const float path = static_cast<float>(current.steps * kNodeCells) * kPathShortening;
     const float distance = std::max(straight, path);

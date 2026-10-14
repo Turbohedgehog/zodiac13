@@ -88,9 +88,15 @@ const int kBlocksLayer = 0;
 const int kPlayersLayer = 1;
 // light_layout.h: a node spans kNodeCells cells a side, a cube keeps kPieces pieces apart.
 const int kNodeCells = 4;
-const int kPieces = 4;
+const int kPieces = 3;
 // The share of baked light a face turned away from its lamps still gets.
 const float kBakedFloor = 0.35;
+// Meters the baked light's sample moves toward the viewer: a pixel on a seam rasterized a hair
+// inside the wall comes back out to the side it is seen from.
+const float kSeamNudge = 0.005;
+// A slope's face lies inside its block's opaque box: its light is sought this many cells along
+// the normal, and taken unchecked for walls if none is free there (a flight of slopes).
+const int kSurfaceSteps = kNodeCells;
 
 // shadow_maps_state.cpp: kCubeFaceViews, the way each face looks and its up.
 const vec3 kFaceForward[CUBE_FACES] = vec3[](vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 1, 0), vec3(0, -1, 0),
@@ -178,10 +184,23 @@ int ClusterOf(vec3 position)
 // a wall in the point's cube, between the point and the neighbour.
 vec3 CellLight(vec3 point, vec3 normal)
 {
-    ivec3 cell = ivec3(floor(point)) - cellOrigin;
-    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
+    vec3 surface = point;
+    ivec3 cell;
+    uint ownPiece = uint(kPieces);
+    for (int step = 0; step <= kSurfaceSteps && ownPiece >= uint(kPieces); step++)
+    {
+        point = surface + normal*float(step);
+        cell = ivec3(floor(point)) - cellOrigin;
+        if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) break;
+        ownPiece = texelFetch(cellLabels, cell, 0).r;
+    }
+    if (ownPiece >= uint(kPieces))
+    {
+        point = surface;
+        cell = ivec3(floor(point)) - cellOrigin;
+        if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
+    }
     ivec3 ownCube = cell/kNodeCells;
-    uint ownPiece = texelFetch(cellLabels, cell, 0).r;
     vec3 cubePoint = (point - vec3(cellOrigin))/float(kNodeCells) - 0.5;
     ivec3 base = ivec3(floor(cubePoint));
     vec3 along = cubePoint - vec3(base);
@@ -263,7 +282,7 @@ void main()
     vec3 toView = normalize(viewPos - fragPosition);
     vec3 offset = fragPosition + normal*kNormalOffset;
     // In the free cell the face looks into: a wall between two rooms shows each its own side.
-    vec3 facing = fragPosition + normal*cellSize*0.5;
+    vec3 facing = fragPosition + normal*cellSize*0.5 + toView*kSeamNudge;
     vec3 light = vec3(0.0);
     if (cellLightEnabled == 1)
     {

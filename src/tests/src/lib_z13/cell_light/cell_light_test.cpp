@@ -89,6 +89,18 @@ void ExpectSameLight(const CellLight& actual, const CellLight& expected) {
   }
 }
 
+// A lamp block on the floor, its light half a cell below it in the floor slab.
+TEST(CellLightTest, ALampOnTheFloorLightsTheRoomAboveIt) {
+  const CellBox lamp_block {.min = {10, 8, 1}, .extent = {2, 2, 1}};
+  const Lamp on_floor {
+      .position = {11.f, 9.f, 0.5f}, .behind = {11.f, 9.f, 2.5f}, .color = Eigen::Vector3f::Ones(), .radius = kRadius};
+  const CellLight light(With(Hall(), {lamp_block}), std::vector {on_floor});
+
+  EXPECT_GT(LightOf(light, kCellInA).minCoeff(), 0.f);
+  EXPECT_GT(LightOf(light, kCellInB).minCoeff(), 0.f);
+  EXPECT_EQ(LightOf(light, {10, 8, -1}), Eigen::Vector3f::Zero()) << "under the floor";
+}
+
 TEST(CellLightTest, AWallStopsTheLight) {
   const CellLight light(With(Hall(), {Partition(20)}), std::vector {kLampInA});
 

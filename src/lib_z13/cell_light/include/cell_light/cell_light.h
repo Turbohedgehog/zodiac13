@@ -56,6 +56,8 @@ class CellLight {
   std::vector<Eigen::Vector4f> Texels(const z13::building::primitives::CellBox& cubes, uint8_t piece,
                                       NodeTexel texel) const;
   std::vector<Lamp> Lamps() const;
+  // The lamps whose light gets out, each placed where it shines from (EmitterOf).
+  std::vector<Lamp> ShiningLamps() const;
   size_t JoinedCubes() const;
 
  private:

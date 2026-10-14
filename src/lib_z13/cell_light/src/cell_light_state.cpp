@@ -196,7 +196,8 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
 }
 
 void CellLight::State::Flood(LampState& lamp) {
-  lamp.contributions = FloodLamp(nodes_, lamp.lamp, marks_);
+  lamp.emitter = EmitterOf(nodes_, lamp.lamp);
+  lamp.contributions = lamp.emitter ? FloodLamp(nodes_, lamp.lamp, *lamp.emitter, marks_) : std::vector<Contribution> {};
   std::array low {INT_MAX, INT_MAX, INT_MAX};
   std::array high {INT_MIN, INT_MIN, INT_MIN};
   for (const Contribution& reached : lamp.contributions) {
@@ -219,7 +220,10 @@ void CellLight::State::TakeBack(const LampState& lamp, const CellBox& kept_cubes
 
 void CellLight::State::Add(const LampState& lamp, float sign, const CellBox& kept_cubes) {
   const Eigen::Vector3f& color = lamp.lamp.color;
-  const Eigen::Vector3f& position = lamp.lamp.position;
+  if (!lamp.emitter) {
+    return;
+  }
+  const Eigen::Vector3f& position = *lamp.emitter;
   const float luminance = color.mean();
   const bool keeps = (kept_cubes.extent.array() > 0).all();
   for (const Contribution& reached : lamp.contributions) {
@@ -302,6 +306,17 @@ std::vector<Eigen::Vector4f> CellLight::State::Texels(const CellBox& cubes, uint
 std::vector<Lamp> CellLight::State::Lamps() const {
   std::vector<Lamp> lamps;
   std::ranges::transform(lamps_, std::back_inserter(lamps), &LampState::lamp);
+  return lamps;
+}
+
+std::vector<Lamp> CellLight::State::ShiningLamps() const {
+  std::vector<Lamp> lamps;
+  for (const LampState& lamp : lamps_) {
+    if (lamp.emitter) {
+      lamps.push_back(lamp.lamp);
+      lamps.back().position = *lamp.emitter;
+    }
+  }
   return lamps;
 }
 

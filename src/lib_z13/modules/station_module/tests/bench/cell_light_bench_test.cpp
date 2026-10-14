@@ -33,7 +33,6 @@
 #include <primitives/draw_order.h>
 #include <primitives/lights.h>
 #include <primitives/placement.h>
-#include <primitives/station_assets.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/block.h>
 
@@ -76,7 +75,7 @@ void TimePanel(light::CellLight& cell_light, const std::string& label, const Eig
 
 TEST(CellLightBench, DISABLED_FloodAndEdit) {
   const primitives::Palette palette = ShippedPalette().value();
-  for (const std::string& scene : primitives::BlueprintScenes(SourceAsset({}))) {
+  for (const std::string& scene : ShippedScenes()) {
     const auto blocks = ShippedBlueprint(scene, palette);
     ASSERT_TRUE(blocks.has_value()) << blocks.error();
     std::vector<primitives::CellBox> opaque;

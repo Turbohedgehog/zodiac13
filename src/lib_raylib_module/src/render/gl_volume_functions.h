@@ -16,10 +16,18 @@
 
 #pragma once
 
-// Only for gl_volumes.cpp: SDL's GL headers bring in windows.h, whose names clash with raylib's.
+// Only for the .cpp files calling OpenGL directly: SDL's GL headers bring in windows.h, whose
+// names clash with raylib's.
 #include <SDL3/SDL_opengl.h>
+#include <SDL3/SDL_video.h>
 
 namespace z13::raylib {
+
+// An entry point of the current context.
+template <typename Function>
+Function GlLoad(const char* name) {
+  return reinterpret_cast<Function>(SDL_GL_GetProcAddress(name));
+}
 
 // The OpenGL entry points 3D textures need, from SDL_GL_GetProcAddress.
 struct GlVolumeFunctions {

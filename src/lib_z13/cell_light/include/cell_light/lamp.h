@@ -25,6 +25,8 @@ namespace z13::station::light {
 // A lamp as the cell light takes it, in cells.
 struct Lamp {
   Eigen::Vector3f position = Eigen::Vector3f::Zero();
+  // PointLight::behind.
+  Eigen::Vector3f behind = Eigen::Vector3f::Zero();
   // In 0..1 per channel, scaled by the intensity.
   Eigen::Vector3f color = Eigen::Vector3f::Zero();
   float radius {};

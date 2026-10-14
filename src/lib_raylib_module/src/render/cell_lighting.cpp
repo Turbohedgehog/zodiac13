@@ -34,8 +34,8 @@ Status CellLighting::Sync(std::span<const z13::station::Block> blocks,
   return state_->Sync(blocks, palette);
 }
 
-const std::vector<z13::station::light::Lamp>& CellLighting::Lamps() const {
-  return state_->Lamps();
+const std::vector<z13::station::light::Lamp>& CellLighting::ShiningLamps() const {
+  return state_->ShiningLamps();
 }
 
 void CellLighting::Upload(const ::Shader& shader, const LightUniforms& uniforms) const {
