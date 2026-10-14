@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from make import default_jobs
+
 ROOT = Path(__file__).resolve().parent
 # make.py's Debug and Release layouts: (build directory, binaries).
 DEBUG_DIRS = (ROOT / "build", ROOT / "bin")
@@ -56,7 +58,7 @@ def main() -> int:
     if options.filter:
       return run([executable(test_runner.parent, test_runner.name), f"--gtest_filter={options.filter}", *extra],
                  test_runner.parent)
-    return run(["ctest", "--test-dir", build_dir, "--output-on-failure", *extra], ROOT)
+    return run(["ctest", "--test-dir", build_dir, "--output-on-failure", "--parallel", str(default_jobs()), *extra], ROOT)
   if options.bench:
     return run([executable(test_runner.parent, test_runner.name), "--gtest_also_run_disabled_tests",
                 f"--gtest_filter={options.filter or DEFAULT_BENCH_FILTER}", *extra], test_runner.parent)

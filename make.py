@@ -60,7 +60,8 @@ def build(build_type: BuildType, bench: bool = False, profile: bool = False, job
   os.system(generate_build_command(build_type, bench, profile, jobs))
 
 def run_tests(build_type: BuildType):
-  cmd = f'ctest --test-dir "{LAYOUTS[build_type].build_dir}" -C {build_type.value} --output-on-failure'
+  cmd = (f'ctest --test-dir "{LAYOUTS[build_type].build_dir}" -C {build_type.value} --output-on-failure '
+         f'--parallel {default_jobs()}')
   os.system(cmd)
 
 def main():
