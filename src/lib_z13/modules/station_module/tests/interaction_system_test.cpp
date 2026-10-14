@@ -31,15 +31,13 @@
 #include <net_module/in_memory_transport.h>
 
 #include <z13/components/block.h>
-#include <z13/components/block_brush.h>
 #include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
 #include <z13/components/interaction.h>
 #include <z13/components/player.h>
 #include <z13/components/switch.h>
 #include <z13_module/gameplay/camera_look.h>
+#include <primitives/placement.h>
 #include <z13_settings/physics_tuning.h>
-#include <z13_settings/settings.h>
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -198,12 +196,6 @@ std::string Checkpoint(Z13TestWorld& test_world) {
   return z13::testing::WithNormalizedSimulationTick(json.value_or(""));
 }
 
-size_t SlotOf(std::string_view primitive) {
-  const auto& primitives = z13::testing::ShippedPalette()->primitives;
-  return static_cast<size_t>(std::ranges::distance(
-      primitives.begin(), std::ranges::find(primitives, primitive, &z13::building::primitives::Primitive::name)));
-}
-
 std::vector<bool> SwitchesOn(Z13TestWorld& test_world) {
   std::vector<bool> on;
   test_world.World().query_builder<const Block>().build().each([&](flecs::entity block, const Block& spec) {
@@ -214,14 +206,26 @@ std::vector<bool> SwitchesOn(Z13TestWorld& test_world) {
   return on;
 }
 
-// The client builds a switch where its brush points, 5 m ahead, and uses it from there.
+// The server places a switch ahead of the spawn before the client joins, on its side so it
+// spans the cell boundary that the spawn's eye sits on.
+Block SwitchAheadOfTheSpawn() {
+  const Eigen::Vector3i lowest {kSwitchCellsAhead, -1, 5};
+  Block block {.spec = {.type_id = testing::IdOf(kSwitch),
+                         .size = kSwitchSize,
+                         .orientation = Orientation::kFacePosXUpPosY}};
+  block.cell = lowest - z13::building::primitives::OccupiedCells(block).min;
+  return block;
+}
+
 TEST(InteractionNetTest, AClientsUseTurnsTheSwitchOnForEveryone) {
-  constexpr float kPastTheBrush = 6.f;
-  constexpr int kLookAsideDelta = 7;
   const auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  z13::Settings settings = z13::MakeSettings();
-  settings.building->use_reach_distance = kPastTheBrush;
-  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network, settings);
+  Z13TestWorld server(z13::testing::WithServerArg(z13::testing::SiteArgs()), network);
+  // After the site scene is filled, which replaces whatever blocks came before it.
+  for (uint64_t tick = 0; tick < kSettleTicks; ++tick) {
+    server.Tick();
+  }
+  testing::AddBlock(server, SwitchAheadOfTheSpawn());
+  ASSERT_EQ(SwitchesOn(server), std::vector {false});
   Z13TestWorld client(
       {std::string(z13::testing::kConnectArg), std::string(z13::testing::kTestServerEndpoint)}, network);
   const auto all = [&](uint64_t ticks) {
@@ -232,26 +236,10 @@ TEST(InteractionNetTest, AClientsUseTurnsTheSwitchOnForEveryone) {
       *network, {server, client}, z13::testing::kNetTestDeltaTime, z13::testing::kMaxNetTestTicks, [&] {
         return client.World().has<z13::gameplay::Gameplay>() && client.World().count<z13::gameplay::Player>() == 2;
       }));
-  const auto step = [&] { all(1); };
   all(kFallTicks);
-  // Turned a little: facing straight along +X from the spawn, the ray would graze a cell boundary
-  // and miss a switch one cell wide.
-  z13::input::MouseMoveEvent look_aside;
-  look_aside.delta = {.x = kLookAsideDelta, .y = 0};
-  client.EmitInput(look_aside);
-  all(kSettleTicks);
+  ASSERT_EQ(SwitchesOn(client), std::vector {false});
 
-  z13::testing::Tap(client, Keycode::KEY_TAB, step);
-  all(kSettleTicks);
-  client.World().set(PaletteChoice {.slot = SlotOf(kSwitch)});
-  all(kSettleTicks);
-  z13::testing::Click(client, Keycode::MOUSE_BUTTON_LEFT, step);
-  all(kSettleTicks);
-  z13::testing::Tap(client, Keycode::KEY_TAB, step);
-  all(kSettleTicks);
-  ASSERT_EQ(SwitchesOn(server), std::vector {false});
-
-  z13::testing::Tap(client, kUseKey, step);
+  z13::testing::Tap(client, kUseKey, [&] { all(1); });
   all(kSettleTicks);
   EXPECT_EQ(SwitchesOn(server), std::vector {true});
   EXPECT_EQ(SwitchesOn(client), std::vector {true});
