@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <format>
 #include <string>
 #include <vector>
 
@@ -26,9 +27,8 @@
 namespace z13 {
 namespace {
 
-constexpr std::string_view kRootName = "z13_asset_source_test";
-
-// A root with assets/ (two files in a subdirectory, listed out of order) and config/.
+// A root with assets/ (two files in a subdirectory, listed out of order) and config/, one per
+// test: ctest runs the tests side by side.
 class AssetSourceTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -39,7 +39,9 @@ class AssetSourceTest : public ::testing::Test {
   }
   void TearDown() override { std::filesystem::remove_all(root_); }
 
-  const std::filesystem::path root_ = std::filesystem::temp_directory_path() / kRootName;
+  const std::filesystem::path root_ =
+      std::filesystem::temp_directory_path() /
+      std::format("z13_asset_source_{}", ::testing::UnitTest::GetInstance()->current_test_info()->name());
 };
 
 TEST_F(AssetSourceTest, ReadsAssetsAndConfigByteForByte) {
