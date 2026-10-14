@@ -30,6 +30,7 @@
 #include <lib_core/utils/frustum.h>
 #include <lib_profile/profile.h>
 
+#include "../platform/gl_info.h"
 #include "../platform/sdl_platform.h"
 #include "../tools/math_convert.h"
 #include "gl_depth_buffer.h"
@@ -184,6 +185,23 @@ ShadowMaps::State::~State() {
   return material;
 }
 
+ShadowHealth ShadowMaps::State::Health() const {
+  return {
+      .lamp_slots = slots_.size(),
+      .atlas_failed = failed_atlas_.has_value(),
+      .gl_errors = gl_errors_,
+      .last_gl_error = last_gl_error_,
+  };
+}
+
+void ShadowMaps::State::CountGlErrors() {
+  const std::vector<unsigned int> errors = TakeGlErrors();
+  gl_errors_ += static_cast<uint32_t>(errors.size());
+  if (!errors.empty()) {
+    last_gl_error_ = errors.back();
+  }
+}
+
 void ShadowMaps::State::ReleaseAtlas() {
   // Unloading the framebuffer frees its depth buffer too.
   if (atlas_framebuffer_ != 0) {
@@ -308,6 +326,7 @@ void ShadowMaps::State::DrawFaces(
   }
   rlDisableScissorTest();
   EndShadowPass();
+  CountGlErrors();
 }
 
 Status ShadowMaps::State::UpdateLamps(
@@ -469,6 +488,7 @@ void ShadowMaps::State::DrawDirectional(const DirectionalShadow& shadow, const S
     rlDisableScissorTest();
   }
   EndShadowPass();
+  CountGlErrors();
 }
 
 void ShadowMaps::State::Bind() const {

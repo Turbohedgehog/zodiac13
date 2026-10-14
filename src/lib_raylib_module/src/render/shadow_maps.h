@@ -59,6 +59,14 @@ struct ShadowCasters {
 
 enum class DirectionalMap : uint8_t { kSun, kFill };
 
+// For the pause menu's diagnostics, beside GlInfo: a phone has no log to read.
+struct ShadowHealth {
+  size_t lamp_slots {};
+  bool atlas_failed {};
+  uint32_t gl_errors {};
+  std::optional<unsigned int> last_gl_error;
+};
+
 // The lamps' shadows, a cube of tiles each in one atlas, and the depth maps of the sun and
 // the fill over the station, each redrawn only when what it shows changed. Singleton exempt
 // from the "no pointers" rule (see CLAUDE.md); never state.
@@ -74,6 +82,7 @@ class ShadowMaps {
   // blocks, the rest wait. Fails once if the atlas can't be made.
   Status UpdateLamps(std::span<FrameLight> lights, const ShadowCasters& casters, const z13::RenderTuning& tuning);
   ShadowAtlasLayout AtlasLayout() const;
+  ShadowHealth Health() const;
 
   // The map's view-projection, for the lighting shader; nothing without blocks.
   std::optional<Eigen::Matrix4f> UpdateDirectional(DirectionalMap map, const Eigen::Vector3f& direction,

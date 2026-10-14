@@ -92,6 +92,7 @@ class ShadowMaps::State {
 
   Status UpdateLamps(std::span<FrameLight> lights, const ShadowCasters& casters, const z13::RenderTuning& tuning);
   ShadowAtlasLayout AtlasLayout() const { return layout_; }
+  ShadowHealth Health() const;
   std::optional<Eigen::Matrix4f> UpdateDirectional(DirectionalMap map, const Eigen::Vector3f& direction,
                                                    const ShadowCasters& casters, const z13::RenderTuning& tuning);
   void Bind() const;
@@ -99,6 +100,7 @@ class ShadowMaps::State {
  private:
   Status ResizeAtlas(int slots, int tile_size);
   void ReleaseAtlas();
+  void CountGlErrors();
   // The slot each of `lights` keeps or takes; nothing for those past `new_slots` new ones.
   std::vector<std::optional<size_t>> AssignSlots(std::span<const FrameLight> lights, int new_slots) const;
   // The block faces of a kept slot to redraw, and the blocks' version they then show.
@@ -125,6 +127,9 @@ class ShadowMaps::State {
   std::vector<std::optional<SlotView>> slots_;
   // The slot count and tile size the atlas failed at, so it isn't retried every frame.
   std::optional<Eigen::Vector2i> failed_atlas_;
+  // GL errors after the shadow passes, for ShadowHealth.
+  uint32_t gl_errors_ {};
+  std::optional<unsigned int> last_gl_error_;
 
   std::array<DirectionalShadow, 2> directional_;
 };

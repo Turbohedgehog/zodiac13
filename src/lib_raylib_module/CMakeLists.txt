@@ -23,11 +23,13 @@ set(
   src/gui/main_menu_window.cpp
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp
+  src/gui/render_diagnostics.cpp
   src/gui/room_label.cpp
   src/gui/start_game_window.cpp
   src/gui/start_server_window.cpp
   src/gui/stats_overlay.cpp
   src/gui/touch_hud.cpp
+  src/platform/gl_info.cpp
   src/platform/sdl_platform.cpp
   src/raylib_module.cpp
   src/raylib_module_factory.cpp
