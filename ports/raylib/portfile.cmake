@@ -54,6 +54,11 @@ foreach(header IN LISTS vendored_headers vendored_audio_headers)
     endif()
 endforeach()
 
+# zodiac13: the SDL platform needs no GLFW, so raylib.pc mustn't require it either.
+vcpkg_replace_string("${SOURCE_PATH}/cmake/GlfwImport.cmake"
+    [[elseif("${PLATFORM}" STREQUAL "DRM")]]
+    [[elseif("${PLATFORM}" MATCHES "^(DRM|SDL)$")]])
+
 set(PLATFORM_OPTIONS "")
 # zodiac13: on Android the SDL platform with GLES 3.0 (docs/android-plan.md), not raylib's
 # own, whose android_main would take over the app's entry point.
