@@ -33,6 +33,13 @@ namespace z13::raylib {
 
 namespace {
 
+#if defined(__ANDROID__)
+// The whole screen, the system bars hidden (SDL's immersive mode).
+constexpr SDL_WindowFlags kPlatformWindowFlags = SDL_WINDOW_FULLSCREEN;
+#else
+constexpr SDL_WindowFlags kPlatformWindowFlags = SDL_WINDOW_RESIZABLE;
+#endif
+
 // Must stay global: render_components.h's GPU-resource RAII wrappers can be
 // destructed from anywhere, with no SdlPlatform instance reachable to ask.
 bool gl_context_alive = false;
@@ -102,7 +109,7 @@ bool SdlPlatform::Init(int width, int height, std::string_view title) {
 
   const Eigen::Vector2i size = InitialSize({width, height});
   SDL_Window* window = SDL_CreateWindow(std::string(title).c_str(), size.x(), size.y(),
-                                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+                                        SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY | kPlatformWindowFlags);
   if (window == nullptr) {
     spdlog::error("[sdl] SDL_CreateWindow: {}", SDL_GetError());
     return false;
