@@ -77,6 +77,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 ## Working in this repo
 
 - Some files are CRLF on purpose (e.g. `vcpkg.json`): edit them with the Edit tool, or as bytes / with `newline=''` in a script; a text-mode rewrite turns them into a whole-file diff.
+- Gameplay mechanics follow Space Station 13, reworked and simplified (`docs/ss13-reference.md`): a gameplay decision says how SS13 does it and why ours differs, and each new difference gets a line there. Only mechanics are taken — never code, art, sounds or texts from SS13 codebases (AGPL / CC BY-SA).
 - The player's experience comes first: every action the player performs is registered and reaches the simulation, never dropped, held back or collapsed into its last value (a resync, rollback or lag included; input the pause menu swallows is not a gameplay action). When a network or performance mechanism would cost input, change the mechanism, not the input (see `AdoptCatchUp`, which merges own input a Resync lacks).
 - Render-side mechanisms (smoothing, effects) work for every rendered entity with the relevant component, keyed per entity in a side table — not special-cased for today's brush or camera; more meshes and animations are coming.
 - Pre-alpha: changing the save/snapshot format needs no migration of player data; only regenerate saves checked into the repo or tests.
