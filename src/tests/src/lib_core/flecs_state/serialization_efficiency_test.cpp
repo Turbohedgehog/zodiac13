@@ -77,7 +77,8 @@ std::int64_t BestNs(const Op& op, std::size_t& sink, int ops, int samples) {
     for (int i = 0; i < ops; ++i) {
       sink += op();
     }
-    const auto ns =
+    // nanoseconds::rep is long long in libc++, not int64_t's long.
+    const std::int64_t ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count();
     if (sample > 0) {
       best = std::min(best, ns);

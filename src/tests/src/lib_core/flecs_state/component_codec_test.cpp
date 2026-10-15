@@ -15,11 +15,18 @@
 #include <lib_core/state/component_meta.h>
 #include <lib_core/state/world_serializer.h>
 
+// Named, unlike the rest here: flecs under clang reads an anonymous namespace's enum
+// constants as invalid casts (see CLAUDE.md, "Flecs components").
+namespace z13::codec_test {
+
+enum class Mood : int32_t { kCalm, kAngry };
+
+}  // namespace z13::codec_test
+
 namespace {
 
 namespace ft = z13::flecs_tools;
-
-enum class Mood : int32_t { kCalm, kAngry };
+using z13::codec_test::Mood;
 
 struct Everything {
   bool flag {};

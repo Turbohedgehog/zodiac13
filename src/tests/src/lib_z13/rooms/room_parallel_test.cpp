@@ -16,7 +16,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstddef>
 #include <string>
 
 #include <lib_core/utils/thread_pool.h>
@@ -29,8 +28,6 @@
 // The room build on a thread pool gives the graph it gives in one thread (f/rooms-parallel).
 namespace z13::station::rooms {
 namespace {
-
-constexpr size_t kThreads = 4;
 
 void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const std::string& scene) {
   EXPECT_EQ(actual.rooms, expected.rooms) << scene;
@@ -53,7 +50,7 @@ void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const s
 TEST(RoomParallelTest, TheTestStationBuildsAsInOneThread) {
   const auto palette = z13::testing::ShippedPalette();
   ASSERT_TRUE(palette.has_value()) << palette.error();
-  const ThreadPool pool(kThreads);
+  const ThreadPool pool(z13::testing::kPoolThreads);
   const std::string scene(z13::testing::kTestScene);
   const auto blocks = z13::testing::ShippedBlueprint(scene, *palette);
   ASSERT_TRUE(blocks.has_value()) << blocks.error();

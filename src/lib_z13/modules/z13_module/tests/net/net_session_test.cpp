@@ -707,7 +707,8 @@ TEST(NetSessionTest, ALateBurstOfAnAbsoluteActionStaysInTheWindow) {
 }
 
 TEST(NetSessionTest, LargeSnapshotArrivesWhole) {
-  constexpr int kBlockCount = 5000;
+  // Many entities, not a byte size: the in-memory transport doesn't split messages. 5000 took 15 s.
+  constexpr int kBlockCount = 1000;
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
   for (int i = 0; i < kBlockCount; ++i) {
