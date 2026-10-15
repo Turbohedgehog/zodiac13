@@ -71,7 +71,7 @@ target_include_directories(
   ${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -128,7 +128,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # raylib_module.dll; the exe loads it with LOAD_WITH_ALTERED_SEARCH_PATH, so the
 # whole chain resolves from bin/modules/raylib/.
 
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/)
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/)
 
 install(TARGETS ${PROJECT_NAME}
         EXPORT ${PROJECT_NAME}Targets
@@ -140,5 +140,5 @@ install(TARGETS ${PROJECT_NAME}
 install(EXPORT ${PROJECT_NAME}Targets
         FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
         NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
+        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
 )
