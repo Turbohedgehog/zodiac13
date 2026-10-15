@@ -33,12 +33,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0  # the commit count is the patch number
 
-      # The patch is the commit count, as in android.yml: every build of a commit shares its number.
+      # The patch is main's commit count up to the build's base, as in android.yml.
       - name: Read version from file
         shell: bash
         run: |
           BASE_VER=$(tr -d '[:space:]' < version.txt)
-          PATCH=$(git rev-list --count HEAD)
+          PATCH=$(git rev-list --count "$(git merge-base HEAD origin/main)")
           echo "BASE_VER=$BASE_VER" >> "$GITHUB_ENV"
           echo "PATCH=$PATCH" >> "$GITHUB_ENV"
           echo "FULL_VER=$BASE_VER.$PATCH" >> "$GITHUB_ENV"
