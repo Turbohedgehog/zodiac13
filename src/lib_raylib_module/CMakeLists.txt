@@ -13,6 +13,7 @@ find_package(assimp CONFIG REQUIRED)
 
 set(
   PROJECT_SOURCE_FILES
+  src/gui/build_info.cpp
   src/gui/game_scenes.cpp
   src/gui/gui_keybindings.cpp
   src/gui/gui_system.cpp
