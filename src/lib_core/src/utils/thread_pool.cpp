@@ -31,7 +31,7 @@ constexpr int kNotAWorker = -1;
 
 ThreadPool::ThreadPool() = default;
 
-ThreadPool::ThreadPool(size_t threads) {
+ThreadPool::ThreadPool(size_t threads, size_t min_parallel_count) : min_parallel_count_(min_parallel_count) {
   if (threads > 1) {
     state_ = std::make_shared<ThreadPoolState>(threads);
   }
@@ -42,7 +42,7 @@ size_t ThreadPool::Threads() const {
 }
 
 void ThreadPool::ForEachIndex(size_t count, const std::function<void(size_t)>& body) const {
-  if (!state_ || count < 2) {
+  if (!state_ || count < min_parallel_count_) {
     for (size_t index = 0; index < count; ++index) {
       body(index);
     }

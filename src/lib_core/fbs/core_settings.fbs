@@ -34,6 +34,9 @@ table CoreSettings {
   // The process's ThreadPool. 1 runs parallel work on the caller (determinism checks); a server
   // on a phone may want fewer, as it heats up.
   threads: uint32 = 4 (min: 1, max: 64, cli);
+  // Fewer indices than this run on the caller: waking the pool costs more than the few it would
+  // share out (a station edit's handful of chunks; RoomEditBench).
+  min_parallel_count: uint32 = 64 (min: 2, max: 1000000, cli);
 }
 
 root_type CoreSettings;

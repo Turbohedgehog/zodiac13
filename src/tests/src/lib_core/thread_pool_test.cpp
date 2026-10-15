@@ -59,6 +59,16 @@ TEST(ThreadPoolTest, OneThreadRunsOnTheCaller) {
   }
 }
 
+TEST(ThreadPoolTest, ALoopBelowTheMinimumRunsOnTheCaller) {
+  constexpr size_t kMinParallelCount = 10;
+  const ThreadPool pool(kThreadCounts.back(), kMinParallelCount);
+  std::vector<std::thread::id> runners(kMinParallelCount - 1);
+  pool.ForEachIndex(runners.size(), [&runners](size_t index) { runners[index] = std::this_thread::get_id(); });
+  for (const std::thread::id runner : runners) {
+    EXPECT_EQ(runner, std::this_thread::get_id());
+  }
+}
+
 TEST(ThreadPoolTest, ANestedCallReturns) {
   const ThreadPool pool(kThreadCounts.back());
   std::atomic<size_t> runs {};

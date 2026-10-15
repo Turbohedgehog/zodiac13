@@ -33,12 +33,16 @@ class ThreadPool {
   // Rebuilt, never saved: the shared_ptr pImpl exemption of CLAUDE.md.
   using Singleton = void;
 
+  // Every loop of at least two indices goes to the pool unless `min_parallel_count` says more.
+  static constexpr size_t kMinParallelCount = 2;
+
   ThreadPool();
-  explicit ThreadPool(size_t threads);
+  explicit ThreadPool(size_t threads, size_t min_parallel_count = kMinParallelCount);
 
   size_t Threads() const;
 
-  // Runs body(index) once for every index in [0, count) and returns when all have run.
+  // Runs body(index) once for every index in [0, count) and returns when all have run; on the
+  // caller when count is below the minimum.
   // A body may call it again: the nested call works on the calling worker instead of blocking it.
   void ForEachIndex(size_t count, const std::function<void(size_t)>& body) const;
 
@@ -46,6 +50,7 @@ class ThreadPool {
 
  private:
   std::shared_ptr<ThreadPoolState> state_;
+  size_t min_parallel_count_ {kMinParallelCount};
 };
 
 }  // namespace z13
