@@ -152,8 +152,8 @@ jobs:
           reference=dumps/state-dump-x64-linux/state-dump.txt
           status=0
           dumps=(dumps/*/state-dump.txt)
-          if [ "${#dumps[@]}" -ne 3 ]; then
-            echo "::error::expected a dump from each of the 3 platforms, got ${#dumps[@]}"
+          if [ "${#dumps[@]}" -ne 4 ]; then
+            echo "::error::expected a dump from each of the 4 platforms, got ${#dumps[@]}"
             status=1
           fi
           for dump in "${dumps[@]}"; do
