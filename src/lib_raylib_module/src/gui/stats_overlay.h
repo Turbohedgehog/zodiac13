@@ -33,8 +33,8 @@ namespace z13::raylib::gui {
 inline constexpr ImGuiKey kStatsOverlayKey = ImGuiKey_F3;
 inline constexpr ImGuiKey kRoomOverlayKey = ImGuiKey_F4;
 
-// Frame rate and what the renderer drew, in a corner of the screen; F3 shows and hides it.
-// Singleton; never state.
+// The frame rate in the top-left corner, unfolded into what the renderer drew by F3 or a tap
+// (TouchControls::stats_shown). Singleton; never state.
 class StatsOverlay {
  public:
   using Singleton = void;
@@ -46,8 +46,7 @@ class StatsOverlay {
   // Called once per drawn frame, shown or not, so the first figures shown are current.
   void CountFrame(Clock::time_point now);
 
-  // Returns where the next overlay starts.
-  float Draw(const RenderStats* render, float top, OverlayInput input) const;
+  OverlayPlacement Draw(const RenderStats* render, float top, OverlayInput input, bool full) const;
 
  private:
   bool visible_ {};

@@ -28,13 +28,14 @@
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 
-// The brush and the Building input group are derived from the BuildingTool tag
-// by systems, so they must follow the tag however it changes -- toggled from
-// input, or added/removed directly as state restore does.
+// The BuildingTool tag, the brush and the Building input group are derived from the
+// hotbar by systems, so they must follow it however it changes -- picked from input, or
+// set directly as state restore does.
 namespace z13::building {
 namespace {
 
 using z13::testing::Click;
+using z13::testing::HoldBuildTool;
 using z13::testing::kTestDeltaTime;
 
 void ProgressFrames(z13::testing::Z13TestWorld& test_world, int frames) {
@@ -47,26 +48,30 @@ size_t ActionGroupCount(flecs::entity player) {
   return player.get<z13::input::ActionListener>().action_group_priority.size();
 }
 
-TEST(BuildingModeTest, AddingBuildingToolCreatesSingleBrushAndInputGroup) {
+void PutToolAway(flecs::entity player) {
+  player.set(z13::inventory::Hotbar {.active_cell = z13::inventory::kSpawnActiveCell});
+}
+
+TEST(BuildingModeTest, HoldingBuildToolCreatesSingleBrushAndInputGroup) {
   z13::testing::Z13TestWorld test_world;
   flecs::entity player = test_world.Player();
   const size_t groups_before = ActionGroupCount(player);
 
-  player.add<BuildingTool>();
+  HoldBuildTool(player);
   ProgressFrames(test_world, 3);
 
   EXPECT_EQ(test_world.World().count<Brush>(), 1);
   EXPECT_EQ(ActionGroupCount(player), groups_before + 1);
 }
 
-TEST(BuildingModeTest, RemovingBuildingToolRemovesBrushAndInputGroup) {
+TEST(BuildingModeTest, PuttingBuildToolAwayRemovesBrushAndInputGroup) {
   z13::testing::Z13TestWorld test_world;
   flecs::entity player = test_world.Player();
   const size_t groups_before = ActionGroupCount(player);
-  player.add<BuildingTool>();
+  HoldBuildTool(player);
   ProgressFrames(test_world, 2);
 
-  player.remove<BuildingTool>();
+  PutToolAway(player);
   ProgressFrames(test_world, 2);
 
   EXPECT_EQ(test_world.World().count<Brush>(), 0);
@@ -85,7 +90,7 @@ TEST(BuildingModeTest, BrushWithoutBuildingToolIsRemoved) {
 TEST(BuildingModeTest, DuplicateBrushesAreCollapsedToOne) {
   z13::testing::Z13TestWorld test_world;
   flecs::entity player = test_world.Player();
-  player.add<BuildingTool>();
+  HoldBuildTool(player);
   ProgressFrames(test_world, 2);
 
   test_world.World().entity().child_of(player).set(Brush{.distance = 1.f});
@@ -94,9 +99,9 @@ TEST(BuildingModeTest, DuplicateBrushesAreCollapsedToOne) {
   EXPECT_EQ(test_world.World().count<Brush>(), 1);
 }
 
-TEST(BuildingModeTest, BuildingToolAddedDirectlyEnablesBuildInput) {
+TEST(BuildingModeTest, ToolHeldDirectlyEnablesBuildInput) {
   z13::testing::Z13TestWorld test_world;
-  test_world.Player().add<BuildingTool>();
+  HoldBuildTool(test_world.Player());
   ProgressFrames(test_world, 2);
 
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);

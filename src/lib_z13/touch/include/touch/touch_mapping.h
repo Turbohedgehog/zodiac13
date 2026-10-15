@@ -17,14 +17,17 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <optional>
 #include <string_view>
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 
 #include <input_config_generated.h>
 #include <settings_generated.h>
 #include <z13/components/input_state.h>
+#include <z13/components/hotbar.h>
 #include <z13/components/touch_controls.h>
 
 // How touches become input (docs/android-plan.md, "Управление"): the floating stick, the look
@@ -44,15 +47,44 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kCrouch, z13::fbs::input::Keycode::TOUCH_CROUCH, "Crouch"},
     TouchButton {TouchControl::kUse, z13::fbs::input::Keycode::TOUCH_USE, "Use"},
     TouchButton {TouchControl::kFlashlight, z13::fbs::input::Keycode::TOUCH_FLASHLIGHT, "Light"},
+    // Routed only while a build tool is in hand (the Building group); the HUD labels the
+    // primary one with the tool's mode.
+    TouchButton {TouchControl::kToolMode, z13::fbs::input::Keycode::TOUCH_TOOL_MODE, "Mode"},
+    TouchButton {TouchControl::kPrimary, z13::fbs::input::Keycode::TOUCH_PRIMARY, "Tool"},
+    TouchButton {TouchControl::kPreviousPrimitive, z13::fbs::input::Keycode::TOUCH_PREVIOUS_PRIMITIVE, "<"},
+    TouchButton {TouchControl::kNextPrimitive, z13::fbs::input::Keycode::TOUCH_NEXT_PRIMITIVE, ">"},
+    TouchButton {TouchControl::kTurnZ, z13::fbs::input::Keycode::TOUCH_TURN_Z, "Turn Z"},
+    TouchButton {TouchControl::kTurnY, z13::fbs::input::Keycode::TOUCH_TURN_Y, "Turn Y"},
+    TouchButton {TouchControl::kTurnX, z13::fbs::input::Keycode::TOUCH_TURN_X, "Turn X"},
 };
+
+// The build tool's panel, left to right from the layout's tool_panel_x/y.
+constexpr std::array kToolPanel = {TouchControl::kPreviousPrimitive, TouchControl::kNextPrimitive,
+                                   TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
+
+// The hotbar's cells, left to right, and the key each one presses.
+constexpr std::array kHotbarCellButtons = {
+    TouchButton {TouchControl::kCell1, z13::fbs::input::Keycode::TOUCH_CELL_1, "1"},
+    TouchButton {TouchControl::kCell2, z13::fbs::input::Keycode::TOUCH_CELL_2, "2"},
+    TouchButton {TouchControl::kCell3, z13::fbs::input::Keycode::TOUCH_CELL_3, "3"},
+    TouchButton {TouchControl::kCell4, z13::fbs::input::Keycode::TOUCH_CELL_4, "4"},
+    TouchButton {TouchControl::kCell5, z13::fbs::input::Keycode::TOUCH_CELL_5, "5"},
+    TouchButton {TouchControl::kCell6, z13::fbs::input::Keycode::TOUCH_CELL_6, "6"},
+    TouchButton {TouchControl::kCell7, z13::fbs::input::Keycode::TOUCH_CELL_7, "7"},
+    TouchButton {TouchControl::kCell8, z13::fbs::input::Keycode::TOUCH_CELL_8, "8"},
+    TouchButton {TouchControl::kCell9, z13::fbs::input::Keycode::TOUCH_CELL_9, "9"},
+};
+static_assert(kHotbarCellButtons.size() == z13::inventory::kHotbarCells);
 
 std::optional<z13::fbs::input::Keycode> ButtonKey(TouchControl control);
 
 Eigen::Vector2f ButtonCenter(const Layout& layout, TouchControl control, const Eigen::Vector2f& screen_size);
 float ButtonRadius(const Layout& layout, const Eigen::Vector2f& screen_size);
+// The hotbar cell `cell` (from 0), in pixels; the HUD draws the hotbar there on PC too.
+Eigen::AlignedBox2f CellRect(const Layout& layout, size_t cell, const Eigen::Vector2f& screen_size);
 float StickRadius(const Layout& layout, const Eigen::Vector2f& screen_size);
 
-// A button under `position`, else the stick in its zone, else the look zone.
+// A hotbar cell or a button under `position`, else the stick in its zone, else the look zone.
 TouchControl ControlAt(const Layout& layout, const Eigen::Vector2f& position, const Eigen::Vector2f& screen_size);
 
 // The stick finger's deflection: x right, y forward, each in [-1, 1] and in steps of

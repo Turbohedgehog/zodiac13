@@ -16,15 +16,33 @@
 
  #pragma once
 
+#include <cstdint>
+
 namespace z13::building {
 
 // Where the brush follows its player and build requests are handled; BlockBuildingSystem
 // orders its own building after it.
 struct UpdateBuildingToolPhase {};
 
-struct BuildingTool {
+// On a player while a build tool is in the active hotbar cell; derived every frame, never state.
+struct BuildingTool {};
+
+// The order is the one the mode key cycles through.
+enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn };
+
+// On a build tool item, with its BlockBrush: a tool given away builds the same.
+struct BuildTool {
   using State = void;
+  ToolMode mode {};
 };
+
+// The mode the tool works in this frame: a held cut key overrides the tool's own on PC.
+inline ToolMode EffectiveToolMode(ToolMode mode, bool cut_held, bool cut_in_held) {
+  if (cut_held) {
+    return ToolMode::kCut;
+  }
+  return cut_in_held ? ToolMode::kCutIn : mode;
+}
 
 struct Brush {
   float distance {};

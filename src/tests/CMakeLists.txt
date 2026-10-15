@@ -62,6 +62,7 @@ set(
   ${MODULES_DIR}/building_module/tests/block_snapshot_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_aim_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_test.cpp
+  ${MODULES_DIR}/building_module/tests/build_tool_test.cpp
   ${MODULES_DIR}/building_module/tests/build_validation_test.cpp
   ${MODULES_DIR}/building_module/tests/building_block_test.cpp
   ${MODULES_DIR}/building_module/tests/building_mode_test.cpp
@@ -81,6 +82,7 @@ set(
   ${MODULES_DIR}/station_module/tests/interaction_system_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/pause_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/player_color_test.cpp

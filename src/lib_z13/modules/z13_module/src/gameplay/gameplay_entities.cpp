@@ -33,6 +33,7 @@
 #include <z13/components/player.h>
 #include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
+#include <z13/components/inventory.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/action_map.h>
 #include <z13/components/input_state.h>
@@ -111,7 +112,18 @@ flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen
       .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius})
       .set(PlayerMotion {})
       .set(Flashlight {})
-      .set(z13::gravity::Gravity {});
+      .set(z13::gravity::Gravity {})
+      .set(z13::inventory::Hotbar {});
+}
+
+std::optional<flecs::entity> FindPlayer(flecs::world world, uint32_t id) {
+  std::optional<flecs::entity> found;
+  world.each([&found, id](flecs::entity player, const Player& candidate) {
+    if (candidate.id == id) {
+      found = player;
+    }
+  });
+  return found;
 }
 
 void EnsureLocalPlayerReady(flecs::world world) {

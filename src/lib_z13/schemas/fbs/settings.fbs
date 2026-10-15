@@ -54,7 +54,8 @@ table RenderTuning {
   lights_per_cluster: int32 = 32 (min: 1, max: 256, cli: "--render-lights-per-cluster");
   // Shadow slots: the flashlights' first, then the lamps nearest the players, whose baked light a
   // player's shadow takes back (assets/shaders/lighting.fs).
-  shadow_lights: int32 = 4 (min: 0, max: 32, cli: "--render-shadow-lights");
+  // Off on Android: a phone keeps 60 fps without lamp shadows.
+  shadow_lights: int32 = 4 (min: 0, max: 32, cli: "--render-shadow-lights", default_android: "0");
   // Edge of each face of a lamp's shadow cube, in pixels.
   shadow_map_size: int32 = 256 (min: 64, max: 512, cli: "--render-shadow-map-size");
   // Lights whose shadow is drawn anew per frame as they take a slot.
@@ -91,6 +92,17 @@ table TouchLayout {
   use_y: float = 0.52 (min: "0", max: "1", cli: "--touch-use-y");
   flashlight_x: float = 0.9 (min: "0", max: "1", cli: "--touch-flashlight-x");
   flashlight_y: float = 0.26 (min: "0", max: "1", cli: "--touch-flashlight-y");
+  // The hotbar: a row of square cells centred at the bottom, on PC too.
+  hotbar_y: float = 0.93 (min: "0", max: "1", cli: "--touch-hotbar-y");
+  hotbar_cell_size: float = 0.09 (min: "0.02", max: "0.2", cli: "--touch-hotbar-cell-size");
+  tool_mode_x: float = 0.78 (min: "0", max: "1", cli: "--touch-tool-mode-x");
+  tool_mode_y: float = 0.66 (min: "0", max: "1", cli: "--touch-tool-mode-y");
+  // The build tool's action, held and slid to stretch a block like a mouse drag.
+  primary_x: float = 0.78 (min: "0", max: "1", cli: "--touch-primary-x");
+  primary_y: float = 0.44 (min: "0", max: "1", cli: "--touch-primary-y");
+  // The build tool's panel (previous and next primitive, the three turns): a row from here.
+  tool_panel_x: float = 0.45 (min: "0", max: "1", cli: "--touch-tool-panel-x");
+  tool_panel_y: float = 0.1 (min: "0", max: "1", cli: "--touch-tool-panel-y");
 }
 
 // Finding servers on the LAN (client and server; docs/server-plan.md, "Поиск сервера").

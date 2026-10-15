@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -228,6 +229,19 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
           z13::input::EmitInputEvent(world, source, z13::input::MouseButtonDownEvent{button});
         } else {
           z13::input::EmitInputEvent(world, source, z13::input::MouseButtonUpEvent{button});
+        }
+        break;
+      }
+      case SDL_EVENT_MOUSE_WHEEL: {
+        // Whole notches (SDL sums a touchpad's fractions), each a press and a release.
+        const zkey::Keycode notch =
+            event.wheel.integer_y > 0 ? zkey::Keycode::MOUSE_WHEEL_UP : zkey::Keycode::MOUSE_WHEEL_DOWN;
+        z13::input::MouseButtonEvent button {.pos = {static_cast<int>(event.wheel.mouse_x),
+                                                     static_cast<int>(event.wheel.mouse_y)},
+                                             .button = notch, .clicks = 1};
+        for (int i = 0; i < std::abs(event.wheel.integer_y); ++i) {
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonDownEvent {button});
+          z13::input::EmitInputEvent(world, source, z13::input::MouseButtonUpEvent {button});
         }
         break;
       }

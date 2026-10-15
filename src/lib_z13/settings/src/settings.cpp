@@ -57,7 +57,27 @@ std::unique_ptr<NativeTable> NewDefaults() {
 
 }  // namespace
 
+std::expected<Settings, std::string> PlatformSettings(std::string_view platform) {
+  Settings defaults;
+  EnsureNestedSettings(defaults);
+  flatbuffers::FlatBufferBuilder builder = PackSettings(defaults);
+  auto& table = *flatbuffers::GetMutableRoot<flatbuffers::Table>(builder.GetBufferPointer());
+  if (const auto applied =
+          schema::ApplyPlatformDefaults(SettingsSchema(), *SettingsSchema().root_table(), table, platform);
+      !applied) {
+    return std::unexpected(applied.error());
+  }
+  Settings settings;
+  fbs::settings::GetSettings(builder.GetBufferPointer())->UnPackTo(&settings);
+  EnsureNestedSettings(settings);
+  return settings;
+}
+
 Settings MakeSettings() {
+  // The attributes are the schema's own, and a test applies every platform's.
+  if (auto settings = PlatformSettings(kCurrentPlatform)) {
+    return std::move(*settings);
+  }
   Settings settings;
   EnsureNestedSettings(settings);
   return settings;

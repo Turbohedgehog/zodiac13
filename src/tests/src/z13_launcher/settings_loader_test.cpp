@@ -22,7 +22,7 @@
 #include <lib_core/settings/config.h>
 #include <lib_core/utils/file_io.h>
 #include <lib_core/world/core.h>
-#include <z13_launcher/settings_loader.h>
+#include <z13_settings/settings_file.h>
 #include <z13_settings/settings.h>
 
 namespace z13 {
@@ -183,6 +183,16 @@ TEST(SettingsLoaderTest, InstalledSettingsReachConfigAndWorld) {
   EXPECT_EQ(core.GetConfig().GetSnapshotIntervalSeconds(), 2.);
   EXPECT_EQ(world.get<ActiveCoreSettings>(), *settings.core);
   EXPECT_EQ(world.get<NetTuning>(), *settings.net);
+}
+
+TEST(SettingsLoaderTest, APlatformsOwnDefaultsApplyOverTheSchemas) {
+  const auto android = z13::PlatformSettings("android");
+  ASSERT_TRUE(android.has_value()) << android.error();
+  EXPECT_EQ(android->render->shadow_lights, 0);
+
+  const auto desktop = z13::PlatformSettings("linux");
+  ASSERT_TRUE(desktop.has_value()) << desktop.error();
+  EXPECT_EQ(desktop->render->shadow_lights, z13::SchemaDefaults<z13::fbs::settings::RenderTuningT>().shadow_lights);
 }
 
 }  // namespace

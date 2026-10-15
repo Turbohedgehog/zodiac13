@@ -17,9 +17,7 @@
 #include "palette_window.h"
 
 #include <algorithm>
-#include <format>
 #include <memory>
-#include <string>
 
 #include <imgui.h>
 
@@ -29,13 +27,6 @@
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
-
-namespace {
-
-// Matches the SELECT_SLOT_1..9 actions' default keys.
-constexpr size_t kNumberedSlots = 9;
-
-}  // namespace
 
 PaletteWindow::PaletteWindow(flecs::world world) : Window(world, "Block palette") {}
 
@@ -47,9 +38,7 @@ void PaletteWindow::DrawBody() {
   }
   const auto& primitives = palette->palette.primitives;
   for (size_t slot = 0; slot < std::min(primitives.size(), z13::station::kPaletteWindowSlots); ++slot) {
-    const auto& primitive = primitives[slot];
-    const std::string label = slot < kNumberedSlots ? std::format("{}  {}", slot + 1, primitive.name) : primitive.name;
-    if (ImGui::Button(label.c_str(), ButtonSize())) {
+    if (ImGui::Button(primitives[slot].name.c_str(), ButtonSize())) {
       World().set(z13::station::PaletteChoice {.slot = slot});
     }
   }

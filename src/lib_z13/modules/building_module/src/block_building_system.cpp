@@ -43,6 +43,7 @@
 #include <z13/components/player_parts.h>
 #include <z13/components/block.h>
 #include <z13/components/block_brush.h>
+#include <z13/components/inventory.h>
 #include <z13/components/spawn_point.h>
 #include <z13/components/station_mode.h>
 #include <grid/block_index.h>
@@ -55,6 +56,7 @@
 #include "build_run.h"
 #include "brush_aim.h"
 #include "build_validation.h"
+#include "held_tool.h"
 #include "station_build_phase.h"
 
 namespace z13::building {
@@ -194,8 +196,14 @@ bool IsSpawnPoint(const Block& block, const Palette& palette) {
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
-void ProcessBuildRequest(flecs::entity player, BlockBrush& brush, BuildRun& run) {
+void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
   player.remove<z13::building::RequestBuildBlock>();
+  const std::optional<flecs::entity> tool = z13::building::HeldBuildTool(player);
+  if (!tool || !tool->has<BlockBrush>()) {
+    player.remove<BrushDrag>();
+    return;
+  }
+  BlockBrush& brush = tool->get_mut<BlockBrush>();
   const auto aim = FindAim(player, run.index);
   const auto drag = DragOf(player);
   player.remove<BrushDrag>();
@@ -247,20 +255,19 @@ void ProcessBuildRequest(flecs::entity player, BlockBrush& brush, BuildRun& run)
 void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
   std::optional<BuildRun> run;
   while (it.next()) {
-    auto brushes = it.field<BlockBrush>(2);
     if (!run) {
-      const auto& tuning = it.field<const BuildingTuning>(6)[0];
+      const auto& tuning = it.field<const BuildingTuning>(5)[0];
       run = BuildRun {
-          .index = it.field<BlockIndex>(3)[0],
-          .counters = it.field<z13::gameplay::IdCounters>(4)[0],
-          .palette = it.field<const BlockPalette>(5)[0].palette,
+          .index = it.field<BlockIndex>(2)[0],
+          .counters = it.field<z13::gameplay::IdCounters>(3)[0],
+          .palette = it.field<const BlockPalette>(4)[0].palette,
           .tuning = tuning,
           .players = PlayerSpheres(players),
           .spawn_clearances = SpawnClearances(spawn_blocks, tuning),
           .spawn_points = it.world().count<SpawnPoint>()};
     }
     for (const size_t i : it) {
-      ProcessBuildRequest(it.entity(i), brushes[i], *run);
+      ProcessBuildRequest(it.entity(i), *run);
     }
   }
 }
@@ -306,7 +313,8 @@ void ProcessDestroyRequests(flecs::iter& it) {
 
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   const flecs::entity owner = brush.parent();
-  if (!owner || !owner.has<BlockBrush>()) {
+  const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
+  if (!tool || !tool->has<BlockBrush>()) {
     return;
   }
   const auto aim = FindAim(owner, view.index);
@@ -314,7 +322,7 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
     return;
   }
   const BuildKind kind = KindOf(owner);
-  const Block block = BrushBlock(DragOf(owner), owner.get<BlockBrush>().spec, *aim, view, kind);
+  const Block block = BrushBlock(DragOf(owner), tool->get<BlockBrush>().spec, *aim, view, kind);
   const auto fits = [&] { return kind == BuildKind::kCut || ValidateBuild(block, view, kind).has_value(); };
   const auto cuttable = [&] {
     const CutRequest request {
@@ -365,14 +373,16 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const Block>("BlockBuildingSystem::SpawnBlocks").with<SpawnPoint>().build();
 
   // Same-tick requests compete, so they go in player id order (see CompareByPlayerId).
-  world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, BlockBrush, BlockIndex,
+  world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, BlockIndex,
                z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>(
       "BlockBuildingSystem::ProcessBuildRequests")
       .kind<StationBuildPhase>()
+      .term_at(2).inout()
       .term_at(3).inout()
-      .term_at(4).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
+      .read<z13::inventory::ActiveItem>()
+      .write<BlockBrush>()
       .read<BuildPermission>()
       .read<z13::building::CutModifier>()
       .read<z13::building::CutInModifier>()
@@ -400,6 +410,7 @@ void RegisterSystems(flecs::world world) {
       .kind<StationBuildPhase>()
       .with<z13::building::Brush>()
       .with<StationMode>()
+      .read<z13::inventory::ActiveItem>()
       .read<BlockBrush>()
       .read<Block>()
       .read<z13::building::CutModifier>()

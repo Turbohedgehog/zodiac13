@@ -332,4 +332,38 @@ Status SetFieldFromText(
   }
 }
 
+
+namespace {
+
+Status ApplyPlatformDefaultsAt(
+    const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
+    const reflection::Object& object, std::string_view prefix, std::string_view attribute) {
+  for (const reflection::Field* field : *object.fields()) {
+    const std::string path = JoinPath(prefix, field->name()->string_view());
+    if (IsNestedTable(schema, *field)) {
+      if (const auto applied =
+              ApplyPlatformDefaultsAt(schema, root, table, NestedObject(schema, *field), path, attribute);
+          !applied) {
+        return applied;
+      }
+      continue;
+    }
+    if (const auto text = Attribute(*field, attribute)) {
+      if (const auto set = SetFieldFromText(schema, root, table, path, *text); !set) {
+        return std::unexpected(std::format("{}: {}", attribute, set.error()));
+      }
+    }
+  }
+  return {};
+}
+
+}  // namespace
+
+Status ApplyPlatformDefaults(
+    const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
+    std::string_view platform) {
+  const std::string attribute = std::format("{}{}", kPlatformDefaultPrefix, platform);
+  return ApplyPlatformDefaultsAt(schema, root, table, root, "", attribute);
+}
+
 }  // namespace z13::schema

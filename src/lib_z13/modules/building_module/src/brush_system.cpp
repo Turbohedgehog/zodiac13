@@ -33,12 +33,15 @@
 #include <z13/components/action_listener.h>
 #include <z13/components/block.h>
 #include <z13/components/block_brush.h>
+#include <z13/components/inventory.h>
 #include <z13/components/station_mode.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
+#include <z13_module/gameplay/gameplay_entities.h>
 
 #include "build_action_ids.h"
+#include "held_tool.h"
 #include "station_build_phase.h"
 
 namespace z13::building {
@@ -55,15 +58,16 @@ using z13::station::BrushDrag;
 using z13::station::BuildPermission;
 using z13::station::StationMode;
 
-// Every station player may build for now (a sandbox). Granted once, with the brush, so
-// it can be taken away.
-void EnsureBlockBrush(flecs::entity player, const z13::gameplay::Player&, const BuildingTuning& tuning) {
+// Every station player with a build tool may build for now (a sandbox). Granted once, with
+// the tool's brush, so it can be taken away.
+void EnsureToolBrush(flecs::entity tool, const z13::inventory::CarriedBy& carried, const BuildingTuning& tuning) {
   const int width = tuning.default_brush_width_cells;
-  player
-      .set(BlockBrush {
-          .spec = {.type_id = tuning.default_brush_type, .size = {width, 1, width}},
-      })
-      .add<BuildPermission>();
+  tool.set(BlockBrush {
+      .spec = {.type_id = tuning.default_brush_type, .size = {width, 1, width}},
+  });
+  if (const auto player = z13::gameplay::FindPlayer(tool.world(), carried.player_id)) {
+    player->add<BuildPermission>();
+  }
 }
 
 void DropBrushDrag(flecs::entity player, const BrushDrag&) {
@@ -83,8 +87,8 @@ uint32_t Stepped(const Palette& palette, uint32_t current, int step) {
   return palette.primitives[static_cast<size_t>((index + step % count + count) % count)].id;
 }
 
-// The primitive this frame's actions pick, if any: the palette window's, a slot's, or
-// the next or previous one.
+// The primitive this frame's actions pick, if any: the palette window's, or the next or
+// previous one.
 std::optional<uint32_t> PickedType(
     const z13::input::ActionListener& listener, const BuildActionIds& ids, const Palette& palette, uint32_t current) {
   if (palette.primitives.empty()) {
@@ -96,20 +100,24 @@ std::optional<uint32_t> PickedType(
                ? std::optional(palette.primitives[static_cast<size_t>(slot)].id)
                : std::nullopt;
   }
-  const size_t slots = std::min(kPaletteSlots, palette.primitives.size());
-  for (size_t slot = 0; slot < slots; ++slot) {
-    if (IsSwitchedOn(listener, ids.select_slot[slot])) {
-      return palette.primitives[slot].id;
-    }
-  }
   const int step = (IsSwitchedOn(listener, ids.next_primitive) ? 1 : 0) -
                    (IsSwitchedOn(listener, ids.previous_primitive) ? 1 : 0);
   return step != 0 ? std::optional(Stepped(palette, current, step)) : std::nullopt;
 }
 
+// Applied to the held tool's brush through get_mut, so this frame's build sees the pick. A
+// palette window pick that lands once the tool is put away still reaches the tool.
 void ApplyBrushActions(
-    BlockBrush& brush, const z13::input::ActionListener& listener, const BuildActionIds& ids,
+    flecs::entity player, const z13::input::ActionListener& listener, const BuildActionIds& ids,
     const BlockPalette& palette, const BuildingTuning& tuning) {
+  std::optional<flecs::entity> tool = HeldBuildTool(player);
+  if (!tool && IsSwitchedOn(listener, ids.select_primitive)) {
+    tool = CarriedBuildTool(player);
+  }
+  if (!tool || !tool->has<BlockBrush>()) {
+    return;
+  }
+  BlockBrush& brush = tool->get_mut<BlockBrush>();
   BlockSpec spec = brush.spec;
   if (const auto type = PickedType(listener, ids, palette.palette, spec.type_id); type && *type != spec.type_id) {
     if (const auto primitive = palette.palette.Find(*type)) {
@@ -139,21 +147,23 @@ void RegisterSystems(flecs::world world) {
       .write<BrushDrag>()
       .each(DropBrushDrag);
 
-  world.system<const z13::gameplay::Player, const BuildingTuning>("BrushSystem::EnsureBlockBrush")
+  world.system<const z13::inventory::CarriedBy, const BuildingTuning>("BrushSystem::EnsureToolBrush")
       .kind<StationBuildPhase>()
+      .with<BuildTool>()
       .with<StationMode>()
       .without<BlockBrush>()
       .write<BlockBrush>()
       .write<BuildPermission>()
-      .each(EnsureBlockBrush);
+      .each(EnsureToolBrush);
 
-  world.system<BlockBrush, const z13::input::ActionListener, const BuildActionIds, const BlockPalette,
-               const BuildingTuning>("BrushSystem::ApplyBrushActions")
+  world.system<const z13::input::ActionListener, const BuildActionIds, const BlockPalette, const BuildingTuning>(
+           "BrushSystem::ApplyBrushActions")
       .kind<StationBuildPhase>()
-      // No BuildingTool term: the palette window's pick also lands with the tool put away;
-      // the keys' Building group only routes input while it is out.
       .with<z13::gameplay::Player>()
       .with<StationMode>()
+      .read<z13::inventory::ActiveItem>()
+      .read<z13::inventory::CarriedBy>()
+      .write<BlockBrush>()
       .each(ApplyBrushActions);
 }
 

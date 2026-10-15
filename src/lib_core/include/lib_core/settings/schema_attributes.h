@@ -32,7 +32,8 @@
 //   (min: 1, max: 1000)  inclusive bounds of a scalar field, checked by ValidateRanges;
 //   (non_empty)          a string field that must hold some text, checked by ValidateRanges;
 //   (cli)                a command-line option named after the field (max_late_ticks -> --max-late-ticks);
-//   (cli: "-f,--fps")    explicit names, like argparse: one long form and an optional one-letter short form.
+//   (cli: "-f,--fps")    explicit names, like argparse: one long form and an optional one-letter short form;
+//   (default_android: "0") the field's default on that platform, set by ApplyPlatformDefaults.
 // Nested tables are walked recursively; a field is addressed by its dotted path ("net.max_late_ticks").
 namespace z13::schema {
 
@@ -40,6 +41,7 @@ inline constexpr std::string_view kMinAttribute = "min";
 inline constexpr std::string_view kMaxAttribute = "max";
 inline constexpr std::string_view kCliAttribute = "cli";
 inline constexpr std::string_view kNonEmptyAttribute = "non_empty";
+inline constexpr std::string_view kPlatformDefaultPrefix = "default_";
 
 Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table);
@@ -59,5 +61,10 @@ std::expected<std::vector<CliOption>, std::string> CollectCliOptions(
 Status SetFieldFromText(
     const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
     std::string_view path, std::string_view text);
+
+// Writes every field's default_<platform> value; the buffer is built as SetFieldFromText needs.
+Status ApplyPlatformDefaults(
+    const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
+    std::string_view platform);
 
 }  // namespace z13::schema

@@ -76,6 +76,7 @@ struct Interaction {
 struct Primitive {
   uint32_t id {};
   std::string name;
+  std::string short_name;
   Shape shape;
   Eigen::Vector3i min_size = Eigen::Vector3i::Ones();
   Eigen::Vector3i max_size = Eigen::Vector3i::Ones();

@@ -38,10 +38,13 @@
 #include <z13/components/building.h>
 #include <z13/components/block_brush.h>
 #include <z13/components/station_mode.h>
+#include <z13/components/inventory.h>
+#include <lib_core/utils/enum_cycle.h>
 #include <z13_module/input/input_config_loader.h>
 #include <lib_core/state/rollback.h>
 
 #include "build_action_ids.h"
+#include "held_tool.h"
 
 namespace z13::building {
 
@@ -88,19 +91,10 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
     return action_id_holder;
   };
 
-  build_action_ids.toggle_building_mode = find_action_id(z13::fbs::building::Action::TOGGLE_BUILDING_MODE);
   build_action_ids.build_block = find_action_id(z13::fbs::building::Action::BUILD_BLOCK);
   build_action_ids.destroy_block = find_action_id(z13::fbs::building::Action::DESTROY_BLOK);
   build_action_ids.previous_primitive = find_action_id(z13::fbs::building::Action::PREVIOUS_PRIMITIVE);
   build_action_ids.next_primitive = find_action_id(z13::fbs::building::Action::NEXT_PRIMITIVE);
-  constexpr std::array kSlotActions {
-      z13::fbs::building::Action::SELECT_SLOT_1, z13::fbs::building::Action::SELECT_SLOT_2,
-      z13::fbs::building::Action::SELECT_SLOT_3, z13::fbs::building::Action::SELECT_SLOT_4,
-      z13::fbs::building::Action::SELECT_SLOT_5, z13::fbs::building::Action::SELECT_SLOT_6,
-      z13::fbs::building::Action::SELECT_SLOT_7, z13::fbs::building::Action::SELECT_SLOT_8,
-      z13::fbs::building::Action::SELECT_SLOT_9,
-  };
-  std::ranges::transform(kSlotActions, build_action_ids.select_slot.begin(), find_action_id);
   build_action_ids.rotate_around_z = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Z);
   build_action_ids.rotate_around_y = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_Y);
   build_action_ids.rotate_around_x = find_action_id(z13::fbs::building::Action::ROTATE_AROUND_X);
@@ -109,17 +103,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.cut_modifier = find_action_id(z13::fbs::building::Action::CUT_MODIFIER);
   build_action_ids.cut_in_modifier = find_action_id(z13::fbs::building::Action::CUT_IN_MODIFIER);
   build_action_ids.cancel_brush_drag = find_action_id(z13::fbs::building::Action::CANCEL_BRUSH_DRAG);
-}
-
-void ToggleBuildingMode(flecs::entity e) {
-  // e.has<>() rather than a fetched BuildingTool* pointer: add/remove is deferred
-  // within this iteration, so a pointer captured up front wouldn't reflect this entity's
-  // own change.
-  if (!e.has<BuildingTool>()) {
-    e.add<BuildingTool>();
-  } else {
-    e.remove<BuildingTool>();
-  }
+  build_action_ids.cycle_tool_mode = find_action_id(z13::fbs::building::Action::CYCLE_TOOL_MODE);
 }
 
 // The Building input group follows the BuildingTool tag, so it stays consistent
@@ -147,20 +131,39 @@ void SetPresent(flecs::entity e, bool present) {
   }
 }
 
+// The mode key cycles the held tool's mode; get_mut, so this frame's actions see it at once.
+ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& listener, const BuildActionIds& ids) {
+  BuildTool& state = tool.get_mut<BuildTool>();
+  if (IsSwitchedOn(listener, ids.cycle_tool_mode)) {
+    state.mode = z13::NextEnumerator(state.mode);
+  }
+  return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
+}
+
 void ApplyBuildActionListener(
     flecs::entity e,
     z13::input::ActionListener& action_listener,
     const BuildActionIds& build_action_ids) {
-  if (IsSwitchedOn(action_listener, build_action_ids.toggle_building_mode)) {
-    ToggleBuildingMode(e);
-  }
-
-  const bool tool_out = e.has<BuildingTool>();
-  SetPresent<CutModifier>(e, tool_out && IsHeld(action_listener, build_action_ids.cut_modifier));
-  SetPresent<CutInModifier>(e, tool_out && IsHeld(action_listener, build_action_ids.cut_in_modifier));
+  const std::optional<flecs::entity> tool = HeldBuildTool(e);
+  SetPresent<BuildingTool>(e, tool.has_value());
+  const std::optional<ToolMode> mode =
+      tool ? std::optional(ApplyModeKey(*tool, action_listener, build_action_ids)) : std::nullopt;
+  SetPresent<CutModifier>(e, mode == ToolMode::kCut);
+  SetPresent<CutInModifier>(e, mode == ToolMode::kCutIn);
 
   // Building/destroying only makes sense while the brush is out.
-  if (!tool_out) {
+  if (!mode) {
+    return;
+  }
+
+  if (IsSwitchedOn(action_listener, build_action_ids.destroy_block) ||
+      (mode == ToolMode::kDestroy && IsSwitchedOn(action_listener, build_action_ids.build_block))) {
+    e.add<RequestDestroyBlock>();
+  }
+  if (mode == ToolMode::kDestroy) {
+    if (e.has<z13::station::BrushDrag>()) {
+      e.remove<z13::station::BrushDrag>();
+    }
     return;
   }
 
@@ -175,10 +178,6 @@ void ApplyBuildActionListener(
     e.remove<z13::station::BrushDrag>();
   } else if (IsSwitchedOff(action_listener, build_action_ids.build_block) && e.has<z13::station::BrushDrag>()) {
     e.add<RequestBuildBlock>();
-  }
-
-  if (IsSwitchedOn(action_listener, build_action_ids.destroy_block)) {
-    e.add<RequestDestroyBlock>();
   }
 }
 
@@ -249,6 +248,8 @@ void RegisterSystems(flecs::world world) {
   world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .read<z13::station::StationMode>()
+      .read<z13::inventory::ActiveItem>()
+      .write<BuildTool>()
       .write<z13::station::BrushDrag>()
       .write<BuildingTool>()
       .write<CutModifier>()

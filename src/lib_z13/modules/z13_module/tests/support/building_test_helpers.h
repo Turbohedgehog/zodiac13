@@ -18,7 +18,12 @@
 
 #include <functional>
 
+#include <flecs.h>
+
+#include <z13/components/building.h>
 #include <z13/components/input_events.h>
+#include <z13/components/inventory.h>
+#include <z13/components/player.h>
 #include <z13_tests/test_time.h>
 
 #include "z13_test_world.h"
@@ -47,6 +52,23 @@ inline z13::input::MouseButtonUpEvent MouseUp(z13::fbs::input::Keycode button) {
   z13::input::MouseButtonUpEvent event;
   event.button = button;
   return event;
+}
+
+// The starter kit's cell made active, as the player's tool key would.
+inline flecs::entity HoldBuildTool(flecs::entity player) {
+  return player.set(z13::inventory::Hotbar {.active_cell = z13::inventory::kStarterToolCell});
+}
+
+// The player's build tool from the starter kit, once the kit is handed out.
+inline flecs::entity BuildToolOf(flecs::entity player) {
+  const uint32_t id = player.get<z13::gameplay::Player>().id;
+  flecs::entity tool;
+  player.world().each([&tool, id](flecs::entity item, const z13::inventory::CarriedBy& carried) {
+    if (carried.player_id == id && item.has<z13::building::BuildTool>()) {
+      tool = item;
+    }
+  });
+  return tool;
 }
 
 // Advances one frame of whatever the test drives: a single world, or every world of a

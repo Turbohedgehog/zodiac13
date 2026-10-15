@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <string>
 
+#include <lib_core/utils/status.h>
 #include <z13_settings/settings.h>
 
 namespace z13 {
@@ -30,7 +31,9 @@ std::expected<Settings, std::string> ParseSettings(const std::string& json_text)
 // Every field is written out, so the file shows what can be tuned.
 std::expected<std::string, std::string> SerializeSettings(const Settings& settings);
 
-// Reads and parses `config_path`. A missing file is created from the schema defaults; failing
+Status WriteSettings(const std::filesystem::path& path, const Settings& settings);
+
+// Reads and parses `config_path`. A missing file is created from MakeSettings(); failing
 // to write it is only logged, the defaults are used either way.
 std::expected<Settings, std::string> ReadSettings(const std::filesystem::path& config_path);
 

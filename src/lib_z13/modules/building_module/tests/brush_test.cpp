@@ -62,6 +62,19 @@ using z13::station::BuildPermission;
 using z13::station::Orientation;
 using z13::station::PaletteChoice;
 using z13::testing::AddBuilder;
+using z13::testing::AddWallAhead;
+using z13::testing::kDoorId;
+using z13::testing::kDoorSlot;
+using z13::testing::kFloorId;
+using z13::testing::kFloorSlot;
+using z13::testing::kSlopeId;
+using z13::testing::kSlopeSlot;
+using z13::testing::kToolSettleTicks;
+using z13::testing::kWallId;
+using z13::testing::kWindowId;
+using z13::testing::LocalBuilder;
+using z13::testing::Ticks;
+using z13::testing::WallAhead;
 using z13::testing::BlocksOfType;
 using z13::testing::Facing;
 using z13::testing::kConnectArg;
@@ -75,32 +88,11 @@ using z13::testing::TickOnly;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
-// assets/station/palette.json, in its order.
-constexpr uint32_t kFloorId = 1;
-constexpr uint32_t kWallId = 2;
-constexpr uint32_t kDoorId = 3;
-constexpr uint32_t kWindowId = 4;
-constexpr uint32_t kSlopeId = 5;
-constexpr size_t kSlopeSlot = 4;
 constexpr uint32_t kBuilderId = 7;
 // Off the cell boundary at y = 0, so the brush and the destroy ray agree on the row.
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
-// The Building action group joins a frame after the tool is out.
-constexpr int kToolSettleTicks = 3;
-
-void Ticks(Z13TestWorld& test_world, int count) {for (int i = 0; i < count; ++i) {
-    test_world.Tick();
-  }
-}
-
-flecs::entity LocalBuilder(Z13TestWorld& test_world) {test_world.Tick();
-  z13::testing::EnterBuildMode(test_world);
-  Ticks(test_world, kToolSettleTicks);
-  return test_world.Player();
-}
-
 BlockSpec BrushOf(flecs::entity player) {
-  return player.get<BlockBrush>().spec;
+  return z13::testing::BuildToolOf(player).get<BlockBrush>().spec;
 }
 
 std::optional<BrushPreview> PreviewOf(flecs::entity player) {
@@ -119,11 +111,12 @@ void MovePlayerBy(flecs::entity player, const Eigen::Vector3f& offset) {
   player.set(transform);
 }
 
-TEST(BrushTest, SlotAndStepKeysPickThePrimitive) {
+TEST(BrushTest, ThePaletteAndTheStepKeysPickThePrimitive) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity player = LocalBuilder(test_world);
 
-  Tap(test_world, Keycode::KEY_1, TickOnly(test_world));
+  test_world.World().set(PaletteChoice {.slot = kFloorSlot});
+  Ticks(test_world, 2);
   EXPECT_EQ(BrushOf(player).type_id, kFloorId);
   // A picked primitive spans 2 m along the axes it stretches along.
   EXPECT_EQ(BrushOf(player).size, Eigen::Vector3i(8, 8, 1));
@@ -246,26 +239,11 @@ TEST(BrushTest, HoldingThePaletteKeyFreesTheCursorAndClicksBuildNothing) {
   EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), 1u);
 }
 
-// A 24x12 cell wall 16 cells ahead of the player, its thin side facing them, centred on their eye.
-struct WallAhead {
-  flecs::entity entity;
-  Block block;
-};
-
-WallAhead AddWallAhead(Z13TestWorld& test_world, flecs::entity player) {const Eigen::Vector3i eye =
-      (z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) / z13::station::kCellSize)
-          .array().floor().cast<int>();
-  const Block wall {
-      .spec = {.type_id = kWallId, .size = {24, 1, 12}, .orientation = Orientation::kFacePosYUpPosZ},
-      .cell = {eye.x() + 16, eye.y() - 12, eye.z() - 6}};
-  const flecs::entity entity = test_world.World().entity("TestWall").add<z13::flecs_tools::StateEntity>().set(wall);
-  Ticks(test_world, 2);
-  return {entity, wall};
-}
 
 // The brush turned like the wall, so a door's thin side is along X as well.
 void UseDoorBrush(flecs::entity player) {
-  player.set(BlockBrush {.spec = {.type_id = kDoorId, .size = {6, 1, 10}, .orientation = Orientation::kFacePosYUpPosZ}});
+  z13::testing::BuildToolOf(player).set(
+      BlockBrush {.spec = {.type_id = kDoorId, .size = {6, 1, 10}, .orientation = Orientation::kFacePosYUpPosZ}});
 }
 
 int CellsOf(const std::vector<Block>& blocks) {
@@ -419,7 +397,7 @@ TEST(BrushTest, DoorsAndWindowsAreDestroyedWhole) {
     Z13TestWorld test_world = StationWorld();
     const flecs::entity builder =
         AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
-    builder.set(BlockBrush {.spec = spec});
+    z13::testing::BuildToolOf(builder).set(BlockBrush {.spec = spec});
     builder.add<RequestBuildBlock>();
     test_world.Tick();
     ASSERT_EQ(BlocksOfType(test_world.World(), spec.type_id).size(), 1u) << spec.type_id;
@@ -453,7 +431,8 @@ TEST(BrushTest, AClientsPickAndTurnReachTheServerAndOtherClients) {
   const auto step = [&] { all(1); };
   Tap(client_a, Keycode::KEY_TAB, step);
   all(kSettleTicks);
-  Tap(client_a, Keycode::KEY_3, step);
+  client_a.World().set(PaletteChoice {.slot = kDoorSlot});
+  all(2);
   Tap(client_a, Keycode::KEY_R, step);
   all(kSettleTicks);
 

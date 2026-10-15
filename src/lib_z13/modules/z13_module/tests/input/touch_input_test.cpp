@@ -26,6 +26,7 @@
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_settings/settings.h>
 #include <touch/touch_mapping.h>
+#include <z13/components/block_brush.h>
 
 #include "../support/z13_test_world.h"
 
@@ -127,6 +128,42 @@ TEST(TouchInputTest, TapWithinOneFrameReachesTheSimulation) {
   EXPECT_EQ(State(test_world).input_state[z13::input::KeyIndex(Keycode::TOUCH_USE)], 1.f);
   test_world.Tick(1.f);
   EXPECT_EQ(State(test_world).input_state[z13::input::KeyIndex(Keycode::TOUCH_USE)], 0.f);
+}
+
+TEST(TouchInputTest, ATapOnTheStatsReadoutOpensThePanelAndAnotherFoldsIt) {
+  z13::testing::Z13TestWorld test_world;
+  auto& controls = test_world.World().get_mut<z13::input::TouchControls>();
+  // Where the GUI drew the readout, in the stick's zone.
+  controls.stats_area = Eigen::AlignedBox2f(Eigen::Vector2f(0.f, 0.f), Eigen::Vector2f(0.1f, 0.05f));
+  const Eigen::Vector2f on_stats(20.f, 10.f);
+  const auto tap = [&] {
+    test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kStickFinger, on_stats));
+    test_world.EmitInput(Touch<z13::input::TouchMoveEvent>(kStickFinger, on_stats + Eigen::Vector2f(50.f, 0.f)));
+    test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kStickFinger, on_stats));
+  };
+
+  tap();
+  EXPECT_TRUE(test_world.World().get<z13::input::TouchControls>().stats_shown);
+  EXPECT_TRUE(State(test_world).pending.empty());
+  EXPECT_EQ(State(test_world).mouse_yaw_delta_deg, 0.f);
+
+  tap();
+  EXPECT_FALSE(test_world.World().get<z13::input::TouchControls>().stats_shown);
+}
+
+TEST(TouchInputTest, ATapOnABrushCellPicksItsPrimitive) {
+  z13::testing::Z13TestWorld test_world;
+  auto& controls = test_world.World().get_mut<z13::input::TouchControls>();
+  // Where the GUI drew the brush row's first two cells.
+  controls.brush_areas = {Eigen::AlignedBox2f(Eigen::Vector2f(0.3f, 0.8f), Eigen::Vector2f(0.4f, 0.85f)),
+                          Eigen::AlignedBox2f(Eigen::Vector2f(0.4f, 0.8f), Eigen::Vector2f(0.5f, 0.85f))};
+  const Eigen::Vector2f on_second(450.f, 410.f);
+
+  test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kButtonFinger, on_second));
+  test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kButtonFinger, on_second));
+
+  EXPECT_EQ(test_world.World().get<z13::station::PaletteChoice>().slot, 1u);
+  EXPECT_TRUE(State(test_world).pending.empty());
 }
 
 }  // namespace

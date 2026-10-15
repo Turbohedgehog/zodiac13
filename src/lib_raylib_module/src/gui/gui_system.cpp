@@ -16,10 +16,14 @@
 
 #include "gui_system.h"
 
+#include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <optional>
 #include <string_view>
+#include <vector>
 
+#include <Eigen/Geometry>
 #include <flecs.h>
 
 #include <SDL3/SDL.h>
@@ -44,6 +48,7 @@
 #include "build_info.h"
 #include "gui_widgets.h"
 #include "gui_windows.h"
+#include "hotbar_hud.h"
 #include "main_menu_window.h"
 #include "palette_window.h"
 #include "pause_menu_window.h"
@@ -179,12 +184,12 @@ void RegisterSystems(flecs::world world) {
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
-               const z13::input::TouchControls*, const z13::TouchLayout*>("GuiSystem::Draw")
+               z13::input::TouchControls*, const z13::TouchLayout*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([world](gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
                     const RenderStats* render, z13::station::RoomOverlay* rooms,
-                    const z13::input::TouchControls* touch, const z13::TouchLayout* touch_layout) {
+                    z13::input::TouchControls* touch, const z13::TouchLayout* touch_layout) {
         if (!state.imgui_ready) {
           return;
         }
@@ -195,22 +200,37 @@ void RegisterSystems(flecs::world world) {
         } else if (!paused && !stack.windows.empty()) {
           stack.windows.clear();
         }
+        std::vector<Eigen::AlignedBox2f> brush_areas;
         if (!stack.windows.empty()) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
           gui::MakePaletteWindow(world)->Draw();
-        } else if (touch != nullptr && touch_layout != nullptr) {
-          gui::DrawTouchHud(*touch, *touch_layout);
+        } else if (touch_layout != nullptr) {
+          if (touch != nullptr) {
+            gui::DrawTouchHud(*touch, *touch_layout, gui::LocalToolAction(world));
+          }
+          gui::DrawHotbar(world, *touch_layout);
+          brush_areas = gui::DrawBrushRow(world, *touch_layout);
         }
         stats.CountFrame(std::chrono::steady_clock::now());
         if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {
           stats.Toggle();
         }
-        float overlay_top = gui::FirstOverlayTop();
-        if (stats.Visible()) {
-          const bool cursor_free = paused || world.has<gameplay::FreeCursor>();
-          overlay_top = stats.Draw(render, overlay_top,
-                                   cursor_free ? gui::OverlayInput::kSelectable : gui::OverlayInput::kPassThrough);
+        const bool cursor_free = paused || world.has<gameplay::FreeCursor>();
+        const bool stats_full = stats.Visible() || (touch != nullptr && touch->stats_shown);
+        const gui::OverlayPlacement stats_drawn =
+            stats.Draw(render, gui::FirstOverlayTop(),
+                       cursor_free ? gui::OverlayInput::kSelectable : gui::OverlayInput::kPassThrough, stats_full);
+        float overlay_top = stats_drawn.next_top;
+        if (touch != nullptr) {
+          const ImVec2 display = ImGui::GetIO().DisplaySize;
+          const Eigen::Vector2f screen(display.x, display.y);
+          const auto fraction = [&screen](const Eigen::AlignedBox2f& area) {
+            return Eigen::AlignedBox2f(area.min().cwiseQuotient(screen), area.max().cwiseQuotient(screen));
+          };
+          touch->stats_area = fraction(stats_drawn.area);
+          touch->brush_areas.clear();
+          std::ranges::transform(brush_areas, std::back_inserter(touch->brush_areas), fraction);
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {

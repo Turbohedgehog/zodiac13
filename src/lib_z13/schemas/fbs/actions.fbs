@@ -34,6 +34,19 @@ enum Action : int16 (action, action_group: "Control") {
   TOGGLE_FLASHLIGHT (display_text: "Flashlight", default_keycodes: "KEY_F TOUCH_FLASHLIGHT"),
   // Uses the block ahead, and keeps using it while held. KEY_E picks the next primitive while building.
   USE (display_text: "Use", default_keycodes: "KEY_E TOUCH_USE"),
+  SELECT_CELL_1 (display_text: "Hotbar cell 1", default_keycodes: "KEY_1 TOUCH_CELL_1"),
+  SELECT_CELL_2 (display_text: "Hotbar cell 2", default_keycodes: "KEY_2 TOUCH_CELL_2"),
+  SELECT_CELL_3 (display_text: "Hotbar cell 3", default_keycodes: "KEY_3 TOUCH_CELL_3"),
+  SELECT_CELL_4 (display_text: "Hotbar cell 4", default_keycodes: "KEY_4 TOUCH_CELL_4"),
+  SELECT_CELL_5 (display_text: "Hotbar cell 5", default_keycodes: "KEY_5 TOUCH_CELL_5"),
+  SELECT_CELL_6 (display_text: "Hotbar cell 6", default_keycodes: "KEY_6 TOUCH_CELL_6"),
+  SELECT_CELL_7 (display_text: "Hotbar cell 7", default_keycodes: "KEY_7 TOUCH_CELL_7"),
+  SELECT_CELL_8 (display_text: "Hotbar cell 8", default_keycodes: "KEY_8 TOUCH_CELL_8"),
+  SELECT_CELL_9 (display_text: "Hotbar cell 9", default_keycodes: "KEY_9 TOUCH_CELL_9"),
+  NEXT_CELL (display_text: "Next hotbar cell", default_keycodes: "MOUSE_WHEEL_DOWN"),
+  PREVIOUS_CELL (display_text: "Previous hotbar cell", default_keycodes: "MOUSE_WHEEL_UP"),
+  // To the cell with the build tool, or back to the cell before it.
+  TOGGLE_BUILD_TOOL (display_text: "Take or put away the build tool", default_keycodes: "KEY_TAB"),
 }
 
 table ActionsTable {

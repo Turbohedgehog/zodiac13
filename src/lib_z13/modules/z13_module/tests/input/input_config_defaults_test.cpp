@@ -15,7 +15,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <format>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <string>
@@ -100,9 +102,12 @@ TEST_F(InputConfigDefaultsTest, BindingsFromTheFileAreKeptAndNotDoubled) {
 
   ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
 
-  const auto& by_action = config.keycode_binding.get<z13::input::InputConfig::ActionIdTag>();
-  EXPECT_EQ(KeyOf(config, Action::MOVE_FORWARD), Keycode::KEY_I);
-  EXPECT_EQ(by_action.count(IdOf(Action::MOVE_FORWARD)), 1u);
+  // The touch stick's key joins the file's (see TouchKeysJoinAnActionTheFileAlreadyBinds); W doesn't.
+  BindingSet forward;
+  std::ranges::copy_if(Bindings(config), std::inserter(forward, forward.end()),
+                       [&](const auto& binding) { return std::get<0>(binding) == IdOf(Action::MOVE_FORWARD); });
+  EXPECT_EQ(forward, (BindingSet {{IdOf(Action::MOVE_FORWARD), Keycode::KEY_I},
+                                  {IdOf(Action::MOVE_FORWARD), Keycode::TOUCH_STICK_UP}}));
 }
 
 TEST_F(InputConfigDefaultsTest, ADefaultKeyAlreadyTakenByAnotherActionIsSkipped) {
@@ -173,6 +178,19 @@ TEST_F(InputConfigDefaultsTest, ARemovedActionIsSkipped) {
   ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
 
   EXPECT_EQ(KeyOf(config, Action::MOVE_FORWARD), Keycode::KEY_I);
+}
+
+TEST_F(InputConfigDefaultsTest, TouchKeysJoinAnActionTheFileAlreadyBinds) {
+  z13::input::InputConfig config;
+  const std::string json =
+      Config(Binding("MOVE_FORWARD", "KEY_UP") + ", " + Binding("MOVE_BACKWARD", "KEY_UNKNOWN"));
+  ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
+
+  const BindingSet bindings = Bindings(config);
+  EXPECT_TRUE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::KEY_UP}));
+  EXPECT_TRUE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::TOUCH_STICK_UP}));
+  EXPECT_FALSE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::KEY_W}));
+  EXPECT_FALSE(KeyOf(config, Action::MOVE_BACKWARD).has_value());
 }
 
 }  // namespace
