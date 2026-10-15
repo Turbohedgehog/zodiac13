@@ -27,6 +27,8 @@ string(REPLACE "." ";" VER_LIST ${VER_BASE})
 list(GET VER_LIST 0 Z13_VERSION_MAJOR)
 list(GET VER_LIST 1 Z13_VERSION_MINOR)
 set(Z13_VERSION_PATCH 0 CACHE STRING "Patch version from CI")
+# Which kind of build this is, shown after the version: "-pr12" for a pull request; empty for a release.
+set(Z13_VERSION_SUFFIX "" CACHE STRING "Suffix of the shown version, from CI")
 
 set(Z13_FULL_VERSION "${Z13_VERSION_MAJOR}.${Z13_VERSION_MINOR}.${Z13_VERSION_PATCH}")
 # Shown in the game's corner: CI passes the day it builds, a local build the day it configured.

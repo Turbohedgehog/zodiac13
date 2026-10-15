@@ -31,19 +31,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0  # the commit count is the patch number
 
+      # The patch is the commit count, as in android.yml: every build of a commit shares its number.
       - name: Read version from file
         shell: bash
         run: |
           BASE_VER=$(tr -d '[:space:]' < version.txt)
+          PATCH=$(git rev-list --count HEAD)
           echo "BASE_VER=$BASE_VER" >> "$GITHUB_ENV"
-          echo "FULL_VER=$BASE_VER.${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "PATCH=$PATCH" >> "$GITHUB_ENV"
+          echo "FULL_VER=$BASE_VER.$PATCH" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/setup-vcpkg-build
         with:
           triplet: ${{ matrix.triplet }}
           cache-suffix: ${{ matrix.cache-suffix }}
-          extra-cmake-args: -DZ13_VERSION_PATCH=${{ github.run_number }}
+          extra-cmake-args: -DZ13_VERSION_PATCH=${{ env.PATCH }}
 
       - name: Build
         # A bare --parallel is an unbounded `make -j` on Linux: the runner runs out of memory.

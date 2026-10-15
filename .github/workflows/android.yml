@@ -38,11 +38,26 @@ jobs:
           submodules: recursive
           fetch-depth: 0  # the commit count is the versionCode
 
-      # versionCode grows along main whichever workflow builds it; installs over an older build.
+      # The commit count is both the version's patch and versionCode: it grows along main whichever
+      # workflow builds it (installs over an older build), and a release and main's APK of one
+      # commit share the number (build_release.yml). A pull request's or another branch's build
+      # is named apart from a release by a suffix.
       - name: Read the version
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RELEASE: ${{ inputs.release }}
         run: |
-          echo "VERSION_NAME=$(tr -d '[:space:]' < version.txt).${{ github.run_number }}" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          VERSION_CODE=$(git rev-list --count HEAD)
+          if [ -n "$PR_NUMBER" ]; then
+            SUFFIX="-pr$PR_NUMBER"
+          elif [ "$RELEASE" = "true" ] || [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            SUFFIX=""
+          else
+            SUFFIX="-${GITHUB_REF_NAME//\//-}"
+          fi
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$(tr -d '[:space:]' < version.txt).$VERSION_CODE$SUFFIX" >> "$GITHUB_ENV"
 
       # vcpkg's Android toolchain reads ANDROID_NDK_HOME; the image's default NDK is older.
       - name: Select the NDK
@@ -69,7 +84,8 @@ jobs:
             -DANDROID_ABI=arm64-v8a
             -DANDROID_PLATFORM=android-26
             -DANDROID_STL=c++_shared
-            -DZ13_VERSION_PATCH=${{ github.run_number }}
+            -DZ13_VERSION_PATCH=${{ env.VERSION_CODE }}
+            -DZ13_VERSION_SUFFIX=${{ env.VERSION_SUFFIX }}
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
