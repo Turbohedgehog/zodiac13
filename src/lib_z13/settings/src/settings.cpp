@@ -90,6 +90,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.connect_timeout) {
     settings.connect_timeout = NewDefaults<ConnectTimeoutConfig>();
   }
+  if (!settings.session_timeout) {
+    settings.session_timeout = NewDefaults<SessionTimeoutConfig>();
+  }
   if (!settings.net) {
     settings.net = NewDefaults<fbs::net::NetTuningT>();
   }
@@ -132,7 +135,7 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
 }
 
 Status ValidateSettings(const Settings& settings) {
-  if (!settings.core || !settings.connect_timeout || !settings.net || !settings.physics || !settings.building ||
+  if (!settings.core || !settings.connect_timeout || !settings.session_timeout || !settings.net || !settings.physics || !settings.building ||
       !settings.visual_smoothing || !settings.render || !settings.touch || !settings.lan_discovery) {
     return Invalid("nested tables", "must be set");
   }
@@ -164,6 +167,9 @@ Status ValidateSettings(const Settings& settings) {
   }
   if (settings.connect_timeout->max_timeout_ms < settings.connect_timeout->min_timeout_ms) {
     return Invalid("connect_timeout.max_timeout_ms", "must not be below connect_timeout.min_timeout_ms");
+  }
+  if (settings.session_timeout->max_timeout_ms < settings.session_timeout->min_timeout_ms) {
+    return Invalid("session_timeout.max_timeout_ms", "must not be below session_timeout.min_timeout_ms");
   }
 
   // A relayed run of commands spans the whole schedule window in one byte (CommandWire::tick_delta).
@@ -207,7 +213,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 }
 
 void InstallSettings(flecs::world world, const Settings& settings) {
-  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
+  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
                                   RenderTuning, TouchLayout, LanDiscoverySettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
@@ -220,6 +226,7 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.connect_timeout) {
     world.set(ConnectTimeout(*settings.connect_timeout));
+    world.set(SessionTimeout(*settings.session_timeout));
   }
   if (settings.visual_smoothing) {
     world.set(VisualSmoothing(*settings.visual_smoothing));

@@ -28,10 +28,15 @@ std::vector<uint8_t> EncodeDiscovery(const DiscoveryMessage& message) {
   return {builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize()};
 }
 
-std::expected<DiscoveryMessage, std::string> DecodeDiscovery(std::span<const uint8_t> bytes) {
+bool IsDiscoveryMessage(std::span<const uint8_t> bytes) {
   flatbuffers::Verifier verifier(bytes.data(), bytes.size());
-  if (!fbs::discovery::DiscoveryMessageBufferHasIdentifier(bytes.data()) ||
-      !fbs::discovery::VerifyDiscoveryMessageBuffer(verifier)) {
+  return bytes.size() >= flatbuffers::kFileIdentifierLength + sizeof(flatbuffers::uoffset_t) &&
+         fbs::discovery::DiscoveryMessageBufferHasIdentifier(bytes.data()) &&
+         fbs::discovery::VerifyDiscoveryMessageBuffer(verifier);
+}
+
+std::expected<DiscoveryMessage, std::string> DecodeDiscovery(std::span<const uint8_t> bytes) {
+  if (!IsDiscoveryMessage(bytes)) {
     return std::unexpected(std::string("not a discovery message"));
   }
   DiscoveryMessage message;

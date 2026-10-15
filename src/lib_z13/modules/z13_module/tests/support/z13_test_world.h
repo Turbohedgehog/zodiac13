@@ -143,8 +143,10 @@ class Z13TestWorld {public:
 
     auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
     net_factory->SetTransportFactories(
-        [network](uint16_t port) { return z13::net::CreateInMemoryServerTransport(*network, port); },
-        [network](const z13::Endpoint& server, z13::ConnectTimeoutConfig) {
+        [network](uint16_t port, z13::SessionTimeoutConfig) {
+          return z13::net::CreateInMemoryServerTransport(*network, port);
+        },
+        [network](const z13::Endpoint& server, z13::ConnectTimeoutConfig, z13::SessionTimeoutConfig) {
           return z13::net::CreateInMemoryClientTransport(*network, server.port);
         });
     core.RegisterModuleFactory(net_factory);

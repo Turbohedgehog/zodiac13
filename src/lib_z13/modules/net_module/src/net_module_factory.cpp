@@ -43,11 +43,14 @@ void NetModuleFactory::RegisterModules(flecs::world& world) {
   world.set<TransportFactories>({
       .server = server_transport_factory_
           ? server_transport_factory_
-          : ServerTransportFactory([](uint16_t port) { return CreateEnetServerTransport(port); }),
+          : ServerTransportFactory([](uint16_t port, z13::SessionTimeoutConfig session_timeout) {
+                return CreateEnetServerTransport(port, kMaxClients, session_timeout);
+              }),
       .client = client_transport_factory_
           ? client_transport_factory_
-          : ClientTransportFactory([](const Endpoint& server, z13::ConnectTimeoutConfig timeout) {
-              return CreateEnetClientTransport(server, timeout);
+          : ClientTransportFactory([](const Endpoint& server, z13::ConnectTimeoutConfig connect_timeout,
+                                      z13::SessionTimeoutConfig session_timeout) {
+              return CreateEnetClientTransport(server, connect_timeout, session_timeout);
             }),
   });
 }

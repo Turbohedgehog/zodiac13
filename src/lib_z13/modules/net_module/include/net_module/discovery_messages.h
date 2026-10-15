@@ -28,7 +28,7 @@
 namespace z13::net {
 
 // The discovery format (discovery.fbs); a query of another is dropped unanswered.
-inline constexpr uint32_t kDiscoveryFormatVersion = 1;
+inline constexpr uint32_t kDiscoveryFormatVersion = 2;
 
 using DiscoveryMessage = fbs::discovery::DiscoveryMessageT;
 using ServerInfo = fbs::discovery::ServerInfoT;
@@ -36,6 +36,8 @@ using ServerInfo = fbs::discovery::ServerInfoT;
 std::vector<uint8_t> EncodeDiscovery(const DiscoveryMessage& message);
 // Verified first: anyone on the network can send it.
 std::expected<DiscoveryMessage, std::string> DecodeDiscovery(std::span<const uint8_t> bytes);
+// Tells a discovery message from ENet's datagrams on a server's port.
+bool IsDiscoveryMessage(std::span<const uint8_t> bytes);
 
 std::vector<uint8_t> EncodeQuery(uint64_t sent_at_ms);
 // What a server sends back to `query`: `info` with the query's time; nothing to a message of

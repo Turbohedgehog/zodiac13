@@ -18,6 +18,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include <lib_core/world/core_types.h>
 #include <net_module/discovery_socket.h>
@@ -26,22 +28,26 @@
 
 namespace z13::net {
 
-// What LanDiscoverySystem keeps between frames; runtime only, never state.
-struct LanDiscoveryState {
-  // Open while this process is a server (ServerRole).
-  std::optional<DiscoverySocket> server;
-  // Set when the server's socket couldn't be opened, so it isn't retried every frame.
-  bool server_failed {};
+// What LanDiscoverySystem's answers keep between frames; runtime only, never state.
+struct LanAnswerState {
   ReplyLimiter limiter;
+  // ServerInfo::instance_id.
+  uint64_t instance_id {};
+};
+
+// What LanDiscoverySystem's search keeps between frames; runtime only, never state.
+struct LanDiscoveryState {
   // Open while a Join window looks for servers (LanSearch).
   std::optional<DiscoverySocket> client;
   bool client_failed {};
+  // Taken when the socket opens: reopening the Join window sees new interfaces.
+  std::vector<std::string> broadcast_hosts;
   ServerFinder finder;
   uint64_t next_query_ms {};
 };
 
-// Finding servers on the LAN (docs/server-plan.md, "Поиск сервера"): a server answers the
-// queries a Join window broadcasts, and the window lists the answers (FoundServers).
+// Finding servers on the LAN (docs/server-plan.md, "Поиск сервера"): a server answers on its
+// game port the queries a Join window broadcasts, and the window lists the answers (FoundServers).
 class LanDiscoverySystem {
  public:
   static void Register(flecs::world& world);

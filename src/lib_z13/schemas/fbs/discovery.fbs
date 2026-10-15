@@ -37,6 +37,8 @@ table ServerInfo {
   scene: string;
   players: uint32;
   game_port: uint16;
+  // Drawn once per server process: a server answering through several addresses is listed once.
+  instance_id: uint64;
 }
 
 union DiscoveryBody { DiscoveryQuery, ServerInfo }

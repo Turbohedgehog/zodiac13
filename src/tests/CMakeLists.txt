@@ -74,6 +74,7 @@ set(
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
+  ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
@@ -96,6 +97,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/desync_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/lan_discovery_world_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/listen_server_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/motion_metrics_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/net_session_test.cpp
@@ -103,6 +105,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/quick_save_in_session_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/remote_prediction_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/session_settings_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/station_session_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/uplink_budget_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/action_quantization_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/action_replay_test.cpp
@@ -196,7 +199,7 @@ add_executable(z13_test_runner runner/main.cpp)
 target_link_libraries(z13_test_runner PRIVATE ${PROJECT_NAME} GTest::gtest)
 z13_set_output_directory(z13_test_runner ${Z13_BIN_DIR}/tests)
 
-set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*")
+set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*:LanDiscoveryWorldTest.*")
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
