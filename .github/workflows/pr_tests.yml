@@ -98,6 +98,14 @@ jobs:
           Z13_STATE_DUMP: ${{ github.workspace }}/state-dump.txt
         run: ctest --test-dir build --output-on-failure --no-tests=error --parallel 4
 
+      # The failed tests and their first errors, readable without a token (check-runs/<id>/annotations).
+      - name: Annotate failed tests
+        if: failure()
+        shell: bash
+        run: >-
+          .github/scripts/annotate_failure.sh
+          build/Testing/Temporary/LastTestsFailed.log build/Testing/Temporary/LastTest.log
+
       # The release packages are Linux-only (Windows zips bin/), so only they are checked.
       - name: Package (Linux)
         if: runner.os == 'Linux'
