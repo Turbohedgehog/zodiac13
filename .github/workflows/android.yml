@@ -38,11 +38,14 @@ jobs:
           submodules: recursive
           fetch-depth: 0  # the commit count is the versionCode
 
-      # versionCode grows along main whichever workflow builds it; installs over an older build.
+      # The commit count is both the version's patch and versionCode: it grows along main whichever
+      # workflow builds it (installs over an older build), and a release and main's APK of one
+      # commit share the number (build_release.yml).
       - name: Read the version
         run: |
-          echo "VERSION_NAME=$(tr -d '[:space:]' < version.txt).${{ github.run_number }}" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$(tr -d '[:space:]' < version.txt).$VERSION_CODE" >> "$GITHUB_ENV"
 
       # vcpkg's Android toolchain reads ANDROID_NDK_HOME; the image's default NDK is older.
       - name: Select the NDK
@@ -69,7 +72,7 @@ jobs:
             -DANDROID_ABI=arm64-v8a
             -DANDROID_PLATFORM=android-26
             -DANDROID_STL=c++_shared
-            -DZ13_VERSION_PATCH=${{ github.run_number }}
+            -DZ13_VERSION_PATCH=${{ env.VERSION_CODE }}
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
