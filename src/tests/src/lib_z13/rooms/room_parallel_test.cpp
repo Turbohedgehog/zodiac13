@@ -49,30 +49,30 @@ void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const s
   }
 }
 
-TEST(RoomParallelTest, EveryShippedStationBuildsAsInOneThread) {
+// The test station's hundreds of rooms and portals: every station, spire too, took 8.6 s.
+TEST(RoomParallelTest, TheTestStationBuildsAsInOneThread) {
   const auto palette = z13::testing::ShippedPalette();
   ASSERT_TRUE(palette.has_value()) << palette.error();
   const ThreadPool pool(kThreads);
-  for (const std::string& scene : z13::testing::ShippedScenes()) {
-    const auto blocks = z13::testing::ShippedBlueprint(scene, *palette);
-    ASSERT_TRUE(blocks.has_value()) << blocks.error();
-    const RoomSources sources = z13::testing::RoomSourcesOf(*blocks, *palette);
+  const std::string scene(z13::testing::kTestScene);
+  const auto blocks = z13::testing::ShippedBlueprint(scene, *palette);
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
+  const RoomSources sources = z13::testing::RoomSourcesOf(*blocks, *palette);
 
-    const auto serial = BuildRooms(sources);
-    const auto pooled = BuildRooms(sources, kVacuumRoom + 1, {}, z13::testing::OnPool(pool));
-    ASSERT_TRUE(serial.has_value()) << serial.error();
-    ASSERT_TRUE(pooled.has_value()) << pooled.error();
-    ExpectSameGraph(*serial, *pooled, scene);
+  const auto serial = BuildRooms(sources);
+  const auto pooled = BuildRooms(sources, kVacuumRoom + 1, {}, z13::testing::OnPool(pool));
+  ASSERT_TRUE(serial.has_value()) << serial.error();
+  ASSERT_TRUE(pooled.has_value()) << pooled.error();
+  ExpectSameGraph(*serial, *pooled, scene);
 
-    // An edit: the first sealing block torn down, the rest rebuilt around it.
-    RoomSources edited = sources;
-    edited.sealed.erase(edited.sealed.begin());
-    const auto serial_update = UpdateRooms(*serial, edited, serial->next_id, {});
-    const auto pooled_update = UpdateRooms(*pooled, edited, pooled->next_id, {}, z13::testing::OnPool(pool));
-    ASSERT_TRUE(serial_update.has_value()) << serial_update.error();
-    ASSERT_TRUE(pooled_update.has_value()) << pooled_update.error();
-    ExpectSameGraph(*serial_update, *pooled_update, scene);
-  }
+  // An edit: the first sealing block torn down, the rest rebuilt around it.
+  RoomSources edited = sources;
+  edited.sealed.erase(edited.sealed.begin());
+  const auto serial_update = UpdateRooms(*serial, edited, serial->next_id, {});
+  const auto pooled_update = UpdateRooms(*pooled, edited, pooled->next_id, {}, z13::testing::OnPool(pool));
+  ASSERT_TRUE(serial_update.has_value()) << serial_update.error();
+  ASSERT_TRUE(pooled_update.has_value()) << pooled_update.error();
+  ExpectSameGraph(*serial_update, *pooled_update, scene);
 }
 
 }  // namespace

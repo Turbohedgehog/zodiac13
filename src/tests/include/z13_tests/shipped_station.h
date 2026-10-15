@@ -33,6 +33,11 @@
 
 namespace z13::testing {
 
+// assets/station/blueprints/site.json: a floor with one spawn point.
+inline constexpr std::string_view kSiteScene = "site";
+// assets/station/blueprints/test.json, from docs/station-layout/generate_layout.py.
+inline constexpr std::string_view kTestScene = "test";
+
 // The source tree's assets/ and config/ (Z13_SOURCE_ASSETS_DIR, set for the test runner).
 inline z13::AssetSource SourceAssets() {
   return z13::AssetSource(std::filesystem::path(Z13_SOURCE_ASSETS_DIR).parent_path());

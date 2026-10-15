@@ -21,7 +21,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdint>
 #include <format>
 #include <iostream>
 #include <optional>
@@ -48,6 +50,8 @@ using z13::station::rooms::RoomCache;
 using z13::station::rooms::RoomGraph;
 
 constexpr int kEdits = 3;
+// One thread (no pool: the caller does it all) against the default pool, in one run.
+constexpr std::array kThreadCounts = {uint32_t {1}, uint32_t {4}};
 constexpr size_t kTopSystems = 6;
 // A wall panel's size in cells: a 1 m square, one cell thick.
 const Eigen::Vector3i kPanel {4, 1, 4};
@@ -125,23 +129,27 @@ void DestroyAndRestore(Z13TestWorld& world, const std::string& label) {
 
 TEST(RoomEditBench, DISABLED_BuildAndDestroyAWall) {
   for (const std::string& scene : z13::testing::ShippedScenes()) {
-    Z13TestWorld world({std::string(kStationSceneArg), scene});
-    world.Tick();
-    world.Tick();
-    const auto largest = RoomAnchor(Graph(world), true);
-    const auto smallest = RoomAnchor(Graph(world), false);
-    if (!largest || !smallest) {
-      continue;
-    }
-    std::cout << std::format("[ bench ] '{}': {} rooms, {} free leaves\n", scene, Graph(world).rooms.size(),
-                             Graph(world).space.LeafCount());
-    for (int edit = 0; edit < kEdits; ++edit) {
-      const Eigen::Vector3i up(0, 0, edit);
-      BuildAndDestroy(world, std::format("'{}' largest room {}", scene, edit), WallAt(*largest + up, kPanel));
-      BuildAndDestroy(world, std::format("'{}' smallest room {}", scene, edit), WallAt(*smallest + up, kCube));
-      BuildAndDestroy(world, std::format("'{}' outside the hull {}", scene, edit),
-                      WallAt(Graph(world).space.Bounds().min + up, kCube));
-      DestroyAndRestore(world, std::format("'{}' station wall {}", scene, edit));
+    for (const uint32_t threads : kThreadCounts) {
+      z13::Settings settings = z13::MakeSettings();
+      settings.core->threads = threads;
+      Z13TestWorld world({std::string(kStationSceneArg), scene}, nullptr, settings);
+      world.Tick();
+      world.Tick();
+      const auto largest = RoomAnchor(Graph(world), true);
+      const auto smallest = RoomAnchor(Graph(world), false);
+      if (!largest || !smallest) {
+        continue;
+      }
+      std::cout << std::format("[ bench ] '{}' on {} threads: {} rooms, {} free leaves\n", scene, threads,
+                               Graph(world).rooms.size(), Graph(world).space.LeafCount());
+      for (int edit = 0; edit < kEdits; ++edit) {
+        const Eigen::Vector3i up(0, 0, edit);
+        BuildAndDestroy(world, std::format("'{}' largest room {}", scene, edit), WallAt(*largest + up, kPanel));
+        BuildAndDestroy(world, std::format("'{}' smallest room {}", scene, edit), WallAt(*smallest + up, kCube));
+        BuildAndDestroy(world, std::format("'{}' outside the hull {}", scene, edit),
+                        WallAt(Graph(world).space.Bounds().min + up, kCube));
+        DestroyAndRestore(world, std::format("'{}' station wall {}", scene, edit));
+      }
     }
   }
 }

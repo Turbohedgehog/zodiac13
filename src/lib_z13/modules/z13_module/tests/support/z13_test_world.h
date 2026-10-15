@@ -57,10 +57,6 @@ constexpr std::string_view kServerArg = "--server";
 constexpr std::string_view kConnectArg = "--connect";
 constexpr std::string_view kStationArg = "--station";
 constexpr std::string_view kStationSceneArg = "--station-scene";
-// assets/station/blueprints/site.json: a floor with one spawn point.
-constexpr std::string_view kSiteScene = "site";
-// assets/station/blueprints/test.json, from docs/station-layout/generate_layout.py.
-constexpr std::string_view kTestScene = "test";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes.

@@ -101,7 +101,7 @@ std::expected<WorldRef, std::string> Core::CreateWorld() {
   flecs_tools::RegisterComponent<Assets>(world);
   world.set(Assets {.source = asset_source_});
   if (!thread_pool_) {
-    thread_pool_.emplace(config_.GetCoreSettings().threads);
+    thread_pool_.emplace(config_.GetCoreSettings().threads, config_.GetCoreSettings().min_parallel_count);
   }
   flecs_tools::RegisterComponent<ThreadPool>(world);
   world.set(*thread_pool_);
