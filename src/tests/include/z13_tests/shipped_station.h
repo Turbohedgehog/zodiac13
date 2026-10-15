@@ -26,7 +26,10 @@
 #include <z13/components/block.h>
 #include <primitives/blueprint.h>
 #include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <primitives/station_assets.h>
+#include <rooms/portal_source.h>
+#include <rooms/room_sources.h>
 
 namespace z13::testing {
 
@@ -49,6 +52,23 @@ inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBluep
     std::string_view scene, const z13::building::primitives::Palette& palette) {
   return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
       .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); });
+}
+
+// What the room build reads from a station's blocks: the sealing ones and their portals.
+inline z13::station::rooms::RoomSources RoomSourcesOf(const std::vector<z13::station::Block>& blocks,
+                                                      const z13::building::primitives::Palette& palette) {
+  z13::station::rooms::RoomSources sources;
+  for (const z13::station::Block& block : blocks) {
+    const z13::building::primitives::Primitive& primitive = palette.Find(block.spec.type_id)->get();
+    if (!z13::station::rooms::IsSealing(primitive)) {
+      continue;
+    }
+    sources.sealed.push_back(z13::building::primitives::OccupiedCells(block));
+    if (const auto portal = z13::station::rooms::PortalOf(block, primitive)) {
+      sources.portals.push_back(*portal);
+    }
+  }
+  return sources;
 }
 
 }  // namespace z13::testing

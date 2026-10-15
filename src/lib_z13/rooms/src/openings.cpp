@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <iterator>
+#include <functional>
 #include <map>
 
 #include <boost/polygon/polygon.hpp>
@@ -41,6 +42,13 @@ using z13::building::primitives::kCellAxes;
 // Per plane one cell thick across an axis, by its coordinate along it.
 template <typename T>
 using ByPlane = std::array<std::map<int, T>, kCellAxes>;
+
+// One wall plane to search: each owns its section, so planes are searched side by side.
+struct Plane {
+  int axis {};
+  int at {};
+  std::reference_wrapper<gtl::polygon_90_set_data<int>> section;
+};
 
 struct Axes {
   int across {};
@@ -117,7 +125,7 @@ std::vector<CellBox> HolesOf(gtl::polygon_90_set_data<int>& section, const std::
 }  // namespace
 
 std::vector<PortalSource> FindOpenings(std::span<const CellBox> sealed, std::span<const CellBox> walls,
-                                       int max_cells) {
+                                       int max_cells, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("FindOpenings");
   ByPlane<gtl::polygon_90_set_data<int>> sections;
   for (const CellBox& wall : walls) {
@@ -144,19 +152,31 @@ std::vector<PortalSource> FindOpenings(std::span<const CellBox> sealed, std::spa
       }
     }
   }
-  std::vector<PortalSource> found;
+  std::vector<Plane> planes;
   for (int axis = 0; axis < kCellAxes; ++axis) {
     for (auto& [at, section] : sections[axis]) {
-      for (const CellBox& hole : HolesOf(section, thin[axis][at], AxesOf(axis), at, max_cells)) {
-        const auto held = [&](int in_plane) {
-          return FreeOnBothSides(index, Beside(hole, in_plane, false), axis) &&
-                 FreeOnBothSides(index, Beside(hole, in_plane, true), axis);
-        };
-        if (FreeOnBothSides(index, hole, axis) && (held(AxesOf(axis).u) || held(AxesOf(axis).v))) {
-          found.push_back({.opening = hole, .axis = static_cast<Axis>(axis), .visible = true, .passable = true});
-        }
+      planes.push_back({.axis = axis, .at = at, .section = section});
+    }
+  }
+  const std::vector<CellBox> no_thin;
+  std::vector<std::vector<PortalSource>> by_plane(planes.size());
+  parallel(planes.size(), [&](size_t i) {
+    const auto [axis, at, section] = planes[i];
+    const auto thin_here = thin[axis].find(at);
+    const std::vector<CellBox>& thin_boxes = thin_here == thin[axis].end() ? no_thin : thin_here->second;
+    for (const CellBox& hole : HolesOf(section, thin_boxes, AxesOf(axis), at, max_cells)) {
+      const auto held = [&](int in_plane) {
+        return FreeOnBothSides(index, Beside(hole, in_plane, false), axis) &&
+               FreeOnBothSides(index, Beside(hole, in_plane, true), axis);
+      };
+      if (FreeOnBothSides(index, hole, axis) && (held(AxesOf(axis).u) || held(AxesOf(axis).v))) {
+        by_plane[i].push_back({.opening = hole, .axis = static_cast<Axis>(axis), .visible = true, .passable = true});
       }
     }
+  });
+  std::vector<PortalSource> found;
+  for (std::vector<PortalSource>& plane : by_plane) {
+    std::ranges::move(plane, std::back_inserter(found));
   }
   std::ranges::sort(found, PortalSourceBefore);
   return found;

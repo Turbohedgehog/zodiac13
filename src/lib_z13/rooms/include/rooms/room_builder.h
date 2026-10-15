@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <primitives/placement.h>
+#include <rooms/parallel_for.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_graph.h>
 #include <rooms/room_sources.h>
@@ -31,8 +32,9 @@ namespace z13::station::rooms {
 // Splits the free space into rooms, the connected sets of its leaves (FreeSpace). Free
 // space that reaches the edge of the station's bounds, or has no floor or roof, is the
 // vacuum. Holes small enough to be doorways (FindOpenings) split rooms and are portals.
-// Rooms get ids from `first_id` on, by anchor.
-std::expected<RoomGraph, std::string> BuildRooms(
-    const RoomSources& sources, RoomId first_id = kVacuumRoom + 1, const RoomSettings& settings = {});
+// Rooms get ids from `first_id` on, by anchor. The independent parts run with `parallel`.
+std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id = kVacuumRoom + 1,
+                                                 const RoomSettings& settings = {},
+                                                 const ParallelFor& parallel = Serial);
 
 }  // namespace z13::station::rooms

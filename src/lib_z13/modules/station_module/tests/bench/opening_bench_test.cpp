@@ -56,13 +56,7 @@ double MsSince(Clock::time_point start) {
 std::vector<CellBox> SealedOf(const std::string& scene, const primitives::Palette& palette) {
   const auto blocks = ShippedBlueprint(scene, palette);
   EXPECT_TRUE(blocks.has_value());
-  std::vector<CellBox> sealed;
-  for (const z13::station::Block& block : blocks.value_or(std::vector<z13::station::Block> {})) {
-    if (rooms::IsSealing(palette.Find(block.spec.type_id)->get())) {
-      sealed.push_back(primitives::OccupiedCells(block));
-    }
-  }
-  return sealed;
+  return RoomSourcesOf(blocks.value_or(std::vector<z13::station::Block> {}), palette).sealed;
 }
 
 bool NearTo(const CellBox& area, const CellBox& box, int cells) {
