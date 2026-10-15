@@ -19,7 +19,7 @@ Safety rules (job caps in PRoot, `pkill -f`, vcpkg concurrency) are in CLAUDE.md
 
 A foreground build hung the session before, and a tool call over ~10 minutes is moved to the background anyway. The scripts below are Python and work on Linux and Windows; logs go to `<temp>/z13-build` unless `--log-dir` says otherwise. Always:
 
-1. Start it detached: `python3 .claude/skills/build-and-test/scripts/build.py [--tests] [--keep-going] [--target T] [--config C] [--build-dir build-release]`. It picks `-j3` in PRoot, writes `build.log` (and `ctest.log` with `--tests`, run only if the build succeeds) ending in an `EXIT <code>` line, and the PID for `stop_build.py`. `--config` is for multi-config generators (Visual Studio).
+1. Start it detached: `python3 .claude/skills/build-and-test/scripts/build.py [--tests] [--keep-going] [--target T] [--config C] [--build-dir build-release]`. It picks `-j3` in PRoot and there builds without the renderer (`Z13_BUILD_RENDER=OFF`: no `raylib_module`, CI builds it; `--render` puts it back, reconfiguring only when the option changes, with `VCPKG_MAX_CONCURRENCY=1`), writes `build.log` (and `ctest.log` with `--tests`, run only if the build succeeds) ending in an `EXIT <code>` line, and the PID for `stop_build.py`. `--config` is for multi-config generators (Visual Studio).
 2. Wait in a background tool call: `python3 .claude/skills/build-and-test/scripts/wait_build.py` (run_in_background). It prints the unique compiler errors, or the test summary and the failed tests.
 3. For "какой статус?": `python3 .claude/skills/build-and-test/scripts/wait_build.py --status` prints `[n/N]`, the errors so far and how many tests ran, without waiting. Answer with the step count, errors, and a time estimate from the pace of the last check.
 
