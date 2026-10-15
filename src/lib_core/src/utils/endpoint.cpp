@@ -18,8 +18,13 @@
 
 #include <charconv>
 #include <format>
+#include <functional>
 
 namespace z13 {
+
+size_t EndpointHash::operator()(const Endpoint& endpoint) const {
+  return std::hash<std::string>()(endpoint.host) ^ (static_cast<size_t>(endpoint.port) << 1);
+}
 
 std::expected<uint16_t, std::string> ParsePort(std::string_view text) {
   int port {};

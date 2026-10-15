@@ -17,8 +17,12 @@ set(
   src/catch_up.cpp
   src/client_session.cpp
   src/clock_sync.cpp
+  src/discovery_messages.cpp
+  src/discovery_socket.cpp
+  src/enet_lifetime.cpp
   src/enet_transport.cpp
   src/in_memory_transport.cpp
+  src/lan_discovery_system.cpp
   src/net_action_sender.cpp
   src/net_module.cpp
   src/net_module_factory.cpp
@@ -26,7 +30,9 @@ set(
   src/net_session_system.cpp
   src/protocol.cpp
   src/remote_input.cpp
+  src/reply_limiter.cpp
   src/scheduled_commands.cpp
+  src/server_finder.cpp
   src/server_session.cpp
   src/session_control.cpp
   src/session_deltas.cpp

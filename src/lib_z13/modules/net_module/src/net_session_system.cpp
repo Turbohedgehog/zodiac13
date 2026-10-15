@@ -81,7 +81,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
   NetSession session;
   session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
-  world.add<ServerRole>();
+  world.set<ServerRole>({.port = port});
   SetConnectionStatus(world, ConnectionState::kConnected);
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();

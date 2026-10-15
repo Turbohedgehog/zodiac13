@@ -75,6 +75,8 @@ set(
   ${MODULES_DIR}/building_module/tests/station_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/test_station_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
+  ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
+  ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
@@ -207,7 +209,7 @@ set_target_properties(z13_test_runner PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
 )
 
-set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*")
+set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*")
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${Z13_BIN_DIR}/tests

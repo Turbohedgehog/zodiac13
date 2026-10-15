@@ -105,6 +105,18 @@ TEST(SchemaRangesTest, ValueOutsideTheBoundsNamesItsPath) {
   EXPECT_NE(valid.error().find("net.send_interval_ticks"), std::string::npos) << valid.error();
 }
 
+TEST(SchemaRangesTest, AnEmptyNonEmptyStringNamesItsPath) {
+  EXPECT_FALSE(MakeSettings().lan_discovery->server_name.empty()) << "the schema's default reaches the object API";
+
+  Settings settings = MakeSettings();
+  settings.lan_discovery->server_name.clear();
+  const auto packed = Pack(settings);
+  const auto valid = schema::ValidateRanges(
+      Schema(), *Schema().root_table(), *flatbuffers::GetRoot<flatbuffers::Table>(packed.GetBufferPointer()));
+  ASSERT_FALSE(valid.has_value());
+  EXPECT_NE(valid.error().find("lan_discovery.server_name"), std::string::npos) << valid.error();
+}
+
 TEST(SchemaRangesTest, NonFiniteValuesAreRejected) {
   for (const double bad : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
     Settings settings = MakeSettings();

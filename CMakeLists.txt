@@ -29,6 +29,10 @@ list(GET VER_LIST 1 Z13_VERSION_MINOR)
 set(Z13_VERSION_PATCH 0 CACHE STRING "Patch version from CI")
 
 set(Z13_FULL_VERSION "${Z13_VERSION_MAJOR}.${Z13_VERSION_MINOR}.${Z13_VERSION_PATCH}")
+# Shown in the game's corner: CI passes the day it builds, a local build the day it configured.
+if(NOT DEFINED Z13_BUILD_DATE)
+    string(TIMESTAMP Z13_BUILD_DATE "%Y-%m-%d" UTC)
+endif()
 
 project(zodiac13 VERSION ${Z13_FULL_VERSION})
 

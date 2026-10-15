@@ -18,6 +18,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <flecs.h>
@@ -27,6 +28,9 @@
 #include <z13/components/station_mode.h>
 
 namespace z13::raylib::gui {
+
+// The scene without a station blueprint.
+inline constexpr std::string_view kSpaceshipLabel = "Spaceship";
 
 // A scene a local or hosted game starts in; the spaceship has no station.
 struct GameScene {

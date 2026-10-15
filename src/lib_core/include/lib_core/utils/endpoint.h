@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <string>
@@ -31,6 +32,10 @@ struct Endpoint {
   uint16_t port {};
 
   friend bool operator==(const Endpoint&, const Endpoint&) = default;
+};
+
+struct EndpointHash {
+  size_t operator()(const Endpoint& endpoint) const;
 };
 
 // A decimal port in [kMinPort, kMaxPort].

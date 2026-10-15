@@ -17,7 +17,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <lib_core/utils/endpoint.h>
 
@@ -27,6 +29,8 @@ namespace z13::net {
 // present means single-player. Tags rather than an enum so a future composite role (listen-server) fits.
 struct ServerRole {
   using Singleton = void;
+  // The game's, which LAN discovery tells clients.
+  uint16_t port {};
 };
 struct ClientRole {
   using Singleton = void;
@@ -44,6 +48,31 @@ struct JoinRequest {
 
 // Abandons a join still connecting; leaving a running game is removing Gameplay.
 struct LeaveRequest {};
+
+// Present while the Join window looks for servers on the LAN.
+struct LanSearch {
+  using Singleton = void;
+};
+
+// A server found on the LAN (net_module's ServerFinder), as the Join window lists it.
+struct FoundServer {
+  // Where to join: the address it answered from, at its game port.
+  Endpoint endpoint;
+  std::string name;
+  // The station blueprint; nothing for the spaceship.
+  std::optional<std::string> scene;
+  uint32_t players {};
+  uint64_t ping_ms {};
+  // Why it can't be joined (another protocol version); nothing if it can.
+  std::optional<std::string> incompatible;
+
+  bool operator==(const FoundServer&) const = default;
+};
+
+struct FoundServers {
+  using Singleton = void;
+  std::vector<FoundServer> servers;
+};
 
 // Not state -- rebuilt by net_module every session, never saved. net_module is the
 // only writer; GUI reads it to show connecting/failure state.

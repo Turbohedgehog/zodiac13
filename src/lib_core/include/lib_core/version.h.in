@@ -24,5 +24,7 @@ namespace z13 {
 // version.txt. Purely informational (e.g. embedded in save files for debugging
 // which build produced them) -- not a compatibility gate for any file format.
 constexpr std::string_view kEngineVersion = "@Z13_FULL_VERSION@";
+// UTC, YYYY-MM-DD: the day CI built it, or a local build configured.
+constexpr std::string_view kBuildDate = "@Z13_BUILD_DATE@";
 
 }  // namespace z13

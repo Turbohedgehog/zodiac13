@@ -41,6 +41,7 @@
 
 #include <raylib_module/raylib_components.h>
 
+#include "build_info.h"
 #include "gui_widgets.h"
 #include "gui_windows.h"
 #include "main_menu_window.h"
@@ -219,6 +220,7 @@ void RegisterSystems(flecs::world world) {
             gui::DrawRoomLabel(rooms->label, overlay_top);
           }
         }
+        gui::DrawBuildInfo();
         EndImGuiFrame();
       });
 

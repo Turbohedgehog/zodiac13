@@ -100,6 +100,16 @@ Status ValidateRangesAt(
       }
       continue;
     }
+    if (Attribute(*field, kNonEmptyAttribute)) {
+      if (field->type()->base_type() != reflection::String) {
+        return std::unexpected(std::format("{}: non_empty is only supported on string fields", path));
+      }
+      const flatbuffers::String* text = flatbuffers::GetFieldS(table, *field);
+      if (text == nullptr || text->size() == 0) {
+        return std::unexpected(std::format("{}: must not be empty", path));
+      }
+      continue;
+    }
     if (!flatbuffers::IsScalar(field->type()->base_type())) {
       continue;
     }

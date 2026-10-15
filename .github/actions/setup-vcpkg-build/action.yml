@@ -72,4 +72,5 @@ runs:
           -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} \
           -DVCPKG_TARGET_TRIPLET=${{ inputs.triplet }} \
           -DVCPKG_BUILD_TYPE=release \
+          -DZ13_BUILD_DATE=$(date -u +%Y-%m-%d) \
           ${{ inputs.extra-cmake-args }}

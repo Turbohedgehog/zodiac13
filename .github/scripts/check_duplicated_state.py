@@ -39,6 +39,7 @@ ALLOWED = [
      "empty constants"),
     (r"^z13::(\w+::)*k[A-Z]\w*$", "constexpr constants from our headers"),
     (r"::data\(\)::bfbsData$", "binary FlatBuffers schemas embedded by flatc"),
+    (r"::\w+\(\) const::bfbs_string$", "a string field's schema default, which flatc's accessor returns: a constant"),
     (r"::__tracy_source_location\d+U?$",
      "Tracy's constexpr zone locations (Z13_PROFILE) in a static library linked into two plugins; "
      "the profiler itself is the shared TracyClient"),
