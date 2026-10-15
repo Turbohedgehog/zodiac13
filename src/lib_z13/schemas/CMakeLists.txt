@@ -73,7 +73,7 @@ target_include_directories(
   ${PROJECT_NAME}
   INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/FBS_SCHEMAS_HEADERS>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}>
 )
 
 # settings.fbs includes lib_core's core_settings.fbs, whose generated header lives with lib_core.
@@ -81,7 +81,7 @@ target_link_libraries(${PROJECT_NAME} INTERFACE zodiac13::core flatbuffers::flat
 
 # install(
 #     DIRECTORY include/
-#     DESTINATION include/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
+#     DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
 # )
 
 install(
@@ -96,5 +96,5 @@ install(
     EXPORT ${PROJECT_NAME}Targets
     FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
     NAMESPACE ${PROJECT_NAMESPACE}::
-    DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${PROJECT_VERSION}/
+    DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
 )
