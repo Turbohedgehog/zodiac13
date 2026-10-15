@@ -17,6 +17,9 @@
 #include <primitives/palette.h>
 
 #include <algorithm>
+#include <cctype>
+#include <iterator>
+#include <string_view>
 #include <format>
 #include <span>
 #include <unordered_set>
@@ -91,6 +94,15 @@ std::expected<std::optional<Interaction>, std::string> ToInteraction(const fbs_s
   return interaction;
 }
 
+// The capitals of a CamelCase name ("CornerSlope" -> "CS"), or a one-word name's first letters.
+std::string ShortNameOf(std::string_view name) {
+  constexpr size_t kOneWordLetters = 2;
+  std::string capitals;
+  std::ranges::copy_if(name, std::back_inserter(capitals),
+                       [](char c) { return std::isupper(static_cast<unsigned char>(c)) != 0; });
+  return capitals.size() > 1 ? capitals : std::string(name.substr(0, kOneWordLetters));
+}
+
 std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT& source, int max_size_cells) {
   if (source.name.empty()) {
     return Error("no name");
@@ -118,6 +130,7 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
   Primitive primitive {
       .id = source.id,
       .name = source.name,
+      .short_name = source.short_name.empty() ? ShortNameOf(source.name) : source.short_name,
       .shape = *shape,
       .min_size = ToCells(*source.min_size),
       .max_size = ToCells(*source.max_size),

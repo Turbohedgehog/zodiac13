@@ -56,7 +56,8 @@ constexpr float kActiveOutlineThickness = 3.f;
 constexpr float kNumberInset = 0.06f;
 // The mode's line below the crosshair, as a part of the screen's height.
 constexpr float kModeLineOffset = 0.05f;
-// The brush row's cells: this part of a hotbar cell tall, padded around the name, this far apart.
+// The brush row's cells: this part of a hotbar cell tall and at least as wide, padded around the
+// short name, this far apart.
 constexpr float kBrushCellHeight = 0.6f;
 constexpr float kBrushPaddingEm = 0.5f;
 constexpr float kBrushGapEm = 0.3f;
@@ -169,8 +170,8 @@ std::vector<Eigen::AlignedBox2f> DrawBrushRow(flecs::world world, const z13::Tou
   const float center_x = (first_cell.min().x() + last_cell.max().x()) / 2.f;
 
   std::vector<float> widths;
-  std::ranges::transform(primitives, std::back_inserter(widths), [](const auto& primitive) {
-    return ImGui::CalcTextSize(primitive.name.c_str()).x + Em(kBrushPaddingEm) * 2.f;
+  std::ranges::transform(primitives, std::back_inserter(widths), [height](const auto& primitive) {
+    return std::max(height, ImGui::CalcTextSize(primitive.short_name.c_str()).x + Em(kBrushPaddingEm) * 2.f);
   });
   std::vector<Eigen::AlignedBox2f> areas(primitives.size());
   ImDrawList& draw = *ImGui::GetBackgroundDrawList();
@@ -190,10 +191,14 @@ std::vector<Eigen::AlignedBox2f> DrawBrushRow(flecs::world world, const z13::Tou
       draw.AddRect({cell.min().x(), cell.min().y()}, {cell.max().x(), cell.max().y()},
                    current ? kActiveOutlineColor : kOutlineColor, 0.f, 0,
                    current ? kActiveOutlineThickness : kOutlineThickness);
-      DrawCentered(draw, cell.center(), primitives[slot].name);
+      DrawCentered(draw, cell.center(), primitives[slot].short_name);
       areas[slot] = cell;
       left += widths[slot] + gap;
     }
+  }
+  if (const auto current = palette->palette.Find(brush->spec.type_id)) {
+    const float rows_top = first_cell.min().y() - static_cast<float>(rows.size()) * (height + gap);
+    DrawCentered(draw, Eigen::Vector2f(center_x, rows_top - height / 2.f), current->get().name);
   }
   return areas;
 }

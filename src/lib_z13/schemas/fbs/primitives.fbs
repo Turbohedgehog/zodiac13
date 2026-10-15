@@ -92,6 +92,8 @@ table Primitive {
   // Stable: block state stores it, so reordering the palette keeps saves valid.
   id: uint;
   name: string;
+  // A few letters for where the name doesn't fit (the brush row); the name's capitals when empty.
+  short_name: string;
   shape: Shape;
   // Equal for a fixed-size primitive; a stretchable one spans this range.
   min_size: Cells;

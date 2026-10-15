@@ -4,6 +4,7 @@
     {
       "id": 1,
       "name": "Floor",
+      "short_name": "Fl",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 1, "y": 1, "z": 1},
@@ -17,6 +18,7 @@
     {
       "id": 2,
       "name": "Wall",
+      "short_name": "Wa",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 1, "y": 1, "z": 1},
@@ -30,6 +32,7 @@
     {
       "id": 3,
       "name": "Door",
+      "short_name": "Dr",
       "shape_type": "DoorFrame",
       "shape": {"opening_width": 4, "opening_height": 8},
       "min_size": {"x": 6, "y": 1, "z": 10},
@@ -44,6 +47,7 @@
     {
       "id": 4,
       "name": "Window",
+      "short_name": "Wn",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 1, "y": 1, "z": 1},
@@ -57,6 +61,7 @@
     {
       "id": 5,
       "name": "Slope",
+      "short_name": "Sl",
       "shape_type": "Wedge",
       "shape": {},
       "min_size": {"x": 4, "y": 4, "z": 4},
@@ -70,6 +75,7 @@
     {
       "id": 6,
       "name": "CornerSlope",
+      "short_name": "CS",
       "shape_type": "CornerWedge",
       "shape": {},
       "min_size": {"x": 4, "y": 4, "z": 4},
@@ -83,6 +89,7 @@
     {
       "id": 7,
       "name": "HiddenDoor",
+      "short_name": "HD",
       "shape_type": "DoorFrame",
       "shape": {"opening_width": 4, "opening_height": 8},
       "min_size": {"x": 6, "y": 1, "z": 10},
@@ -97,6 +104,7 @@
     {
       "id": 8,
       "name": "SpawnPoint",
+      "short_name": "SP",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 4, "y": 4, "z": 1},
@@ -110,6 +118,7 @@
     {
       "id": 9,
       "name": "Cube",
+      "short_name": "Cu",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 2, "y": 2, "z": 2},
@@ -123,6 +132,7 @@
     {
       "id": 10,
       "name": "Lamp",
+      "short_name": "La",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 2, "y": 2, "z": 1},
@@ -138,6 +148,7 @@
     {
       "id": 11,
       "name": "Switch",
+      "short_name": "Sw",
       "shape_type": "Box",
       "shape": {},
       "min_size": {"x": 1, "y": 1, "z": 2},

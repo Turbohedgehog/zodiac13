@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include <format>
 #include <string>
 #include <string_view>
@@ -51,6 +53,17 @@ TEST(PaletteTest, ShippedPaletteParses) {
   EXPECT_EQ(door->get().shape.kind, ShapeKind::kDoorFrame);
   EXPECT_TRUE(door->get().Has(PrimitiveFlags::Solid));
   EXPECT_FALSE(palette->Find(0).has_value());
+}
+
+TEST(PaletteTest, AShortNameComesFromThePaletteOrTheNamesCapitals) {
+  const auto palette = ParsePalette(Palette(std::format("{}, {}", Entry(1, "CornerSlope"), Entry(2, "Wall"))));
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+  EXPECT_EQ(palette->primitives[0].short_name, "CS");
+  EXPECT_EQ(palette->primitives[1].short_name, "Wa");
+
+  const auto shipped = z13::testing::ShippedPalette();
+  ASSERT_TRUE(shipped.has_value()) << shipped.error();
+  EXPECT_TRUE(std::ranges::none_of(shipped->primitives, [](const Primitive& p) { return p.short_name.empty(); }));
 }
 
 TEST(PaletteTest, ParsesSizesFlagsAndColors) {
