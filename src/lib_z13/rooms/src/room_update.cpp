@@ -234,7 +234,7 @@ std::optional<std::vector<T>> Edited(const std::vector<T>& sorted, const std::ve
 // The free space of `sealed` and its openings: those of `previous` far from the changed
 // boxes kept, the rest found again. Openings that came or went join `changes`.
 std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, const std::vector<CellBox>& sealed,
-                                                    SourceChanges changes) {
+                                                    SourceChanges changes, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("UpdateSpace");
   const int max_cells = previous.settings.max_opening_cells;
   // An opening depends on its cells and those next to them, so a change reaches no farther.
@@ -262,7 +262,7 @@ std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, c
   std::vector<PortalSource> openings;
   std::ranges::copy_if(previous.openings, std::back_inserter(openings),
                        [&within](const PortalSource& opening) { return !within(opening.opening); });
-  for (const PortalSource& opening : FindOpenings(around, walls, max_cells)) {
+  for (const PortalSource& opening : FindOpenings(around, walls, max_cells, parallel)) {
     if (within(opening.opening)) {
       openings.push_back(opening);
     }
@@ -276,7 +276,7 @@ std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, c
     changes.openings.push_back(opening.opening);
     changes.sealed_added = changes.sealed_added || std::ranges::binary_search(openings, opening, PortalSourceBefore);
   }
-  auto space = previous.space.Rebuilt(SealedWith(sealed, openings), changes.sealed);
+  auto space = previous.space.Rebuilt(SealedWith(sealed, openings), changes.sealed, parallel);
   if (!space) {
     return std::unexpected(std::move(space.error()));
   }
@@ -288,12 +288,12 @@ std::expected<SpaceUpdate, std::string> UpdateSpace(const RoomGraph& previous, c
 
 std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, RoomSources sorted,
                                                    const SourceChanges& source_changes, RoomId first_id,
-                                                   const RoomSettings& settings) {
+                                                   const RoomSettings& settings, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("UpdateRooms");
   if (previous.space.AllChunks().empty() || sorted.sealed.empty() || previous.settings != settings) {
-    return BuildRooms(sorted, first_id, settings);
+    return BuildRooms(sorted, first_id, settings, parallel);
   }
-  auto rebuilt_space = UpdateSpace(previous, sorted.sealed, source_changes);
+  auto rebuilt_space = UpdateSpace(previous, sorted.sealed, source_changes, parallel);
   if (!rebuilt_space) {
     return std::unexpected(std::move(rebuilt_space.error()));
   }
@@ -427,16 +427,18 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
 }  // namespace
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
-                                                  RoomId first_id, const RoomSettings& settings) {
+                                                  RoomId first_id, const RoomSettings& settings,
+                                                  const ParallelFor& parallel) {
   RoomSources sorted = sources;
   std::ranges::sort(sorted.sealed, SealedBefore);
   std::ranges::sort(sorted.portals, PortalSourceBefore);
   const SourceChanges changes = ChangesBetween(previous.sources, sorted);
-  return UpdateSorted(previous, std::move(sorted), changes, first_id, settings);
+  return UpdateSorted(previous, std::move(sorted), changes, first_id, settings, parallel);
 }
 
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
-                                                  RoomId first_id, const RoomSettings& settings) {
+                                                  RoomId first_id, const RoomSettings& settings,
+                                                  const ParallelFor& parallel) {
   const auto sort = [](RoomSources& sources) {
     std::ranges::sort(sources.sealed, SealedBefore);
     std::ranges::sort(sources.portals, PortalSourceBefore);
@@ -450,7 +452,7 @@ std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, con
     return std::unexpected(std::string {"the edits remove a room source the graph lacks"});
   }
   return UpdateSorted(previous, {.sealed = std::move(*sealed), .portals = std::move(*portals)},
-                      ChangesBetween(sorted.removed, sorted.added), first_id, settings);
+                      ChangesBetween(sorted.removed, sorted.added), first_id, settings, parallel);
 }
 
 }  // namespace z13::station::rooms

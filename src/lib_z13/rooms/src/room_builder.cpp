@@ -43,18 +43,25 @@ using z13::building::primitives::CellBox;
 using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
 // Per leaf, its connected set; the leaves open to space join the vertex after the last leaf.
-std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered) {
+// The neighbours are found in parallel, the edges added in one thread in leaf order.
+std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("ConnectedSets");
   const size_t vacuum = numbered.Leaves().size();
-  LeafGraph graph(vacuum + 1);
-  for (size_t i = 0; i < numbered.Leaves().size(); ++i) {
+  std::vector<std::vector<size_t>> linked(vacuum);
+  parallel(vacuum, [&](size_t i) {
     if (space.OnOuterFace(space.Leaf(numbered.Leaves()[i]))) {
-      boost::add_edge(i, vacuum, graph);
+      linked[i].push_back(vacuum);
     }
     for (const LeafRef& neighbour : space.Neighbours(numbered.Leaves()[i])) {
       if (const size_t j = numbered.Number(neighbour); j > i) {
-        boost::add_edge(i, j, graph);
+        linked[i].push_back(j);
       }
+    }
+  });
+  LeafGraph graph(vacuum + 1);
+  for (size_t i = 0; i < vacuum; ++i) {
+    for (const size_t j : linked[i]) {
+      boost::add_edge(i, j, graph);
     }
   }
   std::vector<size_t> set_of(vacuum + 1);
@@ -101,23 +108,26 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
 }  // namespace
 
 std::expected<RoomGraph, std::string> BuildRooms(const RoomSources& sources, RoomId first_id,
-                                                 const RoomSettings& settings) {
+                                                 const RoomSettings& settings, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("BuildRooms");
-  std::vector<PortalSource> openings = FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells);
-  auto space = FreeSpace::Build(SealedWith(sources.sealed, openings), settings.chunk_cells);
+  std::vector<PortalSource> openings =
+      FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells, parallel);
+  auto space = FreeSpace::Build(SealedWith(sources.sealed, openings), settings.chunk_cells, parallel);
   if (!space) {
     return std::unexpected(std::move(space.error()));
   }
   RoomGraph graph {.space = std::move(*space), .next_id = first_id, .settings = settings};
   const NumberedLeaves numbered(graph.space);
-  NameRooms(numbered, ConnectedSets(graph.space, numbered), first_id, graph);
+  NameRooms(numbered, ConnectedSets(graph.space, numbered, parallel), first_id, graph);
   std::vector<PortalSource> ordered = sources.portals;
   std::ranges::copy(openings, std::back_inserter(ordered));
   std::ranges::sort(ordered, [](const PortalSource& a, const PortalSource& b) {
     return AnchorBefore(a.opening.min, b.opening.min);
   });
-  for (const PortalSource& source : ordered) {
-    std::ranges::copy(PortalsThrough(graph, source), std::back_inserter(graph.portals));
+  std::vector<std::vector<Portal>> through(ordered.size());
+  parallel(ordered.size(), [&](size_t i) { through[i] = PortalsThrough(graph, ordered[i]); });
+  for (std::vector<Portal>& portals : through) {
+    std::ranges::move(portals, std::back_inserter(graph.portals));
   }
   graph.room_portals = PortalsByRoom(graph.portals);
   graph.sources = sources;

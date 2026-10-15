@@ -196,9 +196,19 @@ std::shared_ptr<const FreeChunk> BuildChunkAt(const Eigen::Vector3i& key, const 
   return BuildChunk(region, found == binned.end() ? std::vector<CellBox> {} : found->second);
 }
 
+// The chunks of `keys` cut in parallel, in the order of `keys`.
+std::vector<std::shared_ptr<const FreeChunk>> BuildChunksAt(const std::vector<Eigen::Vector3i>& keys,
+                                                            const Binned& binned, int chunk_cells,
+                                                            const ParallelFor& parallel) {
+  std::vector<std::shared_ptr<const FreeChunk>> chunks(keys.size());
+  parallel(keys.size(), [&](size_t i) { chunks[i] = BuildChunkAt(keys[i], binned, chunk_cells); });
+  return chunks;
+}
+
 }  // namespace
 
-std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox>& sealed, int chunk_cells) {
+std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox>& sealed, int chunk_cells,
+                                                       const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("FreeSpace::Build");
   FreeSpace space;
   space.chunk_cells_ = chunk_cells;
@@ -215,17 +225,20 @@ std::expected<FreeSpace, std::string> FreeSpace::Build(const std::vector<CellBox
   KeySet keys;
   ForEachChunk(range.first, range.last, [&](const Eigen::Vector3i& chunk) { keys.insert(chunk); });
   const Binned binned = BinInto(sealed, keys, chunk_cells);
-  for (const Eigen::Vector3i& key : keys) {
-    space.chunks_.emplace(key, BuildChunkAt(key, binned, chunk_cells));
+  const std::vector<Eigen::Vector3i> ordered(keys.begin(), keys.end());
+  std::vector<std::shared_ptr<const FreeChunk>> chunks = BuildChunksAt(ordered, binned, chunk_cells, parallel);
+  for (size_t i = 0; i < ordered.size(); ++i) {
+    space.chunks_.emplace(ordered[i], std::move(chunks[i]));
   }
   return space;
 }
 
 std::expected<RebuiltSpace, std::string> FreeSpace::Rebuilt(const std::vector<CellBox>& sealed,
-                                                            const std::vector<CellBox>& changed) const {
+                                                            const std::vector<CellBox>& changed,
+                                                            const ParallelFor& parallel) const {
   Z13_PROFILE_ZONE("FreeSpace::Rebuilt");
   if (sealed.empty() || chunks_.empty()) {
-    auto built = Build(sealed, chunk_cells_);
+    auto built = Build(sealed, chunk_cells_, parallel);
     if (!built) {
       return std::unexpected(std::move(built.error()));
     }
@@ -259,9 +272,11 @@ std::expected<RebuiltSpace, std::string> FreeSpace::Rebuilt(const std::vector<Ce
     }
   });
   const Binned binned = BinInto(sealed, keys, chunk_cells_);
-  for (const Eigen::Vector3i& key : keys) {
-    space.chunks_[key] = BuildChunkAt(key, binned, chunk_cells_);
-    rebuilt.rebuilt.push_back(key);
+  const std::vector<Eigen::Vector3i> ordered(keys.begin(), keys.end());
+  std::vector<std::shared_ptr<const FreeChunk>> chunks = BuildChunksAt(ordered, binned, chunk_cells_, parallel);
+  for (size_t i = 0; i < ordered.size(); ++i) {
+    space.chunks_[ordered[i]] = std::move(chunks[i]);
+    rebuilt.rebuilt.push_back(ordered[i]);
   }
   std::ranges::sort(rebuilt.rebuilt, AnchorBefore);
   return rebuilt;

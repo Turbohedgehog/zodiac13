@@ -20,6 +20,7 @@
 #include <expected>
 #include <string>
 
+#include <rooms/parallel_for.h>
 #include <rooms/room_graph.h>
 #include <rooms/room_sources.h>
 
@@ -31,11 +32,13 @@ namespace z13::station::rooms {
 // one with the lowest anchor keeps its id. New rooms get ids from `first_id` on, by anchor.
 // Built whole without a previous graph or with other settings.
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSources& sources,
-                                                  RoomId first_id, const RoomSettings& settings);
+                                                  RoomId first_id, const RoomSettings& settings,
+                                                  const ParallelFor& parallel = Serial);
 
 // The same for the sources `edits` makes of `previous.sources`, without comparing them all;
 // fails when it removes a source `previous` lacks.
 std::expected<RoomGraph, std::string> UpdateRooms(const RoomGraph& previous, const RoomSourceEdits& edits,
-                                                  RoomId first_id, const RoomSettings& settings);
+                                                  RoomId first_id, const RoomSettings& settings,
+                                                  const ParallelFor& parallel = Serial);
 
 }  // namespace z13::station::rooms

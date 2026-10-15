@@ -27,6 +27,7 @@
 #include <primitives/station_assets.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_builder.h>
+#include <z13_tests/pool_parallel.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/block.h>
 
@@ -36,32 +37,34 @@ namespace {
 namespace primitives = z13::building::primitives;
 
 constexpr int kRuns = 5;
+// CoreSettings::threads' default.
+constexpr size_t kPoolThreads = 4;
 
 TEST(RoomBuildBench, DISABLED_FullRebuild) {
   const primitives::Palette palette = ShippedPalette().value();
   for (const std::string& scene : z13::testing::ShippedScenes()) {
     const auto blocks = ShippedBlueprint(scene, palette);
     ASSERT_TRUE(blocks.has_value()) << blocks.error();
-    z13::station::rooms::RoomSources sources;
-    for (const z13::station::Block& block : *blocks) {
-      const primitives::Primitive& primitive = palette.Find(block.spec.type_id)->get();
-      if (!z13::station::rooms::IsSealing(primitive)) {
-        continue;
-      }
-      sources.sealed.push_back(primitives::OccupiedCells(block));
-      if (const auto portal = z13::station::rooms::PortalOf(block, primitive)) {
-        sources.portals.push_back(*portal);
-      }
-    }
+    const z13::station::rooms::RoomSources sources = RoomSourcesOf(*blocks, palette);
+    const z13::ThreadPool pool(kPoolThreads);
+    const auto ms_since = [](std::chrono::steady_clock::time_point start) {
+      return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    };
     for (int run = 0; run < kRuns; ++run) {
-      const auto start = std::chrono::steady_clock::now();
+      auto start = std::chrono::steady_clock::now();
       const auto graph = z13::station::rooms::BuildRooms(sources);
-      const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+      const double serial_ms = ms_since(start);
+      start = std::chrono::steady_clock::now();
+      const auto pooled = z13::station::rooms::BuildRooms(sources, z13::station::rooms::kVacuumRoom + 1, {},
+                                                          OnPool(pool));
+      const double pooled_ms = ms_since(start);
       ASSERT_TRUE(graph.has_value()) << graph.error();
+      ASSERT_TRUE(pooled.has_value()) << pooled.error();
       std::cout << std::format(
-          "[ bench ] '{}' run {}: {} sealing blocks, {} rooms, {} portals, {} free leaves, built in {:.1f} ms\n", scene,
-          run, sources.sealed.size(), graph->rooms.size(), graph->portals.size(), graph->space.LeafCount(),
-          ms)
+          "[ bench ] '{}' run {}: {} sealing blocks, {} rooms, {} portals, {} free leaves, built in {:.1f} ms, "
+          "{:.1f} ms on {} threads\n",
+          scene, run, sources.sealed.size(), graph->rooms.size(), graph->portals.size(), graph->space.LeafCount(),
+          serial_ms, pooled_ms, kPoolThreads)
                 << std::flush;
     }
   }

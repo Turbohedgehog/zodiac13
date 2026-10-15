@@ -33,6 +33,7 @@
 #include <boost/geometry/index/rtree.hpp>
 
 #include <primitives/placement.h>
+#include <rooms/parallel_for.h>
 
 namespace z13::station::rooms {
 
@@ -78,11 +79,12 @@ class FreeSpace {
 
   FreeSpace() = default;
   static std::expected<FreeSpace, std::string> Build(const std::vector<z13::building::primitives::CellBox>& sealed,
-                                                     int chunk_cells);
+                                                     int chunk_cells, const ParallelFor& parallel = Serial);
   // A copy with the chunks the `changed` boxes touch cut again from `sealed`, and the area
   // fitted to the new bounds; every other chunk is shared.
   std::expected<RebuiltSpace, std::string> Rebuilt(const std::vector<z13::building::primitives::CellBox>& sealed,
-                                                   const std::vector<z13::building::primitives::CellBox>& changed) const;
+                                                   const std::vector<z13::building::primitives::CellBox>& changed,
+                                                   const ParallelFor& parallel = Serial) const;
 
   int ChunkCells() const { return chunk_cells_; }
   // The sealed boxes' bounds and a free cell around them; zero without any.

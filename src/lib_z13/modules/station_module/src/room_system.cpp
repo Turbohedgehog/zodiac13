@@ -27,6 +27,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/thread_pool.h>
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
@@ -37,6 +38,7 @@
 #include <z13/components/station_mode.h>
 #include <z13_settings/building_tuning.h>
 #include <primitives/palette.h>
+#include <rooms/parallel_for.h>
 #include <rooms/room_builder.h>
 #include <rooms/room_cache.h>
 #include <rooms/room_update.h>
@@ -66,48 +68,55 @@ void InstallSingletons(flecs::world world) {
   world.set(RoomCache {});
 }
 
-rooms::RoomCache::Build FromSources(rooms::RoomSources sources, const rooms::RoomSettings& settings) {
-  return [sources = std::move(sources), settings](rooms::RoomId first_id, rooms::OptionalRoomGraph current) {
-    return current ? rooms::UpdateRooms(*current, sources, first_id, settings)
-                   : rooms::BuildRooms(sources, first_id, settings);
+rooms::RoomCache::Build FromSources(rooms::RoomSources sources, const rooms::RoomSettings& settings,
+                                    rooms::ParallelFor parallel) {
+  return [sources = std::move(sources), settings, parallel = std::move(parallel)](rooms::RoomId first_id,
+                                                                                   rooms::OptionalRoomGraph current) {
+    return current ? rooms::UpdateRooms(*current, sources, first_id, settings, parallel)
+                   : rooms::BuildRooms(sources, first_id, settings, parallel);
   };
 }
 
 // `edits_apply`: the current graph is that of the blocks before the edits. Otherwise, or
 // when the edits fail, the rooms come from every block.
 rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks,
-                                  const BlockPalette& palette, const rooms::RoomSettings& settings) {
-  return [edits = std::move(edits), edits_apply, &blocks, &palette, settings](
+                                  const BlockPalette& palette, const rooms::RoomSettings& settings,
+                                  rooms::ParallelFor parallel) {
+  return [edits = std::move(edits), edits_apply, &blocks, &palette, settings, parallel = std::move(parallel)](
              rooms::RoomId first_id,
              rooms::OptionalRoomGraph current) -> std::expected<rooms::RoomGraph, std::string> {
     if (current && edits_apply) {
-      if (auto updated = rooms::UpdateRooms(*current, edits.edits, first_id, settings)) {
+      if (auto updated = rooms::UpdateRooms(*current, edits.edits, first_id, settings, parallel)) {
         return updated;
       }
     }
-    return FromSources(GatherSources(blocks, palette).sources, settings)(first_id, current);
+    return FromSources(GatherSources(blocks, palette).sources, settings, parallel)(first_id, current);
   };
 }
 
 void UpdateRooms(BlockChangeReader& reader, uint64_t restores, uint64_t tick, TopologyVersion& topology,
-                 RoomCache& cache, const BlockPalette& palette, const z13::BuildingTuning& tuning) {
+                 RoomCache& cache, const BlockPalette& palette, const z13::BuildingTuning& tuning,
+                 const z13::ThreadPool& pool) {
   const BlockChangeBatch batch = reader.Read(restores, tick);
   if (!batch.resync && batch.changes.empty()) {
     return;
   }
   Z13_PROFILE_ZONE("RoomSystem::UpdateRooms");
   const rooms::RoomSettings settings = RoomSettingsOf(tuning);
+  rooms::ParallelFor parallel = [pool](size_t count, const std::function<void(size_t)>& body) {
+    pool.ForEachIndex(count, body);
+  };
   uint64_t fingerprint {};
   rooms::RoomCache::Build build;
   if (batch.resync) {
     TopologySources gathered = GatherSources(reader.Blocks(), palette);
     fingerprint = gathered.fingerprint;
-    build = FromSources(std::move(gathered.sources), settings);
+    build = FromSources(std::move(gathered.sources), settings, std::move(parallel));
   } else {
     TopologyEdits edits = EditsOf(batch.changes, palette);
     fingerprint = topology.fingerprint + edits.fingerprint_change;
     const bool edits_apply = cache.CurrentFingerprint() == topology.fingerprint;
-    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, settings);
+    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, settings, std::move(parallel));
   }
   if (topology.fingerprint != fingerprint) {
     topology.fingerprint = fingerprint;
@@ -123,7 +132,8 @@ void RegisterSystems(flecs::world world) {
 
   const auto reader = std::make_shared<BlockChangeReader>(world);
   world.system<TopologyVersion, RoomCache, const z13::flecs_tools::WorldRestores,
-               const z13::flecs_tools::SimulationClock, const BlockPalette, const z13::BuildingTuning>(
+               const z13::flecs_tools::SimulationClock, const BlockPalette, const z13::BuildingTuning,
+               const z13::ThreadPool>(
       "RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
@@ -131,8 +141,8 @@ void RegisterSystems(flecs::world world) {
       .read<BlockChange>()
       .each([reader](flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache,
                      const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
-                     const BlockPalette& palette, const z13::BuildingTuning& tuning) {
-        UpdateRooms(*reader, restores.count, clock.tick, topology, cache, palette, tuning);
+                     const BlockPalette& palette, const z13::BuildingTuning& tuning, const z13::ThreadPool& pool) {
+        UpdateRooms(*reader, restores.count, clock.tick, topology, cache, palette, tuning, pool);
       });
 }
 

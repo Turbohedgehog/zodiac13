@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <primitives/placement.h>
+#include <rooms/parallel_for.h>
 #include <rooms/portal_source.h>
 
 namespace z13::station::rooms {
@@ -28,8 +29,9 @@ namespace z13::station::rooms {
 // cross-sections that are boxes no wider than `max_cells`, free on both sides of the plane
 // and held on two opposite sides by thin wall (free on both sides). Searched in the planes of
 // the thin `walls`; `sealed` must hold every box within max_cells + 2 cells of the holes
-// sought. Sorted by PortalSourceBefore.
+// sought. Sorted by PortalSourceBefore. The planes are searched with `parallel`.
 std::vector<PortalSource> FindOpenings(std::span<const z13::building::primitives::CellBox> sealed,
-                                       std::span<const z13::building::primitives::CellBox> walls, int max_cells);
+                                       std::span<const z13::building::primitives::CellBox> walls, int max_cells,
+                                       const ParallelFor& parallel = Serial);
 
 }  // namespace z13::station::rooms
