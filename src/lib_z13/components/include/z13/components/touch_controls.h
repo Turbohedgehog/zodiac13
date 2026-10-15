@@ -17,14 +17,19 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 
 namespace z13::input {
 
 // What a finger works, chosen where it first touched (docs/android-plan.md, "Мультитач").
-enum class TouchControl { kStick, kLook, kJump, kCrouch, kUse, kFlashlight };
+enum class TouchControl {
+  kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kStats,
+  kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
+};
 
 struct TouchFinger {
   uint64_t finger {};
@@ -41,6 +46,10 @@ struct TouchControls {
   Eigen::Vector2f screen_size = Eigen::Vector2f::Zero();
   // Set by the first touch: a screen nobody touched shows no touch controls.
   bool used {};
+  // The stats readout as the GUI last drew it, in fractions of the screen; a tap on it opens
+  // the full stats panel, and a tap on the panel folds it back (F3 on PC).
+  std::optional<Eigen::AlignedBox2f> stats_area;
+  bool stats_shown {};
 };
 
 }  // namespace z13::input

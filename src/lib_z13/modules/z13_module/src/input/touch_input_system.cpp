@@ -42,6 +42,12 @@ void OnTouchDown(const z13::input::TouchDownEvent& event, TouchControls& control
                  z13::input::InputState& input_state) {
   controls.used = true;
   controls.screen_size = event.screen_size;
+  if (controls.stats_area && controls.stats_area->contains(event.position.cwiseQuotient(event.screen_size))) {
+    controls.stats_shown = !controls.stats_shown;
+    controls.fingers.push_back({.finger = event.finger, .control = TouchControl::kStats, .origin = event.position,
+                                .position = event.position});
+    return;
+  }
   TouchControl control = z13::input::touch::ControlAt(layout, event.position, event.screen_size);
   // One stick: another finger in its zone looks.
   if (control == TouchControl::kStick && std::ranges::contains(controls.fingers, control, &TouchFinger::control)) {
@@ -62,6 +68,9 @@ void OnTouchMove(const z13::input::TouchMoveEvent& event, TouchControls& control
   }
   const Eigen::Vector2f delta = event.position - finger->position;
   finger->position = event.position;
+  if (finger->control == TouchControl::kStats) {
+    return;
+  }
   if (finger->control == TouchControl::kStick) {
     for (const auto& [key, value] :
          z13::input::touch::StickKeys(z13::input::touch::StickValue(layout, *finger, event.screen_size))) {

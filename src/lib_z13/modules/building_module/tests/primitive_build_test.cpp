@@ -17,7 +17,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -67,11 +66,6 @@ using Keycode = z13::fbs::input::Keycode;
 // Off the cell boundary at y = 0, so the brush and the destroy ray agree on the row.
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 constexpr uint32_t kBuilderId = 7;
-// The slot keys, in palette order.
-constexpr std::array kSlotKeys {Keycode::KEY_1, Keycode::KEY_2, Keycode::KEY_3, Keycode::KEY_4, Keycode::KEY_5,
-                                Keycode::KEY_6, Keycode::KEY_7, Keycode::KEY_8, Keycode::KEY_9};
-// NEXT_PRIMITIVE's default key (building.fbs).
-constexpr Keycode kNextPrimitiveKey = Keycode::KEY_E;
 constexpr uint64_t kSettleTicks = 30;
 
 struct PrimitiveSlot {
@@ -107,7 +101,7 @@ TEST_P(PrimitiveBuildTest, BuildsAndSurvivesASaveAndLoad) {
   Z13TestWorld station = StationWorld();
   const flecs::entity builder = AddBuilder(station, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
   const size_t shipped = BlocksOfType(station.World(), Primitive().id).size();
-  builder.set(BlockBrush {.spec = {.type_id = Primitive().id, .size = Primitive().min_size}});
+  z13::testing::BuildToolOf(builder).set(BlockBrush {.spec = {.type_id = Primitive().id, .size = Primitive().min_size}});
   builder.add<RequestBuildBlock>();
   station.Tick();
   ASSERT_EQ(BlocksOfType(station.World(), Primitive().id).size(), shipped + 1) << Primitive().name << " was not built";
@@ -142,12 +136,8 @@ TEST_P(PrimitiveBuildTest, AClientsBuildReachesTheServerAndOtherClients) {
   const auto step = [&] { all(1); };
   Tap(client_a, Keycode::KEY_TAB, step);
   all(kSettleTicks);
-  // Past the slot keys, stepped to from the last slot.
-  const size_t key = std::min(GetParam().slot, kSlotKeys.size() - 1);
-  Tap(client_a, kSlotKeys.at(key), step);
-  for (size_t i = key; i < GetParam().slot; ++i) {
-    Tap(client_a, kNextPrimitiveKey, step);
-  }
+  client_a.World().set(z13::station::PaletteChoice {.slot = GetParam().slot});
+  all(kSettleTicks);
   z13::testing::Click(client_a, Keycode::MOUSE_BUTTON_LEFT, step);
   all(kSettleTicks);
 

@@ -19,6 +19,7 @@ z13_add_plugin(
   src/building_module.cpp
   src/building_module_factory.cpp
   src/building_system.cpp
+  src/held_tool.cpp
   src/palette_system.cpp
   src/station_scene_system.cpp
   PUBLIC

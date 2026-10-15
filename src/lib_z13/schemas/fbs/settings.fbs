@@ -91,6 +91,11 @@ table TouchLayout {
   use_y: float = 0.52 (min: "0", max: "1", cli: "--touch-use-y");
   flashlight_x: float = 0.9 (min: "0", max: "1", cli: "--touch-flashlight-x");
   flashlight_y: float = 0.26 (min: "0", max: "1", cli: "--touch-flashlight-y");
+  // The hotbar: a row of square cells centred at the bottom, on PC too.
+  hotbar_y: float = 0.93 (min: "0", max: "1", cli: "--touch-hotbar-y");
+  hotbar_cell_size: float = 0.09 (min: "0.02", max: "0.2", cli: "--touch-hotbar-cell-size");
+  tool_mode_x: float = 0.78 (min: "0", max: "1", cli: "--touch-tool-mode-x");
+  tool_mode_y: float = 0.66 (min: "0", max: "1", cli: "--touch-tool-mode-y");
 }
 
 // Finding servers on the LAN (client and server; docs/server-plan.md, "Поиск сервера").

@@ -129,5 +129,26 @@ TEST(TouchInputTest, TapWithinOneFrameReachesTheSimulation) {
   EXPECT_EQ(State(test_world).input_state[z13::input::KeyIndex(Keycode::TOUCH_USE)], 0.f);
 }
 
+TEST(TouchInputTest, ATapOnTheStatsReadoutOpensThePanelAndAnotherFoldsIt) {
+  z13::testing::Z13TestWorld test_world;
+  auto& controls = test_world.World().get_mut<z13::input::TouchControls>();
+  // Where the GUI drew the readout, in the stick's zone.
+  controls.stats_area = Eigen::AlignedBox2f(Eigen::Vector2f(0.f, 0.f), Eigen::Vector2f(0.1f, 0.05f));
+  const Eigen::Vector2f on_stats(20.f, 10.f);
+  const auto tap = [&] {
+    test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kStickFinger, on_stats));
+    test_world.EmitInput(Touch<z13::input::TouchMoveEvent>(kStickFinger, on_stats + Eigen::Vector2f(50.f, 0.f)));
+    test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kStickFinger, on_stats));
+  };
+
+  tap();
+  EXPECT_TRUE(test_world.World().get<z13::input::TouchControls>().stats_shown);
+  EXPECT_TRUE(State(test_world).pending.empty());
+  EXPECT_EQ(State(test_world).mouse_yaw_delta_deg, 0.f);
+
+  tap();
+  EXPECT_FALSE(test_world.World().get<z13::input::TouchControls>().stats_shown);
+}
+
 }  // namespace
 }  // namespace z13::gameplay::input

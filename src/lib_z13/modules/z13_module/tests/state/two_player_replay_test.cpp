@@ -32,6 +32,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
+#include <z13/components/inventory.h>
 #include <z13/components/block.h>
 #include <z13/components/player.h>
 #include <z13/components/player_parts.h>
@@ -176,6 +177,12 @@ TEST(TwoPlayerReplayTest, IndependentPlayersMergeAndReplayToIdenticalWorlds) {
   // LocalPlayer.id must follow it, or the next frame strips world_b's own listener.
   world_b.Player().set(z13::gameplay::Player{.id = kPlayerBId});
   world_b.World().set<z13::gameplay::LocalPlayer>({.id = kPlayerBId});
+  // Its starter kit went out under id 0 and moves with it.
+  world_b.World().each([](z13::inventory::CarriedBy& carried) {
+    if (carried.player_id == kPlayerAId) {
+      carried.player_id = kPlayerBId;
+    }
+  });
 
   SpawnRemotePlayer(world_a, kPlayerBId);
   SpawnRemotePlayer(world_b, kPlayerAId);

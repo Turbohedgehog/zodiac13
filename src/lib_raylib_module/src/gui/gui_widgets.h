@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include <Eigen/Geometry>
 #include <imgui.h>
 
 namespace z13::raylib::gui {
@@ -53,6 +54,12 @@ inline constexpr ImGuiWindowFlags kOverlayFlags = ImGuiWindowFlags_NoDecoration 
 
 // Whether an overlay takes the mouse: only while the cursor is free, so its text can be copied.
 enum class OverlayInput { kPassThrough, kSelectable };
+
+// Where an overlay was drawn, in ImGui units, and where the next one starts.
+struct OverlayPlacement {
+  Eigen::AlignedBox2f area;
+  float next_top {};
+};
 
 inline ImGuiWindowFlags OverlayFlags(OverlayInput input) {
   return input == OverlayInput::kSelectable ? kOverlayFlags & ~ImGuiWindowFlags_NoInputs : kOverlayFlags;

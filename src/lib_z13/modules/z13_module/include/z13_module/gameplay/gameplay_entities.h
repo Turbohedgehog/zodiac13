@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 
@@ -36,6 +37,9 @@ constexpr float kSpawnSpacing = 3.f;
 // Public so net_module's join handling spawns players the same way host startup does.
 // `reserved` are spawn positions taken by players not in the world yet.
 flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen::Vector3f> reserved = {});
+
+// The player with this id, whatever its entity is named.
+std::optional<flecs::entity> FindPlayer(flecs::world world, uint32_t id);
 
 // For callers that need the local player ready before the next progress(), unlike the
 // per-frame re-derivation in gameplay_input_system.cpp. A no-op if there is none.

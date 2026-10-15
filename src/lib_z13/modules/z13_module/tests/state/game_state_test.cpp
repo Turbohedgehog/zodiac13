@@ -29,6 +29,7 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/building.h>
+#include <z13/components/inventory.h>
 #include <z13/components/block.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
@@ -191,7 +192,8 @@ TEST(GameStateTest, RestoresBlocksCameraAndModeAfterFurtherEdits) {
   EXPECT_TRUE(player.get<Eigen::Matrix4f>().isApprox(saved_camera, kTestEpsilon));
   EXPECT_NEAR(player.get<LookAngles>().yaw_deg, saved_look.yaw_deg, kTestEpsilon);
   EXPECT_NEAR(player.get<LookAngles>().pitch_deg, saved_look.pitch_deg, kTestEpsilon);
-  EXPECT_TRUE(player.has<BuildingTool>());
+  // The hotbar is the state; BuildingTool follows it on the next frame.
+  EXPECT_EQ(player.get<z13::inventory::Hotbar>().active_cell, z13::inventory::kStarterToolCell);
 }
 
 TEST(GameStateTest, SaveAfterLoadReproducesTheSameJson) {

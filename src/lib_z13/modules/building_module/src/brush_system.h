@@ -20,8 +20,9 @@
 
 namespace z13::building {
 
-// Station-mode brush: gives each player a BlockBrush and BuildPermission, applies the pick
-// and turn actions to the brush, and drops a drag once the building tool is put away.
+// Station-mode brush: gives each build tool a BlockBrush (and its carrier BuildPermission),
+// applies the pick and turn actions to the held tool's brush, and drops a drag once the tool
+// is put away.
 class BrushSystem {
  public:
   static void Register(flecs::world& world);

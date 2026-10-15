@@ -193,7 +193,7 @@ TEST(BlockBuildingTest, ASpawnPointBuiltThisTickKeepsItsSpaceClear) {
       AddBuilder(test_world, kBuilderId, Facing({0.f, 5.f, 1.25f}, Eigen::Vector3f::UnitX()));
   const flecs::entity wall_builder =
       AddBuilder(test_world, kBuilderId + 1, Facing({0.f, 5.f, 2.5f}, Eigen::Vector3f::UnitX()));
-  marker_builder.set(BlockBrush {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}});
+  z13::testing::BuildToolOf(marker_builder).set(BlockBrush {.spec = {.type_id = kSpawnPointId, .size = {4, 4, 1}}});
 
   Request(test_world, {wall_builder, marker_builder}, /*build=*/true);
 

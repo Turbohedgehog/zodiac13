@@ -36,9 +36,31 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
       return {layout.use_x, layout.use_y};
     case TouchControl::kFlashlight:
       return {layout.flashlight_x, layout.flashlight_y};
+    case TouchControl::kToolMode:
+      return {layout.tool_mode_x, layout.tool_mode_y};
     case TouchControl::kStick:
       [[fallthrough]];
     case TouchControl::kLook:
+      [[fallthrough]];
+    case TouchControl::kStats:
+      [[fallthrough]];
+    case TouchControl::kCell1:
+      [[fallthrough]];
+    case TouchControl::kCell2:
+      [[fallthrough]];
+    case TouchControl::kCell3:
+      [[fallthrough]];
+    case TouchControl::kCell4:
+      [[fallthrough]];
+    case TouchControl::kCell5:
+      [[fallthrough]];
+    case TouchControl::kCell6:
+      [[fallthrough]];
+    case TouchControl::kCell7:
+      [[fallthrough]];
+    case TouchControl::kCell8:
+      [[fallthrough]];
+    case TouchControl::kCell9:
       break;
   }
   return Eigen::Vector2f::Zero();
@@ -51,11 +73,15 @@ float Quantized(float value, float step) {
 }  // namespace
 
 std::optional<Keycode> ButtonKey(TouchControl control) {
-  const auto button = std::ranges::find(kTouchButtons, control, &TouchButton::control);
-  if (button == kTouchButtons.end()) {
-    return std::nullopt;
+  if (const auto button = std::ranges::find(kTouchButtons, control, &TouchButton::control);
+      button != kTouchButtons.end()) {
+    return button->key;
   }
-  return button->key;
+  if (const auto cell = std::ranges::find(kHotbarCellButtons, control, &TouchButton::control);
+      cell != kHotbarCellButtons.end()) {
+    return cell->key;
+  }
+  return std::nullopt;
 }
 
 Eigen::Vector2f ButtonCenter(const Layout& layout, TouchControl control, const Eigen::Vector2f& screen_size) {
@@ -66,11 +92,23 @@ float ButtonRadius(const Layout& layout, const Eigen::Vector2f& screen_size) {
   return layout.button_radius * screen_size.y();
 }
 
+Eigen::AlignedBox2f CellRect(const Layout& layout, size_t cell, const Eigen::Vector2f& screen_size) {
+  const float side = layout.hotbar_cell_size * screen_size.y();
+  const float row_left = (screen_size.x() - side * static_cast<float>(kHotbarCellButtons.size())) / 2.f;
+  const Eigen::Vector2f min(row_left + side * static_cast<float>(cell), layout.hotbar_y * screen_size.y() - side / 2.f);
+  return {min, min + Eigen::Vector2f::Constant(side)};
+}
+
 float StickRadius(const Layout& layout, const Eigen::Vector2f& screen_size) {
   return layout.stick_radius * screen_size.y();
 }
 
 TouchControl ControlAt(const Layout& layout, const Eigen::Vector2f& position, const Eigen::Vector2f& screen_size) {
+  for (size_t cell = 0; cell < kHotbarCellButtons.size(); ++cell) {
+    if (CellRect(layout, cell, screen_size).contains(position)) {
+      return kHotbarCellButtons[cell].control;
+    }
+  }
   const float radius = ButtonRadius(layout, screen_size);
   const auto button = std::ranges::find_if(kTouchButtons, [&](const TouchButton& candidate) {
     return (ButtonCenter(layout, candidate.control, screen_size) - position).norm() <= radius;

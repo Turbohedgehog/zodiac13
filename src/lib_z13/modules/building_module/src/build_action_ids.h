@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <optional>
 
@@ -24,19 +23,16 @@
 
 namespace z13::building {
 
-inline constexpr size_t kPaletteSlots = 9;
 inline constexpr float kHeldActionValue = 0.5f;
 
 // The building actions' ids in the loaded action map, refreshed when the input config changes.
 struct BuildActionIds {
   using Singleton = void;
   using IdType = z13::input::ActionId;
-  std::optional<IdType> toggle_building_mode;
   std::optional<IdType> build_block;
   std::optional<IdType> destroy_block;
   std::optional<IdType> previous_primitive;
   std::optional<IdType> next_primitive;
-  std::array<std::optional<IdType>, kPaletteSlots> select_slot;
   std::optional<IdType> rotate_around_z;
   std::optional<IdType> rotate_around_y;
   std::optional<IdType> rotate_around_x;
@@ -45,6 +41,7 @@ struct BuildActionIds {
   std::optional<IdType> cut_modifier;
   std::optional<IdType> cut_in_modifier;
   std::optional<IdType> cancel_brush_drag;
+  std::optional<IdType> cycle_tool_mode;
 };
 
 // Whether the action went down this frame; false for an action the config lacks.

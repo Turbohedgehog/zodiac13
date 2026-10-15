@@ -49,9 +49,13 @@ float ToImGui(float pixels, const Eigen::Vector2f& screen_size) {
   return pixels / screen_size.y() * ImGui::GetIO().DisplaySize.y;
 }
 
-void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, const z13::TouchLayout& layout) {
+void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, const z13::TouchLayout& layout,
+                 bool tool_in_hand) {
   const float radius = ToImGui(z13::input::touch::ButtonRadius(layout, controls.screen_size), controls.screen_size);
   for (const auto& button : z13::input::touch::kTouchButtons) {
+    if (button.control == TouchControl::kToolMode && !tool_in_hand) {
+      continue;
+    }
     const ImVec2 center =
         ToImGui(z13::input::touch::ButtonCenter(layout, button.control, controls.screen_size), controls.screen_size);
     if (std::ranges::contains(controls.fingers, button.control, &TouchFinger::control)) {
@@ -77,12 +81,12 @@ void DrawStick(ImDrawList& draw, const TouchFinger& finger, const z13::input::To
 
 }  // namespace
 
-void DrawTouchHud(const z13::input::TouchControls& controls, const z13::TouchLayout& layout) {
+void DrawTouchHud(const z13::input::TouchControls& controls, const z13::TouchLayout& layout, bool tool_in_hand) {
   if (!controls.used) {
     return;
   }
   ImDrawList& draw = *ImGui::GetBackgroundDrawList();
-  DrawButtons(draw, controls, layout);
+  DrawButtons(draw, controls, layout, tool_in_hand);
   const auto stick = std::ranges::find(controls.fingers, TouchControl::kStick, &TouchFinger::control);
   if (stick != controls.fingers.end()) {
     DrawStick(draw, *stick, controls, layout);

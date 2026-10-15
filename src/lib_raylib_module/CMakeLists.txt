@@ -15,6 +15,7 @@ z13_add_plugin(
   src/gui/gui_keybindings.cpp
   src/gui/gui_system.cpp
   src/gui/gui_windows.cpp
+  src/gui/hotbar_hud.cpp
   src/gui/input_settings_window.cpp
   src/gui/join_window.cpp
   src/gui/key_bindings_window.cpp

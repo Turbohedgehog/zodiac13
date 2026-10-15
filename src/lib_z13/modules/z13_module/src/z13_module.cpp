@@ -43,6 +43,7 @@
 #include "bootstrap/bootstrap_system.h"
 #include "gameplay/block_change_system.h"
 #include "gameplay/flashlight_system.h"
+#include "gameplay/inventory_system.h"
 #include "gameplay/gameplay_system.h"
 #include "input/gameplay_input_system.h"
 #include "input/touch_input_system.h"
@@ -58,7 +59,7 @@ void RegisterComponents(flecs::world world) {
     .member(flecs::Bool, "shutdown").add(flecs::Singleton);
   flecs_tools::RegisterComponents<
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
-      gameplay::PlayerCollider, gameplay::PlayerMotion, gameplay::Flashlight, gravity::Gravity, gameplay::LookAngles, building::BuildingTool,
+      gameplay::PlayerCollider, gameplay::PlayerMotion, gameplay::Flashlight, gravity::Gravity, gameplay::LookAngles, building::BuildingTool, building::BuildTool,
       gameplay::Pause, gameplay::FreeCursor, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
       PhysicsTuning, BuildingTuning>(world);
   world.component<input::SystemInputEventType>();
@@ -98,6 +99,7 @@ Z13Module::Z13Module(flecs::world& world) {
   z13::gameplay::input::TouchInputSystem::Register(world);
   z13::state::QuickSaveInputSystem::Register(world);
   z13::gameplay::FlashlightSystem::Register(world);
+  z13::inventory::InventorySystem::Register(world);
   z13::state::PlayerActionRecorder::Register(world);
   z13::state::Replay::Register(world);
 }

@@ -107,5 +107,25 @@ TEST(TouchMappingTest, ScheduleKeyReplacesAQueuedDeflection) {
   EXPECT_EQ(state.pending[0].value, 0.75f);
 }
 
+TEST(TouchMappingTest, EachHotbarCellPressesItsOwnKey) {
+  const Layout layout;
+  for (size_t cell = 0; cell < kHotbarCellButtons.size(); ++cell) {
+    const TouchControl control = ControlAt(layout, CellRect(layout, cell, kScreen).center(), kScreen);
+    EXPECT_EQ(control, kHotbarCellButtons[cell].control) << cell;
+    EXPECT_EQ(ButtonKey(control), kHotbarCellButtons[cell].key) << cell;
+  }
+}
+
+TEST(TouchMappingTest, TheHotbarCellsSitInARowAndClearOfTheButtons) {
+  const Layout layout;
+  for (size_t cell = 1; cell < kHotbarCellButtons.size(); ++cell) {
+    EXPECT_NEAR(CellRect(layout, cell, kScreen).min().x(), CellRect(layout, cell - 1, kScreen).max().x(), kEpsilon);
+  }
+  for (const TouchButton& button : kTouchButtons) {
+    EXPECT_EQ(ControlAt(layout, ButtonCenter(layout, button.control, kScreen), kScreen), button.control)
+        << button.label;
+  }
+}
+
 }  // namespace
 }  // namespace z13::input::touch

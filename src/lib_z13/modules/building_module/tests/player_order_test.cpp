@@ -30,6 +30,7 @@
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_tests/test_time.h>
 
+#include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 
 // Same-tick requests from several players must resolve in player_id order, not in the
@@ -55,7 +56,7 @@ std::map<std::string, Eigen::Vector3i> BuildSimultaneously(const std::vector<uin
 
   std::vector<flecs::entity> players;
   for (const uint32_t id : spawn_order) {
-    players.push_back(z13::gameplay::SpawnPlayer(world, id).add<BuildingTool>());
+    players.push_back(z13::testing::HoldBuildTool(z13::gameplay::SpawnPlayer(world, id)));
   }
   z13::flecs_tools::TickWorld(world, kTestDeltaTime);
 

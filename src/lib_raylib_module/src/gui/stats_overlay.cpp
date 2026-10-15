@@ -93,23 +93,27 @@ void StatsOverlay::CountFrame(Clock::time_point now) {
   window_worst_ms_ = 0.f;
 }
 
-float StatsOverlay::Draw(const RenderStats* render, float top, OverlayInput input) const {
-  std::string text = std::format("{:.0f} fps, {:.1f} ms, worst {:.1f} ms", fps_, average_ms_, worst_ms_);
-  if (render != nullptr) {
+OverlayPlacement StatsOverlay::Draw(const RenderStats* render, float top, OverlayInput input, bool full) const {
+  std::string text = full ? std::format("{:.0f} fps, {:.1f} ms, worst {:.1f} ms", fps_, average_ms_, worst_ms_)
+                          : std::format("{:.0f} fps", fps_);
+  if (full && render != nullptr) {
     text += "\n" + RenderLines(*render);
   }
   PlaceOverlay(top);
-  float below = top;
+  OverlayPlacement placement {.next_top = top};
   if (ImGui::Begin("##stats", nullptr, OverlayFlags(input))) {
-    if (input == OverlayInput::kSelectable) {
+    if (full && input == OverlayInput::kSelectable) {
       DrawSelectableText(text);
     } else {
       ImGui::TextUnformatted(text.c_str());
     }
-    below = OverlayTopBelow();
+    placement.next_top = OverlayTopBelow();
+    const ImVec2 pos = ImGui::GetWindowPos();
+    const ImVec2 size = ImGui::GetWindowSize();
+    placement.area = {Eigen::Vector2f(pos.x, pos.y), Eigen::Vector2f(pos.x + size.x, pos.y + size.y)};
   }
   ImGui::End();
-  return below;
+  return placement;
 }
 
 }  // namespace z13::raylib::gui

@@ -118,7 +118,7 @@ TEST(StationModeTest, WithoutTheFlagTheSceneIsUnchanged) {
   EXPECT_FALSE(test_world.World().has<StationMode>());
   EXPECT_EQ(Blocks(test_world), 0);
   EXPECT_EQ(SpawnPoints(test_world), 0);
-  // Station systems stay off: no player gets a station brush.
+  // Station systems stay off: no build tool gets a station brush.
   EXPECT_EQ(test_world.World().count<BlockBrush>(), 0);
 }
 
