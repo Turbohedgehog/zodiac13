@@ -18,19 +18,34 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <format>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/rollback.h>
+#include <lib_core/state/world_json_store.h>
+#include <lib_core/state/world_snapshot_history.h>
+#include <lib_core/utils/file_io.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
 #include <z13/components/gameplay.h>
+#include <z13/components/gravity.h>
+#include <z13/components/inventory.h>
+#include <z13/components/player.h>
+#include <z13/components/player_action.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/net.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
@@ -78,6 +93,8 @@ class StationSessionTest : public ::testing::Test {
     RunTicks(kSettleTicks);
   }
 
+  bool AwaitingResync() { return client_.World().get<StateDigests>().awaiting_resync.has_value(); }
+
   static Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
     const flecs::entity player = world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
     EXPECT_TRUE(player) << "no player " << player_id;
@@ -115,6 +132,123 @@ TEST_F(StationSessionTest, DISABLED_AClientJoinsAndPlaysOnSpire) {
   EXPECT_LT((Position(server_, kClientId) - Position(client_, kClientId)).norm(), z13::testing::kTestEpsilon)
       << "the host sees the client elsewhere";
 }
+
+// The first digest the client finds wrong, taken apart: which part differs, and both sides'
+// snapshots of that tick as JSON in $Z13_DIVERGENCE_DIR (the system temp directory without it),
+// for comparing component by component. Caught as the client asks for a resync, before the
+// Resync replaces its history (resyncs counts only once it has).
+TEST_F(StationSessionTest, DISABLED_DumpTheFirstDivergence) {
+  // The client's player on every tick as each side last simulated it (a replay overwrites).
+  std::map<uint64_t, std::string> server_trace;
+  std::map<uint64_t, std::string> client_trace;
+  for (auto [side, trace] : {std::pair {&server_, &server_trace}, std::pair {&client_, &client_trace}}) {
+    side->World()
+        .system<const z13::gameplay::Player, const Eigen::Matrix4f, const z13::gravity::Gravity*,
+                const z13::gameplay::PlayerMotion*>("Test::TraceClientPlayer")
+        .kind(flecs::PostFrame)
+        .each([trace](flecs::iter& it, size_t, const z13::gameplay::Player& player, const Eigen::Matrix4f& transform,
+                      const z13::gravity::Gravity* gravity, const z13::gameplay::PlayerMotion* motion) {
+          if (player.id != kClientId) {
+            return;
+          }
+          const uint64_t tick = it.world().get<z13::flecs_tools::SimulationClock>().tick;
+          (*trace)[tick] += std::format("end: pos {:.4f} {:.4f} {:.4f} gravity {} grounded {} fall {:.3f}{}",
+              transform(0, 3), transform(1, 3), transform(2, 3), gravity ? gravity->acceleration.z() : -1.f,
+              motion ? motion->grounded : false, motion ? motion->fall_speed : 0.f,
+              it.world().has<z13::flecs_tools::ReplayInProgress>() ? " (replay)" : "");
+        });
+    side->World()
+        .system<const z13::gameplay::Player, const Eigen::Matrix4f, const z13::gravity::Gravity*>(
+            "Test::TraceClientPlayerBeforeMoving")
+        .kind<z13::inventory::InventoryPhase>()
+        .each([trace](flecs::iter& it, size_t, const z13::gameplay::Player& player, const Eigen::Matrix4f& transform,
+                      const z13::gravity::Gravity* gravity) {
+          if (player.id != kClientId) {
+            return;
+          }
+          const uint64_t tick = it.world().get<z13::flecs_tools::SimulationClock>().tick;
+          (*trace)[tick] = std::format("before: pos {:.4f} {:.4f} {:.4f} gravity {} | ", transform(0, 3),
+              transform(1, 3), transform(2, 3), gravity ? gravity->acceleration.z() : -1.f);
+        });
+  }
+  ASSERT_TRUE(Run(kMaxJoinTicks, [&] {
+    return client_.World().has<z13::gameplay::Gameplay>() &&
+           client_.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
+  }));
+  for (const Keycode key : {Keycode::KEY_W, Keycode::KEY_A}) {
+    client_.EmitInput(KeyDown(key));
+    if (Run(kActionTicks, [&] { return AwaitingResync(); })) {
+      break;
+    }
+    client_.EmitInput(KeyUp(key));
+  }
+  if (!Run(kMaxJoinTicks, [&] { return AwaitingResync(); })) {
+    GTEST_SKIP() << "no divergence to dump";
+  }
+
+  const auto& server_digests = server_.World().get<StateDigests>().local;
+  const auto& client_digests = client_.World().get<StateDigests>().local;
+  std::optional<uint64_t> tick;
+  for (const auto& [at, client_digest] : client_digests) {
+    const auto server_digest = server_digests.find(at);
+    if (server_digest != server_digests.end() && !DigestsMatch(server_digest->second, client_digest)) {
+      tick = at;
+      const auto& server = server_digest->second;
+      std::cout << "first diverging tick " << at << ": entities " << client_digest.entity_count << " (server "
+                << server.entity_count << "), names " << (client_digest.name_hash == server.name_hash ? "same" : "differ")
+                << ", player positions:\n";
+      for (const auto& pose : client_digest.positions) {
+        std::cout << "  client " << pose.player_id() << ": " << pose.x() << " " << pose.y() << " " << pose.z() << "\n";
+      }
+      for (const auto& pose : server.positions) {
+        std::cout << "  server " << pose.player_id() << ": " << pose.x() << " " << pose.y() << " " << pose.z() << "\n";
+      }
+      break;
+    }
+  }
+  ASSERT_TRUE(tick.has_value()) << "the resync's digests all match";
+
+  std::optional<uint64_t> first_trace_divergence;
+  for (const auto& [at, line] : client_trace) {
+    const auto on_server = server_trace.find(at);
+    if (at <= *tick && on_server != server_trace.end() && on_server->second != line) {
+      first_trace_divergence = at;
+      break;
+    }
+  }
+  std::cout << "client player traced from tick " << (client_trace.empty() ? 0 : client_trace.begin()->first)
+            << " (client), " << (server_trace.empty() ? 0 : server_trace.begin()->first) << " (server)\n";
+  if (first_trace_divergence) {
+    for (uint64_t at = *first_trace_divergence > 3 ? *first_trace_divergence - 3 : 0;
+         at <= *first_trace_divergence + 6; ++at) {
+      std::cout << "  tick " << at << "\n    server " << server_trace[at] << "\n    client " << client_trace[at] << "\n";
+    }
+  }
+  for (auto [side, label] : {std::pair {&server_, "server"}, std::pair {&client_, "client"}}) {
+    std::cout << label << " log of player " << kClientId << ":";
+    for (const auto& record : side->World().get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+      if (record.player_id == kClientId && record.tick <= *tick) {
+        std::cout << " [" << record.tick << " a" << record.action_id << "=" << record.value << "]";
+      }
+    }
+    std::cout << "\n";
+  }
+
+  const char* dir_variable = std::getenv("Z13_DIVERGENCE_DIR");
+  const std::filesystem::path dir = dir_variable != nullptr ? std::filesystem::path(dir_variable)
+                                                            : std::filesystem::temp_directory_path();
+  for (auto* side : {&server_, &client_}) {
+    const auto& history = side->World().get<z13::flecs_tools::WorldSnapshotHistory>().history;
+    const auto entry = std::ranges::find(history.Entries(), *tick, &z13::flecs_tools::TimestampedSnapshot::tick);
+    ASSERT_NE(entry, history.Entries().end()) << "no snapshot of tick " << *tick;
+    const auto json = z13::flecs_tools::WorldJsonStore::ToJson(side->World(), entry->snapshot);
+    ASSERT_TRUE(json.has_value()) << json.error();
+    const auto path = dir / (side == &server_ ? "divergence_server.json" : "divergence_client.json");
+    ASSERT_TRUE(z13::WriteFile(path, *json).has_value()) << path;
+    std::cout << "wrote " << path << "\n";
+  }
+}
+
 
 }  // namespace
 }  // namespace z13::net

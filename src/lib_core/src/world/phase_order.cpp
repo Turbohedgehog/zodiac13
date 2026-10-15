@@ -15,8 +15,10 @@
  */
 
 #include <lib_core/world/phase_order.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/status.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <map>
@@ -39,6 +41,13 @@ PhaseEdges CollectEdges(flecs::world& world, const std::map<flecs::entity_t, std
   PhaseEdges edges;
   for (size_t i = 1; i < builtin_order.size(); ++i) {
     edges.emplace(builtin_order[i - 1], builtin_order[i]);
+  }
+  // A simulation phase (untagged) ends before PreStore: WorldSnapshotHistory captures the tick's
+  // state in PostFrame, and a phase sorted past it by name would leave the snapshot a tick behind.
+  for (const auto& [id, path] : paths) {
+    if (!std::ranges::contains(builtin_order, id) && !world.entity(id).has<flecs_tools::PresentationPhase>()) {
+      edges.emplace(id, flecs::PreStore);
+    }
   }
   for (const auto& [id, path] : paths) {
     world.entity(id).each(flecs::DependsOn, [&edges, &paths, id](flecs::entity target) {
