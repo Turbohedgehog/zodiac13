@@ -35,17 +35,17 @@ enum Action : int16 (action, action_group: "Building") {
   BUILD_BLOCK (display_text: "Use the build tool", default_keycodes: "MOUSE_BUTTON_LEFT TOUCH_PRIMARY"),
   // Destroys in any tool mode.
   DESTROY_BLOK (display_text: "Destroy a block", default_keycodes: "MOUSE_BUTTON_RIGHT"),
-  PREVIOUS_PRIMITIVE (display_text: "Previous primitive", default_keycodes: "KEY_Q"),
-  NEXT_PRIMITIVE (display_text: "Next primitive", default_keycodes: "KEY_E"),
+  PREVIOUS_PRIMITIVE (display_text: "Previous primitive", default_keycodes: "KEY_Q TOUCH_PREVIOUS_PRIMITIVE"),
+  NEXT_PRIMITIVE (display_text: "Next primitive", default_keycodes: "KEY_E TOUCH_NEXT_PRIMITIVE"),
   // Held: the tool cuts the dragged box out of the station, whatever its mode.
   CUT_MODIFIER (display_text: "Cut instead of build", default_keycodes: "KEY_X"),
   // Held: the tool cuts the block's place out first, so it fits into a wall, whatever its mode.
   CUT_IN_MODIFIER (display_text: "Cut the place out first", default_keycodes: "KEY_LSHIFT"),
   // Held: the cursor is free and the palette window shows, to pick a primitive with the mouse.
   SHOW_PALETTE (display_text: "Show the block palette", default_keycodes: "KEY_B"),
-  ROTATE_AROUND_Z (display_text: "Turn the brush around Z", default_keycodes: "KEY_R"),
-  ROTATE_AROUND_Y (display_text: "Turn the brush around Y", default_keycodes: "KEY_F"),
-  ROTATE_AROUND_X (display_text: "Turn the brush around X", default_keycodes: "KEY_G"),
+  ROTATE_AROUND_Z (display_text: "Turn the brush around Z", default_keycodes: "KEY_R TOUCH_TURN_Z"),
+  ROTATE_AROUND_Y (display_text: "Turn the brush around Y", default_keycodes: "KEY_F TOUCH_TURN_Y"),
+  ROTATE_AROUND_X (display_text: "Turn the brush around X", default_keycodes: "KEY_G TOUCH_TURN_X"),
   CYCLE_TOOL_MODE (display_text: "Next build tool mode", default_keycodes: "KEY_V TOUCH_TOOL_MODE"),
   // Its value is the palette slot (from 1) picked in the palette window, for one frame.
   SELECT_PRIMITIVE (display_text: "Primitive from the palette window"),

@@ -29,8 +29,9 @@ namespace z13::raylib::gui {
 
 namespace {
 
-// From the screen's edges, in font sizes.
+// From the screen's edges, in font sizes; wider from the side, clear of a phone's rounded corner.
 constexpr float kMarginEm = 0.5f;
+constexpr float kSideMarginEm = 2.5f;
 constexpr ImU32 kTextColor = IM_COL32(255, 255, 255, 140);
 
 }  // namespace
@@ -39,9 +40,8 @@ void DrawBuildInfo() {
   const std::string text = std::format("v{}  {}", z13::kEngineVersion, z13::kBuildDate);
   const ImVec2 size = ImGui::CalcTextSize(text.c_str());
   const ImVec2 display = ImGui::GetIO().DisplaySize;
-  const float margin = Em(kMarginEm);
-  ImGui::GetForegroundDrawList()->AddText({display.x - size.x - margin, display.y - size.y - margin}, kTextColor,
-                                          text.c_str());
+  ImGui::GetForegroundDrawList()->AddText({display.x - size.x - Em(kSideMarginEm), display.y - size.y - Em(kMarginEm)},
+                                          kTextColor, text.c_str());
 }
 
 }  // namespace z13::raylib::gui

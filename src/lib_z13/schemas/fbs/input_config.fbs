@@ -170,6 +170,11 @@ enum Keycode : int16 {
   TOUCH_CELL_9 (display_text: "Touch cell 9"),
   TOUCH_TOOL_MODE (display_text: "Touch tool mode"),
   TOUCH_PRIMARY (display_text: "Touch tool action"),
+  TOUCH_PREVIOUS_PRIMITIVE (display_text: "Touch previous primitive"),
+  TOUCH_NEXT_PRIMITIVE (display_text: "Touch next primitive"),
+  TOUCH_TURN_Z (display_text: "Touch turn around Z"),
+  TOUCH_TURN_Y (display_text: "Touch turn around Y"),
+  TOUCH_TURN_X (display_text: "Touch turn around X"),
 }
 
 table ActionBinding {

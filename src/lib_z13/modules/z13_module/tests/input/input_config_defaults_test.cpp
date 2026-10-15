@@ -175,5 +175,18 @@ TEST_F(InputConfigDefaultsTest, ARemovedActionIsSkipped) {
   EXPECT_EQ(KeyOf(config, Action::MOVE_FORWARD), Keycode::KEY_I);
 }
 
+TEST_F(InputConfigDefaultsTest, TouchKeysJoinAnActionTheFileAlreadyBinds) {
+  z13::input::InputConfig config;
+  const std::string json =
+      Config(Binding("MOVE_FORWARD", "KEY_UP") + ", " + Binding("MOVE_BACKWARD", "KEY_UNKNOWN"));
+  ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
+
+  const BindingSet bindings = Bindings(config);
+  EXPECT_TRUE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::KEY_UP}));
+  EXPECT_TRUE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::TOUCH_STICK_UP}));
+  EXPECT_FALSE(bindings.contains({IdOf(Action::MOVE_FORWARD), Keycode::KEY_W}));
+  EXPECT_FALSE(KeyOf(config, Action::MOVE_BACKWARD).has_value());
+}
+
 }  // namespace
 }  // namespace z13::gameplay::input

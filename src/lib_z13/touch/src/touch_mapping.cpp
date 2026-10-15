@@ -26,6 +26,9 @@ namespace {
 
 using z13::fbs::input::Keycode;
 
+// The panel's buttons apart by this many radii: a diameter and a gap.
+constexpr float kToolPanelStepRadii = 2.2f;
+
 Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
   switch (control) {
     case TouchControl::kJump:
@@ -45,6 +48,16 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
     case TouchControl::kLook:
       [[fallthrough]];
     case TouchControl::kStats:
+      [[fallthrough]];
+    case TouchControl::kPreviousPrimitive:
+      [[fallthrough]];
+    case TouchControl::kNextPrimitive:
+      [[fallthrough]];
+    case TouchControl::kTurnZ:
+      [[fallthrough]];
+    case TouchControl::kTurnY:
+      [[fallthrough]];
+    case TouchControl::kTurnX:
       [[fallthrough]];
     case TouchControl::kCell1:
       [[fallthrough]];
@@ -87,6 +100,11 @@ std::optional<Keycode> ButtonKey(TouchControl control) {
 }
 
 Eigen::Vector2f ButtonCenter(const Layout& layout, TouchControl control, const Eigen::Vector2f& screen_size) {
+  if (const auto panel = std::ranges::find(kToolPanel, control); panel != kToolPanel.end()) {
+    const float step = kToolPanelStepRadii * ButtonRadius(layout, screen_size);
+    const Eigen::Vector2f first = Eigen::Vector2f(layout.tool_panel_x, layout.tool_panel_y).cwiseProduct(screen_size);
+    return first + Eigen::Vector2f(step * static_cast<float>(panel - kToolPanel.begin()), 0.f);
+  }
   return LayoutPosition(layout, control).cwiseProduct(screen_size);
 }
 

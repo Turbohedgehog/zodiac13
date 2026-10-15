@@ -21,7 +21,9 @@
 #include <expected>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <string>
+#include <string_view>
 #include <filesystem>
 #include <unordered_set>
 
@@ -51,6 +53,7 @@ static constexpr std::string_view kEmptyDisplayText = "";
 static constexpr std::string_view kDefaultKeycodes = "default_keycodes";
 static constexpr std::string_view kAbsoluteAttributeName = "absolute";
 static constexpr std::string_view kDefaultKeycodesSeparators = " ,;";
+static constexpr std::string_view kTouchKeycodePrefix = "TOUCH_";
 
 namespace {
 
@@ -97,6 +100,30 @@ void AddDefaultsForUnboundActions(
   for (const auto& action_info : action_map.action_map) {
     if (bound_actions.count(action_info.id) == 0 && !explicitly_unbound.contains(action_info.id)) {
       AppendDefaultKeycodes(input_config, action_info);
+    }
+  }
+}
+
+bool IsTouchKeycode(z13::fbs::input::Keycode key_code) {
+  return std::string_view(z13::fbs::input::EnumNameKeycode(key_code)).starts_with(kTouchKeycodePrefix);
+}
+
+// The touch layout is fixed, not the player's to rebind: its keys join whatever the file binds,
+// so a touch key given to an action the file already has still works.
+void AddTouchDefaults(
+    z13::input::InputConfig& input_config,
+    const z13::input::ActionMap& action_map,
+    const std::unordered_set<z13::input::ActionId>& explicitly_unbound) {
+  for (const auto& action_info : action_map.action_map) {
+    if (explicitly_unbound.contains(action_info.id)) {
+      continue;
+    }
+    for (const auto key_code : action_info.default_keycodes | std::views::filter(IsTouchKeycode)) {
+      input_config.keycode_binding.emplace(z13::input::KeyCodeAction {
+          .keycode = key_code,
+          .action_group = action_info.group_name,
+          .action_id = action_info.id,
+      });
     }
   }
 }
@@ -178,6 +205,7 @@ Status InputConfigLoader::LoadConfigFromJson(
   input_config.invert_x = input_config_msg.mouse_config->invert_x;
   input_config.invert_y = input_config_msg.mouse_config->invert_y;
   AddDefaultsForUnboundActions(input_config, action_map, explicitly_unbound);
+  AddTouchDefaults(input_config, action_map, explicitly_unbound);
 
   return {};
 }

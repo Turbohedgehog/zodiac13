@@ -27,6 +27,7 @@
 #include <z13/components/input_events.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+#include <primitives/placement.h>
 #include <z13_settings/settings.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -198,6 +199,20 @@ TEST(BuildToolTest, AnotherCellPutsTheToolAwayAndEndsADrag) {
 
   EXPECT_FALSE(player.has<BuildingTool>());
   EXPECT_FALSE(player.has<z13::station::BrushDrag>());
+}
+
+TEST(BuildToolTest, OnATouchScreenThePanelPicksAndTurnsTheBrushLikeTheKeys) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  const z13::station::BlockSpec before = BuildToolOf(player).get<BlockBrush>().spec;
+
+  TapButton(test_world, z13::input::TouchControl::kNextPrimitive);
+  TapButton(test_world, z13::input::TouchControl::kTurnZ);
+
+  const z13::station::BlockSpec after = BuildToolOf(player).get<BlockBrush>().spec;
+  EXPECT_NE(after.type_id, before.type_id);
+  EXPECT_EQ(after.orientation,
+            z13::building::primitives::QuarterTurn(before.orientation, z13::building::primitives::TurnAxis::kZ));
 }
 
 }  // namespace

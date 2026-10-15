@@ -50,7 +50,8 @@ float ToImGui(float pixels, const Eigen::Vector2f& screen_size) {
 }
 
 bool IsToolButton(TouchControl control) {
-  return control == TouchControl::kToolMode || control == TouchControl::kPrimary;
+  return control == TouchControl::kToolMode || control == TouchControl::kPrimary ||
+         std::ranges::contains(z13::input::touch::kToolPanel, control);
 }
 
 void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, const z13::TouchLayout& layout,

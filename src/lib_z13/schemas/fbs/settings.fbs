@@ -99,6 +99,9 @@ table TouchLayout {
   // The build tool's action, held and slid to stretch a block like a mouse drag.
   primary_x: float = 0.78 (min: "0", max: "1", cli: "--touch-primary-x");
   primary_y: float = 0.44 (min: "0", max: "1", cli: "--touch-primary-y");
+  // The build tool's panel (previous and next primitive, the three turns): a row from here.
+  tool_panel_x: float = 0.45 (min: "0", max: "1", cli: "--touch-tool-panel-x");
+  tool_panel_y: float = 0.1 (min: "0", max: "1", cli: "--touch-tool-panel-y");
 }
 
 // Finding servers on the LAN (client and server; docs/server-plan.md, "Поиск сервера").

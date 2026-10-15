@@ -51,7 +51,16 @@ constexpr std::array kTouchButtons = {
     // primary one with the tool's mode.
     TouchButton {TouchControl::kToolMode, z13::fbs::input::Keycode::TOUCH_TOOL_MODE, "Mode"},
     TouchButton {TouchControl::kPrimary, z13::fbs::input::Keycode::TOUCH_PRIMARY, "Tool"},
+    TouchButton {TouchControl::kPreviousPrimitive, z13::fbs::input::Keycode::TOUCH_PREVIOUS_PRIMITIVE, "<"},
+    TouchButton {TouchControl::kNextPrimitive, z13::fbs::input::Keycode::TOUCH_NEXT_PRIMITIVE, ">"},
+    TouchButton {TouchControl::kTurnZ, z13::fbs::input::Keycode::TOUCH_TURN_Z, "Turn Z"},
+    TouchButton {TouchControl::kTurnY, z13::fbs::input::Keycode::TOUCH_TURN_Y, "Turn Y"},
+    TouchButton {TouchControl::kTurnX, z13::fbs::input::Keycode::TOUCH_TURN_X, "Turn X"},
 };
+
+// The build tool's panel, left to right from the layout's tool_panel_x/y.
+constexpr std::array kToolPanel = {TouchControl::kPreviousPrimitive, TouchControl::kNextPrimitive,
+                                   TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
 
 // The hotbar's cells, left to right, and the key each one presses.
 constexpr std::array kHotbarCellButtons = {
