@@ -24,6 +24,9 @@
 
 namespace z13::testing {
 
+// CoreSettings::threads' default.
+inline constexpr size_t kPoolThreads = 4;
+
 // The room build on `pool`, as RoomSystem runs it.
 inline z13::station::rooms::ParallelFor OnPool(const z13::ThreadPool& pool) {
   return [pool](size_t count, const std::function<void(size_t)>& body) { pool.ForEachIndex(count, body); };

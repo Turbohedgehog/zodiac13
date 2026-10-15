@@ -30,8 +30,6 @@
 namespace z13::station::rooms {
 namespace {
 
-constexpr size_t kThreads = 4;
-
 void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const std::string& scene) {
   EXPECT_EQ(actual.rooms, expected.rooms) << scene;
   EXPECT_EQ(actual.portals, expected.portals) << scene;
@@ -52,7 +50,7 @@ void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const s
 TEST(RoomParallelTest, EveryShippedStationBuildsAsInOneThread) {
   const auto palette = z13::testing::ShippedPalette();
   ASSERT_TRUE(palette.has_value()) << palette.error();
-  const ThreadPool pool(kThreads);
+  const ThreadPool pool(z13::testing::kPoolThreads);
   for (const std::string& scene : z13::testing::ShippedScenes()) {
     const auto blocks = z13::testing::ShippedBlueprint(scene, *palette);
     ASSERT_TRUE(blocks.has_value()) << blocks.error();
