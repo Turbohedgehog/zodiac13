@@ -38,12 +38,9 @@ jobs:
           submodules: recursive
           fetch-depth: 0  # the commit count is the versionCode
 
-      # The commit count of main up to the build's base is both the version's patch and versionCode:
-      # it grows along main whichever workflow builds it, and a release and main's APK of one commit
-      # share the number (build_release.yml). Counted to the merge base, not HEAD: a PR's merge
-      # commit counts its branch's commits, which a squash merge folds into one, so main's next APK
-      # would have the lower code and the phone would refuse it as a downgrade. A pull request's or
-      # another branch's build is named apart from a release by a suffix.
+      # main's commit count up to the merge base is the patch and versionCode of every build of a
+      # commit (build_release.yml too). Not HEAD's: a squash merge folds a PR's commits into one, and
+      # main's next APK would be refused as a downgrade. A PR or branch build gets a suffix.
       - name: Read the version
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
