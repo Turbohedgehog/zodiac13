@@ -37,8 +37,6 @@ namespace {
 namespace primitives = z13::building::primitives;
 
 constexpr int kRuns = 5;
-// CoreSettings::threads' default.
-constexpr size_t kPoolThreads = 4;
 
 TEST(RoomBuildBench, DISABLED_FullRebuild) {
   const primitives::Palette palette = ShippedPalette().value();
