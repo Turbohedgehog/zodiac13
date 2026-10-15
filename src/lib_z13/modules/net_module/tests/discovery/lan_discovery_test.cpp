@@ -82,8 +82,9 @@ TEST(LanDiscoveryTest, AFoundServerIsJoinedAtItsGamePortAndForgottenWhenSilent) 
   ServerInfo info = Info();
   info.sent_at_ms = kSentAtMs;
   finder.Record(kServerAddress, info, kSentAtMs + kPingMs);
-  ASSERT_EQ(finder.Servers().size(), 1U);
-  const FoundServer& found = finder.Servers().front();
+  const std::vector<FoundServer> servers = finder.Servers();
+  ASSERT_EQ(servers.size(), 1U);
+  const FoundServer& found = servers.front();
   EXPECT_EQ(found.endpoint, (Endpoint {.host = kServerAddress.host, .port = kGamePort}));
   EXPECT_EQ(found.ping_ms, kPingMs);
   EXPECT_EQ(found.scene, "spire");

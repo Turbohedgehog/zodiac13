@@ -30,6 +30,7 @@
 // Field attributes (fbs/attributes.fbs) read from a binary schema, so any table is checked and
 // overridden the same way:
 //   (min: 1, max: 1000)  inclusive bounds of a scalar field, checked by ValidateRanges;
+//   (non_empty)          a string field that must hold some text, checked by ValidateRanges;
 //   (cli)                a command-line option named after the field (max_late_ticks -> --max-late-ticks);
 //   (cli: "-f,--fps")    explicit names, like argparse: one long form and an optional one-letter short form.
 // Nested tables are walked recursively; a field is addressed by its dotted path ("net.max_late_ticks").
@@ -38,6 +39,7 @@ namespace z13::schema {
 inline constexpr std::string_view kMinAttribute = "min";
 inline constexpr std::string_view kMaxAttribute = "max";
 inline constexpr std::string_view kCliAttribute = "cli";
+inline constexpr std::string_view kNonEmptyAttribute = "non_empty";
 
 Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table);

@@ -18,3 +18,4 @@
 attribute "min";
 attribute "max";
 attribute "cli";
+attribute "non_empty";

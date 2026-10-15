@@ -50,6 +50,11 @@ flatbuffers::FlatBufferBuilder PackSettings(const Settings& settings) {
   return builder;
 }
 
+template <typename NativeTable>
+std::unique_ptr<NativeTable> NewDefaults() {
+  return std::make_unique<NativeTable>(SchemaDefaults<NativeTable>());
+}
+
 }  // namespace
 
 Settings MakeSettings() {
@@ -60,31 +65,31 @@ Settings MakeSettings() {
 
 void EnsureNestedSettings(Settings& settings) {
   if (!settings.core) {
-    settings.core = std::make_unique<CoreSettings>();
+    settings.core = NewDefaults<CoreSettings>();
   }
   if (!settings.connect_timeout) {
-    settings.connect_timeout = std::make_unique<ConnectTimeoutConfig>();
+    settings.connect_timeout = NewDefaults<ConnectTimeoutConfig>();
   }
   if (!settings.net) {
-    settings.net = std::make_unique<fbs::net::NetTuningT>();
+    settings.net = NewDefaults<fbs::net::NetTuningT>();
   }
   if (!settings.physics) {
-    settings.physics = std::make_unique<fbs::physics::PhysicsTuningT>();
+    settings.physics = NewDefaults<fbs::physics::PhysicsTuningT>();
   }
   if (!settings.building) {
-    settings.building = std::make_unique<fbs::building::BuildingTuningT>();
+    settings.building = NewDefaults<fbs::building::BuildingTuningT>();
   }
   if (!settings.visual_smoothing) {
-    settings.visual_smoothing = std::make_unique<fbs::settings::VisualSmoothingT>();
+    settings.visual_smoothing = NewDefaults<fbs::settings::VisualSmoothingT>();
   }
   if (!settings.render) {
-    settings.render = std::make_unique<fbs::settings::RenderTuningT>();
+    settings.render = NewDefaults<fbs::settings::RenderTuningT>();
   }
   if (!settings.touch) {
-    settings.touch = std::make_unique<fbs::settings::TouchLayoutT>();
+    settings.touch = NewDefaults<fbs::settings::TouchLayoutT>();
   }
   if (!settings.lan_discovery) {
-    settings.lan_discovery = std::make_unique<fbs::settings::LanDiscoveryT>();
+    settings.lan_discovery = NewDefaults<fbs::settings::LanDiscoveryT>();
   }
 }
 

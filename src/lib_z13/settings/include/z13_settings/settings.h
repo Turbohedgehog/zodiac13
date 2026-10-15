@@ -19,6 +19,7 @@
 #include <expected>
 #include <string>
 
+#include <flatbuffers/flatbuffers.h>
 #include <flecs.h>
 
 #include <lib_core/settings/config.h>
@@ -36,6 +37,19 @@ namespace z13 {
 // tables are pointers in the object API: build with MakeSettings() so they are always set.
 using ConnectTimeoutConfig = fbs::settings::ConnectTimeoutT;
 using Settings = fbs::settings::SettingsT;
+
+// A table's object API values with the schema's defaults, strings included: flatc's own
+// constructor fills in only the scalars' (a string's default reaches only the table's
+// accessor), so they come from an empty table unpacked.
+template <typename NativeTable>
+NativeTable SchemaDefaults() {
+  using Table = typename NativeTable::TableType;
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(flatbuffers::Offset<Table>(builder.EndTable(builder.StartTable())));
+  NativeTable values;
+  flatbuffers::GetRoot<Table>(builder.GetBufferPointer())->UnPackTo(&values);
+  return values;
+}
 
 struct ConnectTimeout : ConnectTimeoutConfig {
   using Singleton = void;
@@ -68,7 +82,7 @@ struct TouchLayout : fbs::settings::TouchLayoutT {
 struct LanDiscoverySettings : fbs::settings::LanDiscoveryT {
   using Singleton = void;
 
-  LanDiscoverySettings() = default;
+  LanDiscoverySettings() : LanDiscoverySettings(SchemaDefaults<fbs::settings::LanDiscoveryT>()) {}
   explicit LanDiscoverySettings(const fbs::settings::LanDiscoveryT& values) : fbs::settings::LanDiscoveryT(values) {}
 };
 

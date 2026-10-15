@@ -98,7 +98,7 @@ table LanDiscovery {
   // The game's port plus one by default (lib_core's kDefaultServerPort).
   port: uint32 = 26214 (min: 1, max: 65535, cli: "--discovery-port");
   // Shown in other players' Join windows.
-  server_name: string = "Zodiac13 server";
+  server_name: string = "Zodiac13 server" (non_empty);
   // How often an open Join window asks again.
   query_interval_ms: uint32 = 1500 (min: 100, max: 60000, cli: "--discovery-query-interval");
   // A server answers one address at most this often: queries can't make it flood.
