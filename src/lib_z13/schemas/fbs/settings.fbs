@@ -54,7 +54,8 @@ table RenderTuning {
   lights_per_cluster: int32 = 32 (min: 1, max: 256, cli: "--render-lights-per-cluster");
   // Shadow slots: the flashlights' first, then the lamps nearest the players, whose baked light a
   // player's shadow takes back (assets/shaders/lighting.fs).
-  shadow_lights: int32 = 4 (min: 0, max: 32, cli: "--render-shadow-lights");
+  // Off on Android: a phone keeps 60 fps without lamp shadows.
+  shadow_lights: int32 = 4 (min: 0, max: 32, cli: "--render-shadow-lights", default_android: "0");
   // Edge of each face of a lamp's shadow cube, in pixels.
   shadow_map_size: int32 = 256 (min: 64, max: 512, cli: "--render-shadow-map-size");
   // Lights whose shadow is drawn anew per frame as they take a slot.

@@ -22,6 +22,7 @@
 
 #include <z13/components/gameplay.h>
 
+#include "graphics_settings_window.h"
 #include "gui_widgets.h"
 #include "input_settings_window.h"
 #include "render_diagnostics.h"
@@ -38,8 +39,11 @@ void GameplayPauseMenuWindow::DrawBody() {
   if (ImGui::Button("Resume", ButtonSize())) {
     RequestCloseMenu();
   }
-  if (ImGui::Button("Settings...", ButtonSize())) {
+  if (ImGui::Button("Controls...", ButtonSize())) {
     RequestPush(MakeInputSettings(World()));
+  }
+  if (ImGui::Button("Graphics...", ButtonSize())) {
+    RequestPush(MakeGraphicsSettings(World()));
   }
   if (ImGui::Button("Exit to Main Menu", ButtonSize())) {
     // Pause stays set, so the empty stack makes GuiSystem::Draw show the main menu next.

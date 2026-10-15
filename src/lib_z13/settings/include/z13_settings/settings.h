@@ -96,6 +96,21 @@ struct SessionSettings {
   bool operator==(const SessionSettings&) const = default;
 };
 
+// This build's platform, as the schema's default_<platform> attributes name it.
+#if defined(__ANDROID__)
+inline constexpr std::string_view kCurrentPlatform = "android";
+#elif defined(_WIN32)
+inline constexpr std::string_view kCurrentPlatform = "windows";
+#elif defined(__APPLE__)
+inline constexpr std::string_view kCurrentPlatform = "macos";
+#else
+inline constexpr std::string_view kCurrentPlatform = "linux";
+#endif
+
+// The schema's defaults with `platform`'s own applied (default_<platform> attributes).
+std::expected<Settings, std::string> PlatformSettings(std::string_view platform);
+
+// PlatformSettings for this build: what a new settings.json starts from.
 Settings MakeSettings();
 
 void EnsureNestedSettings(Settings& settings);

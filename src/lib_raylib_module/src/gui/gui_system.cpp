@@ -16,9 +16,12 @@
 
 #include "gui_system.h"
 
+#include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include <Eigen/Geometry>
 #include <flecs.h>
@@ -197,6 +200,7 @@ void RegisterSystems(flecs::world world) {
         } else if (!paused && !stack.windows.empty()) {
           stack.windows.clear();
         }
+        std::vector<Eigen::AlignedBox2f> brush_areas;
         if (!stack.windows.empty()) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
@@ -206,6 +210,7 @@ void RegisterSystems(flecs::world world) {
             gui::DrawTouchHud(*touch, *touch_layout, gui::LocalToolAction(world));
           }
           gui::DrawHotbar(world, *touch_layout);
+          brush_areas = gui::DrawBrushRow(world, *touch_layout);
         }
         stats.CountFrame(std::chrono::steady_clock::now());
         if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {
@@ -220,8 +225,12 @@ void RegisterSystems(flecs::world world) {
         if (touch != nullptr) {
           const ImVec2 display = ImGui::GetIO().DisplaySize;
           const Eigen::Vector2f screen(display.x, display.y);
-          touch->stats_area = Eigen::AlignedBox2f(stats_drawn.area.min().cwiseQuotient(screen),
-                                                  stats_drawn.area.max().cwiseQuotient(screen));
+          const auto fraction = [&screen](const Eigen::AlignedBox2f& area) {
+            return Eigen::AlignedBox2f(area.min().cwiseQuotient(screen), area.max().cwiseQuotient(screen));
+          };
+          touch->stats_area = fraction(stats_drawn.area);
+          touch->brush_areas.clear();
+          std::ranges::transform(brush_areas, std::back_inserter(touch->brush_areas), fraction);
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <z13_launcher/settings_loader.h>
+#include <z13_settings/settings_file.h>
 
 #include <format>
 
@@ -31,6 +31,8 @@ namespace {
 
 constexpr int kJsonIndentStep = 2;
 
+}  // namespace
+
 Status WriteSettings(const std::filesystem::path& path, const Settings& settings) {
   const auto json = SerializeSettings(settings);
   if (!json) {
@@ -38,8 +40,6 @@ Status WriteSettings(const std::filesystem::path& path, const Settings& settings
   }
   return WriteFile(path, *json);
 }
-
-}  // namespace
 
 std::expected<Settings, std::string> ParseSettings(const std::string& json_text) {
   flatbuffers::Parser parser;

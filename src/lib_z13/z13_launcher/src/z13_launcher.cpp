@@ -9,7 +9,7 @@
 #include <lib_core/world/module_factory_base.h>
 
 #include <z13_launcher/module_list.h>
-#include <z13_launcher/settings_loader.h>
+#include <z13_settings/settings_file.h>
 #include <z13_launcher/station_assets_check.h>
 #include <z13_settings/environment.h>
 #include <z13_settings/settings.h>

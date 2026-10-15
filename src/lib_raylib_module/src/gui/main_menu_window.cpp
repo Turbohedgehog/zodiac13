@@ -24,6 +24,7 @@
 
 #include <raylib_module/raylib_components.h>
 
+#include "graphics_settings_window.h"
 #include "gui_widgets.h"
 #include "input_settings_window.h"
 #include "join_window.h"
@@ -62,8 +63,11 @@ void MainMenuWindow::DrawBody() {
   if (ImGui::Button("Join...", ButtonSize())) {
     RequestPush(MakeJoinWindow(World()));
   }
-  if (ImGui::Button("Settings...", ButtonSize())) {
+  if (ImGui::Button("Controls...", ButtonSize())) {
     RequestPush(MakeInputSettings(World()));
+  }
+  if (ImGui::Button("Graphics...", ButtonSize())) {
+    RequestPush(MakeGraphicsSettings(World()));
   }
   if (ImGui::Button("Exit", ButtonSize())) {
     World().add<RaylibWindowClosed>();

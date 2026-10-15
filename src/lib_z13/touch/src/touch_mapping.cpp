@@ -49,6 +49,8 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
       [[fallthrough]];
     case TouchControl::kStats:
       [[fallthrough]];
+    case TouchControl::kBrush:
+      [[fallthrough]];
     case TouchControl::kPreviousPrimitive:
       [[fallthrough]];
     case TouchControl::kNextPrimitive:

@@ -16,17 +16,25 @@
 
 #include "hotbar_hud.h"
 
+#include <algorithm>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <imgui.h>
 
+#include <primitives/palette.h>
 #include <touch/touch_mapping.h>
+#include <z13/components/block_brush.h>
 #include <z13/components/building.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+
+#include "gui_widgets.h"
 
 namespace z13::raylib::gui {
 
@@ -48,6 +56,10 @@ constexpr float kActiveOutlineThickness = 3.f;
 constexpr float kNumberInset = 0.06f;
 // The mode's line below the crosshair, as a part of the screen's height.
 constexpr float kModeLineOffset = 0.05f;
+// The brush row's cells: this part of a hotbar cell tall, padded around the name, this far apart.
+constexpr float kBrushCellHeight = 0.6f;
+constexpr float kBrushPaddingEm = 0.5f;
+constexpr float kBrushGapEm = 0.3f;
 
 std::string_view ToolModeLabel(ToolMode mode) {
   switch (mode) {
@@ -111,18 +123,88 @@ void DrawCells(ImDrawList& draw, const z13::TouchLayout& layout, const Eigen::Ve
   }
 }
 
+std::optional<flecs::entity> HeldItem(flecs::world world, flecs::entity player) {
+  if (!player.has<z13::building::BuildingTool>() || !player.has<z13::inventory::ActiveItem>()) {
+    return std::nullopt;
+  }
+  const flecs::entity item = world.entity(player.get<z13::inventory::ActiveItem>().item);
+  return item.is_alive() ? std::optional(item) : std::nullopt;
+}
+
+// Rows of slots, bottom up, each at most `max_width` wide counting the gaps.
+std::vector<std::vector<size_t>> BrushRows(const std::vector<float>& widths, float max_width, float gap) {
+  std::vector<std::vector<size_t>> rows(1);
+  float row_width = 0.f;
+  for (size_t slot = 0; slot < widths.size(); ++slot) {
+    const float added = (rows.back().empty() ? 0.f : gap) + widths[slot];
+    if (!rows.back().empty() && row_width + added > max_width) {
+      rows.emplace_back();
+      row_width = 0.f;
+    }
+    row_width += rows.back().empty() ? widths[slot] : added;
+    rows.back().push_back(slot);
+  }
+  return rows;
+}
+
 }  // namespace
+
+std::vector<Eigen::AlignedBox2f> DrawBrushRow(flecs::world world, const z13::TouchLayout& layout) {
+  const std::optional<flecs::entity> player = FindLocalPlayer(world);
+  const std::optional<flecs::entity> tool = player ? HeldItem(world, *player) : std::nullopt;
+  const auto* brush = tool ? tool->try_get<z13::station::BlockBrush>() : nullptr;
+  const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
+  if (brush == nullptr || palette == nullptr) {
+    return {};
+  }
+  const auto& primitives = palette->palette.primitives;
+  const ImVec2 display = ImGui::GetIO().DisplaySize;
+  const Eigen::Vector2f screen(display.x, display.y);
+  const Eigen::AlignedBox2f first_cell = z13::input::touch::CellRect(layout, 0, screen);
+  const Eigen::AlignedBox2f last_cell =
+      z13::input::touch::CellRect(layout, z13::input::touch::kHotbarCellButtons.size() - 1, screen);
+  const float height = first_cell.sizes().y() * kBrushCellHeight;
+  const float gap = Em(kBrushGapEm);
+  const float hotbar_width = last_cell.max().x() - first_cell.min().x();
+  const float center_x = (first_cell.min().x() + last_cell.max().x()) / 2.f;
+
+  std::vector<float> widths;
+  std::ranges::transform(primitives, std::back_inserter(widths), [](const auto& primitive) {
+    return ImGui::CalcTextSize(primitive.name.c_str()).x + Em(kBrushPaddingEm) * 2.f;
+  });
+  std::vector<Eigen::AlignedBox2f> areas(primitives.size());
+  ImDrawList& draw = *ImGui::GetBackgroundDrawList();
+  const auto rows = BrushRows(widths, hotbar_width, gap);
+  for (size_t row = 0; row < rows.size(); ++row) {
+    const float bottom = first_cell.min().y() - gap - static_cast<float>(row) * (height + gap);
+    float row_width = gap * static_cast<float>(rows[row].size() - 1);
+    for (const size_t slot : rows[row]) {
+      row_width += widths[slot];
+    }
+    float left = center_x - row_width / 2.f;
+    for (const size_t slot : rows[row]) {
+      const Eigen::AlignedBox2f cell(Eigen::Vector2f(left, bottom - height), Eigen::Vector2f(left + widths[slot], bottom));
+      const bool current = primitives[slot].id == brush->spec.type_id;
+      draw.AddRectFilled({cell.min().x(), cell.min().y()}, {cell.max().x(), cell.max().y()},
+                         current ? kActiveCellColor : kCellColor);
+      draw.AddRect({cell.min().x(), cell.min().y()}, {cell.max().x(), cell.max().y()},
+                   current ? kActiveOutlineColor : kOutlineColor, 0.f, 0,
+                   current ? kActiveOutlineThickness : kOutlineThickness);
+      DrawCentered(draw, cell.center(), primitives[slot].name);
+      areas[slot] = cell;
+      left += widths[slot] + gap;
+    }
+  }
+  return areas;
+}
 
 std::optional<std::string_view> LocalToolAction(flecs::world world) {
   const std::optional<flecs::entity> player = FindLocalPlayer(world);
-  if (!player || !player->has<z13::building::BuildingTool>() || !player->has<z13::inventory::ActiveItem>()) {
+  const std::optional<flecs::entity> item = player ? HeldItem(world, *player) : std::nullopt;
+  if (!item) {
     return std::nullopt;
   }
-  const flecs::entity item = world.entity(player->get<z13::inventory::ActiveItem>().item);
-  if (!item.is_alive()) {
-    return std::nullopt;
-  }
-  return ItemLabel(item, *player, true);
+  return ItemLabel(*item, *player, true);
 }
 
 void DrawHotbar(flecs::world world, const z13::TouchLayout& layout) {

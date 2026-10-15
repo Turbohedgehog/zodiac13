@@ -7,6 +7,7 @@ z13_add_library(
   SOURCES
   src/environment.cpp
   src/settings.cpp
+  src/settings_file.cpp
   PUBLIC
   zodiac13::core
   zodiac13::fbs_schemas

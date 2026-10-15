@@ -18,6 +18,9 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
+
+#include <Eigen/Geometry>
 
 #include <flecs.h>
 
@@ -28,6 +31,10 @@ namespace z13::raylib::gui {
 // The local player's hotbar where the touch cells are, and the build tool's mode under the
 // crosshair while it is in hand.
 void DrawHotbar(flecs::world world, const z13::TouchLayout& layout);
+
+// While a build tool is in hand, every palette primitive by name above the hotbar, the brush's
+// highlighted; returns their cells by palette slot, in ImGui units, for the touch layer.
+std::vector<Eigen::AlignedBox2f> DrawBrushRow(flecs::world world, const z13::TouchLayout& layout);
 
 // The mode the local player's build tool works in, while it is in hand.
 std::optional<std::string_view> LocalToolAction(flecs::world world);
