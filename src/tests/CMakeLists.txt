@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
-
 project(z13_tests)
-
-set(CMAKE_CXX_STANDARD 23)
 
 find_package(GTest CONFIG REQUIRED)
 find_package(reflectcpp CONFIG REQUIRED)
@@ -191,23 +187,12 @@ if(WIN32)
   )
 endif()
 
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
-)
+z13_set_output_directory(${PROJECT_NAME} ${Z13_BIN_DIR}/tests)
 
 # Host executable CTest invokes; the test code stays in the DLL.
 add_executable(z13_test_runner runner/main.cpp)
 target_link_libraries(z13_test_runner PRIVATE ${PROJECT_NAME} GTest::gtest)
-set_target_properties(z13_test_runner PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
-)
+z13_set_output_directory(z13_test_runner ${Z13_BIN_DIR}/tests)
 
 set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*")
 gtest_discover_tests(z13_test_runner
@@ -230,11 +215,7 @@ add_executable(z13_plugin_smoke plugin_smoke/main.cpp)
 target_link_libraries(z13_plugin_smoke PRIVATE zodiac13::core zodiac13::z13_launcher Boost::dll)
 # Only for test_dll_messages.h; the plugin itself is loaded, not linked.
 target_include_directories(z13_plugin_smoke PRIVATE ${CMAKE_SOURCE_DIR}/src/lib_test_dll/include)
-set_target_properties(z13_plugin_smoke PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/tests
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/tests
-)
+z13_set_output_directory(z13_plugin_smoke ${Z13_BIN_DIR}/tests)
 if(WIN32)
   add_custom_command(TARGET z13_plugin_smoke POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zodiac13::core> $<TARGET_FILE_DIR:z13_plugin_smoke>

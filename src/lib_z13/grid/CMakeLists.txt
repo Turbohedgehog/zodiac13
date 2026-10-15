@@ -1,50 +1,14 @@
-cmake_minimum_required(VERSION 3.21)
-
 project(grid)
-
-set(CMAKE_CXX_STANDARD 23)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
-set(
-  PROJECT_SOURCE_FILES
-  src/block_index.cpp
-)
-
 # Stateless, like primitives: each plugin linking its own copy shares nothing.
-add_library(${PROJECT_NAME} STATIC ${PROJECT_SOURCE_FILES})
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-# building_tuning_generated.h comes from the concrete flatc target (see net_module/CMakeLists.txt).
-add_dependencies(${PROJECT_NAME} GENERATE_FBS_SCHEMAS_HEADERS)
-
-target_include_directories(
-  ${PROJECT_NAME}
-  PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}>
-)
-
-target_link_libraries(
-  ${PROJECT_NAME}
+z13_add_library(
+  ${PROJECT_NAME} STATIC FBS_HEADERS
+  SOURCES
+  src/block_index.cpp
   PUBLIC
   Eigen3::Eigen
   zodiac13::fbs_schemas
   zodiac13::primitives
-)
-
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/)
-
-install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-)
-
-install(EXPORT ${PROJECT_NAME}Targets
-        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
-        NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
 )
