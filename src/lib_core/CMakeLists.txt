@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
-
 project(core)
-
-set(CMAKE_CXX_STANDARD 23)
 
 find_package(spdlog CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options dll)
@@ -33,8 +29,10 @@ flatbuffers_generate_headers(
     FLAGS "--scoped-enums" "--reflect-names" "--gen-name-strings" "--gen-object-api" "--gen-compare" "--cpp-std" "c++17"
 )
 
-set(
-  PROJECT_SOURCE_FILES
+# Shared: one copy for the executable and every plugin, instead of one inside each.
+z13_add_library(
+  ${PROJECT_NAME} SHARED EXPORT_ALL_SYMBOLS
+  SOURCES
   src/settings/config.cpp
   src/settings/schema_attributes.cpp
   src/state/component_codec.cpp
@@ -68,50 +66,6 @@ set(
   src/world/lifecycle.cpp
   src/world/module_lib_holder.cpp
   src/world/phase_order.cpp
-)
-
-# Shared: one copy for the executable and every plugin, instead of one inside each.
-# Next to the executable, where Windows looks for a plugin's dependencies too.
-add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    OUTPUT_NAME z13_core
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
-    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY ${Z13_BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}
-)
-
-add_dependencies(${PROJECT_NAME} GENERATE_CORE_SETTINGS_HEADERS)
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/lib_core/version.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/lib_core/version.h
-  @ONLY
-)
-
-target_include_directories(
-  ${PROJECT_NAME}
-  PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CORE_SETTINGS_HEADERS>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}>
-  $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
-)
-
-target_link_libraries(
-  ${PROJECT_NAME}
-  PRIVATE
-  Boost::dll
-  Taskflow::Taskflow
-)
-
-target_link_libraries(
-  ${PROJECT_NAME}
   PUBLIC
   # config.h holds program_options members and CameraPose, so its users link them too.
   Boost::program_options
@@ -121,25 +75,27 @@ target_link_libraries(
   spdlog::spdlog
   zodiac13::z13_profile
   reflectcpp::reflectcpp
+  PRIVATE
+  Boost::dll
+  Taskflow::Taskflow
 )
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME z13_core)
+# Next to the executable, where Windows looks for a plugin's dependencies too.
+z13_set_output_directory(${PROJECT_NAME} ${Z13_BIN_DIR})
+add_dependencies(${PROJECT_NAME} GENERATE_CORE_SETTINGS_HEADERS)
 
-# set_target_properties(${PROJECT_NAME} PROPERTIES 
-#     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-# )
-
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/)
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/lib_core/version.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/lib_core/version.h
+  @ONLY
+)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/lib_core/version.h
-        DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/lib_core)
+        DESTINATION ${Z13_INSTALL_INCLUDE_DIR}/lib_core)
 
-install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-)
-
-install(EXPORT ${PROJECT_NAME}Targets
-        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
-        NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CORE_SETTINGS_HEADERS>
+  $<BUILD_INTERFACE:${Boost_INCLUDE_DIR}>
 )

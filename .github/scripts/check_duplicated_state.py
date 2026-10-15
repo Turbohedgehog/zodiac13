@@ -26,6 +26,9 @@ ALLOWED = [
     (r"^rfl::Field<", "reflect-cpp field-name constants"),
     (r"^flatbuffers::(kHashFunctions\d+$|data<|\(anonymous namespace\)::TokenToString\(int\)::tokens$|Parser::)",
      "FlatBuffers constants and parser scratch; each binary parses its own schemas"),
+    (r"^flatbuffers::(\(anonymous namespace\)::g_(load_file|file_exists)_function$|ClassicLocale::instance_$|"
+     r"PathSeparatorSet$)",
+     "FlatBuffers util globals the parser pulls in: nothing sets the file hooks, the rest are constants"),
     (r"^flexbuffers::\w+::Empty\w*\(\)::\w+$", "FlexBuffers empty-value constants"),
     (r"^boost::(system::(detail::\w+_cat_holder<void>::instance$|error_code::location\(\) const::loc$|"
      r"error_category::init_stdcat\(\) const::mx_$)|filesystem::|container::(std_)?piecewise_construct)",

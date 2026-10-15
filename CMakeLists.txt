@@ -57,6 +57,7 @@ option(Z13_PROFILE "Build with Tracy profiler zones" OFF)
 # One per build directory, so a Release build (make.py -br: bin-release/) doesn't overwrite Debug.
 set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE PATH "Where the executable, plugins, tests, config/ and assets/ go")
 
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -75,6 +76,8 @@ if(MSVC)
 else()
     add_compile_options(-ffp-contract=off)
 endif()
+
+include(cmake/z13_targets.cmake)
 
 add_subdirectory(src/lib_profile)
 add_subdirectory(src/lib_core)

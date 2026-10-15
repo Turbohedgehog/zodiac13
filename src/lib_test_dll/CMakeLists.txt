@@ -1,66 +1,14 @@
-cmake_minimum_required(VERSION 3.21)
-
 project(test_dll_module)
-
-set(CMAKE_CXX_STANDARD 23)
 
 find_package(Boost REQUIRED COMPONENTS dll)
 
-set(
-  PROJECT_SOURCE_FILES
+z13_add_plugin(
+  ${PROJECT_NAME} modules/test_dll
+  SOURCES
   src/test_dll_module.cpp
   src/test_dll_module_factory.cpp
   src/test_dll_system.cpp
-)
-
-add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
-add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
-target_include_directories(
-  ${PROJECT_NAME}
-  PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${Bullet_INCLUDE_DIRS}>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}>
-)
-
-target_link_libraries(
-  ${PROJECT_NAME}
   PRIVATE
   zodiac13::core
   Boost::dll
 )
-
-install(DIRECTORY include/ DESTINATION include/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/)
-
-install(TARGETS ${PROJECT_NAME}
-        EXPORT ${PROJECT_NAME}Targets
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-)
-
-install(EXPORT ${PROJECT_NAME}Targets
-        FILE ${PROJECT_NAMESPACE}_${PROJECT_NAME}Targets.cmake
-        NAMESPACE ${PROJECT_NAMESPACE}::
-        DESTINATION lib/cmake/${PROJECT_NAMESPACE}-${Z13_FULL_VERSION}/
-)
-
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUTPUT_DIRECTORY}")
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUTPUT_DIRECTORY}")
-
-# RUNTIME_OUTPUT_DIRECTORY places the .dll on Windows; on Linux/macOS a SHARED
-# target's .so/.dylib is placed via LIBRARY_OUTPUT_DIRECTORY instead, and would
-# otherwise land in the default per-target build dir, not next to the exe where
-# ModuleLibHolder looks for it. PREFIX "" drops the "lib" CMake adds by default
-# on Unix, since the module path in z13_config.yaml has no such prefix.
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    PREFIX ""
-    RUNTIME_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/modules/test_dll
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/modules/test_dll
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY ${Z13_BIN_DIR}/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${Z13_BIN_DIR}/modules/test_dll
-    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${Z13_BIN_DIR}/modules/test_dll
-)
-
