@@ -169,6 +169,7 @@ enum Keycode : int16 {
   TOUCH_CELL_8 (display_text: "Touch cell 8"),
   TOUCH_CELL_9 (display_text: "Touch cell 9"),
   TOUCH_TOOL_MODE (display_text: "Touch tool mode"),
+  TOUCH_PRIMARY (display_text: "Touch tool action"),
 }
 
 table ActionBinding {

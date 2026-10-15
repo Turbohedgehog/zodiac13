@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string_view>
+
 #include <flecs.h>
 
 #include <z13_settings/settings.h>
@@ -26,6 +29,7 @@ namespace z13::raylib::gui {
 // crosshair while it is in hand.
 void DrawHotbar(flecs::world world, const z13::TouchLayout& layout);
 
-bool LocalPlayerHoldsBuildTool(flecs::world world);
+// The mode the local player's build tool works in, while it is in hand.
+std::optional<std::string_view> LocalToolAction(flecs::world world);
 
 }  // namespace z13::raylib::gui

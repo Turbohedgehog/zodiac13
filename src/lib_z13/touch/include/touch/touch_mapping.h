@@ -47,8 +47,10 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kCrouch, z13::fbs::input::Keycode::TOUCH_CROUCH, "Crouch"},
     TouchButton {TouchControl::kUse, z13::fbs::input::Keycode::TOUCH_USE, "Use"},
     TouchButton {TouchControl::kFlashlight, z13::fbs::input::Keycode::TOUCH_FLASHLIGHT, "Light"},
-    // Routed only while a build tool is in hand (the Building group).
+    // Routed only while a build tool is in hand (the Building group); the HUD labels the
+    // primary one with the tool's mode.
     TouchButton {TouchControl::kToolMode, z13::fbs::input::Keycode::TOUCH_TOOL_MODE, "Mode"},
+    TouchButton {TouchControl::kPrimary, z13::fbs::input::Keycode::TOUCH_PRIMARY, "Tool"},
 };
 
 // The hotbar's cells, left to right, and the key each one presses.

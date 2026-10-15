@@ -18,11 +18,16 @@
 
 #include <cstdint>
 
+#include <Eigen/Core>
+
 #include <z13/components/block.h>
 #include <z13/components/block_brush.h>
+#include <touch/touch_mapping.h>
 #include <z13/components/building.h>
+#include <z13/components/input_events.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+#include <z13_settings/settings.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -59,6 +64,27 @@ ToolMode ModeOf(flecs::entity player) {
   return BuildToolOf(player).get<BuildTool>().mode;
 }
 
+const Eigen::Vector2f kScreen(1000.f, 500.f);
+constexpr uint64_t kFinger = 1;
+
+template <typename EventT>
+EventT Touch(const Eigen::Vector2f& position) {
+  EventT event;
+  event.finger = kFinger;
+  event.position = position;
+  event.screen_size = kScreen;
+  return event;
+}
+
+void TapButton(Z13TestWorld& test_world, z13::input::TouchControl control) {
+  const Eigen::Vector2f center =
+      z13::input::touch::ButtonCenter(test_world.World().get<z13::TouchLayout>(), control, kScreen);
+  test_world.EmitInput(Touch<z13::input::TouchDownEvent>(center));
+  test_world.Tick();
+  test_world.EmitInput(Touch<z13::input::TouchUpEvent>(center));
+  test_world.Tick();
+}
+
 TEST(BuildToolTest, TheModeKeyCyclesTheModes) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity player = LocalBuilder(test_world);
@@ -78,6 +104,19 @@ TEST(BuildToolTest, InDestroyModeThePrimaryButtonDestroys) {
 
   Tap(test_world, kModeKey, TickOnly(test_world));
   z13::testing::Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls - 1);
+}
+
+TEST(BuildToolTest, OnATouchScreenTheModeAndActionButtonsDestroyLikeTheKeys) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  AddWallAhead(test_world, player);
+  const size_t walls = BlocksOfType(test_world.World(), kWallId).size();
+
+  TapButton(test_world, z13::input::TouchControl::kToolMode);
+  ASSERT_EQ(ModeOf(player), ToolMode::kDestroy);
+  TapButton(test_world, z13::input::TouchControl::kPrimary);
 
   EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls - 1);
 }

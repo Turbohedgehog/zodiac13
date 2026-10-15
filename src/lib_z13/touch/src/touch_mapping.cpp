@@ -38,6 +38,8 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
       return {layout.flashlight_x, layout.flashlight_y};
     case TouchControl::kToolMode:
       return {layout.tool_mode_x, layout.tool_mode_y};
+    case TouchControl::kPrimary:
+      return {layout.primary_x, layout.primary_y};
     case TouchControl::kStick:
       [[fallthrough]];
     case TouchControl::kLook:

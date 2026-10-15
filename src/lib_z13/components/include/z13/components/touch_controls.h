@@ -27,7 +27,7 @@ namespace z13::input {
 
 // What a finger works, chosen where it first touched (docs/android-plan.md, "Мультитач").
 enum class TouchControl {
-  kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kStats,
+  kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats,
   kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
 };
 

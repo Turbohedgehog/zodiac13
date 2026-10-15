@@ -49,11 +49,15 @@ float ToImGui(float pixels, const Eigen::Vector2f& screen_size) {
   return pixels / screen_size.y() * ImGui::GetIO().DisplaySize.y;
 }
 
+bool IsToolButton(TouchControl control) {
+  return control == TouchControl::kToolMode || control == TouchControl::kPrimary;
+}
+
 void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, const z13::TouchLayout& layout,
-                 bool tool_in_hand) {
+                 std::optional<std::string_view> tool_action) {
   const float radius = ToImGui(z13::input::touch::ButtonRadius(layout, controls.screen_size), controls.screen_size);
   for (const auto& button : z13::input::touch::kTouchButtons) {
-    if (button.control == TouchControl::kToolMode && !tool_in_hand) {
+    if (IsToolButton(button.control) && !tool_action) {
       continue;
     }
     const ImVec2 center =
@@ -62,7 +66,7 @@ void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, co
       draw.AddCircleFilled(center, radius, kPressedColor);
     }
     draw.AddCircle(center, radius, kOutlineColor, 0, kOutlineThickness);
-    const std::string label(button.label);
+    const std::string label(button.control == TouchControl::kPrimary ? *tool_action : button.label);
     const ImVec2 size = ImGui::CalcTextSize(label.c_str());
     draw.AddText({center.x - size.x / 2.f, center.y - size.y / 2.f}, kLabelColor, label.c_str());
   }
@@ -81,12 +85,13 @@ void DrawStick(ImDrawList& draw, const TouchFinger& finger, const z13::input::To
 
 }  // namespace
 
-void DrawTouchHud(const z13::input::TouchControls& controls, const z13::TouchLayout& layout, bool tool_in_hand) {
+void DrawTouchHud(const z13::input::TouchControls& controls, const z13::TouchLayout& layout,
+                  std::optional<std::string_view> tool_action) {
   if (!controls.used) {
     return;
   }
   ImDrawList& draw = *ImGui::GetBackgroundDrawList();
-  DrawButtons(draw, controls, layout, tool_in_hand);
+  DrawButtons(draw, controls, layout, tool_action);
   const auto stick = std::ranges::find(controls.fingers, TouchControl::kStick, &TouchFinger::control);
   if (stick != controls.fingers.end()) {
     DrawStick(draw, *stick, controls, layout);

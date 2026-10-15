@@ -113,9 +113,16 @@ void DrawCells(ImDrawList& draw, const z13::TouchLayout& layout, const Eigen::Ve
 
 }  // namespace
 
-bool LocalPlayerHoldsBuildTool(flecs::world world) {
+std::optional<std::string_view> LocalToolAction(flecs::world world) {
   const std::optional<flecs::entity> player = FindLocalPlayer(world);
-  return player && player->has<z13::building::BuildingTool>();
+  if (!player || !player->has<z13::building::BuildingTool>() || !player->has<z13::inventory::ActiveItem>()) {
+    return std::nullopt;
+  }
+  const flecs::entity item = world.entity(player->get<z13::inventory::ActiveItem>().item);
+  if (!item.is_alive()) {
+    return std::nullopt;
+  }
+  return ItemLabel(item, *player, true);
 }
 
 void DrawHotbar(flecs::world world, const z13::TouchLayout& layout) {

@@ -32,7 +32,7 @@ table Block {
 
 enum Action : int16 (action, action_group: "Building") {
   // The tool mode's action: build, destroy, cut or cut in.
-  BUILD_BLOCK (display_text: "Use the build tool", default_keycodes: "MOUSE_BUTTON_LEFT"),
+  BUILD_BLOCK (display_text: "Use the build tool", default_keycodes: "MOUSE_BUTTON_LEFT TOUCH_PRIMARY"),
   // Destroys in any tool mode.
   DESTROY_BLOK (display_text: "Destroy a block", default_keycodes: "MOUSE_BUTTON_RIGHT"),
   PREVIOUS_PRIMITIVE (display_text: "Previous primitive", default_keycodes: "KEY_Q"),

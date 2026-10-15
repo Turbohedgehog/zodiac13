@@ -203,7 +203,7 @@ void RegisterSystems(flecs::world world) {
           gui::MakePaletteWindow(world)->Draw();
         } else if (touch_layout != nullptr) {
           if (touch != nullptr) {
-            gui::DrawTouchHud(*touch, *touch_layout, gui::LocalPlayerHoldsBuildTool(world));
+            gui::DrawTouchHud(*touch, *touch_layout, gui::LocalToolAction(world));
           }
           gui::DrawHotbar(world, *touch_layout);
         }
