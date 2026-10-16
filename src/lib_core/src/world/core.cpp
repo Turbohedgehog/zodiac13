@@ -64,7 +64,13 @@ Core::Core(int argc, char *argv[], const ConfigureOptions& configure_options)
   }
 }
 
-Core::~Core() = default;
+// The worlds run code from the plugins' libraries until ecs_fini, so they go first and the
+// libraries last, against the members' reverse declaration order.
+Core::~Core() {
+  worlds_.clear();
+  module_factories_.clear();
+  module_lib_holder_.reset();
+}
 
 const Config& Core::GetConfig() const {
   return config_;
