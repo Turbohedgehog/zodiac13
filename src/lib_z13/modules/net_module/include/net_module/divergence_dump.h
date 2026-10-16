@@ -30,7 +30,6 @@ namespace z13::net {
 // Where a session writes the snapshots of a diverged tick, when set (z13.py --net-sim sets it).
 constexpr std::string_view kDivergenceDirectoryVariable = "Z13_DIVERGENCE_DIR";
 
-// Beside each snapshot: the action log as text.
 constexpr std::string_view kActionLogExtension = ".actions.txt";
 
 // Writes the snapshot of `tick` as JSON named after `side` into $Z13_DIVERGENCE_DIR, and the

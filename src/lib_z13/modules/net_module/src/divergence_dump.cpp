@@ -28,9 +28,11 @@
 
 namespace z13::net {
 
+namespace {
+
 namespace ft = z13::flecs_tools;
 
-// The kept action log, one record a line: what the replays of the diverged tick played.
+// What the replays of the diverged tick played, one record a line.
 std::string DescribeActionLog(flecs::world world) {
   std::string text;
   for (const z13::gameplay::PlayerActionRecord& record : world.get<z13::gameplay::PlayerActionLog>().log.Entries()) {
@@ -38,6 +40,8 @@ std::string DescribeActionLog(flecs::world world) {
   }
   return text;
 }
+
+}  // namespace
 
 std::expected<std::optional<std::filesystem::path>, std::string> DumpDivergedTick(
     flecs::world world, uint64_t tick, std::string_view side) {

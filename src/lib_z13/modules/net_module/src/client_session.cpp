@@ -137,9 +137,9 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
         .action_id = move.action_id(),
         .value = z13::gameplay::DequantizeActionValue(move.value()),
     };
-    // One record, matched by value too: an earlier move may have put another of this action on that tick.
     log_debug("NetSession(client): the server moved own action {} = {} from tick {} to {} (now {})",
               moved.action_id, moved.value, move.from_tick(), moved.tick, now);
+    // One record, matched by value too: an earlier move may have put another of this action on that tick.
     bool removed = false;
     log.RemoveIf([&](const z13::gameplay::PlayerActionRecord& record) {
       const bool match = !removed && record.tick == move.from_tick() && record.player_id == local_id &&

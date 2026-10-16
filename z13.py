@@ -36,9 +36,7 @@ NET_SIM_DATA = "data"
 # divergence_dump.h: where both sides write their snapshots of a diverged tick.
 DIVERGENCE_DIR_VARIABLE = "Z13_DIVERGENCE_DIR"
 DIVERGENCE_FILES = "divergence_*"
-# The server keeps its snapshots this long, so a client's report of a diverged tick (late on a
-# loaded box, after the client writes its own JSON) still finds the server's. Its rollbacks stay
-# bounded by max_late_ticks.
+# Long enough for a client's late report of a diverged tick to find the server's snapshot.
 NET_SIM_SERVER_RETENTION = ["--snapshot-retention-seconds", 30]
 NET_SIM_SERVER_READY = "NetSession(server): listening on port"
 # What --net-sim counts in each process's log, and which of them fail the run.
@@ -49,6 +47,7 @@ NET_SIM_EVENTS = {
     "digest mismatches": ("state digest mismatch", True),
     "lost connections": ("the server closed the connection", True),
     "failed joins": ("disconnected before joining", True),
+    "players left": ("left (connection", False),
     "late commands moved": ("late or early commands", False),
     "errors": ("[error]", True),
 }
@@ -117,7 +116,8 @@ def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list
   script = Path(options.script).resolve()
   server_log = logs / "server.log"
   scene = ["--station-scene", options.scene] if options.scene else []
-  server = start([game, "--server", options.port, *scene, *NET_SIM_SERVER_RETENTION, *extra], server_log, game_dir, data / "server")
+  server = start([game, "--server", options.port, *scene, *NET_SIM_SERVER_RETENTION, *extra], server_log, game_dir,
+                 data / "server")
   if not wait_for_line(server_log, NET_SIM_SERVER_READY, server, options.timeout):
     stop(server)
     print(f"the server didn't start: see {server_log}")
