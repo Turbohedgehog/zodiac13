@@ -16,7 +16,6 @@
 
 #include <lib_core/state/world_snapshot_history.h>
 
-#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
@@ -33,7 +32,7 @@ void CaptureSnapshot(
     return;
   }
   const uint64_t capture_ticks = *interval_ticks / rate.per_interval;
-  if (capture_ticks == 0 || clock.tick % capture_ticks != 0 || FrameIsDiscarded(world)) {
+  if (capture_ticks == 0 || clock.tick % capture_ticks != 0) {
     return;
   }
 

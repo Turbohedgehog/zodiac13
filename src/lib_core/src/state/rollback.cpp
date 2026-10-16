@@ -185,10 +185,6 @@ bool IsCatchingUp(flecs::world world) {
          (world.has<RollbackRequest>() && world.get<RollbackRequest>().to_tick.has_value());
 }
 
-bool FrameIsDiscarded(flecs::world world) {
-  return world.get<RollbackRequest>().to_tick.has_value();
-}
-
 void TickWorld(flecs::world& world, float delta_time, FrameKind kind) {
   Z13_PROFILE_ZONE("TickWorld");
   ApplySimulationFreeze(world);

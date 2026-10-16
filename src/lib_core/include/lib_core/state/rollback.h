@@ -96,10 +96,6 @@ void RequestClockAdjust(flecs::world& world, int64_t ticks);
 
 bool IsCatchingUp(flecs::world world);
 
-// A rollback lands after this frame and replaces its state, so nothing derived from what the
-// frame computed (a snapshot, a digest) may be kept.
-bool FrameIsDiscarded(flecs::world world);
-
 // The one place a world is advanced: an ordinary frame, plus the frames a rollback
 // requested during it needs, adjusted by a ClockAdjustRequest. Nothing else may call
 // progress() -- the restore has to land between frames, or flecs skips the rest of that
