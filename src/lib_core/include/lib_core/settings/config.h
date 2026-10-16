@@ -35,6 +35,11 @@ namespace z13 {
 
 inline constexpr uint16_t kDefaultServerPort = 26213;
 
+// No directory: the launcher's default one.
+struct LogFileOption {
+  std::optional<std::filesystem::path> directory;
+};
+
 class Config {
  public:
   Config();
@@ -78,6 +83,8 @@ class Config {
   std::optional<Endpoint> GetConnectEndpoint() const;
   // --headless: with --connect, a client without a window, on the server's module list.
   bool IsHeadless() const;
+  // --log [DIR]: the launcher also writes the run's log to a file. std::nullopt when not given.
+  std::optional<LogFileOption> GetLogFile() const;
   // --input-script PATH: input played once the local player is in the game (z13_module's
   // ScriptedInputSystem). std::nullopt when not given.
   std::optional<std::filesystem::path> GetInputScriptPath() const;
@@ -107,6 +114,7 @@ class Config {
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
     bool headless {};
+    std::optional<LogFileOption> log_file;
     std::optional<std::filesystem::path> input_script;
   };
   CommandLine command_line_;

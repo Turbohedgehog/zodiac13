@@ -16,16 +16,43 @@
 
 #include "session_control.h"
 
+#include <string_view>
 #include <utility>
 
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/log.h>
 
 #include "net_session.h"
 #include "session_settings.h"
 
 namespace z13::net {
 
+namespace {
+
+std::string_view StateName(ConnectionState state) {
+  switch (state) {
+    case ConnectionState::kNone:
+      return "left the session";
+    case ConnectionState::kConnecting:
+      return "connecting";
+    case ConnectionState::kConnected:
+      return "connected";
+    case ConnectionState::kFailed:
+      return "failed";
+    case ConnectionState::kDisconnected:
+      return "disconnected";
+  }
+  return "unknown";
+}
+
+}  // namespace
+
 void SetConnectionStatus(flecs::world world, ConnectionState state, std::string reason) {
+  if (reason.empty()) {
+    log_info("NetSession: {}", StateName(state));
+  } else {
+    log_warn("NetSession: {}: {}", StateName(state), reason);
+  }
   world.set<ConnectionStatus>({.state = state, .reason = std::move(reason)});
 }
 

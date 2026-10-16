@@ -26,6 +26,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/log.h>
 #include <lib_profile/profile.h>
 
 namespace z13::flecs_tools {
@@ -91,6 +92,7 @@ void ApplyPendingRollback(flecs::world& world) {
   }
 
   const uint64_t from_tick = restore_point->tick;
+  log_debug("Rollback: to tick {} from the snapshot of tick {}, replaying to {}", to_tick, from_tick, target_tick);
   if (const auto restored = RestoreWorld(world, restore_point->snapshot); !restored) {
     world.set<RollbackFailed>({restored.error()});
     return;
@@ -194,6 +196,9 @@ void TickWorld(flecs::world& world, float delta_time, FrameKind kind) {
     return;
   }
   const int64_t extra_ticks = std::min<int64_t>(adjust, static_cast<int64_t>(world.get<ActiveCoreSettings>().max_catch_up_ticks_per_frame));
+  if (extra_ticks > 1) {
+    log_debug("TickWorld: {} extra ticks from tick {} (asked {})", extra_ticks, world.get<SimulationClock>().tick, adjust);
+  }
   for (int64_t tick = 0; tick <= extra_ticks; ++tick) {
     AdvanceTick(world, delta_time, tick == extra_ticks ? kind : FrameKind::kCatchUp);
   }

@@ -25,6 +25,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -70,6 +71,7 @@ void CommitDueCommands(
   log.log.MergeSorted(std::move(due), RecordLess);
   if (earliest < clock.tick && earliest > 0) {
     flecs::world world = it.world();
+    log_debug("RemoteInput: a command due at tick {} asks a rollback (now {})", earliest, clock.tick);
     ft::DeferRollback(world, earliest - 1);
   }
 }
@@ -149,6 +151,8 @@ bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t throug
   if (predicted_since < world.get<ft::SimulationClock>().tick &&
       (recorded_since ||
        HoldsReleasableAction(ValuesAt(log, player_id, predicted_since), world.get<z13::input::ActionMap>()))) {
+    log_debug("RemoteInput: confirming player {} through tick {} (was {}) asks a rollback", player_id, through_tick,
+              predicted_since);
     // Ticks before the oldest snapshot can't be replayed; unconfirmed, they read as released already.
     ft::DeferRollback(world, std::max(predicted_since, OldestSnapshotTick(world).value_or(predicted_since)));
   }

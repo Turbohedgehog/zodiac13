@@ -55,6 +55,7 @@ set(
   src/lib_z13/rooms/tour_viewpoints_test.cpp
   src/lib_z13/touch/touch_mapping_test.cpp
   src/test_runner.cpp
+  src/z13_launcher/log_file_test.cpp
   src/z13_launcher/module_list_test.cpp
   src/z13_launcher/settings_loader_test.cpp
   src/z13_launcher/station_assets_check_test.cpp

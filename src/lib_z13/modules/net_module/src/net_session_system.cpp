@@ -246,6 +246,9 @@ void RegisterSystems(flecs::world world) {
       .without<ft::ReplayInProgress>()
       .each([](flecs::iter& it, size_t, ClockSync& sync, const ft::SimulationClock& clock, const NetTuning& tuning) {
         if (const int64_t adjust = TakeClockAdjustment(sync, tuning, clock.tick); adjust != 0) {
+          if (std::abs(adjust) >= tuning.clock_jump_threshold_ticks) {
+            log_debug("NetSession(client): the clock jumps {} ticks at tick {}", adjust, clock.tick);
+          }
           flecs::world world = it.world();
           ft::RequestClockAdjust(world, adjust);
         }

@@ -47,9 +47,10 @@ namespace {
 // A player closer than this to a spawn point occupies it.
 constexpr float kSpawnPointClearance = 1.f;
 
-// Same order on every peer and after any restore, unlike entity ids.
+// Same order on every peer and after any restore, unlike entity ids. Height (z) first, so
+// joiners fill one deck before the next rather than stacking above a taken point.
 bool PositionLess(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
-  return std::tie(a.x(), a.y(), a.z()) < std::tie(b.x(), b.y(), b.z());
+  return std::tie(a.z(), a.x(), a.y()) < std::tie(b.z(), b.x(), b.y());
 }
 
 // The first spawn point, in position order, with no player on it; if all are taken, the

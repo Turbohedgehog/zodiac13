@@ -15,6 +15,7 @@ z13_add_plugin(
   src/gameplay/gameplay_entities.cpp
   src/gameplay/gameplay_system.cpp
   src/gameplay/inventory_system.cpp
+  src/gameplay/player_roster_log.cpp
   src/input/action_negotiation.cpp
   src/input/gameplay_input_system.cpp
   src/input/input_config_loader.cpp

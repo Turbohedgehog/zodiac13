@@ -30,5 +30,6 @@ std::filesystem::path GetGameInputConfigJsonPath2();
 // Next to the input config; generated from the schema defaults when missing.
 std::filesystem::path GetGameSettingsJsonPath();
 std::filesystem::path GetGameQuickSaveJsonPath();
+std::filesystem::path GetGameLogsDirectory();
 
 } // namespace z13::environment

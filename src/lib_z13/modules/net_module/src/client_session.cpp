@@ -60,6 +60,11 @@ namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 namespace zgi = z13::gameplay::input;
 
+template <typename T>
+std::string OptionalText(const std::optional<T>& value) {
+  return value ? std::to_string(*value) : std::string("none");
+}
+
 Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   Z13_PROFILE_ZONE("JoinFromWelcome");
   auto payload = DecodeCatchUp(welcome.catch_up);
@@ -169,6 +174,7 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
   if (earliest && *earliest < now && *earliest > 0) {
     // A record moved from before the oldest snapshot (a catch-up's base, sent while awaiting it) is
     // already absent from that snapshot, the server's state: replaying from it is enough (Н4).
+    log_debug("NetSession(client): moved own commands from tick {} ask a rollback (now {})", *earliest, now);
     ft::DeferRollback(world, std::max(*earliest - 1, OldestSnapshotTick(world).value_or(*earliest - 1)));
   }
 }
@@ -191,9 +197,19 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       [&](const fbn::WelcomeT& welcome) { HandleWelcome(world, welcome); },
       [&](const fbn::RejectedT& rejected) { FailSession(world, rejected.reason); },
       [world](const fbn::PongT& pong) {
-        ApplyPong(
-            world.get_mut<ClockSync>(), world.get<NetTuning>(), pong.client_tick, pong.server_tick,
-            world.get<ft::SimulationClock>().tick);
+        auto& sync = world.get_mut<ClockSync>();
+        const uint64_t received_tick = world.get<ft::SimulationClock>().tick;
+        const bool answers_ping = sync.ping_sent_tick == pong.client_tick && received_tick >= pong.client_tick;
+        const std::string offset_before = OptionalText(sync.offset_ticks);
+        ApplyPong(sync, world.get<NetTuning>(), pong.client_tick, pong.server_tick, received_tick);
+        if (answers_ping) {
+          log_debug("NetSession(client): pong for tick {} at tick {}: server tick {}, rtt {}, offset {} -> {}",
+                    pong.client_tick, received_tick, pong.server_tick, OptionalText(sync.rtt_ticks), offset_before,
+                    OptionalText(sync.offset_ticks));
+        } else {
+          log_debug("NetSession(client): ignored a pong for tick {} at tick {} (server tick {}, ping in flight: {})",
+                    pong.client_tick, received_tick, pong.server_tick, OptionalText(sync.ping_sent_tick));
+        }
       },
       [world, welcomed](const fbn::SequencedCommandsT& sequenced) {
         if (welcomed) {
@@ -234,8 +250,6 @@ void HandleClientDisconnect(flecs::world world) {
   const bool was_connected = world.has<z13::gameplay::Gameplay>();
   EndSession(world);
 
-  log_warn("NetSession(client): {}",
-           was_connected ? "the server closed the connection" : "disconnected before joining");
   if (was_connected) {
     world.remove<z13::gameplay::Gameplay>();
     world.add<z13::gameplay::Pause>();

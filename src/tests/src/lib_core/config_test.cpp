@@ -36,6 +36,8 @@ constexpr std::string_view kTestScene = "test";
 constexpr std::string_view kRenderTourArg = "--render-tour";
 constexpr std::string_view kTourFile = "tour.csv";
 constexpr std::string_view kHelpArg = "--help";
+constexpr std::string_view kLogArg = "--log";
+constexpr std::string_view kLogDirectory = "my_logs";
 constexpr std::string_view kExampleHost = "example.com";
 constexpr std::string_view kExampleEndpoint = "example.com:9999";
 constexpr std::string_view kExampleEndpointPortZero = "example.com:0";
@@ -209,6 +211,18 @@ TEST(ConfigTest, ARenderTourViewMayStartWithAMinus) {
   ASSERT_TRUE(parsed.result.has_value()) << parsed.result.error();
   ASSERT_EQ(parsed.config.GetRenderTourViews().size(), 1U);
   EXPECT_FLOAT_EQ(parsed.config.GetRenderTourViews()[0].eye.x(), -3.5f);
+}
+
+TEST(ConfigTest, LogTakesAnOptionalDirectory) {
+  EXPECT_FALSE(ParseArgs({}).config.GetLogFile().has_value());
+
+  const auto default_directory = ParseArgs({kLogArg}).config.GetLogFile();
+  ASSERT_TRUE(default_directory.has_value());
+  EXPECT_FALSE(default_directory->directory.has_value());
+
+  const auto own_directory = ParseArgs({kLogArg, kLogDirectory}).config.GetLogFile();
+  ASSERT_TRUE(own_directory.has_value());
+  EXPECT_EQ(own_directory->directory, std::filesystem::path(kLogDirectory));
 }
 
 // A client takes the mode from the server it joins.
