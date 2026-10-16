@@ -92,6 +92,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/input/action_negotiation_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/input_config_defaults_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/input_pipeline_test.cpp
+  ${MODULES_DIR}/z13_module/tests/input/input_script_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/touch_input_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp

@@ -55,8 +55,8 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
   core.GetConfig().SetCoreSettings(*effective->core);
 
-  const auto modules =
-      ReadModuleList(assets, core.GetConfig().IsServer() ? kServerModuleList : kGameModuleList);
+  const bool windowless = core.GetConfig().IsServer() || core.GetConfig().IsHeadless();
+  const auto modules = ReadModuleList(assets, windowless ? kServerModuleList : kGameModuleList);
   if (!modules) {
     log_error("{}", modules.error());
     return 1;

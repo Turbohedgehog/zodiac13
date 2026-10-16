@@ -94,6 +94,8 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   if (const Status joined = JoinFromWelcome(world, welcome); !joined) {
     log_warn("NetSession(client): unusable Welcome: {}", joined.error());
     FailSession(world, joined.error());
+  } else {
+    log_info("NetSession(client): joined as player {}", welcome.player_id);
   }
 }
 
@@ -206,6 +208,8 @@ void HandleClientDisconnect(flecs::world world) {
   const bool was_connected = world.has<z13::gameplay::Gameplay>();
   EndSession(world);
 
+  log_warn("NetSession(client): {}",
+           was_connected ? "the server closed the connection" : "disconnected before joining");
   if (was_connected) {
     world.remove<z13::gameplay::Gameplay>();
     world.add<z13::gameplay::Pause>();

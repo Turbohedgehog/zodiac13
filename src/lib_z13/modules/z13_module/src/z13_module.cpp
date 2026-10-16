@@ -43,6 +43,7 @@
 #include "bootstrap/bootstrap_system.h"
 #include "gameplay/block_change_system.h"
 #include "gameplay/flashlight_system.h"
+#include "input/scripted_input_system.h"
 #include "gameplay/inventory_system.h"
 #include "gameplay/gameplay_system.h"
 #include "input/gameplay_input_system.h"
@@ -99,6 +100,7 @@ Z13Module::Z13Module(flecs::world& world) {
   z13::gameplay::input::TouchInputSystem::Register(world);
   z13::state::QuickSaveInputSystem::Register(world);
   z13::gameplay::FlashlightSystem::Register(world);
+  z13::gameplay::input::ScriptedInputSystem::Register(world);
   z13::inventory::InventorySystem::Register(world);
   z13::state::PlayerActionRecorder::Register(world);
   z13::state::Replay::Register(world);

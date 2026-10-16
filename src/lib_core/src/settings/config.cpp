@@ -31,6 +31,8 @@ namespace {
 constexpr std::string_view kQuickSavePathOption = "quick-save-path";
 constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
+constexpr std::string_view kHeadlessOption = "headless";
+constexpr std::string_view kInputScriptOption = "input-script";
 constexpr std::string_view kStationOption = "station";
 constexpr std::string_view kStationSceneOption = "station-scene";
 constexpr std::string_view kRenderTourOption = "render-tour";
@@ -62,6 +64,11 @@ Config::Config() {
                     "mutually exclusive with --connect", kDefaultServerPort).c_str())
       (kConnectOption.data(), po::value<std::string>(),
        "Join host[:port] on startup instead of showing the main menu")
+      (kHeadlessOption.data(), po::bool_switch(&command_line_.headless),
+       "With --connect: a client without a window or renderer, loading the server's module list")
+      (kInputScriptOption.data(), po::value<std::string>(),
+       "Play this input script once the local player is in the game: lines of `tick action`, the tick "
+       "counted from joining (`KEY_W down`, `KEY_W up`, `turn YAW PITCH`, `quit`)")
       (kStationOption.data(), po::bool_switch(&command_line_.station),
        "Start in station-building mode (with --server, host it); a client gets the mode from the server")
       (kStationSceneOption.data(), po::value<std::string>(),
@@ -151,6 +158,14 @@ Status Config::ValidateAndApplyArguments() {
       return std::unexpected(std::format("--{}: {}", kConnectOption, endpoint.error()));
     }
     command_line_.connect_endpoint = *endpoint;
+  }
+
+  // A headless server is just --server; a headless player sits in a menu nobody sees.
+  if (command_line_.headless && !command_line_.connect_endpoint) {
+    return std::unexpected(std::format("--{} needs --{}", kHeadlessOption, kConnectOption));
+  }
+  if (variables_map_.count(kInputScriptOption.data()) > 0) {
+    command_line_.input_script = std::filesystem::path(variables_map_[kInputScriptOption.data()].as<std::string>());
   }
 
   return {};
@@ -265,6 +280,14 @@ uint16_t Config::GetPort() const {
 
 std::optional<Endpoint> Config::GetConnectEndpoint() const {
   return command_line_.connect_endpoint;
+}
+
+bool Config::IsHeadless() const {
+  return command_line_.headless;
+}
+
+std::optional<std::filesystem::path> Config::GetInputScriptPath() const {
+  return command_line_.input_script;
 }
 
 std::ostream& operator<<(std::ostream& os, const Config& person) {

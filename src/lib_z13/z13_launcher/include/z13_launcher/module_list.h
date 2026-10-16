@@ -26,7 +26,8 @@
 
 namespace z13 {
 
-// The module lists under config/: the game's, and a dedicated server's (no display, so no raylib_module).
+// The module lists under config/: the game's, and a windowless one (no raylib_module) for a dedicated
+// server and a --headless client.
 inline constexpr std::string_view kGameModuleList = "z13_config.yaml";
 inline constexpr std::string_view kServerModuleList = "z13_config_server.yaml";
 

@@ -30,6 +30,7 @@
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/fnv_hash.h>
+#include <lib_core/utils/log.h>
 
 #include <z13/components/player.h>
 #include <z13/components/player_action.h>
@@ -166,6 +167,8 @@ std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDi
     if (!mismatch && !DigestsMatch(local->second, remote)) {
       mismatch = std::format("state digest mismatch at tick {}: {} entities (server {})", remote.tick,
           local->second.entity_count, remote.entity_count);
+    } else if (!mismatch) {
+      log_debug("NetSession(client): state digest at tick {} matches", remote.tick);
     }
     return true;
   });
