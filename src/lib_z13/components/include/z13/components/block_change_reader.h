@@ -55,7 +55,8 @@ inline void CancelPairs(std::vector<BlockChange>& changes) {
 
 // Reads the block changes for one deriving system, once per tick, after the systems that
 // build and destroy and before ClearBlockChangesPhase. It asks for a resync after a restore
-// that changed blocks, a tick it missed, or a block count the changes don't explain.
+// that changed blocks, a tick it missed, or a block count the changes don't explain. A restore
+// sets the clock back to its snapshot (a rollback), so the tick after it isn't a missed one.
 class BlockChangeReader {
  public:
   explicit BlockChangeReader(flecs::world world)
@@ -69,8 +70,11 @@ class BlockChangeReader {
     const auto added = std::ranges::count(batch.changes, BlockChangeKind::kAdded, &BlockChange::kind);
     const auto removed = static_cast<int64_t>(batch.changes.size()) - added;
     const int64_t known = known_blocks ? static_cast<int64_t>(*known_blocks) : count_;
-    const bool restored = BlocksRestored(restores);
-    const bool missed_tick = !tick_ || *tick_ + 1 != tick;
+    const bool restore = restores_seen_ != restores;
+    restores_seen_ = restores;
+    const bool blocks_changed = BlocksChanged();
+    const bool restored = restore && blocks_changed;
+    const bool missed_tick = !tick_ || (!restore && *tick_ + 1 != tick);
     count_ = blocks_.count();
     tick_ = tick;
     batch.resync = restored || missed_tick || known + added - removed != count_;
@@ -86,15 +90,13 @@ class BlockChangeReader {
 
  private:
   // A restore that left the blocks' table alone changed no block. The walk resets changed().
-  bool BlocksRestored(uint64_t restores) {
+  bool BlocksChanged() {
     const bool changed = blocks_.changed();
     blocks_.run([](flecs::iter& it) {
       while (it.next()) {
       }
     });
-    const bool restored = restores_seen_ != restores;
-    restores_seen_ = restores;
-    return restored && changed;
+    return changed;
   }
 
   flecs::query<const Block> blocks_;

@@ -194,11 +194,14 @@ void RegisterSystems(flecs::world world) {
           return;
         }
         const bool paused = world.has<gameplay::Pause>();
-        if (paused && stack.windows.empty()) {
-          stack.windows.push_back(world.has<gameplay::Gameplay>() ? gui::MakeGameplayPauseMenu(world)
-                                                                  : gui::MakeMainMenu(world));
+        const bool in_game = world.has<gameplay::Gameplay>();
+        // A game joined while undrawn frames load it, then paused by a lost focus, still has
+        // the main menu's windows: rebuilt for the game.
+        if (paused && (stack.windows.empty() || stack.in_game != in_game)) {
+          stack = {.windows = {in_game ? gui::MakeGameplayPauseMenu(world) : gui::MakeMainMenu(world)},
+                   .in_game = in_game};
         } else if (!paused && !stack.windows.empty()) {
-          stack.windows.clear();
+          stack = {};
         }
         std::vector<Eigen::AlignedBox2f> brush_areas;
         if (!stack.windows.empty()) {

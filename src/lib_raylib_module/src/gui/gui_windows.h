@@ -69,6 +69,8 @@ class Window {
 struct WindowStack {
   using Singleton = void;
   std::vector<WindowPtr> windows;
+  // Whether `windows` is the in-game pause menu rather than the main menu.
+  bool in_game {};
 };
 
 }  // namespace z13::raylib::gui

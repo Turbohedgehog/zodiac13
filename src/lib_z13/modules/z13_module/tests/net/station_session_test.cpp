@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -25,6 +26,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -36,6 +38,7 @@
 #include <lib_core/utils/file_io.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/system_times.h>
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
@@ -249,6 +252,47 @@ TEST_F(StationSessionTest, DISABLED_DumpTheFirstDivergence) {
   }
 }
 
+// What the host's walking costs the client's frames: each host command reaches the client after
+// its tick and rolls it back.
+TEST_F(StationSessionTest, DISABLED_TheHostWalkingCostsTheClient) {
+  constexpr uint64_t kWalkTicks = 120;
+  ASSERT_TRUE(Run(kMaxJoinTicks, [&] {
+    return client_.World().has<z13::gameplay::Gameplay>() &&
+           client_.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
+  }));
+  RunTicks(kSettleTicks);
+  const uint64_t rollbacks_before = client_.World().get<z13::flecs_tools::RollbackMetrics>().rollbacks;
+
+  ecs_measure_system_time(client_.World(), true);
+  const std::vector<z13::SystemTime> systems_before = z13::SystemTimes(client_.World());
+  server_.EmitInput(KeyDown(Keycode::KEY_W));
+  std::chrono::duration<double, std::milli> longest {};
+  std::chrono::duration<double, std::milli> total {};
+  for (uint64_t tick = 0; tick < kWalkTicks + kSettleTicks; ++tick) {
+    if (tick == kWalkTicks) {
+      server_.EmitInput(KeyUp(Keycode::KEY_W));
+    }
+    z13::flecs_tools::TickWorld(server_.World(), kNetTestDeltaTime);
+    const auto start = std::chrono::steady_clock::now();
+    z13::flecs_tools::TickWorld(client_.World(), kNetTestDeltaTime);
+    const std::chrono::duration<double, std::milli> frame = std::chrono::steady_clock::now() - start;
+    longest = std::max(longest, frame);
+    total += frame;
+    network_->Tick();
+  }
+
+  constexpr size_t kTopSystems = 10;
+  const std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(
+      systems_before, z13::SystemTimes(client_.World()), static_cast<int>(kWalkTicks + kSettleTicks));
+  for (const z13::SystemTime& system : spent | std::views::take(kTopSystems)) {
+    std::cout << std::format("  {:7.2f} ms/frame {}\n", system.ms, system.path);
+  }
+  const auto& metrics = client_.World().get<z13::flecs_tools::RollbackMetrics>();
+  std::cout << std::format("client frames: longest {:.1f} ms, mean {:.1f} ms; rollbacks {} (deepest {} ticks)\n",
+                           longest.count(), total.count() / static_cast<double>(kWalkTicks + kSettleTicks),
+                           metrics.rollbacks - rollbacks_before, metrics.max_depth_ticks);
+  EXPECT_EQ(client_.World().get<StateDigests>().resyncs, 0u);
+}
 
 }  // namespace
 }  // namespace z13::net
