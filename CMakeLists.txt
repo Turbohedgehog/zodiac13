@@ -56,6 +56,12 @@ set(PROJECT_NAMESPACE ${PROJECT_NAME} CACHE PATH "Project namespace" FORCE)
 option(Z13_BUILD_BENCHMARKS "Build the benchmark tests under tests/bench/" OFF)
 # Tracy zones (lib_profile/profile.h); off, they compile to nothing.
 option(Z13_PROFILE "Build with Tracy profiler zones" OFF)
+# Off: no raylib_module, so zodiac13 runs only as a windowless dedicated server (--server, whose
+# config loads no renderer). For machines without a display; CI builds the renderer.
+option(Z13_BUILD_RENDER "Build the render plugin (raylib_module)" ON)
+if(ANDROID AND NOT Z13_BUILD_RENDER)
+    message(FATAL_ERROR "The Android app needs the renderer: Z13_BUILD_RENDER must be ON")
+endif()
 # One per build directory, so a Release build (make.py -br: bin-release/) doesn't overwrite Debug.
 set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE PATH "Where the executable, plugins, tests, config/ and assets/ go")
 
@@ -85,7 +91,9 @@ add_subdirectory(src/lib_profile)
 add_subdirectory(src/lib_core)
 add_subdirectory(src/lib_z13)
 add_subdirectory(src/zodiac13)
-add_subdirectory(src/lib_raylib_module)
+if(Z13_BUILD_RENDER)
+    add_subdirectory(src/lib_raylib_module)
+endif()
 add_subdirectory(src/lib_test_dll)
 
 # Android builds the app alone: the tests run on the desktop platforms.
@@ -111,7 +119,9 @@ add_custom_target(z13_assets ALL
     VERBATIM
 )
 add_dependencies(building_module z13_assets)
-add_dependencies(raylib_module z13_assets)
+if(Z13_BUILD_RENDER)
+    add_dependencies(raylib_module z13_assets)
+endif()
 if(NOT ANDROID)
     add_dependencies(z13_tests z13_assets)
     add_dependencies(z13_plugin_smoke z13_assets)

@@ -24,10 +24,29 @@ def repo_root() -> Path:
                                check=True).stdout.strip())
 
 
+def in_proot() -> bool:
+    return "PRoot" in " ".join(platform.uname())
+
+
 def jobs() -> int:
-    if "PRoot" in " ".join(platform.uname()):
+    if in_proot():
         return PROOT_JOBS
     return os.cpu_count() or 1
+
+
+# PRoot has no display to check the renderer by, and CI builds it: leave it out there unless asked.
+def render_option(args: argparse.Namespace) -> str:
+    return "ON" if args.render or not in_proot() else "OFF"
+
+
+# Reconfigures only when the build directory has the other value: a configure with vcpkg takes minutes.
+def configure_if_needed(args: argparse.Namespace, repo: Path) -> int:
+    wanted = render_option(args)
+    cache = repo / args.build_dir / "CMakeCache.txt"
+    if cache.exists() and f"Z13_BUILD_RENDER:BOOL={wanted}" in cache.read_text():
+        return 0
+    configure = ["cmake", "-S", ".", "-B", args.build_dir, f"-DZ13_BUILD_RENDER={wanted}"]
+    return run_logged(configure, args.log_dir / "build.log", repo)
 
 
 def run_logged(command: list[str], log: Path, cwd: Path) -> int:
@@ -39,6 +58,11 @@ def run_logged(command: list[str], log: Path, cwd: Path) -> int:
 
 def run(args: argparse.Namespace) -> int:
     repo = repo_root()
+    if in_proot():
+        # A new vcpkg port built in parallel during a configure has hung PRoot sessions.
+        os.environ.setdefault("VCPKG_MAX_CONCURRENCY", "1")
+    if configure_if_needed(args, repo) != 0:
+        return 0
     build = ["cmake", "--build", args.build_dir, f"-j{jobs()}"]
     if args.target:
         build += ["--target", args.target]
@@ -74,6 +98,7 @@ def main() -> int:
     parser.add_argument("--tests", action="store_true")
     parser.add_argument("--keep-going", action="store_true", help="collect every compile error in one pass")
     parser.add_argument("--target")
+    parser.add_argument("--render", action="store_true", help="build the renderer in PRoot too")
     parser.add_argument("--config", help="for multi-config generators (Visual Studio)")
     parser.add_argument("--build-dir", default="build", help="build-release for make.py's Release build")
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
