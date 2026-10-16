@@ -28,8 +28,8 @@
 #if defined(_MSC_VER)
 #pragma warning(push, 0)
 #endif
-#include <rfl.hpp>
 #include <rfl/num_fields.hpp>
+#include <rfl/to_view.hpp>
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #endif

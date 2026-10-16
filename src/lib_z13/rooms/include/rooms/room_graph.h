@@ -27,7 +27,6 @@
 
 #include <Eigen/Dense>
 
-#include <building_tuning_generated.h>
 #include <primitives/placement.h>
 #include <rooms/free_space.h>
 #include <rooms/portal_source.h>
@@ -70,10 +69,14 @@ struct Portal {
   bool operator==(const Portal&) const = default;
 };
 
+// building_tuning.fbs's defaults, read in room_graph.cpp so this header doesn't include the schema.
+int DefaultRoomChunkCells();
+int DefaultRoomMaxOpeningCells();
+
 // The "building" settings rooms are built by.
 struct RoomSettings {
-  int chunk_cells = fbs::building::BuildingTuningT {}.room_chunk_cells;
-  int max_opening_cells = fbs::building::BuildingTuningT {}.room_max_opening_cells;
+  int chunk_cells = DefaultRoomChunkCells();
+  int max_opening_cells = DefaultRoomMaxOpeningCells();
 
   bool operator==(const RoomSettings&) const = default;
 };

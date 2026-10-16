@@ -30,14 +30,12 @@
 #include "building_tuning.h"
 #include "net_tuning.h"
 #include "physics_tuning.h"
+#include "settings_fwd.h"
 
 namespace z13 {
 
 // Fields and defaults: schemas/fbs/settings.fbs (the game's settings.json). The nested
 // tables are pointers in the object API: build with MakeSettings() so they are always set.
-using ConnectTimeoutConfig = fbs::settings::ConnectTimeoutT;
-using SessionTimeoutConfig = fbs::settings::SessionTimeoutT;
-using Settings = fbs::settings::SettingsT;
 
 // A table's object API values with the schema's defaults, strings included: flatc's own
 // constructor fills in only the scalars' (a string's default reaches only the table's

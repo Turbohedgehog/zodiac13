@@ -5,6 +5,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 # Stateless functions only, so each plugin linking its own copy shares nothing.
 z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS
+  PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/blueprint.cpp
   src/chunk_mesh.cpp

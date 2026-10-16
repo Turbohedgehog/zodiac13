@@ -70,11 +70,35 @@ set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Precompiled flecs/Eigen/gtest cut a module source's compile time by ~45 % (GCC, PRoot). On by
+# default only for GCC: sccache can't cache MSVC's, and the clang job, built without them,
+# catches a source that relies on a precompiled header instead of including it.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(Z13_PRECOMPILE_HEADERS_DEFAULT ON)
+else()
+    set(Z13_PRECOMPILE_HEADERS_DEFAULT OFF)
+endif()
+option(Z13_PRECOMPILE_HEADERS "Precompile the heavy headers most sources include" ${Z13_PRECOMPILE_HEADERS_DEFAULT})
+
 # Local builds pick up ccache when installed; CI passes its own launcher.
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
     set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+# ccache caches a source built with a precompiled header only under this sloppiness.
+if(Z13_PRECOMPILE_HEADERS AND CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
+    list(APPEND CMAKE_CXX_COMPILER_LAUNCHER "sloppiness=pch_defines,time_macros")
+endif()
+
+# lld where the toolchain takes it: linking the Debug test library took 10.8 s with GNU ld and
+# 4.2 s with lld (PRoot, arm64), and nearly every edit relinks it.
+if(NOT MSVC)
+    include(CheckLinkerFlag)
+    check_linker_flag(CXX "-fuse-ld=lld" Z13_HAVE_LLD)
+    if(Z13_HAVE_LLD)
+        add_link_options(-fuse-ld=lld)
+    endif()
 endif()
 
 # Lockstep simulation needs matching float results across participants: no FMA

@@ -19,6 +19,7 @@
 
 #include <map>
 #include <utility>
+#include <vector>
 
 #include "cell_boxes.h"
 
@@ -37,8 +38,9 @@ int64_t VolumeInside(const CellBox& box, const CellBox& area) {
 std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGraph& after) {
   std::map<std::pair<RoomId, RoomId>, int64_t> cells;
   for (const auto& [key, chunk] : after.space.AllChunks()) {
-    for (uint32_t i = 0; i < chunk->leaves.size(); ++i) {
-      const CellBox& leaf = chunk->leaves[i];
+    const std::vector<CellBox>& leaves = LeavesOf(*chunk);
+    for (uint32_t i = 0; i < leaves.size(); ++i) {
+      const CellBox& leaf = leaves[i];
       const RoomId room = after.RoomOf({.chunk = key, .leaf = i});
       for (const LeafRef& old : before.space.LeavesIn(leaf)) {
         cells[{before.RoomOf(old), room}] += Volume(before.space.Leaf(old).Intersection(leaf));
@@ -49,8 +51,9 @@ std::vector<RoomOverlap> OverlapsBetween(const RoomGraph& before, const RoomGrap
     }
   }
   for (const auto& [key, chunk] : before.space.AllChunks()) {
-    for (uint32_t i = 0; i < chunk->leaves.size(); ++i) {
-      const CellBox& leaf = chunk->leaves[i];
+    const std::vector<CellBox>& leaves = LeavesOf(*chunk);
+    for (uint32_t i = 0; i < leaves.size(); ++i) {
+      const CellBox& leaf = leaves[i];
       if (const int64_t outside = Volume(leaf) - VolumeInside(leaf, after.space.Area()); outside > 0) {
         cells[{before.RoomOf({.chunk = key, .leaf = i}), kVacuumRoom}] += outside;
       }

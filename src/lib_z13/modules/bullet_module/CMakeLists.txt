@@ -6,6 +6,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 z13_add_plugin(
   ${PROJECT_NAME} modules/bullet_module EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/block_shape.cpp
   src/bullet_module.cpp

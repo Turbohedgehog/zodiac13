@@ -42,7 +42,7 @@ void ExpectSameGraph(const RoomGraph& expected, const RoomGraph& actual, const s
   }
   for (const auto& [chunk, free] : expected.space.AllChunks()) {
     ASSERT_TRUE(actual.space.AllChunks().contains(chunk)) << scene;
-    EXPECT_EQ(actual.space.AllChunks().at(chunk)->leaves, free->leaves) << scene;
+    EXPECT_EQ(LeavesOf(*actual.space.AllChunks().at(chunk)), LeavesOf(*free)) << scene;
   }
 }
 

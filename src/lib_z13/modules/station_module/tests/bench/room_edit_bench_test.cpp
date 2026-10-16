@@ -40,6 +40,8 @@
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 
+#include <z13_settings/settings.h>
+
 #include "../../../z13_module/tests/support/z13_test_world.h"
 #include "../support/room_blocks.h"
 

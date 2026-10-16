@@ -24,10 +24,12 @@
 
 #include <Eigen/Dense>
 
-#include <building_tuning_generated.h>
 #include <primitives/placement.h>
 
 namespace z13::building::grid {
+
+// building_tuning.fbs's default, read in block_index.cpp so this header doesn't include the schema.
+int DefaultIndexChunkCells();
 
 // A block's flecs entity id; this library itself doesn't depend on flecs.
 using BlockId = uint64_t;
@@ -47,7 +49,7 @@ class BlockIndex {
 
   using Singleton = void;
 
-  explicit BlockIndex(int chunk_cells = fbs::building::BuildingTuningT {}.index_chunk_cells);
+  explicit BlockIndex(int chunk_cells = DefaultIndexChunkCells());
 
   int ChunkCells() const { return chunk_cells_; }
   void Insert(BlockId block, const z13::building::primitives::CellBox& cells);

@@ -16,34 +16,30 @@
 
 #pragma once
 
-#include <chrono>
-#include <cstdint>
 #include <filesystem>
-#include <format>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <flecs.h>
-#include <gtest/gtest.h>
 
 #include <lib_core/state/rollback.h>
-#include <lib_core/world/core.h>
-
-#include <building_module/building_module_factory.h>
-#include <bullet_module/bullet_module_factory.h>
-#include <net_module/in_memory_transport.h>
-#include <net_module/net_module_factory.h>
-#include <station_module/station_module_factory.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
+#include <lib_core/world/core_types.h>
 #include <z13/components/action_listener.h>
+#include <z13/components/gameplay.h>
 #include <z13/components/input_event_emitter.h>
-#include <z13_module/z13_module_factory.h>
-#include <z13_settings/settings.h>
-#include <z13_tests/shipped_station.h>
+#include <z13_settings/settings_fwd.h>
 #include <z13_tests/test_time.h>
+
+namespace z13 {
+class Config;
+class Core;
+}  // namespace z13
+
+namespace z13::net {
+class InMemoryNetwork;
+}  // namespace z13::net
 
 namespace z13::testing {
 
@@ -59,23 +55,21 @@ constexpr std::string_view kStationArg = "--station";
 constexpr std::string_view kStationSceneArg = "--station-scene";
 
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
-// no on-disk input-config writes.
-class Z13TestWorld {public:
+// no on-disk input-config writes. Built in z13_test_world.cpp, so a test doesn't compile every
+// module factory and the settings schemas.
+class Z13TestWorld {
+ public:
   // args are the command line (e.g. {kServerArg}, {kConnectArg, "host:1234"}); the default,
   // kSkipMainMenuArg, spawns the scene on the first frame.
   // network is this world's virtual network for --server/--connect: pass the same
   // InMemoryNetwork to several Z13TestWorlds so they can reach each other; left null,
   // each world gets its own, so a solo --server/--connect world never touches a socket.
   explicit Z13TestWorld(std::vector<std::string> args = {std::string(kSkipMainMenuArg)},
-      std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr,
-      const z13::Settings& settings = z13::MakeSettings())
-      : network_(network ? std::move(network) : std::make_shared<z13::net::InMemoryNetwork>()),
-        core_(MakeCore(quick_save_path_, std::move(args))),
-        world_(CreateWorld(core_, network_, settings)) {}
-
-  ~Z13TestWorld() {std::error_code ignored;
-    std::filesystem::remove(quick_save_path_, ignored);
-  }
+                        std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr);
+  // With these settings instead of the schema defaults (MakeSettings).
+  Z13TestWorld(std::vector<std::string> args, std::shared_ptr<z13::net::InMemoryNetwork> network,
+               const z13::Settings& settings);
+  ~Z13TestWorld();
 
   Z13TestWorld(const Z13TestWorld&) = delete;
   Z13TestWorld& operator=(const Z13TestWorld&) = delete;
@@ -88,9 +82,9 @@ class Z13TestWorld {public:
   // One frame through TickWorld, the world's only entry point (never progress() directly).
   void Tick(float delta_time = kTestDeltaTime) { z13::flecs_tools::TickWorld(World(), delta_time); }
 
-  const z13::Config& Config() const { return core_.GetConfig(); }
+  const z13::Config& Config() const;
 
-  const z13::Core& Core() const { return core_; }
+  const z13::Core& Core() const { return *core_; }
 
   z13::net::InMemoryNetwork& Network() { return *network_; }
 
@@ -119,54 +113,9 @@ class Z13TestWorld {public:
   }
 
  private:
-  // Goes through the real command line, so the module reads these settings from Config.
-  static z13::Core MakeCore(const std::filesystem::path& quick_save_path, std::vector<std::string> args) {
-    std::string program {kTestProgramName};
-    std::string quick_save_arg = std::format("{}={}", kQuickSavePathArg, quick_save_path.string());
-    std::vector<char*> argv {program.data(), quick_save_arg.data()};
-    for (std::string& arg : args) {
-      argv.push_back(arg.data());
-    }
-    return z13::Core(static_cast<int>(argv.size()), argv.data());
-  }
-
-  static z13::WorldRef CreateWorld(
-      z13::Core& core, const std::shared_ptr<z13::net::InMemoryNetwork>& network, const z13::Settings& settings) {
-    core.GetConfig().SetCoreSettings(*settings.core);
-    core.SetAssetSource(z13::testing::SourceAssets());
-    auto factory = std::make_shared<z13::Z13ModuleFactory>();
-    factory->SetLoadConfigFromFile(false);
-    core.RegisterModuleFactory(factory);
-    core.RegisterModuleFactory(std::make_shared<z13::building::BuildingModuleFactory>());
-    core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
-    core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
-
-    auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
-    net_factory->SetTransportFactories(
-        [network](uint16_t port, z13::SessionTimeoutConfig) {
-          return z13::net::CreateInMemoryServerTransport(*network, port);
-        },
-        [network](const z13::Endpoint& server, z13::ConnectTimeoutConfig, z13::SessionTimeoutConfig) {
-          return z13::net::CreateInMemoryClientTransport(*network, server.port);
-        });
-    core.RegisterModuleFactory(net_factory);
-
-    const auto created = core.CreateWorld();
-    if (!created) {
-      ADD_FAILURE() << created.error();  // value() below then aborts the fixture
-    }
-    z13::WorldRef world = created.value();
-    z13::InstallSettings(world.get(), settings);
-    // Runs the one-shot bootstrap without a frame, so tick-counting tests see tick 0 as before.
-    ecs_run(world.get(), world.get().lookup(kInitBootstrapSystemName.data()).id(), 0.f, nullptr);
-    return world;
-  }
-
-  std::filesystem::path quick_save_path_ {std::filesystem::temp_directory_path() /
-      std::format("z13_quick_save_{}_{}.json", reinterpret_cast<std::uintptr_t>(this),
-                  std::chrono::steady_clock::now().time_since_epoch().count())};
+  std::filesystem::path quick_save_path_;
   std::shared_ptr<z13::net::InMemoryNetwork> network_;  // declared before core_/world_ -- must outlive them
-  z13::Core core_;
+  std::unique_ptr<z13::Core> core_;
   z13::WorldRef world_;  // declared after core_ -- initialization order matters
 };
 

@@ -21,9 +21,10 @@
 
 #include <flecs.h>
 
-#include <lib_core/settings/config.h>
 
 namespace z13 {
+
+class Config;
 
 class WorldNoDeferGuard {
  public:

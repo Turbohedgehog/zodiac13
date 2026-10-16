@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <z13_tests/test_time.h>
 

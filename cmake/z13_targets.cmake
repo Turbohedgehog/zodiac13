@@ -16,10 +16,11 @@ function(z13_set_output_directory target directory)
 endfunction()
 
 # z13_add_library(<name> <STATIC|SHARED|INTERFACE> [FBS_HEADERS] [EXPORT_ALL_SYMBOLS]
-#                 [SOURCES ...] [PUBLIC ...] [PRIVATE ...])
+#                 [PRECOMPILE ...] [SOURCES ...] [PUBLIC ...] [PRIVATE ...])
 # Adds zodiac13::<name> with the directory's include/ as its public headers, and installs it.
+# PRECOMPILE lists the heavy headers most of its sources include (Z13_PRECOMPILE_HEADERS).
 function(z13_add_library name type)
-  cmake_parse_arguments(PARSE_ARGV 2 arg "FBS_HEADERS;EXPORT_ALL_SYMBOLS" "" "SOURCES;PUBLIC;PRIVATE")
+  cmake_parse_arguments(PARSE_ARGV 2 arg "FBS_HEADERS;EXPORT_ALL_SYMBOLS" "" "PRECOMPILE;SOURCES;PUBLIC;PRIVATE")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "z13_add_library(${name}): unknown arguments ${arg_UNPARSED_ARGUMENTS}")
   endif()
@@ -49,6 +50,9 @@ function(z13_add_library name type)
   # generator that makes no build-order edge, and a fresh build misses the generated headers.
   if(arg_FBS_HEADERS)
     add_dependencies(${name} GENERATE_FBS_SCHEMAS_HEADERS)
+  endif()
+  if(arg_PRECOMPILE AND Z13_PRECOMPILE_HEADERS)
+    target_precompile_headers(${name} PRIVATE ${arg_PRECOMPILE})
   endif()
   # For a library whose users call its internal symbols: MSVC exports nothing by default.
   if(arg_EXPORT_ALL_SYMBOLS)

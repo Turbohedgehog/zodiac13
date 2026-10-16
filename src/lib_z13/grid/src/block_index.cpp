@@ -19,7 +19,13 @@
 #include <algorithm>
 #include <limits>
 
+#include <building_tuning_generated.h>
+
 namespace z13::building::grid {
+
+int DefaultIndexChunkCells() {
+  return fbs::building::BuildingTuningT {}.index_chunk_cells;
+}
 
 using z13::building::primitives::ChunkOf;
 

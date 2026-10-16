@@ -31,6 +31,7 @@
 #include <rooms/room_graph.h>
 
 #include "cell_boxes.h"
+#include "free_chunk.h"
 
 namespace z13::station::rooms {
 
@@ -43,6 +44,10 @@ using z13::building::primitives::kCellAxes;
 
 // Free cells kept around the sealed ones: whatever reaches them is open to space.
 constexpr int kMargin = 1;
+
+LeafBox ToLeafBox(const CellBox& box) {
+  return {{box.min.x(), box.min.y(), box.min.z()}, {box.End().x(), box.End().y(), box.End().z()}};
+}
 
 using Binned = std::unordered_map<Eigen::Vector3i, std::vector<CellBox>, z13::building::primitives::CellHash>;
 using KeySet = std::unordered_set<Eigen::Vector3i, z13::building::primitives::CellHash>;
@@ -293,6 +298,10 @@ size_t LeafRefHash::operator()(const LeafRef& ref) const {
   size_t hash = z13::building::primitives::CellHash {}(ref.chunk);
   boost::hash_combine(hash, ref.leaf);
   return hash;
+}
+
+const std::vector<CellBox>& LeavesOf(const FreeChunk& chunk) {
+  return chunk.leaves;
 }
 
 size_t FreeSpace::LeafCount() const {

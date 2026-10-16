@@ -24,8 +24,7 @@
 
 #include <boost/config.hpp>
 
-#include <lib_core/settings/config.h>
-#include <z13_settings/settings.h>
+#include <z13_settings/settings_fwd.h>
 #include <lib_core/utils/endpoint.h>
 #include <lib_core/world/module_factory_base.h>
 

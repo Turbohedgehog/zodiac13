@@ -22,6 +22,7 @@
 #include <iterator>
 #include <vector>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <z13/components/player_action.h>

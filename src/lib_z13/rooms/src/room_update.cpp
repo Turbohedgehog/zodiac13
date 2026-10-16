@@ -317,7 +317,7 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
     if (const auto old = previous.leaf_rooms.find(key); old != previous.leaf_rooms.end()) {
       touched.insert(old->second->begin(), old->second->end());
     }
-    const auto count = static_cast<uint32_t>(graph.space.AllChunks().at(key)->leaves.size());
+    const auto count = static_cast<uint32_t>(LeavesOf(*graph.space.AllChunks().at(key)).size());
     for (uint32_t leaf = 0; leaf < count; ++leaf) {
       local.Add({.chunk = key, .leaf = leaf});
       for (const LeafRef& neighbour : graph.space.Neighbours({.chunk = key, .leaf = leaf})) {
@@ -387,7 +387,7 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
   // rooms that may be gone.
   std::unordered_map<Eigen::Vector3i, std::vector<RoomId>, z13::building::primitives::CellHash> relabelled;
   for (const Eigen::Vector3i& key : rebuilt_space->rebuilt) {
-    relabelled.emplace(key, std::vector<RoomId>(graph.space.AllChunks().at(key)->leaves.size()));
+    relabelled.emplace(key, std::vector<RoomId>(LeavesOf(*graph.space.AllChunks().at(key)).size()));
   }
   for (size_t i = 0; i < local.Leaves().size(); ++i) {
     const LeafRef& ref = local.Leaves()[i];

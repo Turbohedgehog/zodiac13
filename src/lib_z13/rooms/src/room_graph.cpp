@@ -19,7 +19,17 @@
 #include <algorithm>
 #include <tuple>
 
+#include <building_tuning_generated.h>
+
 namespace z13::station::rooms {
+
+int DefaultRoomChunkCells() {
+  return fbs::building::BuildingTuningT {}.room_chunk_cells;
+}
+
+int DefaultRoomMaxOpeningCells() {
+  return fbs::building::BuildingTuningT {}.room_max_opening_cells;
+}
 
 bool AnchorBefore(const Eigen::Vector3i& first, const Eigen::Vector3i& second) {
   return std::tuple(first.z(), first.y(), first.x()) < std::tuple(second.z(), second.y(), second.x());

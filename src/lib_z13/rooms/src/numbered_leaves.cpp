@@ -24,7 +24,7 @@ namespace z13::station::rooms {
 NumberedLeaves::NumberedLeaves(const FreeSpace& space) {
   for (const Eigen::Vector3i& key : space.OrderedChunks()) {
     first_of_chunk_.emplace(key, leaves_.size());
-    const auto count = static_cast<uint32_t>(space.AllChunks().at(key)->leaves.size());
+    const auto count = static_cast<uint32_t>(LeavesOf(*space.AllChunks().at(key)).size());
     for (uint32_t leaf = 0; leaf < count; ++leaf) {
       leaves_.push_back({.chunk = key, .leaf = leaf});
     }

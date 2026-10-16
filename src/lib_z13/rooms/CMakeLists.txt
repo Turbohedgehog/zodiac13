@@ -6,6 +6,7 @@ find_package(Boost REQUIRED COMPONENTS geometry graph)
 # Stateless, like grid: each plugin linking its own copy shares nothing.
 z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS
+  PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/cell_boxes.cpp
   src/free_space.cpp

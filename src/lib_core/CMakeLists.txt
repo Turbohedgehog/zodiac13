@@ -32,6 +32,7 @@ flatbuffers_generate_headers(
 # Shared: one copy for the executable and every plugin, instead of one inside each.
 z13_add_library(
   ${PROJECT_NAME} SHARED EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>"
   SOURCES
   src/settings/config.cpp
   src/settings/schema_attributes.cpp

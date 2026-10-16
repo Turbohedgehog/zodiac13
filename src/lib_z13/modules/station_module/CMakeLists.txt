@@ -5,6 +5,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 z13_add_plugin(
   ${PROJECT_NAME} modules/station_module EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/gravity_system.cpp
   src/interaction_system.cpp
