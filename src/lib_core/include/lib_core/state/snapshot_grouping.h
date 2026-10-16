@@ -38,10 +38,10 @@ struct SnapshotGrouping {
   using Singleton = void;
   std::optional<flecs::entity_t> member;  // a component every grouped entity has
   // Called once per scan; what it returns files each member entity.
-  std::function<GroupOf()> make_group_of;
+  std::function<GroupOf(flecs::world)> make_group_of;
   std::function<uint64_t(flecs::entity)> hash_of;
   // Optional: no grouped entity changed since the previous call, so fingerprinting is skipped.
-  std::function<bool()> unchanged;
+  std::function<bool(flecs::world)> unchanged;
   std::shared_ptr<SnapshotGroupingState> state_ = std::make_shared<SnapshotGroupingState>();
 };
 

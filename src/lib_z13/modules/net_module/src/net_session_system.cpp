@@ -218,7 +218,7 @@ void RegisterSystems(flecs::world world) {
   world.system("NetSessionSystem::Service")
       .kind(flecs::PreFrame)
       .immediate()
-      .each([world]() { ServiceNetSession(world); });
+      .run([](flecs::iter& it) { ServiceNetSession(it.world()); });
 
   // PostFrame like the interval capture, so the snapshot's state and clock agree.
   world.system<ft::WorldSnapshotHistory, const ft::SimulationClock>("NetSessionSystem::EnsureBaselineSnapshot")

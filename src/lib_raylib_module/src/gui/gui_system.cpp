@@ -187,9 +187,10 @@ void RegisterSystems(flecs::world world) {
                z13::input::TouchControls*, const z13::TouchLayout*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
-      .each([world](gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
-                    const RenderStats* render, z13::station::RoomOverlay* rooms,
-                    z13::input::TouchControls* touch, const z13::TouchLayout* touch_layout) {
+      .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
+               const RenderStats* render, z13::station::RoomOverlay* rooms, z13::input::TouchControls* touch,
+               const z13::TouchLayout* touch_layout) {
+        flecs::world world = it.world();
         if (!state.imgui_ready) {
           return;
         }
@@ -251,9 +252,9 @@ void RegisterSystems(flecs::world world) {
   // (both emitted by z13_module's gameplay_input_system).
   world.observer<const z13::input::WindowBackEvent, gui::WindowStack>("GuiSystem::OnWindowBack")
       .event<z13::input::SystemInputEventType>()
-      .each([world](const z13::input::WindowBackEvent&, gui::WindowStack& stack) {
+      .each([](flecs::iter& it, size_t, const z13::input::WindowBackEvent&, gui::WindowStack& stack) {
         if (!stack.windows.empty()) {
-          ApplyStackRequest(world, stack, stack.windows.back()->OnBack());
+          ApplyStackRequest(it.world(), stack, stack.windows.back()->OnBack());
         }
       });
 

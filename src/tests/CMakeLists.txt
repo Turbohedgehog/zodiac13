@@ -105,9 +105,11 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/paused_peer_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/quick_save_in_session_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/remote_prediction_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/session_churn_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/session_settings_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/station_session_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/uplink_budget_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/world_lifetime_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/action_quantization_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/action_replay_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/cross_platform_state_test.cpp

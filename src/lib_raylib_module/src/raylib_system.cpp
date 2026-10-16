@@ -156,7 +156,8 @@ void RegisterSystems(flecs::world world) {
   world.system<const RaylibData, SdlPlatformData>("RaylibSystem::FrameEnd")
       .kind<FinalizeRender>()
       .tick_source<RenderGate>()
-      .each([world](const RaylibData&, SdlPlatformData& platform_data) {
+      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data) {
+        flecs::world world = it.world();
         SdlPlatform& platform = *platform_data.platform;
         platform.EndFrame();
         if (platform.QuitRequested()) {

@@ -187,7 +187,7 @@ OptionalGrouping ActiveGrouping(const SnapshotGrouping* grouping) {
 // The member term is read only: an inout one would mark the component changed on every scan.
 GroupBuckets ScanGroups(flecs::world world, const SnapshotGrouping& grouping) {
   GroupBuckets buckets;
-  const GroupOf group_of = grouping.make_group_of();
+  const GroupOf group_of = grouping.make_group_of(world);
   world.query_builder()
       .with<StateEntity>()
       .with<flecs::Identifier>(flecs::Name)
@@ -232,7 +232,7 @@ Status CaptureGroups(
     const flecs::world& world, const SnapshotGrouping& grouping, const ComponentFilter& accept_component,
     const EntityFilter& accept_target, WorldSnapshot& snapshot) {
   auto& captured = grouping.state_->captured;
-  const bool unchanged = grouping.unchanged && grouping.unchanged();
+  const bool unchanged = grouping.unchanged && grouping.unchanged(world);
   if (!unchanged || captured.empty()) {
     if (auto encoded = EncodeGroups(world, grouping, accept_component, accept_target); !encoded) {
       captured.clear();  // `unchanged` already moved on
@@ -512,7 +512,7 @@ Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
     names.insert(s.name);
   }
 
-  const GroupOf group_of = matching.empty() ? GroupOf {} : grouping->get().make_group_of();
+  const GroupOf group_of = matching.empty() ? GroupOf {} : grouping->get().make_group_of(world);
   const auto in_matching_group = [&](flecs::entity e) {
     return group_of && e.has(*grouping->get().member) && matching.contains(group_of(e));
   };

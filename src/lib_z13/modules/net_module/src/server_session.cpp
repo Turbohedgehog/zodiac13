@@ -264,6 +264,8 @@ void HandleCommandBatch(
         window, record.tick, IsAbsoluteAction(action_map, record.action_id),
         last == last_ticks.end() ? std::nullopt : std::optional(last->second));
     if (scheduled.moved) {
+      log_debug("NetSession(server): moved action {} = {} of player {} from tick {} to {} (now {})", record.action_id,
+                record.value, *player_id, record.tick, scheduled.tick, now);
       retimed.moves.emplace_back(record.tick, scheduled.tick, command.action_id(), command.value());
       record.tick = scheduled.tick;
     }

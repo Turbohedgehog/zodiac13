@@ -35,7 +35,7 @@ void InstallGrouping(flecs::world& world) {
   world.set(ft::SnapshotGrouping {
       .member = world.component<Position>().id(),
       .make_group_of =
-          [] {
+          [](flecs::world) {
             return ft::GroupOf([](flecs::entity e) {
               return static_cast<ft::SnapshotGroupId>(e.get<Position>().x / kGroupWidth);
             });
@@ -149,7 +149,7 @@ TEST_F(SnapshotGroupingTest, AnUnchangedWorldIsNotFingerprintedAgain) {
     ++hashed;
     return hash_of(e);
   };
-  grouping.unchanged = [&unchanged] { return unchanged; };
+  grouping.unchanged = [&unchanged](flecs::world) { return unchanged; };
   Spawn("a", kInFirstGroup);
   const ft::WorldSnapshot first = Capture();
 

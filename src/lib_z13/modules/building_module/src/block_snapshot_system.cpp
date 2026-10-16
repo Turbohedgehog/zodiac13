@@ -93,9 +93,9 @@ void InstallGrouping(flecs::world world) {
   const auto watch = std::make_shared<BlockWatch>(world);
   world.set(z13::flecs_tools::SnapshotGrouping {
       .member = world.component<Block>().id(),
-      .make_group_of = [world] { return MakeGroupOf(world); },
+      .make_group_of = MakeGroupOf,
       .hash_of = HashOf,
-      .unchanged = [watch] { return watch->Unchanged(); },
+      .unchanged = [watch](flecs::world world) { return watch->Unchanged(world); },
   });
 }
 

@@ -304,8 +304,8 @@ void RegisterSystems(flecs::world world) {
   world.system<const RaylibData, SdlPlatformData>("InputPublisher::ReadInput")
       .kind<ReadEvents>()
       .immediate()
-      .each([world](const RaylibData&, SdlPlatformData& platform_data) {
-        ReadInput(world, *platform_data.platform);
+      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data) {
+        ReadInput(it.world(), *platform_data.platform);
       });
 }
 

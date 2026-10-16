@@ -55,12 +55,13 @@ class Window {
  protected:
   virtual void DrawBody() = 0;
 
-  flecs::world World() const { return world_; }
+  flecs::world World() const { return flecs::world(world_); }
   void RequestPop() { next_.op = StackOp::Pop; }
   void RequestCloseMenu() { next_.op = StackOp::CloseMenu; }
   void RequestPush(WindowPtr window) { next_.push = std::move(window); }
 
-  flecs::world world_;
+  // Not a flecs::world: the WindowStack singleton keeps windows, and a copy would keep the world alive.
+  flecs::world_t* world_ {};
   std::string title_;
   StackRequest next_;
 };

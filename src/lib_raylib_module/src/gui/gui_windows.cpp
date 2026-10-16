@@ -23,7 +23,7 @@
 namespace z13::raylib::gui {
 
 Window::Window(flecs::world world, std::string title)
-    : world_(world), title_(std::move(title)) {}
+    : world_(world.c_ptr()), title_(std::move(title)) {}
 
 Window::StackRequest Window::Draw() {
   next_ = {};
