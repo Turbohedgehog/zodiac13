@@ -90,6 +90,39 @@ bool OwnCommandsSettled(const fbn::StateDigestT& remote, uint32_t local_id,
   });
 }
 
+std::string DescribePose(const std::optional<fbn::PoseWire>& pose) {
+  return pose ? std::format("({:.3f}, {:.3f}, {:.3f})", pose->x(), pose->y(), pose->z()) : "absent";
+}
+
+std::optional<fbn::PoseWire> FindPose(const fbn::StateDigestT& digest, uint32_t player_id) {
+  const auto pose = std::ranges::find(digest.positions, player_id, &fbn::PoseWire::player_id);
+  return pose == digest.positions.end() ? std::nullopt : std::optional(*pose);
+}
+
+// What differs, for the log: the entity names, or which players stand elsewhere.
+std::string DescribeMismatch(const fbn::StateDigestT& local, const fbn::StateDigestT& remote) {
+  std::string description = std::format("state digest mismatch at tick {}: {} entities (server {})", remote.tick,
+                                        local.entity_count, remote.entity_count);
+  if (local.name_hash != remote.name_hash) {
+    description += ", entity names differ";
+  }
+  std::vector<uint32_t> players;
+  for (const auto* digest : {&local, &remote}) {
+    std::ranges::transform(digest->positions, std::back_inserter(players), &fbn::PoseWire::player_id);
+  }
+  std::ranges::sort(players);
+  const auto [first, last] = std::ranges::unique(players);
+  players.erase(first, last);
+  for (const uint32_t player_id : players) {
+    const auto mine = FindPose(local, player_id);
+    const auto theirs = FindPose(remote, player_id);
+    if (!mine || !theirs || !PosesMatch(*mine, *theirs)) {
+      description += std::format(", player {} at {} (server {})", player_id, DescribePose(mine), DescribePose(theirs));
+    }
+  }
+  return description;
+}
+
 }  // namespace
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, uint64_t tick) {
@@ -148,12 +181,12 @@ void SendSettledStateDigests(flecs::world world, NetSession& session, StateDiges
   }
 }
 
-std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
+std::optional<DigestMismatch> CheckReceivedStateDigests(flecs::world world, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   const std::optional<uint32_t> local_id = world.get<z13::gameplay::LocalPlayer>().id;
   const auto& actions = world.get<z13::gameplay::PlayerActionLog>();
-  std::optional<std::string> mismatch;
+  std::optional<DigestMismatch> mismatch;
   std::erase_if(digests.received, [&](const fbn::StateDigestT& remote) {
     // Strictly past: tick `now`'s PostFrame, which records its digest, hasn't run yet.
     if (remote.tick >= now || remote.tick > deferred_rollback_tick.value_or(remote.tick)) {
@@ -165,8 +198,7 @@ std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDi
     }
     ++digests.checked;
     if (!mismatch && !DigestsMatch(local->second, remote)) {
-      mismatch = std::format("state digest mismatch at tick {}: {} entities (server {})", remote.tick,
-          local->second.entity_count, remote.entity_count);
+      mismatch = DigestMismatch {.tick = remote.tick, .description = DescribeMismatch(local->second, remote)};
     } else if (!mismatch) {
       log_debug("NetSession(client): state digest at tick {} matches", remote.tick);
     }

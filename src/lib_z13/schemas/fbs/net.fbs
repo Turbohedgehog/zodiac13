@@ -87,7 +87,10 @@ table CommandBatch {
   through_tick: ulong;  // the sender's commands up to this tick are all in this batch or earlier ones
 }
 
-table ResyncRequest {}
+table ResyncRequest {
+  // The tick whose digest differed; null after a failed rollback.
+  diverged_tick: ulong = null;
+}
 
 table Ping {
   client_tick: ulong;

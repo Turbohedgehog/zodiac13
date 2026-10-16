@@ -17,6 +17,7 @@
 #include "client_session.h"
 
 #include <algorithm>
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,6 +39,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include <net_module/clock_sync.h>
+#include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 #include <net_module/state_digest.h>
 
@@ -268,9 +270,19 @@ void ResyncIfDiverged(flecs::world world, NetSession& session) {
   }
   auto& digests = world.get_mut<StateDigests>();
   bool diverged = false;
-  if (const std::optional<std::string> mismatch = CheckReceivedStateDigests(world, digests)) {
-    log_warn("NetSession(client): {}", *mismatch);
+  fbn::ResyncRequestT request;
+  if (const std::optional<DigestMismatch> mismatch = CheckReceivedStateDigests(world, digests)) {
+    log_warn("NetSession(client): {}", mismatch->description);
     diverged = true;
+    request.diverged_tick = mismatch->tick;
+    // Checked only once joined, so the local player has an id.
+    const uint32_t local_id = world.get<z13::gameplay::LocalPlayer>().id.value();
+    const auto dumped = DumpDivergedTick(world, mismatch->tick, std::format("client_{}", local_id));
+    if (!dumped) {
+      log_warn("NetSession(client): cannot write the diverged tick: {}", dumped.error());
+    } else if (*dumped) {
+      log_info("NetSession(client): wrote {}", (*dumped)->string());
+    }
   }
   if (world.has<ft::RollbackFailed>()) {
     log_warn("NetSession(client): {}", world.get<ft::RollbackFailed>().reason);
@@ -284,7 +296,7 @@ void ResyncIfDiverged(flecs::world world, NetSession& session) {
   digests.awaiting_resync.emplace();
   digests.received.clear();
   Envelope envelope;
-  envelope.body.Set(fbn::ResyncRequestT {});
+  envelope.body.Set(std::move(request));
   session.Send(*server_connection, Channel::kReliable, envelope);
 }
 

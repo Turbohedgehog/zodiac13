@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -33,8 +34,13 @@ void RegisterStateDigestSystems(flecs::world world);
 // Server: broadcasts each recorded digest once no late command can change its tick.
 void SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests);
 
+struct DigestMismatch {
+  uint64_t tick {};
+  std::string description;
+};
+
 // Client: compares the server's digests this client has reached. Returns the first
 // mismatch, if any; digests with no local counterpart are dropped unchecked.
-std::optional<std::string> CheckReceivedStateDigests(flecs::world world, StateDigests& digests);
+std::optional<DigestMismatch> CheckReceivedStateDigests(flecs::world world, StateDigests& digests);
 
 }  // namespace z13::net

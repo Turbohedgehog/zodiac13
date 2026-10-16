@@ -38,6 +38,7 @@
 #include <z13_module/input/action_negotiation.h>
 #include <z13_settings/settings.h>
 
+#include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 
 #include "catch_up.h"
@@ -168,12 +169,22 @@ Status HandleClientHello(
   });
 }
 
-Status HandleResyncRequest(NetSession& session, flecs::world world, ConnectionId connection) {
-  if (!session.PlayerIdFor(connection)) {
+Status HandleResyncRequest(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::ResyncRequestT& request) {
+  const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
+  if (!player_id) {
     log_warn("NetSession(server): ignoring a ResyncRequest from an unwelcomed connection {}", connection);
     return {};
   }
   log_info("NetSession(server): resyncing connection {}", connection);
+  if (request.diverged_tick) {
+    const auto dumped = DumpDivergedTick(world, *request.diverged_tick, std::format("server_for_{}", *player_id));
+    if (!dumped) {
+      log_warn("NetSession(server): cannot write the diverged tick: {}", dumped.error());
+    } else if (*dumped) {
+      log_info("NetSession(server): wrote {}", (*dumped)->string());
+    }
+  }
   auto catch_up = MakeCatchUp(world);
   if (!catch_up) {
     return std::unexpected(catch_up.error());
@@ -324,7 +335,9 @@ Status HandleServerReceived(
         HandlePing(session, world, connection, ping);
         return Status {};
       },
-      [&](const fbn::ResyncRequestT&) { return HandleResyncRequest(session, world, connection); },
+      [&](const fbn::ResyncRequestT& request) {
+        return HandleResyncRequest(session, world, connection, request);
+      },
       [&](const fbn::CommandBatchT& batch) {
         HandleCommandBatch(session, world, connection, batch);
         return Status {};

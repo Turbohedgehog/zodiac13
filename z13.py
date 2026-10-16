@@ -7,6 +7,8 @@ Arguments after `--` go to the game, the server or the test runner as they are, 
 """
 
 import argparse
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -28,6 +30,12 @@ NET_SIM_SCENE = "spire"
 NET_SIM_SCRIPT = ROOT / "tools" / "input_scripts" / "walk.txt"
 NET_SIM_LOGS = "net_sim"
 NET_SIM_PORT = 26213
+# environment.h: the data directory the game reads its settings from; --net-sim gives it a fresh one.
+DATA_DIR_VARIABLE = "Z13_DATA_DIR"
+NET_SIM_DATA = "data"
+# divergence_dump.h: where both sides write their snapshots of a diverged tick.
+DIVERGENCE_DIR_VARIABLE = "Z13_DIVERGENCE_DIR"
+DIVERGENCE_FILES = "divergence_*.json"
 NET_SIM_SERVER_READY = "NetSession(server): listening on port"
 # What --net-sim counts in each process's log, and which of them fail the run.
 NET_SIM_EVENTS = {
@@ -64,9 +72,11 @@ def wait_for_line(log: Path, text: str, process: subprocess.Popen, timeout: floa
   return False
 
 
-def start(command: list, log: Path, cwd: Path) -> subprocess.Popen:
+def start(command: list, log: Path, cwd: Path, data: Path) -> subprocess.Popen:
   print(" ".join(str(part) for part in command), ">", log, flush=True)
-  return subprocess.Popen([str(part) for part in command], cwd=cwd, stdout=log.open("w"), stderr=subprocess.STDOUT)
+  env = {**os.environ, DATA_DIR_VARIABLE: str(data), DIVERGENCE_DIR_VARIABLE: str(log.parent)}
+  return subprocess.Popen([str(part) for part in command], cwd=cwd, env=env, stdout=log.open("w"),
+                          stderr=subprocess.STDOUT)
 
 
 def stop(process: subprocess.Popen) -> int:
@@ -94,10 +104,14 @@ def summarize(logs: list) -> bool:
 def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list) -> int:
   logs = (options.log_dir or game_dir / NET_SIM_LOGS).resolve()
   logs.mkdir(parents=True, exist_ok=True)
+  data = logs / NET_SIM_DATA
+  shutil.rmtree(data, ignore_errors=True)
+  for old in logs.glob(DIVERGENCE_FILES):
+    old.unlink()
   script = Path(options.script).resolve()
   server_log = logs / "server.log"
   scene = ["--station-scene", options.scene] if options.scene else []
-  server = start([game, "--server", options.port, *scene, *extra], server_log, game_dir)
+  server = start([game, "--server", options.port, *scene, *extra], server_log, game_dir, data / "server")
   if not wait_for_line(server_log, NET_SIM_SERVER_READY, server, options.timeout):
     stop(server)
     print(f"the server didn't start: see {server_log}")
@@ -107,7 +121,7 @@ def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list
   for index in range(options.clients):
     log = logs / f"client_{index + 1}.log"
     command = [game, "--headless", "--connect", f"127.0.0.1:{options.port}", "--input-script", script, *extra]
-    clients.append((start(command, log, game_dir), log))
+    clients.append((start(command, log, game_dir, data / f"client_{index + 1}"), log))
     time.sleep(options.stagger)
 
   deadline = time.monotonic() + options.timeout
@@ -120,7 +134,10 @@ def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list
       code = stop(process)
     results.append((log, code))
   results.insert(0, (server_log, stop(server)))
-  return 0 if summarize(results) else 1
+  passed = summarize(results)
+  for dump in sorted(logs.glob(DIVERGENCE_FILES)):
+    print(f"diverged state: {dump}")
+  return 0 if passed else 1
 
 
 def main() -> int:

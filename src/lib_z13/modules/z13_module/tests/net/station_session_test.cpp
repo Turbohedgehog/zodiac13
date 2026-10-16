@@ -40,6 +40,7 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/system_times.h>
 
+#include <net_module/divergence_dump.h>
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
@@ -237,7 +238,7 @@ TEST_F(StationSessionTest, DISABLED_DumpTheFirstDivergence) {
     std::cout << "\n";
   }
 
-  const char* dir_variable = std::getenv("Z13_DIVERGENCE_DIR");
+  const char* dir_variable = std::getenv(z13::net::kDivergenceDirectoryVariable.data());
   const std::filesystem::path dir = dir_variable != nullptr ? std::filesystem::path(dir_variable)
                                                             : std::filesystem::temp_directory_path();
   for (auto* side : {&server_, &client_}) {

@@ -16,6 +16,7 @@ z13_add_plugin(
   src/client_session.cpp
   src/clock_sync.cpp
   src/discovery_messages.cpp
+  src/divergence_dump.cpp
   src/discovery_socket.cpp
   src/enet_datagram.cpp
   src/enet_lifetime.cpp

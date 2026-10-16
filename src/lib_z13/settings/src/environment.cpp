@@ -16,6 +16,8 @@
 
 #include <z13_settings/environment.h>
 
+#include <cstdlib>
+
 #include <z13/constants/constants.h>
 
 #include <sago/platform_folders.h>
@@ -23,6 +25,10 @@
 namespace z13::tools::environment {
 
 std::filesystem::path GetGameDataDirectory() {
+  // z13.py --net-sim keeps its processes off the player's settings, on every platform.
+  if (const char* directory = std::getenv(kDataDirectoryVariable.data())) {
+    return directory;
+  }
   return std::filesystem::path(sago::getDataHome()) / z13::constants::kGameName;
 }
 
