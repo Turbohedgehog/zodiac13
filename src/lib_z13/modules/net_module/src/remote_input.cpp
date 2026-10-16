@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <ranges>
 #include <vector>
 
 #include <lib_core/state/rollback.h>
@@ -90,6 +91,34 @@ bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionM
   });
 }
 
+std::vector<z13::gameplay::PlayerActionRecord> ReleasesAfter(flecs::world world, uint32_t player_id,
+                                                             uint64_t through_tick) {
+  const auto& log = world.get<z13::gameplay::PlayerActionLog>();
+  const auto& by_id = world.get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::IdTag>();
+  const uint64_t release_tick = through_tick + 1;
+  const auto at_release_tick =
+      std::ranges::equal_range(log.log.Entries(), release_tick, {}, &z13::gameplay::PlayerActionRecord::tick);
+  std::vector<z13::gameplay::PlayerActionRecord> releases;
+  for (const auto& [action_id, value] : ValuesAt(log, player_id, through_tick)) {
+    const auto info = by_id.find(action_id);
+    const bool absolute = info != by_id.end() && info->absolute;
+    const bool recorded_there = std::ranges::any_of(at_release_tick, [&](const auto& record) {
+      return record.player_id == player_id && record.action_id == action_id;
+    });
+    if (value != 0.f && !absolute && !recorded_there) {
+      releases.push_back({.tick = release_tick, .player_id = player_id, .action_id = action_id, .value = 0.f});
+    }
+  }
+  return releases;
+}
+
+std::optional<uint64_t> AllConfirmedThrough(const z13::gameplay::ConfirmedInputTicks& confirmed) {
+  if (confirmed.by_player.empty()) {
+    return std::nullopt;
+  }
+  return std::ranges::min(confirmed.by_player | std::views::values);
+}
+
 bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t through_tick) {
   auto& confirmed = world.get_mut<z13::gameplay::ConfirmedInputTicks>().by_player;
   const auto [entry, inserted] = confirmed.try_emplace(player_id, through_tick);
@@ -99,10 +128,18 @@ bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t throug
   // A first confirmation turns the ticks past it from held into released.
   const uint64_t predicted_since = inserted ? through_tick : entry->second;
   entry->second = through_tick;
+  const auto& log = world.get<z13::gameplay::PlayerActionLog>();
+  // The newly confirmed ticks read the log from now on: what was held, and records already there
+  // (moved commands, a server's releases), which they read as released until now.
+  const auto& entries = log.log.Entries();
+  const auto newly_confirmed = std::ranges::subrange(
+      std::ranges::upper_bound(entries, predicted_since, {}, &z13::gameplay::PlayerActionRecord::tick),
+      std::ranges::upper_bound(entries, through_tick, {}, &z13::gameplay::PlayerActionRecord::tick));
+  const bool recorded_since =
+      std::ranges::contains(newly_confirmed, player_id, &z13::gameplay::PlayerActionRecord::player_id);
   if (predicted_since < world.get<ft::SimulationClock>().tick &&
-      HoldsReleasableAction(
-          ValuesAt(world.get<z13::gameplay::PlayerActionLog>(), player_id, predicted_since),
-          world.get<z13::input::ActionMap>())) {
+      (recorded_since ||
+       HoldsReleasableAction(ValuesAt(log, player_id, predicted_since), world.get<z13::input::ActionMap>()))) {
     ft::DeferRollback(world, predicted_since);
   }
   return true;

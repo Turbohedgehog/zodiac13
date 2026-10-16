@@ -281,6 +281,8 @@ void HandleCommandBatch(
   }
   // Capped like a command's tick, so a client can't claim input far ahead.
   const uint64_t through_tick = std::min(batch.through_tick, now + tuning.max_schedule_ahead_ticks);
+  uint64_t& received = world.get_mut<ReceivedInputTicks>().by_player[*player_id];
+  received = std::max(received, through_tick);
   const bool confirmed_more = ConfirmInputThrough(world, *player_id, through_tick);
   if (accepted.empty() && !confirmed_more) {
     return;
@@ -350,6 +352,53 @@ Status HandleServerReceived(
 }
 
 }  // namespace
+
+void FinalizeLateInput(NetSession& session, flecs::world world) {
+  const uint64_t now = world.get<ft::SimulationClock>().tick;
+  const auto& tuning = world.get<NetTuning>();
+  const uint64_t earliest = MakeScheduleWindow(world, now, tuning).earliest;
+  if (now % tuning.send_interval_ticks != 0 || earliest == 0) {
+    return;
+  }
+  const uint64_t final_tick = earliest - 1;
+  std::vector<std::pair<uint32_t, uint64_t>> behind;
+  for (const auto& [player_id, through] : world.get<z13::gameplay::ConfirmedInputTicks>().by_player) {
+    if (through < final_tick) {
+      behind.emplace_back(player_id, through);
+    }
+  }
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  auto& last_ticks = world.get_mut<LastCommandTicks>().by_action;
+  for (const auto& [player_id, through] : behind) {
+    const std::vector<z13::gameplay::PlayerActionRecord> releases = ReleasesAfter(world, player_id, through);
+    for (const z13::gameplay::PlayerActionRecord& release : releases) {
+      QueueInOrder(queue, release);
+      const PlayerActionKey key {.player_id = player_id, .action_id = release.action_id};
+      if (const auto last = last_ticks.find(key); last == last_ticks.end() || last->second.tick < release.tick) {
+        last_ticks.insert_or_assign(key, ScheduledCommandTick {.tick = release.tick});
+      }
+    }
+    ConfirmInputThrough(world, player_id, final_tick);
+    if (releases.empty()) {
+      continue;  // the next digest's input_through carries the confirmation
+    }
+    auto run = ToCommandRun(releases, final_tick);
+    if (!run) {
+      log_error("NetSession(server): can't send the releases of player {}: {}", player_id, run.error());
+      continue;
+    }
+    log_info("NetSession(server): player {}'s input stopped at tick {}, releasing {} held actions", player_id,
+             through, releases.size());
+    fbn::SequencedCommandsT sequenced;
+    sequenced.player_id = player_id;
+    sequenced.base_tick = run->base_tick;
+    sequenced.commands = std::move(run->commands);
+    sequenced.through_tick = final_tick;
+    Envelope envelope;
+    envelope.body.Set(std::move(sequenced));
+    session.Broadcast(Channel::kReliable, envelope);
+  }
+}
 
 Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters) {
   for (const TransportEvent& event : session.Service()) {

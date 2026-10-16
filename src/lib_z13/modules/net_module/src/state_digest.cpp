@@ -37,6 +37,8 @@
 
 #include <net_module/clock_sync.h>
 
+#include "remote_input.h"
+#include "server_session.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -77,10 +79,10 @@ void RecordStateDigest(flecs::world world, uint64_t tick, StateDigests& digests)
 // digest's tick (CommandsRetimed), so until then the client's prediction may differ from it.
 bool OwnCommandsSettled(const fbn::StateDigestT& remote, uint32_t local_id,
                         const z13::gameplay::PlayerActionLog& actions) {
-  const auto through = std::ranges::find(remote.input_through, local_id, &fbn::PlayerTickWire::player_id);
+  const auto through = std::ranges::find(remote.received_through, local_id, &fbn::PlayerTickWire::player_id);
   return std::ranges::none_of(actions.log.Entries(), [&](const z13::gameplay::PlayerActionRecord& record) {
     return record.player_id == local_id && record.tick <= remote.tick &&
-        (through == remote.input_through.end() || record.tick > through->tick());
+        (through == remote.received_through.end() || record.tick > through->tick());
   });
 }
 
@@ -153,21 +155,25 @@ void RegisterStateDigestSystems(flecs::world world) {
 }
 
 // Every command for tick T reaches the server by T + max_late_ticks, and reaches clients
-// ahead of this digest on the same ordered channel.
+// ahead of this digest on the same ordered channel; T is final once every player is confirmed
+// through it (FinalizeLateInput).
 void SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   const uint64_t max_late_ticks = world.get<NetTuning>().max_late_ticks;
+  const std::optional<uint64_t> all_confirmed = AllConfirmedThrough(world.get<z13::gameplay::ConfirmedInputTicks>());
   for (const auto& [tick, digest] : digests.local) {
     // A command for `tick` is still accepted at exactly tick + max_late_ticks.
-    if (tick + max_late_ticks >= now || tick > deferred_rollback_tick.value_or(tick)) {
+    if (tick + max_late_ticks >= now || tick > deferred_rollback_tick.value_or(tick) ||
+        tick > all_confirmed.value_or(tick)) {
       break;
     }
     if (digests.last_sent_tick && tick <= *digests.last_sent_tick) {
       continue;
     }
     fbn::StateDigestT sent(digest);
-    sent.input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>());
+    sent.input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>().by_player);
+    sent.received_through = ToWire(world.get<ReceivedInputTicks>().by_player);
     Envelope envelope;
     envelope.body.Set(std::move(sent));
     session.Broadcast(Channel::kReliable, envelope);

@@ -76,6 +76,7 @@ set(
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
   ${MODULES_DIR}/station_module/tests/block_change_test.cpp
