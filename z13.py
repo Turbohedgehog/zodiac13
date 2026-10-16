@@ -35,7 +35,7 @@ DATA_DIR_VARIABLE = "Z13_DATA_DIR"
 NET_SIM_DATA = "data"
 # divergence_dump.h: where both sides write their snapshots of a diverged tick.
 DIVERGENCE_DIR_VARIABLE = "Z13_DIVERGENCE_DIR"
-DIVERGENCE_FILES = "divergence_*.json"
+DIVERGENCE_FILES = "divergence_*"
 # The server keeps its snapshots this long, so a client's report of a diverged tick (late on a
 # loaded box, after the client writes its own JSON) still finds the server's. Its rollbacks stay
 # bounded by max_late_ticks.

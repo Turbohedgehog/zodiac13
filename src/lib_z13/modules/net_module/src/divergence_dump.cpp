@@ -19,14 +19,25 @@
 #include <algorithm>
 #include <cstdlib>
 #include <format>
+#include <string>
 
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/utils/file_io.h>
+#include <z13/components/player_action.h>
 
 namespace z13::net {
 
 namespace ft = z13::flecs_tools;
+
+// The kept action log, one record a line: what the replays of the diverged tick played.
+std::string DescribeActionLog(flecs::world world) {
+  std::string text;
+  for (const z13::gameplay::PlayerActionRecord& record : world.get<z13::gameplay::PlayerActionLog>().log.Entries()) {
+    text += std::format("{} player {} action {} = {}\n", record.tick, record.player_id, record.action_id, record.value);
+  }
+  return text;
+}
 
 std::expected<std::optional<std::filesystem::path>, std::string> DumpDivergedTick(
     flecs::world world, uint64_t tick, std::string_view side) {
@@ -44,7 +55,11 @@ std::expected<std::optional<std::filesystem::path>, std::string> DumpDivergedTic
     return std::unexpected(std::move(json.error()));
   }
   const std::filesystem::path path = std::filesystem::path(directory) / std::format("divergence_{}_{}.json", tick, side);
-  if (auto written = z13::WriteFile(path, *json); !written) {
+  const std::filesystem::path actions_path = std::filesystem::path(path).replace_extension(kActionLogExtension);
+  if (auto written = z13::WriteFile(path, *json).and_then([&] {
+        return z13::WriteFile(actions_path, DescribeActionLog(world));
+      });
+      !written) {
     return std::unexpected(std::move(written.error()));
   }
   return path;
