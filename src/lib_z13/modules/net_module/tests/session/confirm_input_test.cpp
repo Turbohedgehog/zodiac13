@@ -16,7 +16,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <optional>
 
 #include <lib_core/state/rollback.h>
 
@@ -34,44 +36,74 @@ namespace ft = z13::flecs_tools;
 using z13::testing::Z13TestWorld;
 
 constexpr uint32_t kRemotePlayer = 7;
-constexpr uint64_t kStaleThrough = 10;
-constexpr uint64_t kMovedCommandTick = 20;
-constexpr uint64_t kConfirmedThrough = 40;
-// Past every tick above, so they are all in the past of the world.
-constexpr uint64_t kWarmUpTicks = 60;
+// Past the snapshot retention, so the oldest snapshot is well after tick 0.
+constexpr uint64_t kRunTicks = 600;
+// Ticks between a stale confirmation, a record and the next confirmation.
+constexpr uint64_t kStep = 10;
 
 class ConfirmInputThroughTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+    for (uint64_t tick = 0; tick < kRunTicks; ++tick) {
       world_.Tick();
     }
-    world_.World().get_mut<z13::gameplay::ConfirmedInputTicks>().by_player[kRemotePlayer] = kStaleThrough;
+    const std::optional<uint64_t> oldest = OldestSnapshotTick(world_.World());
+    ASSERT_TRUE(oldest && *oldest > kStep);
+    oldest_ = *oldest;
     ASSERT_FALSE(ft::DeferredRollbackTick(world_.World()));
   }
 
+  void ConfirmedThrough(uint64_t tick) {
+    world_.World().get_mut<z13::gameplay::ConfirmedInputTicks>().by_player[kRemotePlayer] = tick;
+  }
+
   void Record(uint64_t tick) {
+    // A key, not a look angle: only those are released.
     const auto& actions = world_.World().get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::IdTag>();
-    ASSERT_FALSE(actions.empty());
+    const auto key = std::ranges::find_if(actions, [](const auto& action) { return !action.absolute; });
+    ASSERT_NE(key, actions.end());
     world_.World().get_mut<z13::gameplay::PlayerActionLog>().log.MergeSorted(
-        {{.tick = tick, .player_id = kRemotePlayer, .action_id = actions.begin()->id, .value = 1.f}},
-        z13::gameplay::RecordLess);
+        {{.tick = tick, .player_id = kRemotePlayer, .action_id = key->id, .value = 1.f}}, z13::gameplay::RecordLess);
   }
 
   Z13TestWorld world_;
+  uint64_t oldest_ {};
 };
 
 // A command the server moved past the old confirmation read as released until now.
 TEST_F(ConfirmInputThroughTest, ReplaysRecordsTheConfirmationUncovers) {
-  Record(kMovedCommandTick);
+  ConfirmedThrough(oldest_ + kStep);
+  Record(oldest_ + 2 * kStep);
 
-  EXPECT_TRUE(ConfirmInputThrough(world_.World(), kRemotePlayer, kConfirmedThrough));
-  EXPECT_EQ(ft::DeferredRollbackTick(world_.World()), kStaleThrough);
+  EXPECT_TRUE(ConfirmInputThrough(world_.World(), kRemotePlayer, oldest_ + 3 * kStep));
+  EXPECT_EQ(ft::DeferredRollbackTick(world_.World()), oldest_ + kStep);
 }
 
 TEST_F(ConfirmInputThroughTest, LeavesThePastAloneWhenNothingChanges) {
-  EXPECT_TRUE(ConfirmInputThrough(world_.World(), kRemotePlayer, kConfirmedThrough));
+  ConfirmedThrough(oldest_ + kStep);
+
+  EXPECT_TRUE(ConfirmInputThrough(world_.World(), kRemotePlayer, oldest_ + 3 * kStep));
   EXPECT_FALSE(ft::DeferredRollbackTick(world_.World()));
+}
+
+// A player stalled since before the oldest snapshot.
+TEST_F(ConfirmInputThroughTest, ReleasesNoEarlierThanTheOldestSnapshot) {
+  ConfirmedThrough(oldest_ - kStep);
+  Record(oldest_ - kStep);
+
+  const auto releases = ReleasesAfter(world_.World(), kRemotePlayer, oldest_ - kStep);
+
+  ASSERT_EQ(releases.size(), 1u);
+  EXPECT_EQ(releases.front().tick, oldest_ + 1);
+  EXPECT_EQ(releases.front().value, 0.f);
+}
+
+TEST_F(ConfirmInputThroughTest, RollsBackNoFurtherThanTheOldestSnapshot) {
+  ConfirmedThrough(oldest_ - kStep);
+  Record(oldest_ + kStep);
+
+  EXPECT_TRUE(ConfirmInputThrough(world_.World(), kRemotePlayer, oldest_ + 2 * kStep));
+  EXPECT_EQ(ft::DeferredRollbackTick(world_.World()), oldest_);
 }
 
 }  // namespace

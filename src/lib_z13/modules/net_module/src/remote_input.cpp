@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/components.h>
@@ -91,15 +92,23 @@ bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionM
   });
 }
 
+std::optional<uint64_t> OldestSnapshotTick(flecs::world world) {
+  const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
+  if (entries.empty()) {
+    return std::nullopt;
+  }
+  return std::ranges::min(entries, {}, &ft::TimestampedSnapshot::tick).tick;
+}
+
 std::vector<z13::gameplay::PlayerActionRecord> ReleasesAfter(flecs::world world, uint32_t player_id,
                                                              uint64_t through_tick) {
   const auto& log = world.get<z13::gameplay::PlayerActionLog>();
   const auto& by_id = world.get<z13::input::ActionMap>().action_map.get<z13::input::ActionMap::IdTag>();
-  const uint64_t release_tick = through_tick + 1;
+  const uint64_t release_tick = std::max(through_tick, OldestSnapshotTick(world).value_or(through_tick)) + 1;
   const auto at_release_tick =
       std::ranges::equal_range(log.log.Entries(), release_tick, {}, &z13::gameplay::PlayerActionRecord::tick);
   std::vector<z13::gameplay::PlayerActionRecord> releases;
-  for (const auto& [action_id, value] : ValuesAt(log, player_id, through_tick)) {
+  for (const auto& [action_id, value] : ValuesAt(log, player_id, release_tick - 1)) {
     const auto info = by_id.find(action_id);
     const bool absolute = info != by_id.end() && info->absolute;
     const bool recorded_there = std::ranges::any_of(at_release_tick, [&](const auto& record) {
@@ -140,7 +149,8 @@ bool ConfirmInputThrough(flecs::world world, uint32_t player_id, uint64_t throug
   if (predicted_since < world.get<ft::SimulationClock>().tick &&
       (recorded_since ||
        HoldsReleasableAction(ValuesAt(log, player_id, predicted_since), world.get<z13::input::ActionMap>()))) {
-    ft::DeferRollback(world, predicted_since);
+    // Ticks before the oldest snapshot can't be replayed; unconfirmed, they read as released already.
+    ft::DeferRollback(world, std::max(predicted_since, OldestSnapshotTick(world).value_or(predicted_since)));
   }
   return true;
 }

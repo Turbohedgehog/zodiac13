@@ -33,9 +33,13 @@ using ActionValues = boost::container::flat_map<z13::input::ActionId, float>;
 // Whether any of `values` is a held action that unconfirmed ticks read as released (not `absolute`).
 bool HoldsReleasableAction(const ActionValues& values, const z13::input::ActionMap& action_map);
 
+// The oldest tick a rollback can restore, if any snapshot is kept.
+std::optional<uint64_t> OldestSnapshotTick(flecs::world world);
+
 // Server: the release, on the tick after `through_tick`, of each action `player_id` held there.
 // Input that never reached the server in time reads as released (docs/net-core.md, Н1), and these
-// records make that final for every participant.
+// records make that final for every participant. Not before the oldest snapshot: those ticks can't
+// be replayed, and as unconfirmed they already read the actions as released.
 std::vector<z13::gameplay::PlayerActionRecord> ReleasesAfter(flecs::world world, uint32_t player_id,
                                                              uint64_t through_tick);
 

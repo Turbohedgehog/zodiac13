@@ -169,9 +169,7 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
   if (earliest && *earliest < now && *earliest > 0) {
     // A record moved from before the oldest snapshot (a catch-up's base, sent while awaiting it) is
     // already absent from that snapshot, the server's state: replaying from it is enough (Н4).
-    const auto& history = world.get<ft::WorldSnapshotHistory>().history.Entries();
-    const uint64_t oldest = history.empty() ? 0 : std::ranges::min(history, {}, &ft::TimestampedSnapshot::tick).tick;
-    ft::DeferRollback(world, std::max(*earliest - 1, oldest));
+    ft::DeferRollback(world, std::max(*earliest - 1, OldestSnapshotTick(world).value_or(*earliest - 1)));
   }
 }
 
