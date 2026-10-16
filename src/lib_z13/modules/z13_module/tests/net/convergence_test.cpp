@@ -106,6 +106,9 @@ constexpr TickRange kClockJumpTicks {.min = 20, .max = 60};
 constexpr TickRange kAwayTicks {.min = 30, .max = 200};
 constexpr int kMaxLookStepX = 20;
 constexpr int kMaxLookStepY = 8;
+// The top 53 bits of a draw, as a double in [0, 1).
+constexpr int kUnitShift = 11;
+constexpr double kUnitScale = 0x1.0p-53;
 // Frames a world may still need to apply the rollbacks pending when the network stops.
 constexpr uint64_t kMaxQuietFrames = 32;
 
@@ -226,14 +229,20 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
     return condition();
   }
 
-  bool Roll(double odds) { return std::bernoulli_distribution(odds)(rng_); }
+  // From the engine's raw output, which the standard fixes bit for bit, unlike its distributions:
+  // a seed plays the same game under libstdc++, libc++ and MSVC, so a CI failure replays here.
+  bool Roll(double odds) { return static_cast<double>(rng_() >> kUnitShift) * kUnitScale < odds; }
+
+  uint64_t Below(uint64_t count) { return rng_() % count; }
+
+  int Within(int limit) { return static_cast<int>(Below(2 * static_cast<uint64_t>(limit) + 1)) - limit; }
 
   template <typename T>
   const T& Pick(std::span<const T> items) {
-    return items[std::uniform_int_distribution<size_t>(0, items.size() - 1)(rng_)];
+    return items[Below(items.size())];
   }
 
-  uint64_t Draw(TickRange range) { return std::uniform_int_distribution(range.min, range.max)(rng_); }
+  uint64_t Draw(TickRange range) { return range.min + Below(range.max - range.min + 1); }
 
   // Among the clients in the game and not stalled.
   std::optional<size_t> RandomPlayer() {
@@ -307,8 +316,7 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
     }
     if (Roll(odds_.look)) {
       z13::input::MouseMoveEvent look;
-      look.delta = {.x = std::uniform_int_distribution(-kMaxLookStepX, kMaxLookStepX)(rng_),
-                    .y = std::uniform_int_distribution(-kMaxLookStepY, kMaxLookStepY)(rng_)};
+      look.delta = {.x = Within(kMaxLookStepX), .y = Within(kMaxLookStepY)};
       world.EmitInput(look);
     }
   }

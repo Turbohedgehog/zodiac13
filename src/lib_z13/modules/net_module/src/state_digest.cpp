@@ -64,7 +64,8 @@ bool PosesMatch(const fbn::PoseWire& a, const fbn::PoseWire& b) {
 void RecordStateDigest(flecs::world world, uint64_t tick, StateDigests& digests) {
   const std::optional<uint64_t> interval_ticks = ft::SnapshotIntervalTicks(world);
   const std::optional<uint64_t> retention_ticks = ft::SnapshotRetentionTicks(world);
-  if (!interval_ticks || !retention_ticks || *interval_ticks == 0 || tick % *interval_ticks != 0) {
+  if (!interval_ticks || !retention_ticks || *interval_ticks == 0 || tick % *interval_ticks != 0 ||
+      ft::FrameIsDiscarded(world)) {
     return;
   }
   digests.local.insert_or_assign(tick, ComputeStateDigest(world, tick));
