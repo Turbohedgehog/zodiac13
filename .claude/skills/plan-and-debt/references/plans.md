@@ -3,6 +3,8 @@
 | Document | Covers | Where to look |
 |---|---|---|
 | `client-server-plan.md` | ENet client-server: sync model, protocol, lifecycle; its six stages are merged | "Технический долг" — the project-wide debt list |
+| `net-core.md` | the net core's model (tick function and inputs), invariants И1–И8, audit findings Н1–Н8 | "Порядок работ" (`f/net-convergence-test` done → `f/net-final-horizon` …), "Ревизия избыточного кода" |
+| `code-revision-plan.md` | revising every module for redundant mechanisms against its core logic | "Порядок работ" (net first, then one branch per module), "Кандидаты" |
 | `net-simplification-plan.md` | simplifying the network session code | "Порядок работ" (stages 1-4 done), "Отложено до замеров" |
 | `action-delivery-plan.md` | delivering look/actions and smoothing remote players | stage 2 `f/look-hints` open; "Открытые вопросы" |
 | `remote-sync-research.md` | measurements behind remote smoothing | research, no stages |
