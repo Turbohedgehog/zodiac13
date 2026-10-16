@@ -97,6 +97,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/convergence_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/desync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/lan_discovery_world_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/listen_server_test.cpp

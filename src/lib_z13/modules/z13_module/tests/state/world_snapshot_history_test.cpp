@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -99,6 +100,23 @@ TEST(WorldSnapshotHistoryTest, RetentionWindowPrunesSnapshotsOlderThanItsLimit) 
   for (const uint64_t tick : ticks) {
     EXPECT_LE(ticks.back() - tick, retention_ticks);
   }
+}
+
+// A client back from the menu adopts the server's snapshot while its own clock is still far
+// behind; the next capture's pruning must not take that snapshot for an old one.
+TEST(WorldSnapshotHistoryTest, ASnapshotAheadOfTheClockIsKept) {
+  Z13TestWorld test_world;
+  const uint64_t interval_ticks = IntervalTicks(test_world);
+  Frames(test_world, interval_ticks);
+  auto& history = test_world.World().get_mut<ft::WorldSnapshotHistory>().history;
+  ASSERT_FALSE(history.Empty());
+  constexpr uint64_t kIntervalsAhead = 100;
+  const uint64_t ahead_tick = interval_ticks * kIntervalsAhead;
+  history.Push({.tick = ahead_tick, .snapshot = history.Entries().back().snapshot});
+
+  Frames(test_world, interval_ticks);
+
+  EXPECT_TRUE(std::ranges::contains(CapturedTicks(test_world), ahead_tick));
 }
 
 }  // namespace

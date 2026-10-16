@@ -48,8 +48,9 @@ void CaptureSnapshot(
   history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
 
   const uint64_t current_tick = clock.tick;
+  // A catch-up's snapshot can be ahead of a clock that hasn't caught up yet.
   auto is_too_old = [current_tick, retention_ticks = *retention_ticks](const TimestampedSnapshot& old_entry) {
-    return (current_tick - old_entry.tick) > retention_ticks;
+    return current_tick > old_entry.tick && current_tick - old_entry.tick > retention_ticks;
   };
   history.history.PruneOlderThan(is_too_old);
 }
