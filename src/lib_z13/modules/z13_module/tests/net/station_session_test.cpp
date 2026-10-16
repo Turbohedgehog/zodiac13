@@ -53,6 +53,8 @@
 #include <z13/components/net.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <z13_tests/shipped_station.h>
+
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"

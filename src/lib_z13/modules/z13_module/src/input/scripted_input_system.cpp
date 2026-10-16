@@ -18,6 +18,7 @@
 
 #include <flecs.h>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>

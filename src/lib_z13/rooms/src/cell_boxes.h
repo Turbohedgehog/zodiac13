@@ -19,13 +19,11 @@
 #include <cstdint>
 
 #include <primitives/placement.h>
-#include <rooms/free_space.h>
 
 namespace z13::station::rooms {
 
 int64_t Volume(const z13::building::primitives::CellBox& box);
 // Whether two boxes with disjoint insides share part of a face.
 bool ShareFace(const z13::building::primitives::CellBox& first, const z13::building::primitives::CellBox& second);
-LeafBox ToLeafBox(const z13::building::primitives::CellBox& box);
 
 }  // namespace z13::station::rooms

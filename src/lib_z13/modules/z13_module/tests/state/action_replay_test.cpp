@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/settings/core_settings.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_json_store.h>

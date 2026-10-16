@@ -25,6 +25,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/math.h>

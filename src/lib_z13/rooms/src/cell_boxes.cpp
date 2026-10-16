@@ -39,8 +39,4 @@ bool ShareFace(const CellBox& first, const CellBox& second) {
   return touching == 1;
 }
 
-LeafBox ToLeafBox(const CellBox& box) {
-  return {{box.min.x(), box.min.y(), box.min.z()}, {box.End().x(), box.End().y(), box.End().z()}};
-}
-
 }  // namespace z13::station::rooms

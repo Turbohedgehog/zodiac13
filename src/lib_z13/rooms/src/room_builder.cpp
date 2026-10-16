@@ -96,7 +96,7 @@ void NameRooms(const NumberedLeaves& numbered, const std::vector<size_t>& set_of
   }
   graph.next_id = next_id;
   for (const auto& [key, chunk] : graph.space.AllChunks()) {
-    std::vector<RoomId> rooms(chunk->leaves.size());
+    std::vector<RoomId> rooms(LeavesOf(*chunk).size());
     const size_t first = numbered.FirstOf(key);
     for (size_t leaf = 0; leaf < rooms.size(); ++leaf) {
       rooms[leaf] = id_of_set.at(set_of[first + leaf]);

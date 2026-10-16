@@ -26,10 +26,13 @@
 #include <string>
 #include <string_view>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/time/simulation_clock.h>
 #include <z13/components/input_events.h>
+
+#include <z13_tests/shipped_station.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"

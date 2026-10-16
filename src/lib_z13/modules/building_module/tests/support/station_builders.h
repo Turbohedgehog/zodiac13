@@ -30,6 +30,8 @@
 #include <z13/components/block.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <z13_tests/shipped_station.h>
+
 #include "../../../z13_module/tests/support/building_test_helpers.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
 

@@ -122,6 +122,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/state/two_player_replay_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/world_snapshot_history_test.cpp
   ${MODULES_DIR}/z13_module/tests/support/motion_metrics.cpp
+  ${MODULES_DIR}/z13_module/tests/support/z13_test_world.cpp
 )
 
 if(Z13_BUILD_BENCHMARKS)

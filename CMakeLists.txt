@@ -77,6 +77,16 @@ if(CCACHE_PROGRAM AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif()
 
+# lld where the toolchain takes it: linking the Debug test library took 10.8 s with GNU ld and
+# 4.2 s with lld (PRoot, arm64), and nearly every edit relinks it.
+if(NOT MSVC)
+    include(CheckLinkerFlag)
+    check_linker_flag(CXX "-fuse-ld=lld" Z13_HAVE_LLD)
+    if(Z13_HAVE_LLD)
+        add_link_options(-fuse-ld=lld)
+    endif()
+endif()
+
 # Lockstep simulation needs matching float results across participants: no FMA
 # contraction (GCC's gnu++ default fuses on arm64). Bullet gets the same via ports/bullet3.
 if(MSVC)

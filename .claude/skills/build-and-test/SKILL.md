@@ -13,7 +13,7 @@ Safety rules (job caps in PRoot, `pkill -f`, vcpkg concurrency) are in CLAUDE.md
 - Build everything: `cmake --build build -j3` in PRoot, `-j$(nproc)` elsewhere. One target: `--target <name>` (`z13_test_runner`, `raylib_module`, ...).
 - Tests: `ctest --test-dir build --parallel 3` in PRoot (the scripts pass it; `EnetTransportTest`, on real sockets with wall-clock bounds, runs alone via `RUN_SERIAL`); a gtest filter: `bin/tests/z13_test_runner --gtest_filter='Suite.*'`.
 - Whole cycle: `python3 make.py -b` (Debug: `build/`, `bin/`, installs to `install/`) / `-br` (Release: `build-release/`, `bin-release/`, no install), `--bench` adds the benchmarks, `--profile` the Tracy zones; run what was built with `python3 z13.py` (`--game`, `--server [PORT]`, `--tests [--filter]`, `--bench [--filter]`, `--release` for the Release build). The output directory is the CMake cache variable `Z13_BIN_DIR`.
-- `ccache` is picked up automatically when installed (`apt install ccache`).
+- `ccache` is picked up automatically when installed (`apt install ccache`). Give it room for several trees (`ccache -M 20G`; set on the PRoot box 2026-10-16): one Debug build is ~2.2 GB of objects, and 5 GB held about two, so switching branches, `--render` and back, or reverting a fix to check a test evicted what the next build needed (51 % hits).
 
 ## Detached builds (PRoot, or any build longer than a few minutes)
 

@@ -22,6 +22,7 @@
 
 #include <flecs.h>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>

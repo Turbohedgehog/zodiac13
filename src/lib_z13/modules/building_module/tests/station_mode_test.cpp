@@ -38,6 +38,8 @@
 #include <primitives/placement.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <z13_tests/shipped_station.h>
+
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "support/station_builders.h"
