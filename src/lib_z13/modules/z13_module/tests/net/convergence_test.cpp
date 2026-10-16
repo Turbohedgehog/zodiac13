@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <format>
@@ -26,6 +27,7 @@
 #include <optional>
 #include <random>
 #include <set>
+#include <span>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -79,7 +81,7 @@ constexpr std::array kMoveKeys {Keycode::KEY_W, Keycode::KEY_A, Keycode::KEY_S, 
 constexpr std::array kTapKeys {Keycode::KEY_SPACE, Keycode::KEY_TAB, Keycode::KEY_F};
 constexpr std::array kButtons {Keycode::MOUSE_BUTTON_LEFT, Keycode::MOUSE_BUTTON_RIGHT};
 
-// Per tick and client, or per tick for the session events.
+// Per tick and client, or per tick for the session events; stalls and clock jumps per scenario.
 struct Odds {
   double move_key {0.03};
   double tap {0.006};
@@ -87,10 +89,25 @@ struct Odds {
   double look {0.2};
   double stall {};
   double clock_jump {};
-  double leave {};
-  double drop {};
+  double leave {0.002};
+  double drop {0.001};
   double join {0.01};
 };
+constexpr double kStallOdds = 0.004;
+constexpr double kClockJumpOdds = 0.003;
+
+// Ranges of ticks the session events draw from.
+struct TickRange {
+  uint64_t min {};
+  uint64_t max {};
+};
+constexpr TickRange kStallTicks {.min = 10, .max = 120};
+constexpr TickRange kClockJumpTicks {.min = 20, .max = 60};
+constexpr TickRange kAwayTicks {.min = 30, .max = 200};
+constexpr int kMaxLookStepX = 20;
+constexpr int kMaxLookStepY = 8;
+// Frames a world may still need to apply the rollbacks pending when the network stops.
+constexpr uint64_t kMaxQuietFrames = 32;
 
 // What varies between runs: which session events happen besides play, joins and leaves.
 struct Scenario {
@@ -113,10 +130,8 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
   ConvergenceTest() : rng_(std::get<1>(GetParam())) {
     network_->SetFaultConfig(kJitter);
     const Scenario& scenario = std::get<0>(GetParam());
-    odds_.stall = scenario.stalls ? 0.004 : 0.;
-    odds_.clock_jump = scenario.clock_jumps ? 0.003 : 0.;
-    odds_.leave = 0.002;
-    odds_.drop = 0.001;
+    odds_.stall = scenario.stalls ? kStallOdds : 0.;
+    odds_.clock_jump = scenario.clock_jumps ? kClockJumpOdds : 0.;
   }
 
   void Play(uint64_t ticks) {
@@ -160,15 +175,14 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
 
   void ExpectConverged() {
     for (ClientPlay& client : clients_) {
-      EXPECT_EQ(client.world->World().get<StateDigests>().resyncs, 0u)
-          << "player " << PlayerId(*client.world) << " was resynced";
+      EXPECT_EQ(client.world->World().get<StateDigests>().resyncs, 0u) << Who(*client.world) << " was resynced";
     }
     const std::optional<uint64_t> tick = FinalTick();
     ASSERT_TRUE(tick) << "no snapshot tick every participant still keeps";
     const std::string server = SnapshotJson(*server_, *tick);
     for (ClientPlay& client : clients_) {
       EXPECT_EQ(SnapshotJson(*client.world, *tick), server)
-          << "player " << PlayerId(*client.world) << " differs from the server at tick " << *tick;
+          << Who(*client.world) << " differs from the server at tick " << *tick;
     }
   }
 
@@ -182,7 +196,7 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
     ASSERT_TRUE(tick);
     ExpectReproduces(*server_, "the server", *tick);
     for (ClientPlay& client : clients_) {
-      ExpectReproduces(*client.world, std::format("player {}", PlayerId(*client.world)), *tick);
+      ExpectReproduces(*client.world, Who(*client.world), *tick);
     }
   }
 
@@ -215,18 +229,21 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
   bool Roll(double odds) { return std::bernoulli_distribution(odds)(rng_); }
 
   template <typename T>
-  const T& Pick(const T* items, size_t count) {
-    return items[std::uniform_int_distribution<size_t>(0, count - 1)(rng_)];
+  const T& Pick(std::span<const T> items) {
+    return items[std::uniform_int_distribution<size_t>(0, items.size() - 1)(rng_)];
   }
 
-  ClientPlay* RandomClient(bool in_game) {
-    std::vector<ClientPlay*> candidates;
-    for (ClientPlay& client : clients_) {
-      if (Active(client) && InGame(*client.world) == in_game && !client.rejoin_at) {
-        candidates.push_back(&client);
+  uint64_t Draw(TickRange range) { return std::uniform_int_distribution(range.min, range.max)(rng_); }
+
+  // Among the clients in the game and not stalled.
+  std::optional<size_t> RandomPlayer() {
+    std::vector<size_t> playing;
+    for (size_t i = 0; i < clients_.size(); ++i) {
+      if (Active(clients_[i]) && InGame(*clients_[i].world)) {
+        playing.push_back(i);
       }
     }
-    return candidates.empty() ? nullptr : Pick(candidates.data(), candidates.size());
+    return playing.empty() ? std::nullopt : std::optional(Pick(std::span<const size_t>(playing)));
   }
 
   void SessionEvents() {
@@ -234,19 +251,20 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
       clients_.push_back({.world = std::make_unique<Z13TestWorld>(
                               std::vector {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_)});
     }
-    if (ClientPlay* client = RandomClient(true); client && Roll(odds_.stall)) {
-      client->stalled_until = now_ + std::uniform_int_distribution<uint64_t>(10, 120)(rng_);
+    if (const auto player = RandomPlayer(); player && Roll(odds_.stall)) {
+      clients_[*player].stalled_until = now_ + Draw(kStallTicks);
     }
-    if (ClientPlay* client = RandomClient(true); client && Roll(odds_.clock_jump)) {
-      ft::RequestClockAdjust(client->world->World(), std::uniform_int_distribution<int64_t>(20, 60)(rng_));
+    if (const auto player = RandomPlayer(); player && Roll(odds_.clock_jump)) {
+      ft::RequestClockAdjust(clients_[*player].world->World(), static_cast<int64_t>(Draw(kClockJumpTicks)));
     }
-    if (ClientPlay* client = RandomClient(true); client && Roll(odds_.leave)) {
-      ReleaseAll(*client);
-      client->world->ExitToMainMenu();
-      client->rejoin_at = now_ + std::uniform_int_distribution<uint64_t>(30, 200)(rng_);
+    if (const auto player = RandomPlayer(); player && Roll(odds_.leave)) {
+      ClientPlay& client = clients_[*player];
+      ReleaseAll(client);
+      client.world->ExitToMainMenu();
+      client.rejoin_at = now_ + Draw(kAwayTicks);
     }
-    if (ClientPlay* client = RandomClient(true); client && Roll(odds_.drop)) {
-      std::erase_if(clients_, [client](const ClientPlay& c) { return &c == client; });
+    if (const auto player = RandomPlayer(); player && Roll(odds_.drop)) {
+      clients_.erase(clients_.begin() + static_cast<std::ptrdiff_t>(*player));
     }
     RejoinDue();
   }
@@ -278,18 +296,19 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
       }
     }
     if (Roll(odds_.tap)) {
-      const Keycode key = Pick(kTapKeys.data(), kTapKeys.size());
+      const Keycode key = Pick(std::span<const Keycode>(kTapKeys));
       world.EmitInput(z13::testing::KeyDown(key));
       client.release_next.push_back(key);
     }
     if (Roll(odds_.click)) {
-      const Keycode button = Pick(kButtons.data(), kButtons.size());
+      const Keycode button = Pick(std::span<const Keycode>(kButtons));
       world.EmitInput(z13::testing::MouseDown(button));
       client.release_next.push_back(button);
     }
     if (Roll(odds_.look)) {
       z13::input::MouseMoveEvent look;
-      look.delta = {.x = std::uniform_int_distribution(-20, 20)(rng_), .y = std::uniform_int_distribution(-8, 8)(rng_)};
+      look.delta = {.x = std::uniform_int_distribution(-kMaxLookStepX, kMaxLookStepX)(rng_),
+                    .y = std::uniform_int_distribution(-kMaxLookStepY, kMaxLookStepY)(rng_)};
       world.EmitInput(look);
     }
   }
@@ -347,7 +366,6 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
   // Takes what already reached the world and lets its pending rollbacks land, with the network
   // no longer ticked: from here on the world's inputs don't change.
   static void Quiet(Z13TestWorld& world) {
-    constexpr uint64_t kMaxQuietFrames = 32;
     for (uint64_t frame = 0; frame < kMaxQuietFrames; ++frame) {
       ft::TickWorld(world.World(), kNetTestDeltaTime);
       if (!ft::DeferredRollbackTick(world.World()) && !world.World().has<ft::ReplayInProgress>()) {
@@ -378,8 +396,9 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
            world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
   }
 
-  static uint32_t PlayerId(Z13TestWorld& world) {
-    return world.World().get<z13::gameplay::LocalPlayer>().id.value_or(0);
+  static std::string Who(Z13TestWorld& world) {
+    const std::optional<uint32_t> id = world.World().get<z13::gameplay::LocalPlayer>().id;
+    return id ? std::format("player {}", *id) : std::string("a client without a player");
   }
 
   std::mt19937_64 rng_;
