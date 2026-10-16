@@ -111,6 +111,8 @@ table CatchUp {
   actions: [ActionRecordWire];  // (snapshot_tick, server_tick]
   held_values: [ActionRecordWire];  // currently-held (player_id, action_id) -> value, tick == snapshot_tick
   pending: [ActionRecordWire];  // already-scheduled commands with apply_tick > server_tick
+  // ConfirmedInputTicks at server_tick: past it a player's input reads as released, as on the server.
+  input_through: [PlayerTickWire];
 }
 
 table Welcome {

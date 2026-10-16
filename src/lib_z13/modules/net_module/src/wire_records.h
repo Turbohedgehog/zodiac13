@@ -35,6 +35,8 @@ namespace z13::net {
 std::vector<fbs::net::ActionRecordWire> ToWire(const std::vector<z13::gameplay::PlayerActionRecord>& records);
 std::vector<z13::gameplay::PlayerActionRecord> FromWire(const std::vector<fbs::net::ActionRecordWire>& wire);
 std::unique_ptr<fbs::state::WorldSnapshotT> ToWire(const z13::flecs_tools::WorldSnapshot& snapshot);
+std::vector<fbs::net::PlayerTickWire> ToWire(const z13::gameplay::ConfirmedInputTicks& confirmed);
+z13::gameplay::ConfirmedInputTicks FromWire(const std::vector<fbs::net::PlayerTickWire>& wire);
 
 z13::gameplay::PlayerActionRecord FromWire(
     const fbs::net::CommandWire& command, uint64_t base_tick, uint32_t player_id);

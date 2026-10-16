@@ -108,7 +108,9 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
   bool RunUntil(uint64_t max_ticks, const std::function<bool()>& condition) {
     std::vector<std::reference_wrapper<Z13TestWorld>> worlds {*server_};
     for (const auto& client : clients_) {
-      worlds.emplace_back(*client);
+      if (!stalled_.contains(client.get())) {
+        worlds.emplace_back(*client);
+      }
     }
     return z13::testing::RunNetworkUntil(*network_, worlds, kNetTestDeltaTime, max_ticks, condition);
   }
@@ -117,7 +119,7 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
   void ExpectConverged() {
     std::map<Z13TestWorld*, uint64_t> targets;
     for (const auto& client : clients_) {
-      if (InGame(*client)) {
+      if (InGame(*client) && !stalled_.contains(client.get())) {
         targets[client.get()] = client->World().get<StateDigests>().checked + kDigestChecks;
       }
     }
@@ -130,7 +132,7 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
     const std::set<uint32_t> players = PlayerIds(*server_);
     ExpectOneToolPerPlayer(*server_, players);
     for (const auto& client : clients_) {
-      if (!InGame(*client)) {
+      if (!InGame(*client) || stalled_.contains(client.get())) {
         continue;
       }
       const uint32_t id = PlayerId(*client);
@@ -193,6 +195,8 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
   std::unique_ptr<Z13TestWorld> server_ = std::make_unique<Z13TestWorld>(
       std::vector {std::string(kServerArg), std::string(kStationSceneArg), std::string(GetParam())}, network_);
   std::vector<std::unique_ptr<Z13TestWorld>> clients_;
+  // Not ticked: a frozen process, which sends nothing.
+  std::set<const Z13TestWorld*> stalled_;
 };
 
 TEST_P(SessionChurnTest, PlayersLeaveAndRejoinWhileOthersWalk) {
@@ -245,6 +249,22 @@ TEST_P(SessionChurnTest, ALeaveDuringAnotherJoinConverges) {
   ASSERT_TRUE(RunUntil(kMaxJoinTicks, [&] { return InGame(joiner) && !InGame(leaver); }));
   RunTicks(kWalkTicks);
   walker.EmitInput(KeyUp(Keycode::KEY_W));
+  ExpectConverged();
+}
+
+// Past the input the server has from a player, it reads their keys as released; a joiner must too,
+// not walk them on with the key the snapshot shows held.
+TEST_P(SessionChurnTest, AJoinerSeesAStalledPlayerAsTheServerDoes) {
+  Z13TestWorld& stalled = Join();
+  Z13TestWorld& walker = Join();
+
+  stalled.EmitInput(KeyDown(Keycode::KEY_W));
+  RunTicks(kWalkTicks);
+  stalled_.insert(&stalled);
+  walker.EmitInput(KeyDown(Keycode::KEY_D));
+  Join();
+  RunTicks(kWalkTicks);
+  walker.EmitInput(KeyUp(Keycode::KEY_D));
   ExpectConverged();
 }
 

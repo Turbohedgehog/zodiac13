@@ -37,6 +37,8 @@
 
 #include <net_module/clock_sync.h>
 
+#include "wire_records.h"
+
 namespace z13::net {
 
 namespace {
@@ -69,14 +71,6 @@ void RecordStateDigest(flecs::world world, uint64_t tick, StateDigests& digests)
   std::erase_if(digests.local, [tick, retention = *retention_ticks](const auto& entry) {
     return entry.first + retention < tick;
   });
-}
-
-std::vector<fbn::PlayerTickWire> InputThrough(const z13::gameplay::ConfirmedInputTicks& confirmed) {
-  std::vector<fbn::PlayerTickWire> through;
-  std::ranges::transform(confirmed.by_player, std::back_inserter(through), [](const auto& entry) {
-    return fbn::PlayerTickWire(entry.first, entry.second);
-  });
-  return through;
 }
 
 // An own command the server didn't have when it sent the digest may yet be moved past the
@@ -173,7 +167,7 @@ void SendSettledStateDigests(flecs::world world, NetSession& session, StateDiges
       continue;
     }
     fbn::StateDigestT sent(digest);
-    sent.input_through = InputThrough(world.get<z13::gameplay::ConfirmedInputTicks>());
+    sent.input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>());
     Envelope envelope;
     envelope.body.Set(std::move(sent));
     session.Broadcast(Channel::kReliable, envelope);

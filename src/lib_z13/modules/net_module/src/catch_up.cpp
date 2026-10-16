@@ -103,6 +103,7 @@ std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flec
   }
   catch_up->held_values = ToWire(HeldValues(world, catch_up->snapshot_tick));
   catch_up->pending = ToWire(world.get<z13::gameplay::ScheduledCommands>().records);
+  catch_up->input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>());
   return catch_up;
 }
 
@@ -117,6 +118,7 @@ std::expected<CatchUpPayload, std::string> DecodeCatchUp(const std::unique_ptr<f
       .actions = FromWire(catch_up->actions),
       .held_values = FromWire(catch_up->held_values),
       .pending = FromWire(catch_up->pending),
+      .confirmed = FromWire(catch_up->input_through),
   };
 }
 
@@ -146,6 +148,7 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_ti
   }
 
   world.get_mut<z13::gameplay::ScheduledCommands>().records = std::move(payload.pending);
+  world.get_mut<z13::gameplay::ConfirmedInputTicks>() = std::move(payload.confirmed);
 
   auto& history = world.get_mut<ft::WorldSnapshotHistory>().history;
   history.RemoveIf([](const auto&) { return true; });

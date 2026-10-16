@@ -38,6 +38,7 @@ struct CatchUpPayload {
   std::vector<z13::gameplay::PlayerActionRecord> actions;
   std::vector<z13::gameplay::PlayerActionRecord> held_values;
   std::vector<z13::gameplay::PlayerActionRecord> pending;
+  z13::gameplay::ConfirmedInputTicks confirmed;
 };
 
 std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world);
