@@ -21,7 +21,7 @@
 #include <iterator>
 #include <type_traits>
 
-#include <rfl.hpp>
+#include <rfl/enums.hpp>
 
 namespace z13 {
 

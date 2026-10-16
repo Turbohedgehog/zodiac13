@@ -143,6 +143,9 @@ endif()
 # Standalone DLL exercising lib_core and lib_z13.
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SOURCE_FILES})
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+if(Z13_PRECOMPILE_HEADERS)
+  target_precompile_headers(${PROJECT_NAME} PRIVATE <gtest/gtest.h> <flecs.h> <Eigen/Dense>)
+endif()
 
 # Third-party test headers (reflect-cpp, gtest, flecs meta) are noisy under /W4.
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_WARNING_AS_ERROR OFF)

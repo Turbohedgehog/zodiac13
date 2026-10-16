@@ -5,6 +5,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 
 z13_add_plugin(
   ${PROJECT_NAME} modules/building_module FBS_HEADERS EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/block_building_system.cpp
   src/block_cutting.cpp

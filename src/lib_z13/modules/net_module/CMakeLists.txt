@@ -11,6 +11,7 @@ endif()
 
 z13_add_plugin(
   ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>"
   SOURCES
   src/catch_up.cpp
   src/client_session.cpp

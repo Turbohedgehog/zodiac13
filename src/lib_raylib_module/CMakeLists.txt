@@ -9,6 +9,7 @@ find_package(assimp CONFIG REQUIRED)
 
 z13_add_plugin(
   ${PROJECT_NAME} modules/raylib FBS_HEADERS
+  PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/gui/build_info.cpp
   src/gui/game_scenes.cpp

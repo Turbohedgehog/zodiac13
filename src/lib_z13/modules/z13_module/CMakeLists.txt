@@ -6,6 +6,7 @@ find_package(Boost REQUIRED COMPONENTS dll)
 # Other plugins (net_module) and the tests link this one for SpawnPlayer and friends.
 z13_add_plugin(
   ${PROJECT_NAME} modules/z13_module FBS_HEADERS EXPORT_ALL_SYMBOLS
+  PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/bootstrap/bootstrap_system.cpp
   src/gameplay/block_change_system.cpp
