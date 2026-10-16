@@ -73,9 +73,9 @@ std::expected<CommandRun, std::string> ToCommandRun(
   return run;
 }
 
-std::vector<fbs::net::PlayerTickWire> ToWire(const z13::gameplay::ConfirmedInputTicks& confirmed) {
+std::vector<fbs::net::PlayerTickWire> ToWire(const PlayerTicks& ticks) {
   std::vector<fbs::net::PlayerTickWire> wire;
-  std::ranges::transform(confirmed.by_player, std::back_inserter(wire), [](const auto& entry) {
+  std::ranges::transform(ticks, std::back_inserter(wire), [](const auto& entry) {
     return fbs::net::PlayerTickWire(entry.first, entry.second);
   });
   return wire;

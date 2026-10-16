@@ -162,8 +162,11 @@ table StateDigest {
   entity_count: uint;
   name_hash: ulong;
   positions: [PoseWire];
-  // Per player, the tick through which the server had all their input when it sent the digest.
+  // Per player, the tick their input is final through (ConfirmedInputTicks): past it, released.
   input_through: [PlayerTickWire];
+  // Per player, the tick through which the server had received their own input (a client's
+  // CommandBatch.through_tick), so a client doesn't compare a tick its unsent input may still move.
+  received_through: [PlayerTickWire];
 }
 
 union MessageBody {

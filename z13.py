@@ -39,6 +39,9 @@ DIVERGENCE_FILES = "divergence_*"
 # Long enough for a client's late report of a diverged tick to find the server's snapshot.
 NET_SIM_SERVER_RETENTION = ["--snapshot-retention-seconds", 30]
 NET_SIM_SERVER_READY = "NetSession(server): listening on port"
+# The server listens before it builds its station and serves nobody until it has: a client must
+# outwait that (seconds for spire in PRoot) rather than ENet's default.
+NET_SIM_CLIENT_CONNECT = ["--connect-max-timeout-ms", 15000]
 # What --net-sim counts in each process's log, and which of them fail the run.
 NET_SIM_EVENTS = {
     "joined": ("NetSession(client): joined as player", False),
@@ -126,7 +129,8 @@ def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list
   clients = []
   for index in range(options.clients):
     log = logs / f"client_{index + 1}.log"
-    command = [game, "--headless", "--connect", f"127.0.0.1:{options.port}", "--input-script", script, *extra]
+    command = [game, "--headless", "--connect", f"127.0.0.1:{options.port}", "--input-script", script,
+               *NET_SIM_CLIENT_CONNECT, *extra]
     clients.append((start(command, log, game_dir, data / f"client_{index + 1}"), log))
     time.sleep(options.stagger)
 

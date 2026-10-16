@@ -24,6 +24,15 @@ namespace z13::flecs_tools {
 
 namespace {
 
+// Every tick, like PlayerActionLog's pruning, so the oldest snapshot is never older than the log a
+// rollback from it replays (docs/net-core.md, Н8).
+void PruneSnapshots(uint64_t current_tick, uint64_t retention_ticks, WorldSnapshotHistory& history) {
+  // A catch-up's snapshot can be ahead of a clock that hasn't caught up yet.
+  history.history.PruneOlderThan([current_tick, retention_ticks](const TimestampedSnapshot& old_entry) {
+    return current_tick > old_entry.tick && current_tick - old_entry.tick > retention_ticks;
+  });
+}
+
 void CaptureSnapshot(
     flecs::world world, const SimulationClock& clock, const SnapshotCaptureRate& rate, WorldSnapshotHistory& history) {
   const std::optional<uint64_t> interval_ticks = SnapshotIntervalTicks(world);
@@ -31,6 +40,7 @@ void CaptureSnapshot(
   if (!interval_ticks || !retention_ticks || rate.per_interval == 0) {
     return;
   }
+  PruneSnapshots(clock.tick, *retention_ticks, history);
   const uint64_t capture_ticks = *interval_ticks / rate.per_interval;
   if (capture_ticks == 0 || clock.tick % capture_ticks != 0) {
     return;
@@ -46,13 +56,6 @@ void CaptureSnapshot(
   }
   history.capture_error.reset();
   history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
-
-  const uint64_t current_tick = clock.tick;
-  // A catch-up's snapshot can be ahead of a clock that hasn't caught up yet.
-  auto is_too_old = [current_tick, retention_ticks = *retention_ticks](const TimestampedSnapshot& old_entry) {
-    return current_tick > old_entry.tick && current_tick - old_entry.tick > retention_ticks;
-  };
-  history.history.PruneOlderThan(is_too_old);
 }
 
 }  // namespace

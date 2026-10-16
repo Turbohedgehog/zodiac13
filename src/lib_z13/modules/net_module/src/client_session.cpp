@@ -118,8 +118,16 @@ void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
 
 void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& sequenced) {
   auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  // Only FinalizeLateInput sends a player its own records: releases of what it held while its input
+  // didn't arrive. A key still down is then recorded as pressed again.
+  const bool own = sequenced.player_id == world.get<z13::gameplay::LocalPlayer>().id;
+  auto& last_recorded = world.get_mut<z13::gameplay::LastRecordedActionValues>().values;
   for (const fbs::net::CommandWire& command : sequenced.commands) {
-    QueueInOrder(queue, FromWire(command, sequenced.base_tick, sequenced.player_id));
+    const z13::gameplay::PlayerActionRecord record = FromWire(command, sequenced.base_tick, sequenced.player_id);
+    QueueInOrder(queue, record);
+    if (own) {
+      last_recorded.insert_or_assign(record.action_id, record.value);
+    }
   }
   ConfirmInputThrough(world, sequenced.player_id, sequenced.through_tick);
 }
@@ -159,7 +167,9 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
     earliest = std::min({earliest.value_or(moved.tick), move.from_tick(), moved.tick});
   }
   if (earliest && *earliest < now && *earliest > 0) {
-    ft::DeferRollback(world, *earliest - 1);
+    // A record moved from before the oldest snapshot (a catch-up's base, sent while awaiting it) is
+    // already absent from that snapshot, the server's state: replaying from it is enough (Н4).
+    ft::DeferRollback(world, std::max(*earliest - 1, OldestSnapshotTick(world).value_or(*earliest - 1)));
   }
 }
 
@@ -204,9 +214,17 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       },
       [world, welcomed](const fbn::StateDigestT& digest) {
         auto& digests = world.get_mut<StateDigests>();
-        if (welcomed && !digests.awaiting_resync) {
-          digests.received.push_back(digest);
+        if (!welcomed || digests.awaiting_resync) {
+          return;
         }
+        // The server's final confirmations: the digest is compared once their rollbacks land.
+        const uint32_t local_id = *world.get<z13::gameplay::LocalPlayer>().id;
+        for (const fbn::PlayerTickWire& through : digest.input_through) {
+          if (through.player_id() != local_id) {
+            ConfirmInputThrough(world, through.player_id(), through.tick());
+          }
+        }
+        digests.received.push_back(digest);
       },
       [](const auto&) {},
   });

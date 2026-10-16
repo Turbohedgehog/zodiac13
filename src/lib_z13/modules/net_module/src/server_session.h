@@ -30,6 +30,7 @@
 #include <net_module/transport.h>
 
 #include "net_session.h"
+#include "wire_records.h"
 
 namespace z13::net {
 
@@ -74,6 +75,14 @@ struct ScheduledCommandTick {
   bool moved {};
 };
 
+// Per player, the CommandBatch.through_tick last received: unlike ConfirmedInputTicks, never raised
+// by FinalizeLateInput, so it tells a client which of its own records the server had.
+struct ReceivedInputTicks {
+  using Singleton = void;
+  using SessionScoped = void;
+  PlayerTicks by_player;
+};
+
 // The newest tick each client's action is scheduled for, so a moved command keeps its order.
 struct LastCommandTicks {
   using Singleton = void;
@@ -82,5 +91,10 @@ struct LastCommandTicks {
 };
 
 Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters);
+
+// Makes the ticks before the late window final for every player: no command can land there any
+// more, so a player whose input stopped short of them gets the actions it held released there
+// (sent to everyone, its owner too) and is confirmed up to the window (docs/net-core.md, Н1).
+void FinalizeLateInput(NetSession& session, flecs::world world);
 
 }  // namespace z13::net

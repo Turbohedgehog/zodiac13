@@ -385,11 +385,11 @@ class ConvergenceTest : public ::testing::TestWithParam<std::tuple<Scenario, uin
 
   static void ExpectReproduces(Z13TestWorld& world, const std::string& who, uint64_t tick) {
     const std::string before = SnapshotJson(world, tick);
-    // Not older than the log: snapshots are pruned on capture ticks only (docs/net-core.md, Н8).
-    const uint64_t log_start = world.World().get<z13::gameplay::PlayerActionLog>().retained_since_tick;
+    // The frame that applies the rollback prunes first: the oldest snapshot that frame still keeps.
+    const uint64_t kept_from = world.World().get<z13::gameplay::PlayerActionLog>().retained_since_tick + 1;
     std::optional<uint64_t> oldest;
     for (const ft::TimestampedSnapshot& entry : History(world)) {
-      if (entry.tick >= log_start && entry.tick < oldest.value_or(entry.tick + 1)) {
+      if (entry.tick >= kept_from && entry.tick < oldest.value_or(entry.tick + 1)) {
         oldest = entry.tick;
       }
     }
@@ -436,16 +436,12 @@ const Scenario kClockJumps {.name = "ClockJumps", .clock_jumps = true};
 
 // About half a minute each in Debug: one seed per scenario in every run.
 INSTANTIATE_TEST_SUITE_P(
-    Site, ConvergenceTest, ::testing::Combine(::testing::Values(kPlay, kClockJumps), ::testing::Values(1u)),
+    Site, ConvergenceTest, ::testing::Combine(::testing::Values(kPlay, kStalls, kClockJumps), ::testing::Values(1u)),
     ScenarioName);
 // More seeds, --gtest_also_run_disabled_tests.
 INSTANTIATE_TEST_SUITE_P(
     DISABLED_SiteSeeds, ConvergenceTest,
-    ::testing::Combine(::testing::Values(kPlay, kClockJumps), ::testing::Values(2u, 3u, 4u)), ScenarioName);
-// Stalls diverge until Н1 of docs/net-core.md is fixed (seed 1 in Release, seed 2 in Debug).
-INSTANTIATE_TEST_SUITE_P(
-    DISABLED_SiteStalls, ConvergenceTest, ::testing::Combine(::testing::Values(kStalls), ::testing::Values(1u, 2u, 3u, 4u)),
-    ScenarioName);
+    ::testing::Combine(::testing::Values(kPlay, kStalls, kClockJumps), ::testing::Values(2u, 3u, 4u)), ScenarioName);
 
 }  // namespace
 }  // namespace z13::net

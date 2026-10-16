@@ -33,6 +33,7 @@
 #include <net_module/state_digest.h>
 #include <z13/components/action_id.h>
 
+#include "remote_input.h"
 #include "scheduled_commands.h"
 #include "wire_records.h"
 
@@ -69,13 +70,15 @@ std::vector<z13::gameplay::PlayerActionRecord> HeldValues(flecs::world world, ui
   return held;
 }
 
-// Old enough for a rollback to any command still accepted or awaiting replay.
+// Old enough for a rollback to any command still accepted or awaiting replay, and final: every
+// player is confirmed through it, so no confirmation can reach behind it (docs/net-core.md, Н4).
 const ft::TimestampedSnapshot& CatchUpBase(
     const ft::WorldSnapshotHistory& history, uint64_t now, std::optional<uint64_t> deferred_rollback_tick,
-    uint64_t max_late_ticks) {
+    uint64_t max_late_ticks, std::optional<uint64_t> all_confirmed) {
   const auto& entries = history.history.Entries();
   const auto settled = std::ranges::find_last_if(entries, [&](const ft::TimestampedSnapshot& entry) {
-    return entry.tick + max_late_ticks < now && entry.tick <= deferred_rollback_tick.value_or(entry.tick);
+    return entry.tick + max_late_ticks < now && entry.tick <= deferred_rollback_tick.value_or(entry.tick) &&
+           entry.tick <= all_confirmed.value_or(entry.tick);
   });
   return settled.empty() ? entries.front() : settled.front();
 }
@@ -95,15 +98,16 @@ std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flec
     catch_up->snapshot = ToWire(*snapshot);
     catch_up->snapshot_tick = catch_up->server_tick;
   } else {
-    const ft::TimestampedSnapshot& base = CatchUpBase(
-        history, catch_up->server_tick, ft::DeferredRollbackTick(world), world.get<NetTuning>().max_late_ticks);
+    const ft::TimestampedSnapshot& base =
+        CatchUpBase(history, catch_up->server_tick, ft::DeferredRollbackTick(world), world.get<NetTuning>().max_late_ticks,
+                    AllConfirmedThrough(world.get<z13::gameplay::ConfirmedInputTicks>()));
     catch_up->snapshot = ToWire(base.snapshot);
     catch_up->snapshot_tick = base.tick;
     catch_up->actions = ToWire(ActionsSince(world, base.tick));
   }
   catch_up->held_values = ToWire(HeldValues(world, catch_up->snapshot_tick));
   catch_up->pending = ToWire(world.get<z13::gameplay::ScheduledCommands>().records);
-  catch_up->input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>());
+  catch_up->input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>().by_player);
   return catch_up;
 }
 
