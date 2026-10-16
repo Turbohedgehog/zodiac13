@@ -164,6 +164,7 @@ Status HandleClientHello(
   allocator.next_player_id = counters.last_player_id = player_id + 1;
 
   session.BindPlayer(connection, player_id);
+  log_info("NetSession(server): connection {} joins as player {}", connection, player_id);
   return SendWelcome(session, world, connection, player_id, std::move(*action_ids)).and_then([&] {
     return SchedulePlayerJoined(session, world, player_id);
   });
@@ -352,6 +353,7 @@ Status ServiceServerSession(flecs::world world, NetSession& session, z13::gamepl
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:
+        log_info("NetSession(server): connection {} opened", event.connection);
         session.AddConnection(event.connection);
         break;
       case TransportEventKind::kDisconnected:

@@ -48,6 +48,7 @@ NET_SIM_EVENTS = {
     "resyncs": ("resyncing", True),
     "digest mismatches": ("state digest mismatch", True),
     "lost connections": ("the server closed the connection", True),
+    "failed joins": ("disconnected before joining", True),
     "late commands moved": ("late or early commands", False),
     "errors": ("[error]", True),
 }
@@ -95,10 +96,11 @@ def stop(process: subprocess.Popen) -> int:
 
 def summarize(logs: list) -> bool:
   failed = False
-  for log, code in logs:
+  for log, code, is_client in logs:
     text = log.read_text(errors="replace")
     counts = {name: text.count(pattern) for name, (pattern, _) in NET_SIM_EVENTS.items()}
     bad = code != 0 or any(counts[name] for name, (_, fails) in NET_SIM_EVENTS.items() if fails)
+    bad |= is_client and not counts["joined"]
     failed |= bad
     listed = ", ".join(f"{name} {count}" for name, count in counts.items() if count)
     print(f"{'FAIL' if bad else 'ok  '} {log.name}: exit {code}" + (f", {listed}" if listed else ""))
@@ -136,8 +138,8 @@ def net_sim(game: Path, game_dir: Path, options: argparse.Namespace, extra: list
     except subprocess.TimeoutExpired:
       print(f"{log.name} still running after {options.timeout} s, stopping it")
       code = stop(process)
-    results.append((log, code))
-  results.insert(0, (server_log, stop(server)))
+    results.append((log, code, True))
+  results.insert(0, (server_log, stop(server), False))
   passed = summarize(results)
   for dump in sorted(logs.glob(DIVERGENCE_FILES)):
     print(f"diverged state: {dump}")

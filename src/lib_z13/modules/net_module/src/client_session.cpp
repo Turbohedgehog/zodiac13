@@ -246,6 +246,7 @@ void ServiceClientSession(flecs::world world, NetSession& session) {
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:
+        log_info("NetSession(client): connected, saying hello");
         session.AddConnection(event.connection);
         session.SetServerConnection(event.connection);
         SendClientHello(world, session, event.connection);

@@ -28,6 +28,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/input_state.h>
+#include <z13/components/net.h>
 #include <z13/components/player.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
@@ -76,9 +77,26 @@ void ApplyStep(flecs::world world, const ScriptStep& step, z13::input::InputStat
   }
 }
 
+// A session that ended before the script did leaves nothing to play, and nobody to see a menu.
+bool SessionEnded(flecs::world world) {
+  if (!world.has<z13::net::ConnectionStatus>()) {
+    return false;
+  }
+  const auto& status = world.get<z13::net::ConnectionStatus>();
+  if (status.state != z13::net::ConnectionState::kFailed && status.state != z13::net::ConnectionState::kDisconnected) {
+    return false;
+  }
+  log_error("Input script: the session ended before the script did: {}", status.reason);
+  z13::ShutdownCore(world, 1);
+  return true;
+}
+
 void PlayScript(flecs::iter& it, size_t, ScriptedInput& script, z13::input::InputState& input_state,
                 const z13::flecs_tools::SimulationClock& clock) {
   flecs::world world = it.world();
+  if (SessionEnded(world)) {
+    return;
+  }
   if (!script.start_tick) {
     if (!LocalPlayerInGame(world)) {
       return;
