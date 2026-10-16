@@ -307,7 +307,7 @@ void RegisterSystems(flecs::world world) {
   world.system("PhysicsSystem::ReconcilePhysicsWorld")
       .kind<z13::gameplay::PreUpdatePhase>()
       .immediate()
-      .each([world]() { ReconcilePhysicsWorld(world); });
+      .run([](flecs::iter& it) { ReconcilePhysicsWorld(it.world()); });
 
   world.system<PhysicsWorld>("PhysicsSystem::StepPhysicsWorld")
       .kind<PhysicsStepPhase>()

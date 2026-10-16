@@ -27,21 +27,25 @@
 namespace z13::net {
 
 struct HeardServer {
+  // Its endpoint is chosen from `addresses` when listed.
   FoundServer server;
-  uint64_t heard_at_ms {};
+  // Each address it answered from, at its game port, with when it was last heard there.
+  std::unordered_map<Endpoint, uint64_t, EndpointHash> addresses;
 };
 
-// The servers that answered a Join window's queries, by their game address.
+// The servers that answered a Join window's queries, one per server (ServerInfo::instance_id)
+// however many of this machine's networks reach it.
 class ServerFinder {
  public:
   // `from` is where the answer came from; `now_ms` on the clock the query was sent by.
   void Record(const Endpoint& from, const ServerInfo& info, uint64_t now_ms);
   void Forget(uint64_t now_ms, uint64_t after_ms);
-  // By name, then address.
+  // By name, then address; a server is joined at its loopback address if it has one, else at
+  // its lowest, so the row doesn't jump between addresses.
   std::vector<FoundServer> Servers() const;
 
  private:
-  std::unordered_map<Endpoint, HeardServer, EndpointHash> heard_;
+  std::unordered_map<uint64_t, HeardServer> heard_;
 };
 
 }  // namespace z13::net

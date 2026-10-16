@@ -30,6 +30,8 @@ inline constexpr std::string_view kStationDir = "station";
 inline constexpr std::string_view kPaletteFileName = "palette.json";
 inline constexpr std::string_view kBlueprintsDir = "blueprints";
 inline constexpr std::string_view kBlueprintExtension = ".json";
+// The largest shipped station, offered first.
+inline constexpr std::string_view kFeaturedScene = "spire";
 
 // Station asset files, relative to assets/.
 std::filesystem::path PaletteFile();

@@ -34,12 +34,14 @@ constexpr size_t kMaxClients = 32;
 
 // Binds and listens on `port`; error if the port is taken or ENet fails to init.
 std::expected<std::unique_ptr<Transport>, std::string> CreateEnetServerTransport(
-    uint16_t port, size_t max_clients = kMaxClients);
+    uint16_t port, size_t max_clients = kMaxClients, z13::SessionTimeoutConfig session_timeout = {});
 
 // Starts an outgoing (non-blocking) connection to `server`; the outcome is a
 // kConnected/kDisconnected event from the first Service() call, not the return
-// value -- mirrors ENet's own async connect.
+// value -- mirrors ENet's own async connect. `session_timeout` replaces `connect_timeout` once
+// connected.
 std::expected<std::unique_ptr<Transport>, std::string> CreateEnetClientTransport(
-    const Endpoint& server, z13::ConnectTimeoutConfig connect_timeout = {});
+    const Endpoint& server, z13::ConnectTimeoutConfig connect_timeout = {},
+    z13::SessionTimeoutConfig session_timeout = {});
 
 }  // namespace z13::net

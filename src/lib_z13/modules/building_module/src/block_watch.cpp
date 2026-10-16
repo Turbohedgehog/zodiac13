@@ -37,18 +37,17 @@ int WalkAndCount(flecs::query<T>& query) {
 }  // namespace
 
 BlockWatch::BlockWatch(flecs::world world)
-    : world_(world),
-      blocks_(world.query_builder<const z13::station::Block>("BlockWatch::Blocks").detect_changes().build()),
+    : blocks_(world.query_builder<const z13::station::Block>("BlockWatch::Blocks").detect_changes().build()),
       spawn_points_(
           world.query_builder<const z13::station::SpawnPoint>("BlockWatch::SpawnPoints").detect_changes().build()) {}
 
-bool BlockWatch::Unchanged() {
+bool BlockWatch::Unchanged(flecs::world world) {
   // Before the walk, which resets it (count() doesn't).
   const bool changed = blocks_.changed() || spawn_points_.changed();
   const BlockWatchSeen seen {
       .blocks = WalkAndCount(blocks_),
       .spawn_points = WalkAndCount(spawn_points_),
-      .chunk_cells = world_.get<z13::BuildingTuning>().index_chunk_cells,
+      .chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells,
   };
   const bool unchanged = !changed && last_ == seen;
   last_ = seen;

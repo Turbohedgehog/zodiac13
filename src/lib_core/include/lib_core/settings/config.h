@@ -76,6 +76,11 @@ class Config {
   // --connect host[:port]: join that endpoint on startup instead of showing the
   // main menu. std::nullopt when not given.
   std::optional<Endpoint> GetConnectEndpoint() const;
+  // --headless: with --connect, a client without a window, on the server's module list.
+  bool IsHeadless() const;
+  // --input-script PATH: input played once the local player is in the game (z13_module's
+  // ScriptedInputSystem). std::nullopt when not given.
+  std::optional<std::filesystem::path> GetInputScriptPath() const;
 
  private:
   Status ValidateAndApplyArguments();
@@ -101,6 +106,8 @@ class Config {
     std::vector<CameraPose> render_tour_views;
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
+    bool headless {};
+    std::optional<std::filesystem::path> input_script;
   };
   CommandLine command_line_;
 };

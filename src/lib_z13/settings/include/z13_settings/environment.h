@@ -17,8 +17,12 @@
 #pragma once
 
 #include <filesystem>
+#include <string_view>
 
 namespace z13::tools::environment {
+
+// Overrides the data directory (settings, input config, saves) when set.
+constexpr std::string_view kDataDirectoryVariable = "Z13_DATA_DIR";
 
 std::filesystem::path GetGameDataDirectory();
 std::filesystem::path GetGameInputConfigJsonPath();

@@ -17,6 +17,8 @@ z13_add_plugin(
   src/input/action_negotiation.cpp
   src/input/gameplay_input_system.cpp
   src/input/input_config_loader.cpp
+  src/input/input_script.cpp
+  src/input/scripted_input_system.cpp
   src/input/touch_input_system.cpp
   src/state/player_action_recorder.cpp
   src/state/quick_save_input_system.cpp

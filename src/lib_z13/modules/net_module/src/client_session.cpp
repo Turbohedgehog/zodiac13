@@ -17,6 +17,7 @@
 #include "client_session.h"
 
 #include <algorithm>
+#include <format>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,6 +39,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include <net_module/clock_sync.h>
+#include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 #include <net_module/state_digest.h>
 
@@ -94,6 +96,8 @@ void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   if (const Status joined = JoinFromWelcome(world, welcome); !joined) {
     log_warn("NetSession(client): unusable Welcome: {}", joined.error());
     FailSession(world, joined.error());
+  } else {
+    log_info("NetSession(client): joined as player {}", welcome.player_id);
   }
 }
 
@@ -133,6 +137,8 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
         .action_id = move.action_id(),
         .value = z13::gameplay::DequantizeActionValue(move.value()),
     };
+    log_debug("NetSession(client): the server moved own action {} = {} from tick {} to {} (now {})",
+              moved.action_id, moved.value, move.from_tick(), moved.tick, now);
     // One record, matched by value too: an earlier move may have put another of this action on that tick.
     bool removed = false;
     log.RemoveIf([&](const z13::gameplay::PlayerActionRecord& record) {
@@ -141,6 +147,10 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
       removed = removed || match;
       return match;
     });
+    if (!removed) {
+      log_warn("NetSession(client): no own action {} = {} at tick {} to move", moved.action_id, moved.value,
+               move.from_tick());
+    }
     if (moved.tick > now) {
       QueueInOrder(queue, moved);
     } else {
@@ -206,6 +216,8 @@ void HandleClientDisconnect(flecs::world world) {
   const bool was_connected = world.has<z13::gameplay::Gameplay>();
   EndSession(world);
 
+  log_warn("NetSession(client): {}",
+           was_connected ? "the server closed the connection" : "disconnected before joining");
   if (was_connected) {
     world.remove<z13::gameplay::Gameplay>();
     world.add<z13::gameplay::Pause>();
@@ -240,6 +252,7 @@ void ServiceClientSession(flecs::world world, NetSession& session) {
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:
+        log_info("NetSession(client): connected, saying hello");
         session.AddConnection(event.connection);
         session.SetServerConnection(event.connection);
         SendClientHello(world, session, event.connection);
@@ -264,9 +277,19 @@ void ResyncIfDiverged(flecs::world world, NetSession& session) {
   }
   auto& digests = world.get_mut<StateDigests>();
   bool diverged = false;
-  if (const std::optional<std::string> mismatch = CheckReceivedStateDigests(world, digests)) {
-    log_warn("NetSession(client): {}", *mismatch);
+  fbn::ResyncRequestT request;
+  if (const std::optional<DigestMismatch> mismatch = CheckReceivedStateDigests(world, digests)) {
+    log_warn("NetSession(client): {}", mismatch->description);
     diverged = true;
+    request.diverged_tick = mismatch->tick;
+    // Checked only once joined, so the local player has an id.
+    const uint32_t local_id = world.get<z13::gameplay::LocalPlayer>().id.value();
+    const auto dumped = DumpDivergedTick(world, mismatch->tick, std::format("client_{}", local_id));
+    if (!dumped) {
+      log_warn("NetSession(client): cannot write the diverged tick: {}", dumped.error());
+    } else if (*dumped) {
+      log_info("NetSession(client): wrote {}", (*dumped)->string());
+    }
   }
   if (world.has<ft::RollbackFailed>()) {
     log_warn("NetSession(client): {}", world.get<ft::RollbackFailed>().reason);
@@ -280,7 +303,7 @@ void ResyncIfDiverged(flecs::world world, NetSession& session) {
   digests.awaiting_resync.emplace();
   digests.received.clear();
   Envelope envelope;
-  envelope.body.Set(fbn::ResyncRequestT {});
+  envelope.body.Set(std::move(request));
   session.Send(*server_connection, Channel::kReliable, envelope);
 }
 

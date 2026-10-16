@@ -19,7 +19,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <vector>
+
+#include <lib_core/utils/endpoint.h>
+#include <lib_core/utils/status.h>
 
 namespace z13::net {
 
@@ -40,6 +44,12 @@ struct TransportEvent {
   std::vector<std::byte> data;           // kReceived only
 };
 
+// A UDP datagram outside the game protocol: a query looking for servers (lan_discovery_system.h).
+struct Datagram {
+  Endpoint from;
+  std::vector<uint8_t> bytes;
+};
+
 // One ENet host: either listening for connections (server) or a single outgoing
 // connection (client) -- see enet_transport.h/in_memory_transport.h's factory
 // functions, which decide that at construction. Serviced once per frame from a
@@ -53,6 +63,13 @@ class Transport {
 
   // Pumps the transport and returns every event queued since the last call.
   virtual std::vector<TransportEvent> Service() = 0;
+
+  // Discovery queries that reached a listening transport's port, collected by Service(); a
+  // transport without a socket of its own gets none.
+  virtual std::vector<Datagram> TakeDatagrams() { return {}; }
+  virtual Status SendDatagram(const Endpoint& /*to*/, std::span<const uint8_t> /*bytes*/) {
+    return std::unexpected(std::string("this transport has no socket"));
+  }
 };
 
 }  // namespace z13::net

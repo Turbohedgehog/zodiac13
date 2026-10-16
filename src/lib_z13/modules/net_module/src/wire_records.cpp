@@ -73,6 +73,22 @@ std::expected<CommandRun, std::string> ToCommandRun(
   return run;
 }
 
+std::vector<fbs::net::PlayerTickWire> ToWire(const z13::gameplay::ConfirmedInputTicks& confirmed) {
+  std::vector<fbs::net::PlayerTickWire> wire;
+  std::ranges::transform(confirmed.by_player, std::back_inserter(wire), [](const auto& entry) {
+    return fbs::net::PlayerTickWire(entry.first, entry.second);
+  });
+  return wire;
+}
+
+z13::gameplay::ConfirmedInputTicks FromWire(const std::vector<fbs::net::PlayerTickWire>& wire) {
+  z13::gameplay::ConfirmedInputTicks confirmed;
+  for (const fbs::net::PlayerTickWire& through : wire) {
+    confirmed.by_player.insert_or_assign(through.player_id(), through.tick());
+  }
+  return confirmed;
+}
+
 z13::gameplay::PlayerActionRecord FromWire(
     const fbs::net::CommandWire& command, uint64_t base_tick, uint32_t player_id) {
   return {

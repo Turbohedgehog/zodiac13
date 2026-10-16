@@ -65,7 +65,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
     return;
   }
 
-  auto transport = factories.server(port);
+  auto transport = factories.server(port, world.get<z13::SessionTimeout>());
   if (!transport) {
     log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
     SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
@@ -83,6 +83,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
   world.set<NetSession>(std::move(session));
   world.set<ServerRole>({.port = port});
   SetConnectionStatus(world, ConnectionState::kConnected);
+  log_info("NetSession(server): listening on port {}", port);
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
 }
@@ -99,8 +100,7 @@ void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportF
   world.add<ClientRole>();
   SetConnectionStatus(world, ConnectionState::kConnecting);
 
-  const z13::ConnectTimeoutConfig timeout = world.get<z13::ConnectTimeout>();
-  auto transport = factories.client(request.endpoint, timeout);
+  auto transport = factories.client(request.endpoint, world.get<z13::ConnectTimeout>(), world.get<z13::SessionTimeout>());
   if (!transport) {
     SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
     world.remove<ClientRole>();
@@ -183,7 +183,7 @@ void ServiceNetSession(flecs::world world) {
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
       NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, LastCommandTicks, PlayerIdAllocator, StateDigests,
-      NetTuning, z13::ConnectTimeout, AdoptedSettings>(world);
+      NetTuning, z13::ConnectTimeout, z13::SessionTimeout, AdoptedSettings>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -197,6 +197,7 @@ void RegisterSystems(flecs::world world) {
   // The launcher overwrites these with the loaded settings (z13::InstallSettings).
   world.set<NetTuning>({});
   world.set<z13::ConnectTimeout>({});
+  world.set<z13::SessionTimeout>({});
   RegisterStateDigestSystems(world);
 
   world.observer<StartServerRequest, const TransportFactories>("NetSessionSystem::OnStartServerRequest")
@@ -217,7 +218,7 @@ void RegisterSystems(flecs::world world) {
   world.system("NetSessionSystem::Service")
       .kind(flecs::PreFrame)
       .immediate()
-      .each([world]() { ServiceNetSession(world); });
+      .run([](flecs::iter& it) { ServiceNetSession(it.world()); });
 
   // PostFrame like the interval capture, so the snapshot's state and clock agree.
   world.system<ft::WorldSnapshotHistory, const ft::SimulationClock>("NetSessionSystem::EnsureBaselineSnapshot")

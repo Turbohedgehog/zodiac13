@@ -94,6 +94,7 @@ TEST(SettingsLoaderTest, JumpThresholdBelowCatchUpThresholdIsRejected) {
 
 TEST(SettingsLoaderTest, InvertedConnectTimeoutIsRejected) {
   EXPECT_FALSE(ParseSettings(R"({"connect_timeout": {"min_timeout_ms": 5000, "max_timeout_ms": 1000}})").has_value());
+  EXPECT_FALSE(ParseSettings(R"({"session_timeout": {"min_timeout_ms": 5000, "max_timeout_ms": 1000}})").has_value());
 }
 
 TEST(SettingsLoaderTest, SpawnClearanceBelowTheSpawnHeightIsRejected) {

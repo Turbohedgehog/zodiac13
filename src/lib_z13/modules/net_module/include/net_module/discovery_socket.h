@@ -25,23 +25,19 @@
 
 #include <lib_core/utils/endpoint.h>
 #include <lib_core/utils/status.h>
+#include <net_module/transport.h>
 
 namespace z13::net {
 
 class EnetLifetime;
 
-struct Datagram {
-  Endpoint from;
-  std::vector<uint8_t> bytes;
-};
-
-// A non-blocking UDP socket for finding servers (ENet's, no other dependency), polled once a
-// frame. Move-only: it closes its socket.
+// A Join window's non-blocking UDP socket for finding servers (ENet's, no other dependency),
+// polled once a frame; servers answer on their game port (Transport::TakeDatagrams).
+// Move-only: it closes its socket.
 class DiscoverySocket {
  public:
-  // Bound on every interface to `port`, or any free port for 0; `broadcast` lets it send to
-  // kBroadcastHost.
-  static std::expected<DiscoverySocket, std::string> Open(uint16_t port, bool broadcast);
+  // Bound on every interface to a free port, allowed to send to kBroadcastHost.
+  static std::expected<DiscoverySocket, std::string> Open();
 
   DiscoverySocket(DiscoverySocket&& other) noexcept;
   DiscoverySocket& operator=(DiscoverySocket&& other) noexcept;

@@ -794,7 +794,8 @@ void RegisterSystems(flecs::world world) {
       // Only RaylibData's arrival loads.
       .term_at(1).filter()
       .yield_existing()
-      .each([world](RaylibData&, const z13::Assets& assets) {
+      .each([](flecs::iter& it, size_t, RaylibData&, const z13::Assets& assets) {
+        flecs::world world = it.world();
         Lighting lighting = LoadLighting(assets.source);
         world.set<AvatarModel>(LoadAvatar(lighting));
         const ::Shader shader = lighting.res ? *lighting.res->shader : ::Shader {};
@@ -915,8 +916,9 @@ void RegisterSystems(flecs::world world) {
       .tick_source<RenderGate>()
       .with<z13::input::CurrentActionListenerTag>()
       .write<RaylibWindowClosed>()
-      .each([world](RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
-                    const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+      .each([](flecs::iter& it, size_t, RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
+               const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+        flecs::world world = it.world();
         const TourFrame frame {
             .stats = stats,
             .rooms = CurrentRooms(rooms),
@@ -935,11 +937,12 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
-      .each([world, brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
-                const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
+      .each([brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
+                flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
                 const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
                 ShadowMaps* shadows) {
+        flecs::world world = it.world();
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);
 

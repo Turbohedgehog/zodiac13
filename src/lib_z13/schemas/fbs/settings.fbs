@@ -29,6 +29,14 @@ table ConnectTimeout {
   max_timeout_ms: uint32 = 3000 (min: 1, cli: "--connect-max-timeout-ms");
 }
 
+// ENet's timeouts on a connected peer, both sides. Past ENet's own (5 s, 30 s): the other side
+// stalls on a long frame, such as a station's first build in Debug (over 11 s).
+table SessionTimeout {
+  limit: uint32 = 32 (min: 1, cli: "--session-limit");
+  min_timeout_ms: uint32 = 20000 (min: 1, cli: "--session-min-timeout-ms");
+  max_timeout_ms: uint32 = 60000 (min: 1, cli: "--session-max-timeout-ms");
+}
+
 // How remote entities are drawn chasing their simulated pose (client only, never sent).
 table VisualSmoothing {
   smooth_time_seconds: float = 0.1 (min: 0, max: 2, cli: "--visual-smooth-time");
@@ -107,8 +115,6 @@ table TouchLayout {
 
 // Finding servers on the LAN (client and server; docs/server-plan.md, "Поиск сервера").
 table LanDiscovery {
-  // The game's port plus one by default (lib_core's kDefaultServerPort).
-  port: uint32 = 26214 (min: 1, max: 65535, cli: "--discovery-port");
   // Shown in other players' Join windows.
   server_name: string = "Zodiac13 server" (non_empty);
   // How often an open Join window asks again.
@@ -122,6 +128,7 @@ table LanDiscovery {
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
+  session_timeout: SessionTimeout;
   net: z13.fbs.net.NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;

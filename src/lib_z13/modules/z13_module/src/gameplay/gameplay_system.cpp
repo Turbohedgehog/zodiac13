@@ -93,7 +93,6 @@ void RegisterSystems(flecs::world world) {
   world.observer<gameplay::Gameplay>("GameplaySystem::OnInit")
     .event(flecs::OnAdd)
     .yield_existing()
-    // .each([world](const auto& gameplay) { OnInit(world, gameplay); });
     .each(OnInit);
 
   // Gameplay marks "a scene exists"; removing it (exit to main menu) destroys the scene.
@@ -104,9 +103,9 @@ void RegisterSystems(flecs::world world) {
   world.observer<const WindowFocusEvent>("WindowFocusEvent::OnSet")
     .event(flecs::OnSet)
     .yield_existing()
-    .each([world](const auto& window_focus_event) {
+    .each([](flecs::iter& it, size_t, const WindowFocusEvent& window_focus_event) {
       if (!window_focus_event.has_focus) {
-        world.add<Pause>();
+        it.world().add<Pause>();
       }
     });
 

@@ -43,6 +43,14 @@ std::vector<TransportEvent> NetSession::Service() {
   return state_->transport->Service();
 }
 
+std::vector<Datagram> NetSession::TakeDatagrams() {
+  return state_->transport->TakeDatagrams();
+}
+
+Status NetSession::SendDatagram(const Endpoint& to, std::span<const uint8_t> bytes) {
+  return state_->transport->SendDatagram(to, bytes);
+}
+
 void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
   state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));

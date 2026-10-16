@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <net_module/protocol.h>
@@ -38,6 +39,9 @@ class NetSession {
   // The calls below need an open session: one is in the world only while open (EndSession).
 
   std::vector<TransportEvent> Service();
+  // A server's discovery queries and its answers to them (Transport::TakeDatagrams).
+  std::vector<Datagram> TakeDatagrams();
+  Status SendDatagram(const Endpoint& to, std::span<const uint8_t> bytes);
 
   void Send(ConnectionId connection, Channel channel, const Envelope& envelope);
   // Every tracked connection (AddConnection) except `except`, if given.

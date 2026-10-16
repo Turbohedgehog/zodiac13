@@ -9,6 +9,7 @@
     },
     "bullet3",
     "enet",
+    "libuv",
     "boost-program-options",
     "boost-dll",
     "boost-multi-index",
@@ -102,6 +103,10 @@
     {
       "name": "enet",
       "version": "1.3.18"
+    },
+    {
+      "name": "libuv",
+      "version": "1.52.1"
     },
     {
       "name": "reflectcpp",

@@ -260,6 +260,18 @@ TEST_F(BlockChangeReaderTest, OnlyARestoreThatChangedBlocksResyncs) {
   EXPECT_TRUE(reader_.Read(2, 3).resync);
 }
 
+// A rollback restores an earlier tick's snapshot: with the same blocks, nothing is rebuilt.
+TEST_F(BlockChangeReaderTest, ARollbackThatKeptTheBlocksDoesntResync) {
+  constexpr uint64_t kNow = 10;
+  constexpr uint64_t kRestoredTick = 4;
+  SpawnBlock(world_.entity(), wall_);
+  ASSERT_TRUE(reader_.Read(0, kNow).resync);
+  Clear();
+
+  EXPECT_FALSE(reader_.Read(1, kRestoredTick + 1).resync);
+  EXPECT_FALSE(reader_.Read(1, kRestoredTick + 2).resync);
+}
+
 // What the systems see comes only through SpawnBlock and DestroyBlock: a block moved past
 // them stays where it was for them, and the check above tells.
 TEST(BlockChangeTest, ABlockMovedPastTheFunctionsIsCaught) {

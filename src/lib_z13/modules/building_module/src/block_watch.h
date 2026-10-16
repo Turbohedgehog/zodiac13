@@ -41,10 +41,9 @@ class BlockWatch {
  public:
   explicit BlockWatch(flecs::world world);
 
-  bool Unchanged();
+  bool Unchanged(flecs::world world);
 
  private:
-  flecs::world world_;
   flecs::query<const z13::station::Block> blocks_;
   flecs::query<const z13::station::SpawnPoint> spawn_points_;
   std::optional<BlockWatchSeen> last_;

@@ -36,6 +36,7 @@ namespace z13 {
 // Fields and defaults: schemas/fbs/settings.fbs (the game's settings.json). The nested
 // tables are pointers in the object API: build with MakeSettings() so they are always set.
 using ConnectTimeoutConfig = fbs::settings::ConnectTimeoutT;
+using SessionTimeoutConfig = fbs::settings::SessionTimeoutT;
 using Settings = fbs::settings::SettingsT;
 
 // A table's object API values with the schema's defaults, strings included: flatc's own
@@ -56,6 +57,13 @@ struct ConnectTimeout : ConnectTimeoutConfig {
 
   ConnectTimeout() = default;
   explicit ConnectTimeout(const ConnectTimeoutConfig& values) : ConnectTimeoutConfig(values) {}
+};
+
+struct SessionTimeout : SessionTimeoutConfig {
+  using Singleton = void;
+
+  SessionTimeout() = default;
+  explicit SessionTimeout(const SessionTimeoutConfig& values) : SessionTimeoutConfig(values) {}
 };
 
 struct VisualSmoothing : fbs::settings::VisualSmoothingT {
@@ -128,7 +136,7 @@ Status AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, VisualSmoothing,
+// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
 // RenderTuning, TouchLayout and LanDiscoverySettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 

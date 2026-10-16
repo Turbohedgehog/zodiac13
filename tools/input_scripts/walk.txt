@@ -1,0 +1,16 @@
+# A player walking about the spawn point for 20 s at 60 Hz, then leaving (z13.py --net-sim).
+# TICK ACTION, the tick counted from joining; see --input-script in `zodiac13 --help`.
+0 KEY_W down
+120 KEY_W up
+120 turn 90 0
+130 KEY_W down
+250 KEY_W up
+260 KEY_SPACE down
+262 KEY_SPACE up
+300 turn -180 0
+310 KEY_W down
+430 KEY_W up
+440 KEY_D down
+560 KEY_D up
+600 turn 45 -10
+1200 quit

@@ -38,6 +38,7 @@
 #include <z13_module/input/action_negotiation.h>
 #include <z13_settings/settings.h>
 
+#include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 
 #include "catch_up.h"
@@ -163,17 +164,28 @@ Status HandleClientHello(
   allocator.next_player_id = counters.last_player_id = player_id + 1;
 
   session.BindPlayer(connection, player_id);
+  log_info("NetSession(server): connection {} joins as player {}", connection, player_id);
   return SendWelcome(session, world, connection, player_id, std::move(*action_ids)).and_then([&] {
     return SchedulePlayerJoined(session, world, player_id);
   });
 }
 
-Status HandleResyncRequest(NetSession& session, flecs::world world, ConnectionId connection) {
-  if (!session.PlayerIdFor(connection)) {
+Status HandleResyncRequest(
+    NetSession& session, flecs::world world, ConnectionId connection, const fbn::ResyncRequestT& request) {
+  const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
+  if (!player_id) {
     log_warn("NetSession(server): ignoring a ResyncRequest from an unwelcomed connection {}", connection);
     return {};
   }
   log_info("NetSession(server): resyncing connection {}", connection);
+  if (request.diverged_tick) {
+    const auto dumped = DumpDivergedTick(world, *request.diverged_tick, std::format("server_for_{}", *player_id));
+    if (!dumped) {
+      log_warn("NetSession(server): cannot write the diverged tick: {}", dumped.error());
+    } else if (*dumped) {
+      log_info("NetSession(server): wrote {}", (*dumped)->string());
+    }
+  }
   auto catch_up = MakeCatchUp(world);
   if (!catch_up) {
     return std::unexpected(catch_up.error());
@@ -252,6 +264,8 @@ void HandleCommandBatch(
         window, record.tick, IsAbsoluteAction(action_map, record.action_id),
         last == last_ticks.end() ? std::nullopt : std::optional(last->second));
     if (scheduled.moved) {
+      log_debug("NetSession(server): moved action {} = {} of player {} from tick {} to {} (now {})", record.action_id,
+                record.value, *player_id, record.tick, scheduled.tick, now);
       retimed.moves.emplace_back(record.tick, scheduled.tick, command.action_id(), command.value());
       record.tick = scheduled.tick;
     }
@@ -294,6 +308,7 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
   if (!player_id) {
     return;  // never completed the handshake
   }
+  log_info("NetSession(server): player {} left (connection {})", *player_id, connection);
   std::erase_if(world.get_mut<LastCommandTicks>().by_action, [&](const auto& entry) {
     return entry.first.player_id == *player_id;
   });
@@ -323,7 +338,9 @@ Status HandleServerReceived(
         HandlePing(session, world, connection, ping);
         return Status {};
       },
-      [&](const fbn::ResyncRequestT&) { return HandleResyncRequest(session, world, connection); },
+      [&](const fbn::ResyncRequestT& request) {
+        return HandleResyncRequest(session, world, connection, request);
+      },
       [&](const fbn::CommandBatchT& batch) {
         HandleCommandBatch(session, world, connection, batch);
         return Status {};
@@ -338,6 +355,7 @@ Status ServiceServerSession(flecs::world world, NetSession& session, z13::gamepl
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:
+        log_info("NetSession(server): connection {} opened", event.connection);
         session.AddConnection(event.connection);
         break;
       case TransportEventKind::kDisconnected:

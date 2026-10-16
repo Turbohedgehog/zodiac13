@@ -22,14 +22,13 @@
 #include <ranges>
 #include <tuple>
 
+#include <net_module/discovery_socket.h>
 #include <net_module/protocol.h>
 
 namespace z13::net {
 
 void ServerFinder::Record(const Endpoint& from, const ServerInfo& info, uint64_t now_ms) {
-  const Endpoint game {.host = from.host, .port = info.game_port};
   FoundServer server {
-      .endpoint = game,
       .name = info.name,
       .players = info.players,
       .ping_ms = now_ms >= info.sent_at_ms ? now_ms - info.sent_at_ms : 0,
@@ -40,17 +39,27 @@ void ServerFinder::Record(const Endpoint& from, const ServerInfo& info, uint64_t
   if (info.protocol_version != kProtocolVersion) {
     server.incompatible = std::format("protocol {}, this game's is {}", info.protocol_version, kProtocolVersion);
   }
-  heard_.insert_or_assign(game, HeardServer {.server = std::move(server), .heard_at_ms = now_ms});
+  HeardServer& heard = heard_[info.instance_id];
+  heard.server = std::move(server);
+  heard.addresses.insert_or_assign(Endpoint {.host = from.host, .port = info.game_port}, now_ms);
 }
 
 void ServerFinder::Forget(uint64_t now_ms, uint64_t after_ms) {
-  std::erase_if(heard_, [&](const auto& heard) { return now_ms - heard.second.heard_at_ms >= after_ms; });
+  for (HeardServer& heard : heard_ | std::views::values) {
+    std::erase_if(heard.addresses, [&](const auto& address) { return now_ms - address.second >= after_ms; });
+  }
+  std::erase_if(heard_, [](const auto& heard) { return heard.second.addresses.empty(); });
 }
 
 std::vector<FoundServer> ServerFinder::Servers() const {
   std::vector<FoundServer> servers;
-  std::ranges::transform(heard_ | std::views::values, std::back_inserter(servers),
-                         [](const HeardServer& heard) { return heard.server; });
+  std::ranges::transform(heard_ | std::views::values, std::back_inserter(servers), [](const HeardServer& heard) {
+    FoundServer server = heard.server;
+    server.endpoint = std::ranges::min(heard.addresses | std::views::keys, {}, [](const Endpoint& address) {
+      return std::tuple(address.host != kLoopbackHost, address.host, address.port);
+    });
+    return server;
+  });
   std::ranges::sort(servers, {}, [](const FoundServer& server) {
     return std::tie(server.name, server.endpoint.host, server.endpoint.port);
   });

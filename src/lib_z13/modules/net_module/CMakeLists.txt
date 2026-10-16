@@ -1,6 +1,7 @@
 project(net_module)
 
 find_package(unofficial-enet CONFIG REQUIRED)
+find_package(libuv CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS dll)
 
 # vcpkg's enet links these itself only for MinGW.
@@ -16,6 +17,8 @@ z13_add_plugin(
   src/clock_sync.cpp
   src/discovery_messages.cpp
   src/discovery_socket.cpp
+  src/divergence_dump.cpp
+  src/enet_datagram.cpp
   src/enet_lifetime.cpp
   src/enet_transport.cpp
   src/in_memory_transport.cpp
@@ -25,6 +28,7 @@ z13_add_plugin(
   src/net_module_factory.cpp
   src/net_session.cpp
   src/net_session_system.cpp
+  src/network_interfaces.cpp
   src/protocol.cpp
   src/remote_input.cpp
   src/reply_limiter.cpp
@@ -44,6 +48,7 @@ z13_add_plugin(
   zodiac13::primitives
   zodiac13::z13_module
   unofficial::enet::enet
+  $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
   ${ENET_PLATFORM_LIBS}
   Boost::dll
 )

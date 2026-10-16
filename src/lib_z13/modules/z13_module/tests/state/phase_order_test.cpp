@@ -137,6 +137,25 @@ std::set<std::string> PhasesSharingDepth(flecs::world& world) {
   return clashes;
 }
 
+// A simulation phase sorted past PostFrame by name left the tick's snapshot a tick behind, so a
+// rollback replayed from it diverged (StationSessionTest on spire).
+TEST(PhaseOrderTest, EverySimulationPhaseEndsBeforeTheStateCapture) {
+  Z13TestWorld test_world({std::string(kServerArg)});
+  flecs::world& world = test_world.World();
+  const int32_t pre_store = PhaseDepth(world.entity(flecs::PreStore));
+  std::vector<std::string> late;
+  world.query_builder().with(flecs::Phase).build().each([&](flecs::entity phase) {
+    const std::string path = phase.path().c_str();
+    if (path.starts_with("::flecs::") || phase.has<z13::flecs_tools::PresentationPhase>()) {
+      return;
+    }
+    if (PhaseDepth(phase) >= pre_store) {
+      late.push_back(path);
+    }
+  });
+  EXPECT_TRUE(late.empty()) << "after PreStore: " << ::testing::PrintToString(late);
+}
+
 TEST(PhaseOrderTest, EverySystemHasAtMostOnePhase) {
   Z13TestWorld local;
   EXPECT_EQ(SystemsWithSeveralPhases(local.World()), std::vector<std::string> {});

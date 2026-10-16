@@ -38,8 +38,8 @@ struct GameScene {
   std::optional<z13::station::StationSceneChoice> station;
 };
 
-// The spaceship, the station blueprints under assets/station/blueprints/, then a new, empty
-// station.
+// The featured station (kFeaturedScene) first, then the spaceship, the other station blueprints
+// under assets/station/blueprints/ and a new, empty station.
 std::vector<GameScene> GameScenes(const AssetSource& assets);
 
 // Puts the world in `scene`'s mode (StationMode, StationSceneChoice) for the game to start in.

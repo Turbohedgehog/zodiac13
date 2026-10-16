@@ -37,10 +37,10 @@
 
 namespace z13::net {
 
-using ServerTransportFactory =
-    std::function<std::expected<std::unique_ptr<Transport>, std::string>(uint16_t port)>;
+using ServerTransportFactory = std::function<std::expected<std::unique_ptr<Transport>, std::string>(
+    uint16_t port, z13::SessionTimeoutConfig session_timeout)>;
 using ClientTransportFactory = std::function<std::expected<std::unique_ptr<Transport>, std::string>(
-    const Endpoint& server, z13::ConnectTimeoutConfig connect_timeout)>;
+    const Endpoint& server, z13::ConnectTimeoutConfig connect_timeout, z13::SessionTimeoutConfig session_timeout)>;
 
 class BOOST_SYMBOL_VISIBLE NetModuleFactory : public z13::ModuleFactoryBase {
  public:

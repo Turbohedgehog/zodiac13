@@ -22,6 +22,7 @@
 
 #include <lib_core/utils/endpoint.h>
 #include <net_module/discovery_messages.h>
+#include <net_module/discovery_socket.h>
 #include <net_module/protocol.h>
 #include <net_module/reply_limiter.h>
 #include <net_module/server_finder.h>
@@ -94,6 +95,31 @@ TEST(LanDiscoveryTest, AFoundServerIsJoinedAtItsGamePortAndForgottenWhenSilent) 
   EXPECT_EQ(finder.Servers().size(), 1U);
   finder.Forget(kSentAtMs + kPingMs + kForgetAfterMs, kForgetAfterMs);
   EXPECT_TRUE(finder.Servers().empty());
+}
+
+TEST(LanDiscoveryTest, AServerHeardThroughSeveralAddressesIsOneRow) {
+  constexpr uint64_t kInstance = 42;
+  const Endpoint virtual_network {.host = "192.168.56.1", .port = kGamePort};
+  const Endpoint loopback {.host = std::string(kLoopbackHost), .port = kGamePort};
+  ServerFinder finder;
+  ServerInfo info = Info();
+  info.instance_id = kInstance;
+  finder.Record(virtual_network, info, kSentAtMs);
+  finder.Record(kServerAddress, info, kSentAtMs);
+  finder.Record(loopback, info, kSentAtMs + kPingMs);
+
+  ASSERT_EQ(finder.Servers().size(), 1U);
+  EXPECT_EQ(finder.Servers().front().endpoint, loopback);
+
+  finder.Record(virtual_network, info, kSentAtMs + kForgetAfterMs);
+  finder.Record(kServerAddress, info, kSentAtMs + kForgetAfterMs);
+  finder.Forget(kSentAtMs + kPingMs + kForgetAfterMs, kForgetAfterMs);
+  ASSERT_EQ(finder.Servers().size(), 1U);
+  EXPECT_EQ(finder.Servers().front().endpoint, (Endpoint {.host = kServerAddress.host, .port = kGamePort}));
+
+  info.instance_id = kInstance + 1;
+  finder.Record(kServerAddress, info, kSentAtMs + kForgetAfterMs);
+  EXPECT_EQ(finder.Servers().size(), 2U);
 }
 
 TEST(LanDiscoveryTest, AServerOfAnotherProtocolIsListedAsIncompatible) {

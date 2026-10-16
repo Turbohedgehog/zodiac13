@@ -18,19 +18,24 @@
 
 #include <chrono>
 #include <memory>
+#include <random>
 #include <utility>
 
 #include <flecs.h>
 
+#include <lib_core/settings/config.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 #include <net_module/discovery_messages.h>
+#include <net_module/network_interfaces.h>
 #include <net_module/protocol.h>
 #include <z13/components/net.h>
 #include <z13/components/player.h>
 #include <z13/components/station_mode.h>
 #include <z13_settings/settings.h>
+
+#include "net_session.h"
 
 namespace z13::net {
 
@@ -42,12 +47,14 @@ uint64_t NowMs() {
           .count());
 }
 
-ServerInfo InfoOf(flecs::world world, const LanDiscoverySettings& settings, uint16_t game_port) {
+ServerInfo InfoOf(flecs::world world, const LanDiscoverySettings& settings, uint16_t game_port,
+                  uint64_t instance_id) {
   ServerInfo info {
       .name = settings.server_name,
       .protocol_version = kProtocolVersion,
       .players = static_cast<uint32_t>(world.count<z13::gameplay::Player>()),
       .game_port = game_port,
+      .instance_id = instance_id,
   };
   const auto* choice = world.try_get<z13::station::StationSceneChoice>();
   if (world.has<z13::station::StationMode>() && choice != nullptr && choice->scene) {
@@ -56,55 +63,52 @@ ServerInfo InfoOf(flecs::world world, const LanDiscoverySettings& settings, uint
   return info;
 }
 
-void Answer(flecs::world world, LanDiscoveryState& state, const LanDiscoverySettings& settings, uint64_t now_ms) {
-  const auto* role = world.try_get<ServerRole>();
-  if (role == nullptr) {
-    state.server.reset();
-    state.server_failed = false;
+std::vector<std::string> LocalBroadcastHosts() {
+  const auto interfaces = ListInterfaceAddresses();
+  if (!interfaces) {
+    log_warn("LAN discovery: {}; asking through the default interface only", interfaces.error());
+    return {std::string(kBroadcastHost)};
+  }
+  return BroadcastHosts(*interfaces);
+}
+
+void Answer(flecs::world world, NetSession& session, LanAnswerState& state, uint16_t game_port,
+            const LanDiscoverySettings& settings) {
+  const std::vector<Datagram> queries = session.TakeDatagrams();
+  if (queries.empty()) {
     return;
   }
-  if (!state.server && !state.server_failed) {
-    auto socket = DiscoverySocket::Open(static_cast<uint16_t>(settings.port), false);
-    if (!socket) {
-      log_warn("LAN discovery: {}; this server can still be joined by its address", socket.error());
-      state.server_failed = true;
-      return;
-    }
-    state.server.emplace(std::move(*socket));
-  }
-  if (!state.server) {
-    return;
-  }
-  const ServerInfo info = InfoOf(world, settings, role->port);
-  for (const Datagram& query : state.server->Receive()) {
+  const uint64_t now_ms = NowMs();
+  const ServerInfo info = InfoOf(world, settings, game_port, state.instance_id);
+  for (const Datagram& query : queries) {
     if (!state.limiter.Allow(query.from, now_ms, settings.reply_interval_ms)) {
       continue;
     }
     // A lost answer is asked again by the next query.
     if (const auto reply = ReplyTo(query.bytes, info)) {
-      (void)state.server->SendTo(query.from, *reply);
+      (void)session.SendDatagram(query.from, *reply);
     }
   }
 }
 
-void Look(flecs::world world, LanDiscoveryState& state, const LanDiscoverySettings& settings, uint64_t now_ms) {
+void Look(flecs::world world, LanDiscoveryState& state, const LanDiscoverySettings& settings) {
+  const uint64_t now_ms = NowMs();
   if (!world.has<LanSearch>()) {
     if (state.client || state.client_failed) {
-      state.client.reset();
-      state.client_failed = false;
-      state.finder = {};
+      state = {};
       world.set<FoundServers>({});
     }
     return;
   }
   if (!state.client && !state.client_failed) {
-    auto socket = DiscoverySocket::Open(0, true);
+    auto socket = DiscoverySocket::Open();
     if (!socket) {
       log_warn("LAN discovery: {}; join by address", socket.error());
       state.client_failed = true;
       return;
     }
     state.client.emplace(std::move(*socket));
+    state.broadcast_hosts = LocalBroadcastHosts();
     state.next_query_ms = now_ms;
   }
   if (!state.client) {
@@ -112,10 +116,11 @@ void Look(flecs::world world, LanDiscoveryState& state, const LanDiscoverySettin
   }
   if (now_ms >= state.next_query_ms) {
     const std::vector<uint8_t> query = EncodeQuery(now_ms);
-    const auto port = static_cast<uint16_t>(settings.port);
     // Unanswered queries are sent again next interval; a network without broadcast still has the loopback.
-    (void)state.client->SendTo({.host = std::string(kBroadcastHost), .port = port}, query);
-    (void)state.client->SendTo({.host = std::string(kLoopbackHost), .port = port}, query);
+    for (const std::string& host : state.broadcast_hosts) {
+      (void)state.client->SendTo({.host = host, .port = kDefaultServerPort}, query);
+    }
+    (void)state.client->SendTo({.host = std::string(kLoopbackHost), .port = kDefaultServerPort}, query);
     state.next_query_ms = now_ms + settings.query_interval_ms;
   }
   for (const Datagram& answer : state.client->Receive()) {
@@ -139,15 +144,21 @@ void RegisterSystems(flecs::world world) {
   // The launcher overwrites this with the loaded settings (z13::InstallSettings).
   world.set<z13::LanDiscoverySettings>({});
   world.set<FoundServers>({});
+  // PreFrame keeps running in the main menu, where the simulation is frozen (SimulationFrozen).
+  std::mt19937_64 random(std::random_device {}());
+  const auto answers = std::make_shared<LanAnswerState>(LanAnswerState {.instance_id = random()});
+  world.system<NetSession, const ServerRole, const z13::LanDiscoverySettings>("LanDiscoverySystem::Answer")
+      .kind(flecs::PreFrame)
+      .each([answers](flecs::iter& it, size_t, NetSession& session, const ServerRole& role,
+                      const z13::LanDiscoverySettings& settings) {
+        Answer(it.world(), session, *answers, role.port, settings);
+      });
   const auto state = std::make_shared<LanDiscoveryState>();
-  world.system<const z13::LanDiscoverySettings>("LanDiscoverySystem::Poll")
-      .kind(flecs::OnUpdate)
-      .read<ServerRole>()
+  world.system<const z13::LanDiscoverySettings>("LanDiscoverySystem::Look")
+      .kind(flecs::PreFrame)
       .read<LanSearch>()
       .each([state](flecs::iter& it, size_t, const z13::LanDiscoverySettings& settings) {
-        const uint64_t now_ms = NowMs();
-        Answer(it.world(), *state, settings, now_ms);
-        Look(it.world(), *state, settings, now_ms);
+        Look(it.world(), *state, settings);
       });
 }
 
