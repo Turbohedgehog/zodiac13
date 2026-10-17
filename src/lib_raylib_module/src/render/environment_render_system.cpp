@@ -47,6 +47,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/point_text.h>
 #include <lib_core/utils/system_times.h>
 #include <lib_core/utils/drawn_poses.h>
 #include <lib_core/world/components.h>
@@ -731,10 +732,6 @@ struct SceneView {
 
 constexpr std::chrono::seconds kAvatarLogInterval {5};
 
-std::string PointText(const Eigen::Vector3f& point) {
-  return std::format("({:.2f}, {:.2f}, {:.2f})", point.x(), point.y(), point.z());
-}
-
 // Debug: what DrawRemotePlayers decided for each remote avatar, every few seconds.
 void LogRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, SmoothedDrawing& drawing,
                       const SceneView& view) {
@@ -743,13 +740,15 @@ void LogRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote
     return;
   }
   drawing.last_avatar_log = now;
+  using z13::math::PointText;
   const AvatarModel* avatar = world.try_get<AvatarModel>();
   std::string text = std::format(
       "[raylib] avatars: eye {}, seen rooms {}, avatar model {}", PointText({view.eye.x, view.eye.y, view.eye.z}),
       view.culling.SeenRoomCount() ? std::to_string(*view.culling.SeenRoomCount()) : "unculled",
       avatar && avatar->res ? std::to_string(avatar->res->model->meshCount) + " meshes" : "missing");
   remote_players.each([&](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
-    const Eigen::Vector3f centre = z13::math::ExtractTranslation<float>(z13::DrawnTransform(drawing.poses, e, transform));
+    const Eigen::Vector3f centre =
+        z13::math::ExtractTranslation<float>(z13::DrawnTransform(drawing.poses, e, transform));
     const Eigen::Vector3f reach = Eigen::Vector3f::Constant(kAvatarRadius);
     text += std::format("; player {} (entity {}) at {}, drawn at {}, {}", player.id, e.id(),
                         PointText(z13::math::ExtractTranslation<float>(transform)), PointText(centre),

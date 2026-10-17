@@ -28,6 +28,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/point_text.h>
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/action_listener.h>
@@ -51,7 +52,7 @@ std::string Describe(flecs::world world, const std::vector<LoggedPlayer>& player
     const flecs::entity entity = world.entity(player.entity);
     if (player.has_transform) {
       const Eigen::Vector3f at = z13::math::ExtractTranslation<float>(entity.get<Eigen::Matrix4f>());
-      text += std::format(" at ({:.2f}, {:.2f}, {:.2f})", at.x(), at.y(), at.z());
+      text += std::format(" at {}", z13::math::PointText(at));
     } else {
       text += " without a transform";
     }
