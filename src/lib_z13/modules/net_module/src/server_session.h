@@ -34,7 +34,8 @@
 
 namespace z13::net {
 
-// Not state: a rollback restores IdCounters and would hand an id out twice.
+// Not state: IdCounters grows only when the PlayerJoined applies, and a rollback restores it;
+// either would hand an id out twice.
 struct PlayerIdAllocator {
   using Singleton = void;
   using SessionScoped = void;
@@ -90,7 +91,7 @@ struct LastCommandTicks {
   std::unordered_map<PlayerActionKey, ScheduledCommandTick, PlayerActionKeyHash> by_action;
 };
 
-Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters);
+Status ServiceServerSession(flecs::world world, NetSession& session, const z13::gameplay::IdCounters& counters);
 
 // Makes the ticks before the late window final for every player: no command can land there any
 // more, so a player whose input stopped short of them gets the actions it held released there

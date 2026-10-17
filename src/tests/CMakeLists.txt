@@ -25,6 +25,7 @@ set(
   src/lib_core/flecs_state/json_canonical.cpp
   src/lib_core/flecs_state/serialization_efficiency_test.cpp
   src/lib_core/flecs_state/snapshot_grouping_test.cpp
+  src/lib_core/flecs_state/snapshot_hash_test.cpp
   src/lib_core/flecs_state/test_components.cpp
   src/lib_core/flecs_state/world_fixture.cpp
   src/lib_core/flecs_state/world_state_requests_test.cpp

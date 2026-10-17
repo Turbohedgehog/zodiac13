@@ -17,7 +17,6 @@
 #include "state_digest_system.h"
 
 #include <algorithm>
-#include <cmath>
 #include <format>
 #include <iterator>
 #include <optional>
@@ -27,6 +26,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/snapshot_hash.h>
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/fnv_hash.h>
@@ -59,17 +59,20 @@ uint64_t HashNames(const std::vector<std::string>& names) {
 }
 
 bool PosesMatch(const fbn::PoseWire& a, const fbn::PoseWire& b) {
-  return a.player_id() == b.player_id() && std::abs(a.x() - b.x()) <= kDigestPositionTolerance &&
-      std::abs(a.y() - b.y()) <= kDigestPositionTolerance && std::abs(a.z() - b.z()) <= kDigestPositionTolerance;
+  return a.player_id() == b.player_id() && a.x() == b.x() && a.y() == b.y() && a.z() == b.z();
 }
 
-void RecordStateDigest(flecs::world world, uint64_t tick, StateDigests& digests) {
+void RecordStateDigest(
+    flecs::world world, uint64_t tick, const ft::WorldSnapshotHistory& snapshots, StateDigests& digests) {
   const std::optional<uint64_t> interval_ticks = ft::SnapshotIntervalTicks(world);
   const std::optional<uint64_t> retention_ticks = ft::SnapshotRetentionTicks(world);
   if (!interval_ticks || !retention_ticks || *interval_ticks == 0 || tick % *interval_ticks != 0) {
     return;
   }
-  digests.local.insert_or_assign(tick, ComputeStateDigest(world, tick));
+  if (snapshots.history.Empty() || snapshots.history.Entries().back().tick != tick) {
+    return;
+  }
+  digests.local.insert_or_assign(tick, ComputeStateDigest(world, snapshots.history.Entries().back()));
   std::erase_if(digests.local, [tick, retention = *retention_ticks](const auto& entry) {
     return entry.first + retention < tick;
   });
@@ -95,7 +98,7 @@ std::optional<fbn::PoseWire> FindPose(const fbn::StateDigestT& digest, uint32_t 
   return pose == digest.positions.end() ? std::nullopt : std::optional(*pose);
 }
 
-// What differs, for the log: the entity names, or which players stand elsewhere.
+// What differs, for the log: the entity names, which players stand elsewhere, or neither.
 std::string DescribeMismatch(const fbn::StateDigestT& local, const fbn::StateDigestT& remote) {
   std::string description = std::format("state digest mismatch at tick {}: {} entities (server {})", remote.tick,
                                         local.entity_count, remote.entity_count);
@@ -116,19 +119,23 @@ std::string DescribeMismatch(const fbn::StateDigestT& local, const fbn::StateDig
       description += std::format(", player {} at {} (server {})", player_id, DescribePose(mine), DescribePose(theirs));
     }
   }
+  if (local.name_hash == remote.name_hash && std::ranges::equal(local.positions, remote.positions, PosesMatch)) {
+    description += ", other state differs";
+  }
   return description;
 }
 
 }  // namespace
 
-fbn::StateDigestT ComputeStateDigest(flecs::world world, uint64_t tick) {
+fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
   std::vector<std::string> names;
   world.query_builder().with<ft::StateEntity>().build().each(
       [&names](flecs::entity e) { names.emplace_back(e.path().c_str()); });
   std::ranges::sort(names);
 
   fbn::StateDigestT digest;
-  digest.tick = tick;
+  digest.tick = snapshot.tick;
+  digest.state_hash = ft::HashSnapshot(snapshot.snapshot);
   digest.entity_count = static_cast<uint32_t>(names.size());
   digest.name_hash = HashNames(names);
   world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>().build().each(
@@ -140,18 +147,17 @@ fbn::StateDigestT ComputeStateDigest(flecs::world world, uint64_t tick) {
 }
 
 bool DigestsMatch(const fbn::StateDigestT& a, const fbn::StateDigestT& b) {
-  return a.tick == b.tick && a.entity_count == b.entity_count && a.name_hash == b.name_hash &&
-      std::ranges::equal(a.positions, b.positions, PosesMatch);
+  return a.tick == b.tick && a.state_hash == b.state_hash;
 }
 
 void RegisterStateDigestSystems(flecs::world world) {
-  // PostFrame like WorldSnapshotHistory's capture, so a digest describes its snapshot.
-  world.system<StateDigests, const ft::SimulationClock>("StateDigest::Record")
+  // PostFrame after WorldSnapshotHistory's capture (lib_core registers it before any module), so
+  // the digest hashes this tick's snapshot.
+  world.system<StateDigests, const ft::SimulationClock, const ft::WorldSnapshotHistory>("StateDigest::Record")
       .kind(flecs::PostFrame)
       .with<NetSession>()
-      .each([](flecs::iter& it, size_t, StateDigests& digests, const ft::SimulationClock& clock) {
-        RecordStateDigest(it.world(), clock.tick, digests);
-      });
+      .each([](flecs::iter& it, size_t, StateDigests& digests, const ft::SimulationClock& clock,
+               const ft::WorldSnapshotHistory& snapshots) { RecordStateDigest(it.world(), clock.tick, snapshots, digests); });
 }
 
 // Every command for tick T reaches the server by T + max_late_ticks, and reaches clients

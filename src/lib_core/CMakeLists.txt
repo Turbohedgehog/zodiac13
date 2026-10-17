@@ -45,6 +45,7 @@ z13_add_library(
   src/state/group_bucket.cpp
   src/state/rollback.cpp
   src/state/snapshot_grouping.cpp
+  src/state/snapshot_hash.cpp
   src/state/world_json_store.cpp
   src/state/world_serializer.cpp
   src/state/world_snapshot_history.cpp
