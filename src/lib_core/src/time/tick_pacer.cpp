@@ -26,10 +26,16 @@ bool TickPacer::TakeTick(Clock::time_point now) {
     return false;
   }
   if (now - next_tick_ >= tick_duration_ * static_cast<Clock::rep>(max_backlog_)) {
+    dropped_ticks_ += static_cast<uint64_t>((now - next_tick_) / tick_duration_);
     next_tick_ = now;
   }
   next_tick_ += tick_duration_;
   return true;
+}
+
+void TickPacer::SetPace(Clock::duration tick_duration, uint64_t max_backlog) {
+  tick_duration_ = tick_duration;
+  max_backlog_ = max_backlog;
 }
 
 }  // namespace z13

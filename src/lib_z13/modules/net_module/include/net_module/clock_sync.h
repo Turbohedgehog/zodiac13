@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include <lib_core/state/rollback.h>
 #include <z13_settings/net_tuning.h>
 
 namespace z13::net {
@@ -29,14 +30,16 @@ struct ClockSync {
   std::optional<int64_t> offset_ticks;
   std::optional<uint64_t> ping_sent_tick;
   std::optional<int64_t> rtt_ticks;
-  // Extra minus skipped ticks since the Ping went out; not round trip.
-  int64_t adjusted_ticks_in_flight {};
+  // ClockAdjustRequest::applied when the Ping went out.
+  int64_t applied_at_ping {};
 };
 
 // Already taken off the offset.
 int64_t TakeClockAdjustment(ClockSync& sync, const NetTuning& tuning, uint64_t tick);
 
-// Ignores a Pong that doesn't match the Ping in flight.
-void ApplyPong(ClockSync& sync, const NetTuning& tuning, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick);
+// Ignores a Pong that doesn't match the Ping in flight. The clock is taken as if the adjustment
+// still to run had run: a Pong handled mid-jump would otherwise ask for the rest again.
+void ApplyPong(ClockSync& sync, const NetTuning& tuning, uint64_t sent_tick, uint64_t server_tick, uint64_t received_tick,
+               const z13::flecs_tools::ClockAdjustRequest& adjust = {});
 
 }  // namespace z13::net

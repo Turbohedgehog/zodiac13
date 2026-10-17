@@ -27,6 +27,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/time/tick_pacer.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
@@ -186,14 +187,12 @@ int Core::Run() {
   const auto current_pace = [this] {
     return PaceSettings {.fps = config_.GetFPS(), .max_backlog = config_.GetCoreSettings().max_tick_backlog};
   };
-  const auto make_pacer = [](const PaceSettings& pace) {
-    return TickPacer(
-        std::chrono::duration_cast<TickPacer::Clock::duration>(std::chrono::duration<double>(1. / pace.fps)),
-        TickPacer::Clock::now(), pace.max_backlog);
+  const auto tick_duration = [](const PaceSettings& pace) {
+    return std::chrono::duration_cast<TickPacer::Clock::duration>(std::chrono::duration<double>(1. / pace.fps));
   };
 
   PaceSettings pace = current_pace();
-  TickPacer pacer = make_pacer(pace);
+  TickPacer pacer(tick_duration(pace), TickPacer::Clock::now(), pace.max_backlog);
   while (!worlds_.empty() && !IsPendingShutDown()) {
     if (interrupt_signal_) {
       log_info("Core::Run: received signal {}, shutting down", static_cast<int>(interrupt_signal_));
@@ -204,7 +203,7 @@ int Core::Run() {
 
     if (const PaceSettings latest = current_pace(); latest != pace) {
       pace = latest;
-      pacer = make_pacer(pace);
+      pacer.SetPace(tick_duration(pace), pace.max_backlog);
     }
 
     if (!pacer.TakeTick(TickPacer::Clock::now())) {
@@ -212,6 +211,11 @@ int Core::Run() {
       continue;
     }
 
+    if (const uint64_t dropped = pacer.TakeDroppedTicks(); dropped > 0) {
+      for (auto& [_, world] : worlds_) {
+        world.get_mut<flecs_tools::DroppedTicks>().ticks += dropped;
+      }
+    }
     const bool behind = TickPacer::Clock::now() >= pacer.NextTickTime();
     Update(1. / pace.fps, behind ? flecs_tools::FrameKind::kCatchUp : flecs_tools::FrameKind::kLive);
   }

@@ -53,6 +53,7 @@ TEST(TickPacerTest, SlowFrameIsMadeUpByTheNextTicks) {
 
   EXPECT_EQ(TakeAllDue(pacer, kStart + 3 * kTick + kTick / 2), 3u);
   EXPECT_EQ(pacer.NextTickTime(), kStart + 4 * kTick);
+  EXPECT_EQ(pacer.TakeDroppedTicks(), 0u);
 }
 
 TEST(TickPacerTest, HitchBacklogIsDropped) {
@@ -62,6 +63,20 @@ TEST(TickPacerTest, HitchBacklogIsDropped) {
 
   EXPECT_EQ(TakeAllDue(pacer, after_hitch), 1u);
   EXPECT_EQ(pacer.NextTickTime(), after_hitch + kTick);
+  // Due were the ticks from kStart + kTick through after_hitch; one ran.
+  EXPECT_EQ(pacer.TakeDroppedTicks(), 99u);
+  EXPECT_EQ(pacer.TakeDroppedTicks(), 0u);
+}
+
+// A client's join changes the pace right after its long load.
+TEST(TickPacerTest, APaceChangeKeepsTheHitchBeforeIt) {
+  TickPacer pacer(kTick, kStart, kMaxBacklog);
+  ASSERT_EQ(TakeAllDue(pacer, kStart), 1u);
+
+  pacer.SetPace(2 * kTick, kMaxBacklog);
+
+  EXPECT_EQ(TakeAllDue(pacer, kStart + 101 * kTick), 1u);
+  EXPECT_EQ(pacer.TakeDroppedTicks(), 50u);
 }
 
 }  // namespace

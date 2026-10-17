@@ -240,6 +240,22 @@ void RegisterSystems(flecs::world world) {
         history.history.Push({.tick = clock.tick, .snapshot = std::move(*snapshot)});
       });
 
+  // Not held back by a replay like SteerClock: the lag is the wall clock's, not a measurement.
+  world.system<ft::DroppedTicks, const ft::SimulationClock>("NetSessionSystem::MakeUpDroppedTicks")
+      .kind(flecs::PostFrame)
+      .with<ClientRole>()
+      .read<z13::gameplay::Gameplay>()
+      .each([](flecs::iter& it, size_t, ft::DroppedTicks& dropped, const ft::SimulationClock& clock) {
+        const uint64_t ticks = std::exchange(dropped.ticks, 0);
+        flecs::world world = it.world();
+        // Before the Welcome the catch-up sets the clock anyway; the load right after it counts.
+        if (ticks == 0 || !world.has<z13::gameplay::Gameplay>()) {
+          return;
+        }
+        log_debug("NetSession(client): a hitch dropped {} ticks at tick {}, the clock jumps them", ticks, clock.tick);
+        ft::RequestClockAdjust(world, static_cast<int64_t>(ticks));
+      });
+
   world.system<ClockSync, const ft::SimulationClock, const NetTuning>("NetSessionSystem::SteerClock")
       .kind(flecs::PostFrame)
       .with<ClientRole>()

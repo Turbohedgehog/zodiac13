@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <utility>
 
 namespace z13 {
 
@@ -34,12 +35,19 @@ class TickPacer {
   // True when a tick is due at `now`; consumes it.
   bool TakeTick(Clock::time_point now);
 
+  // The ticks hitches dropped since the last call.
+  uint64_t TakeDroppedTicks() { return std::exchange(dropped_ticks_, 0); }
+
+  // Keeps the schedule, so a hitch before the change is still counted.
+  void SetPace(Clock::duration tick_duration, uint64_t max_backlog);
+
   Clock::time_point NextTickTime() const { return next_tick_; }
 
  private:
   Clock::duration tick_duration_;
   Clock::time_point next_tick_;
   uint64_t max_backlog_;
+  uint64_t dropped_ticks_ {};
 };
 
 }  // namespace z13

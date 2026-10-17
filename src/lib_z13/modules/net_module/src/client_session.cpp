@@ -201,7 +201,8 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
         const uint64_t received_tick = world.get<ft::SimulationClock>().tick;
         const bool answers_ping = sync.ping_sent_tick == pong.client_tick && received_tick >= pong.client_tick;
         const std::string offset_before = OptionalText(sync.offset_ticks);
-        ApplyPong(sync, world.get<NetTuning>(), pong.client_tick, pong.server_tick, received_tick);
+        ApplyPong(sync, world.get<NetTuning>(), pong.client_tick, pong.server_tick, received_tick,
+                  world.get<ft::ClockAdjustRequest>());
         if (answers_ping) {
           log_debug("NetSession(client): pong for tick {} at tick {}: server tick {}, rtt {}, offset {} -> {}",
                     pong.client_tick, received_tick, pong.server_tick, OptionalText(sync.rtt_ticks), offset_before,
@@ -381,7 +382,7 @@ void SendPingIfDue(flecs::world world, NetSession& session) {
   session.Send(*server_connection, Channel::kUnreliable, envelope);
   auto& sync = world.get_mut<ClockSync>();
   sync.ping_sent_tick = tick;
-  sync.adjusted_ticks_in_flight = 0;
+  sync.applied_at_ping = world.get<ft::ClockAdjustRequest>().applied;
 }
 
 }  // namespace z13::net

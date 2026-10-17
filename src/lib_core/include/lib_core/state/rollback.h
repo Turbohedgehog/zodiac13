@@ -59,10 +59,13 @@ struct RollbackMetrics {
   uint64_t replayed_ticks {};
 };
 
-// Positive: extra live ticks next frame; negative: frames to skip.
 struct ClockAdjustRequest {
   using Singleton = void;
+  // Still to run: positive, extra ticks (at most max_catch_up_ticks_per_frame a frame);
+  // negative, frames to skip.
   int64_t ticks {};
+  // Extra ticks run minus frames skipped, ever: a Ping's round trip leaves out those in between.
+  int64_t applied {};
 };
 
 enum class FrameKind {
