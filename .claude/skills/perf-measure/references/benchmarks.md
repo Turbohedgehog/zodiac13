@@ -9,6 +9,7 @@ All run over every shipped station blueprint (`site`, `spire`, `test`); `spire` 
 | `OpeningBench.FullSearch`, `.EditSearch` | `station_module/tests/bench/opening_bench_test.cpp` | `FindOpenings` over a whole station and near RoomEditBench's edits |
 | `StationLoadBench.Scales`, `.Join`, `.ServerClient` | `z13_module/tests/bench/station_load_bench_test.cpp` | tick, snapshot capture, rollback at several station scales; a client joining; a server with a walking client |
 | `RenderChunkBench.ChunkSizes` | `z13_module/tests/bench/render_chunk_bench_test.cpp` | render chunk meshes at several chunk sizes, without GPU upload |
+| `StationLoadBench.DISABLED_LateJoin` (opt-in: `--gtest_also_run_disabled_tests`, play time in `$Z13_LATE_JOIN_SECONDS`, default 60) | `z13_module/tests/bench/station_load_bench_test.cpp` | a client joining a server that played and built on `spire` for a while, in real time: Welcome size, load, dropped ticks, lag, when it caught up (docs/net-scenarios.md, scenario 10) |
 | `SyncBench.*` (`RunAndStop`, `Strafe`, `LookSweep`, `Circle`, `Mixed`) | `z13_module/tests/bench/sync_bench_test.cpp` | remote player smoothness scenarios; CSVs to `$Z13_SYNC_BENCH_DIR` (docs/remote-sync-research.md) |
 
 The renderer is measured in the game itself: `--render-tour FILE.csv` with `--station-scene` (and `--render-chunk-cells`, `--render-tour-view x,y,z,yaw,pitch`, `--fps 1000`), see docs/station-systems-plan.md, stage `f/render-measure`. It needs a display, so it runs on the user's machine, not in PRoot.

@@ -42,8 +42,9 @@ std::optional<uint64_t> SecondsToTicks(flecs::world world, std::optional<double>
 }  // namespace
 
 void RegisterSimulationClock(flecs::world& world) {
-  RegisterComponents<SimulationClock, SimulationFrozen>(world);
+  RegisterComponents<SimulationClock, SimulationFrozen, DroppedTicks>(world);
   world.set<SimulationClock>({});
+  world.set<DroppedTicks>({});
   world.component<PresentationPhase>();
 
   world.component<SimulationTickPhase>().add(flecs::Phase);

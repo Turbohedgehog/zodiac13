@@ -43,6 +43,13 @@ struct SimulationFrozen {
   using Singleton = void;
 };
 
+// Ticks the wall clock owed that Core::Run dropped after hitches, added up until a consumer
+// takes them: a session client jumps its clock by them.
+struct DroppedTicks {
+  using Singleton = void;
+  uint64_t ticks {};
+};
+
 // Called by RegisterStateMeta.
 void RegisterSimulationClock(flecs::world& world);
 

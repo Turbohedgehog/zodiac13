@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -46,6 +47,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
+#include <lib_core/utils/point_text.h>
 #include <lib_core/utils/system_times.h>
 #include <lib_core/utils/drawn_poses.h>
 #include <lib_core/world/components.h>
@@ -125,6 +127,7 @@ void RegisterComponents(flecs::world world) {
 struct SmoothedDrawing {
   z13::DrawnPoses poses;
   std::optional<std::chrono::steady_clock::time_point> last_frame;
+  std::optional<std::chrono::steady_clock::time_point> last_avatar_log;
 };
 
 // Points every material of `model` at Lighting's shared shader, and returns
@@ -727,6 +730,33 @@ struct SceneView {
   ViewCulling culling;
 };
 
+constexpr std::chrono::seconds kAvatarLogInterval {5};
+
+// Debug: what DrawRemotePlayers decided for each remote avatar, every few seconds.
+void LogRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, SmoothedDrawing& drawing,
+                      const SceneView& view) {
+  const auto now = std::chrono::steady_clock::now();
+  if (drawing.last_avatar_log && now - *drawing.last_avatar_log < kAvatarLogInterval) {
+    return;
+  }
+  drawing.last_avatar_log = now;
+  using z13::math::PointText;
+  const AvatarModel* avatar = world.try_get<AvatarModel>();
+  std::string text = std::format(
+      "[raylib] avatars: eye {}, seen rooms {}, avatar model {}", PointText({view.eye.x, view.eye.y, view.eye.z}),
+      view.culling.SeenRoomCount() ? std::to_string(*view.culling.SeenRoomCount()) : "unculled",
+      avatar && avatar->res ? std::to_string(avatar->res->model->meshCount) + " meshes" : "missing");
+  remote_players.each([&](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+    const Eigen::Vector3f centre =
+        z13::math::ExtractTranslation<float>(z13::DrawnTransform(drawing.poses, e, transform));
+    const Eigen::Vector3f reach = Eigen::Vector3f::Constant(kAvatarRadius);
+    text += std::format("; player {} (entity {}) at {}, drawn at {}, {}", player.id, e.id(),
+                        PointText(z13::math::ExtractTranslation<float>(transform)), PointText(centre),
+                        view.culling.Visible({centre - reach, centre + reach}) ? "visible" : "culled");
+  });
+  log_debug("{}", text);
+}
+
 // Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
@@ -980,6 +1010,7 @@ void RegisterSystems(flecs::world world) {
         });
 
         DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
+        LogRemotePlayers(world, remote_player_query, *drawing, view);
         stats.culling_us = culling_us;
         stats.times.background_ms = background_ms;
         stats.times.shadows_ms = shadows_ms;

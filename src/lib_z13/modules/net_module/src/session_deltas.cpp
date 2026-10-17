@@ -176,6 +176,7 @@ void ApplyDueSessionDeltas(flecs::world world) {
   std::ranges::for_each(due, [world](const SessionDelta& delta) { ApplySessionDelta(world, delta); });
 
   if (earliest_due < now && earliest_due > 0) {
+    log_debug("NetSession: a session delta due at tick {} asks a rollback (now {})", earliest_due, now);
     ft::RequestRollback(world, earliest_due - 1, now);
   }
 }

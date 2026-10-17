@@ -60,6 +60,20 @@ TEST(SpawnPointTest, PlayersTakeFreeSpawnPointsInOrderThenShareThemById) {
   EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 4)).isApprox(kFirstPoint));
 }
 
+// On spire the point above a taken one is on the next deck, out of sight of the first player.
+TEST(SpawnPointTest, PlayersFillADeckBeforeTheOneAbove) {
+  const Eigen::Vector3f above_first {10.f, 0.f, 4.f};
+  Z13TestWorld test_world;
+  test_world.Tick();
+  AddSpawnPoint(test_world.World(), above_first);
+  AddSpawnPoint(test_world.World(), kSecondPoint);
+  AddSpawnPoint(test_world.World(), kFirstPoint);
+
+  EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 1)).isApprox(kFirstPoint));
+  EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 2)).isApprox(kSecondPoint));
+  EXPECT_TRUE(PositionOf(SpawnPlayer(test_world.World(), 3)).isApprox(above_first));
+}
+
 // A join the server scheduled but hasn't applied yet already holds its point.
 TEST(SpawnPointTest, ReservedSpawnPointsCountAsTaken) {
   Z13TestWorld test_world;

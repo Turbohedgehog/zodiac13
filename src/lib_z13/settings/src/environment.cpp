@@ -48,4 +48,8 @@ std::filesystem::path GetGameQuickSaveJsonPath() {
   return GetGameDataDirectory() / "quick_save.json";
 }
 
+std::filesystem::path GetGameLogsDirectory() {
+  return GetGameDataDirectory() / "logs";
+}
+
 }  // namespace z13::tools::environment

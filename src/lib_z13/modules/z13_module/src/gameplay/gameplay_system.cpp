@@ -21,6 +21,7 @@
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -77,6 +78,7 @@ void SyncSimulationFrozen(flecs::iter& it) {
   if (frozen == world.has<z13::flecs_tools::SimulationFrozen>()) {
     return;
   }
+  log_debug("Gameplay: simulation {}", frozen ? "frozen" : "running");
   if (frozen) {
     world.add<z13::flecs_tools::SimulationFrozen>();
   } else {
@@ -104,9 +106,18 @@ void RegisterSystems(flecs::world world) {
     .event(flecs::OnSet)
     .yield_existing()
     .each([](flecs::iter& it, size_t, const WindowFocusEvent& window_focus_event) {
+      log_debug("Gameplay: window focus {}", window_focus_event.has_focus ? "gained" : "lost");
       if (!window_focus_event.has_focus) {
         it.world().add<Pause>();
       }
+    });
+
+  world.observer("GameplaySystem::LogPause")
+    .with<Pause>()
+    .event(flecs::OnAdd)
+    .event(flecs::OnRemove)
+    .each([](flecs::iter& it, size_t) {
+      log_debug("Gameplay: pause {}", it.event() == flecs::OnAdd ? "on" : "off");
     });
 
   world.system("GameplaySystem::SyncSimulationFrozen")

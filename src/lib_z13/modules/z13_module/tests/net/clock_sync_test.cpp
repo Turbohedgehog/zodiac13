@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 
+#include <lib_core/settings/core_settings.h>
 #include <lib_core/time/simulation_clock.h>
 
 #include <net_module/clock_sync.h>
@@ -101,6 +102,17 @@ TEST(ClockSyncTest, ALargeOffsetIsClosedAtOnceEitherWay) {
   EXPECT_EQ(sync.offset_ticks, 0);
 }
 
+// Mid-jump: 50 of 200 extra ticks have run, which a round trip of 4 ticks includes.
+TEST(ClockSyncTest, APongDuringAJumpCountsTheTicksStillToRun) {
+  ClockSync sync;
+  sync.ping_sent_tick = 100;
+
+  ApplyPong(sync, kTuning, 100, 354, 154, {.ticks = 150, .applied = 50});
+
+  EXPECT_EQ(sync.rtt_ticks, 4);
+  EXPECT_EQ(sync.offset_ticks, 52);
+}
+
 TEST(ClockSyncTest, AnUnmeasuredClockIsLeftAlone) {
   ClockSync sync;
   EXPECT_EQ(TakeClockAdjustment(sync, kTuning, kClockCatchUpEveryTicks), 0);
@@ -114,15 +126,15 @@ TEST(ClockSyncTest, AdjustmentsDuringAPingDoNotCountAsRoundTrip) {
   ASSERT_EQ(TakeClockAdjustment(sync, kTuning, 2 * kClockCatchUpEveryTicks), 1);
 
   // 4 ticks of real round trip plus the 2 extra ticks run meanwhile.
-  ApplyPong(sync, kTuning, 100, 110, 106);
+  ApplyPong(sync, kTuning, 100, 110, 106, {.applied = 2});
   EXPECT_EQ(sync.rtt_ticks, 4);
-  EXPECT_EQ(sync.adjusted_ticks_in_flight, 0);
 
   sync.offset_ticks = -kClockJumpThresholdTicks;
   sync.ping_sent_tick = 200;
+  sync.applied_at_ping = 2;
   ASSERT_EQ(TakeClockAdjustment(sync, kTuning, 1), -kClockJumpThresholdTicks);
   // 4 counted ticks plus the skipped frames, which the clock never counted.
-  ApplyPong(sync, kTuning, 200, 210, 204);
+  ApplyPong(sync, kTuning, 200, 210, 204, {.applied = 2 - kClockJumpThresholdTicks});
   EXPECT_EQ(sync.rtt_ticks, 4 + kClockJumpThresholdTicks);
 }
 
@@ -202,6 +214,50 @@ TEST(ClockSyncTest, AClientHitchIsClosedAtOnceNotOverSeconds) {
   ASSERT_GT(RealOffset(server, client), static_cast<int64_t>(kMaxLateTicks));
 
   ExpectClockRecoversAndCommandsLand(*network, server, client);
+}
+
+// A lag longer than one frame's jump, measured by a Pong (Н11 in docs/net-core.md).
+TEST(ClockSyncTest, AClientThatLoadedLongJumpsToTheServer) {
+  constexpr uint64_t kBeyondOneJumpTicks = 200;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
+  const uint64_t max_jump_ticks = client.World().get<z13::ActiveCoreSettings>().max_catch_up_ticks_per_frame;
+  const uint64_t load_frames = max_jump_ticks + kBeyondOneJumpTicks;
+  // A ping a second; the jump past one frame's cap finishes the frame after.
+  const uint64_t frames_to_jump = 2 * *ft::TicksPerSecond(client.World());
+
+  RunAlone(*network, server, load_frames);
+  ASSERT_GT(RealOffset(server, client), static_cast<int64_t>(max_jump_ticks));
+
+  uint64_t frames = 0;
+  EXPECT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [&] {
+    ++frames;
+    return std::abs(RealOffset(server, client)) <= kClockCatchUpThresholdTicks + 1;
+  }));
+  EXPECT_LE(frames, frames_to_jump) << "caught up at the catch-up pace instead of jumping";
+}
+
+// What Core::Run reports after a long load or another hitch is made up in the next frames,
+// a jump longer than one frame's included, not after the next Pong.
+TEST(ClockSyncTest, AHitchIsMadeUpAtOnce) {
+  constexpr uint64_t kBeyondOneJumpTicks = 200;
+  constexpr uint64_t kFramesToMakeUp = 3;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
+  const uint64_t hitch_ticks =
+      client.World().get<z13::ActiveCoreSettings>().max_catch_up_ticks_per_frame + kBeyondOneJumpTicks;
+
+  RunAlone(*network, server, hitch_ticks);
+  client.World().get_mut<ft::DroppedTicks>().ticks = hitch_ticks;
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kFramesToMakeUp, [] { return false; });
+
+  EXPECT_LE(std::abs(RealOffset(server, client)), kClockCatchUpThresholdTicks + 1);
 }
 
 TEST(ClockSyncTest, TheFirstSampleIsTakenWholeAndLaterOnesAreSmoothed) {

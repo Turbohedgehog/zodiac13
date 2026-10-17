@@ -8,6 +8,7 @@
 #include <lib_core/world/core.h>
 #include <lib_core/world/module_factory_base.h>
 
+#include <z13_launcher/log_file.h>
 #include <z13_launcher/module_list.h>
 #include <z13_settings/settings_file.h>
 #include <z13_launcher/station_assets_check.h>
@@ -31,6 +32,18 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   if (const auto error = core.GetConfigError()) {
     log_error("{}", *error);
     return 1;
+  }
+  if (const std::optional<LogFileOption> log_file_option = core.GetConfig().GetLogFile()) {
+    const std::filesystem::path logs =
+        log_file_option->directory.value_or(tools::environment::GetGameLogsDirectory());
+    if (const Status removed = RemoveOldLogs(logs); !removed) {
+      log_warn("{}", removed.error());
+    }
+    if (const auto log_file = AddLogFile(logs)) {
+      log_info("Logging to {}", log_file->string());
+    } else {
+      log_warn("{}", log_file.error());
+    }
   }
 
   const AssetSource assets(InstallDir());

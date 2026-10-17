@@ -28,6 +28,7 @@
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/log.h>
 #include <z13_settings/net_tuning.h>
 
 #include <net_module/state_digest.h>
@@ -164,6 +165,7 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_ti
 
   // A deferred rollback may reach past the adopted snapshot.
   world.get_mut<ft::RollbackRequest>() = {};
+  log_debug("NetSession(client): adopting a catch-up from tick {} to {}", payload.snapshot_tick, target_tick);
   ft::RequestRollback(world, payload.snapshot_tick, target_tick);
 }
 

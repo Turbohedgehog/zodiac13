@@ -24,11 +24,13 @@
 #include <cmath>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <expected>
 #include <format>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <limits>
 #include <string_view>
@@ -39,6 +41,8 @@
 #include <flatbuffers/flatbuffers.h>
 #include <world_snapshot_generated.h>
 
+#include <lib_core/settings/config.h>
+#include <lib_core/settings/core_settings.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
@@ -54,6 +58,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/net.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
@@ -333,6 +338,139 @@ TEST(StationLoadBench, DISABLED_Join) {
   for (const std::string& scene : Stations()) {
     MeasureJoin(scene);
   }
+}
+
+// How long the host plays before the late joiner connects, building meanwhile.
+constexpr std::string_view kLateJoinSecondsEnv = "Z13_LATE_JOIN_SECONDS";
+constexpr uint64_t kDefaultLateJoinSeconds = 60;
+// The joiner is caught up once it stays this close to the server for this many frames.
+constexpr int64_t kCaughtUpTicks = 2;
+constexpr uint64_t kSteadyFrames = 60;
+// Quiet ticks after the building, in max_late_ticks: the catch-up's base is older than that.
+constexpr uint64_t kSettleBuildIntervals = 2;
+constexpr double kMaxLateJoinSeconds = 120.0;
+
+uint64_t LateJoinSeconds() {
+  const char* configured = std::getenv(kLateJoinSecondsEnv.data());
+  return configured ? std::strtoull(configured, nullptr, 10) : kDefaultLateJoinSeconds;
+}
+
+// The host's building, block by block: a second copy of the station beside the first, done
+// when the play ends.
+void BuildDuringPlay(Z13TestWorld& server, const std::vector<z13::station::Block>& blocks, const Eigen::Vector3i& offset,
+                     size_t& built, size_t due) {
+  auto& counters = server.World().get_mut<z13::gameplay::IdCounters>();
+  for (; built < std::min(due, blocks.size()); ++built) {
+    z13::station::Block block = blocks[built];
+    block.cell += offset;
+    z13::station::SpawnBlock(server.World().entity(std::format("Block_{}", ++counters.last_block_id).c_str()), block);
+  }
+}
+
+struct LateJoin {
+  double longest_frame_ms {};
+  double joined_s {};
+  std::optional<double> caught_up_s;
+  uint64_t dropped_ticks {};
+  int64_t largest_lag_ticks {};
+};
+
+int64_t Lag(Z13TestWorld& server, Z13TestWorld& client) {
+  return static_cast<int64_t>(server.World().get<ft::SimulationClock>().tick) -
+         static_cast<int64_t>(client.World().get<ft::SimulationClock>().tick);
+}
+
+// Real time goes on while the client works, as in Core::Run: the server runs the ticks a client
+// frame took, and the client's pacer drops a backlog past max_tick_backlog (DroppedTicks) or runs
+// it back to back. The client's catch-up frames aren't timed in turn: a bound, not the game's cost.
+LateJoin JoinInRealTime(z13::net::InMemoryNetwork& network, Z13TestWorld& server, Z13TestWorld& client) {
+  const double tick_ms = kMsPerSecond * kNetTestDeltaTime;
+  const uint64_t max_backlog = client.Config().GetCoreSettings().max_tick_backlog;
+  const auto connected = [&] {
+    return client.World().has<z13::gameplay::Gameplay>() &&
+           client.World().get<z13::net::ConnectionStatus>().state == z13::net::ConnectionState::kConnected;
+  };
+  LateJoin run;
+  uint64_t steady_frames = 0;
+  const auto start = std::chrono::steady_clock::now();
+  const auto seconds = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); };
+  while (seconds() < kMaxLateJoinSeconds && steady_frames < kSteadyFrames) {
+    const double frame_ms = Ms([&] { client.Tick(); });
+    run.longest_frame_ms = std::max(run.longest_frame_ms, frame_ms);
+    const auto owed = std::max<uint64_t>(1, static_cast<uint64_t>(frame_ms / tick_ms));
+    uint64_t backlog_frames = 0;
+    if (owed >= max_backlog) {
+      client.World().get_mut<ft::DroppedTicks>().ticks += owed - 1;
+      run.dropped_ticks += owed - 1;
+    } else {
+      backlog_frames = owed - 1;
+    }
+    for (uint64_t tick = 0; tick < owed; ++tick) {
+      server.Tick();
+      network.Tick();
+    }
+    for (uint64_t frame = 0; frame < backlog_frames; ++frame) {
+      client.Tick();
+    }
+    if (!connected()) {
+      continue;
+    }
+    if (run.joined_s == 0.0) {
+      run.joined_s = seconds();
+    }
+    const int64_t lag = Lag(server, client);
+    run.largest_lag_ticks = std::max(run.largest_lag_ticks, std::abs(lag));
+    steady_frames = std::abs(lag) <= kCaughtUpTicks ? steady_frames + 1 : 0;
+  }
+  if (steady_frames >= kSteadyFrames) {
+    run.caught_up_s = seconds();
+  }
+  return run;
+}
+
+// A client joins a host that has played and built for a while (Z13_LATE_JOIN_SECONDS, a minute by
+// default): what its Welcome carries and how long it takes to be playing in the present.
+TEST(StationLoadBench, DISABLED_LateJoin) {
+  const auto blocks = ReadStation(kSpireScene);
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
+  const StationLayout layout = LayoutOf(*blocks);
+  auto network = std::make_shared<z13::net::InMemoryNetwork>();
+  Z13TestWorld server({std::string(kServerArg)}, network);
+  server.Tick();
+  PlaceStation(server, *blocks, 1, layout);
+  const Eigen::Vector3i copy_offset {static_cast<int>(std::lround(layout.pitch / kCellSize)), 0, 0};
+
+  const uint64_t play_ticks = LateJoinSeconds() * static_cast<uint64_t>(std::lround(1.f / kNetTestDeltaTime));
+  size_t built = 0;
+  const double play_ms = Ms([&] {
+    for (uint64_t tick = 0; tick < play_ticks; ++tick) {
+      BuildDuringPlay(server, *blocks, copy_offset, built, blocks->size() * (tick + 1) / play_ticks);
+      server.Tick();
+      network->Tick();
+    }
+    // Blocks spawned here aren't commands: only those in the catch-up's base reach the joiner.
+    for (uint64_t tick = 0; tick < kSettleBuildIntervals * server.World().get<z13::NetTuning>().max_late_ticks;
+         ++tick) {
+      server.Tick();
+      network->Tick();
+    }
+  });
+  const auto snapshot = ft::CaptureState(server.World());
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+
+  Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+  const LateJoin run = JoinInRealTime(*network, server, client);
+
+  std::cout << std::format(
+      "[ bench ] late join '{}': host played {} ticks ({:.0f} s of frames), {} blocks, Welcome snapshot ~{:.0f} KB\n"
+      "[ bench ]   joined after {:.1f} s, longest client frame {:.0f} ms, {} ticks dropped and jumped, largest lag {} ticks, "
+      "caught up after {}\n",
+      kSpireScene, play_ticks, play_ms / kMsPerSecond, server.World().count<z13::station::Block>(),
+      static_cast<double>(SnapshotBytes(*snapshot)) / 1024.0, run.joined_s, run.longest_frame_ms, run.dropped_ticks,
+      run.largest_lag_ticks, run.caught_up_s ? std::format("{:.1f} s", *run.caught_up_s) : std::string("never"))
+            << std::flush;
+  EXPECT_TRUE(run.caught_up_s.has_value()) << "the joiner never caught up with the server";
+  EXPECT_EQ(client.World().get<z13::net::StateDigests>().resyncs, 0u);
 }
 
 using Z13TestWorldRef = std::reference_wrapper<Z13TestWorld>;

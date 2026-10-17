@@ -6,6 +6,7 @@ find_package(yaml-cpp CONFIG REQUIRED)
 z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS
   SOURCES
+  src/log_file.cpp
   src/module_list.cpp
   src/station_assets_check.cpp
   src/z13_launcher.cpp
