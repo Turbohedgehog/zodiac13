@@ -24,6 +24,9 @@
 #include <lib_core/utils/math.h>
 
 #include "block_shape.h"
+#include "blocking_sweep_callback.h"
+#include "closest_ray_callback.h"
+#include "penetration_callback.h"
 
 namespace z13::bullet_module {
 
@@ -87,51 +90,6 @@ BulletBody::BulletBody(
       body_(MakeStaticBodyInfo(motion_state_, shape_->Shape())) {
   body_.setUserPointer(ToUserPointer(entity));
 }
-
-// m_normalWorldOnB points from object B to object A; push the probe out
-// along it (or against it, if Bullet handed the probe to us as B).
-class PenetrationCallback : public btCollisionWorld::ContactResultCallback {
- public:
-  explicit PenetrationCallback(const btCollisionObject& probe) : probe_(probe) {
-  }
-
-  btVector3 correction { kZeroVector };
-
-  btScalar addSingleResult(
-      btManifoldPoint& point, const btCollisionObjectWrapper* wrap_a, int, int,
-      const btCollisionObjectWrapper*, int, int) override {
-    if (point.getDistance() >= 0.f) {
-      return 0.f;
-    }
-    const btVector3 push = point.m_normalWorldOnB * -point.getDistance();
-    correction += wrap_a->getCollisionObject() == &probe_ ? push : -push;
-    return 0.f;
-  }
-
- private:
-  const btCollisionObject& probe_;
-};
-
-// The closest hit that blocks the motion; surfaces it moves away from (normal along the
-// motion) are ignored, so a sphere resting against a block can leave it.
-class BlockingSweepCallback : public btCollisionWorld::ClosestConvexResultCallback {
- public:
-  BlockingSweepCallback(const btVector3& from, const btVector3& to)
-      : ClosestConvexResultCallback(from, to), motion_(to - from) {}
-
-  btScalar addSingleResult(btCollisionWorld::LocalConvexResult& result, bool normal_in_world_space) override {
-    const btVector3 normal = normal_in_world_space
-        ? result.m_hitNormalLocal
-        : result.m_hitCollisionObject->getWorldTransform().getBasis() * result.m_hitNormalLocal;
-    if (normal.dot(motion_) >= 0.f) {
-      return m_closestHitFraction;
-    }
-    return ClosestConvexResultCallback::addSingleResult(result, normal_in_world_space);
-  }
-
- private:
-  btVector3 motion_ {};
-};
 
 btTransform AtPosition(const btVector3& position) {
   btTransform transform;
@@ -263,7 +221,7 @@ btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, f
 
   PenetrationCallback callback(probe);
   state_->DynamicsWorld().contactTest(&probe, callback);
-  return desired_center + callback.correction;
+  return desired_center + callback.Correction();
 }
 
 btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, float radius, uint32_t max_iterations) {
@@ -273,27 +231,27 @@ btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, 
   for (uint32_t i = 0; i < max_iterations && remaining.length() > kMinSweepDistance; ++i) {
     // Exactly `to` when unobstructed, so an unblocked step leaves the position bit-identical.
     const btVector3 target = i == 0 ? to : position + remaining;
-    BlockingSweepCallback callback(position, target);
+    BlockingSweepCallback callback(target - position);
     state_->DynamicsWorld().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
-    if (!callback.hasHit()) {
+    if (!callback.Hit()) {
       return target;
     }
 
-    const btVector3 normal = callback.m_hitNormalWorld;
-    position += remaining * callback.m_closestHitFraction + normal * kSweepSkin;
-    remaining *= 1.f - callback.m_closestHitFraction;
+    const auto& [fraction, normal] = *callback.Hit();
+    position += remaining * fraction + normal * kSweepSkin;
+    remaining *= 1.f - fraction;
     remaining -= normal * normal.dot(remaining);
   }
   return position;
 }
 
 std::optional<flecs::entity_t> PhysicsWorld::RaycastEntity(const btVector3& from, const btVector3& to) {
-  btCollisionWorld::ClosestRayResultCallback callback(from, to);
+  ClosestRayCallback callback;
   state_->DynamicsWorld().rayTest(from, to, callback);
-  if (!callback.hasHit()) {
+  if (!callback.Hit()) {
     return std::nullopt;
   }
-  return ToEntity(callback.m_collisionObject->getUserPointer());
+  return ToEntity(callback.Hit()->object.get().getUserPointer());
 }
 
 }  // namespace z13::bullet_module

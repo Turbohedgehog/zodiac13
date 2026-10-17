@@ -9,8 +9,11 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/block_shape.cpp
+  src/blocking_sweep_callback.cpp
   src/bullet_module.cpp
   src/bullet_module_factory.cpp
+  src/closest_ray_callback.cpp
+  src/penetration_callback.cpp
   src/physics_system.cpp
   src/physics_world.cpp
   PUBLIC
