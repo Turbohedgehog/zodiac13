@@ -24,6 +24,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/world/core.h>
 
@@ -54,6 +55,8 @@ using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 
 constexpr uint64_t kHoldTicks = 30;
+// The scene's first tick builds it, the next one opens the port.
+constexpr uint64_t kTicksToBuildAndListen = 2;
 
 Z13TestWorld MakeMenuWorld(const std::shared_ptr<InMemoryNetwork>& network) {return Z13TestWorld({}, network);
 }
@@ -121,9 +124,41 @@ TEST(ListenServerTest, StartServerFromTheMenuHostsAJoinableGame) {
   EXPECT_TRUE(HasPlayer(host, 1));
 }
 
+TEST(ListenServerTest, TheServerListensOnlyOnceItsSceneIsBuilt) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld host = MakeMenuWorld(network);
+
+  host.World().entity().set<StartServerRequest>({.port = z13::kDefaultServerPort});
+  host.Tick(kNetTestDeltaTime);
+  ASSERT_TRUE(host.World().has<ServerRole>());
+  EXPECT_EQ(StatusOf(host), ConnectionState::kNone) << "listening before the scene's first tick";
+
+  RunTicks(*network, {host}, kTicksToBuildAndListen);
+  EXPECT_EQ(StatusOf(host), ConnectionState::kConnected);
+}
+
+// A server busy building its station answers late; the joining client's clock must not run past
+// the snapshot it is waiting for.
+TEST(ListenServerTest, AJoinAnsweredAfterTheSnapshotHistoryLands) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  RunTicks(*network, {server}, kHoldTicks);
+  Z13TestWorld client = MakeClient(network);
+  RunTicks(*network, {client}, kHoldTicks);
+  const uint64_t waiting_tick = client.World().get<z13::flecs_tools::SimulationClock>().tick;
+
+  RunTicks(*network, {client}, *z13::flecs_tools::SnapshotRetentionTicks(client.World()));
+  EXPECT_EQ(client.World().get<z13::flecs_tools::SimulationClock>().tick, waiting_tick);
+
+  EXPECT_TRUE(RunNetworkUntil(
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
+  EXPECT_EQ(StatusOf(client), ConnectionState::kConnected);
+}
+
 TEST(ListenServerTest, StartServerOnABusyPortFailsWithoutAScene) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
+  RunTicks(*network, {server}, kTicksToBuildAndListen);
   Z13TestWorld host = MakeMenuWorld(network);
 
   host.World().entity().set<StartServerRequest>({.port = z13::kDefaultServerPort});
@@ -139,6 +174,7 @@ TEST(ListenServerTest, StartServerOnABusyPortFailsWithoutAScene) {
 TEST(ListenServerTest, ServerFlagOnABusyPortExitsWithAnError) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
+  RunTicks(*network, {server}, kTicksToBuildAndListen);
   Z13TestWorld second = MakeServer(network);
 
   EXPECT_EQ(StatusOf(second), ConnectionState::kFailed);

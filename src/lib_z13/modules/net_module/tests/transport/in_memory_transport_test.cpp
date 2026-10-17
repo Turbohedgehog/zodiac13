@@ -65,11 +65,27 @@ TEST(InMemoryTransportTest, ConnectingToAPortWithNoListenerDisconnects) {
   InMemoryNetwork network;
   auto client = CreateInMemoryClientTransport(network, kPort);
 
-  network.Tick();
+  for (uint64_t tick = 0; tick <= kInMemoryConnectAttemptTicks; ++tick) {
+    network.Tick();
+  }
 
   const auto events = client->Service();
   ASSERT_EQ(events.size(), 1u);
   EXPECT_EQ(events[0].kind, TransportEventKind::kDisconnected);
+}
+
+TEST(InMemoryTransportTest, AServerListeningAfterTheConnectStillAnswers) {
+  InMemoryNetwork network;
+  auto client = CreateInMemoryClientTransport(network, kPort);
+  network.Tick();
+  ASSERT_TRUE(client->Service().empty()) << "gave up before the attempt window";
+
+  auto server = MustCreateServer(network, kPort);
+  network.Tick();
+
+  const auto events = client->Service();
+  ASSERT_EQ(events.size(), 1u);
+  EXPECT_EQ(events[0].kind, TransportEventKind::kConnected);
 }
 
 TEST(InMemoryTransportTest, SendReceiveRoundTripsOnBothChannelsInOrder) {

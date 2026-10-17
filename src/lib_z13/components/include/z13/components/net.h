@@ -31,6 +31,8 @@ struct ServerRole {
   using Singleton = void;
   // The game's, which LAN discovery tells clients.
   uint16_t port {};
+  // The port opens once the clock passes this tick: the scene is built by then.
+  uint64_t listen_after_tick {};
 };
 struct ClientRole {
   using Singleton = void;

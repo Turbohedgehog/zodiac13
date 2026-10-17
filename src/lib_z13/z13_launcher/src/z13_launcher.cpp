@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include <lib_core/time/tick_log.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
@@ -17,9 +18,20 @@
 
 namespace z13 {
 
+namespace {
+
+// The per-tick session entries are for debugging; a release log keeps what a player's report needs.
+#ifdef NDEBUG
+constexpr spdlog::level::level_enum kLogLevel = spdlog::level::info;
+#else
+constexpr spdlog::level::level_enum kLogLevel = spdlog::level::debug;
+#endif
+
+}  // namespace
+
 int Zodiac13Launcher::Run(int argc, char *argv[]) {
-  spdlog::flush_on(spdlog::level::debug);
-  spdlog::set_level(spdlog::level::debug);
+  spdlog::flush_on(kLogLevel);
+  spdlog::set_level(kLogLevel);
 
   Core core(argc, argv, [](Config& config) { return AddSettingsOptions(config); });
 
@@ -33,7 +45,25 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     log_error("{}", *error);
     return 1;
   }
-  if (const std::optional<LogFileOption> log_file_option = core.GetConfig().GetLogFile()) {
+  // Settings come before the log file, which they can turn on; only their own errors miss it.
+  const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());
+  if (!settings) {
+    log_error("{}", settings.error());
+    return 1;
+  }
+  // File first, then the command line, which wins.
+  const auto effective = ApplyCliOverrides(core.GetConfig(), *settings);
+  if (!effective) {
+    log_error("{}", effective.error());
+    return 1;
+  }
+  core.GetConfig().SetCoreSettings(*effective->core);
+
+  std::optional<LogFileOption> log_file_option = core.GetConfig().GetLogFile();
+  if (!log_file_option && effective->log_to_file) {
+    log_file_option = LogFileOption {};
+  }
+  if (log_file_option) {
     const std::filesystem::path logs =
         log_file_option->directory.value_or(tools::environment::GetGameLogsDirectory());
     if (const Status removed = RemoveOldLogs(logs); !removed) {
@@ -55,19 +85,6 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
   core.SetAssetSource(assets);
 
-  const auto settings = ReadSettings(tools::environment::GetGameSettingsJsonPath());
-  if (!settings) {
-    log_error("{}", settings.error());
-    return 1;
-  }
-  // File first, then the command line, which wins.
-  const auto effective = ApplyCliOverrides(core.GetConfig(), *settings);
-  if (!effective) {
-    log_error("{}", effective.error());
-    return 1;
-  }
-  core.GetConfig().SetCoreSettings(*effective->core);
-
   const bool windowless = core.GetConfig().IsServer() || core.GetConfig().IsHeadless();
   const auto modules = ReadModuleList(assets, windowless ? kServerModuleList : kGameModuleList);
   if (!modules) {
@@ -87,6 +104,7 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     return 1;
   }
   InstallSettings(*world, *effective);
+  flecs_tools::ShowTickInLog(*world);
 
   return core.Run();
 }

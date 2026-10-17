@@ -70,9 +70,10 @@ struct ClockAdjustRequest {
 
 enum class FrameKind {
   kLive,
-  // Another frame follows right away: a wall-clock backlog or extra clock ticks.
+  // Another frame follows right away: a wall-clock backlog.
   kCatchUp,
-  // Re-simulates a tick already shown; never worth presenting.
+  // Re-simulates a tick already shown, or one a clock jump skips to reach the server; never worth
+  // presenting.
   kReplay,
 };
 

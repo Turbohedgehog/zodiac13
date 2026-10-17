@@ -51,6 +51,7 @@ z13_add_library(
   src/state/world_state.cpp
   src/state/world_state_requests.cpp
   src/time/simulation_clock.cpp
+  src/time/tick_log.cpp
   src/time/tick_pacer.cpp
   src/utils/camera_pose.cpp
   src/utils/drawn_poses.cpp

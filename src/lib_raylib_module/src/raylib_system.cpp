@@ -92,7 +92,9 @@ void RegisterPipelines(flecs::world world) {
   world.component<Render>().add(flecs::Phase).add<PresentationPhase>().depends_on<PreRender>();
   world.component<PostRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<Render>();
   world.component<FinalizeRender>().add(flecs::Phase).add<PresentationPhase>().depends_on<PostRender>();
-  world.get_alive(flecs::PostFrame).add(flecs::Phase).depends_on<FinalizeRender>();
+  // Not after FinalizeRender: a disabled phase disables every phase depending on it, and
+  // ThrottleRender's skipped frames would then lose PostFrame (snapshots, the clock, digests).
+  world.get_alive(flecs::PostFrame).add(flecs::Phase).depends_on<RenderGatePhase>();
 }
 
 void RegisterComponents(flecs::world world) {
