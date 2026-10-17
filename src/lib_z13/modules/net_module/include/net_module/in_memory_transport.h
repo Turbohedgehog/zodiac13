@@ -74,6 +74,9 @@ class InMemoryNetwork {
 std::expected<std::unique_ptr<Transport>, std::string> CreateInMemoryServerTransport(
     InMemoryNetwork& network, uint16_t port);
 
+// Like ENet retrying a connect: a server that starts listening meanwhile still answers.
+inline constexpr uint64_t kInMemoryConnectAttemptTicks = 60;
+
 // Starts connecting to whichever transport listens on `server_port`, mirroring
 // EnetTransport's async connect (a kConnected/kDisconnected event from Service()).
 std::unique_ptr<Transport> CreateInMemoryClientTransport(InMemoryNetwork& network, uint16_t server_port);

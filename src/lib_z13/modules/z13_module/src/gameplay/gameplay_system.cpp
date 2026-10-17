@@ -71,10 +71,13 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   EnsureLocalPlayerReady(world);
 }
 
-// Only single-player freezes; runs in PreFrame so a frozen world can thaw.
+// Only single-player pauses; runs in PreFrame so a frozen world can thaw. A joining client has no
+// scene to simulate: its clock would run past the server's snapshot before it arrives.
 void SyncSimulationFrozen(flecs::iter& it) {
   flecs::world world = it.world();
-  const bool frozen = world.has<Pause>() && !world.has<z13::net::ServerRole>() && !world.has<z13::net::ClientRole>();
+  const bool client = world.has<z13::net::ClientRole>();
+  const bool paused = world.has<Pause>() && !world.has<z13::net::ServerRole>() && !client;
+  const bool frozen = paused || (client && !world.has<gameplay::Gameplay>());
   if (frozen == world.has<z13::flecs_tools::SimulationFrozen>()) {
     return;
   }
@@ -125,6 +128,7 @@ void RegisterSystems(flecs::world world) {
     .read<Pause>()
     .read<z13::net::ServerRole>()
     .read<z13::net::ClientRole>()
+    .read<gameplay::Gameplay>()
     .write<z13::flecs_tools::SimulationFrozen>()
     .run(SyncSimulationFrozen);
 }

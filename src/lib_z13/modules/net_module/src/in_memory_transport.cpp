@@ -40,7 +40,8 @@ namespace {
 struct PendingConnect {
   uint64_t deliver_at_tick {};
   TransportId initiator = kInvalidTransportId;
-  TransportId listener = kInvalidTransportId;  // kInvalidTransportId: no such port, initiator times out
+  uint16_t port {};
+  uint64_t give_up_at_tick {};
 };
 struct PendingPacket {
   uint64_t deliver_at_tick {};
@@ -100,9 +101,11 @@ class InMemoryNetworkState {
   void RegisterTransport(TransportId id, InMemoryTransport* transport) { transports_[id] = transport; }
   void UnregisterTransport(TransportId id) { transports_.erase(id); }
 
-  void QueueConnect(TransportId initiator, TransportId listener) {
-    pending_connects_.push_back(
-        {.deliver_at_tick = current_tick_ + SampleDelayTicks(), .initiator = initiator, .listener = listener});
+  void QueueConnect(TransportId initiator, uint16_t port) {
+    pending_connects_.push_back({.deliver_at_tick = current_tick_ + SampleDelayTicks(),
+                                 .initiator = initiator,
+                                 .port = port,
+                                 .give_up_at_tick = current_tick_ + kInMemoryConnectAttemptTicks});
   }
 
   void QueuePacket(
@@ -264,12 +267,15 @@ void InMemoryNetworkState::Tick() {
     if (initiator_it == transports_.end()) {
       continue;  // initiator already destroyed, nothing to notify
     }
+    const TransportId listener_id = FindListener(pending.port);
     InMemoryTransport* listener = nullptr;
-    if (pending.listener != kInvalidTransportId) {
-      const auto listener_it = transports_.find(pending.listener);
-      if (listener_it != transports_.end()) {
-        listener = listener_it->second;
-      }
+    if (const auto listener_it = transports_.find(listener_id); listener_it != transports_.end()) {
+      listener = listener_it->second;
+    }
+    if (!listener && now < pending.give_up_at_tick) {
+      pending.deliver_at_tick = now + 1;
+      pending_connects_.push_back(pending);
+      continue;
     }
     if (!listener) {
       initiator_it->second->QueueEvent({.kind = TransportEventKind::kDisconnected});
@@ -278,7 +284,7 @@ void InMemoryNetworkState::Tick() {
     const ConnectionId listener_side_id = next_connection_id_++;
     const ConnectionId initiator_side_id = next_connection_id_++;
     listener->SetPeer(listener_side_id, {pending.initiator, initiator_side_id});
-    initiator_it->second->SetPeer(initiator_side_id, {pending.listener, listener_side_id});
+    initiator_it->second->SetPeer(initiator_side_id, {listener_id, listener_side_id});
     listener->QueueEvent({.kind = TransportEventKind::kConnected, .connection = listener_side_id});
     initiator_it->second->QueueEvent({.kind = TransportEventKind::kConnected, .connection = initiator_side_id});
   }
@@ -345,7 +351,7 @@ std::unique_ptr<Transport> CreateInMemoryClientTransport(InMemoryNetwork& networ
   auto transport = std::make_unique<InMemoryTransport>(network.GetState(), id);
   state.RegisterTransport(id, transport.get());
 
-  state.QueueConnect(id, state.FindListener(server_port));
+  state.QueueConnect(id, server_port);
   return transport;
 }
 

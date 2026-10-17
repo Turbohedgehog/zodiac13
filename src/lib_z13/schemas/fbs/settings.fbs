@@ -136,6 +136,8 @@ table Settings {
   render: RenderTuning;
   touch: TouchLayout;
   lan_discovery: LanDiscovery;
+  // Write every run's log to the logs directory, as --log does.
+  log_to_file: bool = false;
 }
 
 root_type Settings;

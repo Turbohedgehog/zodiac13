@@ -89,6 +89,8 @@ Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   world.set<z13::gameplay::LocalPlayer>({.id = welcome.player_id});
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();
+  // A joining client is frozen until here; the replay to the server starts this frame.
+  world.remove<ft::SimulationFrozen>();
   world.set<ClockSync>({});
 
   // ConnectionStatus stays kConnecting until the catch-up rollback lands.

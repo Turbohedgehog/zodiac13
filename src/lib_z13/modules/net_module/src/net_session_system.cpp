@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 #include <utility>
 
 #include <flecs.h>
@@ -56,37 +57,59 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 
+void FailToListen(flecs::world world, uint16_t port, const std::string& error) {
+  log_critical("NetSession: failed to open the server on port {}: {}", port, error);
+  FailSession(world, error);
+  // A dedicated server has no menu to fall back to.
+  if (const auto config = z13::GetCoreConfig(world); config && config->get().IsServer()) {
+    z13::ShutdownCore(world, EXIT_FAILURE);
+  }
+}
+
 // OnSet, not OnAdd: see CLAUDE.md.
 void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, const TransportFactories& factories) {
   flecs::world world = e.world();
   const uint16_t port = request.port;
   e.destruct();
-  if (world.has<NetSession>()) {
+  if (world.has<NetSession>() || world.has<ServerRole>()) {
     log_warn("NetSession: ignoring a StartServerRequest, a session is already open");
     return;
   }
-
-  auto transport = factories.server(port, world.get<z13::SessionTimeout>());
-  if (!transport) {
-    log_critical("NetSession: failed to open the server on port {}: {}", port, transport.error());
-    SetConnectionStatus(world, ConnectionState::kFailed, transport.error());
-    // A dedicated server has no menu to fall back to.
-    if (const auto config = z13::GetCoreConfig(world); config && config->get().IsServer()) {
-      z13::ShutdownCore(world, EXIT_FAILURE);
-    }
+  // Opened only to find a busy port before the scene is built; ListenOnceBuilt opens it again.
+  if (const auto check = factories.server(port, world.get<z13::SessionTimeout>()); !check) {
+    FailToListen(world, port, check.error());
     return;
   }
 
   ft::ResetSessionScopedComponents(world);
   world.set<ft::SnapshotCaptureRate>({.per_interval = world.get<NetTuning>().rollback_snapshots_per_interval});
+  // A client joining while the scene builds would time out on a port nobody serves.
+  world.set<ServerRole>({.port = port, .listen_after_tick = world.get<ft::SimulationClock>().tick + 1});
+  world.remove<z13::gameplay::Pause>();
+  world.add<z13::gameplay::Gameplay>();
+}
+
+void ListenOnceBuilt(flecs::world world) {
+  if (!world.has<z13::gameplay::Gameplay>()) {
+    EndSession(world);
+    return;
+  }
+  const ServerRole role = world.get<ServerRole>();
+  if (world.get<ft::SimulationClock>().tick <= role.listen_after_tick) {
+    return;
+  }
+
+  auto transport = world.get<TransportFactories>().server(role.port, world.get<z13::SessionTimeout>());
+  if (!transport) {
+    FailToListen(world, role.port, transport.error());
+    world.remove<z13::gameplay::Gameplay>();
+    return;
+  }
   NetSession session;
   session.Open(std::move(*transport));
   world.set<NetSession>(std::move(session));
-  world.set<ServerRole>({.port = port});
   SetConnectionStatus(world, ConnectionState::kConnected);
-  log_info("NetSession(server): listening on port {}", port);
-  world.remove<z13::gameplay::Pause>();
-  world.add<z13::gameplay::Gameplay>();
+  log_info("NetSession(server): listening on port {}", role.port);
 }
 
 void OnJoinRequest(flecs::entity e, const JoinRequest& request, const TransportFactories& factories) {
@@ -158,6 +181,9 @@ void ServiceNetSession(flecs::world world) {
   ApplyDueSessionDeltas(world);
 
   if (!world.has<NetSession>()) {
+    if (world.has<ServerRole>()) {
+      ListenOnceBuilt(world);
+    }
     return;
   }
 

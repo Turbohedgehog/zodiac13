@@ -35,6 +35,7 @@ set(
   src/lib_core/pose_smoothing_test.cpp
   src/lib_core/schema_attributes_test.cpp
   src/lib_core/thread_pool_test.cpp
+  src/lib_core/tick_log_test.cpp
   src/lib_core/tick_pacer_test.cpp
   src/lib_z13/cell_light/cell_light_test.cpp
   src/lib_z13/grid/block_index_test.cpp

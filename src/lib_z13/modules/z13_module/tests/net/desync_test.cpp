@@ -354,8 +354,9 @@ TEST_F(DesyncTest, ReplayNeitherResendsNorRerecordsCommands) {
   client_.EmitInput(KeyDown(Keycode::KEY_W));
   for (uint64_t i = 0; i < kRollbacks; ++i) {
     Run(kSettleTicks, [] { return false; });
-    const uint64_t now = client_.World().get<ft::SimulationClock>().tick;
-    ft::RequestRollback(client_.World(), now - kRollbackDepthTicks, now);
+    // Applied after the next frame: a target short of that frame's tick would run it live twice.
+    const uint64_t next = client_.World().get<ft::SimulationClock>().tick + 1;
+    ft::RequestRollback(client_.World(), next - kRollbackDepthTicks, next);
   }
   client_.EmitInput(KeyUp(Keycode::KEY_W));
   ASSERT_TRUE(Run(kMaxNetTestTicks, [&] { return Digests(client_).checked >= 2; }));

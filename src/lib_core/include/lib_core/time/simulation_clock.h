@@ -53,7 +53,7 @@ struct DroppedTicks {
 // Called by RegisterStateMeta.
 void RegisterSimulationClock(flecs::world& world);
 
-// Called by TickWorld between frames.
+// Called by TickWorld before each frame.
 void ApplySimulationFreeze(flecs::world& world);
 
 // Config values read through CoreComponent so callers don't each duplicate the lookup.
