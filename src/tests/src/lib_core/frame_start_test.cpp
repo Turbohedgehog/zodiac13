@@ -54,7 +54,6 @@ TEST_F(FrameStartTest, ReportsTheCallersFrameKind) {
   EXPECT_EQ(Tick(), 2u);
 }
 
-// The ticks a jump skips were already played on the server: only where it lands is shown.
 TEST_F(FrameStartTest, ExtraClockTicksAreReplayFrames) {
   ft::RequestClockAdjust(world_, 2);
 

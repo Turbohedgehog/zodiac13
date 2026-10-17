@@ -72,8 +72,7 @@ enum class FrameKind {
   kLive,
   // Another frame follows right away: a wall-clock backlog.
   kCatchUp,
-  // Re-simulates a tick already shown, or one a clock jump skips to reach the server; never worth
-  // presenting.
+  // Re-simulates a tick already shown, or one a clock jump skips; never worth presenting.
   kReplay,
 };
 

@@ -137,8 +137,7 @@ TEST(ListenServerTest, TheServerListensOnlyOnceItsSceneIsBuilt) {
   EXPECT_EQ(StatusOf(host), ConnectionState::kConnected);
 }
 
-// A server busy building its station answers late; the joining client's clock must not run past
-// the snapshot it is waiting for.
+// A server building its station answers late.
 TEST(ListenServerTest, AJoinAnsweredAfterTheSnapshotHistoryLands) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);

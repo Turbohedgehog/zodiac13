@@ -129,7 +129,7 @@ void AdvanceTick(flecs::world& world, float delta_time, FrameKind kind) {
   const uint64_t max_frames = world.get<ActiveCoreSettings>().max_catch_up_ticks_per_frame;
   for (uint64_t frame = 0; frame <= max_frames; ++frame) {
     Z13_PROFILE_ZONE("SimulationFrame");
-    // Per frame: a client's join thaws its world mid-loop, right before the replay to the server.
+    // Per frame: a join thaws the world mid-loop.
     ApplySimulationFreeze(world);
     StartFrame(world, frame == 0 || IsLastReplayFrame(world) ? kind : FrameKind::kReplay);
     world.progress(delta_time);

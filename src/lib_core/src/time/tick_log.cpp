@@ -31,7 +31,6 @@ namespace z13::flecs_tools {
 namespace {
 
 constexpr char kTickFlag = '*';
-// spdlog's default pattern without the logger name, plus the tick.
 constexpr std::string_view kTickLogPattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] [tick %*] %v";
 
 }  // namespace

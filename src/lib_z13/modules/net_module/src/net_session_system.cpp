@@ -83,8 +83,7 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
 
   ft::ResetSessionScopedComponents(world);
   world.set<ft::SnapshotCaptureRate>({.per_interval = world.get<NetTuning>().rollback_snapshots_per_interval});
-  // The frame after this one builds the scene, for many seconds: a client joining meanwhile would
-  // time out on an open port nobody serves, and LAN discovery would already list the server.
+  // A client joining while the scene builds would time out on a port nobody serves.
   world.set<ServerRole>({.port = port, .listen_after_tick = world.get<ft::SimulationClock>().tick + 1});
   world.remove<z13::gameplay::Pause>();
   world.add<z13::gameplay::Gameplay>();

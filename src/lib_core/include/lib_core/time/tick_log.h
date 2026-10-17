@@ -25,7 +25,7 @@
 
 namespace z13::flecs_tools {
 
-// The log pattern's tick: the one the world's current frame runs, also read from pool threads.
+// Atomic: pool threads log too.
 class TickLogFlag : public spdlog::custom_flag_formatter {
  public:
   explicit TickLogFlag(std::shared_ptr<const std::atomic<uint64_t>> tick);
@@ -37,7 +37,7 @@ class TickLogFlag : public spdlog::custom_flag_formatter {
   std::shared_ptr<const std::atomic<uint64_t>> tick_;
 };
 
-// Every log line from now on carries `world`'s simulation tick; call once the world is created.
+// Call once the world is created.
 void ShowTickInLog(flecs::world& world);
 
 }  // namespace z13::flecs_tools

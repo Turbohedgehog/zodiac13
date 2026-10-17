@@ -41,7 +41,6 @@ struct PendingConnect {
   uint64_t deliver_at_tick {};
   TransportId initiator = kInvalidTransportId;
   uint16_t port {};
-  // No listener on the port by then: the initiator times out.
   uint64_t give_up_at_tick {};
 };
 struct PendingPacket {

@@ -74,8 +74,7 @@ class InMemoryNetwork {
 std::expected<std::unique_ptr<Transport>, std::string> CreateInMemoryServerTransport(
     InMemoryNetwork& network, uint16_t port);
 
-// Like ENet's retransmitted connect: a server that opens its port meanwhile still answers (a
-// second of ticks at the tests' 60 Hz).
+// Like ENet retrying a connect: a server that starts listening meanwhile still answers.
 inline constexpr uint64_t kInMemoryConnectAttemptTicks = 60;
 
 // Starts connecting to whichever transport listens on `server_port`, mirroring
