@@ -17,6 +17,7 @@
 #include "topology_sources.h"
 
 #include <lib_profile/profile.h>
+#include <primitives/occupancy.h>
 #include <primitives/placement.h>
 #include <rooms/portal_source.h>
 #include <rooms/topology_fingerprint.h>
@@ -32,7 +33,8 @@ bool AddSources(const Block& block, const z13::building::primitives::BlockPalett
   if (!primitive || !rooms::IsSealing(*primitive)) {
     return false;
   }
-  sources.sealed.push_back(z13::building::primitives::OccupiedCells(block));
+  const auto sealed = z13::building::primitives::SealedBoxes(block, palette.palette);
+  sources.sealed.insert(sources.sealed.end(), sealed.begin(), sealed.end());
   if (const auto portal = rooms::PortalOf(block, *primitive)) {
     sources.portals.push_back(*portal);
   }

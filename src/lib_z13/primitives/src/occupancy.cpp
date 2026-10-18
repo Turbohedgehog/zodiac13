@@ -137,27 +137,93 @@ std::vector<bool> FilledCells(std::span<const ConvexSolid> solids, const Eigen::
   return filled;
 }
 
-CellShape ShapeOfBlock(const z13::station::Block& block, OptionalPalette palette) {
-  const CellShape full = CellShape::Full(OccupiedCells(block));
-  const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
-  if (!primitive || primitive->get().shape.kind == ShapeKind::kBox ||
-      primitive->get().shape.kind == ShapeKind::kDoorFrame) {
-    return full;
-  }
-  const std::vector<ConvexSolid> solids = BlockSolids(palette, {block.spec.type_id, block.spec.size});
-  const std::vector<bool> own = FilledCells(solids, block.spec.size);
+namespace {
+
+std::vector<bool> WorldMask(const z13::station::Block& block, const std::vector<bool>& own) {
   const CellPose pose = PoseOf(block);
   const CellBox frame {.min = Eigen::Vector3i::Zero(), .extent = block.spec.size};
-
-  CellShape shape = full;
-  shape.filled = std::vector<bool>(own.size());
+  const CellBox box = OccupiedCells(block);
+  std::vector<bool> mask(own.size());
   ForEachCell(frame, [&](const Eigen::Vector3i& cell) {
     // The cell's two opposite corners in the world; the lower one on each axis is its cell.
     const Eigen::Vector3i corner = pose.origin + pose.rotation * cell;
     const Eigen::Vector3i opposite = pose.origin + pose.rotation * (cell + Eigen::Vector3i::Ones());
-    (*shape.filled)[IndexIn(shape.box, corner.cwiseMin(opposite))] = own[IndexIn(frame, cell)];
+    mask[IndexIn(box, corner.cwiseMin(opposite))] = own[IndexIn(frame, cell)];
   });
+  return mask;
+}
+
+bool FillsWholeBox(OptionalPalette palette, const z13::station::Block& block) {
+  const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
+  return !primitive || primitive->get().shape.kind == ShapeKind::kBox ||
+         primitive->get().shape.kind == ShapeKind::kDoorFrame;
+}
+
+// A cell's centre lies in the solid when it is on the inner side of every face; doubling
+// the coordinates keeps the centre (2c + 1) and the vertices integer.
+bool CentreInside(const ConvexSolid& solid, const Eigen::Vector3i& cell) {
+  const Vec centre = (cell * 2 + Eigen::Vector3i::Ones()).cast<int64_t>();
+  return std::ranges::all_of(solid.faces, [&](const std::vector<uint32_t>& face) {
+    const Vec origin = ToInteger(solid.vertices[face[0]]) * 2;
+    const Vec normal = (ToInteger(solid.vertices[face[1]]) * 2 - origin).cross(ToInteger(solid.vertices[face[2]]) * 2 - origin);
+    return normal.dot(centre - origin) <= 0;
+  });
+}
+
+// Greedy: from the first free cell, grow along x, then y, then z while every cell is filled and unused.
+std::vector<CellBox> BoxesOf(const CellBox& box, std::vector<bool> filled) {
+  std::vector<CellBox> boxes;
+  const auto free_cell = [&](const Eigen::Vector3i& cell) { return filled[IndexIn(box, cell)]; };
+  const auto all_free = [&](const CellBox& part) {
+    bool all = true;
+    ForEachCell(part, [&](const Eigen::Vector3i& cell) { all = all && box.Contains(cell) && free_cell(cell); });
+    return all;
+  };
+  ForEachCell(box, [&](const Eigen::Vector3i& start) {
+    if (!free_cell(start)) {
+      return;
+    }
+    CellBox part {.min = start, .extent = Eigen::Vector3i::Ones()};
+    for (int axis = 0; axis < kCellAxes; ++axis) {
+      for (;;) {
+        CellBox next = part;
+        next.min[axis] += part.extent[axis];
+        next.extent[axis] = 1;
+        if (!all_free(next)) {
+          break;
+        }
+        ++part.extent[axis];
+      }
+    }
+    ForEachCell(part, [&](const Eigen::Vector3i& cell) { filled[IndexIn(box, cell)] = false; });
+    boxes.push_back(part);
+  });
+  return boxes;
+}
+
+}  // namespace
+
+CellShape ShapeOfBlock(const z13::station::Block& block, OptionalPalette palette) {
+  CellShape shape = CellShape::Full(OccupiedCells(block));
+  if (!FillsWholeBox(palette, block)) {
+    shape.filled = WorldMask(block, FilledCells(BlockSolids(palette, {block.spec.type_id, block.spec.size}), block.spec.size));
+  }
   return shape;
+}
+
+std::vector<CellBox> SealedBoxes(const z13::station::Block& block, OptionalPalette palette) {
+  const CellBox box = OccupiedCells(block);
+  if (FillsWholeBox(palette, block)) {
+    return {box};
+  }
+  const std::vector<ConvexSolid> solids = BlockSolids(palette, {block.spec.type_id, block.spec.size});
+  const CellBox frame {.min = Eigen::Vector3i::Zero(), .extent = block.spec.size};
+  std::vector<bool> own(static_cast<size_t>(frame.extent.prod()));
+  ForEachCell(frame, [&](const Eigen::Vector3i& cell) {
+    own[IndexIn(frame, cell)] =
+        std::ranges::any_of(solids, [&cell](const ConvexSolid& solid) { return CentreInside(solid, cell); });
+  });
+  return BoxesOf(box, WorldMask(block, own));
 }
 
 }  // namespace z13::building::primitives

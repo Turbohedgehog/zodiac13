@@ -48,6 +48,7 @@ set(
   src/lib_z13/primitives/occupancy_test.cpp
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
+  src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/openings_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
