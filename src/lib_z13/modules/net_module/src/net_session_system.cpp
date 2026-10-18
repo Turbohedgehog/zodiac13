@@ -151,7 +151,7 @@ void ServiceServer(flecs::world world, NetSession& session) {
     world.remove<ft::RollbackFailed>();
   }
   // Only the capture a Welcome or Resync needs fails here; the server can't go on without it.
-  if (const Status serviced = ServiceServerSession(world, session, world.get_mut<z13::gameplay::IdCounters>());
+  if (const Status serviced = ServiceServerSession(world, session, world.get<z13::gameplay::IdCounters>());
       !serviced) {
     log_error("NetSession(server): {}", serviced.error());
     EndSession(world);

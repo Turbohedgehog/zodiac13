@@ -23,14 +23,13 @@
 
 #include <flecs.h>
 
+#include <lib_core/state/world_snapshot_history.h>
+
 #include <z13/components/player_action.h>
 
 #include <net_module/protocol.h>
 
 namespace z13::net {
-
-// Absorbs cross-platform float drift; structure (entity names) must match exactly.
-constexpr float kDigestPositionTolerance = 1e-3f;
 
 // Desync detection (docs/client-server-plan.md, "Контроль рассинхрона"). `local` is
 // recorded on snapshot ticks and re-recorded by a replay; `received` holds the server's
@@ -48,7 +47,8 @@ struct StateDigests {
   uint64_t resyncs {};
 };
 
-fbs::net::StateDigestT ComputeStateDigest(flecs::world world, uint64_t tick);
+// Of the snapshot captured this tick; the players' positions are read from the world.
+fbs::net::StateDigestT ComputeStateDigest(flecs::world world, const z13::flecs_tools::TimestampedSnapshot& snapshot);
 
 bool DigestsMatch(const fbs::net::StateDigestT& a, const fbs::net::StateDigestT& b);
 

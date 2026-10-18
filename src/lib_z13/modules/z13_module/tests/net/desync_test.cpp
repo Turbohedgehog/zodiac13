@@ -42,6 +42,7 @@
 #include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13/components/player_parts.h>
 #include <z13/components/block.h>
 
 #include "../support/block_test_helpers.h"
@@ -166,6 +167,42 @@ TEST_F(DesyncTest, ExtraEntityOnTheClientIsDetectedAndResynced) {
   EXPECT_TRUE(client_.Player()) << "the local player lost its input after the resync";
   EXPECT_EQ(PlayerCount(client_.World()), PlayerCount(server_.World()));
   EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
+// Neither an entity nor a position: before Н6 the digest didn't see it.
+TEST_F(DesyncTest, ChangedStateElsewhereIsDetectedAndResynced) {
+  const flecs::entity flashlight = client_.World().query_builder<z13::gameplay::Flashlight>().build().first();
+  ASSERT_TRUE(flashlight);
+  flashlight.set(z13::gameplay::Flashlight {.on = !flashlight.get<z13::gameplay::Flashlight>().on});
+
+  ASSERT_TRUE(RunUntilResynced());
+  Settle();
+
+  EXPECT_EQ(Checkpoint(server_), Checkpoint(client_));
+}
+
+// The server hands the id out at ClientHello, but the state counter grows on every peer at the
+// PlayerJoined's tick: a digest between the two would differ.
+TEST_F(DesyncTest, AJoinChangesTheIdCountersOnlyAtItsApplyTick) {
+  const auto last_player_id = [](Z13TestWorld& world) {
+    return world.World().get<z13::gameplay::IdCounters>().last_player_id;
+  };
+  const uint32_t before = last_player_id(server_);
+  Z13TestWorld joiner = MakeClient(network_);
+  const auto run = [&](const std::function<bool()>& condition) {
+    return RunNetworkUntil(*network_, {server_, client_, joiner}, kNetTestDeltaTime, kMaxNetTestTicks, condition);
+  };
+
+  // Welcomed, its PlayerJoined still to come.
+  ASSERT_TRUE(run([&] { return joiner.World().has<z13::gameplay::Gameplay>(); }));
+  ASSERT_FALSE(IsConnected(joiner));
+  EXPECT_EQ(last_player_id(server_), before);
+  EXPECT_EQ(last_player_id(client_), before);
+
+  ASSERT_TRUE(run([&] { return IsConnected(joiner); }));
+  EXPECT_EQ(last_player_id(server_), before + 1);
+  EXPECT_EQ(last_player_id(client_), before + 1);
+  EXPECT_EQ(last_player_id(joiner), before + 1);
 }
 
 // The client's history loses its own hold after the server has applied it.

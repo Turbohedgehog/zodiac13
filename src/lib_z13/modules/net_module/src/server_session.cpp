@@ -134,7 +134,7 @@ std::expected<std::vector<uint32_t>, std::string> NegotiateActions(flecs::world 
 
 Status HandleClientHello(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::ClientHelloT& hello,
-    z13::gameplay::IdCounters& counters) {
+    const z13::gameplay::IdCounters& counters) {
   if (hello.version != kProtocolVersion) {
     SendRejected(session, connection, "protocol version mismatch");
     return {};
@@ -159,10 +159,10 @@ Status HandleClientHello(
     return {};
   }
 
-  // last_player_id holds the next id to hand out, as in OnInit.
+  // last_player_id holds the next id to hand out, as in OnInit; ApplyPlayerJoined raises it.
   auto& allocator = world.get_mut<PlayerIdAllocator>();
   const uint32_t player_id = std::max(counters.last_player_id, allocator.next_player_id);
-  allocator.next_player_id = counters.last_player_id = player_id + 1;
+  allocator.next_player_id = player_id + 1;
 
   session.BindPlayer(connection, player_id);
   log_info("NetSession(server): connection {} joins as player {}", connection, player_id);
@@ -324,7 +324,7 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
 }
 
 Status HandleServerReceived(
-    NetSession& session, flecs::world world, const TransportEvent& event, z13::gameplay::IdCounters& counters) {
+    NetSession& session, flecs::world world, const TransportEvent& event, const z13::gameplay::IdCounters& counters) {
   const auto decoded = DecodeMessage(AsUint8(event.data));
   const ConnectionId connection = event.connection;
   if (!decoded) {
@@ -401,7 +401,7 @@ void FinalizeLateInput(NetSession& session, flecs::world world) {
   }
 }
 
-Status ServiceServerSession(flecs::world world, NetSession& session, z13::gameplay::IdCounters& counters) {
+Status ServiceServerSession(flecs::world world, NetSession& session, const z13::gameplay::IdCounters& counters) {
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:

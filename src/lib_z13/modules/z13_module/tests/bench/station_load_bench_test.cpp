@@ -234,7 +234,7 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
 
   std::vector<double> digest;
   for (int run = 0; run < kTimedRuns; ++run) {
-    digest.push_back(Ms([&] { z13::net::ComputeStateDigest(w, w.get<ft::SimulationClock>().tick); }));
+    digest.push_back(Ms([&] { z13::net::ComputeStateDigest(w, w.get<ft::WorldSnapshotHistory>().history.Entries().back()); }));
   }
   row.digest_ms = Median(digest);
 

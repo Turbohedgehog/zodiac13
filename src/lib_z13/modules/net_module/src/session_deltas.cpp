@@ -43,7 +43,6 @@ namespace {
 namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 
-// Keeps IdCounters in step with the server, which bumped it at ClientHello.
 void ApplyPlayerJoined(flecs::world world, const fbn::PlayerJoinedT& joined) {
   if (!joined.entity_state) {
     log_warn("NetSession: PlayerJoined without the player's state");

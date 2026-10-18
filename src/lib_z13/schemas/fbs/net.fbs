@@ -41,11 +41,8 @@ struct CommandMove {
   value: short;
 }
 
-// Only for StateDigest's coarse position check -- not a pose-sync message (movement
-// goes through commands, see the plan's "Модель синхронизации"). Position-specific by
-// design for now (epsilon tolerance absorbs cross-platform FP drift, see the plan's
-// "Кросс-платформенный детерминизм"); TODO generalize to other modules' state once a
-// real need shows up -- a hash-based digest can't offer the same tolerance.
+// Where StateDigest's players stand, to log who diverged -- not a pose-sync message (movement
+// goes through commands, see the plan's "Модель синхронизации").
 struct PoseWire {
   player_id: uint;
   x: float;
@@ -161,6 +158,8 @@ table StateDigest {
   tick: ulong;
   entity_count: uint;
   name_hash: ulong;
+  // HashSnapshot of the tick's snapshot: what the digests are compared by.
+  state_hash: ulong;
   positions: [PoseWire];
   // Per player, the tick their input is final through (ConfirmedInputTicks): past it, released.
   input_through: [PlayerTickWire];

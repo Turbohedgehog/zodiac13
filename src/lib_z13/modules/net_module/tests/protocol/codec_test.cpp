@@ -210,6 +210,7 @@ TEST(CodecTest, StateDigestRoundTripsPositionsAndInputThrough) {
   digest.tick = 60;
   digest.entity_count = 12;
   digest.name_hash = 0xDEADBEEF;
+  digest.state_hash = 0xFEEDFACE;
   digest.positions.emplace_back(1, 1.5f, 2.5f, 3.5f);
   digest.input_through.emplace_back(1, 75);
 
@@ -217,6 +218,7 @@ TEST(CodecTest, StateDigestRoundTripsPositionsAndInputThrough) {
   EXPECT_EQ(decoded.tick, 60u);
   EXPECT_EQ(decoded.entity_count, 12u);
   EXPECT_EQ(decoded.name_hash, 0xDEADBEEFu);
+  EXPECT_EQ(decoded.state_hash, 0xFEEDFACEu);
   ASSERT_EQ(decoded.positions.size(), 1u);
   EXPECT_EQ(decoded.positions[0].player_id(), 1u);
   EXPECT_FLOAT_EQ(decoded.positions[0].y(), 2.5f);
