@@ -1,0 +1,7 @@
+Shard station estimate (written by generate_shard.py).
+
+Deck 1 (Cargo and berths): rooms 10, doors 10, blocks 122
+Deck 2 (Halls): rooms 10, doors 10, blocks 430
+Deck 3 (Loft and observatory): rooms 10, doors 10, blocks 137
+
+Blueprint blocks (shard.json): 719 - Floor 24, Slope 94, Wall 420, Door 30, Window 1, SpawnPoint 4, Lamp 146.
