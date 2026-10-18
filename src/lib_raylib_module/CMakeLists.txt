@@ -21,6 +21,7 @@ z13_add_plugin(
   src/gui/input_settings_window.cpp
   src/gui/join_window.cpp
   src/gui/key_bindings_window.cpp
+  src/gui/loading_screen.cpp
   src/gui/main_menu_window.cpp
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp

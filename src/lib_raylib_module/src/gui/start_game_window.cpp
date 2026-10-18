@@ -18,6 +18,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include <imgui.h>
 
@@ -25,8 +27,15 @@
 #include <z13/components/net.h>
 
 #include "gui_widgets.h"
+#include "pending_transition.h"
 
 namespace z13::raylib::gui {
+
+namespace {
+
+constexpr std::string_view kStartingGameLabel = "Starting the game...";
+
+}  // namespace
 
 StartGameWindow::StartGameWindow(flecs::world world) : Window(world, "Start Game"), scenes_(GameScenes(world.get<z13::Assets>().source)) {}
 
@@ -45,10 +54,12 @@ void StartGameWindow::DrawBody() {
 }
 
 void StartGameWindow::Start(const GameScene& scene) {
-  World().set<z13::net::ConnectionStatus>({});
-  SelectScene(World(), scene);
-  World().add<z13::gameplay::Gameplay>();
-  RequestCloseMenu();
+  World().set<PendingTransition>({.label = std::string(kStartingGameLabel), .action = [scene](flecs::world world) {
+    world.set<z13::net::ConnectionStatus>({});
+    SelectScene(world, scene);
+    world.add<z13::gameplay::Gameplay>();
+    world.remove<z13::gameplay::Pause>();
+  }});
 }
 
 WindowPtr MakeStartGameWindow(flecs::world world) {
