@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -28,8 +29,15 @@
 #include <z13/components/net.h>
 
 #include "gui_widgets.h"
+#include "pending_transition.h"
 
 namespace z13::raylib::gui {
+
+namespace {
+
+constexpr std::string_view kStartingServerLabel = "Starting the server...";
+
+}  // namespace
 
 StartServerWindow::StartServerWindow(flecs::world world)
     : Window(world, "Start Server"),
@@ -51,8 +59,11 @@ void StartServerWindow::DrawBody() {
 
   ImGui::BeginDisabled(!port);
   if (ImGui::Button("Start", ButtonSize())) {
-    SelectScene(World(), scenes_[scene_]);
-    World().entity().set<z13::net::StartServerRequest>({.port = *port});
+    World().set<PendingTransition>(
+        {.label = std::string(kStartingServerLabel), .action = [scene = scenes_[scene_], port = *port](flecs::world world) {
+           SelectScene(world, scene);
+           world.entity().set<z13::net::StartServerRequest>({.port = port});
+         }});
     submitted_ = true;
   }
   ImGui::EndDisabled();

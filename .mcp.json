@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "uvx",
+      "args": ["--python", "3.12", "mcp-for-blender"],
+      "env": {
+        "UV_CACHE_DIR": "C:\\Projects\\zodiac13\\blender\\.uv\\cache",
+        "UV_PYTHON_INSTALL_DIR": "C:\\Projects\\zodiac13\\blender\\.uv\\python"
+      }
+    }
+  }
+}

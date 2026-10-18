@@ -20,7 +20,9 @@
 #include <chrono>
 #include <iterator>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Geometry>
@@ -41,6 +43,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input_events.h>
+#include <z13/components/net.h>
 #include <z13/components/rooms.h>
 
 #include <raylib_module/raylib_components.h>
@@ -49,7 +52,9 @@
 #include "gui_widgets.h"
 #include "gui_windows.h"
 #include "hotbar_hud.h"
+#include "loading_screen.h"
 #include "main_menu_window.h"
+#include "pending_transition.h"
 #include "palette_window.h"
 #include "pause_menu_window.h"
 #include "platform/gl_profile.h"
@@ -72,6 +77,8 @@ struct GuiState {
   std::optional<float> display_scale;
 };
 
+constexpr std::string_view kJoinLoadingLabel = "Loading the station...";
+
 void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
                        const gui::Window::StackRequest& request) {
   switch (request.op) {
@@ -93,7 +100,7 @@ void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay>(world);
+  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay, gui::PendingTransition>(world);
 }
 
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
@@ -184,12 +191,14 @@ void RegisterSystems(flecs::world world) {
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
-               z13::input::TouchControls*, const z13::TouchLayout*>("GuiSystem::Draw")
+               z13::input::TouchControls*, const z13::TouchLayout*, const z13::net::ConnectionStatus*,
+               gui::PendingTransition*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
                const RenderStats* render, z13::station::RoomOverlay* rooms, z13::input::TouchControls* touch,
-               const z13::TouchLayout* touch_layout) {
+               const z13::TouchLayout* touch_layout, const z13::net::ConnectionStatus* connection,
+               gui::PendingTransition* pending) {
         flecs::world world = it.world();
         if (!state.imgui_ready) {
           return;
@@ -244,8 +253,31 @@ void RegisterSystems(flecs::world world) {
             gui::DrawRoomLabel(rooms->label, overlay_top);
           }
         }
+        if (pending != nullptr) {
+          gui::DrawLoadingScreen(pending->label);
+          ++pending->frames_shown;
+        } else if (in_game && connection != nullptr && connection->state == z13::net::ConnectionState::kConnecting) {
+          // A joined client stays kConnecting while it restores the snapshot.
+          gui::DrawLoadingScreen(std::string(kJoinLoadingLabel));
+        }
         gui::DrawBuildInfo();
         EndImGuiFrame();
+      });
+
+  // The action blocks its frame, so it waits for one that showed the loading screen.
+  world.system<gui::PendingTransition>("GuiSystem::RunPendingTransition")
+      .kind(flecs::PreFrame)
+      .immediate()
+      .write<gameplay::Gameplay>()
+      .write<gameplay::Pause>()
+      .each([](flecs::iter& it, size_t, gui::PendingTransition& pending) {
+        if (pending.frames_shown == 0) {
+          return;
+        }
+        flecs::world world = it.world();
+        const auto action = std::move(pending.action);
+        world.remove<gui::PendingTransition>();
+        action(world);
       });
 
   // Esc while paused -> WindowBackEvent; other keys/mouse -> WindowKeyDownEvent

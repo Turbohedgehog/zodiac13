@@ -56,3 +56,6 @@ __pycache__/
 android/.gradle/
 android/build/
 android/app/build/
+blender/.uv/
+blender/export/station_map.blend
+*.blend1
