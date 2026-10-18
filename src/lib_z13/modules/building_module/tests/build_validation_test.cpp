@@ -19,6 +19,7 @@
 #include <span>
 #include <vector>
 
+#include <primitives/occupancy.h>
 #include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/block.h>
@@ -83,13 +84,40 @@ TEST(BuildValidationTest, RefusesTakenCells) {
   EXPECT_FALSE(Validate(Wall({7, 0, 7}), palette, index, {}, {}).has_value());
 }
 
+Block Slope(const Eigen::Vector3i& cell, const Eigen::Vector3i& size) {
+  return {.spec = {.type_id = kSlopeId, .size = size}, .cell = cell};
+}
+
+TEST(BuildValidationTest, ASlopeMayRiseFromOneToOneUpToOneToFour) {
+  const auto palette = ShippedPalette();
+  const BlockIndex index;
+
+  EXPECT_TRUE(Validate(Slope({0, 0, 0}, {4, 4, 4}), palette, index, {}, {}).has_value());
+  EXPECT_TRUE(Validate(Slope({0, 0, 0}, {12, 2, 3}), palette, index, {}, {}).has_value());
+  EXPECT_TRUE(Validate(Slope({0, 0, 0}, {16, 2, 4}), palette, index, {}, {}).has_value());
+  EXPECT_FALSE(Validate(Slope({0, 0, 0}, {13, 2, 3}), palette, index, {}, {}).has_value());
+  EXPECT_FALSE(Validate(Slope({0, 0, 0}, {3, 2, 4}), palette, index, {}, {}).has_value());
+}
+
+TEST(BuildValidationTest, TheEmptyHalfOfASlopeTakesABlock) {
+  const auto palette = ShippedPalette();
+  BlockIndex index;
+  const Block slope = Slope({0, 0, 0}, {4, 4, 4});
+  index.Insert(1, z13::building::primitives::ShapeOfBlock(slope, palette));
+
+  EXPECT_TRUE(Validate({.spec = {.type_id = kWallId, .size = {2, 1, 2}}, .cell = {0, 0, 2}}, palette, index, {}, {})
+                  .has_value());
+  EXPECT_FALSE(Validate({.spec = {.type_id = kWallId, .size = {2, 1, 2}}, .cell = {2, 0, 2}}, palette, index, {}, {})
+                   .has_value());
+}
+
 TEST(BuildValidationTest, RefusesUnknownTypesAndSizesOutsideTheLimits) {
   const auto palette = ShippedPalette();
   const BlockIndex index;
 
   EXPECT_FALSE(Validate({.spec = {.type_id = kUnknownId, .size = {1, 1, 1}}}, palette, index, {}, {})
                    .has_value());
-  // A wall is one cell thick; a slope has a fixed size.
+  // A wall is one cell thick; a slope is at most 4 cells high.
   EXPECT_FALSE(Validate({.spec = {.type_id = kWallId, .size = {8, 2, 8}}}, palette, index, {}, {})
                    .has_value());
   EXPECT_FALSE(Validate({.spec = {.type_id = kSlopeId, .size = {4, 4, 5}}}, palette, index, {}, {})

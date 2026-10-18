@@ -42,6 +42,10 @@ struct Shape {
   ShapeKind kind {};
   // DoorFrame only: the opening's width (X) and height (Z), in cells.
   Eigen::Vector2i door_opening = Eigen::Vector2i::Zero();
+  // Wedge only: the run (X) is from one to this many times the rise (Z).
+  int max_run_per_rise = 1;
+
+  bool AllowsSize(const Eigen::Vector3i& size) const;
 };
 
 using Rgba = z13::Rgba;

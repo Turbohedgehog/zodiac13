@@ -45,21 +45,21 @@ void BlockIndex::ForEachChunk(const z13::building::primitives::CellBox& cells, V
   }
 }
 
-void BlockIndex::Insert(BlockId block, const z13::building::primitives::CellBox& cells) {
+void BlockIndex::Insert(BlockId block, const z13::building::primitives::CellShape& shape) {
   Erase(block);
-  if ((cells.extent.array() < 1).any()) {
+  if ((shape.box.extent.array() < 1).any()) {
     return;
   }
-  boxes_.emplace(block, cells);
-  ForEachChunk(cells, [this, block](const Eigen::Vector3i& chunk) { chunks_[chunk].push_back(block); });
+  shapes_.emplace(block, shape);
+  ForEachChunk(shape.box, [this, block](const Eigen::Vector3i& chunk) { chunks_[chunk].push_back(block); });
 }
 
 void BlockIndex::Erase(BlockId block) {
-  const auto it = boxes_.find(block);
-  if (it == boxes_.end()) {
+  const auto it = shapes_.find(block);
+  if (it == shapes_.end()) {
     return;
   }
-  ForEachChunk(it->second, [this, block](const Eigen::Vector3i& chunk) {
+  ForEachChunk(it->second.box, [this, block](const Eigen::Vector3i& chunk) {
     const auto bucket = chunks_.find(chunk);
     if (bucket == chunks_.end()) {
       return;
@@ -69,7 +69,7 @@ void BlockIndex::Erase(BlockId block) {
       chunks_.erase(bucket);
     }
   });
-  boxes_.erase(it);
+  shapes_.erase(it);
 }
 
 std::optional<BlockId> BlockIndex::At(const Eigen::Vector3i& cell) const {
@@ -78,22 +78,31 @@ std::optional<BlockId> BlockIndex::At(const Eigen::Vector3i& cell) const {
     return std::nullopt;
   }
   const auto hit = std::ranges::find_if(bucket->second, [this, &cell](BlockId block) {
-    return boxes_.at(block).Contains(cell);
+    return shapes_.at(block).Contains(cell);
   });
   return hit != bucket->second.end() ? std::optional(*hit) : std::nullopt;
 }
 
-bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const {
-  bool overlaps = false;
-  ForEachChunk(cells, [this, &cells, &overlaps](const Eigen::Vector3i& chunk) {
+template <class Test>
+bool BlockIndex::AnyShape(const z13::building::primitives::CellBox& box, Test test) const {
+  bool found = false;
+  ForEachChunk(box, [this, &test, &found](const Eigen::Vector3i& chunk) {
     const auto bucket = chunks_.find(chunk);
-    if (overlaps || bucket == chunks_.end()) {
+    if (found || bucket == chunks_.end()) {
       return;
     }
-    overlaps = std::ranges::any_of(
-        bucket->second, [this, &cells](BlockId block) { return boxes_.at(block).Overlaps(cells); });
+    found = std::ranges::any_of(bucket->second, [this, &test](BlockId block) { return test(shapes_.at(block)); });
   });
-  return overlaps;
+  return found;
+}
+
+bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const {
+  return AnyShape(cells, [&cells](const z13::building::primitives::CellShape& other) { return other.Overlaps(cells); });
+}
+
+bool BlockIndex::Overlaps(const z13::building::primitives::CellShape& shape) const {
+  return AnyShape(
+      shape.box, [&shape](const z13::building::primitives::CellShape& other) { return other.Overlaps(shape); });
 }
 
 std::vector<BlockId> BlockIndex::Overlapping(const z13::building::primitives::CellBox& cells) const {
@@ -105,7 +114,7 @@ std::vector<BlockId> BlockIndex::Overlapping(const z13::building::primitives::Ce
     }
     for (const BlockId block : bucket->second) {
       // A block spanning several chunks is filed in each of them.
-      if (boxes_.at(block).Overlaps(cells) && std::ranges::find(found, block) == found.end()) {
+      if (shapes_.at(block).Overlaps(cells) && std::ranges::find(found, block) == found.end()) {
         found.push_back(block);
       }
     }

@@ -47,6 +47,7 @@
 #include <z13/components/spawn_point.h>
 #include <z13/components/station_mode.h>
 #include <grid/block_index.h>
+#include <primitives/occupancy.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
@@ -68,6 +69,7 @@ using z13::building::primitives::BlockPalette;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::OccupiedCells;
 using z13::building::primitives::Palette;
+using z13::building::primitives::ShapeOfBlock;
 using z13::station::Block;
 using z13::station::BlockBrush;
 using z13::station::BlockSpec;
@@ -92,25 +94,27 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<BlockIndex, BuildingTuning, BrushDrag, BuildPermission, BrushPreview>(world);
 }
 
-void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning) {
+void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning, const Palette& palette) {
   Z13_PROFILE_ZONE("RebuildIndex");
   index = BlockIndex(tuning.index_chunk_cells);
-  blocks.each([&index](flecs::entity e, const Block& block) { index.Insert(e.id(), OccupiedCells(block)); });
+  blocks.each([&index, &palette](flecs::entity e, const Block& block) {
+    index.Insert(e.id(), ShapeOfBlock(block, palette));
+  });
 }
 
 // Build and destroy requests also update the index themselves, for later requests in the tick.
 void SyncBlockIndex(z13::station::BlockChangeReader& reader, uint64_t restores, uint64_t tick, BlockIndex& index,
-                    const BuildingTuning& tuning) {
+                    const BuildingTuning& tuning, const Palette& palette) {
   const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, index.Size());
   if (batch.resync || index.ChunkCells() != tuning.index_chunk_cells) {
-    RebuildIndex(reader.Blocks(), index, tuning);
+    RebuildIndex(reader.Blocks(), index, tuning, palette);
     return;
   }
   for (const z13::station::BlockChange& change : batch.changes) {
     if (change.kind == z13::station::BlockChangeKind::kRemoved) {
       index.Erase(change.entity);
     } else {
-      index.Insert(change.entity, OccupiedCells(change.block));
+      index.Insert(change.entity, ShapeOfBlock(change.block, palette));
     }
   }
 }
@@ -238,7 +242,7 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
   if (kind != BuildKind::kCut) {
     const flecs::entity created =
         CreateBlock(world, NextBlockName(world, run.counters), block, run.palette, run.tuning);
-    run.index.get().Insert(created.id(), OccupiedCells(block));
+    run.index.get().Insert(created.id(), ShapeOfBlock(block, run.palette));
     run.made.emplace(created.id(), block);
     if (spawns) {
       ++run.spawn_points;
@@ -349,14 +353,15 @@ void RegisterSystems(flecs::world world) {
 
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
   world.system<BlockIndex, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock,
-               const BuildingTuning>("BlockBuildingSystem::SyncBlockIndex")
+               const BuildingTuning, const BlockPalette>("BlockBuildingSystem::SyncBlockIndex")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<z13::station::BlockChange>()
       .each([reader](flecs::iter&, size_t, BlockIndex& index, const z13::flecs_tools::WorldRestores& restores,
-                     const z13::flecs_tools::SimulationClock& clock, const BuildingTuning& tuning) {
-        SyncBlockIndex(*reader, restores.count, clock.tick, index, tuning);
+                     const z13::flecs_tools::SimulationClock& clock, const BuildingTuning& tuning,
+                     const BlockPalette& palette) {
+        SyncBlockIndex(*reader, restores.count, clock.tick, index, tuning, palette.palette);
       });
 
   world.system<RequestBrushDrag, const BlockIndex>("BlockBuildingSystem::StartBrushDrag")

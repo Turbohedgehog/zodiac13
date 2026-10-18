@@ -20,6 +20,7 @@
 #include <format>
 #include <vector>
 
+#include <primitives/occupancy.h>
 #include <primitives/placement.h>
 
 #include <lib_core/utils/status.h>
@@ -58,8 +59,14 @@ Status ValidateBuild(const Block& block, const BuildView& view, z13::station::Br
         "size {}x{}x{} outside the limits of '{}'", spec.size.x(), spec.size.y(), spec.size.z(), limits.name));
   }
 
+  if (!limits.shape.AllowsSize(spec.size)) {
+    return std::unexpected(std::format(
+        "size {}x{}x{} slopes outside the range of '{}'", spec.size.x(), spec.size.y(), spec.size.z(), limits.name));
+  }
+
   const CellBox cells = z13::building::primitives::OccupiedCells(block);
-  if (kind != z13::station::BrushPreview::Kind::kCutIn && index.Overlaps(cells)) {
+  if (kind != z13::station::BrushPreview::Kind::kCutIn &&
+      index.Overlaps(z13::building::primitives::ShapeOfBlock(block, view.palette))) {
     return std::unexpected(std::string {"cells are taken"});
   }
   if (std::ranges::any_of(view.players, [&cells](const PlayerSphere& player) { return Intersects(player, cells); })) {
@@ -85,7 +92,7 @@ Status ValidateBlueprint(
     if (const Status valid = ValidateBuild(block, view); !valid) {
       return std::unexpected(std::format("block {}: {}", i, valid.error()));
     }
-    index.Insert(i, z13::building::primitives::OccupiedCells(block));
+    index.Insert(i, z13::building::primitives::ShapeOfBlock(block, palette));
     if (palette.Find(block.spec.type_id)->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
       spawn_clearances.push_back(SpawnClearance(block, tuning));
     }
