@@ -98,10 +98,10 @@ TEST(PlacementTest, ADragThatStartedOnAFaceStaysOutsideIt) {
   const z13::station::BlockSpec spec {.size = {4, 4, 4}};
   const Eigen::Vector3i limits {4, 4, 4};
   // From the empty cell above a floor whose top is z = 0, without moving along Z.
-  const Block above = DraggedBlock({3, 3, 0}, {3, 3, 0}, spec, limits, limits, {0, 0, 1});
+  const Block above = DraggedBlock({3, 3, 0}, {3, 3, 0}, spec, limits, limits, {0, 0, 1}, Shape {});
   EXPECT_EQ(above.cell.z(), 0);
   // From the empty cell under a ceiling whose underside is z = 0.
-  const Block below = DraggedBlock({3, 3, -1}, {3, 3, -1}, spec, limits, limits, {0, 0, -1});
+  const Block below = DraggedBlock({3, 3, -1}, {3, 3, -1}, spec, limits, limits, {0, 0, -1}, Shape {});
   EXPECT_EQ(below.cell.z(), -4);
 }
 
@@ -129,24 +129,24 @@ const Eigen::Vector3i kPanelMin {1, 1, 1};
 const Eigen::Vector3i kPanelMax {256, 1, 256};
 
 TEST(PlacementTest, ADragSpansTheCellsItMovedAndKeepsTheBrushSizeElsewhere) {
-  const Block forward = DraggedBlock({0, 0, 0}, {5, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  const Block forward = DraggedBlock({0, 0, 0}, {5, 0, 0}, kPanel, kPanelMin, kPanelMax, {}, Shape {});
   EXPECT_EQ(forward.spec.size, Eigen::Vector3i(5, 1, 8));
   EXPECT_EQ(forward.cell, Eigen::Vector3i(0, 0, -4));
 
-  const Block backward = DraggedBlock({0, 0, 0}, {-3, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  const Block backward = DraggedBlock({0, 0, 0}, {-3, 0, 0}, kPanel, kPanelMin, kPanelMax, {}, Shape {});
   EXPECT_EQ(backward.spec.size, Eigen::Vector3i(3, 1, 8));
   EXPECT_EQ(OccupiedCells(backward).End().x(), 1);
 
-  const Block click = DraggedBlock({0, 0, 0}, {0, 0, 0}, kPanel, kPanelMin, kPanelMax);
+  const Block click = DraggedBlock({0, 0, 0}, {0, 0, 0}, kPanel, kPanelMin, kPanelMax, {}, Shape {});
   EXPECT_EQ(click.spec.size, kPanel.size);
 }
 
 TEST(PlacementTest, ADragStaysWithinTheSizeLimits) {
-  const Block thick = DraggedBlock({0, 0, 0}, {0, 4, 0}, kPanel, kPanelMin, kPanelMax);
+  const Block thick = DraggedBlock({0, 0, 0}, {0, 4, 0}, kPanel, kPanelMin, kPanelMax, {}, Shape {});
   EXPECT_EQ(thick.spec.size, Eigen::Vector3i(8, 1, 8));
 
   const z13::station::BlockSpec door {.type_id = 3, .size = {6, 1, 10}};
-  const Block fixed = DraggedBlock({0, 0, 0}, {20, 0, 20}, door, door.size, door.size);
+  const Block fixed = DraggedBlock({0, 0, 0}, {20, 0, 20}, door, door.size, door.size, {}, Shape {});
   EXPECT_EQ(fixed.spec.size, door.size);
   EXPECT_EQ(fixed.cell, Eigen::Vector3i(0, 0, 0));
 }
@@ -172,7 +172,7 @@ TEST(PlacementTest, ADragKeepsAWedgeWithinItsSlopeRange) {
 // Turned to face +Y, the panel's own X runs along the world Y the drag moves along.
 TEST(PlacementTest, ADragSizesATurnedBrushAlongItsOwnAxes) {
   const z13::station::BlockSpec turned {.type_id = 2, .size = {8, 1, 8}, .orientation = Orientation::kFacePosYUpPosZ};
-  const Block block = DraggedBlock({0, 0, 0}, {0, 6, 0}, turned, kPanelMin, kPanelMax);
+  const Block block = DraggedBlock({0, 0, 0}, {0, 6, 0}, turned, kPanelMin, kPanelMax, {}, Shape {});
   EXPECT_EQ(block.spec.size, Eigen::Vector3i(6, 1, 8));
   EXPECT_EQ(OccupiedCells(block).extent, Eigen::Vector3i(1, 6, 8));
 }

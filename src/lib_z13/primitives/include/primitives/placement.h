@@ -104,10 +104,6 @@ z13::station::Block PlaceOnFace(
 // to `shape` (a wedge's slope stays within its range).
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
-    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size,
-    const Eigen::Vector3i& from_normal = Eigen::Vector3i::Zero());
-z13::station::Block DraggedBlock(
-    const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
     const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal,
     const Shape& shape);
 

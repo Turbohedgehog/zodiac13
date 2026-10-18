@@ -182,12 +182,6 @@ z13::station::Block PlaceOnFace(
 
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
-    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal) {
-  return DraggedBlock(from_cell, to_cell, brush, min_size, max_size, from_normal, Shape {});
-}
-
-z13::station::Block DraggedBlock(
-    const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
     const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal,
     const Shape& shape) {
   // A permutation: world extent = axes * own size, own size = axes^T * world extent.
