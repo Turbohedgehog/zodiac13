@@ -178,6 +178,13 @@ bool Shape::AllowsSize(const Eigen::Vector3i& size) const {
   return kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z());
 }
 
+Eigen::Vector3i Shape::FitSize(Eigen::Vector3i size) const {
+  if (kind == ShapeKind::kWedge) {
+    size.x() = std::clamp(size.x(), size.z(), max_run_per_rise * size.z());
+  }
+  return size;
+}
+
 std::optional<std::reference_wrapper<const Primitive>> Palette::Find(uint32_t id) const {
   const auto it = std::ranges::find(primitives, id, &Primitive::id);
   if (it == primitives.end()) {

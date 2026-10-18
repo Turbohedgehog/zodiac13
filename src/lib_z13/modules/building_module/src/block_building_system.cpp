@@ -69,6 +69,7 @@ using z13::building::primitives::BlockPalette;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::OccupiedCells;
 using z13::building::primitives::Palette;
+using z13::building::primitives::Shape;
 using z13::building::primitives::ShapeOfBlock;
 using z13::station::Block;
 using z13::station::BlockBrush;
@@ -152,7 +153,8 @@ Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, co
   const auto primitive = view.palette.get().Find(spec.type_id);
   return z13::building::primitives::DraggedBlock(
       anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
-      primitive ? primitive->get().max_size : spec.size, cutting ? -drag->anchor_normal : drag->anchor_normal);
+      primitive ? primitive->get().max_size : spec.size, cutting ? -drag->anchor_normal : drag->anchor_normal,
+      primitive ? primitive->get().shape : Shape {});
 }
 
 Status CheckPermission(flecs::entity player) {

@@ -46,6 +46,8 @@ struct Shape {
   int max_run_per_rise = 1;
 
   bool AllowsSize(const Eigen::Vector3i& size) const;
+  // The nearest allowed size: a wedge's run is brought into [rise, max_run_per_rise * rise].
+  Eigen::Vector3i FitSize(Eigen::Vector3i size) const;
 };
 
 using Rgba = z13::Rgba;

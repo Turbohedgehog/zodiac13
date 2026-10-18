@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13/components/block.h>
 
@@ -148,6 +149,24 @@ TEST(PlacementTest, ADragStaysWithinTheSizeLimits) {
   const Block fixed = DraggedBlock({0, 0, 0}, {20, 0, 20}, door, door.size, door.size);
   EXPECT_EQ(fixed.spec.size, door.size);
   EXPECT_EQ(fixed.cell, Eigen::Vector3i(0, 0, 0));
+}
+
+TEST(PlacementTest, ADragKeepsAWedgeWithinItsSlopeRange) {
+  const z13::station::BlockSpec wedge {.type_id = 6, .size = {4, 4, 4}};
+  const Shape slope {.kind = ShapeKind::kWedge, .max_run_per_rise = 4};
+  const Eigen::Vector3i low {1, 1, 1};
+  const Eigen::Vector3i high {16, 16, 4};
+
+  // Dragged out along the run past 1:4, and shortened below 1:1.
+  const Block gentle = DraggedBlock({0, 0, 0}, {15, 0, 0}, wedge, low, high, {}, slope);
+  EXPECT_EQ(gentle.spec.size, Eigen::Vector3i(15, 4, 4));
+  const Block steep = DraggedBlock({0, 0, 0}, {2, 0, 0}, wedge, low, high, {}, slope);
+  EXPECT_EQ(steep.spec.size, Eigen::Vector3i(4, 4, 4));
+  const Block thin = DraggedBlock({0, 0, 0}, {0, 0, 2}, {.type_id = 6, .size = {16, 4, 4}}, low, high, {}, slope);
+  EXPECT_EQ(thin.spec.size, Eigen::Vector3i(8, 4, 2));
+  EXPECT_TRUE(slope.AllowsSize(gentle.spec.size));
+  EXPECT_TRUE(slope.AllowsSize(steep.spec.size));
+  EXPECT_TRUE(slope.AllowsSize(thin.spec.size));
 }
 
 // Turned to face +Y, the panel's own X runs along the world Y the drag moves along.

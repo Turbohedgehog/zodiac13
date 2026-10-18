@@ -75,7 +75,8 @@ void DropBrushDrag(flecs::entity player, const BrushDrag&) {
 }
 
 Eigen::Vector3i DefaultSize(const Primitive& primitive, int width_cells) {
-  return Eigen::Vector3i::Constant(width_cells).cwiseMax(primitive.min_size).cwiseMin(primitive.max_size);
+  return primitive.shape.FitSize(
+      Eigen::Vector3i::Constant(width_cells).cwiseMax(primitive.min_size).cwiseMin(primitive.max_size));
 }
 
 // A step through the palette from `current` (the first primitive if it isn't there).

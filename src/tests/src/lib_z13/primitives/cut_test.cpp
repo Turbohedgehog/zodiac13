@@ -34,6 +34,13 @@ Primitive Stretchable() {
   return {.id = 2, .min_size = {1, 1, 1}, .max_size = {256, 1, 256}};
 }
 
+Primitive SlopeOneToFour() {
+  return {.id = 6,
+          .shape = {.kind = ShapeKind::kWedge, .max_run_per_rise = 4},
+          .min_size = {1, 1, 1},
+          .max_size = {16, 16, 4}};
+}
+
 Primitive Fixed() {
   return {.id = 5, .min_size = {4, 4, 4}, .max_size = {4, 4, 4}};
 }
@@ -103,6 +110,23 @@ TEST(CutTest, AFixedBlockIsRemovedWhole) {
   const Block wedge {.spec = {.type_id = 5, .size = {4, 4, 4}}, .cell = {0, 0, 0}};
 
   EXPECT_TRUE(LeftAfterCut(wedge, Fixed(), {.min = {3, 3, 3}, .extent = {1, 1, 1}}).empty());
+}
+
+TEST(CutTest, AWedgeIsCutAlongItsWidthOnly) {
+  const Block wedge {.spec = {.type_id = 6, .size = {8, 6, 2}}, .cell = {0, 0, 0}};
+
+  const std::vector<Block> along_width =
+      LeftAfterCut(wedge, SlopeOneToFour(), {.min = {0, 2, 0}, .extent = {8, 2, 2}});
+  ASSERT_EQ(along_width.size(), 2u);
+  for (const Block& piece : along_width) {
+    EXPECT_EQ(piece.spec.size.x(), 8);
+    EXPECT_EQ(piece.spec.size.z(), 2);
+  }
+  EXPECT_EQ(CellCount(along_width), 8 * 6 * 2 - 8 * 2 * 2);
+
+  // Along the run or the rise a rest would be a different slope: the wedge goes whole.
+  EXPECT_TRUE(LeftAfterCut(wedge, SlopeOneToFour(), {.min = {4, 0, 0}, .extent = {4, 6, 2}}).empty());
+  EXPECT_TRUE(LeftAfterCut(wedge, SlopeOneToFour(), {.min = {0, 0, 1}, .extent = {8, 6, 1}}).empty());
 }
 
 TEST(CutTest, ATurnedWallSplitsAlongItsOwnAxes) {
