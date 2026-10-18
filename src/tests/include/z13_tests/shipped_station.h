@@ -39,6 +39,8 @@ inline constexpr std::string_view kSiteScene = "site";
 // assets/station/blueprints/test.json, from docs/station-layout/generate_layout.py.
 inline constexpr std::string_view kTestScene = "test";
 inline constexpr std::string_view kSpireScene = z13::building::primitives::kFeaturedScene;
+// assets/station/blueprints/shard.json, from docs/station-layout/generate_shard.py.
+inline constexpr std::string_view kShardScene = "shard";
 
 // The source tree's assets/ and config/ (Z13_SOURCE_ASSETS_DIR, set for the test runner).
 inline z13::AssetSource SourceAssets() {

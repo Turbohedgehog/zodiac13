@@ -14,6 +14,7 @@ SLAB_CELLS = 1
 
 WALL, WINDOW, DOOR, SEALED, RAMP, SHAFT, DANCE, COUNTER = "#", "=", "D", "X", "/", "L", ":", "_"
 HIDDEN, TUNNEL, UNDER_LEDGE, LADDER = "S", ".", "~", "H"
+MASS = "@"  # solid fill that is no wall line: free_areas and lamps keep out of it
 DOORS = DOOR + SEALED + HIDDEN
 
 
@@ -161,8 +162,10 @@ SPAWN_CELLS = 4
 SPAWN_OFFSETS = (-6, 6)  # a 2 x 2 group of markers around a room's centre
 
 WALL_LIKE = WALL + WINDOW + COUNTER + DOORS
+BLOCKED = WALL_LIKE + MASS
 WALL_KIND, WINDOW_KIND, COUNTER_KIND, DOOR_KIND = "wall", "window", "counter", "door"
-LINE_PRIMITIVES = {WALL_KIND: (WALL_BLOCK, WALL_HEIGHT_CELLS), WINDOW_KIND: (WINDOW_BLOCK, WALL_HEIGHT_CELLS),
+# A height of None is the deck's wall height.
+LINE_PRIMITIVES = {WALL_KIND: (WALL_BLOCK, None), WINDOW_KIND: (WINDOW_BLOCK, None),
                    COUNTER_KIND: (WALL_BLOCK, COUNTER_HEIGHT_CELLS)}
 
 
@@ -181,6 +184,57 @@ def block(primitive, cell, size, orientation=None):
     if orientation:
         entry["orientation"] = orientation
     return entry
+
+
+# The wedge's limits in assets/station/palette.json (Slope).
+WEDGE_MAX_SIZE = (16, 16, 4)
+WEDGE_MAX_RUN_PER_RISE = 4
+# In units of the size: the run along x, the rise along z, the width along y.
+WEDGE_VERTICES = ((0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 1, 0), (1, 1, 0), (1, 1, 1))
+
+
+def _orientations():
+    """(name, columns) of the 24 orientations, the identity first; the columns are the world
+    vectors of a block's x, y and z (primitives/placement.cpp)."""
+    found = []
+    for face_axis in range(3):
+        for face_sign in (1, -1):
+            for up_axis in range(3):
+                for up_sign in (1, -1):
+                    if up_axis == face_axis:
+                        continue
+                    face, up = [0, 0, 0], [0, 0, 0]
+                    face[face_axis], up[up_axis] = face_sign, up_sign
+                    side = [up[1] * face[2] - up[2] * face[1], up[2] * face[0] - up[0] * face[2],
+                            up[0] * face[1] - up[1] * face[0]]
+                    name = (f"Face{'Pos' if face_sign > 0 else 'Neg'}{'XYZ'[face_axis]}"
+                            f"Up{'Pos' if up_sign > 0 else 'Neg'}{'XYZ'[up_axis]}")
+                    found.append((name, (face, side, up)))
+    found.sort(key=lambda entry: entry[0] != "FacePosXUpPosZ")
+    return found
+
+
+ORIENTATIONS = _orientations()
+
+
+def wedge_block(vertices):
+    """The Slope block whose solid has exactly these six world vertices (cell corners): its size,
+    its orientation and the corner of its box."""
+    wanted = {tuple(2 * c for c in vertex) for vertex in vertices}
+    low = [min(vertex[i] for vertex in vertices) for i in range(3)]
+    extent = [max(vertex[i] for vertex in vertices) - low[i] for i in range(3)]
+    for name, columns in ORIENTATIONS:
+        size = [extent[next(row for row in range(3) if columns[i][row])] for i in range(3)]
+        if not (size[2] <= size[0] <= WEDGE_MAX_RUN_PER_RISE * size[2]
+                and all(size[i] <= WEDGE_MAX_SIZE[i] for i in range(3))):
+            continue
+        # Doubled coordinates keep the box's middle on an integer.
+        placed = {tuple(2 * low[row] + extent[row] + sum(columns[i][row] * (2 * vertex[i] * size[i] - size[i])
+                                                          for i in range(3)) for row in range(3))
+                  for vertex in WEDGE_VERTICES}
+        if placed == wanted:
+            return block(SLOPE, low, size, None if name == "FacePosXUpPosZ" else name)
+    raise ValueError(f"no wedge has the vertices {sorted(vertices)}")
 
 
 def line_blocks(primitive, axis, start, line, z, length, height):
@@ -266,7 +320,7 @@ def line_runs(cells):
     return runs
 
 
-def door_blocks(grid, doors, z):
+def door_blocks(grid, doors, z, wall_height=WALL_HEIGHT_CELLS):
     """Each door group: one door in the middle of its opening, walls beside it and over it."""
     blocks = []
     for (x0, y0, x1, y1), axis in doors:
@@ -285,15 +339,15 @@ def door_blocks(grid, doors, z):
         blocks.append(block(primitive, door_cell, (DOOR_WIDTH_CELLS, 1, DOOR_HEIGHT_CELLS),
                             None if axis == 0 else TO_POS_Y))
         if before:
-            blocks += line_blocks(WALL_BLOCK, axis, start, line, z, before, WALL_HEIGHT_CELLS)
+            blocks += line_blocks(WALL_BLOCK, axis, start, line, z, before, wall_height)
         if after:
-            blocks += line_blocks(WALL_BLOCK, axis, door_start + DOOR_WIDTH_CELLS, line, z, after, WALL_HEIGHT_CELLS)
+            blocks += line_blocks(WALL_BLOCK, axis, door_start + DOOR_WIDTH_CELLS, line, z, after, wall_height)
         blocks += line_blocks(WALL_BLOCK, axis, door_start, line, z + DOOR_HEIGHT_CELLS, DOOR_WIDTH_CELLS,
-                              WALL_HEIGHT_CELLS - DOOR_HEIGHT_CELLS)
+                              wall_height - DOOR_HEIGHT_CELLS)
     return blocks
 
 
-def wall_blocks(grid, z, skipped_doors=()):
+def wall_blocks(grid, z, skipped_doors=(), wall_height=WALL_HEIGHT_CELLS):
     """Every wall, window, counter and door of a deck plan."""
     doors = door_axes(grid, skipped_doors)
     blocks = []
@@ -301,9 +355,10 @@ def wall_blocks(grid, z, skipped_doors=()):
         if kind == DOOR_KIND:
             continue
         primitive, height = LINE_PRIMITIVES[kind]
+        height = height or wall_height
         start, line = (x, y) if axis == 0 else (y, x)
         blocks += line_blocks(primitive, axis, start, line, z, length, height)
-    return blocks + door_blocks(grid, doors, z)
+    return blocks + door_blocks(grid, doors, z, wall_height)
 
 
 def deck_floor_z(deck):
@@ -417,12 +472,12 @@ def free_areas(grid):
     areas = []
     for y in range(depth):
         for x in range(width):
-            if grid[y][x] in WALL_LIKE or (x, y) in seen:
+            if grid[y][x] in BLOCKED or (x, y) in seen:
                 continue
             cells, stack, outside = set(), [(x, y)], False
             while stack:
                 cx, cy = stack.pop()
-                if (cx, cy) in seen or grid[cy][cx] in WALL_LIKE:
+                if (cx, cy) in seen or grid[cy][cx] in BLOCKED:
                     continue
                 seen.add((cx, cy))
                 cells.add((cx, cy))
@@ -450,11 +505,11 @@ def lamp_spots(area):
     return [min(sorted(area), key=lambda c: (c[0] - centre[0]) ** 2 + (c[1] - centre[1]) ** 2)]
 
 
-def lamp_blocks(deck, z, blocks):
+def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
     """Lamps under the ceiling of every free area of the deck, on a lattice; a lamp needs a block
     above it to hang from and none where it hangs. A spot under an open slab moves to the nearest
     cell of its area within half a lattice step that has a ceiling, such as a gallery's edge."""
-    top = z + WALL_HEIGHT_CELLS - 1
+    top = z + wall_height - 1
     near = [box for box in map(occupied_box, blocks) if box[0][2] < top + 2 and top < box[1][2]]
     reach = LAMP_SPACING_M // 2
 

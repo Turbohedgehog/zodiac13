@@ -36,6 +36,7 @@
 #include <lib_core/utils/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
+#include <z13_tests/shipped_station.h>
 #include <z13_tests/test_time.h>
 
 #include "../../z13_module/tests/support/block_test_helpers.h"
@@ -390,6 +391,43 @@ TEST(StationCollisionTest, WalkingIntoASlopeClimbsIt) {
 
   EXPECT_GT(position.x(), kSlopeTop) << "stuck at the slope's foot";
   EXPECT_GT(position.z(), kSlopeTop) << "went through the slope";
+}
+
+// The shard station's first ramp, 1:4 up to the next deck, taken from the shipped blueprint.
+TEST(StationCollisionTest, WalkingUpTheShardRampReachesTheDeckAbove) {
+  constexpr float kStep = 0.1f;
+  constexpr int kSteps = 140;
+  constexpr float kRampRise = 3.f;
+  constexpr float kRiseTolerance = 0.5f;
+  const auto palette = z13::testing::ShippedPalette();
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+  const auto blueprint = z13::testing::ShippedBlueprint(z13::testing::kShardScene, *palette);
+  ASSERT_TRUE(blueprint.has_value()) << blueprint.error();
+  const uint32_t slope = palette->Find("Slope")->get().id;
+  z13::testing::Z13TestWorld test_world;
+  std::vector<z13::station::Block> ramp;
+  for (const z13::station::Block& block : *blueprint) {
+    if (block.spec.type_id == slope && block.spec.orientation == z13::station::Orientation {} &&
+        block.spec.size.x() == 16 && block.spec.size.z() == 4 && block.cell.z() < 12) {
+      ramp.push_back(block);
+      z13::station::SpawnBlock(test_world.World().entity(), block);
+    }
+  }
+  ASSERT_EQ(ramp.size(), 3U);
+  test_world.Tick(kTestDeltaTime);
+  const Eigen::Vector3i foot = ramp.front().cell;
+  const Eigen::Vector3f start = Eigen::Vector3f(foot.x() - 4.f, foot.y() + ramp.front().spec.size.y() / 2.f, 0.f) *
+                                    z13::station::kCellSize +
+                                Eigen::Vector3f(0.f, 0.f, foot.z() * z13::station::kCellSize + kPlayerRadius + 0.05f);
+  test_world.Player().set(TranslatedIdentity(start.x(), start.y(), start.z()));
+  test_world.Tick(kTestDeltaTime);
+
+  Eigen::Vector3f position = start;
+  for (int i = 0; i < kSteps; ++i) {
+    position = MovePlayerWithinFrame(test_world, position + Eigen::Vector3f(kStep, 0.f, 0.f));
+  }
+
+  EXPECT_GT(position.z(), start.z() + kRampRise - kRiseTolerance) << "stopped on the ramp at " << position.transpose();
 }
 
 // Placing and destroying blocks through the real pipeline: the block, its body and

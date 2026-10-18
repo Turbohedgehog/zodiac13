@@ -89,6 +89,7 @@ set(
   ${MODULES_DIR}/station_module/tests/gravity_system_test.cpp
   ${MODULES_DIR}/station_module/tests/interaction_system_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
+  ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp

@@ -1,0 +1,46 @@
+Shard, deck 3: Loft and observatory. Floor at 6 m.
+1 char = 1 m (4 cells). # wall, = window, D door, _ railing, @ solid fill of a hall's slanted corner.
+Halls A and B are cut from the deck boxes 20-44 and 44-68 m; their corners are filled up to a slanted face.
+
+    0         10        20        30        40        50        60
+  0 
+  1 
+  2 
+  3 
+  4                     #################################################
+  5                     #                       #                       #
+  6                     #                       #                       #
+  7                     #                       #                       #
+  8                     #                       #                       #
+  9                     #                       #                       #
+ 10                     #                       #                       #
+ 11                     #                       #                       #
+ 12 #####################                       #       _____________   #
+ 13 #    #    #    #    #                       #       _               #
+ 14 #    #    #    #    #                       #       _               #
+ 15 #CABI#CABI#CABI#CABI#                       #       _               #
+ 16 #    #    #    #    #                       #       _____________   #
+ 17 #    #    #    #    #                       #                       #
+ 18 ##DD###DD###DD###DD##                       #                       #
+ 19 #                   D                       D                       #
+ 20 #      CORRIDOR     D          LOFT         D      OBSERVATORY      #
+ 21 #                   #                       #                       #
+ 22 ##DD###DD###DD###DD##                       #                       #
+ 23 #    #    #    #    #                       #                       #
+ 24 #    #    #    #    #                       #                       #
+ 25 #CABI#CABI#CABI#CABI#                       #                       #
+ 26 #    #    #    #    #                       #                       #
+ 27 #    #    #    #    #                       #                       #
+ 28 #####################                       #                       #
+ 29                     #                       #                       #
+ 30                     #                       #                       #
+ 31                     #                       #                       #
+ 32                     #                       #                       #
+ 33                     #                       #                       #
+ 34                     #                       #                       #
+ 35                     #                       #                       #
+ 36                     #################################################
+ 37 
+ 38 
+ 39 
+ 40 
