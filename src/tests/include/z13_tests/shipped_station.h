@@ -25,6 +25,7 @@
 #include <lib_core/utils/asset_source.h>
 #include <z13/components/block.h>
 #include <primitives/blueprint.h>
+#include <primitives/occupancy.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <primitives/station_assets.h>
@@ -69,7 +70,8 @@ inline z13::station::rooms::RoomSources RoomSourcesOf(const std::vector<z13::sta
     if (!z13::station::rooms::IsSealing(primitive)) {
       continue;
     }
-    sources.sealed.push_back(z13::building::primitives::OccupiedCells(block));
+    const auto sealed = z13::building::primitives::SealedBoxes(block, palette);
+    sources.sealed.insert(sources.sealed.end(), sealed.begin(), sealed.end());
     if (const auto portal = z13::station::rooms::PortalOf(block, primitive)) {
       sources.portals.push_back(*portal);
     }

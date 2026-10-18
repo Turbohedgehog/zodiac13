@@ -51,4 +51,9 @@ std::vector<bool> FilledCells(std::span<const ConvexSolid> solids, const Eigen::
 // The block's cells; boxes and door frames fill their whole box without building solids.
 CellShape ShapeOfBlock(const z13::station::Block& block, OptionalPalette palette);
 
+// The boxes air cannot enter: the cells whose centre lies in the block's solids, so a slope
+// holds back the air under its surface and no more. The same blocks always give the same
+// boxes, which room edits rely on.
+std::vector<CellBox> SealedBoxes(const z13::station::Block& block, OptionalPalette palette);
+
 }  // namespace z13::building::primitives
