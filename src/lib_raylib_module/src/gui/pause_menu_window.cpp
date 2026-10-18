@@ -17,6 +17,8 @@
 #include "pause_menu_window.h"
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include <imgui.h>
 
@@ -25,9 +27,16 @@
 #include "graphics_settings_window.h"
 #include "gui_widgets.h"
 #include "input_settings_window.h"
+#include "pending_transition.h"
 #include "render_diagnostics.h"
 
 namespace z13::raylib::gui {
+
+namespace {
+
+constexpr std::string_view kLeavingGameLabel = "Leaving the game...";
+
+}  // namespace
 
 GameplayPauseMenuWindow::GameplayPauseMenuWindow(flecs::world world) : Window(world, "Paused") {}
 
@@ -46,9 +55,10 @@ void GameplayPauseMenuWindow::DrawBody() {
     RequestPush(MakeGraphicsSettings(World()));
   }
   if (ImGui::Button("Exit to Main Menu", ButtonSize())) {
-    // Pause stays set, so the empty stack makes GuiSystem::Draw show the main menu next.
-    World().remove<z13::gameplay::Gameplay>();
-    RequestPop();
+    // Pause stays set, so GuiSystem::Draw shows the main menu once Gameplay is gone.
+    World().set<PendingTransition>({.label = std::string(kLeavingGameLabel), .action = [](flecs::world world) {
+      world.remove<z13::gameplay::Gameplay>();
+    }});
   }
   DrawRenderDiagnostics(World());
 }

@@ -297,5 +297,52 @@ TEST_F(StationSessionTest, DISABLED_TheHostWalkingCostsTheClient) {
   EXPECT_EQ(client_.World().get<StateDigests>().resyncs, 0u);
 }
 
+// What the client's longest frames while joining spend, by system: the replay from the join
+// snapshot runs inside one TickWorld call.
+TEST_F(StationSessionTest, DISABLED_TheJoinReplayCost) {
+  constexpr size_t kTopSystems = 15;
+  constexpr std::chrono::duration<double, std::milli> kSlowFrame {500.};
+  ecs_measure_system_time(client_.World(), true);
+  for (uint64_t tick = 0; tick < kMaxJoinTicks; ++tick) {
+    z13::flecs_tools::TickWorld(server_.World(), kNetTestDeltaTime);
+    const auto systems_before = z13::SystemTimes(client_.World());
+    const uint64_t replayed_before = client_.World().get<z13::flecs_tools::RollbackMetrics>().replayed_ticks;
+    const auto start = std::chrono::steady_clock::now();
+    z13::flecs_tools::TickWorld(client_.World(), kNetTestDeltaTime);
+    const std::chrono::duration<double, std::milli> frame = std::chrono::steady_clock::now() - start;
+    network_->Tick();
+    if (frame >= kSlowFrame) {
+      const uint64_t replayed = client_.World().get<z13::flecs_tools::RollbackMetrics>().replayed_ticks - replayed_before;
+      std::cout << std::format("client tick {}: frame {:.0f} ms, replayed {} ticks\n",
+                               client_.World().get<z13::flecs_tools::SimulationClock>().tick, frame.count(), replayed);
+      for (const z13::SystemTime& system :
+           z13::SystemTimesPerFrame(systems_before, z13::SystemTimes(client_.World()), 1) | std::views::take(kTopSystems)) {
+        std::cout << std::format("  {:8.1f} ms {}\n", system.ms, system.path);
+      }
+    }
+    if (client_.World().get<ConnectionStatus>().state == ConnectionState::kConnected) {
+      break;
+    }
+  }
+  ASSERT_EQ(client_.World().get<ConnectionStatus>().state, ConnectionState::kConnected);
+
+  // A plain rollback of the joined client, for the cost of a replayed tick itself.
+  constexpr uint64_t kRollbackTicks = 90;
+  RunTicks(kRollbackTicks + kSettleTicks);
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    const uint64_t now = client_.World().get<z13::flecs_tools::SimulationClock>().tick;
+    z13::flecs_tools::RequestRollback(client_.World(), now - kRollbackTicks, now);
+    const auto systems_before = z13::SystemTimes(client_.World());
+    const auto start = std::chrono::steady_clock::now();
+    z13::flecs_tools::TickWorld(client_.World(), kNetTestDeltaTime);
+    const std::chrono::duration<double, std::milli> frame = std::chrono::steady_clock::now() - start;
+    std::cout << std::format("rollback {} ticks: frame {:.0f} ms\n", kRollbackTicks, frame.count());
+    for (const z13::SystemTime& system :
+         z13::SystemTimesPerFrame(systems_before, z13::SystemTimes(client_.World()), 1) | std::views::take(kTopSystems)) {
+      std::cout << std::format("  {:8.1f} ms {}\n", system.ms, system.path);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace z13::net
