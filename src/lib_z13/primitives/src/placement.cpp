@@ -15,6 +15,7 @@
  */
 
 #include <primitives/placement.h>
+#include <primitives/palette.h>
 
 #include <algorithm>
 
@@ -181,12 +182,14 @@ z13::station::Block PlaceOnFace(
 
 z13::station::Block DraggedBlock(
     const Eigen::Vector3i& from_cell, const Eigen::Vector3i& to_cell, const z13::station::BlockSpec& brush,
-    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal) {
+    const Eigen::Vector3i& min_size, const Eigen::Vector3i& max_size, const Eigen::Vector3i& from_normal,
+    const Shape& shape) {
   // A permutation: world extent = axes * own size, own size = axes^T * world extent.
   const Eigen::Matrix3i axes = OrientationMatrix(brush.orientation).cwiseAbs();
   const Eigen::Vector3i delta = to_cell - from_cell;
   const Eigen::Vector3i wanted = (delta.array() != 0).select(delta.cwiseAbs(), axes * brush.size);
-  const Eigen::Vector3i size = (axes.transpose() * wanted).cwiseMax(min_size).cwiseMin(max_size);
+  const Eigen::Vector3i size =
+      shape.FitSize((axes.transpose() * wanted).cwiseMax(min_size).cwiseMin(max_size));
   const Eigen::Vector3i extent = axes * size;
 
   const z13::station::BlockSpec spec {.type_id = brush.type_id, .size = size, .orientation = brush.orientation};

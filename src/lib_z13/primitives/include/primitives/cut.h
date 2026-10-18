@@ -26,7 +26,8 @@ namespace z13::building::primitives {
 
 // What is left of `block` once the cells of `cut` are taken out of it: blocks of the same
 // type and turn that tile the rest, up to six, split along X, then Y, then Z. A block that
-// can't be split (a fixed-size primitive, or a rest below the size limits) leaves nothing.
+// can't be split (a fixed-size primitive, a rest below the size limits, or a wedge cut
+// anywhere but along its width) leaves nothing.
 // The order is fixed, so every peer ends up with the same blocks.
 std::vector<z13::station::Block> LeftAfterCut(
     const z13::station::Block& block, const Primitive& primitive, const CellBox& cut);
