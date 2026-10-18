@@ -65,12 +65,15 @@ std::vector<z13::station::Block> LeftAfterCut(
     if (!WithinLimits(size, primitive)) {
       return {};
     }
-    // Only a split along the wedge's width leaves wedges of the same slope.
-    if (primitive.shape.kind == ShapeKind::kWedge &&
-        (size.x() != block.spec.size.x() || size.z() != block.spec.size.z())) {
+    // Only a split along its width leaves a sloped block's slope the same.
+    const bool sloped = primitive.shape.kind == ShapeKind::kWedge || block.spec.slant > 0;
+    if (sloped && (size.x() != block.spec.size.x() || size.z() != block.spec.size.z())) {
       return {};
     }
-    left.push_back({.spec = {.type_id = block.spec.type_id, .size = size, .orientation = block.spec.orientation},
+    left.push_back({.spec = {.type_id = block.spec.type_id,
+                             .size = size,
+                             .orientation = block.spec.orientation,
+                             .slant = block.spec.slant},
                     .cell = box.min});
   }
   return left;

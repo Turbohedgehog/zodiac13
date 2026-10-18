@@ -36,6 +36,7 @@ struct Case {
   Shape shape;
   Eigen::Vector3i size;
   float volume {};
+  int slant {};
 };
 
 std::vector<Case> Cases() {
@@ -45,11 +46,12 @@ std::vector<Case> Cases() {
       {"wedge", {.kind = ShapeKind::kWedge}, {4, 2, 3}, 12.f},
       {"corner wedge", {.kind = ShapeKind::kCornerWedge}, {4, 4, 3}, 16.f},
       {"door frame", door, {6, 1, 10}, 60.f},
+      {"panel", {.kind = ShapeKind::kPanel}, {6, 2, 5}, 24.f, 3},
   };
 }
 
 std::vector<ConvexSolid> Solids(const Case& c) {
-  auto solids = BuildSolids(c.shape, c.size);
+  auto solids = BuildSolids(c.shape, c.size, c.slant);
   EXPECT_TRUE(solids.has_value()) << c.name;
   return solids.value_or(std::vector<ConvexSolid> {});
 }

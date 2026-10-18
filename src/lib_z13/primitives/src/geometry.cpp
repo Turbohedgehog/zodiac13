@@ -17,6 +17,7 @@
 #include <primitives/geometry.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
 #include <functional>
@@ -82,6 +83,22 @@ ConvexSolid MakeWedge(const Eigen::Vector3f& s) {
                    {{0, 1, 3, 4}, {1, 2, 4, 5}, {0, 2, 3, 5}, {0, 1, 2}, {3, 4, 5}}, PartRole::kBody);
 }
 
+// The section (x, z) runs (0, 0), (run, slant), (run, height), (0, height - slant), extended along Y.
+ConvexSolid MakePanel(const Eigen::Vector3f& s, float slant) {
+  const float thickness = s.z() - slant;
+  const std::array<Eigen::Vector2f, 4> section {
+      Eigen::Vector2f {0, 0}, {s.x(), slant}, {s.x(), s.z()}, {0, thickness}};
+  std::vector<Eigen::Vector3f> corners;
+  for (const float y : {0.f, s.y()}) {
+    for (const Eigen::Vector2f& corner : section) {
+      corners.emplace_back(corner.x(), y, corner.y());
+    }
+  }
+  return MakeSolid(std::move(corners),
+                   {{0, 1, 2, 3}, {4, 5, 6, 7}, {0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}},
+                   PartRole::kBody);
+}
+
 ConvexSolid MakeCornerWedge(const Eigen::Vector3f& s) {
   return MakeSolid({{0, 0, 0}, {s.x(), 0, 0}, {s.x(), s.y(), 0}, {0, s.y(), 0}, {s.x(), s.y(), s.z()}},
                    {{0, 1, 2, 3}, {1, 2, 4}, {2, 3, 4}, {0, 1, 4}, {0, 3, 4}}, PartRole::kBody);
@@ -110,7 +127,8 @@ std::expected<std::vector<ConvexSolid>, std::string> MakeDoorFrame(
 }  // namespace
 
 // Temporary: shapes are built in code until they come from models in a later stage.
-std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& shape, const Eigen::Vector3i& size) {
+std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
+    const Shape& shape, const Eigen::Vector3i& size, int slant) {
   if ((size.array() < 1).any()) {
     return std::unexpected(std::format("size {}x{}x{} has an empty axis", size.x(), size.y(), size.z()));
   }
@@ -124,6 +142,8 @@ std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& sh
       return std::vector<ConvexSolid> {MakeCornerWedge(extent)};
     case ShapeKind::kDoorFrame:
       return MakeDoorFrame(size, shape.door_opening);
+    case ShapeKind::kPanel:
+      return std::vector<ConvexSolid> {MakePanel(extent, static_cast<float>(slant))};
   }
   return std::unexpected("unknown shape");
 }
@@ -149,14 +169,20 @@ Mesh BuildMesh(std::span<const ConvexSolid> solids) {
 
 size_t BlockShapeKeyHash::operator()(const BlockShapeKey& key) const {
   constexpr size_t kMultiplier = 31;
-  return std::accumulate(key.size.begin(), key.size.end(), std::hash<uint32_t> {}(key.type_id),
-                         [](size_t hash, int extent) { return hash * kMultiplier + std::hash<int> {}(extent); });
+  const size_t sized =
+      std::accumulate(key.size.begin(), key.size.end(), std::hash<uint32_t> {}(key.type_id),
+                      [](size_t hash, int extent) { return hash * kMultiplier + std::hash<int> {}(extent); });
+  return sized * kMultiplier + std::hash<int> {}(key.slant);
+}
+
+BlockShapeKey ShapeKeyOf(const z13::station::BlockSpec& spec) {
+  return {.type_id = spec.type_id, .size = spec.size, .slant = spec.slant};
 }
 
 std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKey& shape) {
   const auto primitive = palette ? palette->get().Find(shape.type_id) : std::nullopt;
   const Shape box {.kind = ShapeKind::kBox};
-  auto solids = BuildSolids(primitive ? primitive->get().shape : box, shape.size);
+  auto solids = BuildSolids(primitive ? primitive->get().shape : box, shape.size, shape.slant);
   if (!solids) {
     solids = BuildSolids(box, shape.size);
   }

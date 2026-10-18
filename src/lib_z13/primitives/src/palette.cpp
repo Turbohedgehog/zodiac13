@@ -59,6 +59,8 @@ std::expected<Shape, std::string> ToShape(const fbs_station::ShapeUnion& shape) 
       return Shape {.kind = ShapeKind::kWedge, .max_run_per_rise = shape.AsWedge()->max_run_per_rise};
     case fbs_station::Shape::CornerWedge:
       return Shape {.kind = ShapeKind::kCornerWedge};
+    case fbs_station::Shape::Panel:
+      return Shape {.kind = ShapeKind::kPanel};
     case fbs_station::Shape::DoorFrame: {
       const fbs_station::DoorFrameT& door = *shape.AsDoorFrame();
       return Shape {.kind = ShapeKind::kDoorFrame, .door_opening = {door.opening_width, door.opening_height}};
@@ -174,8 +176,12 @@ uint64_t HashContent(const fbs_station::PaletteT& palette) {
 
 }  // namespace
 
-bool Shape::AllowsSize(const Eigen::Vector3i& size) const {
-  return kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z());
+bool Shape::AllowsSize(const Eigen::Vector3i& size, int slant) const {
+  if (kind == ShapeKind::kPanel) {
+    const int thickness = size.z() - slant;
+    return slant >= 0 && thickness >= 1 && thickness * size.x() >= size.x() + slant;
+  }
+  return slant == 0 && (kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z()));
 }
 
 Eigen::Vector3i Shape::FitSize(Eigen::Vector3i size) const {

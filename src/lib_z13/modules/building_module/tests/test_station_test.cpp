@@ -33,6 +33,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/spawn_point.h>
 #include <z13/components/station_mode.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -175,6 +176,25 @@ TEST_P(TestStationTest, ClientJoiningGetsTheWholeStation) {
 
   EXPECT_TRUE(SameBlocks(Blocks(client.World()), Blocks(server.World())));
   EXPECT_EQ(client.World().count<SpawnPoint>(), server.World().count<SpawnPoint>());
+}
+
+TEST(StationBlueprintTest, ASlantedPanelSurvivesSaveAndLoad) {
+  const Palette palette = ShippedPalette();
+  const Block panel {
+      .spec = {.type_id = palette.Find("Panel")->get().id, .size = {6, 2, 5}, .slant = 3}, .cell = {400, 400, 40}};
+  Z13TestWorld station(StationArgs(z13::testing::kSiteScene));
+  station.Tick();
+  z13::station::SpawnBlock(station.World().entity("SlantedPanel"), panel);
+  station.Tick();
+  const auto snapshot = z13::flecs_tools::CaptureState(station.World());
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+  Z13TestWorld loaded({std::string(z13::testing::kStationArg)});
+  loaded.Tick();
+
+  ASSERT_TRUE(z13::flecs_tools::RestoreWorld(loaded.World(), *snapshot).has_value());
+
+  EXPECT_EQ(loaded.World().lookup("SlantedPanel").get<Block>().spec.slant, 3);
+  EXPECT_TRUE(SameBlocks(Blocks(loaded.World()), Blocks(station.World())));
 }
 
 INSTANTIATE_TEST_SUITE_P(

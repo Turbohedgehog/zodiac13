@@ -159,6 +159,20 @@
       },
       "flags": "Solid Switch",
       "interaction": {"methods": "Use"}
+    },
+    {
+      "id": 12,
+      "name": "Panel",
+      "short_name": "Pn",
+      "shape_type": "Panel",
+      "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 1},
+      "max_size": {"x": 256, "y": 256, "z": 256},
+      "material": {
+        "first": {"r": 190, "g": 190, "b": 195, "a": 255},
+        "second": {"r": 165, "g": 165, "b": 170, "a": 255}
+      },
+      "flags": "Solid GasSealing"
     }
   ]
 }

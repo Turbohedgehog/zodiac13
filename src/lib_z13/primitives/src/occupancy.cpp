@@ -156,7 +156,8 @@ std::vector<bool> WorldMask(const z13::station::Block& block, const std::vector<
 bool FillsWholeBox(OptionalPalette palette, const z13::station::Block& block) {
   const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
   return !primitive || primitive->get().shape.kind == ShapeKind::kBox ||
-         primitive->get().shape.kind == ShapeKind::kDoorFrame;
+         primitive->get().shape.kind == ShapeKind::kDoorFrame ||
+         (primitive->get().shape.kind == ShapeKind::kPanel && block.spec.slant == 0);
 }
 
 // A cell's centre lies in the solid when it is on the inner side of every face; doubling
@@ -206,7 +207,7 @@ std::vector<CellBox> BoxesOf(const CellBox& box, std::vector<bool> filled) {
 CellShape ShapeOfBlock(const z13::station::Block& block, OptionalPalette palette) {
   CellShape shape = CellShape::Full(OccupiedCells(block));
   if (!FillsWholeBox(palette, block)) {
-    shape.filled = WorldMask(block, FilledCells(BlockSolids(palette, {block.spec.type_id, block.spec.size}), block.spec.size));
+    shape.filled = WorldMask(block, FilledCells(BlockSolids(palette, ShapeKeyOf(block.spec)), block.spec.size));
   }
   return shape;
 }
@@ -216,7 +217,7 @@ std::vector<CellBox> SealedBoxes(const z13::station::Block& block, OptionalPalet
   if (FillsWholeBox(palette, block)) {
     return {box};
   }
-  const std::vector<ConvexSolid> solids = BlockSolids(palette, {block.spec.type_id, block.spec.size});
+  const std::vector<ConvexSolid> solids = BlockSolids(palette, ShapeKeyOf(block.spec));
   const CellBox frame {.min = Eigen::Vector3i::Zero(), .extent = block.spec.size};
   std::vector<bool> own(static_cast<size_t>(frame.extent.prod()));
   ForEachCell(frame, [&](const Eigen::Vector3i& cell) {

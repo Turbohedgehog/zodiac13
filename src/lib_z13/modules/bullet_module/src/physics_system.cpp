@@ -108,7 +108,7 @@ btTransform BlockTransform(const z13::station::Block& block) {
 
 void SyncBlockBody(
     flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world, OptionalPalette palette) {
-  const BlockShapeKey shape {.type_id = block.spec.type_id, .size = block.spec.size};
+  const BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(block.spec);
   physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
     std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
     // Until f/doors opens doors, a closed one lets players through.

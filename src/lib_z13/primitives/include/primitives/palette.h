@@ -36,7 +36,7 @@ using PrimitiveFlags = fbs::station::PrimitiveFlags;
 using InteractionMethods = fbs::station::InteractionMethods;
 
 // Temporary: a fixed set of shapes, to be replaced by data/models in a later stage.
-enum class ShapeKind : uint8_t { kBox, kWedge, kCornerWedge, kDoorFrame };
+enum class ShapeKind : uint8_t { kBox, kWedge, kCornerWedge, kDoorFrame, kPanel };
 
 struct Shape {
   ShapeKind kind {};
@@ -45,7 +45,9 @@ struct Shape {
   // Wedge only: the run (X) is from one to this many times the rise (Z).
   int max_run_per_rise = 1;
 
-  bool AllowsSize(const Eigen::Vector3i& size) const;
+  // `slant` is a panel's rise; every other shape takes none. A panel's vertical thickness
+  // (size.z - slant) must seal against air at 6-connectivity: thickness * run >= run + slant.
+  bool AllowsSize(const Eigen::Vector3i& size, int slant = 0) const;
   // The nearest allowed size: a wedge's run is brought into [rise, max_run_per_rise * rise].
   Eigen::Vector3i FitSize(Eigen::Vector3i size) const;
 };

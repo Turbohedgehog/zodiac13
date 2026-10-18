@@ -63,6 +63,8 @@ table BlueprintBlock {
   cell: Cell;
   size: Cells;
   orientation: Orientation;
+  // A panel's rise along its size's X; zero for other primitives.
+  slant: ushort;
 }
 
 table Blueprint {
