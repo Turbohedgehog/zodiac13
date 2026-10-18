@@ -22,6 +22,7 @@
 #include <utility>
 
 #include <z13/components/block_changes.h>
+#include <z13/components/wall.h>
 #include <primitives/cut.h>
 #include <primitives/occupancy.h>
 
@@ -54,6 +55,9 @@ std::expected<CutPlan, std::string> PlanCut(
   std::vector<std::pair<flecs::entity, Block>> hit;
   for (const grid::BlockId id : view.index.get().Overlapping(cells)) {
     const flecs::entity entity = world.entity(id);
+    if (entity.is_alive() && entity.has<z13::station::WallPanelOf>()) {
+      return std::unexpected(std::string {"a wall panel can't be cut"});
+    }
     if (const auto block = BlockOf(entity, made)) {
       hit.emplace_back(entity, *block);
     }

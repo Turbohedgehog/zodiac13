@@ -130,8 +130,8 @@ TEST(CutTest, AWedgeIsCutAlongItsWidthOnly) {
 }
 
 TEST(CutTest, ASlantedPanelKeepsItsSlantAndIsCutAlongItsWidthOnly) {
-  const Primitive panel {.id = 12, .shape = {.kind = ShapeKind::kPanel}, .min_size = {1, 1, 1}, .max_size = {256, 256, 256}};
-  const Block block {.spec = {.type_id = 12, .size = {6, 5, 5}, .slant = 3}, .cell = {0, 0, 0}};
+  const Primitive panel {.id = z13::station::kPanelPrimitiveId, .shape = {.kind = ShapeKind::kPanel}, .min_size = {1, 1, 1}, .max_size = {256, 256, 256}};
+  const Block block {.spec = {.type_id = z13::station::kPanelPrimitiveId, .size = {6, 5, 5}, .slant = 3}, .cell = {0, 0, 0}};
 
   const std::vector<Block> left = LeftAfterCut(block, panel, {.min = {0, 2, 0}, .extent = {6, 1, 5}});
   ASSERT_EQ(left.size(), 2u);

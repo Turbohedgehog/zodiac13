@@ -42,6 +42,7 @@ set(
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/primitives/chunk_mesh_test.cpp
   src/lib_z13/primitives/cut_test.cpp
+  src/lib_z13/primitives/wall_panel_block_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp
   src/lib_z13/primitives/geometry_test.cpp
   src/lib_z13/primitives/lights_test.cpp
@@ -76,6 +77,7 @@ set(
   ${MODULES_DIR}/building_module/tests/primitive_build_test.cpp
   ${MODULES_DIR}/building_module/tests/station_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/test_station_test.cpp
+  ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp

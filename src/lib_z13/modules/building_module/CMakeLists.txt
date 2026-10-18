@@ -23,6 +23,8 @@ z13_add_plugin(
   src/held_tool.cpp
   src/palette_system.cpp
   src/station_scene_system.cpp
+  src/wall_entities.cpp
+  src/wall_panel_system.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE

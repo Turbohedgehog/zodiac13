@@ -127,15 +127,13 @@ TEST(OccupancyTest, ACornerSlopeFillsItsApexColumn) {
   EXPECT_FALSE(shape.Contains({0, 0, 3}));
 }
 
-constexpr uint32_t kPanelId = 12;
-
 // The panel's period, laid end to end n times rising by `slant` each: a wall of that direction.
 std::set<std::pair<int, int>> SealedCellsOfWall(int run, int slant, int thickness, int periods) {
   const Palette palette = z13::testing::ShippedPalette().value();
   std::set<std::pair<int, int>> sealed;
   for (int k = 0; k < periods; ++k) {
     const Block period {
-        .spec = {.type_id = kPanelId, .size = {run, 1, slant + thickness}, .slant = slant},
+        .spec = {.type_id = z13::station::kPanelPrimitiveId, .size = {run, 1, slant + thickness}, .slant = slant},
         .cell = {k * run, 0, k * slant}};
     for (const CellBox& box : SealedBoxes(period, palette)) {
       for (int x = box.min.x(); x < box.End().x(); ++x) {
@@ -166,7 +164,7 @@ bool Leaks(const std::set<std::pair<int, int>>& sealed, int width, int height) {
 TEST(OccupancyTest, AMinimalPanelOfAnyDirectionSealsAgainstAir) {
   constexpr int kPeriods = 3;
   const Palette palette = z13::testing::ShippedPalette().value();
-  const Shape& panel = palette.Find(kPanelId)->get().shape;
+  const Shape& panel = palette.Find(z13::station::kPanelPrimitiveId)->get().shape;
   for (const int run : {1, 2, 3, 5, 7, 13}) {
     for (const int slant : {0, 1, 2, 3, 4, 7, 11}) {
       int thickness = 1;
@@ -184,7 +182,7 @@ TEST(OccupancyTest, AMinimalPanelOfAnyDirectionSealsAgainstAir) {
 
 TEST(OccupancyTest, ATooThinDiagonalPanelIsNotAllowed) {
   const Palette palette = z13::testing::ShippedPalette().value();
-  const Shape& panel = palette.Find(kPanelId)->get().shape;
+  const Shape& panel = palette.Find(z13::station::kPanelPrimitiveId)->get().shape;
 
   EXPECT_FALSE(panel.AllowsSize({4, 1, 4 + 1}, 4));
   EXPECT_TRUE(panel.AllowsSize({4, 1, 4 + 2}, 4));

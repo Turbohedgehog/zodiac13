@@ -36,6 +36,8 @@ struct IdCounters {
   using Singleton = void;
   uint32_t last_player_id {};
   uint32_t last_block_id {};
+  uint32_t last_wall_node_id {};
+  uint32_t last_wall_segment_id {};
   uint32_t last_item_id {};
 };
 
