@@ -13,6 +13,7 @@ z13_add_library(
   src/draw_order.cpp
   src/geometry.cpp
   src/lights.cpp
+  src/occupancy.cpp
   src/palette.cpp
   src/placement.cpp
   src/station_assets.cpp

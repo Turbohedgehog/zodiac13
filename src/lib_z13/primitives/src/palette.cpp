@@ -56,7 +56,7 @@ std::expected<Shape, std::string> ToShape(const fbs_station::ShapeUnion& shape) 
     case fbs_station::Shape::Box:
       return Shape {.kind = ShapeKind::kBox};
     case fbs_station::Shape::Wedge:
-      return Shape {.kind = ShapeKind::kWedge};
+      return Shape {.kind = ShapeKind::kWedge, .max_run_per_rise = shape.AsWedge()->max_run_per_rise};
     case fbs_station::Shape::CornerWedge:
       return Shape {.kind = ShapeKind::kCornerWedge};
     case fbs_station::Shape::DoorFrame: {
@@ -153,6 +153,9 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
   if (primitive.shape.kind == ShapeKind::kDoorFrame && primitive.min_size != primitive.max_size) {
     return Error("a door frame has a fixed size");
   }
+  if (primitive.shape.kind == ShapeKind::kWedge && primitive.shape.max_run_per_rise < 1) {
+    return Error("a wedge's max_run_per_rise is at least 1");
+  }
   for (const Eigen::Vector3i& size : {primitive.min_size, primitive.max_size}) {
     if (const auto solids = BuildSolids(primitive.shape, size); !solids) {
       return Error(solids.error());
@@ -170,6 +173,10 @@ uint64_t HashContent(const fbs_station::PaletteT& palette) {
 }
 
 }  // namespace
+
+bool Shape::AllowsSize(const Eigen::Vector3i& size) const {
+  return kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z());
+}
 
 std::optional<std::reference_wrapper<const Primitive>> Palette::Find(uint32_t id) const {
   const auto it = std::ranges::find(primitives, id, &Primitive::id);

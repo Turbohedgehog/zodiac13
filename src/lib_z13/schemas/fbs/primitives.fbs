@@ -35,8 +35,11 @@ struct Rgba {
 // A full cuboid.
 table Box {}
 
-// Slope rising along +X: full bottom, full face at the far X end.
-table Wedge {}
+// Slope rising along +X: full bottom, full face at the far X end. The run (X) may be from
+// one to `max_run_per_rise` times the rise (Z).
+table Wedge {
+  max_run_per_rise: ubyte = 1;
+}
 
 // The outer corner of two wedges: full bottom, apex above the far X/Y corner.
 table CornerWedge {}

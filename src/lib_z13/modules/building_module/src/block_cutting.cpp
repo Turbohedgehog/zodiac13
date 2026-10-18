@@ -23,6 +23,7 @@
 
 #include <z13/components/block_changes.h>
 #include <primitives/cut.h>
+#include <primitives/occupancy.h>
 
 #include "block_entities.h"
 
@@ -90,7 +91,7 @@ void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
   for (const Block& remainder : plan.remainders) {
     const flecs::entity created =
         CreateBlock(world, NextBlockName(world, run.counters), remainder, run.palette, run.tuning);
-    run.index.get().Insert(created.id(), z13::building::primitives::OccupiedCells(remainder));
+    run.index.get().Insert(created.id(), z13::building::primitives::ShapeOfBlock(remainder, run.palette));
     run.made.emplace(created.id(), remainder);
   }
 }

@@ -24,6 +24,7 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/occupancy.h>
 #include <primitives/placement.h>
 
 namespace z13::building::grid {
@@ -52,12 +53,16 @@ class BlockIndex {
   explicit BlockIndex(int chunk_cells = DefaultIndexChunkCells());
 
   int ChunkCells() const { return chunk_cells_; }
-  void Insert(BlockId block, const z13::building::primitives::CellBox& cells);
+  void Insert(BlockId block, const z13::building::primitives::CellShape& shape);
+  void Insert(BlockId block, const z13::building::primitives::CellBox& cells) {
+    Insert(block, z13::building::primitives::CellShape::Full(cells));
+  }
   void Erase(BlockId block);
-  size_t Size() const { return boxes_.size(); }
+  size_t Size() const { return shapes_.size(); }
 
   std::optional<BlockId> At(const Eigen::Vector3i& cell) const;
   bool Overlaps(const z13::building::primitives::CellBox& cells) const;
+  bool Overlaps(const z13::building::primitives::CellShape& shape) const;
   // Every block sharing a cell with `cells`, in no particular order.
   std::vector<BlockId> Overlapping(const z13::building::primitives::CellBox& cells) const;
 
@@ -68,9 +73,11 @@ class BlockIndex {
  private:
   template <class Visit>
   void ForEachChunk(const z13::building::primitives::CellBox& cells, Visit visit) const;
+  template <class Test>
+  bool AnyShape(const z13::building::primitives::CellBox& box, Test test) const;
 
   int chunk_cells_ {};
-  std::unordered_map<BlockId, z13::building::primitives::CellBox> boxes_;
+  std::unordered_map<BlockId, z13::building::primitives::CellShape> shapes_;
   std::unordered_map<Eigen::Vector3i, std::vector<BlockId>, z13::building::primitives::CellHash> chunks_;
 };
 
