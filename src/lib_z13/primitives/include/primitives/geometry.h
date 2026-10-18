@@ -28,6 +28,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/palette.h>
+#include <z13/components/block.h>
 
 // Geometry of a primitive in its own frame, in cells: it spans [0, size] on each axis,
 // Z up. The caller scales by the cell size and applies the block's placement.
@@ -50,7 +51,8 @@ struct Mesh {
   std::vector<Eigen::Vector3f> normals;
 };
 
-std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(const Shape& shape, const Eigen::Vector3i& size);
+std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
+    const Shape& shape, const Eigen::Vector3i& size, int slant = 0);
 
 Mesh BuildMesh(std::span<const ConvexSolid> solids);
 
@@ -58,9 +60,12 @@ Mesh BuildMesh(std::span<const ConvexSolid> solids);
 struct BlockShapeKey {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Zero();
+  int slant {};
 
   bool operator==(const BlockShapeKey&) const = default;
 };
+
+BlockShapeKey ShapeKeyOf(const z13::station::BlockSpec& spec);
 
 struct BlockShapeKeyHash {
   size_t operator()(const BlockShapeKey& key) const;

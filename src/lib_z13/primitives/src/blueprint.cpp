@@ -65,7 +65,8 @@ std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
     blocks.push_back({
         .spec = {.type_id = primitive->get().id,
                  .size = {entry.size->x(), entry.size->y(), entry.size->z()},
-                 .orientation = static_cast<Orientation>(entry.orientation)},
+                 .orientation = static_cast<Orientation>(entry.orientation),
+                 .slant = entry.slant},
         .cell = {entry.cell->x(), entry.cell->y(), entry.cell->z()},
     });
   }

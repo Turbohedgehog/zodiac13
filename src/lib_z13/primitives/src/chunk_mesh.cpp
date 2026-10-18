@@ -75,7 +75,7 @@ ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPa
   std::unordered_map<BlockShapeKey, Mesh, BlockShapeKeyHash> shapes;
   for (const z13::station::Block& block : blocks) {
     chunk.bounds = Enclosing(chunk.bounds, OccupiedCells(block));
-    const BlockShapeKey key {.type_id = block.spec.type_id, .size = block.spec.size};
+    const BlockShapeKey key = ShapeKeyOf(block.spec);
     auto shape = shapes.find(key);
     if (shape == shapes.end()) {
       shape = shapes.emplace(key, BuildMesh(BlockSolids(palette, key))).first;

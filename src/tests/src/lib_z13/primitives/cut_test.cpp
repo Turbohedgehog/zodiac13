@@ -129,6 +129,20 @@ TEST(CutTest, AWedgeIsCutAlongItsWidthOnly) {
   EXPECT_TRUE(LeftAfterCut(wedge, SlopeOneToFour(), {.min = {0, 0, 1}, .extent = {8, 6, 1}}).empty());
 }
 
+TEST(CutTest, ASlantedPanelKeepsItsSlantAndIsCutAlongItsWidthOnly) {
+  const Primitive panel {.id = 12, .shape = {.kind = ShapeKind::kPanel}, .min_size = {1, 1, 1}, .max_size = {256, 256, 256}};
+  const Block block {.spec = {.type_id = 12, .size = {6, 5, 5}, .slant = 3}, .cell = {0, 0, 0}};
+
+  const std::vector<Block> left = LeftAfterCut(block, panel, {.min = {0, 2, 0}, .extent = {6, 1, 5}});
+  ASSERT_EQ(left.size(), 2u);
+  for (const Block& piece : left) {
+    EXPECT_EQ(piece.spec.slant, 3);
+    EXPECT_EQ(piece.spec.size.x(), 6);
+    EXPECT_EQ(piece.spec.size.z(), 5);
+  }
+  EXPECT_TRUE(LeftAfterCut(block, panel, {.min = {2, 0, 0}, .extent = {2, 5, 5}}).empty());
+}
+
 TEST(CutTest, ATurnedWallSplitsAlongItsOwnAxes) {
   for (const Orientation orientation : kOrientations) {
     const Block wall {.spec = {.type_id = 2, .size = {20, 1, 12}, .orientation = orientation}, .cell = {-3, 4, 7}};

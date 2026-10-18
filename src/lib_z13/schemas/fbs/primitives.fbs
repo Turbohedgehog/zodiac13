@@ -50,7 +50,12 @@ table DoorFrame {
   opening_height: ushort;
 }
 
-union Shape { Box, Wedge, CornerWedge, DoorFrame }
+// A parallelogram prism: the section in the XZ plane runs from the bottom-left corner up
+// along (X, slant) over the whole X, with a vertical thickness of Z - slant, and is extended
+// along Y. A wall of any direction in the plane is one panel.
+table Panel {}
+
+union Shape { Box, Wedge, CornerWedge, DoorFrame, Panel }
 
 enum PrimitiveFlags : uint (bit_flags) {
   Solid,

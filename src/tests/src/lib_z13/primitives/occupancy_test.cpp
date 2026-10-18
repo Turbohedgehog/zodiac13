@@ -17,6 +17,10 @@
 
 #include <gtest/gtest.h>
 
+#include <set>
+#include <utility>
+#include <vector>
+
 #include <z13_tests/shipped_station.h>
 
 #include <primitives/occupancy.h>
@@ -121,6 +125,72 @@ TEST(OccupancyTest, ACornerSlopeFillsItsApexColumn) {
   EXPECT_TRUE(shape.Contains({3, 3, 3}));
   EXPECT_TRUE(shape.Contains({0, 0, 0}));
   EXPECT_FALSE(shape.Contains({0, 0, 3}));
+}
+
+constexpr uint32_t kPanelId = 12;
+
+// The panel's period, laid end to end n times rising by `slant` each: a wall of that direction.
+std::set<std::pair<int, int>> SealedCellsOfWall(int run, int slant, int thickness, int periods) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  std::set<std::pair<int, int>> sealed;
+  for (int k = 0; k < periods; ++k) {
+    const Block period {
+        .spec = {.type_id = kPanelId, .size = {run, 1, slant + thickness}, .slant = slant},
+        .cell = {k * run, 0, k * slant}};
+    for (const CellBox& box : SealedBoxes(period, palette)) {
+      for (int x = box.min.x(); x < box.End().x(); ++x) {
+        for (int z = box.min.z(); z < box.End().z(); ++z) {
+          sealed.emplace(x, z);
+        }
+      }
+    }
+  }
+  return sealed;
+}
+
+// Air at the wall's high end can't reach air at its low end within the wall's own span.
+bool Leaks(const std::set<std::pair<int, int>>& sealed, int width, int height) {
+  std::set<std::pair<int, int>> seen;
+  std::vector<std::pair<int, int>> open {{0, height - 1}};
+  while (!open.empty()) {
+    const auto [x, z] = open.back();
+    open.pop_back();
+    if (x < 0 || z < 0 || x >= width || z >= height || sealed.contains({x, z}) || !seen.emplace(x, z).second) {
+      continue;
+    }
+    open.insert(open.end(), {{x + 1, z}, {x - 1, z}, {x, z + 1}, {x, z - 1}});
+  }
+  return seen.contains({width - 1, 0});
+}
+
+TEST(OccupancyTest, AMinimalPanelOfAnyDirectionSealsAgainstAir) {
+  constexpr int kPeriods = 3;
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const Shape& panel = palette.Find(kPanelId)->get().shape;
+  for (const int run : {1, 2, 3, 5, 7, 13}) {
+    for (const int slant : {0, 1, 2, 3, 4, 7, 11}) {
+      int thickness = 1;
+      while (!panel.AllowsSize({run, 1, slant + thickness}, slant)) {
+        ++thickness;
+      }
+      const auto sealed = SealedCellsOfWall(run, slant, thickness, kPeriods);
+      const int height = (kPeriods - 1) * slant + thickness + slant;
+      if (slant > 0) {
+        EXPECT_FALSE(Leaks(sealed, kPeriods * run, height)) << run << ':' << slant << " thickness " << thickness;
+      }
+    }
+  }
+}
+
+TEST(OccupancyTest, ATooThinDiagonalPanelIsNotAllowed) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const Shape& panel = palette.Find(kPanelId)->get().shape;
+
+  EXPECT_FALSE(panel.AllowsSize({4, 1, 4 + 1}, 4));
+  EXPECT_TRUE(panel.AllowsSize({4, 1, 4 + 2}, 4));
+  EXPECT_FALSE(panel.AllowsSize({4, 1, 3}, 4)) << "no thickness left";
+  EXPECT_FALSE(panel.AllowsSize({4, 1, 4}, -1));
+  EXPECT_FALSE(palette.Find(kWallId)->get().shape.AllowsSize({4, 1, 4}, 1)) << "only a panel slants";
 }
 
 }  // namespace

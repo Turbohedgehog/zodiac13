@@ -63,6 +63,8 @@ struct BlockSpec {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Ones();
   Orientation orientation {};
+  // A panel's rise over its size's X (primitives.fbs, Panel); zero for every other primitive.
+  int slant {};
 
   bool operator==(const BlockSpec&) const = default;
 };
