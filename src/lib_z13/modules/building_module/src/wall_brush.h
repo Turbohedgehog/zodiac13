@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <Eigen/Dense>
+#include <flecs.h>
 
 #include <z13/components/block.h>
 #include <z13/components/wall.h>
