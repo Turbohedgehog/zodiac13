@@ -252,7 +252,9 @@ std::expected<FacedWall, std::string> FacingEye(
     WallGeometry wall, const Eigen::Vector3f& eye, const z13::building::primitives::Palette& palette) {
   std::expected<FacedWall, std::string> best = std::unexpected(std::string {"the wall has no thickness"});
   float best_distance = std::numeric_limits<float>::max();
-  const int thickness = std::abs(wall.thickness);
+  // The tool's thickness is a wish: an oblique wall needs more to be airtight.
+  const int thickness =
+      std::max(std::abs(wall.thickness), z13::building::primitives::MinWallThickness(wall).value_or(1));
   for (const int side : {1, -1}) {
     wall.thickness = side * thickness;
     auto block = z13::building::primitives::WallPanelBlock(wall, palette);

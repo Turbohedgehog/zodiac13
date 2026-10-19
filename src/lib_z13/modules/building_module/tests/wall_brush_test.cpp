@@ -102,6 +102,21 @@ TEST(WallBrushTest, TheStickLiesInTheNearestPlaneTheViewRayMeets) {
   EXPECT_EQ(in_y->axis, WallAxis::kY);
 }
 
+TEST(WallBrushTest, AnObliqueWallIsAsThickAsItNeedsToBeAirtight) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const z13::building::primitives::WallGeometry diagonal {
+      .node_a = {0, 0, 0}, .node_b = {10, 10, 0}, .stick_axis = WallAxis::kZ, .stick_length = 3, .thickness = 1};
+  const auto faced = FacingEye(diagonal, {5.f, -20.f, 1.f}, palette);
+  ASSERT_TRUE(faced.has_value()) << faced.error();
+  EXPECT_EQ(std::abs(faced->wall.thickness), 2);
+
+  z13::building::primitives::WallGeometry straight = diagonal;
+  straight.node_b = {10, 0, 0};
+  const auto along = FacingEye(straight, {5.f, -20.f, 1.f}, palette);
+  ASSERT_TRUE(along.has_value()) << along.error();
+  EXPECT_EQ(std::abs(along->wall.thickness), 1);
+}
+
 TEST(WallBrushTest, TheFaceAimedAtChoosesThePlaneWhereTheyMeet) {
   const Eigen::Vector3i first {4, 4, 0};
   // From the player's eye the ray to a floor point beyond the first crosses the vertical planes

@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -120,6 +121,24 @@ TEST(WallPanelBlockTest, BadSegmentsAreRefused) {
                               ShippedPalette()).has_value()) << "the nodes differ only along the stick";
   EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_length = 0, .thickness = 1}, ShippedPalette()).has_value());
   EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_length = 4, .thickness = 0}, ShippedPalette()).has_value());
+}
+
+TEST(WallPanelBlockTest, AnObliqueWallNeedsTwoCellsToHoldAirBack) {
+  WallGeometry wall {.node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 3};
+  EXPECT_EQ(MinWallThickness(wall), 1);
+  for (const Eigen::Vector3i& node_b : {Eigen::Vector3i(10, 1, 0), Eigen::Vector3i(7, 3, 0), Eigen::Vector3i(10, 10, 0),
+                                        Eigen::Vector3i(-4, 9, 0)}) {
+    wall.node_b = node_b;
+    const std::optional<int> thickness = MinWallThickness(wall);
+    ASSERT_TRUE(thickness.has_value());
+    EXPECT_EQ(*thickness, 2);
+    wall.thickness = *thickness;
+    EXPECT_TRUE(WallPanelBlock(wall, ShippedPalette()).has_value());
+    wall.thickness = *thickness - 1;
+    EXPECT_FALSE(WallPanelBlock(wall, ShippedPalette()).has_value());
+  }
+  wall.node_b = wall.node_a;
+  EXPECT_FALSE(MinWallThickness(wall).has_value());
 }
 
 }  // namespace
