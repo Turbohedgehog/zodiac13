@@ -1,0 +1,3 @@
+Octant: 2605 blocks (Floor 366, Wall 1007, Window 244, Door 245, Lamp 630, SpawnPoint 113)
+origin of the map in cells: (56, 56)
+skipped, light not on the ceiling: 118

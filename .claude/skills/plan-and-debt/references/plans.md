@@ -26,4 +26,4 @@
 | `android-plan.md` | Android build and touch controls: joysticks, on-screen inventory, the building tool as an item, context actions | "Порядок работ" (`f/android-build` first), "Открытые вопросы" |
 | `asset-pack-plan.md` | packing assets/ and config/ into one archive read on every platform (release packages, APK without unpacking) | stages `f/asset-source` → `f/asset-pack`, "Открытые вопросы" |
 | `ss13-reference.md` | Space Station 13 as the gameplay reference: what is repeated, and each difference with its reason | table "Отличия", grows with every gameplay decision |
-| `station-layout/` | generators of the shipped station blueprints (`generate_layout.py`, `generate_spire.py`) | scripts, deck plans |
+| `station-layout/` | generators of the shipped station blueprints (`generate_layout.py`, `generate_spire.py`, `generate_shard.py`, `generate_octant.py` — the Blender station `octant` from `blender/export/station_map.json`) | scripts, deck plans |
