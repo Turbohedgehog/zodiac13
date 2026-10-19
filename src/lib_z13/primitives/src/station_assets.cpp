@@ -33,6 +33,14 @@ std::filesystem::path BlueprintFile(std::string_view scene) {
   return BlueprintsDir() / std::format("{}{}", scene, kBlueprintExtension);
 }
 
+std::filesystem::path DecorFile(std::string_view scene) {
+  return std::filesystem::path(kStationDir) / kDecorDir / std::format("{}{}", scene, kBlueprintExtension);
+}
+
+std::filesystem::path PropModelFile(std::string_view model) {
+  return std::filesystem::path(kPropModelsDir) / std::format("{}{}", model, kPropModelExtension);
+}
+
 std::vector<std::string> BlueprintScenes(std::span<const std::string> file_names) {
   std::vector<std::string> scenes;
   for (const std::filesystem::path name : file_names) {

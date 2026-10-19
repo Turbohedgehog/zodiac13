@@ -16,12 +16,14 @@
 
 #include "assimp_loader.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -227,6 +229,16 @@ std::expected<::Texture2D, std::string> ResolveDiffuseTexture(const AssetSource&
   return std::unexpected(std::format("texture '{}' not found next to the model", ref));
 }
 
+// The flat color of a material without a texture (a glTF's base color factor).
+std::optional<::Color> BaseColorOf(const aiMaterial& material) {
+  aiColor4D color;
+  if (material.Get(AI_MATKEY_BASE_COLOR, color) != AI_SUCCESS && material.Get(AI_MATKEY_COLOR_DIFFUSE, color) != AI_SUCCESS) {
+    return std::nullopt;
+  }
+  const auto channel = [](float value) { return static_cast<unsigned char>(std::clamp(value, 0.F, 1.F) * 255.F + 0.5F); };
+  return ::Color {channel(color.r), channel(color.g), channel(color.b), channel(color.a)};
+}
+
 }  // namespace
 
 std::expected<LoadedModel, std::string> LoadModelFromAsset(const AssetSource& assets, std::string_view relative_path) {
@@ -281,6 +293,8 @@ std::expected<LoadedModel, std::string> LoadModelFromAsset(const AssetSource& as
       } else if (texture->id != 0) {
         model.materials[m].maps[MATERIAL_MAP_DIFFUSE].texture = *texture;
         ++textured_materials;
+      } else if (const auto color = BaseColorOf(*scene->mMaterials[m])) {
+        model.materials[m].maps[MATERIAL_MAP_DIFFUSE].color = *color;
       }
     }
   }

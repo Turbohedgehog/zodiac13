@@ -23,9 +23,12 @@ from station_blueprint import (
 ROOT = Path(__file__).parent.parent.parent
 MAP_FILE = ROOT / "blender" / "export" / "station_map.json"
 BLUEPRINT_FILE = ROOT / "assets" / "station" / "blueprints" / "octant.json"
+DECOR_FILE = ROOT / "assets" / "station" / "decor" / "octant.json"
 STATS_FILE = Path(__file__).parent / "octant" / "stats.txt"
 
 WALL_THICKNESS_M = 0.25
+# Map templates drawn as models (assets/models/props/<name>.glb), keyed by the template; the rest of the map's decor waits for its model.
+PROP_MODELS = {"decor_crew_chair": "crew_chair", "decor_locker": "locker", "decor_table": "table"}
 PANEL_M, DOOR_M, CELL_DOOR_M = 1.0, 2.0, 1.0
 DOOR_TEMPLATES = ("wall_door", "wall_maint_door", "wall_cell_door")
 LINTEL, GLASS_SLOPE = "wall_lintel", "wall_glass_slope"
@@ -274,11 +277,32 @@ class Octant:
         return blocks
 
 
+def decor_props(station):
+    """The map's props of PROP_MODELS, in meters over the station's floor slab (the map's floor top is z = 0)."""
+    ox, oy = (value / CELLS_PER_M for value in station.origin)
+    floor_top = WALL_Z / CELLS_PER_M
+    return [{"model": PROP_MODELS[i["template"]],
+             "position": {"x": round(i["at"][0] + ox, 3), "y": round(i["at"][1] + oy, 3),
+                          "z": round(i["at"][2] + floor_top, 3)},
+             "yaw": round(i["yaw"], 4)}
+            for i in station.data["instances"] if i["template"] in PROP_MODELS]
+
+
+def write_decor(path, props):
+    """One prop per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/decor.fbs)."""
+    lines = [json.dumps(entry, separators=(", ", ": ")) for entry in props]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = ",\n    ".join(lines)
+    path.write_text(f'{{\n  "props": [\n    {body}\n  ]\n}}\n', encoding="ascii")
+
+
 def main():
     station = Octant(json.loads(MAP_FILE.read_text(encoding="utf-8")))
     blocks = station.blocks()
     write_blueprint(BLUEPRINT_FILE, blocks)
-    lines = [f"Octant: {len(blocks)} blocks ({block_kinds(blocks)})", f"origin of the map in cells: {station.origin}",
+    props = decor_props(station)
+    write_decor(DECOR_FILE, props)
+    lines = [f"Octant: {len(blocks)} blocks ({block_kinds(blocks)})", f"origin of the map in cells: {station.origin}", f"props: {len(props)} ({', '.join(f'{k} {v}' for k, v in Counter(p['model'] for p in props).items())})",
              *(f"skipped, {reason}: {count}" for reason, count in sorted(station.skipped.items()))]
     STATS_FILE.parent.mkdir(exist_ok=True)
     STATS_FILE.write_text("\n".join(lines) + "\n", encoding="ascii")

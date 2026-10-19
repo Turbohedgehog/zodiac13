@@ -47,6 +47,7 @@ set(
   src/lib_z13/primitives/wall_seam_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp
   src/lib_z13/primitives/geometry_test.cpp
+  src/lib_z13/primitives/decor_test.cpp
   src/lib_z13/primitives/lights_test.cpp
   src/lib_z13/primitives/occupancy_test.cpp
   src/lib_z13/primitives/palette_test.cpp

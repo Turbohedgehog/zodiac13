@@ -10,6 +10,7 @@ z13_add_library(
   src/blueprint.cpp
   src/chunk_mesh.cpp
   src/cut.cpp
+  src/decor.cpp
   src/draw_order.cpp
   src/geometry.cpp
   src/lights.cpp

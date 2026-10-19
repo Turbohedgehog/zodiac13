@@ -15,6 +15,7 @@ set(
     ${FBS_DIR}/building.fbs
     ${FBS_DIR}/building_tuning.fbs
     ${FBS_DIR}/common.fbs
+    ${FBS_DIR}/decor.fbs
     ${FBS_DIR}/discovery.fbs
     ${FBS_DIR}/geometry.fbs
     ${FBS_DIR}/input_config.fbs
