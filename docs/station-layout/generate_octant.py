@@ -33,6 +33,10 @@ WINDOW_TEMPLATES = ("wall_window", GLASS_SLOPE)
 GLASS_SLOPE_FIRST_ROW = 1  # the map's slope leans back to the ceiling; a vertical window must reach it to seal
 PIECE_HEIGHT_M = {"wall_door": 2.5, "wall_maint_door": 2.5, "wall_cell_door": 3.0, LINTEL: 0.5}
 LAMP_REACH_CELLS = 6  # how far a lamp moves off its map position to clear a wall
+LAMP_OFFSETS = sorted(((dx, dy) for dx in range(-LAMP_REACH_CELLS, LAMP_REACH_CELLS + 1)
+                       for dy in range(-LAMP_REACH_CELLS, LAMP_REACH_CELLS + 1)), key=lambda d: (d[0] ** 2 + d[1] ** 2, d))
+LAMP_SPACING_M = 6  # lamps the map lacks in a room: one per this many metres, as in the other stations
+ABANDONED_PREFIX = "old_"  # the abandoned wing: the map's lamps there are broken on purpose, so it stays dark
 LAMP_BELOW_CEILING_M = 0.7  # a light this far under its room's ceiling or closer is ceiling-mounted
 FLOOR_Z = 0
 WALL_Z = FLOOR_Z + SLAB_CELLS
@@ -188,7 +192,7 @@ class Octant:
         return CELLS_PER_M * room["height"]
 
     def ceiling_slabs(self):
-        """A slab on the walls of every room's metre cells; `ceiling_at` maps a grid cell to its slab's z."""
+        """A slab on the walls of every room's metre cells; `ceiling_at` maps a grid cell to its slab's z and room."""
         ox, oy = self.origin
         by_height = defaultdict(set)
         ceiling_at = {}
@@ -201,36 +205,61 @@ class Octant:
                         by_height[z].add((x + ox // CELLS_PER_M, y + oy // CELLS_PER_M))
                         for cx in range(CELLS_PER_M):
                             for cy in range(CELLS_PER_M):
-                                ceiling_at[((x * CELLS_PER_M + ox) + cx, (y * CELLS_PER_M + oy) + cy)] = z
+                                ceiling_at[((x * CELLS_PER_M + ox) + cx, (y * CELLS_PER_M + oy) + cy)] = (z, room["name"])
         blocks = []
         for z, filled in sorted(by_height.items()):
             blocks += slab_blocks(FLOOR, filled, z, CELLS_PER_M)
         return blocks, ceiling_at
 
     def lamps(self):
-        ox, oy = self.origin
-        placed, blocks = set(), []
-        offsets = sorted(((dx, dy) for dx in range(-LAMP_REACH_CELLS, LAMP_REACH_CELLS + 1)
-                          for dy in range(-LAMP_REACH_CELLS, LAMP_REACH_CELLS + 1)),
-                         key=lambda d: (d[0] ** 2 + d[1] ** 2, d))
+        self.lamp_cells = set()
+        blocks = []
+        lit = Counter()
         for light in self.data["lights"]:
             room = self.rooms[light["room"]]
             if light["at"][2] < room["height"] - LAMP_BELOW_CEILING_M:
                 self.skipped["light not on the ceiling"] += 1
                 continue
-            cx, cy = cells(light["at"][0]) + ox, cells(light["at"][1]) + oy
-            top = WALL_Z + self.room_height_cells(room) - 1
-            for dx, dy in offsets:
-                footprint = [(cx + dx - 1 + i, cy + dy - 1 + j) for i in range(LAMP_CELLS) for j in range(LAMP_CELLS)]
-                if (all(self.ceiling_at.get(c) == top + 1 for c in footprint)
-                        and not any((x, y, top) in self.solid for x, y in footprint)
-                        and not placed.intersection((x, y, top) for x, y in footprint)):
-                    placed.update((x, y, top) for x, y in footprint)
-                    blocks.append(block(LAMP, (*footprint[0], top), (LAMP_CELLS, LAMP_CELLS, 1)))
-                    break
-            else:
-                self.skipped["lamp found no free spot"] += 1
+            ox, oy = self.origin
+            lamp = self.hang_lamp(room, cells(light["at"][0]) + ox, cells(light["at"][1]) + oy)
+            if lamp:
+                blocks.append(lamp)
+                lit[room["name"]] += 1
+        for room in self.data["rooms"]:
+            if lit[room["name"]] == 0 and not room["name"].startswith(ABANDONED_PREFIX):
+                blocks += self.fill_room_lamps(room)
         return blocks
+
+    def hang_lamp(self, room, cx, cy):
+        """A lamp under the room's ceiling near the cell (cx, cy), or None when no spot within reach is free."""
+        top = WALL_Z + self.room_height_cells(room) - 1
+        for dx, dy in LAMP_OFFSETS:
+            footprint = [(cx + dx - 1 + i, cy + dy - 1 + j) for i in range(LAMP_CELLS) for j in range(LAMP_CELLS)]
+            if (all(self.ceiling_at.get(c) == (top + 1, room["name"]) for c in footprint)
+                    and not any((x, y, top) in self.solid for x, y in footprint)
+                    and not self.lamp_cells.intersection((x, y, top) for x, y in footprint)):
+                self.lamp_cells.update((x, y, top) for x, y in footprint)
+                return block(LAMP, (*footprint[0], top), (LAMP_CELLS, LAMP_CELLS, 1))
+        self.skipped["lamp found no free spot"] += 1
+        return None
+
+    def fill_room_lamps(self, room):
+        """A lattice of LAMP_SPACING_M over a room the map lights with no lamp of its own."""
+        ox, oy = self.origin
+        x0, y0, x1, y1 = room["box"]
+        columns = max(1, round((x1 - x0) / LAMP_SPACING_M))
+        rows = max(1, round((y1 - y0) / LAMP_SPACING_M))
+        lamps = []
+        for j in range(rows):
+            for i in range(columns):
+                x = x0 + (x1 - x0) * (2 * i + 1) / (2 * columns)
+                y = y0 + (y1 - y0) * (2 * j + 1) / (2 * rows)
+                lamp = self.hang_lamp(room, cells(x) + ox, cells(y) + oy)
+                if lamp:
+                    lamps.append(lamp)
+        if not lamps:
+            self.skipped["room left dark"] += 1
+        return lamps
 
     def spawns(self):
         ox, oy = self.origin
