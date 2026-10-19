@@ -17,7 +17,6 @@
 #include <primitives/wall_seam.h>
 
 #include <algorithm>
-#include <array>
 #include <cstdlib>
 #include <format>
 #include <numeric>
@@ -28,6 +27,15 @@ namespace {
 
 // Beyond the seam a wall keeps at least this much of its run.
 constexpr int kMinRemainingCells = 1;
+// A panel is at most this long (the palette's max_size_cells); the products below stay within int64.
+constexpr int kMaxComponent = 256;
+
+bool IsUsable(const PlanWall& wall) {
+  const auto fits = [](const Eigen::Vector2i& vector) {
+    return !vector.isZero() && vector.cwiseAbs().maxCoeff() <= kMaxComponent;
+  };
+  return fits(wall.direction) && fits(wall.offset);
+}
 
 struct Homogeneous {
   int64_t x {};
@@ -123,6 +131,9 @@ int SideOf(const SeamLine& line, const PlanPoint& point) {
 std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanWall& second, int max_reach) {
   if (first.node != second.node) {
     return std::unexpected(std::string {"the walls don't share a node"});
+  }
+  if (!IsUsable(first) || !IsUsable(second)) {
+    return std::unexpected(std::string {"a wall of no length or thickness, or longer than a panel, has no seam"});
   }
   const int64_t turn = CrossOf(first.direction, second.direction);
   if (turn == 0) {

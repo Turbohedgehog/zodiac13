@@ -63,7 +63,7 @@ struct WallSeam {
   PlanPoint outer;
 };
 
-// Which side of the line the point is on: -1, 0 or 1.
+// Which side of the line a whole point near the node is on: -1, 0 or 1.
 int SideOf(const SeamLine& line, const PlanPoint& point);
 
 // The seam of two walls from one node. An error says why the joint can't be had, and what

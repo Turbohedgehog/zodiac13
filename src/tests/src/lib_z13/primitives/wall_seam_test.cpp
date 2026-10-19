@@ -98,6 +98,12 @@ TEST(WallSeamTest, WallsLeavingTheNodeTheSameWayHaveNoSeam) {
   EXPECT_FALSE(PlanSeam(Wall({10, 0}, {0, 2}), Wall({6, 0}, {0, -1}), kReach).has_value());
 }
 
+TEST(WallSeamTest, AWallOfNoLengthOrThicknessHasNoSeam) {
+  EXPECT_FALSE(PlanSeam(Wall({0, 0}, {0, 2}), Wall({0, 10}, {2, 0}), kReach).has_value());
+  EXPECT_FALSE(PlanSeam(Wall({10, 0}, {0, 0}), Wall({0, 10}, {2, 0}), kReach).has_value());
+  EXPECT_FALSE(PlanSeam(Wall({1000, 0}, {0, 2}), Wall({0, 10}, {2, 0}), kReach).has_value());
+}
+
 TEST(WallSeamTest, ATipReachingTooFarIsRefused) {
   const PlanWall first = Wall({20, 0}, {0, 2});
   const PlanWall second = Wall({20, 3}, {0, -2});
