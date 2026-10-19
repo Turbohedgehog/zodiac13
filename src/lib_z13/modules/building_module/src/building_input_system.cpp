@@ -41,6 +41,7 @@
 #include <z13_settings/building_tuning.h>
 #include <z13/components/station_mode.h>
 #include <z13/components/inventory.h>
+#include <z13/components/touch_controls.h>
 #include <lib_core/utils/enum_cycle.h>
 #include <z13_module/input/input_config_loader.h>
 #include <lib_core/state/rollback.h>
@@ -129,6 +130,30 @@ void SetActionGroup(z13::input::ActionListener& action_listener, std::string_vie
 
 bool UsesWheel(ToolMode mode) {
   return mode == ToolMode::kWall || mode == ToolMode::kMerge;
+}
+
+// The touch buttons the held tool's mode shows (touch/touch_mapping.h).
+z13::input::TouchLayer TouchLayerOf(ToolMode mode) {
+  switch (mode) {
+    case ToolMode::kWall:
+      return z13::input::TouchLayer::kWall;
+    case ToolMode::kMerge:
+      return z13::input::TouchLayer::kMerge;
+    case ToolMode::kBuild:
+      [[fallthrough]];
+    case ToolMode::kDestroy:
+      [[fallthrough]];
+    case ToolMode::kCut:
+      [[fallthrough]];
+    case ToolMode::kCutIn:
+      break;
+  }
+  return z13::input::TouchLayer::kBlock;
+}
+
+void SyncTouchLayer(flecs::entity e, z13::input::TouchControls& controls) {
+  const std::optional<flecs::entity> tool = HeldBuildTool(e);
+  controls.layer = tool ? TouchLayerOf(tool->get<BuildTool>().mode) : z13::input::TouchLayer::kWalk;
 }
 
 // The Building input groups follow the BuildingTool tag and the held tool's mode, so they
@@ -301,6 +326,13 @@ void RegisterSystems(flecs::world world) {
       .read<z13::inventory::ActiveItem>()
       .read<BuildTool>()
       .each(SyncBuildingActionGroup);
+
+  world.system<z13::input::TouchControls>("gameplay_input_system::SyncTouchLayer")
+      .kind<z13::input::ClearActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .read<z13::inventory::ActiveItem>()
+      .read<BuildTool>()
+      .each(SyncTouchLayer);
 
   world.system<z13::input::ActionListener, BuildActionIds, const BuildingTuning>(
            "gameplay_input_system::ApplyBuildActionListener")

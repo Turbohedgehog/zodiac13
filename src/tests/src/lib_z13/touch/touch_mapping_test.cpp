@@ -42,9 +42,48 @@ float Scheduled(const InputState& state, Keycode key) {
 
 TEST(TouchMappingTest, ControlAtPicksButtonThenZone) {
   const Layout layout;
-  EXPECT_EQ(ControlAt(layout, ButtonCenter(layout, TouchControl::kJump, kScreen), kScreen), TouchControl::kJump);
-  EXPECT_EQ(ControlAt(layout, {100.f, 250.f}, kScreen), TouchControl::kStick);
-  EXPECT_EQ(ControlAt(layout, {600.f, 250.f}, kScreen), TouchControl::kLook);
+  const TouchLayer walk = TouchLayer::kWalk;
+  EXPECT_EQ(ControlAt(layout, walk, ButtonCenter(layout, walk, TouchControl::kJump, kScreen), kScreen),
+            TouchControl::kJump);
+  EXPECT_EQ(ControlAt(layout, walk, {100.f, 250.f}, kScreen), TouchControl::kStick);
+  EXPECT_EQ(ControlAt(layout, walk, {600.f, 250.f}, kScreen), TouchControl::kLook);
+}
+
+TEST(TouchMappingTest, TheToolsButtonsShowOnlyWithATool) {
+  for (const TouchControl control : kToolButtons) {
+    EXPECT_FALSE(InLayer(TouchLayer::kWalk, control));
+    EXPECT_TRUE(InLayer(TouchLayer::kBlock, control));
+    EXPECT_TRUE(InLayer(TouchLayer::kWall, control));
+    EXPECT_TRUE(InLayer(TouchLayer::kMerge, control));
+  }
+  EXPECT_TRUE(InLayer(TouchLayer::kWalk, TouchControl::kJump));
+  EXPECT_TRUE(InLayer(TouchLayer::kWall, TouchControl::kJump));
+}
+
+TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
+  const Layout layout;
+  EXPECT_TRUE(InLayer(TouchLayer::kBlock, TouchControl::kTurnZ));
+  EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kTurnZ));
+  EXPECT_TRUE(InLayer(TouchLayer::kWall, TouchControl::kThicker));
+  EXPECT_FALSE(InLayer(TouchLayer::kBlock, TouchControl::kThicker));
+  EXPECT_TRUE(InLayer(TouchLayer::kMerge, TouchControl::kMergeAt));
+  EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kMergeAt));
+
+  // The wall layer's first button sits where the block layer's first does, so a hidden one
+  // doesn't catch a touch.
+  const Eigen::Vector2f first = ButtonCenter(layout, TouchLayer::kWall, TouchControl::kThicker, kScreen);
+  EXPECT_EQ(ControlAt(layout, TouchLayer::kWall, first, kScreen), TouchControl::kThicker);
+  EXPECT_NE(ControlAt(layout, TouchLayer::kBlock, first, kScreen), TouchControl::kThicker);
+  const Eigen::Vector2f second = ButtonCenter(layout, TouchLayer::kBlock, TouchControl::kNextPrimitive, kScreen);
+  EXPECT_NE(ControlAt(layout, TouchLayer::kWall, second, kScreen), TouchControl::kNextPrimitive);
+}
+
+TEST(TouchMappingTest, EveryPanelButtonHasAKey) {
+  for (const std::span<const TouchControl> panel : kAllPanels) {
+    for (const TouchControl control : panel) {
+      EXPECT_TRUE(ButtonKey(control).has_value());
+    }
+  }
 }
 
 TEST(TouchMappingTest, StickInsideDeadZoneIsZero) {
@@ -110,7 +149,7 @@ TEST(TouchMappingTest, ScheduleKeyReplacesAQueuedDeflection) {
 TEST(TouchMappingTest, EachHotbarCellPressesItsOwnKey) {
   const Layout layout;
   for (size_t cell = 0; cell < kHotbarCellButtons.size(); ++cell) {
-    const TouchControl control = ControlAt(layout, CellRect(layout, cell, kScreen).center(), kScreen);
+    const TouchControl control = ControlAt(layout, TouchLayer::kBlock, CellRect(layout, cell, kScreen).center(), kScreen);
     EXPECT_EQ(control, kHotbarCellButtons[cell].control) << cell;
     EXPECT_EQ(ButtonKey(control), kHotbarCellButtons[cell].key) << cell;
   }
@@ -121,9 +160,14 @@ TEST(TouchMappingTest, TheHotbarCellsSitInARowAndClearOfTheButtons) {
   for (size_t cell = 1; cell < kHotbarCellButtons.size(); ++cell) {
     EXPECT_NEAR(CellRect(layout, cell, kScreen).min().x(), CellRect(layout, cell - 1, kScreen).max().x(), kEpsilon);
   }
-  for (const TouchButton& button : kTouchButtons) {
-    EXPECT_EQ(ControlAt(layout, ButtonCenter(layout, button.control, kScreen), kScreen), button.control)
-        << button.label;
+  for (const TouchLayer layer : {TouchLayer::kWalk, TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge}) {
+    for (const TouchButton& button : kTouchButtons) {
+      if (InLayer(layer, button.control)) {
+        EXPECT_EQ(ControlAt(layout, layer, ButtonCenter(layout, layer, button.control, kScreen), kScreen),
+                  button.control)
+            << button.label;
+      }
+    }
   }
 }
 

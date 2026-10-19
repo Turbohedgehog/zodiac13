@@ -25,7 +25,7 @@
 namespace z13::raylib::gui {
 
 // The touch buttons and the stick under its finger (docs/android-plan.md), behind the windows;
-// the tool's buttons only with a build tool in hand, the primary one labelled `tool_action`.
+// the buttons of `controls.layer`, the primary one labelled `tool_action`.
 // The hotbar's cells are DrawHotbar's.
 void DrawTouchHud(const z13::input::TouchControls& controls, const z13::TouchLayout& layout,
                   std::optional<std::string_view> tool_action);

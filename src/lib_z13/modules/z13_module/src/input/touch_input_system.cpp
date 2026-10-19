@@ -67,7 +67,7 @@ void OnTouchDown(const z13::input::TouchDownEvent& event, TouchControls& control
                                 .position = event.position});
     return;
   }
-  TouchControl control = z13::input::touch::ControlAt(layout, event.position, event.screen_size);
+  TouchControl control = z13::input::touch::ControlAt(layout, controls.layer, event.position, event.screen_size);
   // One stick: another finger in its zone looks.
   if (control == TouchControl::kStick && std::ranges::contains(controls.fingers, control, &TouchFinger::control)) {
     control = TouchControl::kLook;

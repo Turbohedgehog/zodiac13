@@ -33,8 +33,8 @@ table Block {
 enum Action : int16 (action, action_group: "Building") {
   // The tool mode's action: build, destroy, cut, cut in or a click of the wall.
   BUILD_BLOCK (display_text: "Use the build tool", default_keycodes: "MOUSE_BUTTON_LEFT TOUCH_PRIMARY"),
-  // Destroys in any tool mode.
-  DESTROY_BLOK (display_text: "Destroy a block", default_keycodes: "MOUSE_BUTTON_RIGHT"),
+  // Destroys in any tool mode; with a wall or merge in the making, drops it instead.
+  DESTROY_BLOK (display_text: "Destroy a block", default_keycodes: "MOUSE_BUTTON_RIGHT TOUCH_DESTROY"),
   PREVIOUS_PRIMITIVE (display_text: "Previous primitive", default_keycodes: "KEY_Q TOUCH_PREVIOUS_PRIMITIVE"),
   NEXT_PRIMITIVE (display_text: "Next primitive", default_keycodes: "KEY_E TOUCH_NEXT_PRIMITIVE"),
   // Held: the tool cuts the dragged box out of the station, whatever its mode.
@@ -57,8 +57,8 @@ enum Action : int16 (action, action_group: "Building") {
 // Active only in the Wall and Merge modes: the wheel then sets the wall's thickness or steps
 // the merge target, not the hotbar cell.
 enum WallAction : int16 (action, action_group: "BuildingWall") {
-  THICKER_WALL (display_text: "Thicker wall", default_keycodes: "MOUSE_WHEEL_UP"),
-  THINNER_WALL (display_text: "Thinner wall", default_keycodes: "MOUSE_WHEEL_DOWN"),
+  THICKER_WALL (display_text: "Thicker wall", default_keycodes: "MOUSE_WHEEL_UP TOUCH_THICKER TOUCH_MERGE_AT"),
+  THINNER_WALL (display_text: "Thinner wall", default_keycodes: "MOUSE_WHEEL_DOWN TOUCH_THINNER"),
 }
 
 root_type Block;

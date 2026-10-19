@@ -43,6 +43,8 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
       return {layout.tool_mode_x, layout.tool_mode_y};
     case TouchControl::kPrimary:
       return {layout.primary_x, layout.primary_y};
+    case TouchControl::kDestroy:
+      return {layout.destroy_x, layout.destroy_y};
     case TouchControl::kStick:
       [[fallthrough]];
     case TouchControl::kLook:
@@ -60,6 +62,12 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
     case TouchControl::kTurnY:
       [[fallthrough]];
     case TouchControl::kTurnX:
+      [[fallthrough]];
+    case TouchControl::kThicker:
+      [[fallthrough]];
+    case TouchControl::kThinner:
+      [[fallthrough]];
+    case TouchControl::kMergeAt:
       [[fallthrough]];
     case TouchControl::kCell1:
       [[fallthrough]];
@@ -101,11 +109,39 @@ std::optional<Keycode> ButtonKey(TouchControl control) {
   return std::nullopt;
 }
 
-Eigen::Vector2f ButtonCenter(const Layout& layout, TouchControl control, const Eigen::Vector2f& screen_size) {
-  if (const auto panel = std::ranges::find(kToolPanel, control); panel != kToolPanel.end()) {
+std::span<const TouchControl> PanelOf(TouchLayer layer) {
+  switch (layer) {
+    case TouchLayer::kBlock:
+      return kBlockPanel;
+    case TouchLayer::kWall:
+      return kWallPanel;
+    case TouchLayer::kMerge:
+      return kMergePanel;
+    case TouchLayer::kWalk:
+      break;
+  }
+  return {};
+}
+
+bool InLayer(TouchLayer layer, TouchControl control) {
+  if (std::ranges::contains(kToolButtons, control)) {
+    return layer != TouchLayer::kWalk;
+  }
+  if (std::ranges::contains(PanelOf(layer), control)) {
+    return true;
+  }
+  return !std::ranges::any_of(kAllPanels, [control](std::span<const TouchControl> panel) {
+    return std::ranges::contains(panel, control);
+  });
+}
+
+Eigen::Vector2f ButtonCenter(const Layout& layout, TouchLayer layer, TouchControl control,
+                             const Eigen::Vector2f& screen_size) {
+  const std::span<const TouchControl> panel = PanelOf(layer);
+  if (const auto slot = std::ranges::find(panel, control); slot != panel.end()) {
     const float step = kToolPanelStepRadii * ButtonRadius(layout, screen_size);
     const Eigen::Vector2f first = Eigen::Vector2f(layout.tool_panel_x, layout.tool_panel_y).cwiseProduct(screen_size);
-    return first + Eigen::Vector2f(step * static_cast<float>(panel - kToolPanel.begin()), 0.f);
+    return first + Eigen::Vector2f(step * static_cast<float>(slot - panel.begin()), 0.f);
   }
   return LayoutPosition(layout, control).cwiseProduct(screen_size);
 }
@@ -125,7 +161,8 @@ float StickRadius(const Layout& layout, const Eigen::Vector2f& screen_size) {
   return layout.stick_radius * screen_size.y();
 }
 
-TouchControl ControlAt(const Layout& layout, const Eigen::Vector2f& position, const Eigen::Vector2f& screen_size) {
+TouchControl ControlAt(const Layout& layout, TouchLayer layer, const Eigen::Vector2f& position,
+                       const Eigen::Vector2f& screen_size) {
   for (size_t cell = 0; cell < kHotbarCellButtons.size(); ++cell) {
     if (CellRect(layout, cell, screen_size).contains(position)) {
       return kHotbarCellButtons[cell].control;
@@ -133,7 +170,8 @@ TouchControl ControlAt(const Layout& layout, const Eigen::Vector2f& position, co
   }
   const float radius = ButtonRadius(layout, screen_size);
   const auto button = std::ranges::find_if(kTouchButtons, [&](const TouchButton& candidate) {
-    return (ButtonCenter(layout, candidate.control, screen_size) - position).norm() <= radius;
+    return InLayer(layer, candidate.control) &&
+           (ButtonCenter(layout, layer, candidate.control, screen_size) - position).norm() <= radius;
   });
   if (button != kTouchButtons.end()) {
     return button->control;

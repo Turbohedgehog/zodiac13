@@ -49,25 +49,20 @@ float ToImGui(float pixels, const Eigen::Vector2f& screen_size) {
   return pixels / screen_size.y() * ImGui::GetIO().DisplaySize.y;
 }
 
-bool IsToolButton(TouchControl control) {
-  return control == TouchControl::kToolMode || control == TouchControl::kPrimary ||
-         std::ranges::contains(z13::input::touch::kToolPanel, control);
-}
-
 void DrawButtons(ImDrawList& draw, const z13::input::TouchControls& controls, const z13::TouchLayout& layout,
                  std::optional<std::string_view> tool_action) {
   const float radius = ToImGui(z13::input::touch::ButtonRadius(layout, controls.screen_size), controls.screen_size);
   for (const auto& button : z13::input::touch::kTouchButtons) {
-    if (IsToolButton(button.control) && !tool_action) {
+    if (!z13::input::touch::InLayer(controls.layer, button.control)) {
       continue;
     }
-    const ImVec2 center =
-        ToImGui(z13::input::touch::ButtonCenter(layout, button.control, controls.screen_size), controls.screen_size);
+    const ImVec2 center = ToImGui(
+        z13::input::touch::ButtonCenter(layout, controls.layer, button.control, controls.screen_size), controls.screen_size);
     if (std::ranges::contains(controls.fingers, button.control, &TouchFinger::control)) {
       draw.AddCircleFilled(center, radius, kPressedColor);
     }
     draw.AddCircle(center, radius, kOutlineColor, 0, kOutlineThickness);
-    const std::string label(button.control == TouchControl::kPrimary ? *tool_action : button.label);
+    const std::string label(button.control == TouchControl::kPrimary ? tool_action.value_or(button.label) : button.label);
     const ImVec2 size = ImGui::CalcTextSize(label.c_str());
     draw.AddText({center.x - size.x / 2.f, center.y - size.y / 2.f}, kLabelColor, label.c_str());
   }

@@ -99,7 +99,7 @@ TEST(TouchInputTest, FingersKeepTheirControls) {
   z13::testing::Z13TestWorld test_world;
   auto player = test_world.Player();
   const auto& layout = test_world.World().get<z13::TouchLayout>();
-  const Eigen::Vector2f jump = z13::input::touch::ButtonCenter(layout, z13::input::TouchControl::kJump, kScreen);
+  const Eigen::Vector2f jump = z13::input::touch::ButtonCenter(layout, z13::input::TouchLayer::kWalk, z13::input::TouchControl::kJump, kScreen);
 
   test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kStickFinger, kStickTouch));
   test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kLookFinger, kLookTouch));
@@ -119,8 +119,8 @@ TEST(TouchInputTest, FingersKeepTheirControls) {
 
 TEST(TouchInputTest, TapWithinOneFrameReachesTheSimulation) {
   z13::testing::Z13TestWorld test_world;
-  const Eigen::Vector2f use = z13::input::touch::ButtonCenter(test_world.World().get<z13::TouchLayout>(),
-                                                               z13::input::TouchControl::kUse, kScreen);
+  const Eigen::Vector2f use = z13::input::touch::ButtonCenter(
+      test_world.World().get<z13::TouchLayout>(), z13::input::TouchLayer::kWalk, z13::input::TouchControl::kUse, kScreen);
   test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kButtonFinger, use));
   test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kButtonFinger, use));
 
