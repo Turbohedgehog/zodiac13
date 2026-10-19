@@ -17,10 +17,12 @@
 #include "hotbar_hud.h"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Core>
@@ -62,20 +64,18 @@ constexpr float kBrushCellHeight = 0.6f;
 constexpr float kBrushPaddingEm = 0.5f;
 constexpr float kBrushGapEm = 0.3f;
 
+using ModeLabel = std::pair<ToolMode, std::string_view>;
+constexpr std::array kToolModeLabels {
+    ModeLabel {ToolMode::kBuild, "Build"},
+    ModeLabel {ToolMode::kDestroy, "Destroy"},
+    ModeLabel {ToolMode::kCut, "Cut"},
+    ModeLabel {ToolMode::kCutIn, "Cut in"},
+    ModeLabel {ToolMode::kWall, "Wall"},
+};
+
 std::string_view ToolModeLabel(ToolMode mode) {
-  switch (mode) {
-    case ToolMode::kBuild:
-      return "Build";
-    case ToolMode::kDestroy:
-      return "Destroy";
-    case ToolMode::kCut:
-      return "Cut";
-    case ToolMode::kCutIn:
-      return "Cut in";
-    case ToolMode::kWall:
-      return "Wall";
-  }
-  return {};
+  const auto found = std::ranges::find(kToolModeLabels, mode, &ModeLabel::first);
+  return found != kToolModeLabels.end() ? found->second : std::string_view {};
 }
 
 std::optional<flecs::entity> FindLocalPlayer(flecs::world world) {
