@@ -78,6 +78,7 @@ set(
   ${MODULES_DIR}/building_module/tests/station_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/test_station_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_brush_test.cpp
+  ${MODULES_DIR}/building_module/tests/wall_merge_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp

@@ -58,6 +58,12 @@ struct WallDraft {
   int stick_length {};
 };
 
+// A player's first click of the Merge mode: the node the second click merges into.
+struct WallMergeDraft {
+  using State = void;
+  uint32_t node_id {};
+};
+
 // Marks the block derived from a segment; the segment owns it (WallPanelSystem).
 struct WallPanelOf {
   using State = void;

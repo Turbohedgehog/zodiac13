@@ -28,7 +28,11 @@ struct UpdateBuildingToolPhase {};
 struct BuildingTool {};
 
 // The order is the one the mode key cycles through.
-enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall };
+enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall, kMerge };
+
+// Where the Merge mode puts two merged wall nodes: their middle (rounded down to the grid),
+// the first one's place or the last one's. The wheel steps through them.
+enum class MergeAt : uint8_t { kCenter, kFirst, kLast };
 
 // On a build tool item, with its BlockBrush: a tool given away builds the same.
 struct BuildTool {
@@ -36,6 +40,7 @@ struct BuildTool {
   ToolMode mode {};
   // The thickness, in cells, of the walls the Wall mode lays.
   int wall_thickness = 1;
+  MergeAt merge_at {};
 };
 
 // The mode the tool works in this frame: a held cut key overrides the tool's own on PC.

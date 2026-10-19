@@ -71,6 +71,7 @@ constexpr std::array kToolModeLabels {
     ModeLabel {ToolMode::kCut, "Cut"},
     ModeLabel {ToolMode::kCutIn, "Cut in"},
     ModeLabel {ToolMode::kWall, "Wall"},
+    ModeLabel {ToolMode::kMerge, "Merge"},
 };
 
 std::string_view ToolModeLabel(ToolMode mode) {
