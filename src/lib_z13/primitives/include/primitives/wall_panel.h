@@ -36,6 +36,17 @@ struct WallGeometry {
   int thickness {};
 };
 
+// The axes of a stick axis's plane (the lower first) and which carries the panel's run (the
+// longer of `span`, the lower on a tie) and which its rise (the other, the thickening one).
+struct PlanAxes {
+  int first {};
+  int second {};
+  int major {};
+  int minor {};
+};
+
+PlanAxes PlanAxesOf(z13::station::WallAxis stick_axis, const Eigen::Vector3i& span);
+
 // The Panel block whose prism runs from node a to node b (b's offset along the stick axis
 // dropped) over the stick, and thickens by |thickness| cells along the lesser axis of the
 // plane, to the side of its sign. Its ends are cut by the grid, so a wall meets one flush.

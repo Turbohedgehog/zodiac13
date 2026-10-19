@@ -61,6 +61,14 @@ std::array<Eigen::Vector3i, 8> LocalCorners(const Eigen::Vector3i& size, int sla
 
 }  // namespace
 
+PlanAxes PlanAxesOf(WallAxis stick_axis, const Eigen::Vector3i& span) {
+  const int stick = static_cast<int>(stick_axis);
+  const int first = stick == 0 ? 1 : 0;
+  const int second = stick == 2 ? 1 : 2;
+  const int major = std::abs(span[first]) >= std::abs(span[second]) ? first : second;
+  return {.first = first, .second = second, .major = major, .minor = major == first ? second : first};
+}
+
 std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const Palette& palette) {
   const auto primitive = palette.Find(z13::station::kPanelPrimitiveId);
   if (!primitive) {
@@ -76,11 +84,9 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
     return std::unexpected(std::string {"the wall has no stick length or thickness"});
   }
 
-  // The longer axis of the plane carries the panel's run; ties go to the lower axis.
-  const int first = stick == 0 ? 1 : 0;
-  const int second = stick == 2 ? 1 : 2;
-  const int major = std::abs(offset[first]) >= std::abs(offset[second]) ? first : second;
-  const int minor = major == first ? second : first;
+  const PlanAxes axes = PlanAxesOf(wall.stick_axis, offset);
+  const int major = axes.major;
+  const int minor = axes.minor;
   const int run = std::abs(offset[major]);
   const int slant = std::abs(offset[minor]);
   const int thickness = std::abs(wall.thickness);
