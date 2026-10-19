@@ -72,6 +72,8 @@ std::string_view ToolModeLabel(ToolMode mode) {
       return "Cut";
     case ToolMode::kCutIn:
       return "Cut in";
+    case ToolMode::kWall:
+      return "Wall";
   }
   return {};
 }

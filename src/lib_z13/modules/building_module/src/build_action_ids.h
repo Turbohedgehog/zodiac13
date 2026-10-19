@@ -42,6 +42,8 @@ struct BuildActionIds {
   std::optional<IdType> cut_in_modifier;
   std::optional<IdType> cancel_brush_drag;
   std::optional<IdType> cycle_tool_mode;
+  std::optional<IdType> thicker_wall;
+  std::optional<IdType> thinner_wall;
 };
 
 // Whether the action went down this frame; false for an action the config lacks.

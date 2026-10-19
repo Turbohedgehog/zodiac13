@@ -47,6 +47,17 @@ struct WallSegment {
   int thickness {};
 };
 
+// A player's wall in the making (the Wall brush mode): the first click set `first`, the
+// second the stick; the third picks the other end.
+struct WallDraft {
+  using State = void;
+  enum class Stage : uint8_t { kStick, kEnd };
+  Stage stage {};
+  Eigen::Vector3i first = Eigen::Vector3i::Zero();
+  WallAxis stick_axis = WallAxis::kZ;
+  int stick_length {};
+};
+
 // Marks the block derived from a segment; the segment owns it (WallPanelSystem).
 struct WallPanelOf {
   using State = void;

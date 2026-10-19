@@ -31,7 +31,7 @@ table Block {
 }
 
 enum Action : int16 (action, action_group: "Building") {
-  // The tool mode's action: build, destroy, cut or cut in.
+  // The tool mode's action: build, destroy, cut, cut in or a click of the wall.
   BUILD_BLOCK (display_text: "Use the build tool", default_keycodes: "MOUSE_BUTTON_LEFT TOUCH_PRIMARY"),
   // Destroys in any tool mode.
   DESTROY_BLOK (display_text: "Destroy a block", default_keycodes: "MOUSE_BUTTON_RIGHT"),
@@ -52,6 +52,12 @@ enum Action : int16 (action, action_group: "Building") {
   // Set for the frames the local player is paused mid-drag: the release that pausing
   // reads as must not place the block.
   CANCEL_BRUSH_DRAG (display_text: "Cancel the drag"),
+}
+
+// Active only while the Wall mode is: the wheel then sets the wall's thickness, not the hotbar cell.
+enum WallAction : int16 (action, action_group: "BuildingWall") {
+  THICKER_WALL (display_text: "Thicker wall", default_keycodes: "MOUSE_WHEEL_UP"),
+  THINNER_WALL (display_text: "Thinner wall", default_keycodes: "MOUSE_WHEEL_DOWN"),
 }
 
 root_type Block;

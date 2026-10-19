@@ -37,6 +37,8 @@
 #include <z13/components/input_phases.h>
 #include <z13/components/building.h>
 #include <z13/components/block_brush.h>
+#include <z13/components/wall.h>
+#include <z13_settings/building_tuning.h>
 #include <z13/components/station_mode.h>
 #include <z13/components/inventory.h>
 #include <lib_core/utils/enum_cycle.h>
@@ -52,6 +54,8 @@ namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 constexpr std::string_view kBuildingActionGroup = "Building";
+// Its actions shadow the hotbar's wheel, so the group is on only in the Wall mode.
+constexpr std::string_view kWallActionGroup = "BuildingWall";
 
 void OnAppendInputSchema(
     flecs::iter it,
@@ -76,10 +80,10 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids = BuildActionIds();
   const auto& enum_value = action_map.action_map.get<z13::input::ActionMap::EnumNameEnumValueTag>();
 
-  auto find_action_id = [&](const auto action_value) {
+  auto find_action_id = [&](const auto action_value, std::string_view enum_name = "z13.fbs.building.Action") {
     auto action_id_holder = z13::gameplay::input::InputConfigLoader::FindActionId(
         action_map.action_map,
-        "z13.fbs.building.Action",
+        enum_name,
         action_value);
     if (!action_id_holder) {
       log_error(
@@ -104,22 +108,31 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.cut_in_modifier = find_action_id(z13::fbs::building::Action::CUT_IN_MODIFIER);
   build_action_ids.cancel_brush_drag = find_action_id(z13::fbs::building::Action::CANCEL_BRUSH_DRAG);
   build_action_ids.cycle_tool_mode = find_action_id(z13::fbs::building::Action::CYCLE_TOOL_MODE);
+  constexpr std::string_view kWallActions = "z13.fbs.building.WallAction";
+  build_action_ids.thicker_wall = find_action_id(z13::fbs::building::WallAction::THICKER_WALL, kWallActions);
+  build_action_ids.thinner_wall = find_action_id(z13::fbs::building::WallAction::THINNER_WALL, kWallActions);
 }
 
-// The Building input group follows the BuildingTool tag, so it stays consistent
-// however the tag got there (toggle, restored state).
-void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action_listener) {
+void SetActionGroup(z13::input::ActionListener& action_listener, std::string_view group, bool wanted) {
   auto& groups = action_listener.action_group_priority;
-  const bool has_group = std::ranges::find(groups, kBuildingActionGroup) != groups.end();
-  if (e.has<BuildingTool>() == has_group) {
+  const bool has_group = std::ranges::find(groups, group) != groups.end();
+  if (wanted == has_group) {
     return;
   }
 
   if (has_group) {
-    std::erase(groups, kBuildingActionGroup);
+    std::erase(groups, group);
   } else {
-    groups.emplace_back(kBuildingActionGroup);
+    groups.emplace_back(group);
   }
+}
+
+// The Building input groups follow the BuildingTool tag and the held tool's mode, so they
+// stay consistent however these got there (toggle, restored state).
+void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action_listener) {
+  SetActionGroup(action_listener, kBuildingActionGroup, e.has<BuildingTool>());
+  const std::optional<flecs::entity> tool = HeldBuildTool(e);
+  SetActionGroup(action_listener, kWallActionGroup, tool && tool->get<BuildTool>().mode == ToolMode::kWall);
 }
 
 template <class Tag>
@@ -140,10 +153,32 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
   return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
 }
 
+// A click lays the wall's next point, the wheel sets its thickness, and the destroy key
+// drops a wall in the making (else it destroys, as in any mode).
+void ApplyWallMode(
+    flecs::entity e, flecs::entity tool, const z13::input::ActionListener& listener, const BuildActionIds& ids,
+    const BuildingTuning& tuning) {
+  BuildTool& state = tool.get_mut<BuildTool>();
+  const int wheel = (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
+  state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
+  if (IsSwitchedOn(listener, ids.build_block)) {
+    e.add<RequestBuildBlock>();
+  }
+  if (!IsSwitchedOn(listener, ids.destroy_block)) {
+    return;
+  }
+  if (e.has<z13::station::WallDraft>()) {
+    e.remove<z13::station::WallDraft>();
+  } else {
+    e.add<RequestDestroyBlock>();
+  }
+}
+
 void ApplyBuildActionListener(
     flecs::entity e,
     z13::input::ActionListener& action_listener,
-    const BuildActionIds& build_action_ids) {
+    const BuildActionIds& build_action_ids,
+    const BuildingTuning& tuning) {
   const std::optional<flecs::entity> tool = HeldBuildTool(e);
   SetPresent<BuildingTool>(e, tool.has_value());
   const std::optional<ToolMode> mode =
@@ -151,8 +186,15 @@ void ApplyBuildActionListener(
   SetPresent<CutModifier>(e, mode == ToolMode::kCut);
   SetPresent<CutInModifier>(e, mode == ToolMode::kCutIn);
 
+  if (mode != ToolMode::kWall && e.has<z13::station::WallDraft>()) {
+    e.remove<z13::station::WallDraft>();
+  }
   // Building/destroying only makes sense while the brush is out.
   if (!mode) {
+    return;
+  }
+  if (mode == ToolMode::kWall) {
+    ApplyWallMode(e, *tool, action_listener, build_action_ids, tuning);
     return;
   }
 
@@ -243,9 +285,12 @@ void RegisterSystems(flecs::world world) {
   // First phase of the frame, before the input values are routed by group.
   world.system<z13::input::ActionListener>("gameplay_input_system::SyncBuildingActionGroup")
       .kind<z13::input::ClearActionFramePhase>()
+      .read<z13::inventory::ActiveItem>()
+      .read<BuildTool>()
       .each(SyncBuildingActionGroup);
 
-  world.system<z13::input::ActionListener, BuildActionIds>("gameplay_input_system::ApplyBuildActionListener")
+  world.system<z13::input::ActionListener, BuildActionIds, const BuildingTuning>(
+           "gameplay_input_system::ApplyBuildActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .read<z13::station::StationMode>()
       .read<z13::inventory::ActiveItem>()
@@ -254,6 +299,7 @@ void RegisterSystems(flecs::world world) {
       .write<BuildingTool>()
       .write<CutModifier>()
       .write<CutInModifier>()
+      .write<z13::station::WallDraft>()
       .each(ApplyBuildActionListener);
 
   // After CalculateInputValues (same phase, registered earlier), before the recorder logs the frame.
