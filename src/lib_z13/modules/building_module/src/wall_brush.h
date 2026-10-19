@@ -26,6 +26,7 @@
 #include <flecs.h>
 
 #include <z13/components/block.h>
+#include <z13/components/block_brush.h>
 #include <z13/components/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
@@ -33,6 +34,13 @@
 #include "brush_aim.h"
 
 namespace z13::building {
+
+// How a click finds its point: anchors within `snap_cells` win over the grid, and the view ray
+// looks for planes up to `reach_cells` away.
+struct WallPicking {
+  float snap_cells {};
+  float reach_cells {};
+};
 
 // The grid point a click at `aim` sets: the nearest of `anchors` within `snap_cells`, else
 // the aimed point rounded to the grid.
@@ -42,15 +50,34 @@ Eigen::Vector3i WallClickPoint(
 // Where clicks snap to: every wall node and the far end of every segment's stick.
 std::vector<Eigen::Vector3i> WallAnchors(flecs::world world);
 
-// What a click at `point` makes of the draft: the next draft, or with the third click the
-// wall (its thickness unsigned until FacingEye).
+// The stick's far end: where the view ray meets the nearest of the three planes (xy, yz, zx)
+// through `first`, snapped to an anchor in that plane; `axis` is the plane's own axis, the
+// one left over. Nothing when no plane is met or the stick would have no length.
+struct StickPick {
+  Eigen::Vector3i point = Eigen::Vector3i::Zero();
+  z13::station::WallAxis axis = z13::station::WallAxis::kZ;
+};
+
+std::optional<StickPick> PickStick(
+    const Aim& aim, const Eigen::Vector3i& first, std::span<const Eigen::Vector3i> anchors,
+    const WallPicking& picking);
+
+// The signed length along `axis` from `first` where the view ray comes nearest that line,
+// snapped to an anchor on it. Nothing for a ray along the axis or a length of zero.
+std::optional<int> PickHeight(
+    const Aim& aim, const Eigen::Vector3i& first, z13::station::WallAxis axis,
+    std::span<const Eigen::Vector3i> anchors, const WallPicking& picking);
+
+// What a click makes of the draft: the next draft, or with the third click the wall (its
+// thickness unsigned until FacingEye).
 struct WallClick {
   std::optional<z13::station::WallDraft> draft;
   std::optional<z13::building::primitives::WallGeometry> wall;
 };
 
 std::expected<WallClick, std::string> ClickWall(
-    const std::optional<z13::station::WallDraft>& draft, const Eigen::Vector3i& point, int thickness);
+    const std::optional<z13::station::WallDraft>& draft, const Aim& aim,
+    std::span<const Eigen::Vector3i> anchors, const WallPicking& picking, int thickness);
 
 // A wall and the panel block it makes.
 struct FacedWall {
@@ -66,15 +93,18 @@ std::expected<FacedWall, std::string> FacingEye(
 // A one-cell cube at `cell`, what the brush shows for a point.
 z13::station::Block CellMarker(const Eigen::Vector3i& cell);
 
-// What the brush shows for a click at `point`: the point, the stick, or the panel; `makeable`
-// is false when the click would make nothing (no stick, a panel the palette doesn't allow).
+// What the brush shows for a click: the point, then the stick with an arrow along the axis
+// the third click measures, then the panel. `makeable` is false when the click would make
+// nothing (no plane met, no stick, a panel the palette doesn't allow).
 struct WallPreview {
   z13::station::Block block;
+  std::vector<z13::station::BrushLine> lines;
   bool makeable {};
 };
 
 WallPreview PreviewWall(
-    const std::optional<z13::station::WallDraft>& draft, const Eigen::Vector3i& point, int thickness,
-    const Eigen::Vector3f& eye, const z13::building::primitives::Palette& palette);
+    const std::optional<z13::station::WallDraft>& draft, const Aim& aim,
+    std::span<const Eigen::Vector3i> anchors, const WallPicking& picking, int thickness,
+    const z13::building::primitives::Palette& palette);
 
 }  // namespace z13::building

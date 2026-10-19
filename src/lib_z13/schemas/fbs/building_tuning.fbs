@@ -42,6 +42,8 @@ table BuildingTuning {
   default_brush_width_cells: int32 = 8 (min: 1, max: 256, cli);
   // How far, in cells, a wall's click snaps to an existing wall node or stick end.
   wall_snap_cells: float = 1.5 (min: "0", cli);
+  // How far, in cells, along the view ray a wall's stick looks for the planes through its first point.
+  wall_pick_reach_cells: float = 64 (min: "1", cli);
   // The thickest wall the wheel sets, in cells.
   wall_max_thickness_cells: int32 = 16 (min: 1, max: 256, cli);
 }

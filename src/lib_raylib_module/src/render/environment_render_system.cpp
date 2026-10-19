@@ -409,6 +409,33 @@ void DrawRoomOverlay(const flecs::world& world) {
   rlEnableDepthTest();
 }
 
+// The lines the brushes' previews carry (a wall's stick and the arrow along its axis), on the
+// default shader and past the depth test, like the room overlay.
+void DrawBrushLines(const BrushQuery& brushes) {
+  rlDrawRenderBatchActive();
+  rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
+  rlSetTexture(rlGetTextureIdDefault());
+  rlDisableDepthTest();
+  rlBegin(RL_LINES);
+  brushes.each([](flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f&) {
+    if (!brush.has<z13::station::BrushPreview>()) {
+      return;
+    }
+    const auto& preview = brush.get<z13::station::BrushPreview>();
+    const ::Color tint = preview.valid ? kValidBuildTint : kRefusedBuildTint;
+    rlColor4ub(tint.r, tint.g, tint.b, 255);
+    for (const z13::station::BrushLine& line : preview.lines) {
+      const Eigen::Vector3f from = line.from * z13::station::kCellSize;
+      const Eigen::Vector3f to = line.to * z13::station::kCellSize;
+      rlVertex3f(from.x(), from.y(), from.z());
+      rlVertex3f(to.x(), to.y(), to.z());
+    }
+  });
+  rlEnd();
+  rlDrawRenderBatchActive();
+  rlEnableDepthTest();
+}
+
 BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world) {
   const auto* palette = world.try_get<z13::building::primitives::BlockPalette>();
   return palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
@@ -789,6 +816,7 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   stats.times.overlay_ms = MsOf([&] {
     StopChecker(lighting);
     DrawRoomOverlay(world);
+    DrawBrushLines(brushes);
   });
   stats.times.release_ms = MsOf([&] { drawing.meshes.get().ReleaseUnused(); });
 }

@@ -212,14 +212,18 @@ std::optional<WallDraft> DraftOf(flecs::entity player) {
   return player.has<WallDraft>() ? std::optional(player.get<WallDraft>()) : std::nullopt;
 }
 
+WallPicking PickingOf(const BuildingTuning& tuning) {
+  return {.snap_cells = tuning.wall_snap_cells, .reach_cells = tuning.wall_pick_reach_cells};
+}
+
 // A click of the Wall mode: it sets the draft's next point, and the third makes the wall
 // from its nodes (existing ones where it snapped to them).
 void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
   flecs::world world = player.world();
   const std::optional<WallDraft> draft = DraftOf(player);
-  const Eigen::Vector3i point = WallClickPoint(aim, WallAnchors(world), run.tuning.get().wall_snap_cells);
+  const std::vector<Eigen::Vector3i> anchors = WallAnchors(world);
   const auto click = CheckPermission(player).and_then([&] {
-    return ClickWall(draft, point, tool.get<BuildTool>().wall_thickness);
+    return ClickWall(draft, aim, anchors, PickingOf(run.tuning), tool.get<BuildTool>().wall_thickness);
   });
   if (!click) {
     log_debug("station: wall click refused: {}", click.error());
@@ -235,11 +239,7 @@ void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, 
     log_debug("station: wall refused: {}", valid.error());
     return;
   }
-  const uint32_t node_a = WallNodeAt(world, run.counters, faced->wall.node_a);
-  const uint32_t node_b = WallNodeAt(world, run.counters, faced->wall.node_b);
-  SpawnWallSegment(world, run.counters,
-                   WallSegment {.node_a = node_a, .node_b = node_b, .stick_axis = faced->wall.stick_axis,
-                                .stick_length = faced->wall.stick_length, .thickness = faced->wall.thickness});
+  SpawnWall(world, run.counters, faced->wall);
   player.remove<WallDraft>();
 }
 
@@ -411,13 +411,13 @@ void ProcessDestroyRequests(flecs::iter& it) {
 
 BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
   const std::optional<WallDraft> draft = DraftOf(owner);
-  const Eigen::Vector3i point = WallClickPoint(aim, WallAnchors(owner.world()), view.tuning.get().wall_snap_cells);
-  const WallPreview preview =
-      PreviewWall(draft, point, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette);
-  const bool panel = draft && draft->stage == WallDraft::Stage::kEnd;
+  const std::vector<Eigen::Vector3i> anchors = WallAnchors(owner.world());
+  const WallPreview preview = PreviewWall(
+      draft, aim, anchors, PickingOf(view.tuning), tool.get<BuildTool>().wall_thickness, view.palette);
+  const bool panel = draft && draft->stage == WallDraft::Stage::kHeight;
   const bool valid = preview.makeable && CheckPermission(owner).has_value() &&
                      (!panel || ValidateBuild(preview.block, view).has_value());
-  return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild};
+  return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild, .lines = preview.lines};
 }
 
 BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {

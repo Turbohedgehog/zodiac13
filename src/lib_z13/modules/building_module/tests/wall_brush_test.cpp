@@ -16,12 +16,13 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
 #include <vector>
 
 #include <Eigen/Dense>
 
-#include <lib_core/utils/math.h>
 #include <z13/components/block.h>
+#include <z13/components/block_brush.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player_parts.h>
@@ -39,6 +40,7 @@ namespace z13::building {
 namespace {
 
 using z13::station::Block;
+using z13::station::BrushPreview;
 using z13::station::WallAxis;
 using z13::station::WallDraft;
 using z13::station::WallPanelOf;
@@ -80,61 +82,142 @@ TEST(WallBrushTest, AnchorsComeInOneOrderWhateverTheSpawnOrder) {
   EXPECT_EQ(WallAnchors(world), expected);
 }
 
-TEST(WallBrushTest, TheSecondClickSetsTheStickAlongTheLongestOffset) {
-  const auto first = ClickWall(std::nullopt, {2, 3, 4}, 1);
+Aim RayThrough(const Eigen::Vector3f& eye, const Eigen::Vector3f& target) {
+  return {.eye = eye, .point = eye + (target - eye) * 0.5f};
+}
+
+const WallPicking kPicking {.snap_cells = 1.5f, .reach_cells = 64.f};
+
+TEST(WallBrushTest, TheStickLiesInTheNearestPlaneTheViewRayMeets) {
+  const Eigen::Vector3i first {0, 0, 0};
+  // Meets the z plane first (t = 1), the y plane later (1.5); the x plane lies behind the eye.
+  const auto in_z = PickStick(RayThrough({2.f, 3.f, 5.f}, {4.f, 1.f, 0.f}), first, {}, kPicking);
+  ASSERT_TRUE(in_z.has_value());
+  EXPECT_EQ(in_z->point, Eigen::Vector3i(4, 1, 0));
+  EXPECT_EQ(in_z->axis, WallAxis::kZ);
+
+  const auto in_y = PickStick(RayThrough({10.f, 4.f, 10.f}, {6.f, 0.f, 7.f}), first, {}, kPicking);
+  ASSERT_TRUE(in_y.has_value());
+  EXPECT_EQ(in_y->point, Eigen::Vector3i(6, 0, 7));
+  EXPECT_EQ(in_y->axis, WallAxis::kY);
+}
+
+TEST(WallBrushTest, NoStickWhenNoPlaneIsMetOrTheStickIsEmpty) {
+  const Eigen::Vector3i first {0, 0, 0};
+  EXPECT_FALSE(PickStick(RayThrough({1.f, 1.f, 1.f}, {2.f, 2.f, 2.f}), first, {}, kPicking).has_value());
+  EXPECT_FALSE(PickStick(RayThrough({0.f, 0.f, 5.f}, {0.f, 0.f, 0.f}), first, {}, kPicking).has_value());
+  const WallPicking short_reach {.snap_cells = 1.5f, .reach_cells = 0.5f};
+  EXPECT_FALSE(PickStick(RayThrough({2.f, 3.f, 5.f}, {4.f, 1.f, 0.f}), first, {}, short_reach).has_value());
+}
+
+TEST(WallBrushTest, TheStickEndSnapsToAnAnchorInItsPlane) {
+  const std::vector<Eigen::Vector3i> anchors {{4, 2, 0}, {4, 1, 3}};
+  const auto pick = PickStick(RayThrough({2.f, 3.f, 5.f}, {4.f, 1.f, 0.f}), {0, 0, 0}, anchors, kPicking);
+  ASSERT_TRUE(pick.has_value());
+  EXPECT_EQ(pick->point, Eigen::Vector3i(4, 2, 0));
+}
+
+TEST(WallBrushTest, TheHeightIsWhereTheRayComesNearestTheAxisLine) {
+  const Eigen::Vector3i first {0, 0, 0};
+  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, 4.f}, {5.f, 0.f, 4.f}), first, WallAxis::kZ, {}, kPicking), 4);
+  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, -3.f}, {5.f, 0.f, -3.f}), first, WallAxis::kZ, {}, kPicking), -3);
+  // Along the axis there is no nearest point, and at the first point no height.
+  EXPECT_FALSE(PickHeight(RayThrough({0.f, 0.f, 9.f}, {0.f, 0.f, 4.f}), first, WallAxis::kZ, {}, kPicking));
+  EXPECT_FALSE(PickHeight(RayThrough({10.f, 0.f, 0.f}, {5.f, 0.f, 0.f}), first, WallAxis::kZ, {}, kPicking));
+}
+
+TEST(WallBrushTest, ThreeClicksMakeTheWallAndItThickensTowardTheEye) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const std::vector<Eigen::Vector3i> none;
+  const auto first = ClickWall(std::nullopt, AimAtPoint({0.2f, 0.f, 0.f}), none, kPicking, 2);
   ASSERT_TRUE(first && first->draft);
   EXPECT_EQ(first->draft->stage, WallDraft::Stage::kStick);
 
-  const auto second = ClickWall(first->draft, {2, 3, -4}, 1);
+  const auto second = ClickWall(first->draft, RayThrough({6.f, 9.f, 5.f}, {12.f, 4.f, 0.f}), none, kPicking, 2);
   ASSERT_TRUE(second && second->draft);
+  EXPECT_EQ(second->draft->stage, WallDraft::Stage::kHeight);
   EXPECT_EQ(second->draft->stick_axis, WallAxis::kZ);
-  EXPECT_EQ(second->draft->stick_length, -8);
+  EXPECT_EQ(second->draft->second, Eigen::Vector3i(12, 4, 0));
 
-  EXPECT_FALSE(ClickWall(first->draft, {2, 3, 4}, 1).has_value());
-}
+  const auto third = ClickWall(second->draft, RayThrough({30.f, 0.f, 8.f}, {20.f, 0.f, 8.f}), none, kPicking, 2);
+  ASSERT_TRUE(third && third->wall);
+  EXPECT_EQ(third->wall->stick_length, 8);
 
-TEST(WallBrushTest, TheThirdClickMakesTheWallAndItThickensTowardTheEye) {
-  const auto palette = z13::testing::ShippedPalette().value();
-  const WallDraft draft {.stage = WallDraft::Stage::kEnd, .first = {0, 0, 0}, .stick_axis = WallAxis::kZ,
-                         .stick_length = 8};
-  const auto click = ClickWall(draft, {12, 4, 0}, 2);
-  ASSERT_TRUE(click && click->wall);
-
-  const auto near_low = FacingEye(*click->wall, {6.f, -20.f, 4.f}, palette);
-  const auto near_high = FacingEye(*click->wall, {6.f, 30.f, 4.f}, palette);
+  const auto near_low = FacingEye(*third->wall, {6.f, -20.f, 4.f}, palette);
+  const auto near_high = FacingEye(*third->wall, {6.f, 30.f, 4.f}, palette);
   ASSERT_TRUE(near_low && near_high);
   EXPECT_LT(near_low->wall.thickness * near_high->wall.thickness, 0);
   EXPECT_NE(near_low->block.cell, near_high->block.cell);
 }
 
-TEST(WallBrushTest, ThreeClicksLayASegmentWithItsPanel) {
+TEST(WallBrushTest, TheStickPreviewDrawsTheStickAndTheArrowAlongTheLeftOverAxis) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const WallDraft draft {.stage = WallDraft::Stage::kStick, .first = {0, 0, 0}};
+  const WallPreview preview =
+      PreviewWall(draft, RayThrough({2.f, 3.f, 5.f}, {4.f, 1.f, 0.f}), {}, kPicking, 2, palette);
+  EXPECT_TRUE(preview.makeable);
+  EXPECT_EQ(preview.block.cell, Eigen::Vector3i(4, 1, 0));
+  ASSERT_EQ(preview.lines.size(), 4u);
+  EXPECT_EQ(preview.lines[0].to, Eigen::Vector3f(4.f, 1.f, 0.f));
+  // The arrow leaves the middle of the stick along z, toward the eye above it.
+  EXPECT_EQ(preview.lines[1].from, Eigen::Vector3f(2.f, 0.5f, 0.f));
+  EXPECT_GT(preview.lines[1].to.z(), 0.f);
+  EXPECT_EQ(preview.lines[1].to.head<2>(), preview.lines[1].from.head<2>());
+}
+
+TEST(WallBrushTest, TheClicksCarryTheDraftAndARayAlongTheAxisFindsNoLength) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
-  BuildTool& tool = z13::testing::BuildToolOf(builder).get_mut<BuildTool>();
-  tool.mode = ToolMode::kWall;
-  // A rise of 4 over a run of 12 needs two cells to be airtight.
-  tool.wall_thickness = 2;
-  // The wall passes the builder, who walks with the brush: no player to keep clear of.
-  builder.get_mut<z13::gameplay::PlayerCollider>().radius = 0.f;
-
-  const auto click_after_moving = [&](const Eigen::Vector3f& offset) {
-    Eigen::Matrix4f transform = builder.get<Eigen::Matrix4f>();
-    z13::math::SetTranslation(
-        Eigen::Vector3f(z13::math::ExtractTranslation<float>(transform) + offset), transform);
-    builder.set(transform);
-    builder.add<RequestBuildBlock>();
-    test_world.Tick();
-  };
-  click_after_moving(Eigen::Vector3f::Zero());
+  z13::testing::BuildToolOf(builder).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+  std::optional<Eigen::Vector3i> first;
+  builder.children([&first](flecs::entity child) {
+    if (child.has<BrushPreview>()) {
+      first = child.get<BrushPreview>().block.cell;
+    }
+  });
+  ASSERT_TRUE(first.has_value());
+  builder.add<RequestBuildBlock>();
+  test_world.Tick();
   ASSERT_TRUE(builder.has<WallDraft>());
-  click_after_moving({0.f, 0.f, 2.f});
-  EXPECT_EQ(builder.get<WallDraft>().stage, WallDraft::Stage::kEnd);
-  click_after_moving({3.f, 1.f, -2.f});
+  EXPECT_EQ(builder.get<WallDraft>().first, *first);
+
+  // The builder looks along x, so the only plane its ray meets is the one across x through the
+  // first point; the stick ends where the ray crosses it.
+  const Eigen::Vector3i eye_cells {0, 6, 9};
+  builder.set(Facing(eye_cells.cast<float>() * z13::station::kCellSize, Eigen::Vector3f::UnitX()));
+  test_world.Tick();
+  builder.add<RequestBuildBlock>();
+  test_world.Tick();
+  const WallDraft draft = builder.get<WallDraft>();
+  EXPECT_EQ(draft.stage, WallDraft::Stage::kHeight);
+  EXPECT_EQ(draft.stick_axis, WallAxis::kX);
+  EXPECT_EQ(draft.second, Eigen::Vector3i(first->x(), 6, 9));
+
+  // The third click's ray runs along the axis it measures: nothing to measure, the draft stays.
+  builder.add<RequestBuildBlock>();
+  test_world.Tick();
+  EXPECT_EQ(builder.get<WallDraft>().stage, WallDraft::Stage::kHeight);
+  EXPECT_EQ(test_world.World().count<WallSegment>(), 0);
+}
+
+TEST(WallBrushTest, AWallGetsOneSegmentAndSharesTheNodesItMeets) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  const z13::building::primitives::WallGeometry first {
+      .node_a = {0, 0, 0}, .node_b = {12, 4, 0}, .stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2};
+  auto second = first;
+  second.node_a = first.node_b;
+  second.node_b = {24, 4, 0};
+  SpawnWall(world, counters, first);
+  SpawnWall(world, counters, second);
+  test_world.Tick();
   test_world.Tick();
 
-  EXPECT_FALSE(builder.has<WallDraft>());
-  EXPECT_EQ(test_world.World().count<WallSegment>(), 1);
-  EXPECT_EQ(test_world.World().count<WallPanelOf>(), 1);
+  EXPECT_EQ(world.count<WallSegment>(), 2);
+  EXPECT_EQ(world.count<z13::station::WallNode>(), 3);
+  EXPECT_EQ(world.count<WallPanelOf>(), 2);
 }
 
 TEST(WallBrushTest, TheDestroyButtonDropsTheWallInTheMakingBeforeItDestroysAnything) {
