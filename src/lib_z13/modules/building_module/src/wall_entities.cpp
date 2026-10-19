@@ -79,6 +79,15 @@ uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, con
   return counters.last_wall_node_id;
 }
 
+flecs::entity SpawnWall(
+    flecs::world world, z13::gameplay::IdCounters& counters, const z13::building::primitives::WallGeometry& wall) {
+  const uint32_t node_a = WallNodeAt(world, counters, wall.node_a);
+  const uint32_t node_b = WallNodeAt(world, counters, wall.node_b);
+  return SpawnWallSegment(world, counters,
+                          WallSegment {.node_a = node_a, .node_b = node_b, .stick_axis = wall.stick_axis,
+                                       .stick_length = wall.stick_length, .thickness = wall.thickness});
+}
+
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
   return Find(world, NodeName(id));
 }

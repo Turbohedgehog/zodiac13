@@ -23,6 +23,7 @@
 
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
+#include <primitives/wall_panel.h>
 
 namespace z13::building {
 
@@ -32,6 +33,10 @@ flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::IdCounters& count
 // A segment between two nodes (by id); its panel block follows in WallPanelSystem.
 flecs::entity SpawnWallSegment(
     flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallSegment& segment);
+
+// A segment for `wall` between nodes at its two ends, existing ones where nodes already stand.
+flecs::entity SpawnWall(
+    flecs::world world, z13::gameplay::IdCounters& counters, const z13::building::primitives::WallGeometry& wall);
 
 // The id of the node at `cell`, spawning one when there is none.
 uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3i& cell);

@@ -47,15 +47,16 @@ struct WallSegment {
   int thickness {};
 };
 
-// A player's wall in the making (the Wall brush mode): the first click set `first`, the
-// second the stick; the third picks the other end.
+// A player's wall in the making (the Wall brush mode): the first click set `first`; the second
+// the other end of the stick, in a plane through `first`, with `stick_axis` left over as the
+// axis the third click measures the wall's other edge along.
 struct WallDraft {
   using State = void;
-  enum class Stage : uint8_t { kStick, kEnd };
+  enum class Stage : uint8_t { kStick, kHeight };
   Stage stage {};
   Eigen::Vector3i first = Eigen::Vector3i::Zero();
+  Eigen::Vector3i second = Eigen::Vector3i::Zero();
   WallAxis stick_axis = WallAxis::kZ;
-  int stick_length {};
 };
 
 // A player's first click of the Merge mode: the node the second click merges into.
