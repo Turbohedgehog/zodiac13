@@ -228,6 +228,22 @@ TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
   EXPECT_EQ(seam_ends(*a), seam_ends(*b));
 }
 
+TEST(WallJointTest, SeamsThatCrossOverLeaveNoPanel) {
+  const WallGeometry wall {
+      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  // Through (12, 0) and (8, 2): the near end would reach past the far one on one face only.
+  const WallSeam crossing {.line = SeamLine(2, 4, -24)};
+  EXPECT_FALSE(WallPanelBlock(wall, ShippedPalette(), {.at_a = crossing}).has_value());
+}
+
+TEST(WallJointTest, ASeamAlongTheWallsFacesCutsNothing) {
+  const WallGeometry wall {
+      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  // The line y = 1 never meets the wall's faces (y = 0 and y = 2).
+  const WallSeam along {.line = SeamLine(0, 1, -1)};
+  EXPECT_FALSE(WallPanelBlock(wall, ShippedPalette(), {.at_a = along}).has_value());
+}
+
 TEST(WallJointTest, AWallWithoutSeamsStaysSquareCut) {
   const WallGeometry wall {
       .node_a = {0, 0, 0}, .node_b = {12, 5, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};

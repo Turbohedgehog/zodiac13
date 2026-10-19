@@ -40,7 +40,7 @@ namespace z13::flecs_tools {
 // Call once per world before registering components that have std::string members.
 void RegisterStdStringMeta(flecs::world& world);
 
-// Registers the Eigen types components hold, and the std::array<int, 8> of a panel's corners, as
+// Registers the Eigen types components hold, and the std::array<int, 8> of a panel's corners (PanelCorners), as
 // opaque arrays of their scalars, so they serialize like any other member. Call once per world.
 void RegisterEigenMeta(flecs::world& world);
 

@@ -176,19 +176,23 @@ int64_t RoundedQuotient(int64_t x, int64_t w) {
   return (doubled / divisor) - ((doubled % divisor) < 0 ? 1 : 0);
 }
 
+// The whole cell nearest a point; nothing for one at infinity (w = 0), where lines are parallel.
+std::optional<Eigen::Vector2i> NearestCell(const Homogeneous& point) {
+  if (point.z() == 0) {
+    return std::nullopt;
+  }
+  const Homogeneous positive = WithPositiveWeight(point);
+  return Eigen::Vector2i(static_cast<int>(RoundedQuotient(positive.x(), positive.z())),
+                         static_cast<int>(RoundedQuotient(positive.y(), positive.z())));
+}
+
 // Where the seam (relative to `node`) crosses the face line through `point` along `direction`,
 // on whole cells.
 std::optional<Eigen::Vector2i> CrossingOnGrid(
     const SeamLine& seam, const Eigen::Vector2i& node, const Eigen::Vector2i& point, const Eigen::Vector2i& direction) {
   const int64_t absolute = seam.z() - (seam.x() * node.x()) - (seam.y() * node.y());
   const Homogeneous face = LineThrough(point, direction);
-  const Homogeneous crossing = Homogeneous(seam.x(), seam.y(), absolute).cross(face);
-  if (crossing.z() == 0) {
-    return std::nullopt;
-  }
-  const Homogeneous positive = WithPositiveWeight(crossing);
-  return Eigen::Vector2i(static_cast<int>(RoundedQuotient(positive.x(), positive.z())),
-                         static_cast<int>(RoundedQuotient(positive.y(), positive.z())));
+  return NearestCell(Homogeneous(seam.x(), seam.y(), absolute).cross(face));
 }
 
 // The section's four corners in the plane (reference face near and far, thickened face far and
@@ -219,6 +223,21 @@ std::optional<std::array<Eigen::Vector2i, 4>> PlanCorners(const PlanWall& wall_a
   return corners;
 }
 
+// Whether the corners, in order, turn the same way all round: a convex section with some area.
+bool IsConvex(const std::array<Eigen::Vector2i, 4>& corners) {
+  int direction = 0;
+  for (size_t i = 0; i < corners.size(); ++i) {
+    const Eigen::Vector2i in = corners[(i + 1) % corners.size()] - corners[i];
+    const Eigen::Vector2i out = corners[(i + 2) % corners.size()] - corners[(i + 1) % corners.size()];
+    const int turn = Sign(CrossOf(in, out));
+    if (turn == 0 || (direction != 0 && turn != direction)) {
+      return false;
+    }
+    direction = turn;
+  }
+  return true;
+}
+
 }  // namespace
 
 std::expected<Block, std::string> WallPanelBlock(
@@ -232,6 +251,9 @@ std::expected<Block, std::string> WallPanelBlock(
   const auto corners = plan_a && plan_b ? PlanCorners(*plan_a, *plan_b, ends) : std::nullopt;
   if (!corners) {
     return std::unexpected(std::string {"a seam doesn't cross the wall's faces"});
+  }
+  if (!IsConvex(*corners)) {
+    return std::unexpected(std::string {"the seams leave the wall no convex body"});
   }
 
   const int stick = static_cast<int>(wall.stick_axis);

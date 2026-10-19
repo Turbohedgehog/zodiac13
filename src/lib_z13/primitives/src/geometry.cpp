@@ -85,11 +85,11 @@ ConvexSolid MakeWedge(const Eigen::Vector3f& s) {
 
 // The section (x, z) runs (0, 0), (run, slant), (run, height), (0, height - slant), extended along
 // Y; `cut_corners`, when set, put its four corners where a joint cut the ends.
-ConvexSolid MakePanel(const Eigen::Vector3f& s, float slant, const std::array<int, 8>& cut_corners) {
+ConvexSolid MakePanel(const Eigen::Vector3f& s, float slant, const z13::station::PanelCorners& cut_corners) {
   const float thickness = s.z() - slant;
   std::array<Eigen::Vector2f, 4> section {
       Eigen::Vector2f {0, 0}, {s.x(), slant}, {s.x(), s.z()}, {0, thickness}};
-  if (cut_corners != std::array<int, 8> {}) {
+  if (cut_corners != z13::station::PanelCorners {}) {
     for (size_t i = 0; i < section.size(); ++i) {
       section[i] =
           Eigen::Vector2f(static_cast<float>(cut_corners[2 * i]), static_cast<float>(cut_corners[(2 * i) + 1]));
@@ -135,7 +135,7 @@ std::expected<std::vector<ConvexSolid>, std::string> MakeDoorFrame(
 
 // Temporary: shapes are built in code until they come from models in a later stage.
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
-    const Shape& shape, const Eigen::Vector3i& size, int slant, const std::array<int, 8>& corners) {
+    const Shape& shape, const Eigen::Vector3i& size, int slant, const z13::station::PanelCorners& corners) {
   if ((size.array() < 1).any()) {
     return std::unexpected(std::format("size {}x{}x{} has an empty axis", size.x(), size.y(), size.z()));
   }
