@@ -40,6 +40,8 @@ using z13::station::WallSegment;
 
 // Below this a ray counts as parallel to a plane or line.
 constexpr float kParallelEpsilon = 1e-4f;
+// An aimed face counts as lying in a plane through the first point within this many cells of it.
+constexpr float kOnPlaneCells = 0.5f;
 // The arrow marking the axis of the third click: its length and the reach of its head, in cells.
 constexpr float kArrowCells = 8.f;
 constexpr float kArrowHeadCells = 1.5f;
@@ -81,6 +83,17 @@ std::vector<BrushLine> HeightLines(const WallDraft& draft, int length) {
   const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(draft.stick_axis)) * static_cast<float>(length);
   return {Line(draft.first.cast<float>(), draft.first.cast<float>() + along),
           Line(draft.second.cast<float>(), draft.second.cast<float>() + along)};
+}
+
+// The axis of the face the aim rests on, when that face lies in the plane through `first`.
+std::optional<WallAxis> AimedPlane(const Aim& aim, const Eigen::Vector3i& first) {
+  for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
+    const int index = Index(axis);
+    if (aim.normal[index] != 0 && std::abs(aim.point[index] - static_cast<float>(first[index])) <= kOnPlaneCells) {
+      return axis;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -129,24 +142,28 @@ std::optional<StickPick> PickStick(
   if (!direction) {
     return std::nullopt;
   }
-  std::optional<WallAxis> plane_axis;
-  float nearest = picking.reach_cells;
-  for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
-    const float slope = (*direction)[Index(axis)];
-    if (std::abs(slope) < kParallelEpsilon) {
-      continue;
-    }
-    const float distance = (static_cast<float>(first[Index(axis)]) - aim.eye[Index(axis)]) / slope;
-    if (distance > 0.f && distance <= nearest) {
-      plane_axis = axis;
-      nearest = distance;
-    }
-  }
+  // A face aimed at in a plane through `first` is the plane: pointing at the floor or at the wall
+  // chooses between them where they meet. In the air, the nearest plane the ray crosses.
+  std::optional<WallAxis> plane_axis = AimedPlane(aim, first);
+  Eigen::Vector3f hit = aim.point;
   if (!plane_axis) {
-    return std::nullopt;
+    float nearest = picking.reach_cells;
+    for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
+      const float slope = (*direction)[Index(axis)];
+      if (std::abs(slope) < kParallelEpsilon) {
+        continue;
+      }
+      const float distance = (static_cast<float>(first[Index(axis)]) - aim.eye[Index(axis)]) / slope;
+      if (distance > 0.f && distance <= nearest) {
+        plane_axis = axis;
+        nearest = distance;
+      }
+    }
+    if (!plane_axis) {
+      return std::nullopt;
+    }
+    hit = aim.eye + *direction * nearest;
   }
-
-  const Eigen::Vector3f hit = aim.eye + *direction * nearest;
   StickPick pick {.point = hit.array().round().cast<int>(), .axis = *plane_axis};
   pick.point[Index(pick.axis)] = first[Index(pick.axis)];
   float anchor_distance = picking.snap_cells;

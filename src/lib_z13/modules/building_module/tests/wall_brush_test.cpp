@@ -102,6 +102,29 @@ TEST(WallBrushTest, TheStickLiesInTheNearestPlaneTheViewRayMeets) {
   EXPECT_EQ(in_y->axis, WallAxis::kY);
 }
 
+TEST(WallBrushTest, TheFaceAimedAtChoosesThePlaneWhereTheyMeet) {
+  const Eigen::Vector3i first {4, 4, 0};
+  // From the player's eye the ray to a floor point beyond the first crosses the vertical planes
+  // through it before the floor: the face it lands on decides.
+  const Aim floor {.eye = {0.f, 0.f, 1.5f}, .point = {8.f, 7.f, 0.f}, .normal = {0, 0, 1}};
+  const auto on_floor = PickStick(floor, first, {}, kPicking);
+  ASSERT_TRUE(on_floor.has_value());
+  EXPECT_EQ(on_floor->axis, WallAxis::kZ);
+  EXPECT_EQ(on_floor->point, Eigen::Vector3i(8, 7, 0));
+
+  const Aim wall {.eye = {0.f, 0.f, 1.5f}, .point = {4.f, 9.f, 3.f}, .normal = {1, 0, 0}};
+  const auto on_wall = PickStick(wall, first, {}, kPicking);
+  ASSERT_TRUE(on_wall.has_value());
+  EXPECT_EQ(on_wall->axis, WallAxis::kX);
+  EXPECT_EQ(on_wall->point, Eigen::Vector3i(4, 9, 3));
+
+  // A face in another plane than any through the first point doesn't choose.
+  const Aim elsewhere {.eye = {0.f, 0.f, 1.5f}, .point = {8.f, 7.f, 6.f}, .normal = {0, 0, 1}};
+  const auto crossing = PickStick(elsewhere, first, {}, kPicking);
+  ASSERT_TRUE(crossing.has_value());
+  EXPECT_NE(crossing->axis, WallAxis::kZ);
+}
+
 TEST(WallBrushTest, NoStickWhenNoPlaneIsMetOrTheStickIsEmpty) {
   const Eigen::Vector3i first {0, 0, 0};
   EXPECT_FALSE(PickStick(RayThrough({1.f, 1.f, 1.f}, {2.f, 2.f, 2.f}), first, {}, kPicking).has_value());
