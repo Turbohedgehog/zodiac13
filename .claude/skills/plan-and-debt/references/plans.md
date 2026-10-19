@@ -21,6 +21,7 @@
 | `multi-grid-plan.md` | several grids (asteroids, rotated builds) | stages `f/grid-model` ... `f/grid-docking`; planned before `f/utility-contract` |
 | `oblique-walls-plan.md` | oblique walls and space partition | stages 0-1 done (partition bench, incremental rooms) |
 | `skew-station-plan.md` | the `shard` station: a small fragment of the future big station, with walls at different angles; grows with the oblique-walls stages | zones table, "Порядок работ" |
+| `station-import-plan.md` | importing the Blender-built station into the game: the map export contract and the map-to-blueprint converter | "Порядок работ", "Открытые вопросы" |
 | `dynamic-objects-plan.md` | items, kinematics, debris, asteroids | stage 0 `f/dynamic-bench` first |
 | `android-plan.md` | Android build and touch controls: joysticks, on-screen inventory, the building tool as an item, context actions | "Порядок работ" (`f/android-build` first), "Открытые вопросы" |
 | `asset-pack-plan.md` | packing assets/ and config/ into one archive read on every platform (release packages, APK without unpacking) | stages `f/asset-source` → `f/asset-pack`, "Открытые вопросы" |
