@@ -62,10 +62,12 @@ std::optional<StickPick> PickStick(
     const Aim& aim, const Eigen::Vector3i& first, std::span<const Eigen::Vector3i> anchors,
     const WallPicking& picking);
 
-// The signed length along `axis` from `first` where the view ray comes nearest that line,
-// snapped to an anchor on it. Nothing for a ray along the axis or a length of zero.
+// The signed length along `axis` from `first` where the view ray meets the plane of the stick
+// (first to second) and the axis, snapped to an anchor on the axis line. A ray along that
+// plane takes the point where it comes nearest the line. Nothing for a ray along the axis, one
+// that points away, or a length of zero.
 std::optional<int> PickHeight(
-    const Aim& aim, const Eigen::Vector3i& first, z13::station::WallAxis axis,
+    const Aim& aim, const Eigen::Vector3i& first, const Eigen::Vector3i& second, z13::station::WallAxis axis,
     std::span<const Eigen::Vector3i> anchors, const WallPicking& picking);
 
 // What a click makes of the draft: the next draft, or with the third click the wall (its

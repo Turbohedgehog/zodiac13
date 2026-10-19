@@ -161,23 +161,33 @@ std::optional<StickPick> PickStick(
 }
 
 std::optional<int> PickHeight(
-    const Aim& aim, const Eigen::Vector3i& first, WallAxis axis, std::span<const Eigen::Vector3i> anchors,
-    const WallPicking& picking) {
+    const Aim& aim, const Eigen::Vector3i& first, const Eigen::Vector3i& second, WallAxis axis,
+    std::span<const Eigen::Vector3i> anchors, const WallPicking& picking) {
   const auto direction = RayDirection(aim);
   if (!direction) {
     return std::nullopt;
   }
-  // The closest approach of the ray (eye + t * direction) to the line (first + s * axis); `apart`
-  // is the line's point minus the ray's.
+  // The ray meets the wall's own plane, which the stick and the axis span; the height is where.
+  // Along that plane, the closest approach of the ray (eye + t * direction) to the line (first
+  // + s * axis) stands in; `apart` is the line's point minus the ray's.
   const Eigen::Vector3f unit = Eigen::Vector3f::Unit(Index(axis));
   const Eigen::Vector3f apart = first.cast<float>() - aim.eye;
-  const float cosine = unit.dot(*direction);
-  const float opening = 1.f - cosine * cosine;
-  if (opening < kParallelEpsilon) {
-    return std::nullopt;
+  const Eigen::Vector3f normal = (second - first).cast<float>().cross(unit);
+  const float facing = normal.dot(*direction);
+  float along_ray {};
+  float along_line {};
+  if (std::abs(facing) > kParallelEpsilon * normal.norm()) {
+    along_ray = normal.dot(apart) / facing;
+    along_line = (aim.eye + (along_ray * *direction) - first.cast<float>()).dot(unit);
+  } else {
+    const float cosine = unit.dot(*direction);
+    const float opening = 1.f - cosine * cosine;
+    if (opening < kParallelEpsilon) {
+      return std::nullopt;
+    }
+    along_ray = (direction->dot(apart) - cosine * unit.dot(apart)) / opening;
+    along_line = (cosine * direction->dot(apart) - unit.dot(apart)) / opening;
   }
-  const float along_ray = (direction->dot(apart) - cosine * unit.dot(apart)) / opening;
-  const float along_line = (cosine * direction->dot(apart) - unit.dot(apart)) / opening;
   if (along_ray <= 0.f || along_ray > picking.reach_cells) {
     return std::nullopt;
   }
@@ -212,7 +222,7 @@ std::expected<WallClick, std::string> ClickWall(
     next.stick_axis = stick->axis;
     return WallClick {.draft = next};
   }
-  const auto length = PickHeight(aim, draft->first, draft->stick_axis, anchors, picking);
+  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
   if (!length) {
     return std::unexpected(std::string {"the view ray finds no length along the axis"});
   }
@@ -260,7 +270,7 @@ WallPreview PreviewWall(
     }
     return {.block = CellMarker(stick->point), .lines = StickLines(draft->first, *stick, aim.eye), .makeable = true};
   }
-  const auto length = PickHeight(aim, draft->first, draft->stick_axis, anchors, picking);
+  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
   if (!length) {
     return {.block = CellMarker(draft->second), .makeable = false};
   }

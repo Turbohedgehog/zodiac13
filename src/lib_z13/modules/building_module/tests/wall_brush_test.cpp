@@ -117,13 +117,29 @@ TEST(WallBrushTest, TheStickEndSnapsToAnAnchorInItsPlane) {
   EXPECT_EQ(pick->point, Eigen::Vector3i(4, 2, 0));
 }
 
-TEST(WallBrushTest, TheHeightIsWhereTheRayComesNearestTheAxisLine) {
+TEST(WallBrushTest, TheHeightIsWhereTheRayComesNearestTheAxisLineAlongTheWallsPlane) {
   const Eigen::Vector3i first {0, 0, 0};
-  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, 4.f}, {5.f, 0.f, 4.f}), first, WallAxis::kZ, {}, kPicking), 4);
-  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, -3.f}, {5.f, 0.f, -3.f}), first, WallAxis::kZ, {}, kPicking), -3);
+  const Eigen::Vector3i second {10, 0, 0};
+  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, 4.f}, {5.f, 0.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking), 4);
+  EXPECT_EQ(PickHeight(RayThrough({10.f, 0.f, -3.f}, {5.f, 0.f, -3.f}), first, second, WallAxis::kZ, {}, kPicking), -3);
   // Along the axis there is no nearest point, and at the first point no height.
-  EXPECT_FALSE(PickHeight(RayThrough({0.f, 0.f, 9.f}, {0.f, 0.f, 4.f}), first, WallAxis::kZ, {}, kPicking));
-  EXPECT_FALSE(PickHeight(RayThrough({10.f, 0.f, 0.f}, {5.f, 0.f, 0.f}), first, WallAxis::kZ, {}, kPicking));
+  EXPECT_FALSE(PickHeight(RayThrough({0.f, 0.f, 9.f}, {0.f, 0.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking));
+  EXPECT_FALSE(PickHeight(RayThrough({10.f, 0.f, 0.f}, {5.f, 0.f, 0.f}), first, second, WallAxis::kZ, {}, kPicking));
+}
+
+TEST(WallBrushTest, TheHeightIsWhereTheRayMeetsTheWallsPlane) {
+  const Eigen::Vector3i first {0, 0, 0};
+  const Eigen::Vector3i second {10, 0, 0};
+  // Aimed at the air above the stick's middle, from beside its start: the nearest approach to the
+  // line at the first point would read 3, the plane gives the 4 aimed at.
+  EXPECT_EQ(PickHeight(RayThrough({-5.f, -10.f, 1.5f}, {5.f, 0.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking), 4);
+  // Beyond the stick's end the plane goes on.
+  EXPECT_EQ(PickHeight(RayThrough({3.f, -10.f, 1.5f}, {16.f, 0.f, -2.f}), first, second, WallAxis::kZ, {}, kPicking), -2);
+  // A ray that points away from the plane finds nothing.
+  EXPECT_FALSE(PickHeight(RayThrough({3.f, 10.f, 1.5f}, {3.f, 20.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking));
+  EXPECT_EQ(PickHeight(RayThrough({-5.f, -10.f, 1.5f}, {5.f, 0.f, 4.f}), first, first + Eigen::Vector3i(0, 10, 0),
+                       WallAxis::kZ, {}, kPicking),
+            3);
 }
 
 TEST(WallBrushTest, ThreeClicksMakeTheWallAndItThickensTowardTheEye) {
