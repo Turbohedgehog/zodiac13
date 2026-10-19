@@ -30,9 +30,16 @@ struct Prop {
   std::string model;
   Eigen::Vector3f position = Eigen::Vector3f::Zero();
   float yaw = 0.F;
+  float pitch = 0.F;
+};
+
+// The props of a station and the primitives they stand in for.
+struct Decor {
+  std::vector<Prop> props;
+  std::vector<std::string> replaces;
 };
 
 // Parses props JSON (decor.fbs).
-std::expected<std::vector<Prop>, std::string> ParseDecor(std::string_view json);
+std::expected<Decor, std::string> ParseDecor(std::string_view json);
 
 }  // namespace z13::building::primitives

@@ -74,13 +74,14 @@ std::expected<StationProps, std::string> StationProps::Load(
   if (!json) {
     return result;
   }
-  const auto props = primitives::ParseDecor(*json);
-  if (!props) {
-    return std::unexpected(props.error());
+  const auto decor = primitives::ParseDecor(*json);
+  if (!decor) {
+    return std::unexpected(decor.error());
   }
   std::unordered_map<std::string, std::shared_ptr<::Model>> models;
-  result.props_.reserve(props->size());
-  for (const primitives::Prop& prop : *props) {
+  result.replaced_ = decor->replaces;
+  result.props_.reserve(decor->props.size());
+  for (const primitives::Prop& prop : decor->props) {
     auto found = models.find(prop.model);
     if (found == models.end()) {
       auto model = LoadPropModel(assets, prop.model, lighting_shader);
@@ -92,6 +93,7 @@ std::expected<StationProps, std::string> StationProps::Load(
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     pose.translate(prop.position);
     pose.rotate(Eigen::AngleAxisf(prop.yaw, Eigen::Vector3f::UnitZ()));
+    pose.rotate(Eigen::AngleAxisf(prop.pitch, Eigen::Vector3f::UnitX()));
     const Eigen::Matrix4f matrix = pose.matrix();
     result.props_.push_back({.model = found->second,
                              .transform = EigenToRaylibMatrix(matrix),

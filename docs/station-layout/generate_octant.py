@@ -29,6 +29,11 @@ STATS_FILE = Path(__file__).parent / "octant" / "stats.txt"
 WALL_THICKNESS_M = 0.25
 # Map templates drawn as models (assets/models/props/<name>.glb), keyed by the template; the rest of the map's decor waits for its model.
 PROP_MODELS = {"decor_crew_chair": "crew_chair", "decor_locker": "locker", "decor_table": "table"}
+# The fixture hung where a Lamp block is, by the map light's template; the block itself is not drawn.
+LAMP_MODELS = {"decor_lamp_beacon": "lamp_beacon"}
+DEFAULT_LAMP_MODEL = "lamp_tube"
+LAMP_PRIMITIVE = LAMP
+HANGING_PITCH = 1.5708  # the map's lamps hang on a wall; turned a quarter about X they hang from a ceiling
 PANEL_M, DOOR_M, CELL_DOOR_M = 1.0, 2.0, 1.0
 DOOR_TEMPLATES = ("wall_door", "wall_maint_door", "wall_cell_door")
 LINTEL, GLASS_SLOPE = "wall_lintel", "wall_glass_slope"
@@ -216,6 +221,7 @@ class Octant:
 
     def lamps(self):
         self.lamp_cells = set()
+        self.lamp_props = []
         blocks = []
         lit = Counter()
         for light in self.data["lights"]:
@@ -226,6 +232,7 @@ class Octant:
             ox, oy = self.origin
             lamp = self.hang_lamp(room, cells(light["at"][0]) + ox, cells(light["at"][1]) + oy)
             if lamp:
+                self.add_lamp_prop(lamp, LAMP_MODELS.get(light["lamp"].split(".")[0], DEFAULT_LAMP_MODEL), light["yaw"])
                 blocks.append(lamp)
                 lit[room["name"]] += 1
         for room in self.data["rooms"]:
@@ -246,6 +253,15 @@ class Octant:
         self.skipped["lamp found no free spot"] += 1
         return None
 
+    def add_lamp_prop(self, lamp, model, yaw):
+        """The fixture under the ceiling over a Lamp block: its middle, flush with the slab above."""
+        cell, size = lamp["cell"], lamp["size"]
+        self.lamp_props.append({
+            "model": model,
+            "position": {"x": (cell["x"] + size["x"] / 2) / CELLS_PER_M, "y": (cell["y"] + size["y"] / 2) / CELLS_PER_M,
+                         "z": (cell["z"] + 1) / CELLS_PER_M},
+            "yaw": round(yaw, 4), "pitch": HANGING_PITCH})
+
     def fill_room_lamps(self, room):
         """A lattice of LAMP_SPACING_M over a room the map lights with no lamp of its own."""
         ox, oy = self.origin
@@ -259,6 +275,7 @@ class Octant:
                 y = y0 + (y1 - y0) * (2 * j + 1) / (2 * rows)
                 lamp = self.hang_lamp(room, cells(x) + ox, cells(y) + oy)
                 if lamp:
+                    self.add_lamp_prop(lamp, DEFAULT_LAMP_MODEL, 0.0)
                     lamps.append(lamp)
         if not lamps:
             self.skipped["room left dark"] += 1
@@ -285,15 +302,16 @@ def decor_props(station):
              "position": {"x": round(i["at"][0] + ox, 3), "y": round(i["at"][1] + oy, 3),
                           "z": round(i["at"][2] + floor_top, 3)},
              "yaw": round(i["yaw"], 4)}
-            for i in station.data["instances"] if i["template"] in PROP_MODELS]
+            for i in station.data["instances"] if i["template"] in PROP_MODELS] + station.lamp_props
 
 
-def write_decor(path, props):
+def write_decor(path, props, replaces):
     """One prop per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/decor.fbs)."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in props]
     path.parent.mkdir(parents=True, exist_ok=True)
     body = ",\n    ".join(lines)
-    path.write_text(f'{{\n  "props": [\n    {body}\n  ]\n}}\n', encoding="ascii")
+    hidden = json.dumps(replaces)
+    path.write_text(f'{{\n  "props": [\n    {body}\n  ],\n  "replaces": {hidden}\n}}\n', encoding="ascii")
 
 
 def main():
@@ -301,7 +319,7 @@ def main():
     blocks = station.blocks()
     write_blueprint(BLUEPRINT_FILE, blocks)
     props = decor_props(station)
-    write_decor(DECOR_FILE, props)
+    write_decor(DECOR_FILE, props, [LAMP_PRIMITIVE])
     lines = [f"Octant: {len(blocks)} blocks ({block_kinds(blocks)})", f"origin of the map in cells: {station.origin}", f"props: {len(props)} ({', '.join(f'{k} {v}' for k, v in Counter(p['model'] for p in props).items())})",
              *(f"skipped, {reason}: {count}" for reason, count in sorted(station.skipped.items()))]
     STATS_FILE.parent.mkdir(exist_ok=True)

@@ -18,6 +18,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include <primitives/decor.h>
 #include <primitives/station_assets.h>
@@ -27,12 +28,15 @@ namespace z13::building::primitives {
 namespace {
 
 TEST(DecorTest, ParsesPropsWithTheirPose) {
-  const auto props = ParseDecor(R"({"props": [{"model": "chair", "position": {"x": 1, "y": 2, "z": 3}, "yaw": 1.5}]})");
-  ASSERT_TRUE(props.has_value()) << props.error();
-  ASSERT_EQ(props->size(), 1U);
-  EXPECT_EQ((*props)[0].model, "chair");
-  EXPECT_EQ((*props)[0].position, Eigen::Vector3f(1.F, 2.F, 3.F));
-  EXPECT_FLOAT_EQ((*props)[0].yaw, 1.5F);
+  const auto decor = ParseDecor(
+      R"({"props": [{"model": "chair", "position": {"x": 1, "y": 2, "z": 3}, "yaw": 1.5, "pitch": 0.5}], "replaces": ["Lamp"]})");
+  ASSERT_TRUE(decor.has_value()) << decor.error();
+  ASSERT_EQ(decor->props.size(), 1U);
+  EXPECT_EQ(decor->props[0].model, "chair");
+  EXPECT_EQ(decor->props[0].position, Eigen::Vector3f(1.F, 2.F, 3.F));
+  EXPECT_FLOAT_EQ(decor->props[0].yaw, 1.5F);
+  EXPECT_FLOAT_EQ(decor->props[0].pitch, 0.5F);
+  EXPECT_EQ(decor->replaces, std::vector<std::string> {"Lamp"});
 }
 
 TEST(DecorTest, APropWithoutAModelIsRejected) {
@@ -46,10 +50,10 @@ TEST(DecorTest, EveryShippedStationsPropsHaveAModelFile) {
     if (!json) {
       continue;
     }
-    const auto props = ParseDecor(*json);
-    ASSERT_TRUE(props.has_value()) << scene << ": " << props.error();
+    const auto decor = ParseDecor(*json);
+    ASSERT_TRUE(decor.has_value()) << scene << ": " << decor.error();
     std::set<std::string> models;
-    for (const Prop& prop : *props) {
+    for (const Prop& prop : decor->props) {
       models.insert(prop.model);
     }
     for (const std::string& model : models) {

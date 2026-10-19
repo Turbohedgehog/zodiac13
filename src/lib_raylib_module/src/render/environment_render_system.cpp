@@ -469,12 +469,34 @@ std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
   return blocks;
 }
 
-// Rebuilds the chunks only when blocks, the chunk size or the palette changed.
+// The blocks of the primitives named in `replaced` leave out: props stand in for them.
+std::vector<z13::station::Block> CollectShownBlocks(const BlockQuery& query, const std::vector<std::string>& replaced,
+                                                    BlockMeshes::OptionalPalette palette) {
+  std::vector<z13::station::Block> blocks = CollectBlocks(query);
+  if (replaced.empty() || !palette) {
+    return blocks;
+  }
+  std::vector<uint32_t> hidden;
+  for (const std::string& name : replaced) {
+    if (const auto primitive = palette->get().Find(name)) {
+      hidden.push_back(primitive->get().id);
+    }
+  }
+  std::erase_if(blocks, [&hidden](const z13::station::Block& block) {
+    return std::ranges::contains(hidden, block.spec.type_id);
+  });
+  return blocks;
+}
+
+// Rebuilds the chunks only when blocks, the chunk size, the palette or the replaced primitives
+// changed; `synced_replaced` is what the last rebuild left out.
 void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::RenderTuning& tuning,
-                     BlockMeshes::OptionalPalette palette) {
+                     BlockMeshes::OptionalPalette palette, const std::vector<std::string>& replaced,
+                     std::vector<std::string>& synced_replaced) {
   // Checked first: iterating the query resets its changed state.
-  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette)) {
-    chunks.Sync(CollectBlocks(blocks), palette, tuning.chunk_cells);
+  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette) || replaced != synced_replaced) {
+    chunks.Sync(CollectShownBlocks(blocks, replaced, palette), palette, tuning.chunk_cells);
+    synced_replaced = replaced;
   }
 }
 
@@ -977,10 +999,14 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([block_query](BlockChunks& chunks, const z13::RenderTuning& tuning,
-                          const z13::building::primitives::BlockPalette* palette) {
+      .read<StationProps>()
+      .each([block_query, synced_replaced = std::make_shared<std::vector<std::string>>()](
+                flecs::iter& it, size_t, BlockChunks& chunks, const z13::RenderTuning& tuning,
+                const z13::building::primitives::BlockPalette* palette) {
+        const auto* props = it.world().try_get<StationProps>();
         SyncBlockChunks(chunks, block_query, tuning,
-                        palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt);
+                        palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt,
+                        props != nullptr ? props->Replaced() : std::vector<std::string> {}, *synced_replaced);
       });
 
   // Its own query: SyncBlockChunks resets the other's changed state.

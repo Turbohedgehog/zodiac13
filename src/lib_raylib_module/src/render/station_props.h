@@ -57,8 +57,12 @@ class StationProps {
 
   size_t Count() const { return props_.size(); }
 
+  // Palette primitives whose blocks are not drawn: these props stand in for them.
+  const std::vector<std::string>& Replaced() const { return replaced_; }
+
  private:
   std::vector<PlacedProp> props_;
+  std::vector<std::string> replaced_;
 };
 
 }  // namespace z13::raylib

@@ -25,7 +25,7 @@
 
 namespace z13::building::primitives {
 
-std::expected<std::vector<Prop>, std::string> ParseDecor(std::string_view json) {
+std::expected<Decor, std::string> ParseDecor(std::string_view json) {
   flatbuffers::Parser parser;
   if (!parser.Deserialize(reflection::GetSchema(fbs::station::DecorBinarySchema::data()))) {
     return std::unexpected("decor: failed to deserialize the binary schema");
@@ -36,18 +36,19 @@ std::expected<std::vector<Prop>, std::string> ParseDecor(std::string_view json) 
   fbs::station::DecorT source;
   fbs::station::GetDecor(parser.builder_.GetBufferPointer())->UnPackTo(&source);
 
-  std::vector<Prop> props;
-  props.reserve(source.props.size());
+  Decor decor {.replaces = source.replaces};
+  decor.props.reserve(source.props.size());
   for (size_t i = 0; i < source.props.size(); ++i) {
     const fbs::station::DecorPropT& entry = *source.props[i];
     if (entry.model.empty() || !entry.position) {
       return std::unexpected(std::format("decor: prop {}: no model or position", i));
     }
-    props.push_back({.model = entry.model,
+    decor.props.push_back({.model = entry.model,
                      .position = {entry.position->x(), entry.position->y(), entry.position->z()},
-                     .yaw = entry.yaw});
+                           .yaw = entry.yaw,
+                           .pitch = entry.pitch});
   }
-  return props;
+  return decor;
 }
 
 }  // namespace z13::building::primitives

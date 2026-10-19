@@ -30,12 +30,16 @@ table DecorProp {
   // A file name in assets/models/props/ without its extension.
   model: string;
   position: Position;
-  // Radians about Z.
+  // Radians about Z, applied after the pitch.
   yaw: float;
+  // Radians about X first: a model made to hang on a wall turns to hang from a ceiling.
+  pitch: float;
 }
 
 table Decor {
   props: [DecorProp];
+  // Palette primitives whose blocks are not drawn because props stand in for them (lamps).
+  replaces: [string];
 }
 
 root_type Decor;
