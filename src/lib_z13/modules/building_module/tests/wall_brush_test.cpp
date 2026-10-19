@@ -23,6 +23,7 @@
 #include <lib_core/utils/math.h>
 #include <z13/components/block.h>
 #include <z13/components/building.h>
+#include <z13/components/gameplay.h>
 #include <z13/components/player_parts.h>
 #include <z13/components/wall.h>
 #include <z13_tests/shipped_station.h>
@@ -30,6 +31,7 @@
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/wall_brush.h"
+#include "../src/wall_entities.h"
 #include "support/station_builders.h"
 
 // The Wall mode's three clicks: snapping, the draft, the side the wall thickens to.
@@ -41,7 +43,14 @@ using z13::station::WallAxis;
 using z13::station::WallDraft;
 using z13::station::WallPanelOf;
 using z13::station::WallSegment;
+using Keycode = z13::fbs::input::Keycode;
 using z13::testing::AddBuilder;
+using z13::testing::AddWallAhead;
+using z13::testing::BlocksOfType;
+using z13::testing::BuildToolOf;
+using z13::testing::Click;
+using z13::testing::kWallId;
+using z13::testing::LocalBuilder;
 using z13::testing::Facing;
 using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
@@ -58,6 +67,17 @@ TEST(WallBrushTest, AClickRoundsToTheGridOrSnapsToAnAnchor) {
   EXPECT_EQ(WallClickPoint(AimAtPoint({3.4f, 2.6f, 1.f}), anchors, 1.5f), Eigen::Vector3i(3, 3, 1));
   EXPECT_EQ(WallClickPoint(AimAtPoint({9.2f, 0.4f, 0.f}), anchors, 1.5f), Eigen::Vector3i(10, 0, 0));
   EXPECT_EQ(WallClickPoint(AimAtPoint({9.2f, 0.4f, 0.f}), anchors, 0.f), Eigen::Vector3i(9, 0, 0));
+}
+
+TEST(WallBrushTest, AnchorsComeInOneOrderWhateverTheSpawnOrder) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  for (const Eigen::Vector3i& cell : {Eigen::Vector3i(5, 0, 0), Eigen::Vector3i(1, 9, 0), Eigen::Vector3i(1, 2, 3)}) {
+    SpawnWallNode(world, counters, cell);
+  }
+  const std::vector<Eigen::Vector3i> expected {{1, 2, 3}, {1, 9, 0}, {5, 0, 0}};
+  EXPECT_EQ(WallAnchors(world), expected);
 }
 
 TEST(WallBrushTest, TheSecondClickSetsTheStickAlongTheLongestOffset) {
@@ -115,6 +135,36 @@ TEST(WallBrushTest, ThreeClicksLayASegmentWithItsPanel) {
   EXPECT_FALSE(builder.has<WallDraft>());
   EXPECT_EQ(test_world.World().count<WallSegment>(), 1);
   EXPECT_EQ(test_world.World().count<WallPanelOf>(), 1);
+}
+
+TEST(WallBrushTest, TheDestroyButtonDropsTheWallInTheMakingBeforeItDestroysAnything) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  AddWallAhead(test_world, player);
+  const size_t walls = BlocksOfType(test_world.World(), kWallId).size();
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+
+  Click(test_world, Keycode::MOUSE_BUTTON_LEFT);
+  ASSERT_TRUE(player.has<WallDraft>());
+  Click(test_world, Keycode::MOUSE_BUTTON_RIGHT);
+  EXPECT_FALSE(player.has<WallDraft>());
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls);
+
+  Click(test_world, Keycode::MOUSE_BUTTON_RIGHT);
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls - 1);
+}
+
+TEST(WallBrushTest, TheWheelSetsTheThicknessInTheWallMode) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+  Click(test_world, Keycode::MOUSE_WHEEL_UP);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 2);
+  Click(test_world, Keycode::MOUSE_WHEEL_DOWN);
+  Click(test_world, Keycode::MOUSE_WHEEL_DOWN);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 1);
 }
 
 }  // namespace

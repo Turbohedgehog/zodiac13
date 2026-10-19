@@ -159,7 +159,8 @@ void ApplyWallMode(
     flecs::entity e, flecs::entity tool, const z13::input::ActionListener& listener, const BuildActionIds& ids,
     const BuildingTuning& tuning) {
   BuildTool& state = tool.get_mut<BuildTool>();
-  const int wheel = (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
+  const int wheel =
+      (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
   state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
   if (IsSwitchedOn(listener, ids.build_block)) {
     e.add<RequestBuildBlock>();

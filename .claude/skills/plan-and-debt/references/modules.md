@@ -9,3 +9,4 @@
 - `BrushSystem` applies the brush actions (pick, turn) to the player's `BlockBrush` (`z13/components/block_brush.h`).
 - `BlockBuildingSystem` builds (on release, sized by the drag) and destroys grid blocks (`Block` in `z13/components/block.h`) through `SpawnBlock`/`DestroyBlock`, the derived `BlockIndex` (`grid`) and `ValidateBuild`, and leaves a `BrushPreview` on each brush for the renderer.
 - `BlockSnapshotSystem` groups blocks into snapshot groups by index chunk (`lib_core/state/snapshot_grouping.h`).
+- `WallPanelSystem` keeps one `Panel` block per `WallSegment` (nodes `WallNode`, `z13/components/wall.h`; docs/oblique-walls-plan.md, stage 5). The Wall tool mode (`ToolMode::kWall`, `wall_brush`) turns three clicks into a segment through a player's `WallDraft`; the wheel sets `BuildTool::wall_thickness` in the `BuildingWall` input group, which is on only in that mode.

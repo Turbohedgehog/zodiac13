@@ -79,6 +79,10 @@ std::vector<Eigen::Vector3i> WallAnchors(flecs::world world) {
       }
     }
   });
+  // Flecs' order differs between participants, and a tie between two anchors must not.
+  std::ranges::sort(anchors, [](const Eigen::Vector3i& a, const Eigen::Vector3i& b) {
+    return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+  });
   return anchors;
 }
 
