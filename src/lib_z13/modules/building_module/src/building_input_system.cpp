@@ -54,7 +54,7 @@ namespace {
 
 // todo: убрать константу и брать из z13.fbs.building.Action.action_group
 constexpr std::string_view kBuildingActionGroup = "Building";
-// Its actions shadow the hotbar's wheel, so the group is on only in the Wall mode.
+// Its actions shadow the hotbar's wheel, so the group is on only in the Wall and Merge modes.
 constexpr std::string_view kWallActionGroup = "BuildingWall";
 
 void OnAppendInputSchema(
@@ -127,12 +127,16 @@ void SetActionGroup(z13::input::ActionListener& action_listener, std::string_vie
   }
 }
 
+bool UsesWheel(ToolMode mode) {
+  return mode == ToolMode::kWall || mode == ToolMode::kMerge;
+}
+
 // The Building input groups follow the BuildingTool tag and the held tool's mode, so they
 // stay consistent however these got there (toggle, restored state).
 void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action_listener) {
   SetActionGroup(action_listener, kBuildingActionGroup, e.has<BuildingTool>());
   const std::optional<flecs::entity> tool = HeldBuildTool(e);
-  SetActionGroup(action_listener, kWallActionGroup, tool && tool->get<BuildTool>().mode == ToolMode::kWall);
+  SetActionGroup(action_listener, kWallActionGroup, tool && UsesWheel(tool->get<BuildTool>().mode));
 }
 
 template <class Tag>
@@ -153,23 +157,28 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
   return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
 }
 
-// A click lays the wall's next point, the wheel sets its thickness, and the destroy key
-// drops a wall in the making (else it destroys, as in any mode).
-void ApplyWallMode(
-    flecs::entity e, flecs::entity tool, const z13::input::ActionListener& listener, const BuildActionIds& ids,
-    const BuildingTuning& tuning) {
+// A click lays the next point of a wall or merge; the wheel sets the wall's thickness or steps
+// the merge target; the destroy key drops what is in the making (else it destroys, as in any mode).
+void ApplyWallTool(
+    flecs::entity e, flecs::entity tool, ToolMode mode, const z13::input::ActionListener& listener,
+    const BuildActionIds& ids, const BuildingTuning& tuning) {
   BuildTool& state = tool.get_mut<BuildTool>();
   const int wheel =
       (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
-  state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
+  if (mode == ToolMode::kWall) {
+    state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
+  } else if (wheel != 0) {
+    state.merge_at = z13::NextEnumerator(state.merge_at);
+  }
   if (IsSwitchedOn(listener, ids.build_block)) {
     e.add<RequestBuildBlock>();
   }
   if (!IsSwitchedOn(listener, ids.destroy_block)) {
     return;
   }
-  if (e.has<z13::station::WallDraft>()) {
+  if (e.has<z13::station::WallDraft>() || e.has<z13::station::WallMergeDraft>()) {
     e.remove<z13::station::WallDraft>();
+    e.remove<z13::station::WallMergeDraft>();
   } else {
     e.add<RequestDestroyBlock>();
   }
@@ -190,12 +199,15 @@ void ApplyBuildActionListener(
   if (mode != ToolMode::kWall && e.has<z13::station::WallDraft>()) {
     e.remove<z13::station::WallDraft>();
   }
+  if (mode != ToolMode::kMerge && e.has<z13::station::WallMergeDraft>()) {
+    e.remove<z13::station::WallMergeDraft>();
+  }
   // Building/destroying only makes sense while the brush is out.
   if (!mode) {
     return;
   }
-  if (mode == ToolMode::kWall) {
-    ApplyWallMode(e, *tool, action_listener, build_action_ids, tuning);
+  if (UsesWheel(*mode)) {
+    ApplyWallTool(e, *tool, *mode, action_listener, build_action_ids, tuning);
     return;
   }
 
@@ -301,6 +313,7 @@ void RegisterSystems(flecs::world world) {
       .write<CutModifier>()
       .write<CutInModifier>()
       .write<z13::station::WallDraft>()
+      .write<z13::station::WallMergeDraft>()
       .each(ApplyBuildActionListener);
 
   // After CalculateInputValues (same phase, registered earlier), before the recorder logs the frame.

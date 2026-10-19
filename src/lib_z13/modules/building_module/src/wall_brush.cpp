@@ -53,6 +53,10 @@ Block StickBlock(const Eigen::Vector3i& first, WallAxis axis, int length) {
 
 }  // namespace
 
+Block CellMarker(const Eigen::Vector3i& cell) {
+  return StickBlock(cell, WallAxis::kX, 1);
+}
+
 Eigen::Vector3i WallClickPoint(const Aim& aim, std::span<const Eigen::Vector3i> anchors, float snap_cells) {
   const auto nearest = std::ranges::min_element(anchors, {}, [&aim](const Eigen::Vector3i& anchor) {
     return (anchor.cast<float>() - aim.point).squaredNorm();
@@ -137,7 +141,7 @@ WallPreview PreviewWall(
     const std::optional<WallDraft>& draft, const Eigen::Vector3i& point, int thickness, const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette) {
   if (!draft) {
-    return {.block = StickBlock(point, WallAxis::kX, 1), .makeable = true};
+    return {.block = CellMarker(point), .makeable = true};
   }
   if (draft->stage == WallDraft::Stage::kStick) {
     const Eigen::Vector3i offset = point - draft->first;

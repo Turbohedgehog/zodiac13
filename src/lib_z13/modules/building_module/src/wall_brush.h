@@ -63,6 +63,9 @@ std::expected<FacedWall, std::string> FacingEye(
     z13::building::primitives::WallGeometry wall, const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette);
 
+// A one-cell cube at `cell`, what the brush shows for a point.
+z13::station::Block CellMarker(const Eigen::Vector3i& cell);
+
 // What the brush shows for a click at `point`: the point, the stick, or the panel; `makeable`
 // is false when the click would make nothing (no stick, a panel the palette doesn't allow).
 struct WallPreview {

@@ -16,6 +16,7 @@
 
 #include "block_building_system.h"
 
+#include <expected>
 #include <format>
 #include <memory>
 #include <optional>
@@ -61,6 +62,7 @@
 #include "station_build_phase.h"
 #include "wall_brush.h"
 #include "wall_entities.h"
+#include "wall_merge.h"
 
 namespace z13::building {
 
@@ -84,6 +86,7 @@ using z13::station::kCellSize;
 using z13::station::SpawnPoint;
 using z13::station::StationMode;
 using z13::station::WallDraft;
+using z13::station::WallMergeDraft;
 using z13::station::WallPanelOf;
 using z13::station::WallNode;
 using z13::station::WallSegment;
@@ -240,6 +243,37 @@ void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, 
   player.remove<WallDraft>();
 }
 
+std::optional<uint32_t> MergeDraftNode(flecs::entity player) {
+  return player.has<WallMergeDraft>() ? std::optional(player.get<WallMergeDraft>().node_id) : std::nullopt;
+}
+
+// A click of the Merge mode: the first picks a wall node, the second merges it with another.
+void ProcessMergeClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
+  flecs::world world = player.world();
+  const std::optional<uint32_t> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
+  const std::optional<uint32_t> first = MergeDraftNode(player);
+  const auto plan = CheckPermission(player).and_then([&]() -> std::expected<std::optional<NodeMerge>, std::string> {
+    if (!clicked) {
+      return std::unexpected(std::string {"no wall node there"});
+    }
+    if (!first) {
+      return std::nullopt;
+    }
+    return PlanNodeMerge(world, *first, *clicked, tool.get<BuildTool>().merge_at, run.palette).transform(
+        [](const NodeMerge& merge) { return std::optional(merge); });
+  });
+  if (!plan) {
+    log_debug("station: merge click refused: {}", plan.error());
+    return;
+  }
+  if (!*plan) {
+    player.set(WallMergeDraft {.node_id = *clicked});
+    return;
+  }
+  ApplyNodeMerge(world, run.counters, **plan);
+  player.remove<WallMergeDraft>();
+}
+
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
@@ -254,6 +288,12 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
   if (tool->get<BuildTool>().mode == ToolMode::kWall) {
     if (aim) {
       ProcessWallClick(player, *tool, *aim, run);
+    }
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kMerge) {
+    if (aim) {
+      ProcessMergeClick(player, *tool, *aim, run);
     }
     return;
   }
@@ -380,6 +420,21 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
   return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild};
 }
 
+BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
+  flecs::world world = owner.world();
+  const std::optional<uint32_t> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
+  const std::optional<uint32_t> first = MergeDraftNode(owner);
+  const std::optional<Eigen::Vector3i> cell = hovered ? WallNodeCell(world, *hovered) : std::nullopt;
+  bool valid = hovered.has_value() && CheckPermission(owner).has_value();
+  Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
+  if (valid && first) {
+    const auto plan = PlanNodeMerge(world, *first, *hovered, tool.get<BuildTool>().merge_at, view.palette);
+    valid = plan.has_value();
+    shown = plan ? plan->cell : shown;
+  }
+  return {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
+}
+
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   const flecs::entity owner = brush.parent();
   const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
@@ -392,6 +447,10 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   }
   if (tool->get<BuildTool>().mode == ToolMode::kWall) {
     brush.set(WallBrushPreview(owner, *tool, *aim, view));
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kMerge) {
+    brush.set(MergeBrushPreview(owner, *tool, *aim, view));
     return;
   }
   const BuildKind kind = KindOf(owner);
@@ -465,6 +524,7 @@ void RegisterSystems(flecs::world world) {
       .write<z13::station::BlockChange>()
       .write<SpawnPoint>()
       .write<WallDraft>()
+      .write<WallMergeDraft>()
       .write<WallNode>()
       .write<WallSegment>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
@@ -498,6 +558,7 @@ void RegisterSystems(flecs::world world) {
       .read<BrushDrag>()
       .read<BuildPermission>()
       .read<WallDraft>()
+      .read<WallMergeDraft>()
       .read<WallNode>()
       .read<WallSegment>()
       .write<BrushPreview>()
