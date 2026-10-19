@@ -72,6 +72,10 @@ uniform vec4 checkerFirst;
 uniform vec4 checkerSecond;
 uniform float cellSize;
 
+// A normal this close to an axis is a face along the grid; a face whose normal.z is above
+// kSteepFace is nearly flat (a roof) and takes X, not Z, to square its checker against.
+const float kAlongGrid = 0.999;
+const float kSteepFace = 0.9;
 // Pulls shadow lookups off the lit surface, against acne on the faces they sample.
 const float kNormalOffset = 0.04;
 const float kCubeBias = 0.02;
@@ -263,15 +267,30 @@ vec3 Compress(vec3 light)
     return min(light, vec3(kKnee)) + (1.0 - kKnee)*(1.0 - exp(-over/(1.0 - kKnee)));
 }
 
+// One square per grid cell. A face along the grid takes the cell it looks out of, half a cell
+// inward so a face on a cell boundary doesn't flicker between cells; an oblique one squares up
+// in its own plane, horizontal along the face and the other way up it.
+bool CheckerSquare(vec3 position, vec3 normal)
+{
+    if (max(abs(normal.x), max(abs(normal.y), abs(normal.z))) > kAlongGrid)
+    {
+        ivec3 cell = ivec3(floor(position/cellSize - normal*0.5));
+        return ((cell.x + cell.y + cell.z) & 1) == 0;
+    }
+    vec3 along = abs(normal.z) > kSteepFace ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0);
+    vec3 across = normalize(cross(along, normal));
+    vec3 up = cross(normal, across);
+    ivec2 square = ivec2(floor(vec2(dot(position, across), dot(position, up))/cellSize));
+    return ((square.x + square.y) & 1) == 0;
+}
+
 void main()
 {
     vec3 normal = normalize(fragNormal);
     vec4 texelColor = texture(texture0, fragTexCoord);
     if (checkerEnabled == 1)
     {
-        // Half a cell inward, so a face lying on a cell boundary doesn't flicker between cells.
-        ivec3 cell = ivec3(floor(fragPosition/cellSize - normal*0.5));
-        texelColor = ((cell.x + cell.y + cell.z) & 1) == 0 ? checkerFirst : checkerSecond;
+        texelColor = CheckerSquare(fragPosition, normal) ? checkerFirst : checkerSecond;
         if (checkerEmissive == 1)
         {
             finalColor = texelColor*colDiffuse;

@@ -199,5 +199,31 @@ TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
   EXPECT_TRUE(WallNodeCell(test_world.World(), a).has_value());
 }
 
+TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
+  const uint32_t a = AddNode(test_world, {8, -4, 0});
+  const uint32_t b = AddNode(test_world, {12, 4, 0});
+  const uint32_t c = AddNode(test_world, {14, -4, 0});
+  const uint32_t d = AddNode(test_world, {22, 4, 0});
+  AddWall(test_world, a, b);
+  AddWall(test_world, c, d);
+  test_world.Tick();
+  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world));
+  ASSERT_TRUE(merge.has_value());
+  ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
+  test_world.Tick();
+  test_world.Tick();
+  ASSERT_EQ(test_world.World().count<WallPanelOf>(), 2);
+
+  builder.add<z13::building::RequestDestroyBlock>();
+  test_world.Tick();
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_EQ(test_world.World().count<WallSegment>(), 1);
+  EXPECT_EQ(test_world.World().count<WallPanelOf>(), 1);
+}
+
 }  // namespace
 }  // namespace z13::building

@@ -24,6 +24,7 @@
 
 #include <primitives/draw_order.h>
 #include <primitives/lights.h>
+#include <primitives/occupancy.h>
 
 #include "../platform/sdl_platform.h"
 
@@ -91,7 +92,9 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   std::vector<CellBox> opaque;
   for (const z13::station::Block& block : blocks) {
     if (!z13::building::primitives::IsTransparent(block, palette)) {
-      opaque.push_back(z13::building::primitives::OccupiedCells(block));
+      // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
+      const std::vector<CellBox> boxes = z13::building::primitives::SealedBoxes(block, palette);
+      opaque.insert(opaque.end(), boxes.begin(), boxes.end());
     }
   }
   std::ranges::sort(opaque, BoxBefore);

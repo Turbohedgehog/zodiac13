@@ -179,5 +179,20 @@ TEST(WallPanelSystemTest, DestroyingAPanelRemovesItsSegment) {
   EXPECT_TRUE(Panels(test_world.World()).empty());
 }
 
+TEST(WallPanelSystemTest, DestroyingAnObliquePanelRemovesItsSegment) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
+  AddWall(test_world, {8, -4, 0}, {12, 4, 0});
+  test_world.Tick();
+  ASSERT_EQ(Panels(test_world.World()).size(), 1u);
+
+  builder.add<RequestDestroyBlock>();
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_EQ(test_world.World().count<WallSegment>(), 0);
+  EXPECT_TRUE(Panels(test_world.World()).empty());
+}
+
 }  // namespace
 }  // namespace z13::building
