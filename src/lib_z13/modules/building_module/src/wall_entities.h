@@ -33,6 +33,9 @@ flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::IdCounters& count
 flecs::entity SpawnWallSegment(
     flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallSegment& segment);
 
+// The id of the node at `cell`, spawning one when there is none.
+uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3i& cell);
+
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id);
 std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id);
 

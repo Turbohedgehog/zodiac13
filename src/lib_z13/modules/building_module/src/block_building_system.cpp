@@ -59,6 +59,7 @@
 #include "build_validation.h"
 #include "held_tool.h"
 #include "station_build_phase.h"
+#include "wall_brush.h"
 #include "wall_entities.h"
 
 namespace z13::building {
@@ -82,7 +83,10 @@ using z13::station::BuildPermission;
 using z13::station::kCellSize;
 using z13::station::SpawnPoint;
 using z13::station::StationMode;
+using z13::station::WallDraft;
 using z13::station::WallPanelOf;
+using z13::station::WallNode;
+using z13::station::WallSegment;
 
 using BlockQuery = flecs::query<const Block>;
 using PlayerQuery = flecs::query<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>;
@@ -201,6 +205,41 @@ bool IsSpawnPoint(const Block& block, const Palette& palette) {
   return primitive && primitive->get().Has(z13::building::primitives::PrimitiveFlags::Spawn);
 }
 
+std::optional<WallDraft> DraftOf(flecs::entity player) {
+  return player.has<WallDraft>() ? std::optional(player.get<WallDraft>()) : std::nullopt;
+}
+
+// A click of the Wall mode: it sets the draft's next point, and the third makes the wall
+// from its nodes (existing ones where it snapped to them).
+void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
+  flecs::world world = player.world();
+  const std::optional<WallDraft> draft = DraftOf(player);
+  const Eigen::Vector3i point = WallClickPoint(aim, WallAnchors(world), run.tuning.get().wall_snap_cells);
+  const auto click = CheckPermission(player).and_then([&] {
+    return ClickWall(draft, point, tool.get<BuildTool>().wall_thickness);
+  });
+  if (!click) {
+    log_debug("station: wall click refused: {}", click.error());
+    return;
+  }
+  if (click->draft) {
+    player.set(*click->draft);
+    return;
+  }
+  const auto faced = FacingEye(*click->wall, aim.eye, run.palette);
+  const auto valid = faced.and_then([&](const FacedWall& wall) { return ValidateBuild(wall.block, run.View()); });
+  if (!valid) {
+    log_debug("station: wall refused: {}", valid.error());
+    return;
+  }
+  const uint32_t node_a = WallNodeAt(world, run.counters, faced->wall.node_a);
+  const uint32_t node_b = WallNodeAt(world, run.counters, faced->wall.node_b);
+  SpawnWallSegment(world, run.counters,
+                   WallSegment {.node_a = node_a, .node_b = node_b, .stick_axis = faced->wall.stick_axis,
+                                .stick_length = faced->wall.stick_length, .thickness = faced->wall.thickness});
+  player.remove<WallDraft>();
+}
+
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
@@ -211,8 +250,14 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
     player.remove<BrushDrag>();
     return;
   }
-  BlockBrush& brush = tool->get_mut<BlockBrush>();
   const auto aim = FindAim(player, run.index);
+  if (tool->get<BuildTool>().mode == ToolMode::kWall) {
+    if (aim) {
+      ProcessWallClick(player, *tool, *aim, run);
+    }
+    return;
+  }
+  BlockBrush& brush = tool->get_mut<BlockBrush>();
   const auto drag = DragOf(player);
   player.remove<BrushDrag>();
   if (!aim) {
@@ -324,6 +369,17 @@ void ProcessDestroyRequests(flecs::iter& it) {
   }
 }
 
+BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
+  const std::optional<WallDraft> draft = DraftOf(owner);
+  const Eigen::Vector3i point = WallClickPoint(aim, WallAnchors(owner.world()), view.tuning.get().wall_snap_cells);
+  const WallPreview preview =
+      PreviewWall(draft, point, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette);
+  const bool panel = draft && draft->stage == WallDraft::Stage::kEnd;
+  const bool valid = preview.makeable && CheckPermission(owner).has_value() &&
+                     (!panel || ValidateBuild(preview.block, view).has_value());
+  return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild};
+}
+
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   const flecs::entity owner = brush.parent();
   const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
@@ -332,6 +388,10 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   }
   const auto aim = FindAim(owner, view.index);
   if (!aim) {
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kWall) {
+    brush.set(WallBrushPreview(owner, *tool, *aim, view));
     return;
   }
   const BuildKind kind = KindOf(owner);
@@ -404,6 +464,9 @@ void RegisterSystems(flecs::world world) {
       .write<Block>()
       .write<z13::station::BlockChange>()
       .write<SpawnPoint>()
+      .write<WallDraft>()
+      .write<WallNode>()
+      .write<WallSegment>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
   world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, BlockIndex,
@@ -434,6 +497,9 @@ void RegisterSystems(flecs::world world) {
       .read<z13::building::CutInModifier>()
       .read<BrushDrag>()
       .read<BuildPermission>()
+      .read<WallDraft>()
+      .read<WallNode>()
+      .read<WallSegment>()
       .write<BrushPreview>()
       .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockIndex& index,
                                     const BlockPalette& palette, const BuildingTuning& tuning) {

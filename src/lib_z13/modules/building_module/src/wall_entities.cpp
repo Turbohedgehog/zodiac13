@@ -65,6 +65,20 @@ flecs::entity SpawnWallSegment(
   return world.entity(SegmentName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
 }
 
+uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3i& cell) {
+  std::optional<uint32_t> found;
+  world.query<const WallNode>().each([&](const WallNode& node) {
+    if (!found && node.cell == cell) {
+      found = node.id;
+    }
+  });
+  if (found) {
+    return *found;
+  }
+  SpawnWallNode(world, counters, cell);
+  return counters.last_wall_node_id;
+}
+
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
   return Find(world, NodeName(id));
 }

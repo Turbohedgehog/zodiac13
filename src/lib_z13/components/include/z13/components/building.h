@@ -28,12 +28,14 @@ struct UpdateBuildingToolPhase {};
 struct BuildingTool {};
 
 // The order is the one the mode key cycles through.
-enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn };
+enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall };
 
 // On a build tool item, with its BlockBrush: a tool given away builds the same.
 struct BuildTool {
   using State = void;
   ToolMode mode {};
+  // The thickness, in cells, of the walls the Wall mode lays.
+  int wall_thickness = 1;
 };
 
 // The mode the tool works in this frame: a held cut key overrides the tool's own on PC.
