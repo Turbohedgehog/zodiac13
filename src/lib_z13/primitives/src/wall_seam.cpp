@@ -16,9 +16,13 @@
 
 #include <primitives/wall_seam.h>
 
+#include <primitives/placement.h>
+
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <format>
+#include <limits>
 #include <numeric>
 
 namespace z13::building::primitives {
@@ -158,6 +162,122 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
     }
   }
   return WallSeam {.line = Reduced(inner.cross(outer)), .inner = inner, .outer = outer};
+}
+
+namespace {
+
+using z13::station::Block;
+using z13::station::BlockSpec;
+
+// floor((2x + w) / 2w) for w > 0: x / w rounded, halves up.
+int64_t RoundedQuotient(int64_t x, int64_t w) {
+  const int64_t doubled = (2 * x) + w;
+  const int64_t divisor = 2 * w;
+  return (doubled / divisor) - ((doubled % divisor) < 0 ? 1 : 0);
+}
+
+// Where the seam (relative to `node`) crosses the face line through `point` along `direction`,
+// on whole cells.
+std::optional<Eigen::Vector2i> CrossingOnGrid(
+    const SeamLine& seam, const Eigen::Vector2i& node, const Eigen::Vector2i& point, const Eigen::Vector2i& direction) {
+  const int64_t absolute = seam.z() - (seam.x() * node.x()) - (seam.y() * node.y());
+  const Homogeneous face = LineThrough(point, direction);
+  const Homogeneous crossing = Homogeneous(seam.x(), seam.y(), absolute).cross(face);
+  if (crossing.z() == 0) {
+    return std::nullopt;
+  }
+  const Homogeneous positive = WithPositiveWeight(crossing);
+  return Eigen::Vector2i(static_cast<int>(RoundedQuotient(positive.x(), positive.z())),
+                         static_cast<int>(RoundedQuotient(positive.y(), positive.z())));
+}
+
+// The section's four corners in the plane (reference face near and far, thickened face far and
+// near), each end cut by its seam if it has one.
+std::optional<std::array<Eigen::Vector2i, 4>> PlanCorners(const PlanWall& wall_a, const PlanWall& wall_b,
+                                                         const WallEnds& ends) {
+  const Eigen::Vector2i direction = wall_a.direction;
+  std::array<Eigen::Vector2i, 4> corners {wall_a.node, wall_b.node, wall_b.node + wall_b.offset,
+                                           wall_a.node + wall_a.offset};
+  if (ends.at_a) {
+    const auto reference = CrossingOnGrid(ends.at_a->line, wall_a.node, wall_a.node, direction);
+    const auto thickened = CrossingOnGrid(ends.at_a->line, wall_a.node, wall_a.node + wall_a.offset, direction);
+    if (!reference || !thickened) {
+      return std::nullopt;
+    }
+    corners[0] = *reference;
+    corners[3] = *thickened;
+  }
+  if (ends.at_b) {
+    const auto reference = CrossingOnGrid(ends.at_b->line, wall_b.node, wall_a.node, direction);
+    const auto thickened = CrossingOnGrid(ends.at_b->line, wall_b.node, wall_a.node + wall_a.offset, direction);
+    if (!reference || !thickened) {
+      return std::nullopt;
+    }
+    corners[1] = *reference;
+    corners[2] = *thickened;
+  }
+  return corners;
+}
+
+}  // namespace
+
+std::expected<Block, std::string> WallPanelBlock(
+    const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
+  auto square = WallPanelBlock(wall, palette);
+  if (!square || (!ends.at_a && !ends.at_b)) {
+    return square;
+  }
+  const auto plan_a = PlanWallAt(wall, true);
+  const auto plan_b = PlanWallAt(wall, false);
+  const auto corners = plan_a && plan_b ? PlanCorners(*plan_a, *plan_b, ends) : std::nullopt;
+  if (!corners) {
+    return std::unexpected(std::string {"a seam doesn't cross the wall's faces"});
+  }
+
+  const int stick = static_cast<int>(wall.stick_axis);
+  Eigen::Vector3i span = wall.node_b - wall.node_a;
+  span[stick] = 0;
+  const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
+  const auto lift = [&](const Eigen::Vector2i& corner, int along) {
+    Eigen::Vector3i point;
+    point[axes.first] = corner.x();
+    point[axes.second] = corner.y();
+    point[stick] = wall.node_a[stick] + along;
+    return point;
+  };
+  Eigen::Vector3i lowest = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
+  Eigen::Vector3i highest = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
+  for (const Eigen::Vector2i& corner : *corners) {
+    for (const int along : {0, wall.stick_length}) {
+      lowest = lowest.cwiseMin(lift(corner, along));
+      highest = highest.cwiseMax(lift(corner, along));
+    }
+  }
+  const Eigen::Vector3i extent = highest - lowest;
+  const Eigen::Vector3i size {extent[axes.major], extent[stick], extent[axes.minor]};
+  const auto primitive = palette.Find(z13::station::kPanelPrimitiveId);
+  if (!primitive || (size.array() < 1).any() || (size.array() > primitive->get().max_size.array()).any()) {
+    return std::unexpected(std::string {"the jointed panel's size isn't allowed"});
+  }
+
+  for (const z13::station::Orientation orientation : kOrientations) {
+    const Eigen::Matrix3i rotation = OrientationMatrix(orientation);
+    if (rotation.col(0).cwiseAbs() != Eigen::Vector3i::Unit(axes.major) ||
+        rotation.col(1).cwiseAbs() != Eigen::Vector3i::Unit(stick) ||
+        rotation.col(2).cwiseAbs() != Eigen::Vector3i::Unit(axes.minor)) {
+      continue;
+    }
+    Block block {.spec = {.type_id = z13::station::kPanelPrimitiveId, .size = size, .orientation = orientation},
+                 .cell = lowest};
+    const CellPose pose = PoseOf(block);
+    for (size_t i = 0; i < corners->size(); ++i) {
+      const Eigen::Vector3i local = rotation.transpose() * (lift((*corners)[i], 0) - pose.origin);
+      block.spec.corners[2 * i] = local.x();
+      block.spec.corners[(2 * i) + 1] = local.z();
+    }
+    return block;
+  }
+  return std::unexpected(std::string {"no turn of the panel fits the wall"});
 }
 
 }  // namespace z13::building::primitives

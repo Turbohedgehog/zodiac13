@@ -16,11 +16,18 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <map>
+#include <utility>
 #include <string>
+#include <vector>
 
 #include <Eigen/Dense>
 
+#include <primitives/occupancy.h>
+#include <primitives/placement.h>
 #include <primitives/wall_seam.h>
+#include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
 namespace {
@@ -143,6 +150,93 @@ TEST(WallSeamTest, AWallComesAsItsEndAtANodeInThePlaneOfItsStick) {
   ASSERT_TRUE(in_yz.has_value());
   EXPECT_EQ(in_yz->direction, Eigen::Vector2i(3, 7));
   EXPECT_EQ(in_yz->offset, Eigen::Vector2i(-1, 0));
+}
+
+WallSeam SeamAt(const WallGeometry& first, const WallGeometry& second) {
+  const auto seam = PlanSeam(*PlanWallAt(first, true), *PlanWallAt(second, true), kReach);
+  EXPECT_TRUE(seam.has_value()) << (seam ? "" : seam.error());
+  return seam.value_or(WallSeam {});
+}
+
+// The section's four corners of a panel with cut ends, in the plane (x, y) of a Z stick.
+std::vector<Eigen::Vector2i> WorldCorners(const z13::station::Block& block) {
+  const CellPose pose = PoseOf(block);
+  std::vector<Eigen::Vector2i> corners;
+  for (size_t i = 0; i < 4; ++i) {
+    const Eigen::Vector3i world =
+        pose.origin + pose.rotation * Eigen::Vector3i(block.spec.corners[2 * i], 0, block.spec.corners[(2 * i) + 1]);
+    corners.emplace_back(world.x(), world.y());
+  }
+  return corners;
+}
+
+const Palette& ShippedPalette() {
+  static const Palette palette = z13::testing::ShippedPalette().value();
+  return palette;
+}
+
+TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
+  const WallGeometry across {
+      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry up {
+      .node_a = {0, 0, 0}, .node_b = {0, 10, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallSeam seam = SeamAt(across, up);
+  const auto first = WallPanelBlock(across, ShippedPalette(), {.at_a = seam});
+  const auto second = WallPanelBlock(up, ShippedPalette(), {.at_a = seam});
+  ASSERT_TRUE(first.has_value()) << first.error();
+  ASSERT_TRUE(second.has_value()) << second.error();
+
+  std::map<std::pair<int, int>, int> covered;
+  for (const auto& block : {*first, *second}) {
+    for (const CellBox& box : SealedBoxes(block, ShippedPalette())) {
+      for (int x = box.min.x(); x < box.End().x(); ++x) {
+        for (int y = box.min.y(); y < box.End().y(); ++y) {
+          ++covered[{x, y}];
+        }
+      }
+    }
+  }
+  std::map<std::pair<int, int>, int> expected;
+  for (int x = 0; x < 10; ++x) {
+    for (int y = 0; y < 10; ++y) {
+      if (y < 2 || x < 2) {
+        expected[{x, y}] = (x == y && x < 2) ? 2 : 1;
+      }
+    }
+  }
+  EXPECT_EQ(covered, expected);
+}
+
+TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
+  const WallGeometry first {
+      .node_a = {0, 0, 0}, .node_b = {12, 5, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 3};
+  const WallGeometry second {
+      .node_a = {0, 0, 0}, .node_b = {-4, 9, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallSeam seam = SeamAt(first, second);
+  const auto a = WallPanelBlock(first, ShippedPalette(), {.at_a = seam});
+  const auto b = WallPanelBlock(second, ShippedPalette(), {.at_a = seam});
+  ASSERT_TRUE(a.has_value()) << a.error();
+  ASSERT_TRUE(b.has_value()) << b.error();
+
+  // Reference face near, thickened face near: the two ends of the seam.
+  const auto seam_ends = [](const z13::station::Block& block) {
+    const std::vector<Eigen::Vector2i> corners = WorldCorners(block);
+    std::vector<std::pair<int, int>> ends {{corners[0].x(), corners[0].y()}, {corners[3].x(), corners[3].y()}};
+    std::ranges::sort(ends);
+    return ends;
+  };
+  EXPECT_EQ(seam_ends(*a), seam_ends(*b));
+}
+
+TEST(WallJointTest, AWallWithoutSeamsStaysSquareCut) {
+  const WallGeometry wall {
+      .node_a = {0, 0, 0}, .node_b = {12, 5, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const auto plain = WallPanelBlock(wall, ShippedPalette());
+  const auto same = WallPanelBlock(wall, ShippedPalette(), {});
+  ASSERT_TRUE(plain.has_value());
+  ASSERT_TRUE(same.has_value());
+  EXPECT_EQ(*plain, *same);
+  EXPECT_FALSE(plain->spec.HasCorners());
 }
 
 }  // namespace

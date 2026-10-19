@@ -59,7 +59,7 @@ Status ValidateBuild(const Block& block, const BuildView& view, z13::station::Br
         "size {}x{}x{} outside the limits of '{}'", spec.size.x(), spec.size.y(), spec.size.z(), limits.name));
   }
 
-  if (!limits.shape.AllowsSize(spec.size, spec.slant)) {
+  if (!spec.HasCorners() && !limits.shape.AllowsSize(spec.size, spec.slant)) {
     return std::unexpected(std::format(
         "size {}x{}x{} with slant {} doesn't fit the shape of '{}'", spec.size.x(), spec.size.y(), spec.size.z(),
         spec.slant, limits.name));

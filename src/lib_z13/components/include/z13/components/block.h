@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include <Eigen/Dense>
@@ -68,7 +69,12 @@ struct BlockSpec {
   Orientation orientation {};
   // A panel's rise over its size's X (primitives.fbs, Panel); zero for every other primitive.
   int slant {};
+  // A panel whose ends a joint cuts: its section's four corners in the primitive's own frame, as
+  // x and z of the reference face's near and far end, then the thickened face's far and near
+  // end (the order of the square-cut section). All zero for a square-cut panel.
+  std::array<int, 8> corners {};
 
+  bool HasCorners() const { return corners != std::array<int, 8> {}; }
   bool operator==(const BlockSpec&) const = default;
 };
 

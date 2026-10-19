@@ -16,8 +16,10 @@
 
 #include <lib_core/state/component_meta.h>
 
+#include <array>
 #include <cstddef>
 #include <string>
+#include <tuple>
 
 #include <Eigen/Dense>
 
@@ -39,6 +41,7 @@ namespace {
 constexpr std::string_view kMatrix4fName = "Matrix4f";
 constexpr std::string_view kVector3iName = "Vector3i";
 constexpr std::string_view kVector3fName = "Vector3f";
+constexpr std::string_view kIntArray8Name = "IntArray8";
 
 template <class Scalar>
 flecs::entity_t ScalarKind();
@@ -53,10 +56,19 @@ flecs::entity_t ScalarKind<int32_t>() {
   return flecs::I32;
 }
 
-// A fixed-size Eigen type as an opaque array of its scalars, in storage order.
+template <class T>
+constexpr int32_t FixedCount() {
+  if constexpr (requires { T::SizeAtCompileTime; }) {
+    return static_cast<int32_t>(T::SizeAtCompileTime);
+  } else {
+    return static_cast<int32_t>(std::tuple_size_v<T>);
+  }
+}
+
+// A fixed-size Eigen type or std::array as an opaque array of its scalars, in storage order.
 template <class T, class Scalar>
 void RegisterEigenArray(flecs::world& world, std::string_view name) {
-  constexpr auto kCount = static_cast<int32_t>(T::SizeAtCompileTime);
+  constexpr int32_t kCount = FixedCount<T>();
   world.component<T>().set_name(name.data());
   world.component<T>()
       .template opaque<Scalar>(world.array<Scalar>(kCount).id())
@@ -77,6 +89,7 @@ void RegisterEigenMeta(flecs::world& world) {
   RegisterEigenArray<Eigen::Matrix4f, float>(world, kMatrix4fName);
   RegisterEigenArray<Eigen::Vector3i, int32_t>(world, kVector3iName);
   RegisterEigenArray<Eigen::Vector3f, float>(world, kVector3fName);
+  RegisterEigenArray<std::array<int32_t, 8>, int32_t>(world, kIntArray8Name);
 }
 
 }  // namespace z13::flecs_tools
