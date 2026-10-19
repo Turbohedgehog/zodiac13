@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <set>
+#include <string_view>
 
 #include <Eigen/Core>
 
@@ -27,6 +29,7 @@
 #include <z13/components/input_events.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+#include <z13/components/tool_mode_info.h>
 #include <z13/components/touch_controls.h>
 #include <z13/components/wall.h>
 #include <primitives/placement.h>
@@ -220,6 +223,23 @@ TEST(BuildToolTest, OnATouchScreenThePanelPicksAndTurnsTheBrushLikeTheKeys) {
 
 z13::input::TouchLayer LayerOf(Z13TestWorld& test_world) {
   return test_world.World().get<z13::input::TouchControls>().layer;
+}
+
+TEST(BuildToolTest, EveryModeHasItsOwnLabel) {
+  std::set<std::string_view> labels;
+  for (const ToolMode mode : {ToolMode::kBuild, ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall,
+                              ToolMode::kMerge}) {
+    labels.insert(ToolModeInfoOf(mode).label);
+  }
+  EXPECT_EQ(labels.size(), 6u);
+  EXPECT_FALSE(labels.contains(""));
+}
+
+TEST(BuildToolTest, OnlyTheWallAndMergeModesTakeTheWheel) {
+  EXPECT_TRUE(ToolModeInfoOf(ToolMode::kWall).uses_wheel);
+  EXPECT_TRUE(ToolModeInfoOf(ToolMode::kMerge).uses_wheel);
+  EXPECT_FALSE(ToolModeInfoOf(ToolMode::kBuild).uses_wheel);
+  EXPECT_FALSE(ToolModeInfoOf(ToolMode::kDestroy).uses_wheel);
 }
 
 TEST(BuildToolTest, TheTouchLayerFollowsTheHeldToolsMode) {
