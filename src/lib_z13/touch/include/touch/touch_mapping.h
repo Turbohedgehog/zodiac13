@@ -71,8 +71,6 @@ constexpr std::array kBlockPanel = {TouchControl::kPreviousPrimitive, TouchContr
                                     TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
 constexpr std::array kWallPanel = {TouchControl::kThicker, TouchControl::kThinner};
 constexpr std::array kMergePanel = {TouchControl::kMergeAt};
-constexpr std::array kAllPanels = {std::span<const TouchControl>(kBlockPanel), std::span<const TouchControl>(kWallPanel),
-                                   std::span<const TouchControl>(kMergePanel)};
 
 std::span<const TouchControl> PanelOf(TouchLayer layer);
 // Whether `control` shows and answers in `layer`: the walking buttons always, the tool's with a

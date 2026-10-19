@@ -29,6 +29,10 @@ using z13::fbs::input::Keycode;
 // The panel's buttons apart by this many radii: a diameter and a gap.
 constexpr float kToolPanelStepRadii = 2.2f;
 
+constexpr std::array kAllPanels = {std::span<const TouchControl>(kBlockPanel),
+                                   std::span<const TouchControl>(kWallPanel),
+                                   std::span<const TouchControl>(kMergePanel)};
+
 Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
   switch (control) {
     case TouchControl::kJump:

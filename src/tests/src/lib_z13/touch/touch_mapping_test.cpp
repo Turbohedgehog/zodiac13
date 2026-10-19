@@ -79,8 +79,9 @@ TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
 }
 
 TEST(TouchMappingTest, EveryPanelButtonHasAKey) {
-  for (const std::span<const TouchControl> panel : kAllPanels) {
-    for (const TouchControl control : panel) {
+  for (const TouchLayer layer : {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge}) {
+    EXPECT_FALSE(PanelOf(layer).empty());
+    for (const TouchControl control : PanelOf(layer)) {
       EXPECT_TRUE(ButtonKey(control).has_value());
     }
   }
