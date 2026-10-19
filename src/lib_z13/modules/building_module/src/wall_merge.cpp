@@ -144,6 +144,8 @@ void ApplyNodeMerge(flecs::world world, z13::gameplay::IdCounters& counters, con
       segment.node_b = merge.keep;
     }
   });
+  // Segment ids come from a counter, so the order they are spawned in must be the same everywhere.
+  std::ranges::sort(halves, {}, &WallSegment::id);
   for (WallSegment& half : halves) {
     half.node_a = merge.keep;
     SpawnWallSegment(world, counters, half);
