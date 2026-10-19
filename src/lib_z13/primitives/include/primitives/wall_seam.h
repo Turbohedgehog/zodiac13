@@ -39,20 +39,12 @@ struct PlanWall {
 // The wall's end at node a (or b), nullopt for a wall PanelBlock would refuse for its shape.
 std::optional<PlanWall> PlanWallAt(const WallGeometry& wall, bool at_a);
 
-// The point (x / w, y / w), w > 0, and the line a·x + b·y + c = 0, both relative to the node.
-// Whole numbers throughout, so the seam is the same on every platform.
-struct PlanPoint {
-  int64_t x {};
-  int64_t y {};
-  int64_t w = 1;
-};
-
-struct SeamLine {
-  int64_t a {};
-  int64_t b {};
-  int64_t c {};
-  bool operator==(const SeamLine&) const = default;
-};
+// A point (x / w, y / w), w > 0, or a line a·x + b·y + c = 0, as (x, y, w) or (a, b, c); the cross
+// product of two points is the line through them, of two lines the point they meet in. Both are
+// relative to the node, in whole numbers, so the seam is the same on every platform.
+using Homogeneous = Eigen::Matrix<int64_t, 3, 1>;
+using PlanPoint = Homogeneous;
+using SeamLine = Homogeneous;
 
 // The line both walls of a joint end at: it runs through the crossing of the two faces that
 // face each other (inner) and of the two that face away (outer). Each wall keeps its strip on

@@ -34,14 +34,14 @@ PlanWall Wall(const Eigen::Vector2i& direction, const Eigen::Vector2i& offset) {
 }
 
 PlanPoint FarEnd(const PlanWall& wall) {
-  return {.x = wall.direction.x(), .y = wall.direction.y(), .w = 1};
+  return PlanPoint(wall.direction.x(), wall.direction.y(), 1);
 }
 
 // A point the tests know is on a whole cell.
 Eigen::Vector2i Whole(const PlanPoint& point) {
-  EXPECT_EQ(point.x % point.w, 0);
-  EXPECT_EQ(point.y % point.w, 0);
-  return {static_cast<int>(point.x / point.w), static_cast<int>(point.y / point.w)};
+  EXPECT_EQ(point.x() % point.z(), 0);
+  EXPECT_EQ(point.y() % point.z(), 0);
+  return {static_cast<int>(point.x() / point.z()), static_cast<int>(point.y() / point.z())};
 }
 
 TEST(WallSeamTest, TwoWallsThickeningIntoTheirCornerAreMitredAcrossIt) {
@@ -49,7 +49,7 @@ TEST(WallSeamTest, TwoWallsThickeningIntoTheirCornerAreMitredAcrossIt) {
   ASSERT_TRUE(seam.has_value()) << seam.error();
   EXPECT_EQ(Whole(seam->outer), Eigen::Vector2i(0, 0));
   EXPECT_EQ(Whole(seam->inner), Eigen::Vector2i(2, 2));
-  EXPECT_EQ(seam->line, (SeamLine {.a = 1, .b = -1, .c = 0}));
+  EXPECT_EQ(seam->line, SeamLine(1, -1, 0));
 }
 
 TEST(WallSeamTest, WallsOnTheTwoSidesOfTheirPathMeetAcrossAnExtendedEnd) {
@@ -59,9 +59,9 @@ TEST(WallSeamTest, WallsOnTheTwoSidesOfTheirPathMeetAcrossAnExtendedEnd) {
   ASSERT_TRUE(seam.has_value()) << seam.error();
   EXPECT_EQ(Whole(seam->inner), Eigen::Vector2i(0, 2));
   EXPECT_EQ(Whole(seam->outer), Eigen::Vector2i(-2, 0));
-  EXPECT_EQ(seam->line, (SeamLine {.a = 1, .b = -1, .c = 2}));
+  EXPECT_EQ(seam->line, SeamLine(1, -1, 2));
   // The first wall keeps the cell behind its node.
-  EXPECT_EQ(SideOf(seam->line, PlanPoint {.x = -1, .y = 0, .w = 1}), SideOf(seam->line, FarEnd(first)));
+  EXPECT_EQ(SideOf(seam->line, PlanPoint(-1, 0, 1)), SideOf(seam->line, FarEnd(first)));
 }
 
 TEST(WallSeamTest, TheSeamIsTheSameFromEitherWall) {
@@ -91,7 +91,7 @@ TEST(WallSeamTest, TheWallsKeepOppositeSidesAndTheSeamHoldsBothCorners) {
 TEST(WallSeamTest, AStraightRunEndsAcrossItsThicknessAtTheNode) {
   const auto seam = PlanSeam(Wall({10, 0}, {0, 2}), Wall({-10, 0}, {0, 2}), kReach);
   ASSERT_TRUE(seam.has_value()) << seam.error();
-  EXPECT_EQ(seam->line, (SeamLine {.a = 1, .b = 0, .c = 0}));
+  EXPECT_EQ(seam->line, SeamLine(1, 0, 0));
 }
 
 TEST(WallSeamTest, WallsLeavingTheNodeTheSameWayHaveNoSeam) {

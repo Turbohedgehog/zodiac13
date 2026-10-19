@@ -37,44 +37,30 @@ bool IsUsable(const PlanWall& wall) {
   return fits(wall.direction) && fits(wall.offset);
 }
 
-struct Homogeneous {
-  int64_t x {};
-  int64_t y {};
-  int64_t w {};
-};
-
-// Points and lines share the cross product: the line through two points, the point on two lines.
-Homogeneous Cross(const Homogeneous& p, const Homogeneous& q) {
-  return {p.y * q.w - p.w * q.y, p.w * q.x - p.x * q.w, p.x * q.y - p.y * q.x};
-}
-
 Homogeneous LineThrough(const Eigen::Vector2i& point, const Eigen::Vector2i& direction) {
-  return {-direction.y(), direction.x(),
-          static_cast<int64_t>(direction.y()) * point.x() - static_cast<int64_t>(direction.x()) * point.y()};
+  const Homogeneous from(point.x(), point.y(), 1);
+  const Homogeneous toward_infinity(direction.x(), direction.y(), 0);
+  return from.cross(toward_infinity);
 }
 
 int64_t CrossOf(const Eigen::Vector2i& p, const Eigen::Vector2i& q) {
-  return static_cast<int64_t>(p.x()) * q.y() - static_cast<int64_t>(p.y()) * q.x();
+  Eigen::Matrix2<int64_t> columns;
+  columns << p.cast<int64_t>(), q.cast<int64_t>();
+  return columns.determinant();
 }
 
 int Sign(int64_t value) {
   return (value > 0) - (value < 0);
 }
 
-PlanPoint AsPoint(Homogeneous point) {
-  if (point.w < 0) {
-    point = {-point.x, -point.y, -point.w};
-  }
-  return {.x = point.x, .y = point.y, .w = point.w};
+PlanPoint WithPositiveWeight(const Homogeneous& point) {
+  return point.z() < 0 ? Homogeneous(-point) : point;
 }
 
 SeamLine Reduced(const Homogeneous& line) {
-  const int64_t divisor = std::gcd(std::gcd(std::abs(line.x), std::abs(line.y)), std::abs(line.w));
-  Homogeneous reduced {line.x / divisor, line.y / divisor, line.w / divisor};
-  if (reduced.x < 0 || (reduced.x == 0 && reduced.y < 0)) {
-    reduced = {-reduced.x, -reduced.y, -reduced.w};
-  }
-  return {.a = reduced.x, .b = reduced.y, .c = reduced.w};
+  const int64_t divisor = std::gcd(std::gcd(std::abs(line.x()), std::abs(line.y())), std::abs(line.z()));
+  const Homogeneous reduced = line / divisor;
+  return (reduced.x() < 0 || (reduced.x() == 0 && reduced.y() < 0)) ? Homogeneous(-reduced) : reduced;
 }
 
 // The axis a wall runs along: the longer one, the lower on a tie (as PlanAxesOf).
@@ -83,10 +69,11 @@ int RunAxis(const Eigen::Vector2i& direction) {
 }
 
 std::optional<std::string> CheckReach(const PlanPoint& point, int max_reach) {
-  const int64_t reach = std::max(std::abs(point.x), std::abs(point.y));
-  if (reach > static_cast<int64_t>(max_reach) * point.w) {
+  const int64_t weight = point.z();
+  const int64_t reach = std::max(std::abs(point.x()), std::abs(point.y()));
+  if (reach > static_cast<int64_t>(max_reach) * weight) {
     return std::format("the joint's tip would reach {} cells from the node, more than the {} allowed",
-                       (reach + point.w - 1) / point.w, max_reach);
+                       (reach + weight - 1) / weight, max_reach);
   }
   return std::nullopt;
 }
@@ -95,9 +82,10 @@ std::optional<std::string> CheckReach(const PlanPoint& point, int max_reach) {
 std::optional<std::string> CheckRemaining(const PlanWall& wall, const PlanPoint& point) {
   const int axis = RunAxis(wall.direction);
   const int run = std::abs(wall.direction[axis]);
-  const int64_t along = Sign(wall.direction[axis]) * (axis == 0 ? point.x : point.y);
-  if (along > static_cast<int64_t>(run - kMinRemainingCells) * point.w) {
-    const int64_t setback = (along + point.w - 1) / point.w;
+  const int64_t weight = point.z();
+  const int64_t along = Sign(wall.direction[axis]) * point[axis];
+  if (along > static_cast<int64_t>(run - kMinRemainingCells) * weight) {
+    const int64_t setback = (along + weight - 1) / weight;
     return std::format("the joint takes {} cells of a wall {} cells long; the wall must be at least {} long",
                        setback, run, setback + kMinRemainingCells);
   }
@@ -125,7 +113,7 @@ std::optional<PlanWall> PlanWallAt(const WallGeometry& wall, bool at_a) {
 }
 
 int SideOf(const SeamLine& line, const PlanPoint& point) {
-  return Sign(line.a * point.x + line.b * point.y + line.c * point.w);
+  return Sign(line.dot(point));
 }
 
 std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanWall& second, int max_reach) {
@@ -142,7 +130,8 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
     }
     // A straight run: both end across the thickness, at the node.
     const Homogeneous line = LineThrough(Eigen::Vector2i::Zero(), first.offset);
-    return WallSeam {.line = Reduced(line), .inner = {.x = 0, .y = 0, .w = 1}, .outer = {.x = 0, .y = 0, .w = 1}};
+    const PlanPoint node(0, 0, 1);
+    return WallSeam {.line = Reduced(line), .inner = node, .outer = node};
   }
 
   // Each wall's face toward the other wall is the one on the other's side of its direction.
@@ -153,10 +142,10 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
   const Homogeneous second_off = LineThrough(second.offset, second.direction);
   const bool first_off_faces = Sign(CrossOf(first.direction, first.offset)) == toward;
   const bool second_off_faces = Sign(CrossOf(second.direction, second.offset)) == -toward;
-  const PlanPoint inner =
-      AsPoint(Cross(first_off_faces ? first_off : first_ref, second_off_faces ? second_off : second_ref));
-  const PlanPoint outer =
-      AsPoint(Cross(first_off_faces ? first_ref : first_off, second_off_faces ? second_ref : second_off));
+  const PlanPoint inner = WithPositiveWeight(
+      (first_off_faces ? first_off : first_ref).cross(second_off_faces ? second_off : second_ref));
+  const PlanPoint outer = WithPositiveWeight(
+      (first_off_faces ? first_ref : first_off).cross(second_off_faces ? second_ref : second_off));
 
   for (const PlanPoint& tip : {inner, outer}) {
     if (const auto problem = CheckReach(tip, max_reach)) {
@@ -168,8 +157,7 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
       }
     }
   }
-  const Homogeneous line = Cross({inner.x, inner.y, inner.w}, {outer.x, outer.y, outer.w});
-  return WallSeam {.line = Reduced(line), .inner = inner, .outer = outer};
+  return WallSeam {.line = Reduced(inner.cross(outer)), .inner = inner, .outer = outer};
 }
 
 }  // namespace z13::building::primitives
