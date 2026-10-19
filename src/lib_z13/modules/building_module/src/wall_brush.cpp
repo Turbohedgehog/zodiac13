@@ -262,10 +262,11 @@ WallPreview PreviewWall(
   }
   const auto length = PickHeight(aim, draft->first, draft->stick_axis, anchors, picking);
   if (!length) {
-    return {.block = CellMarker(draft->second), .lines = HeightLines(*draft, 0), .makeable = false};
+    return {.block = CellMarker(draft->second), .makeable = false};
   }
   const auto click = ClickWall(draft, aim, anchors, picking, thickness);
-  if (const auto faced = FacingEye(*click->wall, aim.eye, palette)) {
+  if (const auto faced = click && click->wall ? FacingEye(*click->wall, aim.eye, palette)
+                                              : std::unexpected(std::string {"no wall"})) {
     return {.block = faced->block, .lines = HeightLines(*draft, *length), .makeable = true};
   }
   return {.block = CellMarker(draft->second), .lines = HeightLines(*draft, *length), .makeable = false};
