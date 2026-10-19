@@ -17,6 +17,7 @@
 #pragma once
 
 #include <expected>
+#include <optional>
 #include <string>
 
 #include <Eigen/Dense>
@@ -46,6 +47,10 @@ struct PlanAxes {
 };
 
 PlanAxes PlanAxesOf(z13::station::WallAxis stick_axis, const Eigen::Vector3i& span);
+
+// The thinnest panel the wall can be and still hold air back (palette Panel's AllowsSize): one
+// cell along the grid, two across it. Nothing for nodes that coincide in the plane.
+std::optional<int> MinWallThickness(const WallGeometry& wall);
 
 // The Panel block whose prism runs from node a to node b (b's offset along the stick axis
 // dropped) over the stick, and thickens by |thickness| cells along the lesser axis of the

@@ -22,4 +22,8 @@ namespace z13::building {
 // anonymous namespace: its path breaks phase-order ties (see phase_order.h).
 struct StationBuildPhase {};
 
+// Wall panels follow their segments, before StationBuildPhase: its index reads the block
+// changes this makes, which a later system's would be lost at the end of the tick.
+struct WallPanelPhase {};
+
 }  // namespace z13::building

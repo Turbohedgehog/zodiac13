@@ -96,7 +96,11 @@ using PlayerQuery = flecs::query<const z13::gameplay::PlayerCollider, const Eige
 using SpawnBlockQuery = flecs::query<const Block>;
 
 void RegisterPipeline(flecs::world world) {
-  world.component<StationBuildPhase>().add(flecs::Phase).depends_on<z13::building::UpdateBuildingToolPhase>();
+  world.component<WallPanelPhase>().add(flecs::Phase).depends_on<z13::building::UpdateBuildingToolPhase>();
+  world.component<StationBuildPhase>()
+      .add(flecs::Phase)
+      .depends_on<z13::building::UpdateBuildingToolPhase>()
+      .depends_on<WallPanelPhase>();
   world.component<z13::gameplay::PostUpdatePhase>().add(flecs::Phase).depends_on<StationBuildPhase>();
 }
 

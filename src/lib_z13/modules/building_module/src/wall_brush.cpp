@@ -40,6 +40,8 @@ using z13::station::WallSegment;
 
 // Below this a ray counts as parallel to a plane or line.
 constexpr float kParallelEpsilon = 1e-4f;
+// An aimed face counts as lying in a plane through the first point within this many cells of it.
+constexpr float kOnPlaneCells = 0.5f;
 // The arrow marking the axis of the third click: its length and the reach of its head, in cells.
 constexpr float kArrowCells = 8.f;
 constexpr float kArrowHeadCells = 1.5f;
@@ -81,6 +83,17 @@ std::vector<BrushLine> HeightLines(const WallDraft& draft, int length) {
   const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(draft.stick_axis)) * static_cast<float>(length);
   return {Line(draft.first.cast<float>(), draft.first.cast<float>() + along),
           Line(draft.second.cast<float>(), draft.second.cast<float>() + along)};
+}
+
+// The axis of the face the aim rests on, when that face lies in the plane through `first`.
+std::optional<WallAxis> AimedPlane(const Aim& aim, const Eigen::Vector3i& first) {
+  for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
+    const int index = Index(axis);
+    if (aim.normal[index] != 0 && std::abs(aim.point[index] - static_cast<float>(first[index])) <= kOnPlaneCells) {
+      return axis;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -129,24 +142,28 @@ std::optional<StickPick> PickStick(
   if (!direction) {
     return std::nullopt;
   }
-  std::optional<WallAxis> plane_axis;
-  float nearest = picking.reach_cells;
-  for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
-    const float slope = (*direction)[Index(axis)];
-    if (std::abs(slope) < kParallelEpsilon) {
-      continue;
-    }
-    const float distance = (static_cast<float>(first[Index(axis)]) - aim.eye[Index(axis)]) / slope;
-    if (distance > 0.f && distance <= nearest) {
-      plane_axis = axis;
-      nearest = distance;
-    }
-  }
+  // A face aimed at in a plane through `first` is the plane: pointing at the floor or at the wall
+  // chooses between them where they meet. In the air, the nearest plane the ray crosses.
+  std::optional<WallAxis> plane_axis = AimedPlane(aim, first);
+  Eigen::Vector3f hit = aim.point;
   if (!plane_axis) {
-    return std::nullopt;
+    float nearest = picking.reach_cells;
+    for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
+      const float slope = (*direction)[Index(axis)];
+      if (std::abs(slope) < kParallelEpsilon) {
+        continue;
+      }
+      const float distance = (static_cast<float>(first[Index(axis)]) - aim.eye[Index(axis)]) / slope;
+      if (distance > 0.f && distance <= nearest) {
+        plane_axis = axis;
+        nearest = distance;
+      }
+    }
+    if (!plane_axis) {
+      return std::nullopt;
+    }
+    hit = aim.eye + *direction * nearest;
   }
-
-  const Eigen::Vector3f hit = aim.eye + *direction * nearest;
   StickPick pick {.point = hit.array().round().cast<int>(), .axis = *plane_axis};
   pick.point[Index(pick.axis)] = first[Index(pick.axis)];
   float anchor_distance = picking.snap_cells;
@@ -161,23 +178,33 @@ std::optional<StickPick> PickStick(
 }
 
 std::optional<int> PickHeight(
-    const Aim& aim, const Eigen::Vector3i& first, WallAxis axis, std::span<const Eigen::Vector3i> anchors,
-    const WallPicking& picking) {
+    const Aim& aim, const Eigen::Vector3i& first, const Eigen::Vector3i& second, WallAxis axis,
+    std::span<const Eigen::Vector3i> anchors, const WallPicking& picking) {
   const auto direction = RayDirection(aim);
   if (!direction) {
     return std::nullopt;
   }
-  // The closest approach of the ray (eye + t * direction) to the line (first + s * axis); `apart`
-  // is the line's point minus the ray's.
+  // The height is where the ray meets the wall's own plane (the stick and the axis); along that
+  // plane, its closest approach to the line (first + s * axis) stands in. `apart` is the line's
+  // point minus the ray's.
   const Eigen::Vector3f unit = Eigen::Vector3f::Unit(Index(axis));
   const Eigen::Vector3f apart = first.cast<float>() - aim.eye;
-  const float cosine = unit.dot(*direction);
-  const float opening = 1.f - cosine * cosine;
-  if (opening < kParallelEpsilon) {
-    return std::nullopt;
+  const Eigen::Vector3f normal = (second - first).cast<float>().cross(unit);
+  const float facing = normal.dot(*direction);
+  float along_ray {};
+  float along_line {};
+  if (std::abs(facing) > kParallelEpsilon * normal.norm()) {
+    along_ray = normal.dot(apart) / facing;
+    along_line = (aim.eye + (along_ray * *direction) - first.cast<float>()).dot(unit);
+  } else {
+    const float cosine = unit.dot(*direction);
+    const float opening = 1.f - cosine * cosine;
+    if (opening < kParallelEpsilon) {
+      return std::nullopt;
+    }
+    along_ray = (direction->dot(apart) - cosine * unit.dot(apart)) / opening;
+    along_line = (cosine * direction->dot(apart) - unit.dot(apart)) / opening;
   }
-  const float along_ray = (direction->dot(apart) - cosine * unit.dot(apart)) / opening;
-  const float along_line = (cosine * direction->dot(apart) - unit.dot(apart)) / opening;
   if (along_ray <= 0.f || along_ray > picking.reach_cells) {
     return std::nullopt;
   }
@@ -204,7 +231,8 @@ std::expected<WallClick, std::string> ClickWall(
   if (draft->stage == WallDraft::Stage::kStick) {
     const auto stick = PickStick(aim, draft->first, anchors, picking);
     if (!stick) {
-      return std::unexpected(std::string {"the view ray meets no plane through the first point, or the stick is empty"});
+      return std::unexpected(
+          std::string {"the view ray meets no plane through the first point, or the stick is empty"});
     }
     WallDraft next = *draft;
     next.stage = WallDraft::Stage::kHeight;
@@ -212,7 +240,7 @@ std::expected<WallClick, std::string> ClickWall(
     next.stick_axis = stick->axis;
     return WallClick {.draft = next};
   }
-  const auto length = PickHeight(aim, draft->first, draft->stick_axis, anchors, picking);
+  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
   if (!length) {
     return std::unexpected(std::string {"the view ray finds no length along the axis"});
   }
@@ -225,7 +253,9 @@ std::expected<FacedWall, std::string> FacingEye(
     WallGeometry wall, const Eigen::Vector3f& eye, const z13::building::primitives::Palette& palette) {
   std::expected<FacedWall, std::string> best = std::unexpected(std::string {"the wall has no thickness"});
   float best_distance = std::numeric_limits<float>::max();
-  const int thickness = std::abs(wall.thickness);
+  // The tool's thickness is a wish: an oblique wall needs more to be airtight.
+  const int thickness =
+      std::max(std::abs(wall.thickness), z13::building::primitives::MinWallThickness(wall).value_or(1));
   for (const int side : {1, -1}) {
     wall.thickness = side * thickness;
     auto block = z13::building::primitives::WallPanelBlock(wall, palette);
@@ -260,7 +290,7 @@ WallPreview PreviewWall(
     }
     return {.block = CellMarker(stick->point), .lines = StickLines(draft->first, *stick, aim.eye), .makeable = true};
   }
-  const auto length = PickHeight(aim, draft->first, draft->stick_axis, anchors, picking);
+  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
   if (!length) {
     return {.block = CellMarker(draft->second), .makeable = false};
   }

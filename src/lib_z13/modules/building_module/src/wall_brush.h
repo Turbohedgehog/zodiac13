@@ -50,9 +50,10 @@ Eigen::Vector3i WallClickPoint(
 // Where clicks snap to: every wall node and the far end of every segment's stick.
 std::vector<Eigen::Vector3i> WallAnchors(flecs::world world);
 
-// The stick's far end: where the view ray meets the nearest of the three planes (xy, yz, zx)
-// through `first`, snapped to an anchor in that plane; `axis` is the plane's own axis, the
-// one left over. Nothing when no plane is met or the stick would have no length.
+// The stick's far end: where the view ray meets the plane (xy, yz or zx) through `first` that
+// the aimed face lies in, else the nearest of the three it crosses, snapped to an anchor in that
+// plane; `axis` is the plane's own axis, the one left over. Nothing when no plane is met or the
+// stick would have no length.
 struct StickPick {
   Eigen::Vector3i point = Eigen::Vector3i::Zero();
   z13::station::WallAxis axis = z13::station::WallAxis::kZ;
@@ -62,10 +63,12 @@ std::optional<StickPick> PickStick(
     const Aim& aim, const Eigen::Vector3i& first, std::span<const Eigen::Vector3i> anchors,
     const WallPicking& picking);
 
-// The signed length along `axis` from `first` where the view ray comes nearest that line,
-// snapped to an anchor on it. Nothing for a ray along the axis or a length of zero.
+// The signed length along `axis` from `first` where the view ray meets the plane of the stick
+// (first to second) and the axis, snapped to an anchor on the axis line. A ray along that
+// plane takes the point where it comes nearest the line. Nothing for a ray along the axis, one
+// that points away, or a length of zero.
 std::optional<int> PickHeight(
-    const Aim& aim, const Eigen::Vector3i& first, z13::station::WallAxis axis,
+    const Aim& aim, const Eigen::Vector3i& first, const Eigen::Vector3i& second, z13::station::WallAxis axis,
     std::span<const Eigen::Vector3i> anchors, const WallPicking& picking);
 
 // What a click makes of the draft: the next draft, or with the third click the wall (its

@@ -69,6 +69,18 @@ PlanAxes PlanAxesOf(WallAxis stick_axis, const Eigen::Vector3i& span) {
   return {.first = first, .second = second, .major = major, .minor = major == first ? second : first};
 }
 
+std::optional<int> MinWallThickness(const WallGeometry& wall) {
+  Eigen::Vector3i span = wall.node_b - wall.node_a;
+  span[static_cast<int>(wall.stick_axis)] = 0;
+  if (span.isZero()) {
+    return std::nullopt;
+  }
+  const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
+  const int run = std::abs(span[axes.major]);
+  const int slant = std::abs(span[axes.minor]);
+  return (run + slant + run - 1) / run;
+}
+
 std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const Palette& palette) {
   const auto primitive = palette.Find(z13::station::kPanelPrimitiveId);
   if (!primitive) {
