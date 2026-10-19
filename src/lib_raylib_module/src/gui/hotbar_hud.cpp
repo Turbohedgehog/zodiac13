@@ -35,6 +35,7 @@
 #include <z13/components/building.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+#include <z13/components/tool_mode_info.h>
 
 #include "gui_widgets.h"
 
@@ -64,21 +65,6 @@ constexpr float kBrushCellHeight = 0.6f;
 constexpr float kBrushPaddingEm = 0.5f;
 constexpr float kBrushGapEm = 0.3f;
 
-using ModeLabel = std::pair<ToolMode, std::string_view>;
-constexpr std::array kToolModeLabels {
-    ModeLabel {ToolMode::kBuild, "Build"},
-    ModeLabel {ToolMode::kDestroy, "Destroy"},
-    ModeLabel {ToolMode::kCut, "Cut"},
-    ModeLabel {ToolMode::kCutIn, "Cut in"},
-    ModeLabel {ToolMode::kWall, "Wall"},
-    ModeLabel {ToolMode::kMerge, "Merge"},
-};
-
-std::string_view ToolModeLabel(ToolMode mode) {
-  const auto found = std::ranges::find(kToolModeLabels, mode, &ModeLabel::first);
-  return found != kToolModeLabels.end() ? found->second : std::string_view {};
-}
-
 std::optional<flecs::entity> FindLocalPlayer(flecs::world world) {
   const auto* local = world.try_get<z13::gameplay::LocalPlayer>();
   if (local == nullptr || !local->id) {
@@ -103,7 +89,7 @@ std::string_view ItemLabel(flecs::entity item, flecs::entity player, bool active
   const ToolMode mode = active ? z13::building::EffectiveToolMode(tool->mode, player.has<z13::building::CutModifier>(),
                                                                   player.has<z13::building::CutInModifier>())
                                : tool->mode;
-  return ToolModeLabel(mode);
+  return z13::building::ToolModeInfoOf(mode).label;
 }
 
 void DrawCentered(ImDrawList& draw, const Eigen::Vector2f& center, std::string_view text) {

@@ -29,8 +29,12 @@ namespace z13::input {
 enum class TouchControl {
   kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats, kBrush,
   kPreviousPrimitive, kNextPrimitive, kTurnZ, kTurnY, kTurnX,
+  kThicker, kThinner, kMergeAt, kDestroy,
   kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
 };
+
+// Which of the tool's buttons show and answer (touch/touch_mapping.h): the build tool's mode picks it.
+enum class TouchLayer { kWalk, kBlock, kWall, kMerge };
 
 struct TouchFinger {
   uint64_t finger {};
@@ -47,6 +51,7 @@ struct TouchControls {
   Eigen::Vector2f screen_size = Eigen::Vector2f::Zero();
   // Set by the first touch: a screen nobody touched shows no touch controls.
   bool used {};
+  TouchLayer layer {};
   // The stats readout as the GUI last drew it, in fractions of the screen; a tap on it opens
   // the full stats panel, and a tap on the panel folds it back (F3 on PC).
   std::optional<Eigen::AlignedBox2f> stats_area;

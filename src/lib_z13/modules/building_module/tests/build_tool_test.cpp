@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <set>
+#include <string_view>
 
 #include <Eigen/Core>
 
@@ -27,6 +29,9 @@
 #include <z13/components/input_events.h>
 #include <z13/components/inventory.h>
 #include <z13/components/player.h>
+#include <z13/components/tool_mode_info.h>
+#include <z13/components/touch_controls.h>
+#include <z13/components/wall.h>
 #include <primitives/placement.h>
 #include <z13_settings/settings.h>
 
@@ -78,8 +83,9 @@ EventT Touch(const Eigen::Vector2f& position) {
 }
 
 void TapButton(Z13TestWorld& test_world, z13::input::TouchControl control) {
-  const Eigen::Vector2f center =
-      z13::input::touch::ButtonCenter(test_world.World().get<z13::TouchLayout>(), control, kScreen);
+  const Eigen::Vector2f center = z13::input::touch::ButtonCenter(
+      test_world.World().get<z13::TouchLayout>(), test_world.World().get<z13::input::TouchControls>().layer, control,
+      kScreen);
   test_world.EmitInput(Touch<z13::input::TouchDownEvent>(center));
   test_world.Tick();
   test_world.EmitInput(Touch<z13::input::TouchUpEvent>(center));
@@ -213,6 +219,83 @@ TEST(BuildToolTest, OnATouchScreenThePanelPicksAndTurnsTheBrushLikeTheKeys) {
   EXPECT_NE(after.type_id, before.type_id);
   EXPECT_EQ(after.orientation,
             z13::building::primitives::QuarterTurn(before.orientation, z13::building::primitives::TurnAxis::kZ));
+}
+
+z13::input::TouchLayer LayerOf(Z13TestWorld& test_world) {
+  return test_world.World().get<z13::input::TouchControls>().layer;
+}
+
+TEST(BuildToolTest, EveryModeHasItsOwnLabel) {
+  std::set<std::string_view> labels;
+  for (const ToolMode mode : {ToolMode::kBuild, ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall,
+                              ToolMode::kMerge}) {
+    labels.insert(ToolModeInfoOf(mode).label);
+  }
+  EXPECT_EQ(labels.size(), 6u);
+  EXPECT_FALSE(labels.contains(""));
+}
+
+TEST(BuildToolTest, OnlyTheWallAndMergeModesTakeTheWheel) {
+  EXPECT_TRUE(ToolModeInfoOf(ToolMode::kWall).uses_wheel);
+  EXPECT_TRUE(ToolModeInfoOf(ToolMode::kMerge).uses_wheel);
+  EXPECT_FALSE(ToolModeInfoOf(ToolMode::kBuild).uses_wheel);
+  EXPECT_FALSE(ToolModeInfoOf(ToolMode::kDestroy).uses_wheel);
+}
+
+TEST(BuildToolTest, TheTouchLayerFollowsTheHeldToolsMode) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  test_world.Tick();
+  EXPECT_EQ(LayerOf(test_world), z13::input::TouchLayer::kBlock);
+
+  for (const auto& [mode, layer] : {std::pair {ToolMode::kWall, z13::input::TouchLayer::kWall},
+                                    std::pair {ToolMode::kMerge, z13::input::TouchLayer::kMerge},
+                                    std::pair {ToolMode::kDestroy, z13::input::TouchLayer::kBlock}}) {
+    BuildToolOf(player).get_mut<BuildTool>().mode = mode;
+    test_world.Tick();
+    EXPECT_EQ(LayerOf(test_world), layer);
+  }
+}
+
+TEST(BuildToolTest, TheWallLayersButtonsSetTheThickness) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+
+  TapButton(test_world, z13::input::TouchControl::kThicker);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 2);
+  TapButton(test_world, z13::input::TouchControl::kThinner);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 1);
+}
+
+TEST(BuildToolTest, TheMergeLayersButtonStepsTheMergeTarget) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kMerge;
+  test_world.Tick();
+  const MergeAt before = BuildToolOf(player).get<BuildTool>().merge_at;
+
+  TapButton(test_world, z13::input::TouchControl::kMergeAt);
+
+  EXPECT_NE(BuildToolOf(player).get<BuildTool>().merge_at, before);
+}
+
+TEST(BuildToolTest, TheDestroyButtonDropsAWallInTheMakingElseDestroys) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  AddWallAhead(test_world, player);
+  const size_t walls = BlocksOfType(test_world.World(), kWallId).size();
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+  player.set(z13::station::WallDraft {});
+
+  TapButton(test_world, z13::input::TouchControl::kDestroy);
+  EXPECT_FALSE(player.has<z13::station::WallDraft>());
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls);
+
+  TapButton(test_world, z13::input::TouchControl::kDestroy);
+  EXPECT_EQ(BlocksOfType(test_world.World(), kWallId).size(), walls - 1);
 }
 
 }  // namespace

@@ -19,6 +19,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <string_view>
 
 #include <Eigen/Core>
@@ -56,11 +57,25 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kTurnZ, z13::fbs::input::Keycode::TOUCH_TURN_Z, "Turn Z"},
     TouchButton {TouchControl::kTurnY, z13::fbs::input::Keycode::TOUCH_TURN_Y, "Turn Y"},
     TouchButton {TouchControl::kTurnX, z13::fbs::input::Keycode::TOUCH_TURN_X, "Turn X"},
+    TouchButton {TouchControl::kThicker, z13::fbs::input::Keycode::TOUCH_THICKER, "+"},
+    TouchButton {TouchControl::kThinner, z13::fbs::input::Keycode::TOUCH_THINNER, "-"},
+    TouchButton {TouchControl::kMergeAt, z13::fbs::input::Keycode::TOUCH_MERGE_AT, "Pin"},
+    TouchButton {TouchControl::kDestroy, z13::fbs::input::Keycode::TOUCH_DESTROY, "X"},
 };
 
-// The build tool's panel, left to right from the layout's tool_panel_x/y.
-constexpr std::array kToolPanel = {TouchControl::kPreviousPrimitive, TouchControl::kNextPrimitive,
-                                   TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
+// The buttons of a tool in hand, whatever its layer.
+constexpr std::array kToolButtons = {TouchControl::kToolMode, TouchControl::kPrimary, TouchControl::kDestroy};
+
+// The panel of each layer, left to right from the layout's tool_panel_x/y.
+constexpr std::array kBlockPanel = {TouchControl::kPreviousPrimitive, TouchControl::kNextPrimitive,
+                                    TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
+constexpr std::array kWallPanel = {TouchControl::kThicker, TouchControl::kThinner};
+constexpr std::array kMergePanel = {TouchControl::kMergeAt};
+
+std::span<const TouchControl> PanelOf(TouchLayer layer);
+// Whether `control` shows and answers in `layer`: the walking buttons always, the tool's with a
+// tool in hand, a panel button only in its layer.
+bool InLayer(TouchLayer layer, TouchControl control);
 
 // The hotbar's cells, left to right, and the key each one presses.
 constexpr std::array kHotbarCellButtons = {
@@ -78,14 +93,16 @@ static_assert(kHotbarCellButtons.size() == z13::inventory::kHotbarCells);
 
 std::optional<z13::fbs::input::Keycode> ButtonKey(TouchControl control);
 
-Eigen::Vector2f ButtonCenter(const Layout& layout, TouchControl control, const Eigen::Vector2f& screen_size);
+Eigen::Vector2f ButtonCenter(const Layout& layout, TouchLayer layer, TouchControl control,
+                             const Eigen::Vector2f& screen_size);
 float ButtonRadius(const Layout& layout, const Eigen::Vector2f& screen_size);
 // The hotbar cell `cell` (from 0), in pixels; the HUD draws the hotbar there on PC too.
 Eigen::AlignedBox2f CellRect(const Layout& layout, size_t cell, const Eigen::Vector2f& screen_size);
 float StickRadius(const Layout& layout, const Eigen::Vector2f& screen_size);
 
-// A hotbar cell or a button under `position`, else the stick in its zone, else the look zone.
-TouchControl ControlAt(const Layout& layout, const Eigen::Vector2f& position, const Eigen::Vector2f& screen_size);
+// A hotbar cell or a button of `layer` under `position`, else the stick in its zone, else the look zone.
+TouchControl ControlAt(const Layout& layout, TouchLayer layer, const Eigen::Vector2f& position,
+                       const Eigen::Vector2f& screen_size);
 
 // The stick finger's deflection: x right, y forward, each in [-1, 1] and in steps of
 // layout.stick_step, zero inside the dead zone.

@@ -175,6 +175,10 @@ enum Keycode : int16 {
   TOUCH_TURN_Z (display_text: "Touch turn around Z"),
   TOUCH_TURN_Y (display_text: "Touch turn around Y"),
   TOUCH_TURN_X (display_text: "Touch turn around X"),
+  TOUCH_THICKER (display_text: "Touch thicker wall"),
+  TOUCH_THINNER (display_text: "Touch thinner wall"),
+  TOUCH_MERGE_AT (display_text: "Touch merge target"),
+  TOUCH_DESTROY (display_text: "Touch destroy or cancel"),
 }
 
 table ActionBinding {

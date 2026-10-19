@@ -41,6 +41,8 @@
 #include <z13_settings/building_tuning.h>
 #include <z13/components/station_mode.h>
 #include <z13/components/inventory.h>
+#include <z13/components/tool_mode_info.h>
+#include <z13/components/touch_controls.h>
 #include <lib_core/utils/enum_cycle.h>
 #include <z13_module/input/input_config_loader.h>
 #include <lib_core/state/rollback.h>
@@ -127,8 +129,9 @@ void SetActionGroup(z13::input::ActionListener& action_listener, std::string_vie
   }
 }
 
-bool UsesWheel(ToolMode mode) {
-  return mode == ToolMode::kWall || mode == ToolMode::kMerge;
+void SyncTouchLayer(flecs::entity e, z13::input::TouchControls& controls) {
+  const std::optional<flecs::entity> tool = HeldBuildTool(e);
+  controls.layer = tool ? ToolModeInfoOf(tool->get<BuildTool>().mode).touch_layer : z13::input::TouchLayer::kWalk;
 }
 
 // The Building input groups follow the BuildingTool tag and the held tool's mode, so they
@@ -136,7 +139,8 @@ bool UsesWheel(ToolMode mode) {
 void SyncBuildingActionGroup(flecs::entity e, z13::input::ActionListener& action_listener) {
   SetActionGroup(action_listener, kBuildingActionGroup, e.has<BuildingTool>());
   const std::optional<flecs::entity> tool = HeldBuildTool(e);
-  SetActionGroup(action_listener, kWallActionGroup, tool && UsesWheel(tool->get<BuildTool>().mode));
+  const bool wheel = tool && ToolModeInfoOf(tool->get<BuildTool>().mode).uses_wheel;
+  SetActionGroup(action_listener, kWallActionGroup, wheel);
 }
 
 template <class Tag>
@@ -206,7 +210,7 @@ void ApplyBuildActionListener(
   if (!mode) {
     return;
   }
-  if (UsesWheel(*mode)) {
+  if (ToolModeInfoOf(*mode).uses_wheel) {
     ApplyWallTool(e, *tool, *mode, action_listener, build_action_ids, tuning);
     return;
   }
@@ -301,6 +305,13 @@ void RegisterSystems(flecs::world world) {
       .read<z13::inventory::ActiveItem>()
       .read<BuildTool>()
       .each(SyncBuildingActionGroup);
+
+  world.system<z13::input::TouchControls>("gameplay_input_system::SyncTouchLayer")
+      .kind<z13::input::ClearActionFramePhase>()
+      .with<z13::input::CurrentActionListenerTag>()
+      .read<z13::inventory::ActiveItem>()
+      .read<BuildTool>()
+      .each(SyncTouchLayer);
 
   world.system<z13::input::ActionListener, BuildActionIds, const BuildingTuning>(
            "gameplay_input_system::ApplyBuildActionListener")
