@@ -843,6 +843,8 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   stats.times.opaque_ms = MsOf([&] {
     chunks.DrawOpaque(view.culling, lighting, stats);
     if (const auto* props = world.try_get<StationProps>()) {
+      // The blocks leave the checker on, which replaces every texture.
+      StopChecker(lighting);
       props->Draw(view.culling);
     }
     rlDrawRenderBatchActive();
