@@ -52,7 +52,8 @@ std::vector<Eigen::Vector3i> WallAnchors(flecs::world world);
 
 // The stick's far end: where the view ray meets the plane (xy, yz or zx) through `first` that
 // the aimed face lies in, else the nearest of the three it crosses, snapped to an anchor in that
-// plane; `axis` is the plane's own axis, the one left over. Nothing when no plane is met or the stick would have no length.
+// plane; `axis` is the plane's own axis, the one left over. Nothing when no plane is met or the
+// stick would have no length.
 struct StickPick {
   Eigen::Vector3i point = Eigen::Vector3i::Zero();
   z13::station::WallAxis axis = z13::station::WallAxis::kZ;

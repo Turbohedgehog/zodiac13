@@ -172,7 +172,8 @@ TEST(WallBrushTest, TheHeightIsWhereTheRayMeetsTheWallsPlane) {
   // line at the first point would read 3, the plane gives the 4 aimed at.
   EXPECT_EQ(PickHeight(RayThrough({-5.f, -10.f, 1.5f}, {5.f, 0.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking), 4);
   // Beyond the stick's end the plane goes on.
-  EXPECT_EQ(PickHeight(RayThrough({3.f, -10.f, 1.5f}, {16.f, 0.f, -2.f}), first, second, WallAxis::kZ, {}, kPicking), -2);
+  EXPECT_EQ(PickHeight(RayThrough({3.f, -10.f, 1.5f}, {16.f, 0.f, -2.f}), first, second, WallAxis::kZ, {}, kPicking),
+            -2);
   // A ray that points away from the plane finds nothing.
   EXPECT_FALSE(PickHeight(RayThrough({3.f, 10.f, 1.5f}, {3.f, 20.f, 4.f}), first, second, WallAxis::kZ, {}, kPicking));
   EXPECT_EQ(PickHeight(RayThrough({-5.f, -10.f, 1.5f}, {5.f, 0.f, 4.f}), first, first + Eigen::Vector3i(0, 10, 0),

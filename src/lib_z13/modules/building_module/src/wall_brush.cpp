@@ -184,9 +184,9 @@ std::optional<int> PickHeight(
   if (!direction) {
     return std::nullopt;
   }
-  // The ray meets the wall's own plane, which the stick and the axis span; the height is where.
-  // Along that plane, the closest approach of the ray (eye + t * direction) to the line (first
-  // + s * axis) stands in; `apart` is the line's point minus the ray's.
+  // The height is where the ray meets the wall's own plane (the stick and the axis); along that
+  // plane, its closest approach to the line (first + s * axis) stands in. `apart` is the line's
+  // point minus the ray's.
   const Eigen::Vector3f unit = Eigen::Vector3f::Unit(Index(axis));
   const Eigen::Vector3f apart = first.cast<float>() - aim.eye;
   const Eigen::Vector3f normal = (second - first).cast<float>().cross(unit);
@@ -231,7 +231,8 @@ std::expected<WallClick, std::string> ClickWall(
   if (draft->stage == WallDraft::Stage::kStick) {
     const auto stick = PickStick(aim, draft->first, anchors, picking);
     if (!stick) {
-      return std::unexpected(std::string {"the view ray meets no plane through the first point, or the stick is empty"});
+      return std::unexpected(
+          std::string {"the view ray meets no plane through the first point, or the stick is empty"});
     }
     WallDraft next = *draft;
     next.stage = WallDraft::Stage::kHeight;

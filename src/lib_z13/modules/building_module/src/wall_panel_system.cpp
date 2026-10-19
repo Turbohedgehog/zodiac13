@@ -119,7 +119,7 @@ void RegisterSystems(flecs::world world) {
   const auto segments = world.query<const WallSegment>("WallPanelSystem::Segments");
   const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
   world.system<z13::gameplay::IdCounters, const BlockPalette>("WallPanelSystem::SyncPanels")
-      .kind<StationBuildPhase>()
+      .kind<WallPanelPhase>()
       .with<StationMode>()
       .read<WallNode>()
       .read<WallSegment>()
