@@ -59,6 +59,7 @@
 #include "build_validation.h"
 #include "held_tool.h"
 #include "station_build_phase.h"
+#include "wall_entities.h"
 
 namespace z13::building {
 
@@ -81,6 +82,7 @@ using z13::station::BuildPermission;
 using z13::station::kCellSize;
 using z13::station::SpawnPoint;
 using z13::station::StationMode;
+using z13::station::WallPanelOf;
 
 using BlockQuery = flecs::query<const Block>;
 using PlayerQuery = flecs::query<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>;
@@ -308,6 +310,11 @@ void ProcessDestroyRequests(flecs::iter& it) {
         log_debug("station: destroy refused: {}", valid.error());
         continue;
       }
+      if (target.has<WallPanelOf>()) {
+        // The segment owns its panel: removing it takes the panel along.
+        DestroyWallSegment(it.world(), target.get<WallPanelOf>().segment_id);
+        continue;
+      }
       if (target.has<SpawnPoint>()) {
         --spawn_points;
       }
@@ -407,8 +414,11 @@ void RegisterSystems(flecs::world world) {
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<BuildPermission>()
       .read<SpawnPoint>()
+      .read<WallPanelOf>()
       .write<Block>()
       .write<z13::station::BlockChange>()
+      .write<z13::station::WallSegment>()
+      .write<z13::station::WallNode>()
       .run(ProcessDestroyRequests);
 
   // Last, so the preview shows this frame's blocks; the render draws it in OnStore.

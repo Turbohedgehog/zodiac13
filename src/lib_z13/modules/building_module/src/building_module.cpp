@@ -25,6 +25,7 @@
 #include "building_system.h"
 #include "palette_system.h"
 #include "station_scene_system.h"
+#include "wall_panel_system.h"
 
 namespace z13::building {
 
@@ -37,6 +38,7 @@ BuildingModule::BuildingModule(flecs::world& world) {
   // Before BlockBuildingSystem: same phase, so the brush is picked before it builds.
   BrushSystem::Register(world);
   BlockBuildingSystem::Register(world);
+  WallPanelSystem::Register(world);
 }
 
 }  // namespace z13::building

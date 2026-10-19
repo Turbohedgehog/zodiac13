@@ -17,6 +17,7 @@ z13_add_library(
   src/palette.cpp
   src/placement.cpp
   src/station_assets.cpp
+  src/wall_panel.cpp
   PUBLIC
   Eigen3::Eigen
   zodiac13::fbs_schemas
