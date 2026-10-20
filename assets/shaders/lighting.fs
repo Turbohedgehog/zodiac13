@@ -87,7 +87,7 @@ const float kCubeBias = 0.02;
 // In meters: a depth bias in the map's own units grew with the station, past a wall's thickness.
 const float kDirectionalBiasM = 0.08;
 // Matte metal: a broad highlight tinted by the surface color, over a weakened diffuse.
-const float kShininess = 6.0;
+const float kShininess = 10.0;
 const float kMetalSpecular = 0.7;
 const float kMetalDiffuse = 0.65;
 // Of a spot's cone, the outer part where its light fades to the edge.
@@ -197,8 +197,9 @@ int ClusterOf(vec3 position)
 // weighed by distance, each through the cell of its cube nearest the point's cell. A node adds
 // nothing when that cell is opaque, or when the point's own cube is cut off from it on the way:
 // a wall in the point's cube, between the point and the neighbour.
-vec3 CellLight(vec3 point, vec3 normal)
+vec3 CellLight(vec3 point, vec3 normal, vec3 toView, out vec3 sheen)
 {
+    sheen = vec3(0.0);
     vec3 surface = point;
     ivec3 cell;
     uint ownPiece = uint(kPieces);
@@ -244,6 +245,11 @@ vec3 CellLight(vec3 point, vec3 normal)
     direction /= weights;
     float oneSided = length(direction);
     float facing = oneSided > 0.0 ? max(dot(normal, direction/oneSided), 0.0) : 0.0;
+    if (oneSided > 0.0)
+    {
+        vec3 halfway = normalize(direction/oneSided + toView);
+        sheen = light*oneSided*kMetalSpecular*facing*pow(max(dot(normal, halfway), 0.0), kShininess);
+    }
     return light*mix(1.0, kBakedFloor + (1.0 - kBakedFloor)*facing, oneSided)*kMetalDiffuse;
 }
 
@@ -330,8 +336,9 @@ void main()
     vec3 light = vec3(0.0);
     if (cellLightEnabled == 1)
     {
-        vec3 baked = CellLight(facing/cellSize, normal);
-        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0));
+        vec3 sheen;
+        vec3 baked = CellLight(facing/cellSize, normal, toView, sheen);
+        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0)) + sheen;
     }
 
     vec3 bakedEnd = light;
@@ -380,7 +387,8 @@ void main()
     }
     if (debugView == 2 && cellLightEnabled == 1)
     {
-        finalColor = vec4(Compress(CellLight(facing/cellSize, normal)), 1.0);
+        vec3 unused;
+        finalColor = vec4(Compress(CellLight(facing/cellSize, normal, toView, unused)), 1.0);
         return;
     }
     if (debugView == 4)
