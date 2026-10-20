@@ -60,6 +60,7 @@
 #include "build_validation.h"
 #include "held_tool.h"
 #include "station_build_phase.h"
+#include "wall_bridge.h"
 #include "wall_brush.h"
 #include "wall_entities.h"
 #include "wall_merge.h"
@@ -86,6 +87,7 @@ using z13::station::kCellSize;
 using z13::station::SpawnPoint;
 using z13::station::StationMode;
 using z13::station::WallDraft;
+using z13::station::WallBridgeDraft;
 using z13::station::WallMergeDraft;
 using z13::station::WallPanelOf;
 using z13::station::WallNode;
@@ -285,6 +287,61 @@ void ProcessMergeClick(flecs::entity player, flecs::entity tool, const Aim& aim,
   player.remove<WallMergeDraft>();
 }
 
+std::optional<uint32_t> BridgeDraftNode(flecs::entity player) {
+  return player.has<WallBridgeDraft>() ? std::optional(player.get<WallBridgeDraft>().node_id) : std::nullopt;
+}
+
+// The bridge from the stick at `first` to the one at `second` with the tool's thickness, if it
+// can stand: the player may build, the panel fits, and no joint breaks.
+std::expected<FacedWall, std::string> CheckedBridge(
+    flecs::entity player, flecs::entity tool, uint32_t first, uint32_t second, const Aim& aim,
+    const BuildView& view) {
+  flecs::world world = player.world();
+  return CheckPermission(player)
+      .and_then([&] {
+        return PlanBridge(world, first, second, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette);
+      })
+      .and_then([&](const FacedWall& bridge) -> std::expected<FacedWall, std::string> {
+        if (const auto valid = ValidateBuild(bridge.block, view); !valid) {
+          return std::unexpected(valid.error());
+        }
+        if (const auto problem = JointProblem(
+                JointWallsOf(world), JointWallsWith(world, bridge.wall), view.tuning.get().wall_joint_max_reach_cells)) {
+          return std::unexpected(std::format("a joint would break: {}", *problem));
+        }
+        return bridge;
+      });
+}
+
+// A click of the Bridge mode: the first picks a wall node, the second lays a wall to the node
+// whose stick matches.
+void ProcessBridgeClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
+  flecs::world world = player.world();
+  const std::optional<uint32_t> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
+  const std::optional<uint32_t> first = BridgeDraftNode(player);
+  const auto picked = CheckPermission(player).and_then([&]() -> Status {
+    if (!clicked || SticksAt(world, *clicked).empty()) {
+      return std::unexpected(std::string {"no wall node there"});
+    }
+    return {};
+  });
+  if (!picked) {
+    log_debug("station: bridge click refused: {}", picked.error());
+    return;
+  }
+  if (!first) {
+    player.set(WallBridgeDraft {.node_id = *clicked});
+    return;
+  }
+  const auto bridge = CheckedBridge(player, tool, *first, *clicked, aim, run.View());
+  if (!bridge) {
+    log_debug("station: bridge refused: {}", bridge.error());
+    return;
+  }
+  SpawnWall(world, run.counters, bridge->wall);
+  player.remove<WallBridgeDraft>();
+}
+
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
@@ -305,6 +362,12 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
   if (tool->get<BuildTool>().mode == ToolMode::kMerge) {
     if (aim) {
       ProcessMergeClick(player, *tool, *aim, run);
+    }
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kBridge) {
+    if (aim) {
+      ProcessBridgeClick(player, *tool, *aim, run);
     }
     return;
   }
@@ -451,6 +514,22 @@ BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Ai
   return {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
 }
 
+BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
+  flecs::world world = owner.world();
+  const std::optional<uint32_t> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
+  const std::optional<uint32_t> first = BridgeDraftNode(owner);
+  const std::optional<Eigen::Vector3i> cell = hovered ? WallNodeCell(world, *hovered) : std::nullopt;
+  const Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
+  if (first && hovered) {
+    if (const auto bridge = CheckedBridge(owner, tool, *first, *hovered, aim, view)) {
+      return {.block = bridge->block, .valid = true, .kind = BuildKind::kBuild};
+    }
+    return {.block = CellMarker(shown), .valid = false, .kind = BuildKind::kBuild};
+  }
+  const bool valid = hovered && !SticksAt(world, *hovered).empty() && CheckPermission(owner).has_value();
+  return {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
+}
+
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   const flecs::entity owner = brush.parent();
   const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
@@ -467,6 +546,10 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   }
   if (tool->get<BuildTool>().mode == ToolMode::kMerge) {
     brush.set(MergeBrushPreview(owner, *tool, *aim, view));
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kBridge) {
+    brush.set(BridgeBrushPreview(owner, *tool, *aim, view));
     return;
   }
   const BuildKind kind = KindOf(owner);
@@ -541,6 +624,7 @@ void RegisterSystems(flecs::world world) {
       .write<SpawnPoint>()
       .write<WallDraft>()
       .write<WallMergeDraft>()
+      .write<WallBridgeDraft>()
       .write<WallNode>()
       .write<WallSegment>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
@@ -575,6 +659,7 @@ void RegisterSystems(flecs::world world) {
       .read<BuildPermission>()
       .read<WallDraft>()
       .read<WallMergeDraft>()
+      .read<WallBridgeDraft>()
       .read<WallNode>()
       .read<WallSegment>()
       .write<BrushPreview>()

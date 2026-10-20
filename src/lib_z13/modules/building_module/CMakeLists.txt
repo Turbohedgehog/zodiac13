@@ -23,6 +23,7 @@ z13_add_plugin(
   src/held_tool.cpp
   src/palette_system.cpp
   src/station_scene_system.cpp
+  src/wall_bridge.cpp
   src/wall_brush.cpp
   src/wall_entities.cpp
   src/wall_joints.cpp

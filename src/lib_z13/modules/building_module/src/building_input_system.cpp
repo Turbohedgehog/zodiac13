@@ -161,15 +161,15 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
   return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
 }
 
-// A click lays the next point of a wall or merge; the wheel sets the wall's thickness or steps
-// the merge target; the destroy key drops what is in the making (else it destroys, as in any mode).
+// A click lays the next point of a wall, bridge or merge; the wheel sets the wall's or bridge's
+// thickness or steps the merge target; the destroy key drops what is in the making (else it destroys, as in any mode).
 void ApplyWallTool(
     flecs::entity e, flecs::entity tool, ToolMode mode, const z13::input::ActionListener& listener,
     const BuildActionIds& ids, const BuildingTuning& tuning) {
   BuildTool& state = tool.get_mut<BuildTool>();
   const int wheel =
       (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
-  if (mode == ToolMode::kWall) {
+  if (mode == ToolMode::kWall || mode == ToolMode::kBridge) {
     state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
   } else if (wheel != 0) {
     state.merge_at = z13::NextEnumerator(state.merge_at);
@@ -180,9 +180,11 @@ void ApplyWallTool(
   if (!IsSwitchedOn(listener, ids.destroy_block)) {
     return;
   }
-  if (e.has<z13::station::WallDraft>() || e.has<z13::station::WallMergeDraft>()) {
+  if (e.has<z13::station::WallDraft>() || e.has<z13::station::WallMergeDraft>() ||
+      e.has<z13::station::WallBridgeDraft>()) {
     e.remove<z13::station::WallDraft>();
     e.remove<z13::station::WallMergeDraft>();
+    e.remove<z13::station::WallBridgeDraft>();
   } else {
     e.add<RequestDestroyBlock>();
   }
@@ -205,6 +207,9 @@ void ApplyBuildActionListener(
   }
   if (mode != ToolMode::kMerge && e.has<z13::station::WallMergeDraft>()) {
     e.remove<z13::station::WallMergeDraft>();
+  }
+  if (mode != ToolMode::kBridge && e.has<z13::station::WallBridgeDraft>()) {
+    e.remove<z13::station::WallBridgeDraft>();
   }
   // Building/destroying only makes sense while the brush is out.
   if (!mode) {
@@ -325,6 +330,7 @@ void RegisterSystems(flecs::world world) {
       .write<CutInModifier>()
       .write<z13::station::WallDraft>()
       .write<z13::station::WallMergeDraft>()
+      .write<z13::station::WallBridgeDraft>()
       .each(ApplyBuildActionListener);
 
   // After CalculateInputValues (same phase, registered earlier), before the recorder logs the frame.
