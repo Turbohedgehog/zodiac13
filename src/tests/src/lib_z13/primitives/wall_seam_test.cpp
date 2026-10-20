@@ -35,6 +35,17 @@ namespace {
 using z13::station::WallAxis;
 
 constexpr int kReach = 64;
+constexpr int kStickLength = 4;
+constexpr int kThickness = 2;
+const Eigen::Vector3i kOrigin {0, 0, 0};
+const Eigen::Vector3i kEast {10, 0, 0};
+const Eigen::Vector3i kNorth {0, 10, 0};
+
+// A wall standing on the floor plane, its stick along Z.
+WallGeometry FlatWall(const Eigen::Vector3i& from, const Eigen::Vector3i& to, int thickness = kThickness) {
+  return {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = kStickLength,
+          .thickness = thickness};
+}
 
 PlanWall Wall(const Eigen::Vector2i& direction, const Eigen::Vector2i& offset) {
   return {.node = Eigen::Vector2i::Zero(), .direction = direction, .offset = offset};
@@ -130,7 +141,7 @@ TEST(WallSeamTest, AWallTooShortForTheJointSaysHowLongItMustBe) {
 }
 
 TEST(WallSeamTest, AWallComesAsItsEndAtANodeInThePlaneOfItsStick) {
-  const z13::building::primitives::WallGeometry wall {
+  const WallGeometry wall {
       .node_a = {0, 0, 0}, .node_b = {7, 3, 0}, .stick_axis = WallAxis::kZ, .stick_length = 5, .thickness = 2};
   const auto at_a = PlanWallAt(wall, true);
   const auto at_b = PlanWallAt(wall, false);
@@ -144,7 +155,7 @@ TEST(WallSeamTest, AWallComesAsItsEndAtANodeInThePlaneOfItsStick) {
   EXPECT_EQ(at_b->offset, Eigen::Vector2i(0, 2));
 
   // A stick along X puts the plane at (y, z).
-  const z13::building::primitives::WallGeometry upright {
+  const WallGeometry upright {
       .node_a = {4, 0, 0}, .node_b = {4, 3, 7}, .stick_axis = WallAxis::kX, .stick_length = 5, .thickness = -1};
   const auto in_yz = PlanWallAt(upright, true);
   ASSERT_TRUE(in_yz.has_value());
@@ -176,10 +187,8 @@ const Palette& ShippedPalette() {
 }
 
 TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
-  const WallGeometry across {
-      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
-  const WallGeometry up {
-      .node_a = {0, 0, 0}, .node_b = {0, 10, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry across = FlatWall(kOrigin, kEast);
+  const WallGeometry up = FlatWall(kOrigin, kNorth);
   const WallSeam seam = SeamAt(across, up);
   const auto first = WallPanelBlock(across, ShippedPalette(), {.at_a = seam});
   const auto second = WallPanelBlock(up, ShippedPalette(), {.at_a = seam});
@@ -208,10 +217,8 @@ TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
 }
 
 TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
-  const WallGeometry first {
-      .node_a = {0, 0, 0}, .node_b = {12, 5, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 3};
-  const WallGeometry second {
-      .node_a = {0, 0, 0}, .node_b = {-4, 9, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry first = FlatWall(kOrigin, {12, 5, 0}, 3);
+  const WallGeometry second = FlatWall(kOrigin, {-4, 9, 0});
   const WallSeam seam = SeamAt(first, second);
   const auto a = WallPanelBlock(first, ShippedPalette(), {.at_a = seam});
   const auto b = WallPanelBlock(second, ShippedPalette(), {.at_a = seam});
@@ -229,24 +236,21 @@ TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
 }
 
 TEST(WallJointTest, SeamsThatCrossOverLeaveNoPanel) {
-  const WallGeometry wall {
-      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry wall = FlatWall(kOrigin, kEast);
   // Through (12, 0) and (8, 2): the near end would reach past the far one on one face only.
   const WallSeam crossing {.line = SeamLine(2, 4, -24)};
   EXPECT_FALSE(WallPanelBlock(wall, ShippedPalette(), {.at_a = crossing}).has_value());
 }
 
 TEST(WallJointTest, ASeamAlongTheWallsFacesCutsNothing) {
-  const WallGeometry wall {
-      .node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry wall = FlatWall(kOrigin, kEast);
   // The line y = 1 never meets the wall's faces (y = 0 and y = 2).
   const WallSeam along {.line = SeamLine(0, 1, -1)};
   EXPECT_FALSE(WallPanelBlock(wall, ShippedPalette(), {.at_a = along}).has_value());
 }
 
 TEST(WallJointTest, AWallWithoutSeamsStaysSquareCut) {
-  const WallGeometry wall {
-      .node_a = {0, 0, 0}, .node_b = {12, 5, 0}, .stick_axis = WallAxis::kZ, .stick_length = 4, .thickness = 2};
+  const WallGeometry wall = FlatWall(kOrigin, {12, 5, 0});
   const auto plain = WallPanelBlock(wall, ShippedPalette());
   const auto same = WallPanelBlock(wall, ShippedPalette(), {});
   ASSERT_TRUE(plain.has_value());
