@@ -48,6 +48,12 @@ struct KeyBindingModel {
   std::unordered_map<z13::fbs::input::Keycode, std::string> keycode_text;
 };
 
+// Where a rebindable action sits in the model: its group and its place in the group.
+struct KeyBindingActionIndex {
+  int group {};
+  int action {};
+};
+
 struct KeyBindingSlot {
   int group {};
   int action {};

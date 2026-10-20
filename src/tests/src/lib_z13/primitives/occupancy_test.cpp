@@ -17,10 +17,10 @@
 
 #include <gtest/gtest.h>
 
-#include <set>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
+#include <z13_tests/columns.h>
 #include <z13_tests/shipped_station.h>
 
 #include <primitives/occupancy.h>
@@ -127,10 +127,12 @@ TEST(OccupancyTest, ACornerSlopeFillsItsApexColumn) {
   EXPECT_FALSE(shape.Contains({0, 0, 3}));
 }
 
+using ColumnSet = std::unordered_set<Eigen::Vector2i, z13::testing::ColumnHash>;
+
 // The panel's period, laid end to end n times rising by `slant` each: a wall of that direction.
-std::set<std::pair<int, int>> SealedCellsOfWall(int run, int slant, int thickness, int periods) {
+ColumnSet SealedCellsOfWall(int run, int slant, int thickness, int periods) {
   const Palette palette = z13::testing::ShippedPalette().value();
-  std::set<std::pair<int, int>> sealed;
+  ColumnSet sealed;
   for (int k = 0; k < periods; ++k) {
     const Block period {
         .spec = {.type_id = z13::station::kPanelPrimitiveId, .size = {run, 1, slant + thickness}, .slant = slant},
@@ -147,18 +149,20 @@ std::set<std::pair<int, int>> SealedCellsOfWall(int run, int slant, int thicknes
 }
 
 // Air at the wall's high end can't reach air at its low end within the wall's own span.
-bool Leaks(const std::set<std::pair<int, int>>& sealed, int width, int height) {
-  std::set<std::pair<int, int>> seen;
-  std::vector<std::pair<int, int>> open {{0, height - 1}};
+bool Leaks(const ColumnSet& sealed, int width, int height) {
+  ColumnSet seen;
+  std::vector<Eigen::Vector2i> open {{0, height - 1}};
   while (!open.empty()) {
-    const auto [x, z] = open.back();
+    const Eigen::Vector2i column = open.back();
     open.pop_back();
-    if (x < 0 || z < 0 || x >= width || z >= height || sealed.contains({x, z}) || !seen.emplace(x, z).second) {
+    const int x = column.x();
+    const int z = column.y();
+    if (x < 0 || z < 0 || x >= width || z >= height || sealed.contains(column) || !seen.insert(column).second) {
       continue;
     }
     open.insert(open.end(), {{x + 1, z}, {x - 1, z}, {x, z + 1}, {x, z - 1}});
   }
-  return seen.contains({width - 1, 0});
+  return seen.contains(Eigen::Vector2i {width - 1, 0});
 }
 
 TEST(OccupancyTest, AMinimalPanelOfAnyDirectionSealsAgainstAir) {

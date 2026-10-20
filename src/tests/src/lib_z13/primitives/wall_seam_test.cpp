@@ -29,12 +29,14 @@
 #include <primitives/occupancy.h>
 #include <primitives/placement.h>
 #include <primitives/wall_seam.h>
+#include <z13_tests/columns.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
 namespace {
 
 using z13::station::WallAxis;
+using z13::testing::ColumnHash;
 
 constexpr int kReach = 64;
 constexpr int kStickLength = 4;
@@ -187,10 +189,6 @@ const Palette& ShippedPalette() {
   static const Palette palette = z13::testing::ShippedPalette().value();
   return palette;
 }
-
-struct ColumnHash {
-  size_t operator()(const Eigen::Vector2i& column) const { return CellHash {}({column.x(), column.y(), 0}); }
-};
 
 using ColumnCounts = std::unordered_map<Eigen::Vector2i, int, ColumnHash>;
 
