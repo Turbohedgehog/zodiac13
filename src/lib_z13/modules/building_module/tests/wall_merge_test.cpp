@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <expected>
 #include <string>
 #include <vector>
 
@@ -55,6 +56,11 @@ const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 // Thick enough to stay airtight when a node moves and a wall leans.
 constexpr int kThickness = 2;
 constexpr int kJointReach = 16;
+constexpr int kStickLength = 8;
+const Eigen::Vector3i kOrigin {0, 0, 0};
+const Eigen::Vector3i kFar {20, 0, 0};
+const Eigen::Vector3i kNearOrigin {0, 1, 0};
+const Eigen::Vector3i kElsewhere {30, 40, 0};
 
 uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
   flecs::world world = test_world.World();
@@ -64,7 +70,7 @@ uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
 void AddWall(Z13TestWorld& test_world, uint32_t a, uint32_t b) {
   flecs::world world = test_world.World();
   SpawnWallSegment(world, world.get_mut<z13::gameplay::IdCounters>(),
-                   {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = kThickness});
+                   {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness});
 }
 
 std::vector<WallSegment> Segments(flecs::world world) {
@@ -77,6 +83,10 @@ const z13::building::primitives::Palette& PaletteOf(Z13TestWorld& test_world) {
   return test_world.World().get<z13::building::primitives::BlockPalette>().palette;
 }
 
+std::expected<NodeMerge, std::string> Merge(Z13TestWorld& test_world, uint32_t first, uint32_t second, MergeAt at) {
+  return PlanNodeMerge(test_world.World(), first, second, at, PaletteOf(test_world), kJointReach);
+}
+
 TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
   Z13TestWorld test_world = StationWorld();
   const uint32_t a = AddNode(test_world, {0, 0, 0});
@@ -86,12 +96,12 @@ TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
 
-  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
+  const auto merge = Merge(test_world, b, c, MergeAt::kCenter);
   ASSERT_TRUE(merge.has_value());
   EXPECT_EQ(merge->cell, Eigen::Vector3i(10, 0, 0));
-  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kFirst, PaletteOf(test_world), kJointReach)->cell,
+  EXPECT_EQ(Merge(test_world, b, c, MergeAt::kFirst)->cell,
             Eigen::Vector3i(8, 0, 0));
-  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kLast, PaletteOf(test_world), kJointReach)->cell,
+  EXPECT_EQ(Merge(test_world, b, c, MergeAt::kLast)->cell,
             Eigen::Vector3i(13, 0, 0));
 
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
@@ -114,8 +124,8 @@ TEST(WallMergeTest, ANodeJoinedToItselfOrByAWallIsRefused) {
   const uint32_t b = AddNode(test_world, {8, 0, 0});
   AddWall(test_world, a, b);
 
-  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, a, MergeAt::kCenter, PaletteOf(test_world), kJointReach).has_value());
-  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, b, MergeAt::kCenter, PaletteOf(test_world), kJointReach).has_value());
+  EXPECT_FALSE(Merge(test_world, a, a, MergeAt::kCenter).has_value());
+  EXPECT_FALSE(Merge(test_world, a, b, MergeAt::kCenter).has_value());
 }
 
 TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
@@ -126,9 +136,9 @@ TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
   AddWall(test_world, p, q);
 
   // Moving p onto r's place would put both ends of the wall on one point.
-  const auto merge = PlanNodeMerge(test_world.World(), p, r, MergeAt::kLast, PaletteOf(test_world), kJointReach);
+  const auto merge = Merge(test_world, p, r, MergeAt::kLast);
   EXPECT_FALSE(merge.has_value());
-  EXPECT_TRUE(PlanNodeMerge(test_world.World(), p, r, MergeAt::kFirst, PaletteOf(test_world), kJointReach).has_value());
+  EXPECT_TRUE(Merge(test_world, p, r, MergeAt::kFirst).has_value());
 }
 
 TEST(WallMergeTest, ANodeOnAWallDividesIt) {
@@ -143,7 +153,7 @@ TEST(WallMergeTest, ANodeOnAWallDividesIt) {
   AddWall(test_world, x, x_far);
   AddWall(test_world, y, y_far);
 
-  const auto merge = PlanNodeMerge(test_world.World(), x, y, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
+  const auto merge = Merge(test_world, x, y, MergeAt::kCenter);
   ASSERT_TRUE(merge.has_value());
   ASSERT_EQ(merge->cell, Eigen::Vector3i(10, 0, 0));
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
@@ -211,7 +221,7 @@ TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
   test_world.Tick();
-  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
+  const auto merge = Merge(test_world, b, c, MergeAt::kCenter);
   ASSERT_TRUE(merge.has_value());
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
   test_world.Tick();
@@ -229,15 +239,15 @@ TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
 
 TEST(WallMergeTest, AMergeThatMakesAJointTooSharpIsRefused) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddNode(test_world, {0, 0, 0});
-  const uint32_t b = AddNode(test_world, {20, 0, 0});
-  const uint32_t c = AddNode(test_world, {30, 40, 0});
-  const uint32_t d = AddNode(test_world, {0, 1, 0});
+  // Walls from b and c to a and d would leave the merged node about 3 degrees apart.
+  const uint32_t a = AddNode(test_world, kOrigin);
+  const uint32_t b = AddNode(test_world, kFar);
+  const uint32_t c = AddNode(test_world, kElsewhere);
+  const uint32_t d = AddNode(test_world, kNearOrigin);
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
 
-  // c would come to b: the walls would leave it 3 degrees apart.
-  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kFirst, PaletteOf(test_world), kJointReach);
+  const auto merge = Merge(test_world, b, c, MergeAt::kFirst);
 
   ASSERT_FALSE(merge.has_value());
   EXPECT_NE(merge.error().find("joint"), std::string::npos) << merge.error();

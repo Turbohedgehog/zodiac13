@@ -52,6 +52,8 @@ using z13::testing::Z13TestWorld;
 constexpr uint32_t kBuilderId = 7;
 // Off the cell boundary at y = 0, so the destroy ray stays in the wall's row.
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
+constexpr int kStickLength = 8;
+constexpr int kThickness = 2;
 
 std::vector<Block> Panels(flecs::world world) {
   std::vector<Block> panels;
@@ -69,12 +71,12 @@ flecs::entity AddWall(Z13TestWorld& test_world, const Eigen::Vector3i& from, con
   const uint32_t b = SpawnWallNode(world, counters, to).get<WallNode>().id;
   return SpawnWallSegment(
       world, counters,
-      {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2});
+      {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness});
 }
 
 Block ExpectedPanel(const Eigen::Vector3i& from, const Eigen::Vector3i& to) {
   return z13::building::primitives::WallPanelBlock(
-             {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2},
+             {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness},
              z13::testing::ShippedPalette().value())
       .value();
 }
@@ -129,7 +131,7 @@ TEST(WallPanelSystemTest, SegmentsSharingANodeKeepItWhenOneIsRemoved) {
   const uint32_t shared = SpawnWallNode(world, counters, kFrom).get<WallNode>().id;
   const uint32_t left = SpawnWallNode(world, counters, kTo).get<WallNode>().id;
   const uint32_t right = SpawnWallNode(world, counters, {8, -12, 0}).get<WallNode>().id;
-  const WallSegment base {.stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2};
+  const WallSegment base {.stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness};
   const uint32_t first =
       SpawnWallSegment(world, counters, {.node_a = shared, .node_b = left, .stick_axis = base.stick_axis,
                                          .stick_length = base.stick_length, .thickness = base.thickness})
@@ -212,25 +214,30 @@ TEST(WallPanelSystemTest, ARebuiltPanelCanBeDestroyedByTheRay) {
   EXPECT_EQ(test_world.World().count<WallSegment>(), 0);
 }
 
-// Two walls from one node, the first along Y, the second leaving at an angle.
-void AddCorner(Z13TestWorld& test_world, flecs::entity* first, flecs::entity* second) {
+const Eigen::Vector3i kCornerFrom {8, -4, 0};
+const Eigen::Vector3i kCorner {8, 4, 0};
+const Eigen::Vector3i kCornerTo {14, 10, 0};
+
+// Two walls from one node, the first along Y, the second leaving at an angle; returns the first.
+flecs::entity AddCorner(Z13TestWorld& test_world) {
   flecs::world world = test_world.World();
   auto& counters = world.get_mut<z13::gameplay::IdCounters>();
-  const uint32_t a = SpawnWallNode(world, counters, {8, -4, 0}).get<WallNode>().id;
-  const uint32_t corner = SpawnWallNode(world, counters, {8, 4, 0}).get<WallNode>().id;
-  const uint32_t c = SpawnWallNode(world, counters, {14, 10, 0}).get<WallNode>().id;
-  const WallSegment base {.stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2};
-  *first = SpawnWallSegment(world, counters, {.node_a = a, .node_b = corner, .stick_axis = base.stick_axis,
-                                              .stick_length = base.stick_length, .thickness = base.thickness});
-  *second = SpawnWallSegment(world, counters, {.node_a = corner, .node_b = c, .stick_axis = base.stick_axis,
-                                               .stick_length = base.stick_length, .thickness = base.thickness});
+  const auto node = [&](const Eigen::Vector3i& cell) { return SpawnWallNode(world, counters, cell).get<WallNode>().id; };
+  const uint32_t from = node(kCornerFrom);
+  const uint32_t corner = node(kCorner);
+  const uint32_t to = node(kCornerTo);
+  const auto wall = [&](uint32_t a, uint32_t b) {
+    return SpawnWallSegment(world, counters, {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ,
+                                              .stick_length = kStickLength, .thickness = kThickness});
+  };
+  const flecs::entity first = wall(from, corner);
+  wall(corner, to);
+  return first;
 }
 
 TEST(WallPanelSystemTest, TwoWallsAtANodeAreCutAlongOneSeam) {
   Z13TestWorld test_world = StationWorld();
-  flecs::entity first;
-  flecs::entity second;
-  AddCorner(test_world, &first, &second);
+  AddCorner(test_world);
   test_world.Tick();
   test_world.Tick();
 
@@ -242,9 +249,7 @@ TEST(WallPanelSystemTest, TwoWallsAtANodeAreCutAlongOneSeam) {
 
 TEST(WallPanelSystemTest, ADestroyedWallLeavesTheOtherSquareCutAgain) {
   Z13TestWorld test_world = StationWorld();
-  flecs::entity first;
-  flecs::entity second;
-  AddCorner(test_world, &first, &second);
+  const flecs::entity first = AddCorner(test_world);
   test_world.Tick();
   test_world.Tick();
 
