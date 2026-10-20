@@ -238,7 +238,6 @@ TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
   EXPECT_EQ(seam_ends(*a), seam_ends(*b));
 }
 
-// Cells (x, y) sealed by the panels, whatever their height.
 std::set<std::pair<int, int>> SealedColumns(const std::vector<z13::station::Block>& blocks) {
   std::set<std::pair<int, int>> sealed;
   for (const auto& block : blocks) {
@@ -253,7 +252,7 @@ std::set<std::pair<int, int>> SealedColumns(const std::vector<z13::station::Bloc
   return sealed;
 }
 
-// Whether air can go from `from` to `to` by steps across cell faces inside the window around the node.
+// Whether air steps across cell faces from `from` to `to` without leaving the window.
 bool AirReaches(
     const std::set<std::pair<int, int>>& sealed, const Eigen::Vector2i& from, const Eigen::Vector2i& to, int window) {
   std::set<std::pair<int, int>> seen {{from.x(), from.y()}};
