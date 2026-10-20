@@ -33,9 +33,12 @@
 #include <z13/components/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
+#include <primitives/wall_seam.h>
+#include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
 #include "station_build_phase.h"
+#include "wall_joints.h"
 
 namespace z13::building {
 
@@ -59,39 +62,53 @@ void RegisterComponents(flecs::world world) {
 }
 
 // The panel each segment should have, by segment id; a segment that can't have one has none.
+// Walls meeting two at a node end along one seam, or square where that can't be had.
 std::map<uint32_t, Block> ExpectedPanels(
     const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
-    const z13::building::primitives::Palette& palette) {
+    const z13::building::primitives::Palette& palette, int joint_reach) {
   std::unordered_map<uint32_t, Eigen::Vector3i> cells;
   nodes.each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
-  std::map<uint32_t, Block> expected;
+  std::vector<JointWall> walls;
   segments.each([&](const WallSegment& segment) {
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
-    if (a == cells.end() || b == cells.end()) {
-      return;
-    }
-    const auto block = z13::building::primitives::WallPanelBlock(
-        {.node_a = a->second,
-         .node_b = b->second,
-         .stick_axis = segment.stick_axis,
-         .stick_length = segment.stick_length,
-         .thickness = segment.thickness},
-        palette);
-    if (block) {
-      expected.emplace(segment.id, *block);
-    } else {
-      log_debug("station: wall segment {} has no panel: {}", segment.id, block.error());
+    if (a != cells.end() && b != cells.end()) {
+      walls.push_back({.id = segment.id,
+                       .node_a = segment.node_a,
+                       .node_b = segment.node_b,
+                       .geometry = {.node_a = a->second,
+                                    .node_b = b->second,
+                                    .stick_axis = segment.stick_axis,
+                                    .stick_length = segment.stick_length,
+                                    .thickness = segment.thickness}});
     }
   });
+  const WallJoints joints = SolveJoints(walls, joint_reach);
+  std::map<uint32_t, Block> expected;
+  for (const JointWall& wall : walls) {
+    const auto ends = joints.ends.find(wall.id);
+    auto block = ends != joints.ends.end()
+                     ? z13::building::primitives::WallPanelBlock(wall.geometry, palette, ends->second)
+                     : z13::building::primitives::WallPanelBlock(wall.geometry, palette);
+    if (!block && ends != joints.ends.end()) {
+      log_debug("station: wall segment {} keeps square ends: {}", wall.id, block.error());
+      block = z13::building::primitives::WallPanelBlock(wall.geometry, palette);
+    }
+    if (block) {
+      expected.emplace(wall.id, *block);
+    } else {
+      log_debug("station: wall segment {} has no panel: {}", wall.id, block.error());
+    }
+  }
   return expected;
 }
 
 void SyncPanels(
     flecs::world world, const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const flecs::query<const WallPanelOf, const Block>& panels, z13::gameplay::IdCounters& counters,
-    const BlockPalette& palette) {
-  const std::map<uint32_t, Block> expected = ExpectedPanels(nodes, segments, palette.palette);
+    const BlockPalette& palette, const BuildingTuning& tuning) {
+  const std::map<uint32_t, Block> expected =
+      ExpectedPanels(nodes, segments, palette.palette, tuning.wall_joint_max_reach_cells);
 
   std::map<uint32_t, Panel> existing;
   std::vector<Panel> stale;
@@ -118,7 +135,7 @@ void RegisterSystems(flecs::world world) {
   const auto nodes = world.query<const WallNode>("WallPanelSystem::Nodes");
   const auto segments = world.query<const WallSegment>("WallPanelSystem::Segments");
   const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
-  world.system<z13::gameplay::IdCounters, const BlockPalette>("WallPanelSystem::SyncPanels")
+  world.system<z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>("WallPanelSystem::SyncPanels")
       .kind<WallPanelPhase>()
       .with<StationMode>()
       .read<WallNode>()
@@ -128,8 +145,9 @@ void RegisterSystems(flecs::world world) {
       .write<WallPanelOf>()
       .write<z13::station::BlockChange>()
       .each([nodes, segments, panels](
-                flecs::iter& it, size_t, z13::gameplay::IdCounters& counters, const BlockPalette& palette) {
-        SyncPanels(it.world(), nodes, segments, panels, counters, palette);
+                flecs::iter& it, size_t, z13::gameplay::IdCounters& counters, const BlockPalette& palette,
+                const BuildingTuning& tuning) {
+        SyncPanels(it.world(), nodes, segments, panels, counters, palette, tuning);
       });
 }
 

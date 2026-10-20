@@ -212,5 +212,50 @@ TEST(WallPanelSystemTest, ARebuiltPanelCanBeDestroyedByTheRay) {
   EXPECT_EQ(test_world.World().count<WallSegment>(), 0);
 }
 
+// Two walls from one node, the first along Y, the second leaving at an angle.
+void AddCorner(Z13TestWorld& test_world, flecs::entity* first, flecs::entity* second) {
+  flecs::world world = test_world.World();
+  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  const uint32_t a = SpawnWallNode(world, counters, {8, -4, 0}).get<WallNode>().id;
+  const uint32_t corner = SpawnWallNode(world, counters, {8, 4, 0}).get<WallNode>().id;
+  const uint32_t c = SpawnWallNode(world, counters, {14, 10, 0}).get<WallNode>().id;
+  const WallSegment base {.stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2};
+  *first = SpawnWallSegment(world, counters, {.node_a = a, .node_b = corner, .stick_axis = base.stick_axis,
+                                              .stick_length = base.stick_length, .thickness = base.thickness});
+  *second = SpawnWallSegment(world, counters, {.node_a = corner, .node_b = c, .stick_axis = base.stick_axis,
+                                               .stick_length = base.stick_length, .thickness = base.thickness});
+}
+
+TEST(WallPanelSystemTest, TwoWallsAtANodeAreCutAlongOneSeam) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::entity first;
+  flecs::entity second;
+  AddCorner(test_world, &first, &second);
+  test_world.Tick();
+  test_world.Tick();
+
+  const std::vector<Block> panels = Panels(test_world.World());
+  ASSERT_EQ(panels.size(), 2u);
+  EXPECT_TRUE(panels[0].spec.HasCorners());
+  EXPECT_TRUE(panels[1].spec.HasCorners());
+}
+
+TEST(WallPanelSystemTest, ADestroyedWallLeavesTheOtherSquareCutAgain) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::entity first;
+  flecs::entity second;
+  AddCorner(test_world, &first, &second);
+  test_world.Tick();
+  test_world.Tick();
+
+  DestroyWallSegment(test_world.World(), first.get<WallSegment>().id);
+  test_world.Tick();
+  test_world.Tick();
+
+  const std::vector<Block> panels = Panels(test_world.World());
+  ASSERT_EQ(panels.size(), 1u);
+  EXPECT_FALSE(panels.front().spec.HasCorners());
+}
+
 }  // namespace
 }  // namespace z13::building

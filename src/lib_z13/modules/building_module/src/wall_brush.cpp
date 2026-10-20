@@ -297,7 +297,7 @@ WallPreview PreviewWall(
   const auto click = ClickWall(draft, aim, anchors, picking, thickness);
   if (const auto faced = click && click->wall ? FacingEye(*click->wall, aim.eye, palette)
                                               : std::unexpected(std::string {"no wall"})) {
-    return {.block = faced->block, .lines = HeightLines(*draft, *length), .makeable = true};
+    return {.block = faced->block, .lines = HeightLines(*draft, *length), .makeable = true, .wall = faced->wall};
   }
   return {.block = CellMarker(draft->second), .lines = HeightLines(*draft, *length), .makeable = false};
 }

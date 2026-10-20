@@ -103,6 +103,8 @@ struct WallPreview {
   z13::station::Block block;
   std::vector<z13::station::BrushLine> lines;
   bool makeable {};
+  // The wall the third click would make, once it faces the eye.
+  std::optional<z13::building::primitives::WallGeometry> wall;
 };
 
 WallPreview PreviewWall(

@@ -16,8 +16,12 @@
 
 #include "wall_entities.h"
 
+#include <algorithm>
 #include <format>
+#include <map>
+#include <numeric>
 #include <string>
+#include <utility>
 
 #include <lib_core/state/state_markers.h>
 
@@ -94,6 +98,51 @@ std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
 
 std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id) {
   return Find(world, SegmentName(id));
+}
+
+std::vector<JointWall> JointWallsOf(flecs::world world) {
+  std::map<uint32_t, Eigen::Vector3i> cells;
+  world.query<const WallNode>().each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
+  std::vector<JointWall> walls;
+  world.query<const WallSegment>().each([&](const WallSegment& segment) {
+    const auto a = cells.find(segment.node_a);
+    const auto b = cells.find(segment.node_b);
+    if (a != cells.end() && b != cells.end()) {
+      walls.push_back({.id = segment.id,
+                       .node_a = segment.node_a,
+                       .node_b = segment.node_b,
+                       .geometry = {.node_a = a->second,
+                                    .node_b = b->second,
+                                    .stick_axis = segment.stick_axis,
+                                    .stick_length = segment.stick_length,
+                                    .thickness = segment.thickness}});
+    }
+  });
+  std::ranges::sort(walls, {}, &JointWall::id);
+  return walls;
+}
+
+std::vector<JointWall> JointWallsWith(flecs::world world, const z13::building::primitives::WallGeometry& wall) {
+  std::vector<JointWall> walls = JointWallsOf(world);
+  using StandingNode = std::pair<Eigen::Vector3i, uint32_t>;
+  std::vector<StandingNode> nodes;
+  world.query<const WallNode>().each([&nodes](const WallNode& node) { nodes.emplace_back(node.cell, node.id); });
+  uint32_t next_node = std::accumulate(nodes.begin(), nodes.end(), 0u, [](uint32_t highest, const StandingNode& node) {
+    return std::max(highest, node.second);
+  });
+  const auto node_at = [&](const Eigen::Vector3i& cell) {
+    const auto standing = std::ranges::find(nodes, cell, &StandingNode::first);
+    if (standing != nodes.end()) {
+      return standing->second;
+    }
+    nodes.emplace_back(cell, ++next_node);
+    return next_node;
+  };
+  const uint32_t node_a = node_at(wall.node_a);
+  const uint32_t node_b = node_at(wall.node_b);
+  const uint32_t id = walls.empty() ? 1 : walls.back().id + 1;
+  walls.push_back({.id = id, .node_a = node_a, .node_b = node_b, .geometry = wall});
+  return walls;
 }
 
 void DestroyWallSegment(flecs::world world, uint32_t segment_id) {

@@ -18,12 +18,15 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include <flecs.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
 #include <primitives/wall_panel.h>
+
+#include "wall_joints.h"
 
 namespace z13::building {
 
@@ -43,6 +46,13 @@ uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, con
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id);
 std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id);
+
+// Every segment with its nodes' cells, in segment id order.
+std::vector<JointWall> JointWallsOf(flecs::world world);
+
+// The same with `wall` added, joined to the nodes standing at its ends (ids of its own, for a
+// wall that is not spawned yet, above all existing ones).
+std::vector<JointWall> JointWallsWith(flecs::world world, const z13::building::primitives::WallGeometry& wall);
 
 // Removes a segment, and the nodes no other segment uses.
 void DestroyWallSegment(flecs::world world, uint32_t segment_id);

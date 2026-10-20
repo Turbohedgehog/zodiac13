@@ -46,4 +46,7 @@ table BuildingTuning {
   wall_pick_reach_cells: float = 64 (min: "1", cli);
   // The thickest wall the wheel sets, in cells.
   wall_max_thickness_cells: int32 = 16 (min: 1, max: 256, cli);
+  // How far, in cells, the tip of a joint between two walls may reach from their node; a sharper
+  // angle leaves the walls square-cut there (and the Wall and Merge modes refuse it).
+  wall_joint_max_reach_cells: int32 = 16 (min: 1, max: 256, cli);
 }

@@ -44,11 +44,12 @@ std::optional<uint32_t> NearestWallNode(flecs::world world, const Aim& aim, floa
 
 std::optional<Eigen::Vector3i> WallNodeCell(flecs::world world, uint32_t node_id);
 
-// Merging `second` into `first`, or why it can't be: a wall joining them would collapse, and
-// every wall of the two must still make a panel at the new place.
+// Merging `second` into `first`, or why it can't be: a wall joining them would collapse, every
+// wall of the two must still make a panel at the new place, and no joint may become one that
+// the walls' angle can't have (`joint_reach`, wall_joints.h).
 std::expected<NodeMerge, std::string> PlanNodeMerge(
     flecs::world world, uint32_t first, uint32_t second, MergeAt at,
-    const z13::building::primitives::Palette& palette);
+    const z13::building::primitives::Palette& palette, int joint_reach);
 
 // Moves `keep` to the new cell, hands it the walls of `drop`, and splits the walls whose line
 // the new cell lies on, so a node on a wall divides it.

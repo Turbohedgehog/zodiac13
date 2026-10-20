@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -53,6 +54,7 @@ constexpr uint32_t kBuilderId = 7;
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 // Thick enough to stay airtight when a node moves and a wall leans.
 constexpr int kThickness = 2;
+constexpr int kJointReach = 16;
 
 uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
   flecs::world world = test_world.World();
@@ -84,12 +86,12 @@ TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
 
-  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world));
+  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
   ASSERT_TRUE(merge.has_value());
   EXPECT_EQ(merge->cell, Eigen::Vector3i(10, 0, 0));
-  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kFirst, PaletteOf(test_world))->cell,
+  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kFirst, PaletteOf(test_world), kJointReach)->cell,
             Eigen::Vector3i(8, 0, 0));
-  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kLast, PaletteOf(test_world))->cell,
+  EXPECT_EQ(PlanNodeMerge(test_world.World(), b, c, MergeAt::kLast, PaletteOf(test_world), kJointReach)->cell,
             Eigen::Vector3i(13, 0, 0));
 
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
@@ -112,8 +114,8 @@ TEST(WallMergeTest, ANodeJoinedToItselfOrByAWallIsRefused) {
   const uint32_t b = AddNode(test_world, {8, 0, 0});
   AddWall(test_world, a, b);
 
-  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, a, MergeAt::kCenter, PaletteOf(test_world)).has_value());
-  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, b, MergeAt::kCenter, PaletteOf(test_world)).has_value());
+  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, a, MergeAt::kCenter, PaletteOf(test_world), kJointReach).has_value());
+  EXPECT_FALSE(PlanNodeMerge(test_world.World(), a, b, MergeAt::kCenter, PaletteOf(test_world), kJointReach).has_value());
 }
 
 TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
@@ -124,9 +126,9 @@ TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
   AddWall(test_world, p, q);
 
   // Moving p onto r's place would put both ends of the wall on one point.
-  const auto merge = PlanNodeMerge(test_world.World(), p, r, MergeAt::kLast, PaletteOf(test_world));
+  const auto merge = PlanNodeMerge(test_world.World(), p, r, MergeAt::kLast, PaletteOf(test_world), kJointReach);
   EXPECT_FALSE(merge.has_value());
-  EXPECT_TRUE(PlanNodeMerge(test_world.World(), p, r, MergeAt::kFirst, PaletteOf(test_world)).has_value());
+  EXPECT_TRUE(PlanNodeMerge(test_world.World(), p, r, MergeAt::kFirst, PaletteOf(test_world), kJointReach).has_value());
 }
 
 TEST(WallMergeTest, ANodeOnAWallDividesIt) {
@@ -141,7 +143,7 @@ TEST(WallMergeTest, ANodeOnAWallDividesIt) {
   AddWall(test_world, x, x_far);
   AddWall(test_world, y, y_far);
 
-  const auto merge = PlanNodeMerge(test_world.World(), x, y, MergeAt::kCenter, PaletteOf(test_world));
+  const auto merge = PlanNodeMerge(test_world.World(), x, y, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
   ASSERT_TRUE(merge.has_value());
   ASSERT_EQ(merge->cell, Eigen::Vector3i(10, 0, 0));
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
@@ -189,7 +191,7 @@ TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
   test_world.Tick();
   const Eigen::Vector3i second_cell = brush_cell();
   const uint32_t b = AddNode(test_world, second_cell);
-  const uint32_t b_far = AddNode(test_world, second_cell + Eigen::Vector3i(0, 10, 0));
+  const uint32_t b_far = AddNode(test_world, second_cell - Eigen::Vector3i(0, 10, 0));
   AddWall(test_world, b, b_far);
   builder.add<RequestBuildBlock>();
   test_world.Tick();
@@ -209,7 +211,7 @@ TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
   test_world.Tick();
-  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world));
+  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kCenter, PaletteOf(test_world), kJointReach);
   ASSERT_TRUE(merge.has_value());
   ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
   test_world.Tick();
@@ -223,6 +225,22 @@ TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
 
   EXPECT_EQ(test_world.World().count<WallSegment>(), 1);
   EXPECT_EQ(test_world.World().count<WallPanelOf>(), 1);
+}
+
+TEST(WallMergeTest, AMergeThatMakesAJointTooSharpIsRefused) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t a = AddNode(test_world, {0, 0, 0});
+  const uint32_t b = AddNode(test_world, {20, 0, 0});
+  const uint32_t c = AddNode(test_world, {30, 40, 0});
+  const uint32_t d = AddNode(test_world, {0, 1, 0});
+  AddWall(test_world, a, b);
+  AddWall(test_world, c, d);
+
+  // c would come to b: the walls would leave it 3 degrees apart.
+  const auto merge = PlanNodeMerge(test_world.World(), b, c, MergeAt::kFirst, PaletteOf(test_world), kJointReach);
+
+  ASSERT_FALSE(merge.has_value());
+  EXPECT_NE(merge.error().find("joint"), std::string::npos) << merge.error();
 }
 
 }  // namespace
