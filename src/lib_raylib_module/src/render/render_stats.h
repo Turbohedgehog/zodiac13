@@ -66,6 +66,7 @@ struct RenderStats {
   // Lamps lighting the frame, and those of them casting shadows.
   size_t lights {};
   size_t shadowed_lights {};
+  int debug_view {};
   // Nothing while rooms don't cull.
   std::optional<size_t> rooms_seen;
   // Walking the portals and narrowing the frustum.

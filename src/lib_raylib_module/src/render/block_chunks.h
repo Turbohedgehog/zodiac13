@@ -28,6 +28,7 @@
 #include <raylib.h>
 
 #include <z13/components/block.h>
+#include <lib_core/utils/asset_source.h>
 #include <primitives/geometry.h>
 
 namespace z13::raylib {
@@ -45,7 +46,8 @@ class BlockChunks {
   using OptionalPalette = z13::building::primitives::OptionalPalette;
 
   // `lighting_shader` is borrowed by every model's material; id 0 keeps raylib's default.
-  explicit BlockChunks(::Shader lighting_shader = {});
+  // `assets` holds the tiles of textured materials.
+  explicit BlockChunks(::Shader lighting_shader = {}, AssetSource assets = {});
 
   // Whether the last Sync used these; if not, the blocks must be synced even if unchanged.
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;

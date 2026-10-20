@@ -31,6 +31,8 @@ inline constexpr std::string_view kPaletteFileName = "palette.json";
 inline constexpr std::string_view kBlueprintsDir = "blueprints";
 inline constexpr std::string_view kBlueprintExtension = ".json";
 inline constexpr std::string_view kDecorDir = "decor";
+inline constexpr std::string_view kTexturesDir = "textures/station";
+inline constexpr std::string_view kTextureExtension = ".png";
 inline constexpr std::string_view kPropModelsDir = "models/props";
 inline constexpr std::string_view kPropModelExtension = ".glb";
 // The largest shipped station, offered first.
@@ -43,6 +45,7 @@ std::filesystem::path BlueprintFile(std::string_view scene);
 // The props of `scene`, and the model file of a prop.
 std::filesystem::path DecorFile(std::string_view scene);
 std::filesystem::path PropModelFile(std::string_view model);
+std::filesystem::path TextureFile(std::string_view texture);
 
 // The scenes among the file names in BlueprintsDir(), sorted.
 std::vector<std::string> BlueprintScenes(std::span<const std::string> file_names);

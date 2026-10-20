@@ -1,4 +1,4 @@
-Octant: 2641 blocks (Floor 366, Wall 1007, Window 244, Door 245, Lamp 666, SpawnPoint 113)
+Octant: 3429 blocks (FloorCargo 30, FloorCommand 3, FloorEngineering 27, FloorHall 18, FloorMaint 70, FloorMedical 3, FloorQuarters 15, FloorScience 18, FloorSecurity 10, FloorService 3, Ceiling 172, WallBulkhead 632, WallMaint 453, WallHazard 171, Window 244, WallCorrugated 199, WallPlateRiveted 209, WallSeamed 128, Door 245, Lamp 666, SpawnPoint 113)
 origin of the map in cells: (56, 56)
 props: 1430 (locker 386, table 131, crew_chair 247, lamp_tube 624, lamp_beacon 42)
 skipped, lamp found no free spot: 1

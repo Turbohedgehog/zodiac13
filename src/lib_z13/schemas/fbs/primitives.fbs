@@ -87,6 +87,9 @@ table Checker {
   second: Rgba;
   // Drawn at full color whatever lights it, as a lamp glows.
   emissive: bool = false;
+  // A tile in assets/textures/station/ (without its extension), one per meter by the world
+  // position; the checker colors are what a preview without the texture shows.
+  texture: string;
 }
 
 // A point light just below the primitive's bottom face (its own -Z), reaching `radius_cells`.

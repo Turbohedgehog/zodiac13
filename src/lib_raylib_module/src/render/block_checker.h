@@ -30,14 +30,16 @@ struct CheckerUniforms {
   int emissive {};
   int first {};
   int second {};
+  int textured {};
 };
 
 // Also sets the cell size the checker squares follow.
 CheckerUniforms SetupCheckerUniforms(const ::Shader& shader);
 
 // Until StopChecker, what is drawn takes `material`'s squares from its world position instead
-// of its texture. Both do nothing without a lighting shader.
-void UseChecker(const Lighting& lighting, const z13::building::primitives::Checker& material);
+// of its texture, or with `textured` from the tile bound as the model's texture. Both do nothing
+// without a lighting shader.
+void UseChecker(const Lighting& lighting, const z13::building::primitives::Checker& material, bool textured = false);
 void StopChecker(const Lighting& lighting);
 
 }  // namespace z13::raylib

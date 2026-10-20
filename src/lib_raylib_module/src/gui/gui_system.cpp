@@ -32,6 +32,7 @@
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
+#include <raylib.h>
 #include <rlgl.h>
 
 #include <lib_core/state/world_state.h>
@@ -58,6 +59,8 @@
 #include "palette_window.h"
 #include "pause_menu_window.h"
 #include "platform/gl_profile.h"
+#include "render/debug_view.h"
+#include "render/render_components.h"
 #include "platform/sdl_platform.h"
 #include "render/render_stats.h"
 #include "room_label.h"
@@ -244,6 +247,14 @@ void RegisterSystems(flecs::world world) {
           touch->stats_area = fraction(stats_drawn.area);
           touch->brush_areas.clear();
           std::ranges::transform(brush_areas, std::back_inserter(touch->brush_areas), fraction);
+        }
+        if (!ImGui::GetIO().WantTextInput && world.has<Lighting>()) {
+          if (ImGui::IsKeyPressed(gui::kDebugViewPreviousKey, false)) {
+            StepDebugView(world.get<Lighting>(), -1);
+          }
+          if (ImGui::IsKeyPressed(gui::kDebugViewNextKey, false)) {
+            StepDebugView(world.get<Lighting>(), 1);
+          }
         }
         if (rooms != nullptr) {
           if (ImGui::IsKeyPressed(gui::kRoomOverlayKey, false) && !ImGui::GetIO().WantTextInput) {

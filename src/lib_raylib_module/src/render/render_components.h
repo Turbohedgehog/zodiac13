@@ -71,6 +71,7 @@ struct LightingResources {
   CheckerUniforms checker;
   LightUniforms lights;
   LightClusters clusters;
+  int debug_view {};
 };
 
 struct Lighting {

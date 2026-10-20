@@ -907,7 +907,7 @@ void RegisterSystems(flecs::world world) {
         world.set<AvatarModel>(LoadAvatar(lighting));
         const ::Shader shader = lighting.res ? *lighting.res->shader : ::Shader {};
         world.set<BlockMeshes>(BlockMeshes(shader));
-        world.set<BlockChunks>(BlockChunks(shader));
+        world.set<BlockChunks>(BlockChunks(shader, assets.source));
         const ::Shader shadow_shader = LoadShadowShader(assets.source);
         if (shadow_shader.id == 0) {
           log_error("[raylib] the shadow shader didn't load: nothing casts shadows, the sun is off in a station");
@@ -1105,6 +1105,7 @@ void RegisterSystems(flecs::world world) {
         stats.times.background_ms = background_ms;
         stats.times.shadows_ms = shadows_ms;
         stats.lights = lit.lights.size();
+        stats.debug_view = world.has<Lighting>() && world.get<Lighting>().res ? world.get<Lighting>().res->debug_view : 0;
         stats.shadowed_lights =
             std::ranges::count_if(lit.lights, [](const FrameLight& light) { return light.shadow_slot.has_value(); });
         const ::Camera3D& pose = raylib_camera.camera;

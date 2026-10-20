@@ -20,7 +20,8 @@
 
 namespace z13::raylib {
 
-BlockChunks::BlockChunks(::Shader lighting_shader) : state_(std::make_shared<State>(lighting_shader)) {
+BlockChunks::BlockChunks(::Shader lighting_shader, AssetSource assets)
+    : state_(std::make_shared<State>(lighting_shader, std::move(assets))) {
 }
 
 bool BlockChunks::SyncedWith(int chunk_cells, OptionalPalette palette) const {

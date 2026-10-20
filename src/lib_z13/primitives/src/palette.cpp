@@ -140,6 +140,7 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
           .first = ToRgba(*source.material->first),
           .second = ToRgba(*source.material->second),
           .emissive = source.material->emissive,
+          .texture = source.material->texture.empty() ? std::nullopt : std::optional(source.material->texture),
       },
       .flags = source.flags,
       .light = *light,

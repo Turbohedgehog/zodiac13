@@ -25,6 +25,7 @@
 
 #include <z13/components/block.h>
 
+#include "render/debug_view.h"
 #include "render/render_stats.h"
 
 namespace z13::raylib::gui {
@@ -54,7 +55,8 @@ std::string RenderLines(const RenderStats& render) {
   const Eigen::Vector3i cell = (camera.eye / z13::station::kCellSize).array().floor().cast<int>();
   std::format_to(out, "Eye x {:.2f}, y {:.2f}, z {:.2f} m\n", camera.eye.x(), camera.eye.y(), camera.eye.z());
   std::format_to(out, "Cell x {}, y {}, z {}\n", cell.x(), cell.y(), cell.z());
-  std::format_to(out, "Yaw {:.1f}, pitch {:.1f}", camera.look.yaw_deg, camera.look.pitch_deg);
+  std::format_to(out, "Yaw {:.1f}, pitch {:.1f}\n", camera.look.yaw_deg, camera.look.pitch_deg);
+  std::format_to(out, "Light view {}: {}", render.debug_view, DebugViewName(render.debug_view));
   return text;
 }
 

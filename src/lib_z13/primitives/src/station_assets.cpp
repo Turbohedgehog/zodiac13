@@ -41,6 +41,10 @@ std::filesystem::path PropModelFile(std::string_view model) {
   return std::filesystem::path(kPropModelsDir) / std::format("{}{}", model, kPropModelExtension);
 }
 
+std::filesystem::path TextureFile(std::string_view texture) {
+  return std::filesystem::path(kTexturesDir) / std::format("{}{}", texture, kTextureExtension);
+}
+
 std::vector<std::string> BlueprintScenes(std::span<const std::string> file_names) {
   std::vector<std::string> scenes;
   for (const std::filesystem::path name : file_names) {
