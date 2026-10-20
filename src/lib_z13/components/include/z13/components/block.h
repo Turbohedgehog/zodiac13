@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include <Eigen/Dense>
@@ -61,6 +62,11 @@ enum class Orientation : uint8_t {
   kFaceNegZUpNegY,
 };
 
+// A panel section's four corners as x and z of each, in the primitive's own frame: the reference
+// face's near and far end, then the thickened face's far and near end (the order of the
+// square-cut section). All zero where nothing cut them.
+using PanelCorners = std::array<int, 8>;
+
 // `size` is along the primitive's own axes, before `orientation` turns it.
 struct BlockSpec {
   uint32_t type_id {};
@@ -68,7 +74,10 @@ struct BlockSpec {
   Orientation orientation {};
   // A panel's rise over its size's X (primitives.fbs, Panel); zero for every other primitive.
   int slant {};
+  // Where the ends of a panel that a joint cuts stand; zero for a square-cut one.
+  PanelCorners corners {};
 
+  bool HasCorners() const { return corners != PanelCorners {}; }
   bool operator==(const BlockSpec&) const = default;
 };
 

@@ -58,6 +58,18 @@ struct WallSeam {
 // Which side of the line a whole point near the node is on: -1, 0 or 1.
 int SideOf(const SeamLine& line, const PlanPoint& point);
 
+// The seams of the joints at a wall's two ends, where there are any.
+struct WallEnds {
+  std::optional<WallSeam> at_a;
+  std::optional<WallSeam> at_b;
+};
+
+// WallPanelBlock with each end cut along its seam; a wall may reach back past its node or stop
+// short of it there. The corners come out on whole cells (rounded, the same for both walls of a
+// joint, so their cuts meet). Without seams it is the square-cut panel.
+std::expected<z13::station::Block, std::string> WallPanelBlock(
+    const WallGeometry& wall, const Palette& palette, const WallEnds& ends);
+
 // The seam of two walls from one node. An error says why the joint can't be had, and what
 // would make it: a tip reaching further than `max_reach` cells from the node, or a wall too
 // short to keep a cell beyond the seam.

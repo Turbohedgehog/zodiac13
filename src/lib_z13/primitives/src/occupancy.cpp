@@ -157,7 +157,7 @@ bool FillsWholeBox(OptionalPalette palette, const z13::station::Block& block) {
   const auto primitive = palette ? palette->get().Find(block.spec.type_id) : std::nullopt;
   return !primitive || primitive->get().shape.kind == ShapeKind::kBox ||
          primitive->get().shape.kind == ShapeKind::kDoorFrame ||
-         (primitive->get().shape.kind == ShapeKind::kPanel && block.spec.slant == 0);
+         (primitive->get().shape.kind == ShapeKind::kPanel && block.spec.slant == 0 && !block.spec.HasCorners());
 }
 
 // A cell's centre lies in the solid when it is on the inner side of every face; doubling

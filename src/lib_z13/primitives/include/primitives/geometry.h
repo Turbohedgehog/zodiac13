@@ -52,7 +52,7 @@ struct Mesh {
 };
 
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
-    const Shape& shape, const Eigen::Vector3i& size, int slant = 0);
+    const Shape& shape, const Eigen::Vector3i& size, int slant = 0, const z13::station::PanelCorners& corners = {});
 
 Mesh BuildMesh(std::span<const ConvexSolid> solids);
 
@@ -61,6 +61,7 @@ struct BlockShapeKey {
   uint32_t type_id {};
   Eigen::Vector3i size = Eigen::Vector3i::Zero();
   int slant {};
+  z13::station::PanelCorners corners {};
 
   bool operator==(const BlockShapeKey&) const = default;
 };

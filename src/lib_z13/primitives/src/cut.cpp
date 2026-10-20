@@ -66,14 +66,15 @@ std::vector<z13::station::Block> LeftAfterCut(
       return {};
     }
     // Only a split along its width leaves a sloped block's slope the same.
-    const bool sloped = primitive.shape.kind == ShapeKind::kWedge || block.spec.slant > 0;
+    const bool sloped = primitive.shape.kind == ShapeKind::kWedge || block.spec.slant > 0 || block.spec.HasCorners();
     if (sloped && (size.x() != block.spec.size.x() || size.z() != block.spec.size.z())) {
       return {};
     }
     left.push_back({.spec = {.type_id = block.spec.type_id,
                              .size = size,
                              .orientation = block.spec.orientation,
-                             .slant = block.spec.slant},
+                             .slant = block.spec.slant,
+                             .corners = block.spec.corners},
                     .cell = box.min});
   }
   return left;
