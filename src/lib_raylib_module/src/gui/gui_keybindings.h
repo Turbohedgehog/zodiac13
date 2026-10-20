@@ -48,6 +48,11 @@ struct KeyBindingModel {
   std::unordered_map<z13::fbs::input::Keycode, std::string> keycode_text;
 };
 
+struct KeyBindingActionIndex {
+  int group {};
+  int action {};
+};
+
 struct KeyBindingSlot {
   int group {};
   int action {};

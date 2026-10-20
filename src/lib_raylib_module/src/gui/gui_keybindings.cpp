@@ -68,7 +68,7 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
   const auto& config = world.ensure<z13::input::InputConfig>();
 
   std::unordered_map<std::string, int> group_index;
-  std::unordered_map<z13::input::ActionId, std::pair<int, int>> action_slot;
+  std::unordered_map<z13::input::ActionId, KeyBindingActionIndex> action_slot;
 
   const auto& actions_by_id = action_map.get<z13::input::ActionMap::IdTag>();
   for (const auto& action_info : actions_by_id) {
@@ -86,7 +86,7 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
     action.display_text = std::string(action_info.display_text);
     action.action_id = action_info.id;
     action.keycodes.fill(kUnknown);
-    action_slot[action_info.id] = {group_it->second, static_cast<int>(group.actions.size())};
+    action_slot[action_info.id] = {.group = group_it->second, .action = static_cast<int>(group.actions.size())};
     group.actions.push_back(std::move(action));
   }
 
@@ -96,7 +96,7 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
     if (slot_it == action_slot.end() || z13::input::IsTouchKeycode(binding.keycode)) {
       continue;
     }
-    KeyBindingAction& action = model.groups[slot_it->second.first].actions[slot_it->second.second];
+    KeyBindingAction& action = model.groups[slot_it->second.group].actions[slot_it->second.action];
     for (auto& keycode : action.keycodes) {
       if (keycode == kUnknown) {
         keycode = binding.keycode;
