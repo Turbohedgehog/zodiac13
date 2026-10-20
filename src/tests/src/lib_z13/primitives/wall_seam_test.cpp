@@ -17,11 +17,10 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cstdlib>
-#include <map>
+#include <array>
 #include <queue>
-#include <set>
-#include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 
@@ -189,6 +188,27 @@ const Palette& ShippedPalette() {
   return palette;
 }
 
+struct ColumnHash {
+  size_t operator()(const Eigen::Vector2i& column) const { return CellHash {}({column.x(), column.y(), 0}); }
+};
+
+using ColumnCounts = std::unordered_map<Eigen::Vector2i, int, ColumnHash>;
+
+// How many sealed boxes of the blocks cover each (x, y) column, whatever its height.
+ColumnCounts SealedColumns(const std::vector<z13::station::Block>& blocks) {
+  ColumnCounts counts;
+  for (const auto& block : blocks) {
+    for (const CellBox& box : SealedBoxes(block, ShippedPalette())) {
+      for (int x = box.min.x(); x < box.End().x(); ++x) {
+        for (int y = box.min.y(); y < box.End().y(); ++y) {
+          ++counts[{x, y}];
+        }
+      }
+    }
+  }
+  return counts;
+}
+
 TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
   const WallGeometry across = FlatWall(kOrigin, kEast);
   const WallGeometry up = FlatWall(kOrigin, kNorth);
@@ -198,17 +218,7 @@ TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
   ASSERT_TRUE(first.has_value()) << first.error();
   ASSERT_TRUE(second.has_value()) << second.error();
 
-  std::map<std::pair<int, int>, int> covered;
-  for (const auto& block : {*first, *second}) {
-    for (const CellBox& box : SealedBoxes(block, ShippedPalette())) {
-      for (int x = box.min.x(); x < box.End().x(); ++x) {
-        for (int y = box.min.y(); y < box.End().y(); ++y) {
-          ++covered[{x, y}];
-        }
-      }
-    }
-  }
-  std::map<std::pair<int, int>, int> expected;
+  ColumnCounts expected;
   for (int x = 0; x < 10; ++x) {
     for (int y = 0; y < 10; ++y) {
       if (y < 2 || x < 2) {
@@ -216,7 +226,7 @@ TEST(WallJointTest, TwoWallsMitredAtACornerCoverItsCellsOnceExceptOnTheSeam) {
       }
     }
   }
-  EXPECT_EQ(covered, expected);
+  EXPECT_EQ(SealedColumns({*first, *second}), expected);
 }
 
 TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
@@ -231,43 +241,27 @@ TEST(WallJointTest, TheCornersOfTwoObliqueWallsMeetOnTheSameSeam) {
   // Reference face near, thickened face near: the two ends of the seam.
   const auto seam_ends = [](const z13::station::Block& block) {
     const std::vector<Eigen::Vector2i> corners = WorldCorners(block);
-    std::vector<std::pair<int, int>> ends {{corners[0].x(), corners[0].y()}, {corners[3].x(), corners[3].y()}};
-    std::ranges::sort(ends);
-    return ends;
+    return std::unordered_set<Eigen::Vector2i, ColumnHash> {corners[0], corners[3]};
   };
   EXPECT_EQ(seam_ends(*a), seam_ends(*b));
 }
 
-std::set<std::pair<int, int>> SealedColumns(const std::vector<z13::station::Block>& blocks) {
-  std::set<std::pair<int, int>> sealed;
-  for (const auto& block : blocks) {
-    for (const CellBox& box : SealedBoxes(block, ShippedPalette())) {
-      for (int x = box.min.x(); x < box.End().x(); ++x) {
-        for (int y = box.min.y(); y < box.End().y(); ++y) {
-          sealed.emplace(x, y);
-        }
-      }
-    }
-  }
-  return sealed;
-}
-
 // Whether air steps across cell faces from `from` to `to` without leaving the window.
-bool AirReaches(
-    const std::set<std::pair<int, int>>& sealed, const Eigen::Vector2i& from, const Eigen::Vector2i& to, int window) {
-  std::set<std::pair<int, int>> seen {{from.x(), from.y()}};
-  std::queue<std::pair<int, int>> open;
-  open.emplace(from.x(), from.y());
+bool AirReaches(const ColumnCounts& sealed, const Eigen::Vector2i& from, const Eigen::Vector2i& to, int window) {
+  const std::array<Eigen::Vector2i, 4> steps {
+      Eigen::Vector2i {1, 0}, Eigen::Vector2i {-1, 0}, Eigen::Vector2i {0, 1}, Eigen::Vector2i {0, -1}};
+  std::unordered_set<Eigen::Vector2i, ColumnHash> seen {from};
+  std::queue<Eigen::Vector2i> open;
+  open.push(from);
   while (!open.empty()) {
-    const auto [x, y] = open.front();
+    const Eigen::Vector2i column = open.front();
     open.pop();
-    if (x == to.x() && y == to.y()) {
+    if (column == to) {
       return true;
     }
-    for (const auto& [dx, dy] : {std::pair {1, 0}, std::pair {-1, 0}, std::pair {0, 1}, std::pair {0, -1}}) {
-      const std::pair next {x + dx, y + dy};
-      if (std::abs(next.first) <= window && std::abs(next.second) <= window && !sealed.contains(next) &&
-          seen.insert(next).second) {
+    for (const Eigen::Vector2i& step : steps) {
+      const Eigen::Vector2i next = column + step;
+      if (next.cwiseAbs().maxCoeff() <= window && !sealed.contains(next) && seen.insert(next).second) {
         open.push(next);
       }
     }
@@ -304,8 +298,8 @@ TEST_P(WallJointSealTest, AirCannotCrossTheJointFromTheAngleBetweenTheWalls) {
 
   const Eigen::Vector2i between = Along(joint.first, kProbeDistance) + Along(joint.second, kProbeDistance);
   const Eigen::Vector2i behind = -between;
-  ASSERT_FALSE(sealed.contains({between.x(), between.y()}));
-  ASSERT_FALSE(sealed.contains({behind.x(), behind.y()}));
+  ASSERT_FALSE(sealed.contains(between));
+  ASSERT_FALSE(sealed.contains(behind));
   EXPECT_FALSE(AirReaches(sealed, between, behind, kWindow));
 }
 
