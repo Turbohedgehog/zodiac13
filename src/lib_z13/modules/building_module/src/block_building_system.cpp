@@ -243,6 +243,12 @@ void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, 
     log_debug("station: wall refused: {}", valid.error());
     return;
   }
+  if (const auto problem = JointProblem(
+          JointWallsOf(world), JointWallsWith(world, faced->wall),
+          run.tuning.get().wall_joint_max_reach_cells)) {
+    log_debug("station: wall refused, a joint would break: {}", *problem);
+    return;
+  }
   SpawnWall(world, run.counters, faced->wall);
   player.remove<WallDraft>();
 }
@@ -263,7 +269,8 @@ void ProcessMergeClick(flecs::entity player, flecs::entity tool, const Aim& aim,
     if (!first) {
       return std::nullopt;
     }
-    return PlanNodeMerge(world, *first, *clicked, tool.get<BuildTool>().merge_at, run.palette).transform(
+    return PlanNodeMerge(
+        world, *first, *clicked, tool.get<BuildTool>().merge_at, run.palette, run.tuning.get().wall_joint_max_reach_cells).transform(
         [](const NodeMerge& merge) { return std::optional(merge); });
   });
   if (!plan) {
@@ -419,7 +426,11 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
   const WallPreview preview = PreviewWall(
       draft, aim, anchors, PickingOf(view.tuning), tool.get<BuildTool>().wall_thickness, view.palette);
   const bool panel = draft && draft->stage == WallDraft::Stage::kHeight;
-  const bool valid = preview.makeable && CheckPermission(owner).has_value() &&
+  const bool joint_holds =
+      !preview.wall || !JointProblem(JointWallsOf(owner.world()),
+                                     JointWallsWith(owner.world(), *preview.wall),
+                                     view.tuning.get().wall_joint_max_reach_cells);
+  const bool valid = preview.makeable && joint_holds && CheckPermission(owner).has_value() &&
                      (!panel || ValidateBuild(preview.block, view).has_value());
   return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild, .lines = preview.lines};
 }
@@ -432,7 +443,8 @@ BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Ai
   bool valid = hovered.has_value() && CheckPermission(owner).has_value();
   Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
   if (valid && first) {
-    const auto plan = PlanNodeMerge(world, *first, *hovered, tool.get<BuildTool>().merge_at, view.palette);
+    const auto plan = PlanNodeMerge(
+        world, *first, *hovered, tool.get<BuildTool>().merge_at, view.palette, view.tuning.get().wall_joint_max_reach_cells);
     valid = plan.has_value();
     shown = plan ? plan->cell : shown;
   }
