@@ -87,7 +87,8 @@ ConvexSolid MakeWedge(const Eigen::Vector3f& s) {
 // Y; `cut_corners`, when set, put its four corners where a joint cut the ends, and `taper`
 // shortens the length along Y at each end of X (BlockSpec::taper).
 ConvexSolid MakePanel(
-    const Eigen::Vector3f& s, float slant, const z13::station::PanelCorners& cut_corners, const Eigen::Vector2i& taper) {
+    const Eigen::Vector3f& s, float slant, const z13::station::PanelCorners& cut_corners,
+    const Eigen::Vector2i& taper) {
   const float thickness = s.z() - slant;
   std::array<Eigen::Vector2f, 4> section {
       Eigen::Vector2f {0, 0}, {s.x(), slant}, {s.x(), s.z()}, {0, thickness}};
