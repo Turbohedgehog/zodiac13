@@ -37,6 +37,7 @@ constexpr std::array<std::string_view, kDebugViewCount> kDebugViewNames = {
     "cluster lamps and flashlights",
     "sun",
     "fill",
+    "sheen alone",
 };
 
 }  // namespace

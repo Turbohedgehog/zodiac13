@@ -23,7 +23,7 @@ namespace z13::raylib {
 struct Lighting;
 
 // The views of lighting.fs's `debugView`; 0 is the normal picture.
-inline constexpr int kDebugViewCount = 8;
+inline constexpr int kDebugViewCount = 9;
 
 void StepDebugView(const Lighting& lighting, int step);
 
