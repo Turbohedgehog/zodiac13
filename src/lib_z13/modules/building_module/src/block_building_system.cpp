@@ -63,6 +63,7 @@
 #include "wall_bridge.h"
 #include "wall_brush.h"
 #include "wall_entities.h"
+#include "wall_fit.h"
 #include "wall_merge.h"
 
 namespace z13::building {
@@ -240,15 +241,9 @@ void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, 
     return;
   }
   const auto faced = FacingEye(*click->wall, aim.eye, run.palette);
-  const auto valid = faced.and_then([&](const FacedWall& wall) { return ValidateBuild(wall.block, run.View()); });
+  const auto valid = faced.and_then([&](const FacedWall& wall) { return CheckWallFits(world, wall.wall, run.View()); });
   if (!valid) {
     log_debug("station: wall refused: {}", valid.error());
-    return;
-  }
-  if (const auto problem = JointProblem(
-          JointWallsOf(world), JointWallsWith(world, faced->wall),
-          run.tuning.get().wall_joint_max_reach_cells)) {
-    log_debug("station: wall refused, a joint would break: {}", *problem);
     return;
   }
   SpawnWall(world, run.counters, faced->wall);
@@ -292,7 +287,7 @@ std::optional<uint32_t> BridgeDraftNode(flecs::entity player) {
 }
 
 // The bridge from the stick at `first` to the one at `second` with the tool's thickness, if it
-// can stand: the player may build, the panel fits, and no joint breaks.
+// can stand: the player may build and the wall fits (wall_fit.h).
 std::expected<FacedWall, std::string> CheckedBridge(
     flecs::entity player, flecs::entity tool, uint32_t first, uint32_t second, const Aim& aim,
     const BuildView& view) {
@@ -302,12 +297,8 @@ std::expected<FacedWall, std::string> CheckedBridge(
         return PlanBridge(world, first, second, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette);
       })
       .and_then([&](const FacedWall& bridge) -> std::expected<FacedWall, std::string> {
-        if (const auto valid = ValidateBuild(bridge.block, view); !valid) {
-          return std::unexpected(valid.error());
-        }
-        if (const auto problem = JointProblem(
-                JointWallsOf(world), JointWallsWith(world, bridge.wall), view.tuning.get().wall_joint_max_reach_cells)) {
-          return std::unexpected(std::format("a joint would break: {}", *problem));
+        if (const auto fits = CheckWallFits(world, bridge.wall, view); !fits) {
+          return std::unexpected(fits.error());
         }
         return bridge;
       });
@@ -488,13 +479,8 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
   const std::vector<Eigen::Vector3i> anchors = WallAnchors(owner.world());
   const WallPreview preview = PreviewWall(
       draft, aim, anchors, PickingOf(view.tuning), tool.get<BuildTool>().wall_thickness, view.palette);
-  const bool panel = draft && draft->stage == WallDraft::Stage::kHeight;
-  const bool joint_holds =
-      !preview.wall || !JointProblem(JointWallsOf(owner.world()),
-                                     JointWallsWith(owner.world(), *preview.wall),
-                                     view.tuning.get().wall_joint_max_reach_cells);
-  const bool valid = preview.makeable && joint_holds && CheckPermission(owner).has_value() &&
-                     (!panel || ValidateBuild(preview.block, view).has_value());
+  const bool valid = preview.makeable && CheckPermission(owner).has_value() &&
+                     (!preview.wall || CheckWallFits(owner.world(), *preview.wall, view).has_value());
   return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild, .lines = preview.lines};
 }
 

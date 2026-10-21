@@ -26,6 +26,7 @@ z13_add_plugin(
   src/wall_bridge.cpp
   src/wall_brush.cpp
   src/wall_entities.cpp
+  src/wall_fit.cpp
   src/wall_joints.cpp
   src/wall_merge.cpp
   src/wall_panel_system.cpp

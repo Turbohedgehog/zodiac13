@@ -91,18 +91,21 @@ bool BlockIndex::AnyShape(const z13::building::primitives::CellBox& box, Test te
     if (found || bucket == chunks_.end()) {
       return;
     }
-    found = std::ranges::any_of(bucket->second, [this, &test](BlockId block) { return test(shapes_.at(block)); });
+    found = std::ranges::any_of(bucket->second, [this, &test](BlockId block) { return test(block, shapes_.at(block)); });
   });
   return found;
 }
 
 bool BlockIndex::Overlaps(const z13::building::primitives::CellBox& cells) const {
-  return AnyShape(cells, [&cells](const z13::building::primitives::CellShape& other) { return other.Overlaps(cells); });
+  return AnyShape(
+      cells, [&cells](BlockId, const z13::building::primitives::CellShape& other) { return other.Overlaps(cells); });
 }
 
-bool BlockIndex::Overlaps(const z13::building::primitives::CellShape& shape) const {
-  return AnyShape(
-      shape.box, [&shape](const z13::building::primitives::CellShape& other) { return other.Overlaps(shape); });
+bool BlockIndex::Overlaps(
+    const z13::building::primitives::CellShape& shape, std::span<const BlockId> ignored) const {
+  return AnyShape(shape.box, [&shape, ignored](BlockId block, const z13::building::primitives::CellShape& other) {
+    return !std::ranges::contains(ignored, block) && other.Overlaps(shape);
+  });
 }
 
 std::vector<BlockId> BlockIndex::Overlapping(const z13::building::primitives::CellBox& cells) const {

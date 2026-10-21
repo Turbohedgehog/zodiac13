@@ -55,7 +55,8 @@ struct BuildView {
 // point needs that space free.
 Status ValidateBuild(
     const z13::station::Block& block, const BuildView& view,
-    z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild);
+    z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild,
+    std::span<const grid::BlockId> ignored = {});
 
 Status ValidateBlueprint(
     std::span<const z13::station::Block> blocks, const z13::building::primitives::Palette& palette,
