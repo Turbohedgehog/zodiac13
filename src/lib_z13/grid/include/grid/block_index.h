@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -62,7 +63,8 @@ class BlockIndex {
 
   std::optional<BlockId> At(const Eigen::Vector3i& cell) const;
   bool Overlaps(const z13::building::primitives::CellBox& cells) const;
-  bool Overlaps(const z13::building::primitives::CellShape& shape) const;
+  // Blocks in `ignored` (about to be replaced) don't count.
+  bool Overlaps(const z13::building::primitives::CellShape& shape, std::span<const BlockId> ignored = {}) const;
   // Every block sharing a cell with `cells`, in no particular order.
   std::vector<BlockId> Overlapping(const z13::building::primitives::CellBox& cells) const;
 

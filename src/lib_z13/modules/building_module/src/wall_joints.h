@@ -17,11 +17,14 @@
 #pragma once
 
 #include <cstdint>
+#include <expected>
 #include <map>
 #include <optional>
 #include <span>
 #include <string>
 
+#include <z13/components/block.h>
+#include <primitives/palette.h>
 #include <primitives/wall_seam.h>
 
 namespace z13::building {
@@ -44,6 +47,10 @@ struct WallJoints {
 };
 
 WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach);
+
+// The panel `wall` stands as, cut along its joints' seams or, when that can't be had, square.
+std::expected<z13::station::Block, std::string> JointPanel(
+    const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette);
 
 // Why `after` makes a joint `before` didn't refuse, if it does: what a change would break.
 std::optional<std::string> JointProblem(

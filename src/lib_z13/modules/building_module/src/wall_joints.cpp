@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <primitives/wall_panel.h>
+
 namespace z13::building {
 
 namespace {
@@ -71,6 +73,17 @@ WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach) {
     SolveNode(joints, std::move(meeting), max_reach);
   }
   return joints;
+}
+
+std::expected<z13::station::Block, std::string> JointPanel(
+    const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette) {
+  const auto ends = joints.ends.find(wall.id);
+  if (ends != joints.ends.end()) {
+    if (auto cut = z13::building::primitives::WallPanelBlock(wall.geometry, palette, ends->second)) {
+      return cut;
+    }
+  }
+  return z13::building::primitives::WallPanelBlock(wall.geometry, palette);
 }
 
 std::optional<std::string> JointProblem(

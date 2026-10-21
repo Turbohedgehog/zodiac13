@@ -46,7 +46,9 @@ bool Intersects(const PlayerSphere& player, const CellBox& cells) {
 
 }  // namespace
 
-Status ValidateBuild(const Block& block, const BuildView& view, z13::station::BrushPreview::Kind kind) {
+Status ValidateBuild(
+    const Block& block, const BuildView& view, z13::station::BrushPreview::Kind kind,
+    std::span<const grid::BlockId> ignored) {
   const grid::BlockIndex& index = view.index;
   const BlockSpec& spec = block.spec;
   const auto primitive = view.palette.get().Find(spec.type_id);
@@ -67,7 +69,7 @@ Status ValidateBuild(const Block& block, const BuildView& view, z13::station::Br
 
   const CellBox cells = z13::building::primitives::OccupiedCells(block);
   if (kind != z13::station::BrushPreview::Kind::kCutIn &&
-      index.Overlaps(z13::building::primitives::ShapeOfBlock(block, view.palette))) {
+      index.Overlaps(z13::building::primitives::ShapeOfBlock(block, view.palette), ignored)) {
     return std::unexpected(std::string {"cells are taken"});
   }
   if (std::ranges::any_of(view.players, [&cells](const PlayerSphere& player) { return Intersects(player, cells); })) {

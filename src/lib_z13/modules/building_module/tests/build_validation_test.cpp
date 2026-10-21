@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <span>
 #include <vector>
 
@@ -74,6 +75,20 @@ TEST(BuildValidationTest, ACutInBuildMayTakeCellsThatAreTaken) {
 
   EXPECT_TRUE(Validate(Wall({0, 0, 0}), palette, index, {}, {}, z13::station::BrushPreview::Kind::kCutIn).has_value());
   EXPECT_FALSE(Validate(Wall({0, 0, 0}), palette, index, {}, {}).has_value());
+}
+
+TEST(BuildValidationTest, IgnoredBlocksDoNotTakeCells) {
+  const auto palette = ShippedPalette();
+  BlockIndex index;
+  index.Insert(1, {.min = {0, 0, 0}, .extent = {8, 1, 8}});
+  const BuildingTuning tuning;
+  const BuildView view {.palette = palette, .index = index, .tuning = tuning, .players = {}, .spawn_clearances = {}};
+  constexpr std::array replaced = {z13::building::grid::BlockId {1}};
+  constexpr std::array others = {z13::building::grid::BlockId {2}};
+  const auto kind = z13::station::BrushPreview::Kind::kBuild;
+
+  EXPECT_TRUE(ValidateBuild(Wall({0, 0, 0}), view, kind, replaced).has_value());
+  EXPECT_FALSE(ValidateBuild(Wall({0, 0, 0}), view, kind, others).has_value());
 }
 
 TEST(BuildValidationTest, RefusesTakenCells) {

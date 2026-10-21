@@ -86,14 +86,7 @@ std::map<uint32_t, Block> ExpectedPanels(
   const WallJoints joints = SolveJoints(walls, joint_reach);
   std::map<uint32_t, Block> expected;
   for (const JointWall& wall : walls) {
-    const auto ends = joints.ends.find(wall.id);
-    auto block = ends != joints.ends.end()
-                     ? z13::building::primitives::WallPanelBlock(wall.geometry, palette, ends->second)
-                     : z13::building::primitives::WallPanelBlock(wall.geometry, palette);
-    if (!block && ends != joints.ends.end()) {
-      log_debug("station: wall segment {} keeps square ends: {}", wall.id, block.error());
-      block = z13::building::primitives::WallPanelBlock(wall.geometry, palette);
-    }
+    const auto block = JointPanel(wall, joints, palette);
     if (block) {
       expected.emplace(wall.id, *block);
     } else {
