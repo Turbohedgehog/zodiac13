@@ -85,6 +85,7 @@
 #include "render_tour.h"
 #include "shadow_maps.h"
 #include "skybox.h"
+#include "station_props.h"
 #include "view_culling.h"
 
 namespace z13::raylib {
@@ -118,7 +119,7 @@ const Eigen::Vector3f kShipAmbientGround(0.12f, 0.10f, 0.09f);
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour,
+                                         BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour, StationProps,
                                          z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
@@ -194,6 +195,26 @@ void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const Asse
     world.set<RenderModel>(LoadSpaceship(lighting, assets));
   } else if (!wanted && world.has<RenderModel>()) {
     world.remove<RenderModel>();
+  }
+}
+
+// Only a host knows its scene: a joining client's station comes without its props.
+void ReconcileStationProps(flecs::world world, const Lighting& lighting, const AssetSource& assets) {
+  if (z13::flecs_tools::IsCatchingUp(world)) {
+    return;
+  }
+  const auto* choice = world.try_get<z13::station::StationSceneChoice>();
+  const bool wanted = lighting.res && world.has<z13::station::StationMode>() && choice && choice->scene;
+  if (wanted && !world.has<StationProps>()) {
+    auto props = StationProps::Load(assets, *choice->scene, *lighting.res->shader);
+    if (props) {
+      log_info("[raylib] {} props in '{}'", props->Count(), *choice->scene);
+      world.set<StationProps>(*std::move(props));
+    } else {
+      log_error("[raylib] props of '{}': {}", *choice->scene, props.error());
+    }
+  } else if (!wanted && world.has<StationProps>()) {
+    world.remove<StationProps>();
   }
 }
 
@@ -448,12 +469,34 @@ std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
   return blocks;
 }
 
-// Rebuilds the chunks only when blocks, the chunk size or the palette changed.
+// The blocks of the primitives named in `replaced` leave out: props stand in for them.
+std::vector<z13::station::Block> CollectShownBlocks(const BlockQuery& query, const std::vector<std::string>& replaced,
+                                                    BlockMeshes::OptionalPalette palette) {
+  std::vector<z13::station::Block> blocks = CollectBlocks(query);
+  if (replaced.empty() || !palette) {
+    return blocks;
+  }
+  std::vector<uint32_t> hidden;
+  for (const std::string& name : replaced) {
+    if (const auto primitive = palette->get().Find(name)) {
+      hidden.push_back(primitive->get().id);
+    }
+  }
+  std::erase_if(blocks, [&hidden](const z13::station::Block& block) {
+    return std::ranges::contains(hidden, block.spec.type_id);
+  });
+  return blocks;
+}
+
+// Rebuilds the chunks only when blocks, the chunk size, the palette or the replaced primitives
+// changed; `synced_replaced` is what the last rebuild left out.
 void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::RenderTuning& tuning,
-                     BlockMeshes::OptionalPalette palette) {
+                     BlockMeshes::OptionalPalette palette, const std::vector<std::string>& replaced,
+                     std::vector<std::string>& synced_replaced) {
   // Checked first: iterating the query resets its changed state.
-  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette)) {
-    chunks.Sync(CollectBlocks(blocks), palette, tuning.chunk_cells);
+  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette) || replaced != synced_replaced) {
+    chunks.Sync(CollectShownBlocks(blocks, replaced, palette), palette, tuning.chunk_cells);
+    synced_replaced = replaced;
   }
 }
 
@@ -799,6 +842,11 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   const BlockChunks& chunks = world.get<BlockChunks>();
   stats.times.opaque_ms = MsOf([&] {
     chunks.DrawOpaque(view.culling, lighting, stats);
+    if (const auto* props = world.try_get<StationProps>()) {
+      // The blocks leave the checker on, which replaces every texture.
+      StopChecker(lighting);
+      props->Draw(view.culling);
+    }
     rlDrawRenderBatchActive();
   });
 
@@ -887,6 +935,16 @@ void RegisterSystems(flecs::world world) {
         ReconcileSpaceship(it.world(), lighting, assets.source);
       });
 
+  world.system<const Lighting, const z13::Assets>("EnvironmentRenderSystem::ReconcileStationProps")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .read<z13::station::StationMode>()
+      .read<z13::station::StationSceneChoice>()
+      .write<StationProps>()
+      .each([](flecs::iter& it, size_t, const Lighting& lighting, const z13::Assets& assets) {
+        ReconcileStationProps(it.world(), lighting, assets.source);
+      });
+
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")
       .kind<Render>()
       .tick_source<RenderGate>()
@@ -943,10 +1001,14 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([block_query](BlockChunks& chunks, const z13::RenderTuning& tuning,
-                          const z13::building::primitives::BlockPalette* palette) {
+      .read<StationProps>()
+      .each([block_query, synced_replaced = std::make_shared<std::vector<std::string>>()](
+                flecs::iter& it, size_t, BlockChunks& chunks, const z13::RenderTuning& tuning,
+                const z13::building::primitives::BlockPalette* palette) {
+        const auto* props = it.world().try_get<StationProps>();
         SyncBlockChunks(chunks, block_query, tuning,
-                        palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt);
+                        palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt,
+                        props != nullptr ? props->Replaced() : std::vector<std::string> {}, *synced_replaced);
       });
 
   // Its own query: SyncBlockChunks resets the other's changed state.

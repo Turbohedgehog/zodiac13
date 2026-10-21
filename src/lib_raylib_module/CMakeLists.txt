@@ -53,6 +53,7 @@ z13_add_plugin(
   src/render/shadow_maps.cpp
   src/render/shadow_maps_state.cpp
   src/render/skybox.cpp
+  src/render/station_props.cpp
   src/render/light_clusters.cpp
   src/render/view_culling.cpp
   src/tools/assimp_loader.cpp

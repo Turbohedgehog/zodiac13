@@ -47,6 +47,7 @@ set(
   src/lib_z13/primitives/wall_seam_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp
   src/lib_z13/primitives/geometry_test.cpp
+  src/lib_z13/primitives/decor_test.cpp
   src/lib_z13/primitives/lights_test.cpp
   src/lib_z13/primitives/occupancy_test.cpp
   src/lib_z13/primitives/palette_test.cpp
@@ -97,6 +98,7 @@ set(
   ${MODULES_DIR}/station_module/tests/block_change_test.cpp
   ${MODULES_DIR}/station_module/tests/gravity_system_test.cpp
   ${MODULES_DIR}/station_module/tests/interaction_system_test.cpp
+  ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
