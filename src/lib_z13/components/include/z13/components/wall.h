@@ -65,6 +65,12 @@ struct WallMergeDraft {
   uint32_t node_id {};
 };
 
+// A player's first click of the Bridge mode: the node whose stick the second click bridges to.
+struct WallBridgeDraft {
+  using State = void;
+  uint32_t node_id {};
+};
+
 // Marks the block derived from a segment; the segment owns it (WallPanelSystem).
 struct WallPanelOf {
   using State = void;

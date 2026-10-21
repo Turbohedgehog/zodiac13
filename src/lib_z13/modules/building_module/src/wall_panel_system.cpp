@@ -58,7 +58,7 @@ struct Panel {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<WallNode, WallSegment, WallPanelOf, z13::station::WallDraft,
-                                          z13::station::WallMergeDraft>(world);
+                                          z13::station::WallMergeDraft, z13::station::WallBridgeDraft>(world);
 }
 
 // The panel each segment should have, by segment id; a segment that can't have one has none.

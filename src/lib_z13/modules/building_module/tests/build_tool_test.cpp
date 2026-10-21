@@ -97,7 +97,7 @@ TEST(BuildToolTest, TheModeKeyCyclesTheModes) {
   const flecs::entity player = LocalBuilder(test_world);
   ASSERT_EQ(ModeOf(player), ToolMode::kBuild);
 
-  for (const ToolMode expected : {ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall, ToolMode::kMerge, ToolMode::kBuild}) {
+  for (const ToolMode expected : {ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall, ToolMode::kMerge, ToolMode::kBridge, ToolMode::kBuild}) {
     Tap(test_world, kModeKey, TickOnly(test_world));
     EXPECT_EQ(ModeOf(player), expected);
   }

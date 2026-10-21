@@ -27,7 +27,7 @@ namespace z13::building {
 struct ToolModeInfo {
   std::string_view label;
   z13::input::TouchLayer touch_layer {};
-  // The wheel steps the mode's setting (wall thickness, merge target) instead of the hotbar.
+  // The wheel steps the mode's setting (wall or bridge thickness, merge target) instead of the hotbar.
   bool uses_wheel {};
 };
 
@@ -46,6 +46,8 @@ constexpr ToolModeInfo ToolModeInfoOf(ToolMode mode) {
       return {.label = "Wall", .touch_layer = TouchLayer::kWall, .uses_wheel = true};
     case ToolMode::kMerge:
       return {.label = "Merge", .touch_layer = TouchLayer::kMerge, .uses_wheel = true};
+    case ToolMode::kBridge:
+      return {.label = "Bridge", .touch_layer = TouchLayer::kWall, .uses_wheel = true};
   }
   return {};
 }
