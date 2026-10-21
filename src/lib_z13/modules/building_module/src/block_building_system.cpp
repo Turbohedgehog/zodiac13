@@ -292,9 +292,10 @@ std::expected<FacedWall, std::string> CheckedBridge(
     flecs::entity player, flecs::entity tool, uint32_t first, uint32_t second, const Aim& aim,
     const BuildView& view) {
   flecs::world world = player.world();
+  const bool flipped = player.has<WallBridgeDraft>() && player.get<WallBridgeDraft>().flipped;
   return CheckPermission(player)
       .and_then([&] {
-        return PlanBridge(world, first, second, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette);
+        return PlanBridge(world, first, second, tool.get<BuildTool>().wall_thickness, aim.eye, view.palette, flipped);
       })
       .and_then([&](const FacedWall& bridge) -> std::expected<FacedWall, std::string> {
         if (const auto fits = CheckWallFits(world, bridge.wall, view); !fits) {

@@ -69,6 +69,8 @@ Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
       [[fallthrough]];
     case TouchControl::kMergeAt:
       [[fallthrough]];
+    case TouchControl::kFlipDiagonal:
+      [[fallthrough]];
     case TouchControl::kCell1:
       [[fallthrough]];
     case TouchControl::kCell2:
@@ -117,6 +119,8 @@ std::span<const TouchControl> PanelOf(TouchLayer layer) {
       return kWallPanel;
     case TouchLayer::kMerge:
       return kMergePanel;
+    case TouchLayer::kBridge:
+      return kBridgePanel;
     case TouchLayer::kWalk:
       break;
   }
@@ -130,7 +134,7 @@ bool InLayer(TouchLayer layer, TouchControl control) {
   if (std::ranges::contains(PanelOf(layer), control)) {
     return true;
   }
-  constexpr std::array kPanelLayers {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge};
+  constexpr std::array kPanelLayers {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge, TouchLayer::kBridge};
   return !std::ranges::any_of(kPanelLayers,
                               [control](TouchLayer other) { return std::ranges::contains(PanelOf(other), control); });
 }

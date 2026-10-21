@@ -49,4 +49,7 @@ table BuildingTuning {
   // How far, in cells, the tip of a joint between two walls may reach from their node; a sharper
   // angle leaves the walls square-cut there (and the Wall and Merge modes refuse it).
   wall_joint_max_reach_cells: int32 = 16 (min: 1, max: 256, cli);
+  // The steepest fold, in degrees between its two triangles' normals, a bent wall may have; a
+  // steeper one is refused (the other diagonal may fold it less).
+  wall_fold_max_degrees: int32 = 45 (min: 5, max: 90, cli);
 }

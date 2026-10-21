@@ -37,9 +37,10 @@ std::vector<z13::station::WallStick> SticksAt(flecs::world world, uint32_t node_
 
 // The wall bridging the stick at `first` (its oldest wall's) to one at `second`, thickened to the
 // side nearer `eye`, or why there is none. The one at `second` is the oldest of the same axis and
-// direction (a trapezoid when the lengths differ), else the oldest of another axis (a bent wall).
+// direction (a trapezoid when the lengths differ), else the oldest of another axis (a bent wall,
+// along the diagonal that folds it least, or the other with `flip_diagonal`).
 std::expected<FacedWall, std::string> PlanBridge(
     flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
-    const z13::building::primitives::Palette& palette);
+    const z13::building::primitives::Palette& palette, bool flip_diagonal = false);
 
 }  // namespace z13::building

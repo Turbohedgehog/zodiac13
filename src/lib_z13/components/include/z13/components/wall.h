@@ -79,10 +79,12 @@ struct WallMergeDraft {
   uint32_t node_id {};
 };
 
-// A player's first click of the Bridge mode: the node whose stick the second click bridges to.
+// A player's first click of the Bridge mode: the node whose stick the second click bridges to,
+// and whether a bent wall takes the diagonal other than the one that folds it least.
 struct WallBridgeDraft {
   using State = void;
   uint32_t node_id {};
+  bool flipped {};
 };
 
 // Marks a block derived from a segment (`part` of its one or two); the segment owns it

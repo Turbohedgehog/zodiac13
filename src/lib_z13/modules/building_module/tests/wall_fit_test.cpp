@@ -46,6 +46,7 @@ constexpr int kThickness = 2;
 constexpr int kRun = 10;
 // Clear of the test station's own blocks.
 const Eigen::Vector3i kCorner {8, -4, 0};
+const Eigen::Vector3i kBent {8, -14, 0};
 const Eigen::Vector3i kUp {0, kRun, 0};
 const Eigen::Vector3i kAcross {kRun, 0, 0};
 
@@ -93,6 +94,26 @@ TEST(WallFitTest, ATrapezoidMeetingAnotherAtACornerFitsToo) {
   const Status fits = Fits(test_world, trapezoid);
 
   EXPECT_TRUE(fits.has_value()) << (fits ? "" : fits.error());
+}
+
+// Sticks along Z and X over a run of (5, -1): one diagonal folds the surface 90 degrees, the other 15.
+WallGeometry BentWall(z13::station::WallDiagonal diagonal) {
+  WallGeometry wall {.node_a = kBent, .node_b = kBent + Eigen::Vector3i(5, -1, 0), .stick_a = {WallAxis::kZ, 6},
+                     .stick_b = {WallAxis::kX, 5}, .diagonal = diagonal};
+  wall.thickness = z13::building::primitives::MinWallThickness(wall).value();
+  return wall;
+}
+
+TEST(WallFitTest, ABentWallThatFoldsTooSteeplyIsRefusedWithAHintAndTheOtherDiagonalFits) {
+  Z13TestWorld test_world = StationWorld();
+
+  const Status steep = Fits(test_world, BentWall(z13::station::WallDiagonal::kBaseToTip));
+  const Status gentle = Fits(test_world, BentWall(z13::station::WallDiagonal::kTipToBase));
+
+  ASSERT_FALSE(steep.has_value());
+  EXPECT_NE(steep.error().find("folds 90 degrees"), std::string::npos) << steep.error();
+  EXPECT_NE(steep.error().find("other diagonal"), std::string::npos) << steep.error();
+  EXPECT_TRUE(gentle.has_value()) << (gentle ? "" : gentle.error());
 }
 
 TEST(WallFitTest, TheSquareEndOfSuchAWallWouldCollideWithTheOneItJoins) {

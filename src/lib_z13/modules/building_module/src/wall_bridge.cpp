@@ -46,7 +46,7 @@ std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id) {
 
 std::expected<FacedWall, std::string> PlanBridge(
     flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
-    const z13::building::primitives::Palette& palette) {
+    const z13::building::primitives::Palette& palette, bool flip_diagonal) {
   const auto first_cell = WallNodeCell(world, first);
   const auto second_cell = WallNodeCell(world, second);
   if (first == second || !first_cell || !second_cell) {
@@ -72,6 +72,9 @@ std::expected<FacedWall, std::string> PlanBridge(
       .node_a = *first_cell, .node_b = *second_cell, .stick_a = stick, .stick_b = *far, .thickness = thickness};
   if (z13::building::primitives::IsBent(wall)) {
     wall.diagonal = z13::building::primitives::DefaultDiagonal(wall);
+    if (flip_diagonal) {
+      wall.diagonal = z13::building::primitives::Flipped(wall.diagonal);
+    }
   }
   return FacingEye(wall, eye, palette);
 }

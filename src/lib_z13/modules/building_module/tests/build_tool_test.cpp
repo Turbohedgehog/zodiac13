@@ -250,6 +250,7 @@ TEST(BuildToolTest, TheTouchLayerFollowsTheHeldToolsMode) {
 
   for (const auto& [mode, layer] : {std::pair {ToolMode::kWall, z13::input::TouchLayer::kWall},
                                     std::pair {ToolMode::kMerge, z13::input::TouchLayer::kMerge},
+                                    std::pair {ToolMode::kBridge, z13::input::TouchLayer::kBridge},
                                     std::pair {ToolMode::kDestroy, z13::input::TouchLayer::kBlock}}) {
     BuildToolOf(player).get_mut<BuildTool>().mode = mode;
     test_world.Tick();
@@ -279,6 +280,22 @@ TEST(BuildToolTest, TheMergeLayersButtonStepsTheMergeTarget) {
   TapButton(test_world, z13::input::TouchControl::kMergeAt);
 
   EXPECT_NE(BuildToolOf(player).get<BuildTool>().merge_at, before);
+}
+
+TEST(BuildToolTest, TheFlipButtonTurnsTheBridgesDiagonalOnlyWithABridgeInTheMaking) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kBridge;
+  test_world.Tick();
+
+  TapButton(test_world, z13::input::TouchControl::kFlipDiagonal);
+  EXPECT_FALSE(player.has<z13::station::WallBridgeDraft>());
+
+  player.set(z13::station::WallBridgeDraft {.node_id = 1});
+  TapButton(test_world, z13::input::TouchControl::kFlipDiagonal);
+  EXPECT_TRUE(player.get<z13::station::WallBridgeDraft>().flipped);
+  TapButton(test_world, z13::input::TouchControl::kFlipDiagonal);
+  EXPECT_FALSE(player.get<z13::station::WallBridgeDraft>().flipped);
 }
 
 TEST(BuildToolTest, TheDestroyButtonDropsAWallInTheMakingElseDestroys) {
