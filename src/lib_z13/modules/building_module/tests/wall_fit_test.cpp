@@ -50,7 +50,8 @@ const Eigen::Vector3i kUp {0, kRun, 0};
 const Eigen::Vector3i kAcross {kRun, 0, 0};
 
 WallGeometry Wall(const Eigen::Vector3i& from, const Eigen::Vector3i& to, int thickness = kThickness) {
-  return {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = kStickLength,
+  return {.node_a = from, .node_b = to, .stick_a = {WallAxis::kZ, kStickLength},
+      .stick_b = {WallAxis::kZ, kStickLength},
           .thickness = thickness};
 }
 
@@ -87,7 +88,7 @@ TEST(WallFitTest, ATrapezoidMeetingAnotherAtACornerFitsToo) {
   Z13TestWorld test_world = StationWorld();
   Lay(test_world, Wall(kCorner, kCorner + kUp));
   WallGeometry trapezoid = Wall(kCorner, kCorner + kAcross);
-  trapezoid.stick_growth = -kStickLength / 2;
+  trapezoid.stick_b.length -= kStickLength / 2;
 
   const Status fits = Fits(test_world, trapezoid);
 

@@ -70,7 +70,8 @@ uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
 void AddWall(Z13TestWorld& test_world, uint32_t a, uint32_t b) {
   flecs::world world = test_world.World();
   SpawnWallSegment(world, world.get_mut<z13::gameplay::IdCounters>(),
-                   {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness});
+                   {.node_a = a, .node_b = b, .stick_a = {WallAxis::kZ, kStickLength},
+                       .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness});
 }
 
 std::vector<WallSegment> Segments(flecs::world world) {

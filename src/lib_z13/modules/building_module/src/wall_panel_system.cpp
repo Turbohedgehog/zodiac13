@@ -38,6 +38,7 @@
 
 #include "block_entities.h"
 #include "station_build_phase.h"
+#include "wall_entities.h"
 #include "wall_joints.h"
 
 namespace z13::building {
@@ -56,14 +57,24 @@ struct Panel {
   Block block;
 };
 
+// One of a segment's panels: its single one, or either triangle of a bent wall.
+struct PanelKey {
+  uint32_t segment_id {};
+  uint32_t part {};
+
+  auto operator<=>(const PanelKey&) const = default;
+};
+
 void RegisterComponents(flecs::world world) {
+  // WallStick first: WallSegment holds two.
+  z13::flecs_tools::RegisterComponentMeta<z13::station::WallStick>(world);
   z13::flecs_tools::RegisterComponents<WallNode, WallSegment, WallPanelOf, z13::station::WallDraft,
                                           z13::station::WallMergeDraft, z13::station::WallBridgeDraft>(world);
 }
 
-// The panel each segment should have, by segment id; a segment that can't have one has none.
-// Walls meeting two at a node end along one seam, or square where that can't be had.
-std::map<uint32_t, Block> ExpectedPanels(
+// The panels each segment should have; a segment that can't have them has none. Walls meeting
+// two at a node end along one seam, or square where that can't be had.
+std::map<PanelKey, Block> ExpectedPanels(
     const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const z13::building::primitives::Palette& palette, int joint_reach) {
   std::unordered_map<uint32_t, Eigen::Vector3i> cells;
@@ -73,25 +84,19 @@ std::map<uint32_t, Block> ExpectedPanels(
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
     if (a != cells.end() && b != cells.end()) {
-      walls.push_back({.id = segment.id,
-                       .node_a = segment.node_a,
-                       .node_b = segment.node_b,
-                       .geometry = {.node_a = a->second,
-                                    .node_b = b->second,
-                                    .stick_axis = segment.stick_axis,
-                                    .stick_length = segment.stick_length,
-                                    .stick_growth = segment.stick_growth,
-                                    .thickness = segment.thickness}});
+      walls.push_back(JointWallOf(segment, a->second, b->second));
     }
   });
   const WallJoints joints = SolveJoints(walls, joint_reach);
-  std::map<uint32_t, Block> expected;
+  std::map<PanelKey, Block> expected;
   for (const JointWall& wall : walls) {
-    const auto block = JointPanel(wall, joints, palette);
-    if (block) {
-      expected.emplace(wall.id, *block);
-    } else {
-      log_debug("station: wall segment {} has no panel: {}", wall.id, block.error());
+    const auto blocks = JointPanels(wall, joints, palette);
+    if (!blocks) {
+      log_debug("station: wall segment {} has no panel: {}", wall.id, blocks.error());
+      continue;
+    }
+    for (uint32_t part = 0; part < blocks->size(); ++part) {
+      expected.emplace(PanelKey {.segment_id = wall.id, .part = part}, (*blocks)[part]);
     }
   }
   return expected;
@@ -101,15 +106,16 @@ void SyncPanels(
     flecs::world world, const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const flecs::query<const WallPanelOf, const Block>& panels, z13::gameplay::IdCounters& counters,
     const BlockPalette& palette, const BuildingTuning& tuning) {
-  const std::map<uint32_t, Block> expected =
+  const std::map<PanelKey, Block> expected =
       ExpectedPanels(nodes, segments, palette.palette, tuning.wall_joint_max_reach_cells);
 
-  std::map<uint32_t, Panel> existing;
+  std::map<PanelKey, Panel> existing;
   std::vector<Panel> stale;
   panels.each([&](flecs::entity entity, const WallPanelOf& of, const Block& block) {
-    const auto wanted = expected.find(of.segment_id);
-    if (wanted != expected.end() && wanted->second == block && !existing.contains(of.segment_id)) {
-      existing.emplace(of.segment_id, Panel {entity, block});
+    const PanelKey key {.segment_id = of.segment_id, .part = of.part};
+    const auto wanted = expected.find(key);
+    if (wanted != expected.end() && wanted->second == block && !existing.contains(key)) {
+      existing.emplace(key, Panel {entity, block});
     } else {
       stale.push_back({entity, block});
     }
@@ -117,10 +123,10 @@ void SyncPanels(
   for (const Panel& panel : stale) {
     z13::station::DestroyBlock(panel.entity, panel.block);
   }
-  for (const auto& [segment_id, block] : expected) {
-    if (!existing.contains(segment_id)) {
+  for (const auto& [key, block] : expected) {
+    if (!existing.contains(key)) {
       z13::station::SpawnBlock(world.entity(NextBlockName(world, counters).c_str()), block)
-          .set(WallPanelOf {.segment_id = segment_id});
+          .set(WallPanelOf {.segment_id = key.segment_id, .part = key.part});
     }
   }
 }

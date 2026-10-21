@@ -88,9 +88,21 @@ flecs::entity SpawnWall(
   const uint32_t node_a = WallNodeAt(world, counters, wall.node_a);
   const uint32_t node_b = WallNodeAt(world, counters, wall.node_b);
   return SpawnWallSegment(world, counters,
-                          WallSegment {.node_a = node_a, .node_b = node_b, .stick_axis = wall.stick_axis,
-                                       .stick_length = wall.stick_length, .stick_growth = wall.stick_growth,
-                                       .thickness = wall.thickness});
+                          WallSegment {.node_a = node_a, .node_b = node_b, .stick_a = wall.stick_a,
+                                       .stick_b = wall.stick_b, .thickness = wall.thickness,
+                                       .diagonal = wall.diagonal});
+}
+
+JointWall JointWallOf(const WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b) {
+  return {.id = segment.id,
+          .node_a = segment.node_a,
+          .node_b = segment.node_b,
+          .geometry = {.node_a = cell_a,
+                       .node_b = cell_b,
+                       .stick_a = segment.stick_a,
+                       .stick_b = segment.stick_b,
+                       .thickness = segment.thickness,
+                       .diagonal = segment.diagonal}};
 }
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
@@ -109,15 +121,7 @@ std::vector<JointWall> JointWallsOf(flecs::world world) {
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
     if (a != cells.end() && b != cells.end()) {
-      walls.push_back({.id = segment.id,
-                       .node_a = segment.node_a,
-                       .node_b = segment.node_b,
-                       .geometry = {.node_a = a->second,
-                                    .node_b = b->second,
-                                    .stick_axis = segment.stick_axis,
-                                    .stick_length = segment.stick_length,
-                                    .stick_growth = segment.stick_growth,
-                                    .thickness = segment.thickness}});
+      walls.push_back(JointWallOf(segment, a->second, b->second));
     }
   });
   std::ranges::sort(walls, {}, &JointWall::id);

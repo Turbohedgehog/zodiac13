@@ -30,6 +30,9 @@ namespace z13::building::primitives {
 
 using Triangle = std::array<Eigen::Vector3i, 3>;
 
+// The triangle's normal, (second - first) x (third - first); not of unit length.
+Eigen::Vector3<int64_t> TriangleNormal(const Triangle& triangle);
+
 // The axis (0 to 2) a triangular wall thickens along: the one nearest the triangle's normal, the
 // lower on a tie. Nothing for corners on one line.
 std::optional<int> ThickeningAxisOf(const Triangle& triangle);

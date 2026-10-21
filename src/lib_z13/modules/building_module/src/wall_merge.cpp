@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <z13/components/wall.h>
+#include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
 
 #include "wall_entities.h"
@@ -68,7 +69,7 @@ Eigen::Vector3i MergedCell(const Eigen::Vector3i& first, const Eigen::Vector3i& 
 // Whether `cell` lies strictly inside the line from `segment`'s node a to its node b, across
 // the plane the stick leaves, on the stick's own level.
 bool OnLine(const WallSegment& segment, const Eigen::Vector3i& a, const Eigen::Vector3i& b, const Eigen::Vector3i& cell) {
-  const int stick = static_cast<int>(segment.stick_axis);
+  const int stick = static_cast<int>(segment.stick_a.axis);
   if (cell[stick] != a[stick]) {
     return false;
   }
@@ -113,7 +114,7 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
     if (!Touches(segment, first) && !Touches(segment, second)) {
       const auto from = cells.find(segment.node_a);
       const auto to = cells.find(segment.node_b);
-      if (segment.stick_growth != 0 && from != cells.end() && to != cells.end() &&
+      if (segment.stick_a != segment.stick_b && from != cells.end() && to != cells.end() &&
           OnLine(segment, from->second, to->second, merge.cell)) {
         return std::unexpected(std::string {"a wall with unequal sticks can't be divided"});
       }
@@ -127,12 +128,10 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
     if (a == cells.end() || b == cells.end()) {
       continue;
     }
-    const auto panel = z13::building::primitives::WallPanelBlock(
-        {.node_a = a->second, .node_b = b->second, .stick_axis = segment.stick_axis,
-         .stick_length = segment.stick_length, .stick_growth = segment.stick_growth, .thickness = segment.thickness},
-        palette);
-    if (!panel) {
-      return std::unexpected(std::format("a wall would be left without a panel: {}", panel.error()));
+    const auto panels =
+        z13::building::primitives::WallPanelBlocks(JointWallOf(segment, a->second, b->second).geometry, palette);
+    if (!panels) {
+      return std::unexpected(std::format("a wall would be left without a panel: {}", panels.error()));
     }
   }
   const std::vector<JointWall> before = JointWallsOf(world);

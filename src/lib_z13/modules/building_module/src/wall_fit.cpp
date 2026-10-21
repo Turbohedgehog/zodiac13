@@ -63,12 +63,14 @@ Status CheckWallFits(flecs::world world, const z13::building::primitives::WallGe
   const std::vector<grid::BlockId> replaced = PanelsOf(world, changed);
   const WallJoints joints = SolveJoints(after, reach);
   for (const JointWall& panel_wall : changed) {
-    const auto panel = JointPanel(panel_wall, joints, view.palette);
-    if (!panel) {
-      return std::unexpected(panel.error());
+    const auto panels = JointPanels(panel_wall, joints, view.palette);
+    if (!panels) {
+      return std::unexpected(panels.error());
     }
-    if (const Status fits = ValidateBuild(*panel, view, z13::station::BrushPreview::Kind::kBuild, replaced); !fits) {
-      return fits;
+    for (const z13::station::Block& panel : *panels) {
+      if (const Status fits = ValidateBuild(panel, view, z13::station::BrushPreview::Kind::kBuild, replaced); !fits) {
+        return fits;
+      }
     }
   }
   return {};

@@ -34,19 +34,31 @@ struct WallNode {
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
 };
 
-// The panel between two sticks: one at node `node_a`, the other at `node_b` with its offset
-// along the stick dropped. `stick_length` is signed (the stick's direction along `stick_axis`)
-// and is a's; b's is longer by `stick_growth`. The sign of `thickness` picks the side of the line
-// from a to b that the panel thickens to.
+// A segment's edge at one of its nodes: from the node along `axis` by `length`, signed.
+struct WallStick {
+  WallAxis axis = WallAxis::kZ;
+  int length {};
+
+  bool operator==(const WallStick&) const = default;
+};
+
+// Of the four corners of a segment's sticks (a's base and tip, b's base and tip), which two a
+// bent wall's two triangles share: a's base with b's tip, or a's tip with b's base.
+enum class WallDiagonal : uint8_t { kBaseToTip, kTipToBase };
+
+// The panel between two sticks, one at each node: one panel for sticks of one axis (b's offset
+// along it dropped, so both start level; unequal lengths slope the top), else two triangles
+// along `diagonal`. The sign of `thickness` picks the side: of the line from a to b for one
+// panel, of the surface (normal as a base, a tip, b tip, b base wind) for triangles.
 struct WallSegment {
   using State = void;
   uint32_t id {};
   uint32_t node_a {};
   uint32_t node_b {};
-  WallAxis stick_axis = WallAxis::kZ;
-  int stick_length {};
-  int stick_growth {};
+  WallStick stick_a;
+  WallStick stick_b;
   int thickness {};
+  WallDiagonal diagonal {};
 };
 
 // A player's wall in the making (the Wall brush mode): the first click set `first`; the second
@@ -73,10 +85,12 @@ struct WallBridgeDraft {
   uint32_t node_id {};
 };
 
-// Marks the block derived from a segment; the segment owns it (WallPanelSystem).
+// Marks a block derived from a segment (`part` of its one or two); the segment owns it
+// (WallPanelSystem).
 struct WallPanelOf {
   using State = void;
   uint32_t segment_id {};
+  uint32_t part {};
 };
 
 }  // namespace z13::station

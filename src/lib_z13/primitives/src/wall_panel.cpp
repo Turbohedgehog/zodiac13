@@ -24,6 +24,7 @@
 #include <set>
 
 #include <primitives/placement.h>
+#include <primitives/wall_bend.h>
 #include <primitives/wall_seam.h>
 
 namespace z13::building::primitives {
@@ -71,12 +72,15 @@ PlanAxes PlanAxesOf(WallAxis stick_axis, const Eigen::Vector3i& span) {
 }
 
 std::optional<int> MinWallThickness(const WallGeometry& wall) {
+  if (IsBent(wall)) {
+    return MinBentThickness(wall);
+  }
   Eigen::Vector3i span = wall.node_b - wall.node_a;
-  span[static_cast<int>(wall.stick_axis)] = 0;
+  span[static_cast<int>(wall.stick_a.axis)] = 0;
   if (span.isZero()) {
     return std::nullopt;
   }
-  const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
+  const PlanAxes axes = PlanAxesOf(wall.stick_a.axis, span);
   const int run = std::abs(span[axes.major]);
   const int slant = std::abs(span[axes.minor]);
   return (run + slant + run - 1) / run;
@@ -87,41 +91,45 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
   if (!primitive) {
     return std::unexpected(std::string {"the palette has no Panel"});
   }
-  const int stick = static_cast<int>(wall.stick_axis);
+  if (IsBent(wall)) {
+    return std::unexpected(std::string {"a wall with sticks of two axes has two panels"});
+  }
+  const int stick = static_cast<int>(wall.stick_a.axis);
   Eigen::Vector3i offset = wall.node_b - wall.node_a;
   offset[stick] = 0;
   if (offset.isZero()) {
     return std::unexpected(std::string {"the wall's nodes coincide in its plane"});
   }
-  const int far_length = wall.stick_length + wall.stick_growth;
-  if (wall.stick_length == 0 || wall.thickness == 0) {
+  const int near_length = wall.stick_a.length;
+  const int far_length = wall.stick_b.length;
+  if (near_length == 0 || wall.thickness == 0) {
     return std::unexpected(std::string {"the wall has no stick length or thickness"});
   }
-  if (Sign(far_length) != Sign(wall.stick_length)) {
+  if (Sign(far_length) != Sign(near_length)) {
     return std::unexpected(std::string {"the wall's sticks point opposite ways or one has no length"});
   }
 
-  const PlanAxes axes = PlanAxesOf(wall.stick_axis, offset);
+  const PlanAxes axes = PlanAxesOf(wall.stick_a.axis, offset);
   const int major = axes.major;
   const int minor = axes.minor;
   const int run = std::abs(offset[major]);
   const int slant = std::abs(offset[minor]);
   const int thickness = std::abs(wall.thickness);
-  const int longest = std::max(std::abs(wall.stick_length), std::abs(far_length));
+  const int longest = std::max(std::abs(near_length), std::abs(far_length));
   const Eigen::Vector3i size {run, longest, slant + thickness};
   if (!primitive->get().shape.AllowsSize(size, slant) || (size.array() > primitive->get().max_size.array()).any()) {
     return std::unexpected(std::format(
         "a panel of run {}, rise {} and thickness {} along a stick of {} isn't allowed", run, slant, thickness,
         size.y()));
   }
-  if (wall.stick_growth != 0) {
+  if (near_length != far_length) {
     return CutPanelBlock(wall, palette, {});
   }
 
   Eigen::Vector3i thicken = Eigen::Vector3i::Zero();
   thicken[minor] = Sign(wall.thickness) * thickness;
   Eigen::Vector3i along = Eigen::Vector3i::Zero();
-  along[stick] = wall.stick_length;
+  along[stick] = near_length;
   const Eigen::Vector3i high = wall.node_a + offset;
   Points target;
   const std::array<Eigen::Vector3i, 4> bases {wall.node_a, wall.node_a + thicken, high, high + thicken};

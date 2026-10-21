@@ -82,10 +82,10 @@ std::expected<WallClick, std::string> ClickWall(
     const std::optional<z13::station::WallDraft>& draft, const Aim& aim,
     std::span<const Eigen::Vector3i> anchors, const WallPicking& picking, int thickness);
 
-// A wall and the panel block it makes.
+// A wall and the panel blocks it makes: one, or the two triangles of a bent wall.
 struct FacedWall {
   z13::building::primitives::WallGeometry wall;
-  z13::station::Block block;
+  std::vector<z13::station::Block> blocks;
 };
 
 // The wall thickened to whichever side is nearer `eye`.
@@ -101,6 +101,8 @@ z13::station::Block CellMarker(const Eigen::Vector3i& cell);
 // nothing (no plane met, no stick, a panel the palette doesn't allow).
 struct WallPreview {
   z13::station::Block block;
+  // The blocks after the first, of a bent wall.
+  std::vector<z13::station::Block> parts;
   std::vector<z13::station::BrushLine> lines;
   bool makeable {};
   // The wall the third click would make, once it faces the eye.

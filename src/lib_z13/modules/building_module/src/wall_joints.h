@@ -22,6 +22,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 #include <z13/components/block.h>
 #include <primitives/palette.h>
@@ -38,8 +39,8 @@ struct JointWall {
 };
 
 // The joints of a set of walls: at a node where exactly two walls with the same stick axis
-// meet, both end along one seam. Other nodes, and joints whose seam can't be had, leave the
-// walls square-cut there.
+// meet, both end along one seam. Other nodes, bent walls, and joints whose seam can't be had,
+// leave the walls square-cut there.
 struct WallJoints {
   std::map<uint32_t, z13::building::primitives::WallEnds> ends;
   // The joints refused, by the ids of the walls in them, and why.
@@ -50,6 +51,10 @@ WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach);
 
 // The panel `wall` stands as, cut along its joints' seams or, when that can't be had, square.
 std::expected<z13::station::Block, std::string> JointPanel(
+    const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette);
+
+// The panels `wall` stands as: one, as JointPanel, or the two triangles of a bent wall.
+std::expected<std::vector<z13::station::Block>, std::string> JointPanels(
     const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette);
 
 // Why `after` makes a joint `before` didn't refuse, if it does: what a change would break.

@@ -370,7 +370,11 @@ void DrawBrushPreview(
       const auto& preview = brush.get<z13::station::BrushPreview>();
       const ::Color valid_tint =
           preview.kind == z13::station::BrushPreview::Kind::kBuild ? kValidBuildTint : kValidCutTint;
-      DrawBlock(drawing, preview.block, preview.valid ? valid_tint : kRefusedBuildTint);
+      const ::Color tint = preview.valid ? valid_tint : kRefusedBuildTint;
+      DrawBlock(drawing, preview.block, tint);
+      for (const z13::station::Block& part : preview.parts) {
+        DrawBlock(drawing, part, tint);
+      }
     }
     return;
   }

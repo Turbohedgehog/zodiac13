@@ -54,7 +54,8 @@ const Eigen::Vector3i kEastBy8Degrees {kLength, 3, 0};
 using z13::building::primitives::WallGeometry;
 
 WallGeometry Geometry(const Eigen::Vector3i& from, const Eigen::Vector3i& to, WallAxis axis = WallAxis::kZ) {
-  return {.node_a = from, .node_b = to, .stick_axis = axis, .stick_length = kStickLength, .thickness = kThickness};
+  return {.node_a = from, .node_b = to, .stick_a = {axis, kStickLength}, .stick_b = {axis, kStickLength},
+      .thickness = kThickness};
 }
 
 JointWall Wall(uint32_t id, uint32_t node_a, uint32_t node_b, const WallGeometry& geometry) {
@@ -90,7 +91,7 @@ TEST(WallJointsTest, ThreeWallsOrWallsOfDifferentSticksStaySquare) {
 
 TEST(WallJointsTest, ATrapezoidJoinsLikeAnyOtherWall) {
   std::vector<JointWall> corner = Corner(kNorth);
-  corner.back().geometry.stick_growth = 2;
+  corner.back().geometry.stick_b.length += 2;
 
   const WallJoints joints = SolveJoints(corner, kReach);
 

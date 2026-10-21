@@ -27,16 +27,16 @@ namespace {
 
 using Normal = Eigen::Vector3<int64_t>;
 
-Normal NormalOf(const Triangle& triangle) {
+}  // namespace
+
+Normal TriangleNormal(const Triangle& triangle) {
   const Normal first = (triangle[1] - triangle[0]).cast<int64_t>();
   const Normal second = (triangle[2] - triangle[0]).cast<int64_t>();
   return first.cross(second);
 }
 
-}  // namespace
-
 std::optional<int> ThickeningAxisOf(const Triangle& triangle) {
-  const Normal normal = NormalOf(triangle);
+  const Normal normal = TriangleNormal(triangle);
   if (normal.isZero()) {
     return std::nullopt;
   }
@@ -50,7 +50,7 @@ std::optional<int> MinTriangleThickness(const Triangle& triangle) {
   if (!axis) {
     return std::nullopt;
   }
-  const Normal normal = NormalOf(triangle).cwiseAbs();
+  const Normal normal = TriangleNormal(triangle).cwiseAbs();
   const int64_t along = normal[*axis];
   return static_cast<int>((normal.sum() + along - 1) / along);
 }

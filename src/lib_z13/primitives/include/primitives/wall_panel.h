@@ -32,11 +32,10 @@ namespace z13::building::primitives {
 struct WallGeometry {
   Eigen::Vector3i node_a = Eigen::Vector3i::Zero();
   Eigen::Vector3i node_b = Eigen::Vector3i::Zero();
-  z13::station::WallAxis stick_axis = z13::station::WallAxis::kZ;
-  int stick_length {};
-  // How much longer node b's stick is than node a's, signed along `stick_length`.
-  int stick_growth {};
+  z13::station::WallStick stick_a;
+  z13::station::WallStick stick_b;
   int thickness {};
+  z13::station::WallDiagonal diagonal {};
 };
 
 // The axes of a stick axis's plane (the lower first) and which carries the panel's run (the
@@ -51,14 +50,16 @@ struct PlanAxes {
 PlanAxes PlanAxesOf(z13::station::WallAxis stick_axis, const Eigen::Vector3i& span);
 
 // The thinnest panel the wall can be and still hold air back (palette Panel's AllowsSize): one
-// cell along the grid, two across it. Nothing for nodes that coincide in the plane.
+// cell along the grid, two across it; for a bent wall the thicker of its two triangles' least.
+// Nothing for nodes that coincide in the plane.
 std::optional<int> MinWallThickness(const WallGeometry& wall);
 
 // The Panel block whose prism runs from node a to node b (b's offset along the stick axis
 // dropped) over the stick, and thickens by |thickness| cells along the lesser axis of the
 // plane, to the side of its sign. Its ends are cut by the grid, so a wall meets one flush.
-// An error for nodes that coincide in the plane, a stick of no length or turned about by
-// `stick_growth`, or a thickness the panel can't have (palette Panel's AllowsSize).
+// An error for sticks of different axes (a bent wall has WallPanelBlocks), nodes that coincide in
+// the plane, a stick of no length or turned about, or a thickness the panel can't have (palette
+// Panel's AllowsSize).
 std::expected<z13::station::Block, std::string> WallPanelBlock(const WallGeometry& wall, const Palette& palette);
 
 }  // namespace z13::building::primitives
