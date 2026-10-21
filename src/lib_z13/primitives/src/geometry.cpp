@@ -28,6 +28,8 @@ namespace z13::building::primitives {
 
 namespace {
 
+constexpr size_t kTriangleCorners = 3;
+
 using FaceIndices = std::vector<uint32_t>;
 
 Eigen::Vector3f Centroid(const std::vector<Eigen::Vector3f>& vertices, const FaceIndices& indices) {
@@ -98,13 +100,13 @@ std::vector<FaceIndices> CapFaces(const std::array<Eigen::Vector3f, 4>& points, 
 }
 
 // The section (x, z) runs (0, 0), (run, slant), (run, height), (0, height - slant), extended along
-// Y; `cut_corners`, when set, put its four corners where a joint cut the ends, and `face_cuts`
-// slope the faces along Y.
+// Y; `cut_corners`, when set, put its four corners where a joint cut the ends (a triangle repeats
+// its third), and `face_cuts` slope the faces along Y.
 ConvexSolid MakePanel(
     const Eigen::Vector3f& s, float slant, const z13::station::PanelCorners& cut_corners,
     const z13::station::PanelFaceCuts& face_cuts) {
   const float thickness = s.z() - slant;
-  std::array<Eigen::Vector2f, 4> section {
+  std::vector<Eigen::Vector2f> section {
       Eigen::Vector2f {0, 0}, {s.x(), slant}, {s.x(), s.z()}, {0, thickness}};
   if (cut_corners != z13::station::PanelCorners {}) {
     for (size_t i = 0; i < section.size(); ++i) {
@@ -112,18 +114,32 @@ ConvexSolid MakePanel(
           Eigen::Vector2f(static_cast<float>(cut_corners[2 * i]), static_cast<float>(cut_corners[(2 * i) + 1]));
     }
   }
+  if (section[3] == section[2]) {
+    section.pop_back();
+  }
+  const size_t count = section.size();
+  const size_t far_cuts = face_cuts.size() / 2;
   std::vector<Eigen::Vector3f> corners;
   std::array<std::array<Eigen::Vector3f, 4>, 2> caps;
   for (const bool far : {false, true}) {
-    for (size_t i = 0; i < section.size(); ++i) {
-      const float cut = static_cast<float>(face_cuts[(far ? section.size() : 0) + i]);
+    for (size_t i = 0; i < count; ++i) {
+      const float cut = static_cast<float>(face_cuts[(far ? far_cuts : 0) + i]);
       corners.emplace_back(section[i].x(), far ? s.y() - cut : cut, section[i].y());
       caps[far][i] = corners.back();
     }
   }
-  std::vector<FaceIndices> faces {{0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}};
+  std::vector<FaceIndices> faces;
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t next = (i + 1) % count;
+    faces.push_back({i, next, static_cast<uint32_t>(count) + next, static_cast<uint32_t>(count) + i});
+  }
   for (const bool far : {false, true}) {
-    for (FaceIndices& cap : CapFaces(caps[far], static_cast<uint32_t>(far ? section.size() : 0), far)) {
+    const uint32_t first = far ? static_cast<uint32_t>(count) : 0;
+    if (count == kTriangleCorners) {
+      faces.push_back({first, first + 1, first + 2});
+      continue;
+    }
+    for (FaceIndices& cap : CapFaces(caps[far], first, far)) {
       faces.push_back(std::move(cap));
     }
   }
