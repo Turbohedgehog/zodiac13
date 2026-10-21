@@ -74,7 +74,7 @@ uniform vec4 checkerSecond;
 uniform float cellSize;
 // Debug view of a station's light, stepped by F11/F12: 0 off, 1 white albedo, 2 only the baked
 // light on white, 3 the baked light's node cubes in hashed colors, 4 the baked light less the
-// players' shadows, 5 the lamps and flashlights in the clusters, 6 the sun, 7 the fill.
+// players' shadows, 5 the lamps and flashlights in the clusters, 6 the sun, 7 the fill, 8 the sheen alone.
 uniform int debugView;
 
 // A normal this close to an axis is a face along the grid; a face whose normal.z is above
@@ -86,10 +86,22 @@ const float kNormalOffset = 0.04;
 const float kCubeBias = 0.02;
 // In meters: a depth bias in the map's own units grew with the station, past a wall's thickness.
 const float kDirectionalBiasM = 0.08;
-// Matte metal: a broad highlight tinted by the surface color, over a weakened diffuse.
-const float kShininess = 10.0;
-const float kMetalSpecular = 0.7;
+// A highlight is cut where the cosine of its angle crosses the edge, over a soft rim this wide.
+const float kHighlightEdge = 0.65;
+const float kHighlightSoft = 0.04;
+// A flashlight sits at the eye, so its highlight must be tight and faint or it floods the face it looks at.
+const float kFlashEdge = 0.97;
+const float kFlashGloss = 0.3;
+// Matte metal: a faint highlight over a weakened diffuse.
+const float kMetalSpecular = 0.45;
 const float kMetalDiffuse = 0.65;
+// The tile's brightness as a height: its seams and rivets tilt the highlight's normal by this much.
+const float kBump = 6.0;
+// A grazing view brightens a face by this share of its baked light.
+const float kRim = 0.5;
+const float kRimPower = 3.0;
+// How much of the face's color the sheen takes on: 0 white as plastic's, 1 tinted as a metal's.
+const float kSheenTint = 0.5;
 // Of a spot's cone, the outer part where its light fades to the edge.
 const float kConeSoftness = 0.25;
 // The share of the fill a face turned straight away from it still gets.
@@ -164,14 +176,20 @@ vec3 FacingNormal(vec3 normal, bool twoSided, vec3 toLight)
     return (twoSided && dot(normal, toLight) < 0.0) ? -normal : normal;
 }
 
-// Diffuse plus Blinn-Phong highlight of one light from `toLight`; glass is lit on both faces.
-vec3 Shade(vec3 normal, bool twoSided, vec3 toLight, vec3 toView, vec3 color)
+float Highlight(float cosine, float edge)
 {
+    return smoothstep(edge - kHighlightSoft, edge + kHighlightSoft, cosine);
+}
+
+// The diffuse of one light from `toLight`, and in `gloss` its crisp highlight; glass is lit on both faces.
+vec3 Shade(vec3 normal, vec3 shineNormal, bool twoSided, vec3 toLight, vec3 toView, vec3 color, out vec3 gloss)
+{
+    gloss = vec3(0.0);
     vec3 lit = FacingNormal(normal, twoSided, toLight);
     float diffuse = max(dot(lit, toLight), 0.0);
     if (diffuse <= 0.0) return vec3(0.0);
-    float highlight = pow(max(dot(toView, reflect(-toLight, lit)), 0.0), kShininess);
-    return color*(diffuse*kMetalDiffuse + highlight*kMetalSpecular);
+    gloss = color*Highlight(dot(toView, reflect(-toLight, FacingNormal(shineNormal, twoSided, toLight))), kFlashEdge)*kFlashGloss;
+    return color*diffuse*kMetalDiffuse;
 }
 
 // Wrapped around the faces turned away too, as light scattered from all around would be.
@@ -197,7 +215,7 @@ int ClusterOf(vec3 position)
 // weighed by distance, each through the cell of its cube nearest the point's cell. A node adds
 // nothing when that cell is opaque, or when the point's own cube is cut off from it on the way:
 // a wall in the point's cube, between the point and the neighbour.
-vec3 CellLight(vec3 point, vec3 normal, vec3 toView, out vec3 sheen)
+vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 sheen)
 {
     sheen = vec3(0.0);
     vec3 surface = point;
@@ -243,13 +261,16 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 toView, out vec3 sheen)
     if (weights <= 0.0) return vec3(0.0);
     light /= weights;
     direction /= weights;
+    // Many lamps add up past 1, and the sheen sits above the compressed light: it follows no more than a full one.
+    vec3 shineLight = min(light, vec3(1.0));
     float oneSided = length(direction);
     float facing = oneSided > 0.0 ? max(dot(normal, direction/oneSided), 0.0) : 0.0;
     if (oneSided > 0.0)
     {
         vec3 halfway = normalize(direction/oneSided + toView);
-        sheen = light*oneSided*kMetalSpecular*facing*pow(max(dot(normal, halfway), 0.0), kShininess);
+        sheen = shineLight*oneSided*kMetalSpecular*facing*Highlight(dot(shineNormal, halfway), kHighlightEdge);
     }
+    sheen += shineLight*kRim*pow(1.0 - max(dot(shineNormal, toView), 0.0), kRimPower);
     return light*mix(1.0, kBakedFloor + (1.0 - kBakedFloor)*facing, oneSided)*kMetalDiffuse;
 }
 
@@ -311,6 +332,45 @@ vec4 BlockTexel(vec3 position, vec3 normal)
     return textureGrad(texture0, fract(p), dFdx(p), dFdy(p));
 }
 
+float TileHeight(vec2 p, vec2 gradX, vec2 gradY)
+{
+    return dot(textureGrad(texture0, fract(p), gradX, gradY).rgb, vec3(0.299, 0.587, 0.114));
+}
+
+// The face's normal tilted by the slope of the tile's brightness, along the tile's own axes
+// (as in BlockTexel); the gradients keep the bump from aliasing at a distance.
+vec3 BumpedNormal(vec3 position, vec3 normal)
+{
+    vec3 a = abs(normal);
+    vec2 p;
+    vec3 alongU;
+    vec3 alongV;
+    if (a.x > a.y && a.x > a.z)
+    {
+        p = vec2(position.y, -position.z);
+        alongU = vec3(0.0, 1.0, 0.0);
+        alongV = vec3(0.0, 0.0, -1.0);
+    }
+    else if (a.y > a.z)
+    {
+        p = vec2(position.x, -position.z);
+        alongU = vec3(1.0, 0.0, 0.0);
+        alongV = vec3(0.0, 0.0, -1.0);
+    }
+    else
+    {
+        p = vec2(position.x, -position.y);
+        alongU = vec3(1.0, 0.0, 0.0);
+        alongV = vec3(0.0, -1.0, 0.0);
+    }
+    vec2 gradX = dFdx(p);
+    vec2 gradY = dFdy(p);
+    vec2 texel = 1.0/vec2(textureSize(texture0, 0));
+    float du = TileHeight(p + vec2(texel.x, 0.0), gradX, gradY) - TileHeight(p - vec2(texel.x, 0.0), gradX, gradY);
+    float dv = TileHeight(p + vec2(0.0, texel.y), gradX, gradY) - TileHeight(p - vec2(0.0, texel.y), gradX, gradY);
+    return normalize(normal - kBump*0.5*(du*alongU + dv*alongV));
+}
+
 void main()
 {
     vec3 normal = normalize(fragNormal);
@@ -333,12 +393,13 @@ void main()
     vec3 offset = fragPosition + normal*kNormalOffset;
     // In the free cell the face looks into: a wall between two rooms shows each its own side.
     vec3 facing = fragPosition + normal*cellSize*0.5 + toView*kSeamNudge;
+    vec3 shineNormal = (checkerEnabled == 1 && checkerTextured == 1) ? BumpedNormal(fragPosition, normal) : normal;
+    vec3 sheen = vec3(0.0);
     vec3 light = vec3(0.0);
     if (cellLightEnabled == 1)
     {
-        vec3 sheen;
-        vec3 baked = CellLight(facing/cellSize, normal, toView, sheen);
-        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0)) + sheen;
+        vec3 baked = CellLight(facing/cellSize, normal, shineNormal, toView, sheen);
+        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0));
     }
 
     vec3 bakedEnd = light;
@@ -362,15 +423,20 @@ void main()
         if (along <= directionCone.w) continue;
         fade *= smoothstep(directionCone.w, mix(directionCone.w, 1.0, kConeSoftness), along);
         vec4 colorShadow = TableTexel(base + 1);
-        vec3 shaded = Shade(normal, twoSided, -fromLight/distance, toView, colorShadow.rgb);
+        vec3 gloss;
+        vec3 shaded = Shade(normal, shineNormal, twoSided, -fromLight/distance, toView, colorShadow.rgb, gloss);
         if (shaded == vec3(0.0)) continue;
-        light += shaded*fade*fade*PointShadow(int(colorShadow.w), offset - positionRadius.xyz, radius);
+        float lit = fade*fade*PointShadow(int(colorShadow.w), offset - positionRadius.xyz, radius);
+        light += shaded*lit;
+        sheen += gloss*lit;
     }
     vec3 clusterEnd = light;
     if (sunEnabled == 1)
     {
-        light += Shade(normal, twoSided, -sunDirection, toView, sunColor)*
-                 DirectionalShadow(sunShadowEnabled == 1, sunViewProjection, sunShadow, offset);
+        vec3 gloss;
+        float sunLit = DirectionalShadow(sunShadowEnabled == 1, sunViewProjection, sunShadow, offset);
+        light += Shade(normal, shineNormal, twoSided, -sunDirection, toView, sunColor, gloss)*sunLit;
+        sheen += gloss*sunLit;
     }
     vec3 sunEnd = light;
     if (fillEnabled == 1)
@@ -388,12 +454,17 @@ void main()
     if (debugView == 2 && cellLightEnabled == 1)
     {
         vec3 unused;
-        finalColor = vec4(Compress(CellLight(facing/cellSize, normal, toView, unused)), 1.0);
+        finalColor = vec4(Compress(CellLight(facing/cellSize, normal, shineNormal, toView, unused)), 1.0);
         return;
     }
     if (debugView == 4)
     {
         finalColor = vec4(Compress(bakedEnd), 1.0);
+        return;
+    }
+    if (debugView == 8)
+    {
+        finalColor = vec4(Compress(sheen), 1.0);
         return;
     }
     if (debugView >= 5 && debugView <= 7)
@@ -409,7 +480,9 @@ void main()
         finalColor = vec4(float(hash & 255u), float((hash >> 8) & 255u), float((hash >> 16) & 255u), 255.0)/255.0;
         return;
     }
-    finalColor = vec4(texelColor.rgb*colDiffuse.rgb*Compress(light + hemisphere), 1.0);
+    // The sheen goes on top of the compressed light: inside it, a bright wall would swallow the highlight.
+    vec3 shine = sheen*mix(vec3(1.0), texelColor.rgb, kSheenTint);
+    finalColor = vec4(texelColor.rgb*colDiffuse.rgb*Compress(light + hemisphere) + shine, 1.0);
     // Glass and previews keep their own alpha.
     finalColor.a = texelColor.a*colDiffuse.a;
 }
