@@ -181,7 +181,7 @@ TEST_P(TestStationTest, ClientJoiningGetsTheWholeStation) {
 TEST(StationBlueprintTest, ASlantedPanelSurvivesSaveAndLoad) {
   const Palette palette = ShippedPalette();
   const Block panel {
-      .spec = {.type_id = palette.Find("Panel")->get().id, .size = {6, 2, 5}, .slant = 3, .taper = {0, 1}},
+      .spec = {.type_id = palette.Find("Panel")->get().id, .size = {6, 2, 5}, .slant = 3, .face_cuts = {0, 0, 0, 0, 0, 1, 1, 0}},
       .cell = {400, 400, 40}};
   Z13TestWorld station(StationArgs(z13::testing::kSiteScene));
   station.Tick();
@@ -195,7 +195,7 @@ TEST(StationBlueprintTest, ASlantedPanelSurvivesSaveAndLoad) {
   ASSERT_TRUE(z13::flecs_tools::RestoreWorld(loaded.World(), *snapshot).has_value());
 
   EXPECT_EQ(loaded.World().lookup("SlantedPanel").get<Block>().spec.slant, 3);
-  EXPECT_EQ(loaded.World().lookup("SlantedPanel").get<Block>().spec.taper, Eigen::Vector2i(0, 1));
+  EXPECT_EQ(loaded.World().lookup("SlantedPanel").get<Block>().spec.face_cuts, panel.spec.face_cuts);
   EXPECT_TRUE(SameBlocks(Blocks(loaded.World()), Blocks(station.World())));
 }
 

@@ -83,12 +83,26 @@ ConvexSolid MakeWedge(const Eigen::Vector3f& s) {
                    {{0, 1, 3, 4}, {1, 2, 4, 5}, {0, 2, 3, 5}, {0, 1, 2}, {3, 4, 5}}, PartRole::kBody);
 }
 
+// The faces of a quad whose corners don't lie in one plane: two triangles along the diagonal that
+// keeps the solid convex (the near face has the solid above it, the far face below).
+std::vector<FaceIndices> CapFaces(const std::array<Eigen::Vector3f, 4>& points, uint32_t first, bool far) {
+  const Eigen::Vector3f normal = (points[1] - points[0]).cross(points[2] - points[0]);
+  const float side = normal.dot(points[3] - points[0]) * normal.y();
+  if (side == 0.f) {
+    return {{first, first + 1, first + 2, first + 3}};
+  }
+  if ((side > 0.f) == !far) {
+    return {{first, first + 1, first + 2}, {first, first + 2, first + 3}};
+  }
+  return {{first, first + 1, first + 3}, {first + 1, first + 2, first + 3}};
+}
+
 // The section (x, z) runs (0, 0), (run, slant), (run, height), (0, height - slant), extended along
-// Y; `cut_corners`, when set, put its four corners where a joint cut the ends, and `taper`
-// shortens the length along Y at each end of X (BlockSpec::taper).
+// Y; `cut_corners`, when set, put its four corners where a joint cut the ends, and `face_cuts`
+// slope the faces along Y.
 ConvexSolid MakePanel(
     const Eigen::Vector3f& s, float slant, const z13::station::PanelCorners& cut_corners,
-    const Eigen::Vector2i& taper) {
+    const z13::station::PanelFaceCuts& face_cuts) {
   const float thickness = s.z() - slant;
   std::array<Eigen::Vector2f, 4> section {
       Eigen::Vector2f {0, 0}, {s.x(), slant}, {s.x(), s.z()}, {0, thickness}};
@@ -99,15 +113,21 @@ ConvexSolid MakePanel(
     }
   }
   std::vector<Eigen::Vector3f> corners;
+  std::array<std::array<Eigen::Vector3f, 4>, 2> caps;
   for (const bool far : {false, true}) {
     for (size_t i = 0; i < section.size(); ++i) {
-      const float y = static_cast<float>(PanelFaceY(static_cast<int>(s.y()), taper, i, far));
-      corners.emplace_back(section[i].x(), y, section[i].y());
+      const float cut = static_cast<float>(face_cuts[(far ? section.size() : 0) + i]);
+      corners.emplace_back(section[i].x(), far ? s.y() - cut : cut, section[i].y());
+      caps[far][i] = corners.back();
     }
   }
-  return MakeSolid(std::move(corners),
-                   {{0, 1, 2, 3}, {4, 5, 6, 7}, {0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}},
-                   PartRole::kBody);
+  std::vector<FaceIndices> faces {{0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}};
+  for (const bool far : {false, true}) {
+    for (FaceIndices& cap : CapFaces(caps[far], static_cast<uint32_t>(far ? section.size() : 0), far)) {
+      faces.push_back(std::move(cap));
+    }
+  }
+  return MakeSolid(std::move(corners), std::move(faces), PartRole::kBody);
 }
 
 ConvexSolid MakeCornerWedge(const Eigen::Vector3f& s) {
@@ -140,7 +160,7 @@ std::expected<std::vector<ConvexSolid>, std::string> MakeDoorFrame(
 // Temporary: shapes are built in code until they come from models in a later stage.
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
     const Shape& shape, const Eigen::Vector3i& size, int slant, const z13::station::PanelCorners& corners,
-    const Eigen::Vector2i& taper) {
+    const z13::station::PanelFaceCuts& face_cuts) {
   if ((size.array() < 1).any()) {
     return std::unexpected(std::format("size {}x{}x{} has an empty axis", size.x(), size.y(), size.z()));
   }
@@ -155,15 +175,9 @@ std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
     case ShapeKind::kDoorFrame:
       return MakeDoorFrame(size, shape.door_opening);
     case ShapeKind::kPanel:
-      return std::vector<ConvexSolid> {MakePanel(extent, static_cast<float>(slant), corners, taper)};
+      return std::vector<ConvexSolid> {MakePanel(extent, static_cast<float>(slant), corners, face_cuts)};
   }
   return std::unexpected("unknown shape");
-}
-
-int PanelFaceY(int length, const Eigen::Vector2i& taper, size_t corner, bool far) {
-  constexpr std::array kEndOfCorner {0, 1, 1, 0};
-  const int cut = taper[kEndOfCorner[corner]];
-  return far ? length - std::max(cut, 0) : std::max(-cut, 0);
 }
 
 Mesh BuildMesh(std::span<const ConvexSolid> solids) {
@@ -194,20 +208,20 @@ size_t BlockShapeKeyHash::operator()(const BlockShapeKey& key) const {
   const size_t cornered =
       std::accumulate(key.corners.begin(), key.corners.end(), slanted,
                       [](size_t hash, int corner) { return hash * kMultiplier + std::hash<int> {}(corner); });
-  return std::accumulate(key.taper.begin(), key.taper.end(), cornered,
+  return std::accumulate(key.face_cuts.begin(), key.face_cuts.end(), cornered,
                          [](size_t hash, int cut) { return hash * kMultiplier + std::hash<int> {}(cut); });
 }
 
 BlockShapeKey ShapeKeyOf(const z13::station::BlockSpec& spec) {
   return {.type_id = spec.type_id, .size = spec.size, .slant = spec.slant, .corners = spec.corners,
-          .taper = spec.taper};
+          .face_cuts = spec.face_cuts};
 }
 
 std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKey& shape) {
   const auto primitive = palette ? palette->get().Find(shape.type_id) : std::nullopt;
   const Shape box {.kind = ShapeKind::kBox};
   auto solids =
-      BuildSolids(primitive ? primitive->get().shape : box, shape.size, shape.slant, shape.corners, shape.taper);
+      BuildSolids(primitive ? primitive->get().shape : box, shape.size, shape.slant, shape.corners, shape.face_cuts);
   if (!solids) {
     solids = BuildSolids(box, shape.size);
   }

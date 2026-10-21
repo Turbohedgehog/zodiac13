@@ -28,6 +28,7 @@
 #include <primitives/occupancy.h>
 #include <primitives/placement.h>
 #include <primitives/wall_panel.h>
+#include <primitives/wall_seam.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
@@ -183,6 +184,44 @@ TEST(WallPanelBlockTest, SticksPointingOppositeWaysAreRefused) {
                               ShippedPalette()).has_value());
   EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_length = 4, .stick_growth = -6, .thickness = 1},
                               ShippedPalette()).has_value());
+}
+
+TEST(WallPanelBlockTest, ATrapezoidCutByASeamKeepsItsSlopeOverTheMovedCorners) {
+  constexpr int kReach = 16;
+  constexpr int kLength = 12;
+  constexpr int kStick = 6;
+  constexpr int kShrink = 3;
+  const WallGeometry east {
+      .node_b = {kLength, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = kStick, .thickness = 2};
+  const WallGeometry north {.node_b = {0, kLength, 0}, .stick_axis = WallAxis::kZ, .stick_length = kStick,
+                            .stick_growth = -kShrink, .thickness = 2};
+  const auto seam = PlanSeam(PlanWallAt(east, true).value(), PlanWallAt(north, true).value(), kReach);
+  ASSERT_TRUE(seam.has_value()) << seam.error();
+
+  const auto block = WallPanelBlock(north, ShippedPalette(), {.at_a = *seam});
+
+  ASSERT_TRUE(block.has_value()) << block.error();
+  EXPECT_TRUE(block->spec.HasCorners());
+  EXPECT_TRUE(block->spec.HasFaceCuts());
+  std::vector<Eigen::Vector3i> vertices;
+  const CellPose pose = PoseOf(*block);
+  for (const ConvexSolid& solid : BlockSolids(ShippedPalette(), ShapeKeyOf(block->spec))) {
+    for (const Eigen::Vector3f& vertex : solid.vertices) {
+      vertices.push_back(pose.origin + pose.rotation * vertex.array().round().cast<int>().matrix());
+    }
+  }
+  for (const Eigen::Vector3i& vertex : vertices) {
+    int top = vertex.z();
+    int bottom = vertex.z();
+    for (const Eigen::Vector3i& other : vertices) {
+      if (other.x() == vertex.x() && other.y() == vertex.y()) {
+        top = std::max(top, other.z());
+        bottom = std::min(bottom, other.z());
+      }
+    }
+    EXPECT_EQ(bottom, 0);
+    EXPECT_NEAR(top, kStick - static_cast<double>(kShrink) * vertex.y() / kLength, 0.5) << vertex.y();
+  }
 }
 
 TEST(WallPanelBlockTest, AWallThinnerThanTheSealRuleIsRefused) {

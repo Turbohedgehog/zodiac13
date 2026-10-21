@@ -83,6 +83,17 @@ TEST(WallFitTest, AWallMeetingAnotherAtACornerFitsOnEitherSide) {
   }
 }
 
+TEST(WallFitTest, ATrapezoidMeetingAnotherAtACornerFitsToo) {
+  Z13TestWorld test_world = StationWorld();
+  Lay(test_world, Wall(kCorner, kCorner + kUp));
+  WallGeometry trapezoid = Wall(kCorner, kCorner + kAcross);
+  trapezoid.stick_growth = -kStickLength / 2;
+
+  const Status fits = Fits(test_world, trapezoid);
+
+  EXPECT_TRUE(fits.has_value()) << (fits ? "" : fits.error());
+}
+
 TEST(WallFitTest, TheSquareEndOfSuchAWallWouldCollideWithTheOneItJoins) {
   Z13TestWorld test_world = StationWorld();
   Lay(test_world, Wall(kCorner, kCorner + kUp));

@@ -67,6 +67,11 @@ enum class Orientation : uint8_t {
 // square-cut section). All zero where nothing cut them.
 using PanelCorners = std::array<int, 8>;
 
+// How much each of a panel section's four corners (in PanelCorners' order) is cut off the length
+// along Y: the first four off the near face, the last four off the far one. All zero where the
+// faces are flat.
+using PanelFaceCuts = std::array<int, 8>;
+
 // `size` is along the primitive's own axes, before `orientation` turns it.
 struct BlockSpec {
   uint32_t type_id {};
@@ -76,12 +81,11 @@ struct BlockSpec {
   int slant {};
   // Where the ends of a panel that a joint cuts stand; zero for a square-cut one.
   PanelCorners corners {};
-  // How much a panel's length along Y falls short at each end of its X, one end then the other:
-  // a positive number takes it off the far face, a negative one off the near face.
-  Eigen::Vector2i taper = Eigen::Vector2i::Zero();
+  // Where the faces of a panel with sloped ends (a trapezoid) stand along Y; zero for flat ones.
+  PanelFaceCuts face_cuts {};
 
   bool HasCorners() const { return corners != PanelCorners {}; }
-  bool HasTaper() const { return !taper.isZero(); }
+  bool HasFaceCuts() const { return face_cuts != PanelFaceCuts {}; }
   bool operator==(const BlockSpec&) const = default;
 };
 

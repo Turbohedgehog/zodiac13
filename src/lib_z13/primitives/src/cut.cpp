@@ -70,7 +70,7 @@ std::vector<z13::station::Block> LeftAfterCut(
     if (sloped && (size.x() != block.spec.size.x() || size.z() != block.spec.size.z())) {
       return {};
     }
-    if (block.spec.HasTaper() && size != block.spec.size) {
+    if (block.spec.HasFaceCuts() && size != block.spec.size) {
       return {};
     }
     left.push_back({.spec = {.type_id = block.spec.type_id,
@@ -78,7 +78,7 @@ std::vector<z13::station::Block> LeftAfterCut(
                              .orientation = block.spec.orientation,
                              .slant = block.spec.slant,
                              .corners = block.spec.corners,
-                             .taper = block.spec.taper},
+                             .face_cuts = block.spec.face_cuts},
                     .cell = box.min});
   }
   return left;

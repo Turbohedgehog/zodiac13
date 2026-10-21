@@ -22,10 +22,9 @@
 #include <format>
 #include <limits>
 #include <set>
-#include <vector>
 
-#include <primitives/geometry.h>
 #include <primitives/placement.h>
+#include <primitives/wall_seam.h>
 
 namespace z13::building::primitives {
 
@@ -46,27 +45,19 @@ int Sign(int value) {
 }
 
 // The prism's eight corners in its own frame: the section (0, 0), (run, rise), (run, rise +
-// thickness), (0, thickness) in XZ, at y = 0 and y = length, less `taper` at each end of X.
-std::array<Eigen::Vector3i, 8> LocalCorners(const Eigen::Vector3i& size, int slant, const Eigen::Vector2i& taper) {
+// thickness), (0, thickness) in XZ, at y = 0 and y = length.
+std::array<Eigen::Vector3i, 8> LocalCorners(const Eigen::Vector3i& size, int slant) {
   const int thickness = size.z() - slant;
   const std::array<Eigen::Vector2i, 4> section {
       Eigen::Vector2i {0, 0}, {size.x(), slant}, {size.x(), size.z()}, {0, thickness}};
   std::array<Eigen::Vector3i, 8> corners;
   size_t next = 0;
-  for (const bool far : {false, true}) {
-    for (size_t i = 0; i < section.size(); ++i) {
-      corners[next++] = {section[i].x(), PanelFaceY(size.y(), taper, i, far), section[i].y()};
+  for (const int y : {0, size.y()}) {
+    for (const Eigen::Vector2i& corner : section) {
+      corners[next++] = {corner.x(), y, corner.y()};
     }
   }
   return corners;
-}
-
-// Turns alone reach only half of the mirror images, so the cut may be at either end and face.
-std::vector<Eigen::Vector2i> TapersOf(int shortfall) {
-  if (shortfall == 0) {
-    return {Eigen::Vector2i::Zero()};
-  }
-  return {{0, shortfall}, {shortfall, 0}, {0, -shortfall}, {-shortfall, 0}};
 }
 
 }  // namespace
@@ -117,46 +108,44 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
   const int slant = std::abs(offset[minor]);
   const int thickness = std::abs(wall.thickness);
   const int longest = std::max(std::abs(wall.stick_length), std::abs(far_length));
-  const int shortfall = longest - std::min(std::abs(wall.stick_length), std::abs(far_length));
   const Eigen::Vector3i size {run, longest, slant + thickness};
-  if (!primitive->get().shape.AllowsSize(size, slant, {0, shortfall}) ||
-      (size.array() > primitive->get().max_size.array()).any()) {
+  if (!primitive->get().shape.AllowsSize(size, slant) || (size.array() > primitive->get().max_size.array()).any()) {
     return std::unexpected(std::format(
         "a panel of run {}, rise {} and thickness {} along a stick of {} isn't allowed", run, slant, thickness,
         size.y()));
   }
+  if (wall.stick_growth != 0) {
+    return CutPanelBlock(wall, palette, {});
+  }
 
   Eigen::Vector3i thicken = Eigen::Vector3i::Zero();
   thicken[minor] = Sign(wall.thickness) * thickness;
+  Eigen::Vector3i along = Eigen::Vector3i::Zero();
+  along[stick] = wall.stick_length;
   const Eigen::Vector3i high = wall.node_a + offset;
   Points target;
   const std::array<Eigen::Vector3i, 4> bases {wall.node_a, wall.node_a + thicken, high, high + thicken};
-  constexpr size_t kBasesAtA = 2;
-  for (size_t i = 0; i < bases.size(); ++i) {
-    Eigen::Vector3i along = Eigen::Vector3i::Zero();
-    along[stick] = i < kBasesAtA ? wall.stick_length : far_length;
-    target.insert(AsArray(bases[i]));
-    target.insert(AsArray(bases[i] + along));
+  for (const Eigen::Vector3i& base : bases) {
+    target.insert(AsArray(base));
+    target.insert(AsArray(base + along));
   }
   Eigen::Vector3i lowest = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
   for (const auto& point : target) {
     lowest = lowest.cwiseMin(Eigen::Vector3i(point[0], point[1], point[2]));
   }
 
-  for (const Eigen::Vector2i& taper : TapersOf(shortfall)) {
-    const auto corners = LocalCorners(size, slant, taper);
-    for (const z13::station::Orientation orientation : kOrientations) {
-      const Block block {.spec = {.type_id = z13::station::kPanelPrimitiveId, .size = size, .orientation = orientation,
-                                  .slant = slant, .taper = taper},
-                         .cell = lowest};
-      const CellPose pose = PoseOf(block);
-      Points placed;
-      for (const Eigen::Vector3i& corner : corners) {
-        placed.insert(AsArray(pose.origin + pose.rotation * corner));
-      }
-      if (placed == target) {
-        return block;
-      }
+  const auto corners = LocalCorners(size, slant);
+  for (const z13::station::Orientation orientation : kOrientations) {
+    const Block block {.spec = {.type_id = z13::station::kPanelPrimitiveId, .size = size, .orientation = orientation,
+                                .slant = slant},
+                       .cell = lowest};
+    const CellPose pose = PoseOf(block);
+    Points placed;
+    for (const Eigen::Vector3i& corner : corners) {
+      placed.insert(AsArray(pose.origin + pose.rotation * corner));
+    }
+    if (placed == target) {
+      return block;
     }
   }
   return std::unexpected(std::string {"no turn of the panel fits the wall"});
