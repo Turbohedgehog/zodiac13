@@ -24,6 +24,7 @@
 #include <set>
 #include <vector>
 
+#include <primitives/geometry.h>
 #include <primitives/placement.h>
 
 namespace z13::building::primitives {
@@ -50,13 +51,11 @@ std::array<Eigen::Vector3i, 8> LocalCorners(const Eigen::Vector3i& size, int sla
   const int thickness = size.z() - slant;
   const std::array<Eigen::Vector2i, 4> section {
       Eigen::Vector2i {0, 0}, {size.x(), slant}, {size.x(), size.z()}, {0, thickness}};
-  constexpr std::array kEndOfCorner {0, 1, 1, 0};
   std::array<Eigen::Vector3i, 8> corners;
   size_t next = 0;
   for (const bool far : {false, true}) {
     for (size_t i = 0; i < section.size(); ++i) {
-      const int cut = taper[kEndOfCorner[i]];
-      corners[next++] = {section[i].x(), far ? size.y() - std::max(cut, 0) : std::max(-cut, 0), section[i].y()};
+      corners[next++] = {section[i].x(), PanelFaceY(size.y(), taper, i, far), section[i].y()};
     }
   }
   return corners;
@@ -108,7 +107,7 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
     return std::unexpected(std::string {"the wall has no stick length or thickness"});
   }
   if (Sign(far_length) != Sign(wall.stick_length)) {
-    return std::unexpected(std::string {"the wall's sticks have no length or point opposite ways"});
+    return std::unexpected(std::string {"the wall's sticks point opposite ways or one has no length"});
   }
 
   const PlanAxes axes = PlanAxesOf(wall.stick_axis, offset);
@@ -120,7 +119,8 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
   const int longest = std::max(std::abs(wall.stick_length), std::abs(far_length));
   const int shortfall = longest - std::min(std::abs(wall.stick_length), std::abs(far_length));
   const Eigen::Vector3i size {run, longest, slant + thickness};
-  if (!primitive->get().shape.AllowsSize(size, slant, {0, shortfall}) || (size.array() > primitive->get().max_size.array()).any()) {
+  if (!primitive->get().shape.AllowsSize(size, slant, {0, shortfall}) ||
+      (size.array() > primitive->get().max_size.array()).any()) {
     return std::unexpected(std::format(
         "a panel of run {}, rise {} and thickness {} along a stick of {} isn't allowed", run, slant, thickness,
         size.y()));
@@ -131,9 +131,10 @@ std::expected<Block, std::string> WallPanelBlock(const WallGeometry& wall, const
   const Eigen::Vector3i high = wall.node_a + offset;
   Points target;
   const std::array<Eigen::Vector3i, 4> bases {wall.node_a, wall.node_a + thicken, high, high + thicken};
+  constexpr size_t kBasesAtA = 2;
   for (size_t i = 0; i < bases.size(); ++i) {
     Eigen::Vector3i along = Eigen::Vector3i::Zero();
-    along[stick] = i < 2 ? wall.stick_length : far_length;
+    along[stick] = i < kBasesAtA ? wall.stick_length : far_length;
     target.insert(AsArray(bases[i]));
     target.insert(AsArray(bases[i] + along));
   }

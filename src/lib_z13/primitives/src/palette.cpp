@@ -182,7 +182,8 @@ bool Shape::AllowsSize(const Eigen::Vector3i& size, int slant, const Eigen::Vect
     return slant >= 0 && thickness >= 1 && thickness * size.x() >= size.x() + slant &&
            (taper.array().abs() < size.y()).all();
   }
-  return slant == 0 && taper.isZero() && (kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z()));
+  return slant == 0 && taper.isZero() &&
+         (kind != ShapeKind::kWedge || (size.x() >= size.z() && size.x() <= max_run_per_rise * size.z()));
 }
 
 Eigen::Vector3i Shape::FitSize(Eigen::Vector3i size) const {

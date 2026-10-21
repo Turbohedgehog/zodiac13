@@ -97,13 +97,10 @@ ConvexSolid MakePanel(
           Eigen::Vector2f(static_cast<float>(cut_corners[2 * i]), static_cast<float>(cut_corners[(2 * i) + 1]));
     }
   }
-  // The section's corners 1 and 2 stand at the far end of X, 0 and 3 at the near one.
-  constexpr std::array kEndOfCorner {0, 1, 1, 0};
   std::vector<Eigen::Vector3f> corners;
   for (const bool far : {false, true}) {
     for (size_t i = 0; i < section.size(); ++i) {
-      const int cut = taper[kEndOfCorner[i]];
-      const float y = far ? s.y() - static_cast<float>(std::max(cut, 0)) : static_cast<float>(std::max(-cut, 0));
+      const float y = static_cast<float>(PanelFaceY(static_cast<int>(s.y()), taper, i, far));
       corners.emplace_back(section[i].x(), y, section[i].y());
     }
   }
@@ -162,6 +159,12 @@ std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
   return std::unexpected("unknown shape");
 }
 
+int PanelFaceY(int length, const Eigen::Vector2i& taper, size_t corner, bool far) {
+  constexpr std::array kEndOfCorner {0, 1, 1, 0};
+  const int cut = taper[kEndOfCorner[corner]];
+  return far ? length - std::max(cut, 0) : std::max(-cut, 0);
+}
+
 Mesh BuildMesh(std::span<const ConvexSolid> solids) {
   Mesh mesh;
   for (const ConvexSolid& solid : solids) {
@@ -202,7 +205,8 @@ BlockShapeKey ShapeKeyOf(const z13::station::BlockSpec& spec) {
 std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKey& shape) {
   const auto primitive = palette ? palette->get().Find(shape.type_id) : std::nullopt;
   const Shape box {.kind = ShapeKind::kBox};
-  auto solids = BuildSolids(primitive ? primitive->get().shape : box, shape.size, shape.slant, shape.corners, shape.taper);
+  auto solids =
+      BuildSolids(primitive ? primitive->get().shape : box, shape.size, shape.slant, shape.corners, shape.taper);
   if (!solids) {
     solids = BuildSolids(box, shape.size);
   }
