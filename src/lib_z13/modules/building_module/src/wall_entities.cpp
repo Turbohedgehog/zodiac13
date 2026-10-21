@@ -89,7 +89,8 @@ flecs::entity SpawnWall(
   const uint32_t node_b = WallNodeAt(world, counters, wall.node_b);
   return SpawnWallSegment(world, counters,
                           WallSegment {.node_a = node_a, .node_b = node_b, .stick_axis = wall.stick_axis,
-                                       .stick_length = wall.stick_length, .thickness = wall.thickness});
+                                       .stick_length = wall.stick_length, .stick_growth = wall.stick_growth,
+                                       .thickness = wall.thickness});
 }
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
@@ -115,6 +116,7 @@ std::vector<JointWall> JointWallsOf(flecs::world world) {
                                     .node_b = b->second,
                                     .stick_axis = segment.stick_axis,
                                     .stick_length = segment.stick_length,
+                                    .stick_growth = segment.stick_growth,
                                     .thickness = segment.thickness}});
     }
   });

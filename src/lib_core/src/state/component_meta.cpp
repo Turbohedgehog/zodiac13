@@ -39,6 +39,7 @@ namespace {
 
 // Saves and snapshots name components by path; the derived one differs between GCC and MSVC.
 constexpr std::string_view kMatrix4fName = "Matrix4f";
+constexpr std::string_view kVector2iName = "Vector2i";
 constexpr std::string_view kVector3iName = "Vector3i";
 constexpr std::string_view kVector3fName = "Vector3f";
 constexpr std::string_view kIntArray8Name = "IntArray8";
@@ -87,6 +88,7 @@ void RegisterEigenArray(flecs::world& world, std::string_view name) {
 
 void RegisterEigenMeta(flecs::world& world) {
   RegisterEigenArray<Eigen::Matrix4f, float>(world, kMatrix4fName);
+  RegisterEigenArray<Eigen::Vector2i, int32_t>(world, kVector2iName);
   RegisterEigenArray<Eigen::Vector3i, int32_t>(world, kVector3iName);
   RegisterEigenArray<Eigen::Vector3f, float>(world, kVector3fName);
   RegisterEigenArray<std::array<int32_t, 8>, int32_t>(world, kIntArray8Name);

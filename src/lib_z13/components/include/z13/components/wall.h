@@ -35,8 +35,9 @@ struct WallNode {
 };
 
 // The panel between two sticks: one at node `node_a`, the other at `node_b` with its offset
-// along the stick dropped. `stick_length` is signed (the stick's direction along `stick_axis`);
-// the sign of `thickness` picks the side of the line from a to b that the panel thickens to.
+// along the stick dropped. `stick_length` is signed (the stick's direction along `stick_axis`)
+// and is a's; b's is longer by `stick_growth`. The sign of `thickness` picks the side of the line
+// from a to b that the panel thickens to.
 struct WallSegment {
   using State = void;
   uint32_t id {};
@@ -44,6 +45,7 @@ struct WallSegment {
   uint32_t node_b {};
   WallAxis stick_axis = WallAxis::kZ;
   int stick_length {};
+  int stick_growth {};
   int thickness {};
 };
 

@@ -76,8 +76,12 @@ struct BlockSpec {
   int slant {};
   // Where the ends of a panel that a joint cuts stand; zero for a square-cut one.
   PanelCorners corners {};
+  // How much a panel's length along Y falls short at each end of its X, one end then the other:
+  // a positive number takes it off the far face, a negative one off the near face.
+  Eigen::Vector2i taper = Eigen::Vector2i::Zero();
 
   bool HasCorners() const { return corners != PanelCorners {}; }
+  bool HasTaper() const { return !taper.isZero(); }
   bool operator==(const BlockSpec&) const = default;
 };
 

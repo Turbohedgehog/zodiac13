@@ -243,7 +243,7 @@ bool IsConvex(const std::array<Eigen::Vector2i, 4>& corners) {
 std::expected<Block, std::string> WallPanelBlock(
     const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
   auto square = WallPanelBlock(wall, palette);
-  if (!square || (!ends.at_a && !ends.at_b)) {
+  if (!square || wall.stick_growth != 0 || (!ends.at_a && !ends.at_b)) {
     return square;
   }
   const auto plan_a = PlanWallAt(wall, true);
