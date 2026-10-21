@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <span>
 #include <string>
@@ -26,6 +27,9 @@
 #include <primitives/palette.h>
 
 namespace z13::building::primitives {
+
+constexpr size_t kTriangleCorners = 3;
+constexpr size_t kSectionCorners = 4;
 
 // The world axes (0 to 2) that a Panel's own X, Y and Z run along.
 struct PrismFrame {
@@ -43,8 +47,8 @@ struct PrismCorner {
 };
 
 // The Panel block whose section has these three or four corners, in order round the section,
-// each with its own edge along Y (its faces slope accordingly). Whole cells throughout. An error
-// if the block would be out of the palette's size limits or no turn of the panel suits `frame`.
+// each with its own edge along Y. An error if it is beyond the palette's size limits or no turn
+// of the panel suits `frame`.
 std::expected<z13::station::Block, std::string> PrismBlock(
     const PrismFrame& frame, std::span<const PrismCorner> corners, const Palette& palette);
 

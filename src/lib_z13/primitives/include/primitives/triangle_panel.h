@@ -34,9 +34,9 @@ using Triangle = std::array<Eigen::Vector3i, 3>;
 // lower on a tie. Nothing for corners on one line.
 std::optional<int> ThickeningAxisOf(const Triangle& triangle);
 
-// The thinnest triangular wall that holds air back, as a panel's rule (palette Panel's AllowsSize)
-// taken over both slopes of its plane: thickness * |n| >= |n| + |p| + |q|, n the normal's
-// component along the thickening axis and p, q the others. Nothing for corners on one line.
+// The thinnest triangular wall that holds air back: a panel's rule (palette Panel's AllowsSize)
+// over both slopes, thickness * |n| >= |n| + |p| + |q|, n the normal's component along the
+// thickening axis, p and q the others. Nothing for corners on one line.
 std::optional<int> MinTriangleThickness(const Triangle& triangle);
 
 // The Panel block of the triangle, thickened by |thickness| cells along ThickeningAxisOf, toward

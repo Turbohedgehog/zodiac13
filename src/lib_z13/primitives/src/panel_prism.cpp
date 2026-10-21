@@ -27,9 +27,6 @@ namespace {
 
 using z13::station::Block;
 
-constexpr size_t kTriangleCorners = 3;
-constexpr size_t kSectionCorners = 4;
-
 }  // namespace
 
 std::expected<Block, std::string> PrismBlock(

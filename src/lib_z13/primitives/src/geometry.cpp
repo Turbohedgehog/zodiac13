@@ -15,6 +15,7 @@
  */
 
 #include <primitives/geometry.h>
+#include <primitives/panel_prism.h>
 
 #include <algorithm>
 #include <array>
@@ -27,8 +28,6 @@
 namespace z13::building::primitives {
 
 namespace {
-
-constexpr size_t kTriangleCorners = 3;
 
 using FaceIndices = std::vector<uint32_t>;
 
