@@ -47,8 +47,7 @@ struct Shape {
 
   // `slant` is a panel's rise; every other shape takes none. A panel's vertical thickness
   // (size.z - slant) must seal against air at 6-connectivity: thickness * run >= run + slant.
-  bool AllowsSize(
-      const Eigen::Vector3i& size, int slant = 0, const Eigen::Vector2i& taper = Eigen::Vector2i::Zero()) const;
+  bool AllowsSize(const Eigen::Vector3i& size, int slant = 0) const;
   // The nearest allowed size: a wedge's run is brought into [rise, max_run_per_rise * rise].
   Eigen::Vector3i FitSize(Eigen::Vector3i size) const;
 };

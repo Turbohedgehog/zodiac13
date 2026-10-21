@@ -70,6 +70,11 @@ struct WallEnds {
 std::expected<z13::station::Block, std::string> WallPanelBlock(
     const WallGeometry& wall, const Palette& palette, const WallEnds& ends);
 
+// The panel of a wall built from its corners, which `WallPanelBlock` leaves to a wall with
+// seams or unequal sticks: each corner's stick is the wall's, grown along the wall and rounded.
+std::expected<z13::station::Block, std::string> CutPanelBlock(
+    const WallGeometry& wall, const Palette& palette, const WallEnds& ends);
+
 // The seam of two walls from one node. An error says why the joint can't be had, and what
 // would make it: a tip reaching further than `max_reach` cells from the node, or a wall too
 // short to keep a cell beyond the seam.

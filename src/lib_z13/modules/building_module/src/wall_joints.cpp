@@ -41,8 +41,7 @@ void SetSeam(WallJoints& joints, const WallEndAt& end, const z13::building::prim
 
 void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach) {
   if (meeting.size() != 2 || meeting[0].wall == meeting[1].wall ||
-      meeting[0].wall->geometry.stick_axis != meeting[1].wall->geometry.stick_axis ||
-      meeting[0].wall->geometry.stick_growth != 0 || meeting[1].wall->geometry.stick_growth != 0) {
+      meeting[0].wall->geometry.stick_axis != meeting[1].wall->geometry.stick_axis) {
     return;
   }
   std::ranges::sort(meeting, {}, [](const WallEndAt& end) { return end.wall->id; });

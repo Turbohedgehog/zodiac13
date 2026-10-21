@@ -123,7 +123,7 @@ TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
   EXPECT_EQ(down->wall.stick_growth, kShortStick - kStickLength);
   EXPECT_EQ(up->wall.stick_length, kShortStick);
   EXPECT_EQ(up->wall.stick_growth, kStickLength - kShortStick);
-  EXPECT_TRUE(down->block.spec.HasTaper());
+  EXPECT_TRUE(down->block.spec.HasFaceCuts());
 }
 
 TEST(WallBridgeTest, ABridgeCarriesTheStickOfTheNodeItReaches) {

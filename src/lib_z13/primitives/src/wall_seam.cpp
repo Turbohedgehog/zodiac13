@@ -223,6 +223,24 @@ std::optional<std::array<Eigen::Vector2i, 4>> PlanCorners(const PlanWall& wall_a
   return corners;
 }
 
+// The stick at each corner: a's, grown by `stick_growth` in proportion to the corner's distance
+// from a along the wall. Nothing if one is left with no length or turned about.
+std::optional<std::array<int, 4>> StickLengths(
+    const WallGeometry& wall, const PlanWall& plan_a, const std::array<Eigen::Vector2i, 4>& corners) {
+  const int64_t along = CrossOf(plan_a.direction, plan_a.offset);
+  std::array<int, 4> sticks;
+  for (size_t i = 0; i < corners.size(); ++i) {
+    const int64_t reached = CrossOf(corners[i] - plan_a.node, plan_a.offset);
+    const int64_t weight = along < 0 ? -along : along;
+    const int64_t grown = static_cast<int64_t>(wall.stick_growth) * (along < 0 ? -reached : reached);
+    sticks[i] = wall.stick_length + static_cast<int>(RoundedQuotient(grown, weight));
+    if (sticks[i] == 0 || (sticks[i] > 0) != (wall.stick_length > 0)) {
+      return std::nullopt;
+    }
+  }
+  return sticks;
+}
+
 // Whether the corners, in order, turn the same way all round: a convex section with some area.
 bool IsConvex(const std::array<Eigen::Vector2i, 4>& corners) {
   int direction = 0;
@@ -243,9 +261,13 @@ bool IsConvex(const std::array<Eigen::Vector2i, 4>& corners) {
 std::expected<Block, std::string> WallPanelBlock(
     const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
   auto square = WallPanelBlock(wall, palette);
-  if (!square || wall.stick_growth != 0 || (!ends.at_a && !ends.at_b)) {
+  if (!square || (!ends.at_a && !ends.at_b)) {
     return square;
   }
+  return CutPanelBlock(wall, palette, ends);
+}
+
+std::expected<Block, std::string> CutPanelBlock(const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
   const auto plan_a = PlanWallAt(wall, true);
   const auto plan_b = PlanWallAt(wall, false);
   const auto corners = plan_a && plan_b ? PlanCorners(*plan_a, *plan_b, ends) : std::nullopt;
@@ -254,6 +276,10 @@ std::expected<Block, std::string> WallPanelBlock(
   }
   if (!IsConvex(*corners)) {
     return std::unexpected(std::string {"the seams leave the wall no convex body"});
+  }
+  const auto sticks = StickLengths(wall, *plan_a, *corners);
+  if (!sticks) {
+    return std::unexpected(std::string {"a seam leaves the wall a corner with no stick"});
   }
 
   const int stick = static_cast<int>(wall.stick_axis);
@@ -269,10 +295,10 @@ std::expected<Block, std::string> WallPanelBlock(
   };
   Eigen::Vector3i lowest = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
   Eigen::Vector3i highest = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
-  for (const Eigen::Vector2i& corner : *corners) {
-    for (const int along : {0, wall.stick_length}) {
-      lowest = lowest.cwiseMin(lift(corner, along));
-      highest = highest.cwiseMax(lift(corner, along));
+  for (size_t i = 0; i < corners->size(); ++i) {
+    for (const int along : {0, (*sticks)[i]}) {
+      lowest = lowest.cwiseMin(lift((*corners)[i], along));
+      highest = highest.cwiseMax(lift((*corners)[i], along));
     }
   }
   const Eigen::Vector3i extent = highest - lowest;
@@ -294,8 +320,11 @@ std::expected<Block, std::string> WallPanelBlock(
     const CellPose pose = PoseOf(block);
     for (size_t i = 0; i < corners->size(); ++i) {
       const Eigen::Vector3i local = rotation.transpose() * (lift((*corners)[i], 0) - pose.origin);
+      const Eigen::Vector3i tip = rotation.transpose() * (lift((*corners)[i], (*sticks)[i]) - pose.origin);
       block.spec.corners[2 * i] = local.x();
       block.spec.corners[(2 * i) + 1] = local.z();
+      block.spec.face_cuts[i] = std::min(local.y(), tip.y());
+      block.spec.face_cuts[corners->size() + i] = size.y() - std::max(local.y(), tip.y());
     }
     return block;
   }
