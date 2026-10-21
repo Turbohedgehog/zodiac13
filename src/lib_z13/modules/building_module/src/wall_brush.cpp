@@ -120,10 +120,10 @@ std::vector<Eigen::Vector3i> WallAnchors(flecs::world world) {
     anchors.push_back(node.cell);
   });
   world.query<const WallSegment>().each([&](const WallSegment& segment) {
-    Eigen::Vector3i along = Eigen::Vector3i::Zero();
-    along[Index(segment.stick_axis)] = segment.stick_length;
-    for (const uint32_t id : {segment.node_a, segment.node_b}) {
-      if (const auto node = nodes.find(id); node != nodes.end()) {
+    for (const bool at_b : {false, true}) {
+      Eigen::Vector3i along = Eigen::Vector3i::Zero();
+      along[Index(segment.stick_axis)] = segment.stick_length + (at_b ? segment.stick_growth : 0);
+      if (const auto node = nodes.find(at_b ? segment.node_b : segment.node_a); node != nodes.end()) {
         anchors.push_back(node->second + along);
       }
     }

@@ -99,16 +99,44 @@ TEST(WallBridgeTest, TwoNodesWithTheSameStickGetAWallBetweenThem) {
   EXPECT_EQ(bridge->wall.stick_length, kStickLength);
 }
 
-TEST(WallBridgeTest, SticksOfOtherLengthOrAxisAreRefused) {
+TEST(WallBridgeTest, SticksOfOtherAxisOrDirectionAreRefused) {
   Z13TestWorld test_world = StationWorld();
   const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t shorter = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
   const uint32_t turned = AddStickAt(test_world, {0, 0, kGap}, WallAxis::kX, kStickLength);
   const uint32_t opposite = AddStickAt(test_world, {kGap, 0, kGap}, WallAxis::kZ, -kStickLength);
 
-  EXPECT_FALSE(Bridge(test_world, a, shorter).has_value());
   EXPECT_FALSE(Bridge(test_world, a, turned).has_value());
   EXPECT_FALSE(Bridge(test_world, a, opposite).has_value());
+}
+
+TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t tall = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const uint32_t shorter = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
+
+  const auto down = Bridge(test_world, tall, shorter);
+  const auto up = Bridge(test_world, shorter, tall);
+
+  ASSERT_TRUE(down.has_value()) << down.error();
+  ASSERT_TRUE(up.has_value()) << up.error();
+  EXPECT_EQ(down->wall.stick_length, kStickLength);
+  EXPECT_EQ(down->wall.stick_growth, kShortStick - kStickLength);
+  EXPECT_EQ(up->wall.stick_length, kShortStick);
+  EXPECT_EQ(up->wall.stick_growth, kStickLength - kShortStick);
+  EXPECT_TRUE(down->block.spec.HasTaper());
+}
+
+TEST(WallBridgeTest, ABridgeCarriesTheStickOfTheNodeItReaches) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const uint32_t b = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
+  const auto bridge = Bridge(test_world, a, b);
+  ASSERT_TRUE(bridge.has_value()) << bridge.error();
+  flecs::world world = test_world.World();
+  SpawnWall(world, world.get_mut<z13::gameplay::IdCounters>(), bridge->wall);
+
+  EXPECT_EQ(SticksAt(world, a), (std::vector<WallStick> {{WallAxis::kZ, kStickLength}, {WallAxis::kZ, kStickLength}}));
+  EXPECT_EQ(SticksAt(world, b), (std::vector<WallStick> {{WallAxis::kZ, kShortStick}, {WallAxis::kZ, kShortStick}}));
 }
 
 TEST(WallBridgeTest, ANodeCannotBridgeToItself) {

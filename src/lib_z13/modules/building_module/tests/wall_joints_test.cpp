@@ -88,6 +88,13 @@ TEST(WallJointsTest, ThreeWallsOrWallsOfDifferentSticksStaySquare) {
   EXPECT_TRUE(SolveJoints(mixed, kReach).ends.empty());
 }
 
+TEST(WallJointsTest, ATrapezoidAndItsNeighbourStaySquare) {
+  std::vector<JointWall> corner = Corner(kNorth);
+  corner.back().geometry.stick_growth = 2;
+
+  EXPECT_TRUE(SolveJoints(corner, kReach).ends.empty());
+}
+
 TEST(WallJointsTest, ATooSharpJointIsRefusedForBothWalls) {
   const WallJoints joints = SolveJoints(Corner(kEastBy8Degrees), kSharpReach);
 

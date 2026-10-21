@@ -29,7 +29,8 @@ std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id) {
   std::vector<std::pair<uint32_t, WallStick>> found;
   world.query<const z13::station::WallSegment>().each([&](const z13::station::WallSegment& segment) {
     if (segment.node_a == node_id || segment.node_b == node_id) {
-      found.push_back({segment.id, {.axis = segment.stick_axis, .length = segment.stick_length}});
+      const int growth = segment.node_b == node_id ? segment.stick_growth : 0;
+      found.push_back({segment.id, {.axis = segment.stick_axis, .length = segment.stick_length + growth}});
     }
   });
   std::ranges::sort(found, {}, &std::pair<uint32_t, WallStick>::first);
@@ -50,12 +51,17 @@ std::expected<FacedWall, std::string> PlanBridge(
   if (sticks.empty()) {
     return std::unexpected(std::string {"the first node has no wall to take a stick from"});
   }
-  if (!std::ranges::contains(SticksAt(world, second), sticks.front())) {
-    return std::unexpected(std::string {"the two nodes carry sticks of different axes or lengths"});
+  const WallStick& stick = sticks.front();
+  const std::vector<WallStick> reached = SticksAt(world, second);
+  const auto far = std::ranges::find_if(reached, [&stick](const WallStick& other) {
+    return other.axis == stick.axis && (other.length > 0) == (stick.length > 0);
+  });
+  if (far == reached.end()) {
+    return std::unexpected(std::string {"the second node carries no stick of that axis and direction"});
   }
   return FacingEye(
-      {.node_a = *first_cell, .node_b = *second_cell, .stick_axis = sticks.front().axis,
-       .stick_length = sticks.front().length, .thickness = thickness},
+      {.node_a = *first_cell, .node_b = *second_cell, .stick_axis = stick.axis, .stick_length = stick.length,
+       .stick_growth = far->length - stick.length, .thickness = thickness},
       eye, palette);
 }
 

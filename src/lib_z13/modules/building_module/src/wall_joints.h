@@ -38,8 +38,8 @@ struct JointWall {
 };
 
 // The joints of a set of walls: at a node where exactly two walls with the same stick axis
-// meet, both end along one seam. Other nodes, and joints whose seam can't be had, leave the
-// walls square-cut there.
+// meet, both end along one seam. Other nodes, joints whose seam can't be had, and walls with
+// unequal sticks leave the walls square-cut there.
 struct WallJoints {
   std::map<uint32_t, z13::building::primitives::WallEnds> ends;
   // The joints refused, by the ids of the walls in them, and why.

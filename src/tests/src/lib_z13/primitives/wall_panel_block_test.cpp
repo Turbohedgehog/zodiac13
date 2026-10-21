@@ -19,11 +19,14 @@
 #include <algorithm>
 #include <array>
 #include <optional>
+#include <set>
 #include <vector>
 
 #include <Eigen/Dense>
 
+#include <primitives/geometry.h>
 #include <primitives/occupancy.h>
+#include <primitives/placement.h>
 #include <primitives/wall_panel.h>
 #include <z13_tests/shipped_station.h>
 
@@ -97,6 +100,89 @@ TEST(WallPanelBlockTest, EveryDirectionAndSideGivesAPanelThatFitsTheTargetCorner
       }
     }
   }
+}
+
+// The corners of the wall's footprint with each stick over them, as the plan puts them.
+std::set<std::array<int, 3>> TargetCorners(const WallGeometry& wall) {
+  const int stick = static_cast<int>(wall.stick_axis);
+  Eigen::Vector3i plane = wall.node_b - wall.node_a;
+  plane[stick] = 0;
+  const PlanAxes axes = PlanAxesOf(wall.stick_axis, plane);
+  Eigen::Vector3i thicken = Eigen::Vector3i::Zero();
+  thicken[axes.minor] = wall.thickness;
+  std::set<std::array<int, 3>> corners;
+  for (const bool at_b : {false, true}) {
+    for (const Eigen::Vector3i& side : {Eigen::Vector3i(Eigen::Vector3i::Zero()), thicken}) {
+      const Eigen::Vector3i base = wall.node_a + (at_b ? plane : Eigen::Vector3i::Zero()) + side;
+      Eigen::Vector3i top = base;
+      top[stick] += wall.stick_length + (at_b ? wall.stick_growth : 0);
+      corners.insert({base.x(), base.y(), base.z()});
+      corners.insert({top.x(), top.y(), top.z()});
+    }
+  }
+  return corners;
+}
+
+std::set<std::array<int, 3>> PlacedCorners(const Block& block) {
+  const CellPose pose = PoseOf(block);
+  std::set<std::array<int, 3>> placed;
+  for (const ConvexSolid& solid : BlockSolids(ShippedPalette(), ShapeKeyOf(block.spec))) {
+    for (const Eigen::Vector3f& vertex : solid.vertices) {
+      const Eigen::Vector3i corner = pose.origin + pose.rotation * vertex.array().round().cast<int>().matrix();
+      placed.insert({corner.x(), corner.y(), corner.z()});
+    }
+  }
+  return placed;
+}
+
+TEST(WallPanelBlockTest, ATrapezoidFitsItsCornersInEveryDirectionSideAndSlope) {
+  constexpr int kRun = 8;
+  constexpr int kRise = 3;
+  for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
+    for (const int dx : {-kRun, kRun}) {
+      for (const int dy : {-kRise, 0, kRise}) {
+        for (const int thickness : {-3, 3}) {
+          for (const int length : {-6, 6}) {
+            for (const int growth : {-2, 2}) {
+              const WallGeometry wall {
+                  .node_a = {10, -20, 5}, .node_b = Eigen::Vector3i(10, -20, 5) + Eigen::Vector3i(dx, dy, 0),
+                  .stick_axis = axis, .stick_length = length, .stick_growth = growth * (length > 0 ? 1 : -1),
+                  .thickness = thickness};
+              Eigen::Vector3i plane = wall.node_b - wall.node_a;
+              plane[static_cast<int>(axis)] = 0;
+              if (plane.isZero()) {
+                continue;
+              }
+              const auto block = WallPanelBlock(wall, ShippedPalette());
+              ASSERT_TRUE(block.has_value()) << block.error();
+              EXPECT_EQ(PlacedCorners(*block), TargetCorners(wall));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST(WallPanelBlockTest, ATrapezoidIsSealedUnderItsSlopedTop) {
+  const WallGeometry wall {
+      .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 8, .stick_growth = -4, .thickness = 1};
+  const Block block = WallPanelBlock(wall, ShippedPalette()).value();
+  const std::vector<CellBox> sealed = SealedBoxes(block, ShippedPalette());
+
+  for (int x = 0; x < 10; ++x) {
+    for (int z = 0; z < 8; ++z) {
+      const bool inside = std::ranges::any_of(sealed, [&](const CellBox& box) { return box.Contains({x, 0, z}); });
+      EXPECT_EQ(inside, z + 0.5 <= 8.0 - 4.0 * (x + 0.5) / 10.0) << x << ',' << z;
+    }
+  }
+}
+
+TEST(WallPanelBlockTest, SticksPointingOppositeWaysAreRefused) {
+  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_length = 4, .stick_growth = -4, .thickness = 1},
+                              ShippedPalette()).has_value());
+  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_length = 4, .stick_growth = -6, .thickness = 1},
+                              ShippedPalette()).has_value());
 }
 
 TEST(WallPanelBlockTest, AWallThinnerThanTheSealRuleIsRefused) {

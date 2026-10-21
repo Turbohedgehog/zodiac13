@@ -52,7 +52,12 @@ struct Mesh {
 };
 
 std::expected<std::vector<ConvexSolid>, std::string> BuildSolids(
-    const Shape& shape, const Eigen::Vector3i& size, int slant = 0, const z13::station::PanelCorners& corners = {});
+    const Shape& shape, const Eigen::Vector3i& size, int slant = 0, const z13::station::PanelCorners& corners = {},
+    const Eigen::Vector2i& taper = Eigen::Vector2i::Zero());
+
+// Where a panel's near face (y = 0) or far face (y = length) stands at a corner (0 to 3) of its
+// section once `taper` has shortened each end of X; corners 1 and 2 are at one end, 0 and 3 at the other.
+int PanelFaceY(int length, const Eigen::Vector2i& taper, size_t corner, bool far);
 
 Mesh BuildMesh(std::span<const ConvexSolid> solids);
 
@@ -62,6 +67,7 @@ struct BlockShapeKey {
   Eigen::Vector3i size = Eigen::Vector3i::Zero();
   int slant {};
   z13::station::PanelCorners corners {};
+  Eigen::Vector2i taper = Eigen::Vector2i::Zero();
 
   bool operator==(const BlockShapeKey&) const = default;
 };

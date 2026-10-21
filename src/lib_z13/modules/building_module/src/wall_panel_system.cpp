@@ -80,6 +80,7 @@ std::map<uint32_t, Block> ExpectedPanels(
                                     .node_b = b->second,
                                     .stick_axis = segment.stick_axis,
                                     .stick_length = segment.stick_length,
+                                    .stick_growth = segment.stick_growth,
                                     .thickness = segment.thickness}});
     }
   });

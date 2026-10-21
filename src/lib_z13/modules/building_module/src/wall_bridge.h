@@ -43,8 +43,9 @@ struct WallStick {
 // The sticks of the walls standing at the node, in segment id order.
 std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id);
 
-// The wall bridging the stick at `first` to the same stick at `second`, thickened to the side
-// nearer `eye`, or why there is none. The first node's stick is that of its oldest wall.
+// The wall bridging the stick at `first` to a stick of the same axis and direction at `second`
+// (the oldest there; a trapezoid when their lengths differ), thickened to the side nearer
+// `eye`, or why there is none. The first node's stick is that of its oldest wall.
 std::expected<FacedWall, std::string> PlanBridge(
     flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette);
