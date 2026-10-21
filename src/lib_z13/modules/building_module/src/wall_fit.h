@@ -25,9 +25,8 @@
 
 namespace z13::building {
 
-// Whether `wall` can be laid: no joint it makes breaks, and every panel it makes or re-cuts
-// (the walls at its two ends take new seams) fits where it will stand, the panels it replaces
-// not counted as in the way.
+// Whether `wall` can be laid: no joint breaks, and its panel and the neighbours it re-cuts
+// fit, not counting the panels they replace.
 Status CheckWallFits(flecs::world world, const z13::building::primitives::WallGeometry& wall, const BuildView& view);
 
 }  // namespace z13::building
