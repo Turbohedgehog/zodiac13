@@ -28,6 +28,7 @@
 #include <z13/components/block.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
+#include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
 #include <z13_tests/shipped_station.h>
 
@@ -54,6 +55,9 @@ constexpr uint32_t kBuilderId = 7;
 const Eigen::Vector3f kBuilderPosition {0.f, 0.1f, 1.25f};
 constexpr int kStickLength = 8;
 constexpr int kThickness = 2;
+const Eigen::Vector3i kBentFrom {8, -12, 0};
+const Eigen::Vector3i kBentTo {18, -12, 0};
+constexpr int kBentStick = 6;
 
 std::vector<Block> Panels(flecs::world world) {
   std::vector<Block> panels;
@@ -71,12 +75,14 @@ flecs::entity AddWall(Z13TestWorld& test_world, const Eigen::Vector3i& from, con
   const uint32_t b = SpawnWallNode(world, counters, to).get<WallNode>().id;
   return SpawnWallSegment(
       world, counters,
-      {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness});
+      {.node_a = a, .node_b = b, .stick_a = {WallAxis::kZ, kStickLength}, .stick_b = {WallAxis::kZ, kStickLength},
+          .thickness = kThickness});
 }
 
 Block ExpectedPanel(const Eigen::Vector3i& from, const Eigen::Vector3i& to) {
   return z13::building::primitives::WallPanelBlock(
-             {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness},
+             {.node_a = from, .node_b = to, .stick_a = {WallAxis::kZ, kStickLength},
+                 .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness},
              z13::testing::ShippedPalette().value())
       .value();
 }
@@ -131,13 +137,14 @@ TEST(WallPanelSystemTest, SegmentsSharingANodeKeepItWhenOneIsRemoved) {
   const uint32_t shared = SpawnWallNode(world, counters, kFrom).get<WallNode>().id;
   const uint32_t left = SpawnWallNode(world, counters, kTo).get<WallNode>().id;
   const uint32_t right = SpawnWallNode(world, counters, {8, -12, 0}).get<WallNode>().id;
-  const WallSegment base {.stick_axis = WallAxis::kZ, .stick_length = kStickLength, .thickness = kThickness};
+  const WallSegment base {
+      .stick_a = {WallAxis::kZ, kStickLength}, .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness};
   const uint32_t first =
-      SpawnWallSegment(world, counters, {.node_a = shared, .node_b = left, .stick_axis = base.stick_axis,
-                                         .stick_length = base.stick_length, .thickness = base.thickness})
+      SpawnWallSegment(world, counters, {.node_a = shared, .node_b = left, .stick_a = base.stick_a,
+                                         .stick_b = base.stick_b, .thickness = base.thickness})
           .get<WallSegment>().id;
-  SpawnWallSegment(world, counters, {.node_a = shared, .node_b = right, .stick_axis = base.stick_axis,
-                                     .stick_length = base.stick_length, .thickness = base.thickness});
+  SpawnWallSegment(world, counters, {.node_a = shared, .node_b = right, .stick_a = base.stick_a,
+                                     .stick_b = base.stick_b, .thickness = base.thickness});
   test_world.Tick();
   ASSERT_EQ(Panels(world).size(), 2u);
 
@@ -164,6 +171,73 @@ TEST(WallPanelSystemTest, ASaveAndLoadKeepsOnePanelPerSegment) {
 
   EXPECT_EQ(Panels(loaded.World()), Panels(test_world.World()));
   EXPECT_EQ(loaded.World().count<WallSegment>(), 1);
+}
+
+// A wall of a stick along Z at one node and along Y at the other, in the clear south of the station.
+flecs::entity AddBentWall(Z13TestWorld& test_world) {
+  flecs::world world = test_world.World();
+  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  const uint32_t a = SpawnWallNode(world, counters, kBentFrom).get<WallNode>().id;
+  const uint32_t b = SpawnWallNode(world, counters, kBentTo).get<WallNode>().id;
+  z13::building::primitives::WallGeometry wall {
+      .node_a = kBentFrom, .node_b = kBentTo, .stick_a = {WallAxis::kZ, kBentStick},
+      .stick_b = {WallAxis::kY, kBentStick}, .thickness = kThickness};
+  wall.diagonal = z13::building::primitives::DefaultDiagonal(wall);
+  return SpawnWallSegment(world, counters,
+                          {.node_a = a, .node_b = b, .stick_a = wall.stick_a, .stick_b = wall.stick_b,
+                           .thickness = wall.thickness, .diagonal = wall.diagonal});
+}
+
+std::vector<uint32_t> PartsOf(flecs::world world) {
+  std::vector<uint32_t> parts;
+  world.query<const WallPanelOf>().each([&parts](const WallPanelOf& of) { parts.push_back(of.part); });
+  std::ranges::sort(parts);
+  return parts;
+}
+
+TEST(WallPanelSystemTest, ABentWallGetsATriangleOnEachSideOfItsDiagonal) {
+  Z13TestWorld test_world = StationWorld();
+  AddBentWall(test_world);
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_EQ(Panels(test_world.World()).size(), 2u);
+  EXPECT_EQ(PartsOf(test_world.World()), (std::vector<uint32_t> {0, 1}));
+  const std::vector<Block> panels = Panels(test_world.World());
+  EXPECT_TRUE(std::ranges::all_of(panels, [](const Block& panel) { return panel.spec.HasCorners(); }));
+  EXPECT_TRUE(std::ranges::any_of(panels, [](const Block& panel) { return panel.spec.HasFaceCuts(); }));
+}
+
+TEST(WallPanelSystemTest, RemovingABentWallRemovesBothTriangles) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddBentWall(test_world);
+  test_world.Tick();
+  ASSERT_EQ(Panels(test_world.World()).size(), 2u);
+
+  DestroyWallSegment(test_world.World(), segment.get<WallSegment>().id);
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_TRUE(Panels(test_world.World()).empty());
+}
+
+TEST(WallPanelSystemTest, ABentWallSurvivesSaveAndLoad) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddBentWall(test_world);
+  test_world.Tick();
+  const auto snapshot = z13::flecs_tools::CaptureState(test_world.World());
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+
+  Z13TestWorld loaded = StationWorld();
+  ASSERT_TRUE(z13::flecs_tools::RestoreWorld(loaded.World(), *snapshot).has_value());
+  loaded.Tick();
+  loaded.Tick();
+
+  const WallSegment& original = segment.get<WallSegment>();
+  const WallSegment& restored = loaded.World().lookup("WallSegment_1").get<WallSegment>();
+  EXPECT_EQ(restored.stick_b, original.stick_b);
+  EXPECT_EQ(restored.diagonal, original.diagonal);
+  EXPECT_TRUE(std::ranges::is_permutation(Panels(loaded.World()), Panels(test_world.World())));
 }
 
 TEST(WallPanelSystemTest, DestroyingAPanelRemovesItsSegment) {
@@ -227,8 +301,8 @@ flecs::entity AddCorner(Z13TestWorld& test_world) {
   const uint32_t corner = node(kCorner);
   const uint32_t to = node(kCornerTo);
   const auto wall = [&](uint32_t a, uint32_t b) {
-    return SpawnWallSegment(world, counters, {.node_a = a, .node_b = b, .stick_axis = WallAxis::kZ,
-                                              .stick_length = kStickLength, .thickness = kThickness});
+    return SpawnWallSegment(world, counters, {.node_a = a, .node_b = b, .stick_a = {.length = kStickLength},
+                                              .stick_b = {.length = kStickLength}, .thickness = kThickness});
   };
   const flecs::entity first = wall(from, corner);
   wall(corner, to);

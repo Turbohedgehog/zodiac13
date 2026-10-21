@@ -25,6 +25,7 @@
 #include <flecs.h>
 
 #include <primitives/placement.h>
+#include <primitives/wall_bend.h>
 
 namespace z13::building {
 
@@ -121,8 +122,9 @@ std::vector<Eigen::Vector3i> WallAnchors(flecs::world world) {
   });
   world.query<const WallSegment>().each([&](const WallSegment& segment) {
     for (const bool at_b : {false, true}) {
+      const z13::station::WallStick& stick = at_b ? segment.stick_b : segment.stick_a;
       Eigen::Vector3i along = Eigen::Vector3i::Zero();
-      along[Index(segment.stick_axis)] = segment.stick_length + (at_b ? segment.stick_growth : 0);
+      along[Index(stick.axis)] = stick.length;
       if (const auto node = nodes.find(at_b ? segment.node_b : segment.node_a); node != nodes.end()) {
         anchors.push_back(node->second + along);
       }
@@ -245,8 +247,9 @@ std::expected<WallClick, std::string> ClickWall(
     return std::unexpected(std::string {"the view ray finds no length along the axis"});
   }
   return WallClick {.wall = WallGeometry {
-                        .node_a = draft->first, .node_b = draft->second, .stick_axis = draft->stick_axis,
-                        .stick_length = *length, .thickness = thickness}};
+                        .node_a = draft->first, .node_b = draft->second,
+                        .stick_a = {.axis = draft->stick_axis, .length = *length},
+                        .stick_b = {.axis = draft->stick_axis, .length = *length}, .thickness = thickness}};
 }
 
 std::expected<FacedWall, std::string> FacingEye(
@@ -258,18 +261,23 @@ std::expected<FacedWall, std::string> FacingEye(
       std::max(std::abs(wall.thickness), z13::building::primitives::MinWallThickness(wall).value_or(1));
   for (const int side : {1, -1}) {
     wall.thickness = side * thickness;
-    auto block = z13::building::primitives::WallPanelBlock(wall, palette);
-    if (!block) {
+    auto blocks = z13::building::primitives::WallPanelBlocks(wall, palette);
+    if (!blocks) {
       if (!best) {
-        best = std::unexpected(block.error());
+        best = std::unexpected(blocks.error());
       }
       continue;
     }
-    const auto cells = z13::building::primitives::OccupiedCells(*block);
-    const float distance =
-        (cells.min.cast<float>() + cells.extent.cast<float>() / 2.f - eye).squaredNorm();
+    Eigen::Vector3f low = Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+    Eigen::Vector3f high = Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
+    for (const z13::station::Block& block : *blocks) {
+      const auto cells = z13::building::primitives::OccupiedCells(block);
+      low = low.cwiseMin(cells.min.cast<float>());
+      high = high.cwiseMax(cells.End().cast<float>());
+    }
+    const float distance = ((low + high) / 2.f - eye).squaredNorm();
     if (!best || distance < best_distance) {
-      best = FacedWall {.wall = wall, .block = *block};
+      best = FacedWall {.wall = wall, .blocks = *blocks};
       best_distance = distance;
     }
   }
@@ -297,7 +305,11 @@ WallPreview PreviewWall(
   const auto click = ClickWall(draft, aim, anchors, picking, thickness);
   if (const auto faced = click && click->wall ? FacingEye(*click->wall, aim.eye, palette)
                                               : std::unexpected(std::string {"no wall"})) {
-    return {.block = faced->block, .lines = HeightLines(*draft, *length), .makeable = true, .wall = faced->wall};
+    return {.block = faced->blocks.front(),
+            .parts = {faced->blocks.begin() + 1, faced->blocks.end()},
+            .lines = HeightLines(*draft, *length),
+            .makeable = true,
+            .wall = faced->wall};
   }
   return {.block = CellMarker(draft->second), .lines = HeightLines(*draft, *length), .makeable = false};
 }

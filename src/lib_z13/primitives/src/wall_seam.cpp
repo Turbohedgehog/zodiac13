@@ -99,13 +99,13 @@ std::optional<std::string> CheckRemaining(const PlanWall& wall, const PlanPoint&
 }  // namespace
 
 std::optional<PlanWall> PlanWallAt(const WallGeometry& wall, bool at_a) {
-  const int stick = static_cast<int>(wall.stick_axis);
+  const int stick = static_cast<int>(wall.stick_a.axis);
   Eigen::Vector3i span = wall.node_b - wall.node_a;
   span[stick] = 0;
   if (span.isZero() || wall.thickness == 0) {
     return std::nullopt;
   }
-  const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
+  const PlanAxes axes = PlanAxesOf(wall.stick_a.axis, span);
   const auto flat = [&axes](const Eigen::Vector3i& cell) {
     return Eigen::Vector2i(cell[axes.first], cell[axes.second]);
   };
@@ -223,17 +223,17 @@ std::optional<std::array<Eigen::Vector2i, 4>> PlanCorners(const PlanWall& wall_a
   return corners;
 }
 
-// The stick at each corner: a's, grown by `stick_growth` in proportion to the corner's distance
-// from a along the wall. Nothing if one is left with no length or turned about.
+// The stick at each corner: a's, grown toward b's in proportion to the corner's distance from
+// a along the wall. Nothing if one is left with no length or turned about.
 std::optional<std::array<int, 4>> StickLengths(
     const WallGeometry& wall, const PlanWall& plan_a, const std::array<Eigen::Vector2i, 4>& corners) {
   const int64_t along = CrossOf(plan_a.direction, plan_a.offset);
   std::array<int, 4> sticks;
   for (size_t i = 0; i < corners.size(); ++i) {
     const int64_t reached = CrossOf(corners[i] - plan_a.node, plan_a.offset);
-    const int64_t grown = static_cast<int64_t>(wall.stick_growth) * Sign(along) * reached;
-    sticks[i] = wall.stick_length + static_cast<int>(RoundedQuotient(grown, std::abs(along)));
-    if (sticks[i] == 0 || (sticks[i] > 0) != (wall.stick_length > 0)) {
+    const int64_t grown = static_cast<int64_t>(wall.stick_b.length - wall.stick_a.length) * Sign(along) * reached;
+    sticks[i] = wall.stick_a.length + static_cast<int>(RoundedQuotient(grown, std::abs(along)));
+    if (sticks[i] == 0 || (sticks[i] > 0) != (wall.stick_a.length > 0)) {
       return std::nullopt;
     }
   }
@@ -282,10 +282,10 @@ std::expected<Block, std::string> CutPanelBlock(
     return std::unexpected(std::string {"a seam leaves the wall a corner with no stick"});
   }
 
-  const int stick = static_cast<int>(wall.stick_axis);
+  const int stick = static_cast<int>(wall.stick_a.axis);
   Eigen::Vector3i span = wall.node_b - wall.node_a;
   span[stick] = 0;
-  const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
+  const PlanAxes axes = PlanAxesOf(wall.stick_a.axis, span);
   const auto along_axis = [&axes](const Eigen::Vector2i& corner, int axis) {
     return axis == axes.first ? corner.x() : corner.y();
   };

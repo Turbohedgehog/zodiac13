@@ -32,20 +32,12 @@
 
 namespace z13::building {
 
-// A wall's stick as one of its ends carries it: the edge a bridge runs from or to.
-struct WallStick {
-  z13::station::WallAxis axis = z13::station::WallAxis::kZ;
-  int length {};
-
-  bool operator==(const WallStick&) const = default;
-};
-
 // The sticks of the walls standing at the node, in segment id order.
-std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id);
+std::vector<z13::station::WallStick> SticksAt(flecs::world world, uint32_t node_id);
 
-// The wall bridging the stick at `first` to a stick of the same axis and direction at `second`
-// (the oldest there; a trapezoid when their lengths differ), thickened to the side nearer
-// `eye`, or why there is none. The first node's stick is that of its oldest wall.
+// The wall bridging the stick at `first` (its oldest wall's) to one at `second`, thickened to the
+// side nearer `eye`, or why there is none. The one at `second` is the oldest of the same axis and
+// direction (a trapezoid when the lengths differ), else the oldest of another axis (a bent wall).
 std::expected<FacedWall, std::string> PlanBridge(
     flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette);

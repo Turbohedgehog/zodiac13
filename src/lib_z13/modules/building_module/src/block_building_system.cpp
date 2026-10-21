@@ -481,7 +481,8 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
       draft, aim, anchors, PickingOf(view.tuning), tool.get<BuildTool>().wall_thickness, view.palette);
   const bool valid = preview.makeable && CheckPermission(owner).has_value() &&
                      (!preview.wall || CheckWallFits(owner.world(), *preview.wall, view).has_value());
-  return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild, .lines = preview.lines};
+  return {.block = preview.block, .valid = valid, .kind = BuildKind::kBuild, .lines = preview.lines,
+          .parts = preview.parts};
 }
 
 BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
@@ -508,7 +509,8 @@ BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const A
   const Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
   if (first && hovered) {
     if (const auto bridge = CheckedBridge(owner, tool, *first, *hovered, aim, view)) {
-      return {.block = bridge->block, .valid = true, .kind = BuildKind::kBuild};
+      return {.block = bridge->blocks.front(), .valid = true, .kind = BuildKind::kBuild,
+              .parts = {bridge->blocks.begin() + 1, bridge->blocks.end()}};
     }
     return {.block = CellMarker(shown), .valid = false, .kind = BuildKind::kBuild};
   }

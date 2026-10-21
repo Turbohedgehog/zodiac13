@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <vector>
 
+#include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
 
 namespace z13::building {
@@ -40,8 +41,10 @@ void SetSeam(WallJoints& joints, const WallEndAt& end, const z13::building::prim
 }
 
 void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach) {
+  const auto parallel = [](const JointWall& wall) { return !z13::building::primitives::IsBent(wall.geometry); };
   if (meeting.size() != 2 || meeting[0].wall == meeting[1].wall ||
-      meeting[0].wall->geometry.stick_axis != meeting[1].wall->geometry.stick_axis) {
+      meeting[0].wall->geometry.stick_a.axis != meeting[1].wall->geometry.stick_a.axis ||
+      !parallel(*meeting[0].wall) || !parallel(*meeting[1].wall)) {
     return;
   }
   std::ranges::sort(meeting, {}, [](const WallEndAt& end) { return end.wall->id; });
@@ -84,6 +87,18 @@ std::expected<z13::station::Block, std::string> JointPanel(
     }
   }
   return z13::building::primitives::WallPanelBlock(wall.geometry, palette);
+}
+
+std::expected<std::vector<z13::station::Block>, std::string> JointPanels(
+    const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette) {
+  if (z13::building::primitives::IsBent(wall.geometry)) {
+    return z13::building::primitives::WallPanelBlocks(wall.geometry, palette);
+  }
+  auto panel = JointPanel(wall, joints, palette);
+  if (!panel) {
+    return std::unexpected(std::move(panel.error()));
+  }
+  return std::vector<z13::station::Block> {*panel};
 }
 
 std::optional<std::string> JointProblem(

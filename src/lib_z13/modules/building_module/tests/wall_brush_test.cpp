@@ -122,7 +122,8 @@ TEST(WallBrushTest, TheStickLiesInTheNearestPlaneTheViewRayMeets) {
 TEST(WallBrushTest, AnObliqueWallIsAsThickAsItNeedsToBeAirtight) {
   const auto palette = z13::testing::ShippedPalette().value();
   const z13::building::primitives::WallGeometry diagonal {
-      .node_a = {0, 0, 0}, .node_b = {10, 10, 0}, .stick_axis = WallAxis::kZ, .stick_length = 3, .thickness = 1};
+      .node_a = {0, 0, 0}, .node_b = {10, 10, 0}, .stick_a = {WallAxis::kZ, 3}, .stick_b = {WallAxis::kZ, 3},
+      .thickness = 1};
   const auto faced = FacingEye(diagonal, {5.f, -20.f, 1.f}, palette);
   ASSERT_TRUE(faced.has_value()) << faced.error();
   EXPECT_EQ(std::abs(faced->wall.thickness), 2);
@@ -212,13 +213,13 @@ TEST(WallBrushTest, ThreeClicksMakeTheWallAndItThickensTowardTheEye) {
 
   const auto third = ClickWall(second->draft, RayThrough({30.f, 0.f, 8.f}, {20.f, 0.f, 8.f}), none, kPicking, kThickness);
   ASSERT_TRUE(third && third->wall);
-  EXPECT_EQ(third->wall->stick_length, 8);
+  EXPECT_EQ(third->wall->stick_a.length, 8);
 
   const auto near_low = FacingEye(*third->wall, {6.f, -20.f, 4.f}, palette);
   const auto near_high = FacingEye(*third->wall, {6.f, 30.f, 4.f}, palette);
   ASSERT_TRUE(near_low && near_high);
   EXPECT_LT(near_low->wall.thickness * near_high->wall.thickness, 0);
-  EXPECT_NE(near_low->block.cell, near_high->block.cell);
+  EXPECT_NE(near_low->blocks.front().cell, near_high->blocks.front().cell);
 }
 
 TEST(WallBrushTest, TheStickPreviewDrawsTheStickAndTheArrowAlongTheLeftOverAxis) {
@@ -277,7 +278,8 @@ TEST(WallBrushTest, AWallGetsOneSegmentAndSharesTheNodesItMeets) {
   flecs::world world = test_world.World();
   auto& counters = world.get_mut<z13::gameplay::IdCounters>();
   const z13::building::primitives::WallGeometry first {
-      .node_a = {0, 0, 0}, .node_b = {12, 4, 0}, .stick_axis = WallAxis::kZ, .stick_length = 8, .thickness = 2};
+      .node_a = {0, 0, 0}, .node_b = {12, 4, 0}, .stick_a = {WallAxis::kZ, 8}, .stick_b = {WallAxis::kZ, 8},
+      .thickness = 2};
   auto second = first;
   second.node_a = first.node_b;
   second.node_b = {24, 4, 0};

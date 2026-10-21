@@ -47,6 +47,10 @@ uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, con
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id);
 std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id);
 
+// The wall of `segment` with its nodes at `cell_a` and `cell_b`.
+JointWall JointWallOf(
+    const z13::station::WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b);
+
 // Every segment with its nodes' cells, in segment id order.
 std::vector<JointWall> JointWallsOf(flecs::world world);
 

@@ -44,7 +44,7 @@ const Palette& ShippedPalette() {
 
 // A wall from the origin to (7, 3) in plan, 5 tall.
 WallGeometry PlanWall(int thickness) {
-  return {.node_b = {7, 3, 0}, .stick_axis = WallAxis::kZ, .stick_length = 5, .thickness = thickness};
+  return {.node_b = {7, 3, 0}, .stick_a = {WallAxis::kZ, 5}, .stick_b = {WallAxis::kZ, 5}, .thickness = thickness};
 }
 
 TEST(WallPanelBlockTest, AWallOfAnyDirectionFillsTheStripBetweenItsLines) {
@@ -75,7 +75,7 @@ TEST(WallPanelBlockTest, EveryDirectionAndSideGivesAPanelThatFitsTheTargetCorner
           for (const int length : {-4, 6}) {
             const WallGeometry wall {
                 .node_a = {10, -20, 5}, .node_b = Eigen::Vector3i(10, -20, 5) + Eigen::Vector3i(dx, dy, 0),
-                .stick_axis = axis, .stick_length = length, .thickness = thickness};
+                .stick_a = {axis, length}, .stick_b = {axis, length}, .thickness = thickness};
             const Eigen::Vector3i offset = wall.node_b - wall.node_a;
             Eigen::Vector3i plane = offset;
             plane[static_cast<int>(axis)] = 0;
@@ -105,10 +105,10 @@ TEST(WallPanelBlockTest, EveryDirectionAndSideGivesAPanelThatFitsTheTargetCorner
 
 // The corners of the wall's footprint with each stick over them, as the plan puts them.
 std::set<std::array<int, 3>> TargetCorners(const WallGeometry& wall) {
-  const int stick = static_cast<int>(wall.stick_axis);
+  const int stick = static_cast<int>(wall.stick_a.axis);
   Eigen::Vector3i plane = wall.node_b - wall.node_a;
   plane[stick] = 0;
-  const PlanAxes axes = PlanAxesOf(wall.stick_axis, plane);
+  const PlanAxes axes = PlanAxesOf(wall.stick_a.axis, plane);
   Eigen::Vector3i thicken = Eigen::Vector3i::Zero();
   thicken[axes.minor] = wall.thickness;
   std::set<std::array<int, 3>> corners;
@@ -116,7 +116,7 @@ std::set<std::array<int, 3>> TargetCorners(const WallGeometry& wall) {
     for (const Eigen::Vector3i& side : {Eigen::Vector3i(Eigen::Vector3i::Zero()), thicken}) {
       const Eigen::Vector3i base = wall.node_a + (at_b ? plane : Eigen::Vector3i::Zero()) + side;
       Eigen::Vector3i top = base;
-      top[stick] += wall.stick_length + (at_b ? wall.stick_growth : 0);
+      top[stick] += at_b ? wall.stick_b.length : wall.stick_a.length;
       corners.insert({base.x(), base.y(), base.z()});
       corners.insert({top.x(), top.y(), top.z()});
     }
@@ -147,7 +147,7 @@ TEST(WallPanelBlockTest, ATrapezoidFitsItsCornersInEveryDirectionSideAndSlope) {
             for (const int growth : {-2, 2}) {
               const WallGeometry wall {
                   .node_a = {10, -20, 5}, .node_b = Eigen::Vector3i(10, -20, 5) + Eigen::Vector3i(dx, dy, 0),
-                  .stick_axis = axis, .stick_length = length, .stick_growth = growth * (length > 0 ? 1 : -1),
+                  .stick_a = {axis, length}, .stick_b = {axis, length + growth * (length > 0 ? 1 : -1)},
                   .thickness = thickness};
               Eigen::Vector3i plane = wall.node_b - wall.node_a;
               plane[static_cast<int>(axis)] = 0;
@@ -167,7 +167,7 @@ TEST(WallPanelBlockTest, ATrapezoidFitsItsCornersInEveryDirectionSideAndSlope) {
 
 TEST(WallPanelBlockTest, ATrapezoidIsSealedUnderItsSlopedTop) {
   const WallGeometry wall {
-      .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 8, .stick_growth = -4, .thickness = 1};
+      .node_b = {10, 0, 0}, .stick_a = {WallAxis::kZ, 8}, .stick_b = {WallAxis::kZ, 8 + -4}, .thickness = 1};
   const Block block = WallPanelBlock(wall, ShippedPalette()).value();
   const std::vector<CellBox> sealed = SealedBoxes(block, ShippedPalette());
 
@@ -180,9 +180,11 @@ TEST(WallPanelBlockTest, ATrapezoidIsSealedUnderItsSlopedTop) {
 }
 
 TEST(WallPanelBlockTest, SticksPointingOppositeWaysAreRefused) {
-  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_length = 4, .stick_growth = -4, .thickness = 1},
+  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_a = {.length = 4}, .stick_b = {.length = 0},
+      .thickness = 1},
                               ShippedPalette()).has_value());
-  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_length = 4, .stick_growth = -6, .thickness = 1},
+  EXPECT_FALSE(WallPanelBlock({.node_b = {10, 0, 0}, .stick_a = {.length = 4}, .stick_b = {.length = -2},
+      .thickness = 1},
                               ShippedPalette()).has_value());
 }
 
@@ -192,9 +194,9 @@ TEST(WallPanelBlockTest, ATrapezoidCutByASeamKeepsItsSlopeOverTheMovedCorners) {
   constexpr int kStick = 6;
   constexpr int kShrink = 3;
   const WallGeometry east {
-      .node_b = {kLength, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = kStick, .thickness = 2};
-  const WallGeometry north {.node_b = {0, kLength, 0}, .stick_axis = WallAxis::kZ, .stick_length = kStick,
-                            .stick_growth = -kShrink, .thickness = 2};
+      .node_b = {kLength, 0, 0}, .stick_a = {WallAxis::kZ, kStick}, .stick_b = {WallAxis::kZ, kStick}, .thickness = 2};
+  const WallGeometry north {.node_b = {0, kLength, 0}, .stick_a = {WallAxis::kZ, kStick},
+                            .stick_b = {WallAxis::kZ, kStick - kShrink}, .thickness = 2};
   const auto seam = PlanSeam(PlanWallAt(east, true).value(), PlanWallAt(north, true).value(), kReach);
   ASSERT_TRUE(seam.has_value()) << seam.error();
 
@@ -231,7 +233,7 @@ TEST(WallPanelBlockTest, AWallThinnerThanTheSealRuleIsRefused) {
 }
 
 TEST(WallPanelBlockTest, AnAxisWallIsAThickSlabFlushWithTheGrid) {
-  const WallGeometry wall {.node_b = {12, 0, 0}, .stick_length = 8, .thickness = 1};
+  const WallGeometry wall {.node_b = {12, 0, 0}, .stick_a = {.length = 8}, .stick_b = {.length = 8}, .thickness = 1};
 
   const Block block = WallPanelBlock(wall, ShippedPalette()).value();
 
@@ -242,14 +244,18 @@ TEST(WallPanelBlockTest, AnAxisWallIsAThickSlabFlushWithTheGrid) {
 }
 
 TEST(WallPanelBlockTest, BadSegmentsAreRefused) {
-  EXPECT_FALSE(WallPanelBlock({.node_a = {1, 2, 3}, .node_b = {1, 2, 9}, .stick_length = 4, .thickness = 1},
+  EXPECT_FALSE(WallPanelBlock({.node_a = {1, 2, 3}, .node_b = {1, 2, 9}, .stick_a = {.length = 4},
+      .stick_b = {.length = 4}, .thickness = 1},
                               ShippedPalette()).has_value()) << "the nodes differ only along the stick";
-  EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_length = 0, .thickness = 1}, ShippedPalette()).has_value());
-  EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_length = 4, .thickness = 0}, ShippedPalette()).has_value());
+  EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_a = {.length = 0}, .stick_b = {.length = 0},
+      .thickness = 1}, ShippedPalette()).has_value());
+  EXPECT_FALSE(WallPanelBlock({.node_b = {5, 0, 0}, .stick_a = {.length = 4}, .stick_b = {.length = 4},
+      .thickness = 0}, ShippedPalette()).has_value());
 }
 
 TEST(WallPanelBlockTest, AnObliqueWallNeedsTwoCellsToHoldAirBack) {
-  WallGeometry wall {.node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_axis = WallAxis::kZ, .stick_length = 3};
+  WallGeometry wall {.node_a = {0, 0, 0}, .node_b = {10, 0, 0}, .stick_a = {WallAxis::kZ, 3},
+      .stick_b = {WallAxis::kZ, 3}};
   EXPECT_EQ(MinWallThickness(wall), 1);
   for (const Eigen::Vector3i& node_b : {Eigen::Vector3i(10, 1, 0), Eigen::Vector3i(7, 3, 0), Eigen::Vector3i(10, 10, 0),
                                         Eigen::Vector3i(-4, 9, 0)}) {

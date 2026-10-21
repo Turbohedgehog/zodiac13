@@ -64,6 +64,8 @@ struct BrushPreview {
   // A cut's block is a plain box of the cells it would take.
   Kind kind {};
   std::vector<BrushLine> lines;
+  // The blocks after `block` that the same preview shows (the second triangle of a bent wall).
+  std::vector<Block> parts;
 };
 
 // The palette window's pick goes out as an action value, slot + 1, which a logged action

@@ -29,6 +29,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
+#include <primitives/wall_bend.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -46,6 +47,7 @@ using z13::station::WallAxis;
 using z13::station::WallBridgeDraft;
 using z13::station::WallNode;
 using z13::station::WallSegment;
+using z13::station::WallStick;
 using z13::testing::AddBuilder;
 using z13::testing::Facing;
 using z13::testing::StationWorld;
@@ -68,7 +70,8 @@ uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
 void AddWall(Z13TestWorld& test_world, uint32_t a, uint32_t b, WallAxis axis, int stick_length) {
   flecs::world world = test_world.World();
   SpawnWallSegment(world, world.get_mut<z13::gameplay::IdCounters>(),
-                   {.node_a = a, .node_b = b, .stick_axis = axis, .stick_length = stick_length, .thickness = kThickness});
+                   {.node_a = a, .node_b = b, .stick_a = {axis, stick_length}, .stick_b = {axis, stick_length},
+                       .thickness = kThickness});
 }
 
 // A wall of `stick_length` from `from` by `run`, so its node at `from` carries that stick.
@@ -95,18 +98,43 @@ TEST(WallBridgeTest, TwoNodesWithTheSameStickGetAWallBetweenThem) {
   ASSERT_TRUE(bridge.has_value()) << bridge.error();
   EXPECT_EQ(bridge->wall.node_a, Eigen::Vector3i(0, 0, 0));
   EXPECT_EQ(bridge->wall.node_b, Eigen::Vector3i(kGap, 0, 0));
-  EXPECT_EQ(bridge->wall.stick_axis, WallAxis::kZ);
-  EXPECT_EQ(bridge->wall.stick_length, kStickLength);
+  EXPECT_EQ(bridge->wall.stick_a, (WallStick {WallAxis::kZ, kStickLength}));
+  EXPECT_EQ(bridge->wall.stick_b, bridge->wall.stick_a);
 }
 
-TEST(WallBridgeTest, SticksOfOtherAxisOrDirectionAreRefused) {
+TEST(WallBridgeTest, SticksPointingOppositeWaysAreRefused) {
   Z13TestWorld test_world = StationWorld();
   const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t turned = AddStickAt(test_world, {0, 0, kGap}, WallAxis::kX, kStickLength);
   const uint32_t opposite = AddStickAt(test_world, {kGap, 0, kGap}, WallAxis::kZ, -kStickLength);
 
-  EXPECT_FALSE(Bridge(test_world, a, turned).has_value());
   EXPECT_FALSE(Bridge(test_world, a, opposite).has_value());
+}
+
+TEST(WallBridgeTest, SticksOfOtherAxesMakeABentWallOfTwoTriangles) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const uint32_t turned = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+
+  const auto bridge = Bridge(test_world, a, turned);
+
+  ASSERT_TRUE(bridge.has_value()) << bridge.error();
+  EXPECT_EQ(bridge->wall.stick_a, (WallStick {WallAxis::kZ, kStickLength}));
+  EXPECT_EQ(bridge->wall.stick_b, (WallStick {WallAxis::kY, kStickLength}));
+  EXPECT_EQ(bridge->wall.diagonal, z13::building::primitives::DefaultDiagonal(bridge->wall));
+  EXPECT_EQ(bridge->blocks.size(), 2u);
+}
+
+TEST(WallBridgeTest, AStickOfTheSameAxisIsPreferredToAnOldOneOfAnother) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const uint32_t far = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+  AddWall(test_world, far, AddNode(test_world, {kGap, kRun, 0}), WallAxis::kZ, kStickLength);
+
+  const auto bridge = Bridge(test_world, a, far);
+
+  ASSERT_TRUE(bridge.has_value()) << bridge.error();
+  EXPECT_EQ(bridge->wall.stick_b, (WallStick {WallAxis::kZ, kStickLength}));
+  EXPECT_EQ(bridge->blocks.size(), 1u);
 }
 
 TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
@@ -119,11 +147,12 @@ TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
 
   ASSERT_TRUE(down.has_value()) << down.error();
   ASSERT_TRUE(up.has_value()) << up.error();
-  EXPECT_EQ(down->wall.stick_length, kStickLength);
-  EXPECT_EQ(down->wall.stick_growth, kShortStick - kStickLength);
-  EXPECT_EQ(up->wall.stick_length, kShortStick);
-  EXPECT_EQ(up->wall.stick_growth, kStickLength - kShortStick);
-  EXPECT_TRUE(down->block.spec.HasFaceCuts());
+  EXPECT_EQ(down->wall.stick_a.length, kStickLength);
+  EXPECT_EQ(down->wall.stick_b.length, kShortStick);
+  EXPECT_EQ(up->wall.stick_a.length, kShortStick);
+  EXPECT_EQ(up->wall.stick_b.length, kStickLength);
+  ASSERT_EQ(down->blocks.size(), 1u);
+  EXPECT_TRUE(down->blocks.front().spec.HasFaceCuts());
 }
 
 TEST(WallBridgeTest, ABridgeCarriesTheStickOfTheNodeItReaches) {

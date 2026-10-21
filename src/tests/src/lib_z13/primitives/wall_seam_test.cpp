@@ -47,7 +47,8 @@ const Eigen::Vector3i kNorth {0, 10, 0};
 
 // A wall standing on the floor plane, its stick along Z.
 WallGeometry FlatWall(const Eigen::Vector3i& from, const Eigen::Vector3i& to, int thickness = kThickness) {
-  return {.node_a = from, .node_b = to, .stick_axis = WallAxis::kZ, .stick_length = kStickLength,
+  return {.node_a = from, .node_b = to, .stick_a = {WallAxis::kZ, kStickLength},
+      .stick_b = {WallAxis::kZ, kStickLength},
           .thickness = thickness};
 }
 
@@ -146,7 +147,8 @@ TEST(WallSeamTest, AWallTooShortForTheJointSaysHowLongItMustBe) {
 
 TEST(WallSeamTest, AWallComesAsItsEndAtANodeInThePlaneOfItsStick) {
   const WallGeometry wall {
-      .node_a = {0, 0, 0}, .node_b = {7, 3, 0}, .stick_axis = WallAxis::kZ, .stick_length = 5, .thickness = 2};
+      .node_a = {0, 0, 0}, .node_b = {7, 3, 0}, .stick_a = {WallAxis::kZ, 5}, .stick_b = {WallAxis::kZ, 5},
+      .thickness = 2};
   const auto at_a = PlanWallAt(wall, true);
   const auto at_b = PlanWallAt(wall, false);
   ASSERT_TRUE(at_a.has_value());
@@ -160,7 +162,8 @@ TEST(WallSeamTest, AWallComesAsItsEndAtANodeInThePlaneOfItsStick) {
 
   // A stick along X puts the plane at (y, z).
   const WallGeometry upright {
-      .node_a = {4, 0, 0}, .node_b = {4, 3, 7}, .stick_axis = WallAxis::kX, .stick_length = 5, .thickness = -1};
+      .node_a = {4, 0, 0}, .node_b = {4, 3, 7}, .stick_a = {WallAxis::kX, 5}, .stick_b = {WallAxis::kX, 5},
+      .thickness = -1};
   const auto in_yz = PlanWallAt(upright, true);
   ASSERT_TRUE(in_yz.has_value());
   EXPECT_EQ(in_yz->direction, Eigen::Vector2i(3, 7));
