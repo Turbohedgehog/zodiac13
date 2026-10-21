@@ -231,9 +231,8 @@ std::optional<std::array<int, 4>> StickLengths(
   std::array<int, 4> sticks;
   for (size_t i = 0; i < corners.size(); ++i) {
     const int64_t reached = CrossOf(corners[i] - plan_a.node, plan_a.offset);
-    const int64_t weight = along < 0 ? -along : along;
-    const int64_t grown = static_cast<int64_t>(wall.stick_growth) * (along < 0 ? -reached : reached);
-    sticks[i] = wall.stick_length + static_cast<int>(RoundedQuotient(grown, weight));
+    const int64_t grown = static_cast<int64_t>(wall.stick_growth) * Sign(along) * reached;
+    sticks[i] = wall.stick_length + static_cast<int>(RoundedQuotient(grown, std::abs(along)));
     if (sticks[i] == 0 || (sticks[i] > 0) != (wall.stick_length > 0)) {
       return std::nullopt;
     }
