@@ -46,10 +46,13 @@ struct Fold {
 Fold FoldOf(const std::array<Triangle, 2>& triangles) {
   const auto first = TriangleNormal(triangles[0]);
   const auto second = TriangleNormal(triangles[1]);
+  if (first.isZero() || second.isZero()) {
+    return {};
+  }
   const int64_t dot = first.dot(second);
   const double lengths = static_cast<double>(first.squaredNorm()) * static_cast<double>(second.squaredNorm());
   const double product = static_cast<double>(dot) * static_cast<double>(dot);
-  return {.sign = Sign(dot), .cosine_squared = lengths == 0.0 ? 0.0 : product / lengths};
+  return {.sign = Sign(dot), .cosine_squared = product / lengths};
 }
 
 // Whether `a` folds the surface less: its normals' cosine is the larger, by more than rounding.
