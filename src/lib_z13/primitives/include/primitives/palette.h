@@ -58,6 +58,7 @@ struct Checker {
   Rgba first {};
   Rgba second {};
   bool emissive {};
+  std::optional<std::string> texture;
 
   bool operator==(const Checker&) const = default;
 };

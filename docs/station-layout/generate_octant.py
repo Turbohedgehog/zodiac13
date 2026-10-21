@@ -27,6 +27,14 @@ DECOR_FILE = ROOT / "assets" / "station" / "decor" / "octant.json"
 STATS_FILE = Path(__file__).parent / "octant" / "stats.txt"
 
 WALL_THICKNESS_M = 0.25
+# Palette primitives with a texture per map template.
+WALL_STYLES = {"wall_bulkhead": "WallBulkhead", "wall_maint": "WallMaint", "wall_corrugated": "WallCorrugated",
+               "wall_plate_riveted": "WallPlateRiveted", "wall_seamed": "WallSeamed", "wall_hazard": "WallHazard",
+               "wall_lintel": "WallBulkhead", "wall_door": "WallBulkhead", "wall_maint_door": "WallMaint",
+               "wall_cell_door": "WallBulkhead"}
+FLOOR_STYLES = {f"floor_deck_{name}": f"Floor{name.capitalize()}" for name in (
+    "hall", "command", "engineering", "cargo", "medical", "quarters", "science", "security", "service", "maint")}
+CEILING = "Ceiling"
 # Map templates drawn as models (assets/models/props/<name>.glb), keyed by the template; the rest of the map's decor waits for its model.
 PROP_MODELS = {"decor_crew_chair": "crew_chair", "decor_locker": "locker", "decor_table": "table"}
 # The fixture hung where a Lamp block is, by the map light's template; the block itself is not drawn.
@@ -129,6 +137,8 @@ class Octant:
         floors = [i["at"] for i in data["instances"] if i["template"].startswith("floor_")]
         self.origin = (-round(min(f[0] for f in floors)) * CELLS_PER_M, -round(min(f[1] for f in floors)) * CELLS_PER_M)
         self.floor_tiles = {(int(x), int(y)) for x, y, _ in floors}
+        self.floor_style = {(int(i["at"][0]), int(i["at"][1])): FLOOR_STYLES[i["template"]]
+                            for i in data["instances"] if i["template"].startswith("floor_")}
         self.tile_height = {(x, y): self.room_height_cells(room) for room in data["rooms"]
                             for x in range(room["box"][0], room["box"][2])
                             for y in range(room["box"][1], room["box"][3]) if (x, y) in self.floor_tiles}
@@ -153,7 +163,7 @@ class Octant:
                 tile = (along[0] // CELLS_PER_M, line // CELLS_PER_M) if axis == 0 else                     (line // CELLS_PER_M, along[0] // CELLS_PER_M)
                 z0, z1 = WALL_Z + CELLS_PER_M * GLASS_SLOPE_FIRST_ROW, WALL_Z + self.tile_height[tile]
             line, along = self.shift(axis, line, along)
-            kind = "window" if template in WINDOW_TEMPLATES else "wall"
+            kind = WINDOW_BLOCK if template in WINDOW_TEMPLATES else WALL_STYLES.get(template, WALL_BLOCK)
             filled = {(a, z) for a in range(*along) for z in range(z0, z1)}
             self.lines[(axis, line)][kind].update(filled)
             if template in DOOR_TEMPLATES:
@@ -175,16 +185,19 @@ class Octant:
 
     def blocks(self):
         ox, oy = self.origin
-        blocks = slab_blocks(FLOOR, {(x + ox // CELLS_PER_M, y + oy // CELLS_PER_M) for x, y in self.floor_tiles},
-                             FLOOR_Z, CELLS_PER_M)
+        blocks = []
+        for style in sorted(set(self.floor_style.values())):
+            tiles = {(x + ox // CELLS_PER_M, y + oy // CELLS_PER_M) for (x, y), kind in self.floor_style.items()
+                     if kind == style}
+            blocks += slab_blocks(style, tiles, FLOOR_Z, CELLS_PER_M)
         ceilings, self.ceiling_at = self.ceiling_slabs()
         blocks += ceilings
         self.sort_pieces()
         self.carve_doors()
         claimed = set(self.holes)  # a corner cell is filled by both of its walls; the first line keeps it
         for (axis, line), kinds in sorted(self.lines.items()):
-            for kind, primitive in (("window", WINDOW_BLOCK), ("wall", WALL_BLOCK)):
-                filled = {(a, z) for a, z in kinds.get(kind, set())
+            for primitive in sorted(kinds, key=lambda kind: (kind != WINDOW_BLOCK, kind)):
+                filled = {(a, z) for a, z in kinds[primitive]
                           if ((a, line, z) if axis == 0 else (line, a, z)) not in claimed}
                 claimed.update(self.cells_of(axis, line, filled))
                 blocks += wall_blocks_of(axis, line, filled, primitive)
@@ -216,7 +229,7 @@ class Octant:
                                 ceiling_at[((x * CELLS_PER_M + ox) + cx, (y * CELLS_PER_M + oy) + cy)] = (z, room["name"])
         blocks = []
         for z, filled in sorted(by_height.items()):
-            blocks += slab_blocks(FLOOR, filled, z, CELLS_PER_M)
+            blocks += slab_blocks(CEILING, filled, z, CELLS_PER_M)
         return blocks, ceiling_at
 
     def lamps(self):

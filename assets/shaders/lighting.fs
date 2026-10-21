@@ -68,9 +68,14 @@ uniform vec3 viewPos;
 // Station blocks: a checker of one square per grid cell, from the world position.
 uniform int checkerEnabled;
 uniform int checkerEmissive;
+uniform int checkerTextured;
 uniform vec4 checkerFirst;
 uniform vec4 checkerSecond;
 uniform float cellSize;
+// Debug view of a station's light, stepped by F11/F12: 0 off, 1 white albedo, 2 only the baked
+// light on white, 3 the baked light's node cubes in hashed colors, 4 the baked light less the
+// players' shadows, 5 the lamps and flashlights in the clusters, 6 the sun, 7 the fill.
+uniform int debugView;
 
 // A normal this close to an axis is a face along the grid; a face whose normal.z is above
 // kSteepFace is nearly flat (a roof) and takes X, not Z, to square its checker against.
@@ -79,8 +84,12 @@ const float kSteepFace = 0.9;
 // Pulls shadow lookups off the lit surface, against acne on the faces they sample.
 const float kNormalOffset = 0.04;
 const float kCubeBias = 0.02;
-const float kDirectionalBias = 0.0015;
-const float kShininess = 16.0;
+// In meters: a depth bias in the map's own units grew with the station, past a wall's thickness.
+const float kDirectionalBiasM = 0.08;
+// Matte metal: a broad highlight tinted by the surface color, over a weakened diffuse.
+const float kShininess = 10.0;
+const float kMetalSpecular = 0.7;
+const float kMetalDiffuse = 0.65;
 // Of a spot's cone, the outer part where its light fades to the edge.
 const float kConeSoftness = 0.25;
 // The share of the fill a face turned straight away from it still gets.
@@ -145,7 +154,9 @@ float DirectionalShadow(bool enabled, mat4 viewProjection, sampler2D map, vec3 p
     vec4 clip = viewProjection*vec4(position, 1.0);
     vec3 coords = clip.xyz/clip.w*0.5 + 0.5;
     if (any(lessThan(coords, vec3(0.0))) || any(greaterThan(coords, vec3(1.0)))) return 1.0;
-    return coords.z - kDirectionalBias > textureLod(map, coords.xy, 0.0).r ? 0.0 : 1.0;
+    // The map's depth range in meters is 2/|the z row|, as the transform is an ortho times a look-at.
+    float bias = kDirectionalBiasM*0.5*length(vec3(viewProjection[0][2], viewProjection[1][2], viewProjection[2][2]));
+    return coords.z - bias > textureLod(map, coords.xy, 0.0).r ? 0.0 : 1.0;
 }
 
 vec3 FacingNormal(vec3 normal, bool twoSided, vec3 toLight)
@@ -160,7 +171,7 @@ vec3 Shade(vec3 normal, bool twoSided, vec3 toLight, vec3 toView, vec3 color)
     float diffuse = max(dot(lit, toLight), 0.0);
     if (diffuse <= 0.0) return vec3(0.0);
     float highlight = pow(max(dot(toView, reflect(-toLight, lit)), 0.0), kShininess);
-    return color*(diffuse + highlight);
+    return color*(diffuse*kMetalDiffuse + highlight*kMetalSpecular);
 }
 
 // Wrapped around the faces turned away too, as light scattered from all around would be.
@@ -186,8 +197,9 @@ int ClusterOf(vec3 position)
 // weighed by distance, each through the cell of its cube nearest the point's cell. A node adds
 // nothing when that cell is opaque, or when the point's own cube is cut off from it on the way:
 // a wall in the point's cube, between the point and the neighbour.
-vec3 CellLight(vec3 point, vec3 normal)
+vec3 CellLight(vec3 point, vec3 normal, vec3 toView, out vec3 sheen)
 {
+    sheen = vec3(0.0);
     vec3 surface = point;
     ivec3 cell;
     uint ownPiece = uint(kPieces);
@@ -233,7 +245,12 @@ vec3 CellLight(vec3 point, vec3 normal)
     direction /= weights;
     float oneSided = length(direction);
     float facing = oneSided > 0.0 ? max(dot(normal, direction/oneSided), 0.0) : 0.0;
-    return light*mix(1.0, kBakedFloor + (1.0 - kBakedFloor)*facing, oneSided);
+    if (oneSided > 0.0)
+    {
+        vec3 halfway = normalize(direction/oneSided + toView);
+        sheen = light*oneSided*kMetalSpecular*facing*pow(max(dot(normal, halfway), 0.0), kShininess);
+    }
+    return light*mix(1.0, kBakedFloor + (1.0 - kBakedFloor)*facing, oneSided)*kMetalDiffuse;
 }
 
 // What the lamps' baked light loses where players stand between them and the face: blocks
@@ -284,6 +301,16 @@ bool CheckerSquare(vec3 position, vec3 normal)
     return ((square.x + square.y) & 1) == 0;
 }
 
+// One tile per meter by the world position and the face's dominant axis; the gradients come from
+// the unwrapped position, so the repeat leaves no seam in the mip level.
+vec4 BlockTexel(vec3 position, vec3 normal)
+{
+    vec3 a = abs(normal);
+    vec2 p = (a.x > a.y && a.x > a.z) ? vec2(position.y, -position.z)
+           : (a.y > a.z) ? vec2(position.x, -position.z) : vec2(position.x, -position.y);
+    return textureGrad(texture0, fract(p), dFdx(p), dFdy(p));
+}
+
 void main()
 {
     vec3 normal = normalize(fragNormal);
@@ -291,6 +318,10 @@ void main()
     if (checkerEnabled == 1)
     {
         texelColor = CheckerSquare(fragPosition, normal) ? checkerFirst : checkerSecond;
+        if (checkerTextured == 1)
+        {
+            texelColor = BlockTexel(fragPosition, normal);
+        }
         if (checkerEmissive == 1)
         {
             finalColor = texelColor*colDiffuse;
@@ -305,10 +336,12 @@ void main()
     vec3 light = vec3(0.0);
     if (cellLightEnabled == 1)
     {
-        vec3 baked = CellLight(facing/cellSize, normal);
-        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0));
+        vec3 sheen;
+        vec3 baked = CellLight(facing/cellSize, normal, toView, sheen);
+        light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0)) + sheen;
     }
 
+    vec3 bakedEnd = light;
     vec4 header = TableTexel(clusterHeaders + ClusterOf(fragPosition));
     int first = int(header.x);
     int count = int(header.y);
@@ -333,18 +366,49 @@ void main()
         if (shaded == vec3(0.0)) continue;
         light += shaded*fade*fade*PointShadow(int(colorShadow.w), offset - positionRadius.xyz, radius);
     }
+    vec3 clusterEnd = light;
     if (sunEnabled == 1)
     {
         light += Shade(normal, twoSided, -sunDirection, toView, sunColor)*
                  DirectionalShadow(sunShadowEnabled == 1, sunViewProjection, sunShadow, offset);
     }
+    vec3 sunEnd = light;
     if (fillEnabled == 1)
     {
         light += Fill(normal, twoSided, -fillDirection, fillColor)*
                  DirectionalShadow(fillShadowEnabled == 1, fillViewProjection, fillShadow, offset);
     }
+    vec3 fillEnd = light;
     vec3 hemisphere = mix(ambientGround, ambient, normal.z*0.5 + 0.5);
 
+    if (debugView == 1)
+    {
+        texelColor = vec4(1.0);
+    }
+    if (debugView == 2 && cellLightEnabled == 1)
+    {
+        vec3 unused;
+        finalColor = vec4(Compress(CellLight(facing/cellSize, normal, toView, unused)), 1.0);
+        return;
+    }
+    if (debugView == 4)
+    {
+        finalColor = vec4(Compress(bakedEnd), 1.0);
+        return;
+    }
+    if (debugView >= 5 && debugView <= 7)
+    {
+        vec3 shown = debugView == 5 ? clusterEnd - bakedEnd : debugView == 6 ? sunEnd - clusterEnd : fillEnd - sunEnd;
+        finalColor = vec4(Compress(shown), 1.0);
+        return;
+    }
+    if (debugView == 3)
+    {
+        ivec3 cube = (ivec3(floor(facing/cellSize)) - cellOrigin)/kNodeCells;
+        uint hash = uint(cube.x)*73856093u ^ uint(cube.y)*19349663u ^ uint(cube.z)*83492791u;
+        finalColor = vec4(float(hash & 255u), float((hash >> 8) & 255u), float((hash >> 16) & 255u), 255.0)/255.0;
+        return;
+    }
     finalColor = vec4(texelColor.rgb*colDiffuse.rgb*Compress(light + hemisphere), 1.0);
     // Glass and previews keep their own alpha.
     finalColor.a = texelColor.a*colDiffuse.a;

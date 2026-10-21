@@ -31,6 +31,7 @@ constexpr std::string_view kEnabledUniform = "checkerEnabled";
 constexpr std::string_view kEmissiveUniform = "checkerEmissive";
 constexpr std::string_view kFirstUniform = "checkerFirst";
 constexpr std::string_view kSecondUniform = "checkerSecond";
+constexpr std::string_view kTexturedUniform = "checkerTextured";
 constexpr std::string_view kCellSizeUniform = "cellSize";
 
 void SetFlag(const LightingResources& res, int location, bool on) {
@@ -48,16 +49,18 @@ CheckerUniforms SetupCheckerUniforms(const ::Shader& shader) {
       .emissive = GetShaderLocation(shader, kEmissiveUniform.data()),
       .first = GetShaderLocation(shader, kFirstUniform.data()),
       .second = GetShaderLocation(shader, kSecondUniform.data()),
+      .textured = GetShaderLocation(shader, kTexturedUniform.data()),
   };
 }
 
-void UseChecker(const Lighting& lighting, const z13::building::primitives::Checker& material) {
+void UseChecker(const Lighting& lighting, const z13::building::primitives::Checker& material, bool textured) {
   if (!lighting.res) {
     return;
   }
   const LightingResources& res = *lighting.res;
   SetFlag(res, res.checker.enabled, true);
   SetFlag(res, res.checker.emissive, material.emissive);
+  SetFlag(res, res.checker.textured, textured);
   SetShaderValue(*res.shader, res.checker.first, ToUnitColor(material.first).data(), SHADER_UNIFORM_VEC4);
   SetShaderValue(*res.shader, res.checker.second, ToUnitColor(material.second).data(), SHADER_UNIFORM_VEC4);
 }

@@ -52,8 +52,15 @@ Eigen::AlignedBox3f InMeters(const z13::building::primitives::CellBox& cells) {
 
 void DrawChunk(const ChunkModels& chunk, const Lighting& lighting, RenderStats& stats) {
   for (const ChunkPart& part : chunk.parts) {
-    UseChecker(lighting, part.material);
+    UseChecker(lighting, part.material, part.texture != nullptr);
+    // Lent for the draw: the model frees what its material holds, the tile is shared.
+    ::Texture2D& slot = part.model->materials[0].maps[MATERIAL_MAP_DIFFUSE].texture;
+    const ::Texture2D own = slot;
+    if (part.texture) {
+      slot = *part.texture;
+    }
     DrawModel(*part.model, Vector3Zero(), 1.f, WHITE);
+    slot = own;
     ++stats.meshes_drawn;
   }
 }
@@ -131,7 +138,7 @@ void BlockChunks::State::DrawShadowCasters(const std::function<bool(const Eigen:
 }
 
 Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
-    ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) const {
+    ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) {
   z13::building::primitives::ChunkBlocks grouped = z13::building::primitives::GroupByChunk(blocks, chunk_cells);
   Eigen::AlignedBox3f changed;
   std::erase_if(chunks, [&grouped, &changed](const auto& chunk) {
@@ -154,11 +161,13 @@ Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
   return changed;
 }
 
-ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) const {
+ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) {
   z13::building::primitives::ChunkMesh mesh = z13::building::primitives::BuildChunkMesh(blocks, palette);
   ChunkModels chunk {.blocks = std::move(blocks), .bounds = InMeters(mesh.bounds)};
   std::ranges::transform(mesh.parts, std::back_inserter(chunk.parts), [this](const auto& part) {
-    return ChunkPart {.material = part.material, .model = LoadBlockModel(part.mesh, lighting_shader_)};
+    return ChunkPart {.material = part.material,
+                      .model = LoadBlockModel(part.mesh, lighting_shader_),
+                      .texture = part.material.texture ? textures_.Find(*part.material.texture) : nullptr};
   });
   return chunk;
 }

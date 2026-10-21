@@ -19,10 +19,12 @@
 #include <algorithm>
 
 #include <format>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include <primitives/palette.h>
+#include <primitives/station_assets.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
@@ -53,6 +55,28 @@ TEST(PaletteTest, ShippedPaletteParses) {
   EXPECT_EQ(door->get().shape.kind, ShapeKind::kDoorFrame);
   EXPECT_TRUE(door->get().Has(PrimitiveFlags::Solid));
   EXPECT_FALSE(palette->Find(0).has_value());
+}
+
+TEST(PaletteTest, EveryTextureOfTheShippedPaletteHasAFile) {
+  const auto palette = z13::testing::ShippedPalette();
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  const z13::AssetSource assets = z13::testing::SourceAssets();
+  for (const Primitive& primitive : palette->primitives) {
+    if (primitive.material.texture) {
+      EXPECT_TRUE(assets.ReadAsset(TextureFile(*primitive.material.texture)).has_value())
+          << primitive.name << ": no texture " << *primitive.material.texture;
+    }
+  }
+}
+
+TEST(PaletteTest, ATextureNamesTheTileOfAMaterial) {
+  const auto palette = ParsePalette(R"({"primitives": [{"id": 1, "name": "Wall", "shape_type": "Box", "shape": {},
+      "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 4, "y": 1, "z": 4},
+      "material": {"first": {"r": 1, "g": 2, "b": 3, "a": 255}, "second": {"r": 4, "g": 5, "b": 6, "a": 255},
+                   "texture": "wall_maint"}, "flags": "Solid"}]})");
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+  EXPECT_EQ(palette->Find(1)->get().material.texture, std::optional<std::string> {"wall_maint"});
 }
 
 TEST(PaletteTest, AShortNameComesFromThePaletteOrTheNamesCapitals) {

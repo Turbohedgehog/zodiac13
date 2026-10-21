@@ -39,7 +39,7 @@
       "max_size": {"x": 6, "y": 1, "z": 10},
       "material": {
         "first": {"r": 70, "g": 110, "b": 170, "a": 255},
-        "second": {"r": 55, "g": 90, "b": 145, "a": 255}
+        "second": {"r": 70, "g": 110, "b": 170, "a": 255}
       },
       "flags": "Solid GasSealing",
       "interaction": {"methods": "Hold Presence", "sensor_cells": 8}
@@ -54,7 +54,7 @@
       "max_size": {"x": 256, "y": 1, "z": 256},
       "material": {
         "first": {"r": 170, "g": 215, "b": 235, "a": 90},
-        "second": {"r": 150, "g": 195, "b": 220, "a": 90}
+        "second": {"r": 170, "g": 215, "b": 235, "a": 90}
       },
       "flags": "Solid GasSealing Transparent"
     },
@@ -173,6 +173,23 @@
         "second": {"r": 165, "g": 165, "b": 170, "a": 255}
       },
       "flags": "Solid GasSealing"
-    }
+    },
+    {"id": 13, "name": "WallBulkhead", "short_name": "WBu", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 150, "g": 153, "b": 160, "a": 255}, "second": {"r": 125, "g": 128, "b": 135, "a": 255}, "texture": "wall_bulkhead"}, "flags": "Solid GasSealing"},
+    {"id": 14, "name": "WallMaint", "short_name": "WMa", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 125, "g": 128, "b": 135, "a": 255}, "second": {"r": 100, "g": 103, "b": 110, "a": 255}, "texture": "wall_maint"}, "flags": "Solid GasSealing"},
+    {"id": 15, "name": "WallCorrugated", "short_name": "WCo", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 140, "g": 143, "b": 150, "a": 255}, "second": {"r": 115, "g": 118, "b": 125, "a": 255}, "texture": "wall_corrugated"}, "flags": "Solid GasSealing"},
+    {"id": 16, "name": "WallPlateRiveted", "short_name": "WPl", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 165, "g": 168, "b": 175, "a": 255}, "second": {"r": 140, "g": 143, "b": 150, "a": 255}, "texture": "wall_plate_riveted"}, "flags": "Solid GasSealing"},
+    {"id": 17, "name": "WallSeamed", "short_name": "WSe", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 155, "g": 158, "b": 165, "a": 255}, "second": {"r": 130, "g": 133, "b": 140, "a": 255}, "texture": "wall_seamed"}, "flags": "Solid GasSealing"},
+    {"id": 18, "name": "WallHazard", "short_name": "WHa", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 1, "z": 256}, "material": {"first": {"r": 170, "g": 150, "b": 90, "a": 255}, "second": {"r": 145, "g": 125, "b": 65, "a": 255}, "texture": "wall_hazard"}, "flags": "Solid GasSealing"},
+    {"id": 19, "name": "FloorHall", "short_name": "FHa", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_hall"}, "flags": "Solid GasSealing"},
+    {"id": 20, "name": "FloorCommand", "short_name": "FCo", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_command"}, "flags": "Solid GasSealing"},
+    {"id": 21, "name": "FloorEngineering", "short_name": "FEn", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_engineering"}, "flags": "Solid GasSealing"},
+    {"id": 22, "name": "FloorCargo", "short_name": "FCa", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_cargo"}, "flags": "Solid GasSealing"},
+    {"id": 23, "name": "FloorMedical", "short_name": "FMe", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_medical"}, "flags": "Solid GasSealing"},
+    {"id": 24, "name": "FloorQuarters", "short_name": "FQu", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_quarters"}, "flags": "Solid GasSealing"},
+    {"id": 25, "name": "FloorScience", "short_name": "FSc", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_science"}, "flags": "Solid GasSealing"},
+    {"id": 26, "name": "FloorSecurity", "short_name": "FSe", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_security"}, "flags": "Solid GasSealing"},
+    {"id": 27, "name": "FloorService", "short_name": "FSv", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_service"}, "flags": "Solid GasSealing"},
+    {"id": 28, "name": "FloorMaint", "short_name": "FMa", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 130, "g": 132, "b": 138, "a": 255}, "second": {"r": 110, "g": 112, "b": 118, "a": 255}, "texture": "floor_maint"}, "flags": "Solid GasSealing"},
+    {"id": 29, "name": "Ceiling", "short_name": "Ce", "shape_type": "Box", "shape": {}, "min_size": {"x": 1, "y": 1, "z": 1}, "max_size": {"x": 256, "y": 256, "z": 1}, "material": {"first": {"r": 219, "g": 222, "b": 230, "a": 255}, "second": {"r": 219, "g": 222, "b": 230, "a": 255}}, "flags": "Solid GasSealing"}
   ]
 }

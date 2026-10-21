@@ -35,12 +35,15 @@
 #include <primitives/placement.h>
 
 #include "block_chunks.h"
+#include "block_textures.h"
 
 namespace z13::raylib {
 
 struct ChunkPart {
   z13::building::primitives::Checker material;
   std::shared_ptr<::Model> model;
+  // The tile of `material`, bound for the draw; none without one, or without its file.
+  std::shared_ptr<::Texture2D> texture;
 };
 
 struct ChunkModels {
@@ -68,7 +71,8 @@ struct ChunkChange {
 
 class BlockChunks::State {
  public:
-  explicit State(::Shader lighting_shader) : lighting_shader_(lighting_shader) {}
+  State(::Shader lighting_shader, AssetSource assets)
+      : lighting_shader_(lighting_shader), textures_(std::move(assets)) {}
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
   void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
@@ -84,10 +88,11 @@ class BlockChunks::State {
  private:
   // The bounds of the chunks rebuilt or dropped, before and after.
   Eigen::AlignedBox3f SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
-                  int chunk_cells) const;
-  ChunkModels Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) const;
+                  int chunk_cells);
+  ChunkModels Build(std::vector<z13::station::Block> blocks, OptionalPalette palette);
 
   ::Shader lighting_shader_ {};
+  BlockTextures textures_;
   std::optional<ChunkSyncKey> synced_with_;
   uint64_t version_ {};
   // The latest changes; one older than these counts as a change of all of extent_.

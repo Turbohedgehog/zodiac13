@@ -42,8 +42,10 @@ z13_add_plugin(
   src/render/block_meshes.cpp
   src/render/block_meshes_state.cpp
   src/render/block_model.cpp
+  src/render/block_textures.cpp
   src/render/cell_lighting.cpp
   src/render/cell_lighting_state.cpp
+  src/render/debug_view.cpp
   src/render/environment_render_system.cpp
   src/render/gl_depth_buffer.cpp
   src/render/gl_volumes.cpp
