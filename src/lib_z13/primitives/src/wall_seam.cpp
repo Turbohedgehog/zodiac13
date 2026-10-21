@@ -267,7 +267,8 @@ std::expected<Block, std::string> WallPanelBlock(
   return CutPanelBlock(wall, palette, ends);
 }
 
-std::expected<Block, std::string> CutPanelBlock(const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
+std::expected<Block, std::string> CutPanelBlock(
+    const WallGeometry& wall, const Palette& palette, const WallEnds& ends) {
   const auto plan_a = PlanWallAt(wall, true);
   const auto plan_b = PlanWallAt(wall, false);
   const auto corners = plan_a && plan_b ? PlanCorners(*plan_a, *plan_b, ends) : std::nullopt;

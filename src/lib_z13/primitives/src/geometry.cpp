@@ -123,7 +123,7 @@ ConvexSolid MakePanel(
   }
   std::vector<FaceIndices> faces {{0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}};
   for (const bool far : {false, true}) {
-    for (FaceIndices& cap : CapFaces(caps[far], far ? 4 : 0, far)) {
+    for (FaceIndices& cap : CapFaces(caps[far], static_cast<uint32_t>(far ? section.size() : 0), far)) {
       faces.push_back(std::move(cap));
     }
   }
