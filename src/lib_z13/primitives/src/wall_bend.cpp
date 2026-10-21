@@ -18,8 +18,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numbers>
 #include <utility>
+
+#include <lib_core/utils/math.h>
 
 namespace z13::building::primitives {
 
@@ -106,12 +107,12 @@ double FoldDegrees(const WallGeometry& wall) {
   if (!IsBent(wall)) {
     return 0.0;
   }
-  return std::acos(std::clamp(CosineOf(wall), -1.0, 1.0)) * (180.0 / std::numbers::pi);
+  return z13::math::ToDegrees(std::acos(std::clamp(CosineOf(wall), -1.0, 1.0)));
 }
 
 bool FoldWithin(const WallGeometry& wall, int max_degrees) {
   return !IsBent(wall) ||
-         CosineOf(wall) >= std::cos(static_cast<double>(max_degrees) * (std::numbers::pi / 180.0)) - kTie;
+         CosineOf(wall) >= std::cos(z13::math::ToRadians(static_cast<double>(max_degrees))) - kTie;
 }
 
 std::optional<int> MinBentThickness(const WallGeometry& wall) {

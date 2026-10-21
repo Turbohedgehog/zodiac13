@@ -17,8 +17,10 @@
 #include <touch/touch_mapping.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <ranges>
+#include <span>
 
 namespace z13::input::touch {
 
@@ -29,68 +31,36 @@ using z13::fbs::input::Keycode;
 // The panel's buttons apart by this many radii: a diameter and a gap.
 constexpr float kToolPanelStepRadii = 2.2f;
 
+// The layout fields that place a button with a spot of its own.
+struct ButtonSpot {
+  TouchControl control;
+  float Layout::* x;
+  float Layout::* y;
+};
+
+constexpr std::array kButtonSpots = {
+    ButtonSpot {TouchControl::kJump, &Layout::jump_x, &Layout::jump_y},
+    ButtonSpot {TouchControl::kCrouch, &Layout::crouch_x, &Layout::crouch_y},
+    ButtonSpot {TouchControl::kUse, &Layout::use_x, &Layout::use_y},
+    ButtonSpot {TouchControl::kFlashlight, &Layout::flashlight_x, &Layout::flashlight_y},
+    ButtonSpot {TouchControl::kToolMode, &Layout::tool_mode_x, &Layout::tool_mode_y},
+    ButtonSpot {TouchControl::kPrimary, &Layout::primary_x, &Layout::primary_y},
+    ButtonSpot {TouchControl::kDestroy, &Layout::destroy_x, &Layout::destroy_y},
+};
+
+// By TouchLayer's order; the walking layer has no panel.
+constexpr std::array kPanels = {
+    std::span<const TouchControl> {}, std::span<const TouchControl> {kBlockPanel},
+    std::span<const TouchControl> {kWallPanel}, std::span<const TouchControl> {kMergePanel},
+    std::span<const TouchControl> {kBridgePanel}};
+static_assert(kPanels.size() == static_cast<size_t>(TouchLayer::kBridge) + 1);
+
 Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
-  switch (control) {
-    case TouchControl::kJump:
-      return {layout.jump_x, layout.jump_y};
-    case TouchControl::kCrouch:
-      return {layout.crouch_x, layout.crouch_y};
-    case TouchControl::kUse:
-      return {layout.use_x, layout.use_y};
-    case TouchControl::kFlashlight:
-      return {layout.flashlight_x, layout.flashlight_y};
-    case TouchControl::kToolMode:
-      return {layout.tool_mode_x, layout.tool_mode_y};
-    case TouchControl::kPrimary:
-      return {layout.primary_x, layout.primary_y};
-    case TouchControl::kDestroy:
-      return {layout.destroy_x, layout.destroy_y};
-    case TouchControl::kStick:
-      [[fallthrough]];
-    case TouchControl::kLook:
-      [[fallthrough]];
-    case TouchControl::kStats:
-      [[fallthrough]];
-    case TouchControl::kBrush:
-      [[fallthrough]];
-    case TouchControl::kPreviousPrimitive:
-      [[fallthrough]];
-    case TouchControl::kNextPrimitive:
-      [[fallthrough]];
-    case TouchControl::kTurnZ:
-      [[fallthrough]];
-    case TouchControl::kTurnY:
-      [[fallthrough]];
-    case TouchControl::kTurnX:
-      [[fallthrough]];
-    case TouchControl::kThicker:
-      [[fallthrough]];
-    case TouchControl::kThinner:
-      [[fallthrough]];
-    case TouchControl::kMergeAt:
-      [[fallthrough]];
-    case TouchControl::kFlipDiagonal:
-      [[fallthrough]];
-    case TouchControl::kCell1:
-      [[fallthrough]];
-    case TouchControl::kCell2:
-      [[fallthrough]];
-    case TouchControl::kCell3:
-      [[fallthrough]];
-    case TouchControl::kCell4:
-      [[fallthrough]];
-    case TouchControl::kCell5:
-      [[fallthrough]];
-    case TouchControl::kCell6:
-      [[fallthrough]];
-    case TouchControl::kCell7:
-      [[fallthrough]];
-    case TouchControl::kCell8:
-      [[fallthrough]];
-    case TouchControl::kCell9:
-      break;
+  const auto spot = std::ranges::find(kButtonSpots, control, &ButtonSpot::control);
+  if (spot == kButtonSpots.end()) {
+    return Eigen::Vector2f::Zero();
   }
-  return Eigen::Vector2f::Zero();
+  return {layout.*spot->x, layout.*spot->y};
 }
 
 float Quantized(float value, float step) {
@@ -112,19 +82,7 @@ std::optional<Keycode> ButtonKey(TouchControl control) {
 }
 
 std::span<const TouchControl> PanelOf(TouchLayer layer) {
-  switch (layer) {
-    case TouchLayer::kBlock:
-      return kBlockPanel;
-    case TouchLayer::kWall:
-      return kWallPanel;
-    case TouchLayer::kMerge:
-      return kMergePanel;
-    case TouchLayer::kBridge:
-      return kBridgePanel;
-    case TouchLayer::kWalk:
-      break;
-  }
-  return {};
+  return kPanels[static_cast<size_t>(layer)];
 }
 
 bool InLayer(TouchLayer layer, TouchControl control) {
@@ -134,9 +92,9 @@ bool InLayer(TouchLayer layer, TouchControl control) {
   if (std::ranges::contains(PanelOf(layer), control)) {
     return true;
   }
-  constexpr std::array kPanelLayers {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge, TouchLayer::kBridge};
-  return !std::ranges::any_of(kPanelLayers,
-                              [control](TouchLayer other) { return std::ranges::contains(PanelOf(other), control); });
+  return !std::ranges::any_of(kPanels, [control](std::span<const TouchControl> panel) {
+    return std::ranges::contains(panel, control);
+  });
 }
 
 Eigen::Vector2f ButtonCenter(const Layout& layout, TouchLayer layer, TouchControl control,
