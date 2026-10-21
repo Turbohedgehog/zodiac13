@@ -42,6 +42,7 @@ set(
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/primitives/chunk_mesh_test.cpp
   src/lib_z13/primitives/cut_test.cpp
+  src/lib_z13/primitives/triangle_panel_test.cpp
   src/lib_z13/primitives/wall_panel_block_test.cpp
   src/lib_z13/primitives/wall_seam_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp

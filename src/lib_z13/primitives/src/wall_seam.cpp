@@ -16,13 +16,13 @@
 
 #include <primitives/wall_seam.h>
 
+#include <primitives/panel_prism.h>
 #include <primitives/placement.h>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <format>
-#include <limits>
 #include <numeric>
 
 namespace z13::building::primitives {
@@ -286,49 +286,16 @@ std::expected<Block, std::string> CutPanelBlock(
   Eigen::Vector3i span = wall.node_b - wall.node_a;
   span[stick] = 0;
   const PlanAxes axes = PlanAxesOf(wall.stick_axis, span);
-  const auto lift = [&](const Eigen::Vector2i& corner, int along) {
-    Eigen::Vector3i point;
-    point[axes.first] = corner.x();
-    point[axes.second] = corner.y();
-    point[stick] = wall.node_a[stick] + along;
-    return point;
+  const auto along_axis = [&axes](const Eigen::Vector2i& corner, int axis) {
+    return axis == axes.first ? corner.x() : corner.y();
   };
-  Eigen::Vector3i lowest = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
-  Eigen::Vector3i highest = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
-  for (size_t i = 0; i < corners->size(); ++i) {
-    for (const int along : {0, (*sticks)[i]}) {
-      lowest = lowest.cwiseMin(lift((*corners)[i], along));
-      highest = highest.cwiseMax(lift((*corners)[i], along));
-    }
+  std::array<PrismCorner, 4> prism;
+  for (size_t i = 0; i < prism.size(); ++i) {
+    prism[i] = {.plan = {along_axis((*corners)[i], axes.major), along_axis((*corners)[i], axes.minor)},
+                .from = wall.node_a[stick],
+                .to = wall.node_a[stick] + (*sticks)[i]};
   }
-  const Eigen::Vector3i extent = highest - lowest;
-  const Eigen::Vector3i size {extent[axes.major], extent[stick], extent[axes.minor]};
-  const auto primitive = palette.Find(z13::station::kPanelPrimitiveId);
-  if (!primitive || (size.array() < 1).any() || (size.array() > primitive->get().max_size.array()).any()) {
-    return std::unexpected(std::string {"the jointed panel's size isn't allowed"});
-  }
-
-  for (const z13::station::Orientation orientation : kOrientations) {
-    const Eigen::Matrix3i rotation = OrientationMatrix(orientation);
-    if (rotation.col(0).cwiseAbs() != Eigen::Vector3i::Unit(axes.major) ||
-        rotation.col(1).cwiseAbs() != Eigen::Vector3i::Unit(stick) ||
-        rotation.col(2).cwiseAbs() != Eigen::Vector3i::Unit(axes.minor)) {
-      continue;
-    }
-    Block block {.spec = {.type_id = z13::station::kPanelPrimitiveId, .size = size, .orientation = orientation},
-                 .cell = lowest};
-    const CellPose pose = PoseOf(block);
-    for (size_t i = 0; i < corners->size(); ++i) {
-      const Eigen::Vector3i local = rotation.transpose() * (lift((*corners)[i], 0) - pose.origin);
-      const Eigen::Vector3i tip = rotation.transpose() * (lift((*corners)[i], (*sticks)[i]) - pose.origin);
-      block.spec.corners[2 * i] = local.x();
-      block.spec.corners[(2 * i) + 1] = local.z();
-      block.spec.face_cuts[i] = std::min(local.y(), tip.y());
-      block.spec.face_cuts[corners->size() + i] = size.y() - std::max(local.y(), tip.y());
-    }
-    return block;
-  }
-  return std::unexpected(std::string {"no turn of the panel fits the wall"});
+  return PrismBlock({.x_axis = axes.major, .y_axis = stick, .z_axis = axes.minor}, prism, palette);
 }
 
 }  // namespace z13::building::primitives

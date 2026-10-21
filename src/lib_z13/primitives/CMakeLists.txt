@@ -15,8 +15,10 @@ z13_add_library(
   src/lights.cpp
   src/occupancy.cpp
   src/palette.cpp
+  src/panel_prism.cpp
   src/placement.cpp
   src/station_assets.cpp
+  src/triangle_panel.cpp
   src/wall_panel.cpp
   src/wall_seam.cpp
   PUBLIC
