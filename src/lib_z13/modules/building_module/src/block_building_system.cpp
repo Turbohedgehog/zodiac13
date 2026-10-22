@@ -492,7 +492,7 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
 void AddNodeMarks(
     flecs::world world, const std::optional<uint32_t>& first, const std::optional<uint32_t>& hovered,
     BrushPreview& preview) {
-  for (const std::optional<uint32_t>& node : {first, hovered}) {
+  for (const std::optional<uint32_t>& node : {first, hovered != first ? hovered : std::nullopt}) {
     if (node) {
       const std::vector<BrushLine> sticks = StickLinesAt(world, *node);
       preview.lines.insert(preview.lines.end(), sticks.begin(), sticks.end());

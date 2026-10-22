@@ -222,7 +222,7 @@ TEST(WallBridgeTest, TheNodePickedFirstStaysMarkedWithItsSticks) {
   const BrushPreview preview = preview_of();
   ASSERT_EQ(preview.parts.size(), 1u);
   EXPECT_EQ(preview.parts.front().cell, cell);
-  ASSERT_FALSE(preview.lines.empty());
+  ASSERT_EQ(preview.lines.size(), 1u) << "the aimed node is the picked one: its stick is drawn once";
   EXPECT_EQ(preview.lines.front().from, cell.cast<float>());
   EXPECT_EQ(preview.lines.front().to, (cell + Eigen::Vector3i(kStickLength, 0, 0)).cast<float>());
 }
