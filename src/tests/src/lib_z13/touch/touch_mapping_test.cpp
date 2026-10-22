@@ -87,7 +87,7 @@ TEST(TouchMappingTest, ALayerOutsideTheEnumHasNoPanel) {
 
   EXPECT_TRUE(PanelOf(unknown).empty());
   EXPECT_FALSE(InLayer(unknown, TouchControl::kThicker));
-  EXPECT_TRUE(InLayer(unknown, TouchControl::kJump) == InLayer(TouchLayer::kWalk, TouchControl::kJump));
+  EXPECT_TRUE(InLayer(unknown, TouchControl::kJump));
 }
 
 TEST(TouchMappingTest, EveryPanelButtonHasAKey) {
