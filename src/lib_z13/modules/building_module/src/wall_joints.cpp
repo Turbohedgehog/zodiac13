@@ -49,15 +49,11 @@ void SetSeam(WallJoints& joints, const WallEndAt& end, const z13::building::prim
   (end.at_a ? ends.at_a : ends.at_b) = seam;
 }
 
-// The two walls of a node that run on through it, the lowest ids first: opposite ways along one
-// line, thickened alike.
+// The two walls of a node that run on through it, the lowest ids first.
 std::optional<std::array<size_t, 2>> ThroughPair(const std::vector<PlanWall>& plans) {
   for (size_t first = 0; first < plans.size(); ++first) {
     for (size_t second = first + 1; second < plans.size(); ++second) {
-      const PlanWall& a = plans[first];
-      const PlanWall& b = plans[second];
-      if (a.direction.x() * b.direction.y() - a.direction.y() * b.direction.x() == 0 &&
-          a.direction.dot(b.direction) < 0 && a.offset == b.offset) {
+      if (z13::building::primitives::RunsThrough(plans[first], plans[second])) {
         return std::array<size_t, 2> {first, second};
       }
     }

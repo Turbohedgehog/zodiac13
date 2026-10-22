@@ -164,6 +164,11 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
   return WallSeam {.line = Reduced(inner.cross(outer)), .inner = inner, .outer = outer};
 }
 
+bool RunsThrough(const PlanWall& first, const PlanWall& second) {
+  return CrossOf(first.direction, second.direction) == 0 && first.direction.dot(second.direction) < 0 &&
+         first.offset == second.offset;
+}
+
 std::expected<WallSeam, std::string> PlanTee(const PlanWall& branch, const PlanWall& through, int max_reach) {
   if (branch.node != through.node) {
     return std::unexpected(std::string {"the walls don't share a node"});
