@@ -79,10 +79,77 @@ TEST(WallJointsTest, TwoWallsAtANodeShareOneSeam) {
   EXPECT_FALSE(joints.ends.at(1).at_b.has_value());
 }
 
-TEST(WallJointsTest, ThreeWallsOrWallsOfDifferentSticksStaySquare) {
+// Walls 1 and 2 run on through node 1 (east and west), each thickened alike; 3 and 4 leave it north and south.
+std::vector<JointWall> Cross(size_t walls) {
+  std::vector<JointWall> cross {Wall(1, 1, 2, Geometry(kOrigin, kEast)), Wall(2, 1, 3, Geometry(kOrigin, kWest)),
+                                Wall(3, 1, 4, Geometry(kOrigin, kNorth)),
+                                Wall(4, 1, 5, Geometry(kOrigin, {0, -kLength, 0}))};
+  cross.resize(walls);
+  return cross;
+}
+
+TEST(WallJointsTest, ATeeEndsTheBranchOnTheFaceOfTheWallsThatRunThrough) {
+  const WallJoints joints = SolveJoints(Cross(3), kReach);
+
+  ASSERT_TRUE(joints.refused.empty());
+  ASSERT_TRUE(joints.ends.contains(1) && joints.ends.contains(2) && joints.ends.contains(3));
+  EXPECT_EQ(joints.ends.at(1).at_a->line, joints.ends.at(2).at_a->line);
+  // The branch leaves toward the thickened side, so it ends on the face y = kThickness.
+  EXPECT_EQ(joints.ends.at(3).at_a->line, z13::building::primitives::SeamLine(0, 1, -kThickness));
+}
+
+TEST(WallJointsTest, ABranchOnTheOtherSideEndsOnTheOtherFace) {
+  const WallJoints joints = SolveJoints(Cross(4), kReach);
+
+  ASSERT_TRUE(joints.refused.empty());
+  ASSERT_TRUE(joints.ends.contains(4));
+  EXPECT_EQ(joints.ends.at(4).at_a->line, z13::building::primitives::SeamLine(0, 1, 0));
+}
+
+TEST(WallJointsTest, AnXHasTheLowerIdsRunThroughAndTheOthersEndOnThem) {
+  std::vector<JointWall> cross = Cross(4);
+  // Same walls under other ids: the north-south pair now has the lowest.
+  cross[0].id = 3;
+  cross[1].id = 4;
+  cross[2].id = 1;
+  cross[3].id = 2;
+
+  const WallJoints joints = SolveJoints(cross, kReach);
+
+  ASSERT_TRUE(joints.refused.empty());
+  EXPECT_EQ(joints.ends.at(1).at_a->line, joints.ends.at(2).at_a->line);
+  // The east and west walls are the branches now, ending on the north-south pair's faces.
+  EXPECT_NE(joints.ends.at(3).at_a->line, joints.ends.at(4).at_a->line);
+}
+
+TEST(WallJointsTest, ABranchTooShortForTheFaceItEndsOnIsRefused) {
+  std::vector<JointWall> cross = Cross(3);
+  cross[2] = Wall(3, 1, 4, Geometry(kOrigin, {0, 1, 0}));
+
+  const WallJoints joints = SolveJoints(cross, kReach);
+
+  EXPECT_TRUE(joints.refused.contains(3));
+  EXPECT_FALSE(joints.ends.contains(3));
+}
+
+TEST(WallJointsTest, ThroughWallsThickenedDifferentlyOrNoWallsRunningThroughStaySquare) {
+  std::vector<JointWall> unlike = Cross(3);
+  unlike[1].geometry.thickness = -kThickness;
+  EXPECT_TRUE(SolveJoints(unlike, kReach).ends.empty());
+
   std::vector<JointWall> three = Corner(kNorth);
-  three.push_back(Wall(3, 1, 4, Geometry(kOrigin, kWest)));
+  three.push_back(Wall(3, 1, 4, Geometry(kOrigin, {-kLength, kLength, 0})));
   EXPECT_TRUE(SolveJoints(three, kReach).ends.empty());
+}
+
+TEST(WallJointsTest, MoreThanFourWallsAtANodeStaySquare) {
+  std::vector<JointWall> many = Cross(4);
+  many.push_back(Wall(5, 1, 6, Geometry(kOrigin, {kLength, kLength, 0})));
+
+  EXPECT_TRUE(SolveJoints(many, kReach).ends.empty());
+}
+
+TEST(WallJointsTest, WallsOfDifferentSticksStaySquare) {
 
   const std::vector<JointWall> mixed {Wall(1, 1, 2, Geometry(kOrigin, kEast)),
                                       Wall(2, 1, 3, Geometry(kOrigin, {0, 0, kLength}, WallAxis::kY))};

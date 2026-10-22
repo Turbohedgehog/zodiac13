@@ -311,6 +311,83 @@ INSTANTIATE_TEST_SUITE_P(
         JointCase {{13, 5, 0}, {5, 13, 0}, 2, 2}, JointCase {{13, 5, 0}, {5, 13, 0}, -2, 2},
         JointCase {{13, 0, 0}, {-12, 5, 0}, 2, 2}, JointCase {{13, 0, 0}, {-12, 5, 0}, 2, -2}));
 
+TEST(WallSeamTest, ATeeEndsTheBranchOnTheFaceItLeavesToward) {
+  const PlanWall through = Wall({10, 0}, {0, 2});
+
+  const auto north = PlanTee(Wall({0, 10}, {2, 0}), through, kReach);
+  const auto south = PlanTee(Wall({0, -10}, {2, 0}), through, kReach);
+
+  ASSERT_TRUE(north.has_value()) << north.error();
+  ASSERT_TRUE(south.has_value()) << south.error();
+  EXPECT_EQ(north->line, SeamLine(0, 1, -2));
+  EXPECT_EQ(Whole(north->inner), Eigen::Vector2i(0, 2));
+  EXPECT_EQ(Whole(north->outer), Eigen::Vector2i(2, 2));
+  EXPECT_EQ(south->line, SeamLine(0, 1, 0));
+}
+
+TEST(WallSeamTest, ATeeBranchMustLeaveTheLineAndKeepACell) {
+  const PlanWall through = Wall({10, 0}, {0, 2});
+
+  EXPECT_FALSE(PlanTee(Wall({-10, 0}, {0, 2}), through, kReach).has_value()) << "along one line";
+  EXPECT_FALSE(PlanTee(Wall({0, 1}, {2, 0}), through, kReach).has_value()) << "shorter than the face is deep";
+  EXPECT_FALSE(PlanTee(Wall({10, 1}, {0, 2}), through, 3).has_value()) << "a tip beyond the reach";
+}
+
+// The through pair along x with a branch to the north, and with another to the south for an X.
+struct TeeWalls {
+  WallGeometry through = FlatWall(kOrigin, {13, 0, 0});
+  WallGeometry other_way = FlatWall(kOrigin, {-13, 0, 0});
+  WallGeometry north = FlatWall(kOrigin, {0, 13, 0});
+  WallGeometry south = FlatWall(kOrigin, {0, -13, 0});
+};
+
+std::vector<z13::station::Block> TeePanels(const TeeWalls& walls, bool with_south) {
+  const WallSeam run = SeamAt(walls.through, walls.other_way);
+  std::vector<z13::station::Block> panels {
+      WallPanelBlock(walls.through, ShippedPalette(), {.at_a = run}).value(),
+      WallPanelBlock(walls.other_way, ShippedPalette(), {.at_a = run}).value()};
+  std::vector<WallGeometry> branches {walls.north};
+  if (with_south) {
+    branches.push_back(walls.south);
+  }
+  for (const WallGeometry& branch : branches) {
+    const auto tee = PlanTee(*PlanWallAt(branch, true), *PlanWallAt(walls.through, true), kReach);
+    EXPECT_TRUE(tee.has_value()) << (tee ? "" : tee.error());
+    panels.push_back(WallPanelBlock(branch, ShippedPalette(), {.at_a = *tee}).value());
+  }
+  return panels;
+}
+
+TEST(WallJointTest, ATeeHoldsAirBackOnAllThreeSides) {
+  constexpr int kWindow = 10;
+  const auto sealed = SealedColumns(TeePanels({}, false));
+  const Eigen::Vector2i left {-7, 7};
+  const Eigen::Vector2i right {7, 7};
+  const Eigen::Vector2i below {0, -7};
+  for (const Eigen::Vector2i& probe : {left, right, below}) {
+    ASSERT_FALSE(sealed.contains(probe));
+  }
+
+  EXPECT_FALSE(AirReaches(sealed, left, right, kWindow));
+  EXPECT_FALSE(AirReaches(sealed, left, below, kWindow));
+  EXPECT_FALSE(AirReaches(sealed, right, below, kWindow));
+}
+
+TEST(WallJointTest, AnXHoldsAirBackInAllFourQuarters) {
+  constexpr int kWindow = 10;
+  const auto sealed = SealedColumns(TeePanels({}, true));
+  const std::vector<Eigen::Vector2i> quarters {{-7, 7}, {7, 7}, {-7, -7}, {7, -7}};
+  for (const Eigen::Vector2i& probe : quarters) {
+    ASSERT_FALSE(sealed.contains(probe));
+  }
+
+  for (size_t first = 0; first < quarters.size(); ++first) {
+    for (size_t second = first + 1; second < quarters.size(); ++second) {
+      EXPECT_FALSE(AirReaches(sealed, quarters[first], quarters[second], kWindow)) << first << ' ' << second;
+    }
+  }
+}
+
 TEST(WallJointTest, SeamsThatCrossOverLeaveNoPanel) {
   const WallGeometry wall = FlatWall(kOrigin, kEast);
   // Through (12, 0) and (8, 2): the near end would reach past the far one on one face only.
