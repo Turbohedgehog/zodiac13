@@ -135,6 +135,10 @@ std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id) {
   return Find(world, SegmentName(id));
 }
 
+std::optional<flecs::entity> FindWallOpening(flecs::world world, uint32_t id) {
+  return Find(world, OpeningName(id));
+}
+
 std::vector<JointWall> JointWallsOf(flecs::world world) {
   std::map<uint32_t, Eigen::Vector3i> cells;
   world.query<const WallNode>().each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });

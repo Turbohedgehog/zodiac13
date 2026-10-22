@@ -86,6 +86,7 @@ set(
   ${MODULES_DIR}/building_module/tests/wall_bridge_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_brush_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_fit_test.cpp
+  ${MODULES_DIR}/building_module/tests/wall_opening_brush_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_joints_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_merge_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp

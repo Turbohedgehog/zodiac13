@@ -18,6 +18,8 @@
 
 #include <cstdint>
 
+#include <z13/components/wall.h>
+
 namespace z13::building {
 
 // Where the brush follows its player and build requests are handled; BlockBuildingSystem
@@ -28,11 +30,14 @@ struct UpdateBuildingToolPhase {};
 struct BuildingTool {};
 
 // The order is the one the mode key cycles through.
-enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall, kMerge, kBridge };
+enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall, kMerge, kBridge, kOpening };
 
 // Where the Merge mode puts two merged wall nodes: their middle (rounded down to the grid),
 // the first one's place or the last one's. The wheel steps through them.
 enum class MergeAt : uint8_t { kCenter, kFirst, kLast };
+
+// How wide, in WallSteps, a new build tool cuts its openings; the wheel changes it.
+inline constexpr int kDefaultOpeningWidthSteps = 4;
 
 // On a build tool item, with its BlockBrush: a tool given away builds the same.
 struct BuildTool {
@@ -41,6 +46,9 @@ struct BuildTool {
   // The thickness, in cells, of the walls the Wall and Bridge modes lay.
   int wall_thickness = 1;
   MergeAt merge_at {};
+  // What the Opening mode cuts, and how wide in WallSteps.
+  z13::station::OpeningKind opening_kind {};
+  int opening_width = kDefaultOpeningWidthSteps;
 };
 
 // The mode the tool works in this frame: a held cut key overrides the tool's own on PC.

@@ -52,8 +52,8 @@ constexpr std::array kButtonSpots = {
 constexpr std::array kPanels = {
     std::span<const TouchControl> {}, std::span<const TouchControl> {kBlockPanel},
     std::span<const TouchControl> {kWallPanel}, std::span<const TouchControl> {kMergePanel},
-    std::span<const TouchControl> {kBridgePanel}};
-static_assert(kPanels.size() == static_cast<size_t>(TouchLayer::kBridge) + 1);
+    std::span<const TouchControl> {kBridgePanel}, std::span<const TouchControl> {kOpeningPanel}};
+static_assert(kPanels.size() == static_cast<size_t>(TouchLayer::kOpening) + 1);
 
 Eigen::Vector2f LayoutPosition(const Layout& layout, TouchControl control) {
   const auto spot = std::ranges::find(kButtonSpots, control, &ButtonSpot::control);

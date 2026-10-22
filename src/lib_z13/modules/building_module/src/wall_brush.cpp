@@ -39,8 +39,6 @@ using z13::station::WallDraft;
 using z13::station::WallNode;
 using z13::station::WallSegment;
 
-// Below this a ray counts as parallel to a plane or line.
-constexpr float kParallelEpsilon = 1e-4f;
 // An aimed face counts as lying in a plane through the first point within this many cells of it.
 constexpr float kOnPlaneCells = 0.5f;
 // The arrow marking the axis of the third click: its length and the reach of its head, in cells.

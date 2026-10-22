@@ -65,6 +65,7 @@
 #include "wall_entities.h"
 #include "wall_fit.h"
 #include "wall_merge.h"
+#include "wall_opening_brush.h"
 
 namespace z13::building {
 
@@ -335,6 +336,25 @@ void ProcessBridgeClick(flecs::entity player, flecs::entity tool, const Aim& aim
   player.remove<WallBridgeDraft>();
 }
 
+// The player may build and the wall's pieces fit (wall_fit.h).
+Status OpeningAllowed(flecs::entity player, const z13::station::WallOpening& opening, const BuildView& view) {
+  return CheckPermission(player).and_then([&] { return CheckOpeningFits(player.world(), opening, view); });
+}
+
+void ProcessOpeningClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
+  const std::optional<AimedOpening> aimed =
+      AimOpening(player.world(), aim, tool.get<BuildTool>(), run.tuning.get());
+  if (!aimed) {
+    log_debug("station: opening refused: no wall there");
+    return;
+  }
+  if (const Status allowed = OpeningAllowed(player, aimed->opening, run.View()); !allowed) {
+    log_debug("station: opening refused: {}", allowed.error());
+    return;
+  }
+  SpawnWallOpening(player.world(), run.counters, aimed->opening);
+}
+
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
@@ -361,6 +381,12 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
   if (tool->get<BuildTool>().mode == ToolMode::kBridge) {
     if (aim) {
       ProcessBridgeClick(player, *tool, *aim, run);
+    }
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kOpening) {
+    if (aim) {
+      ProcessOpeningClick(player, *tool, *aim, run);
     }
     return;
   }
@@ -432,6 +458,20 @@ void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const Spa
   }
 }
 
+// In the Opening mode destroying takes the opening aimed at, gap included, and leaves its wall.
+bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
+  const std::optional<flecs::entity> tool = z13::building::HeldBuildTool(player);
+  if (!tool || !tool->has<BuildTool>() || tool->get<BuildTool>().mode != ToolMode::kOpening) {
+    return false;
+  }
+  const auto aim = FindAim(player, index);
+  const auto opening = aim ? OpeningUnder(player.world(), *aim) : std::nullopt;
+  if (opening) {
+    opening->destruct();
+  }
+  return opening.has_value();
+}
+
 // A run() rather than each(): the spawn point count carries across requests, so two
 // players can't each remove one of the last two in the same tick.
 void ProcessDestroyRequests(flecs::iter& it) {
@@ -449,6 +489,9 @@ void ProcessDestroyRequests(flecs::iter& it) {
         continue;
       }
 
+      if (DestroyAimedOpening(player, index)) {
+        continue;
+      }
       const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transforms[i]);
       const Eigen::Vector3f forward = transforms[i].block<3, 3>(0, 0).col(0);
       const auto hit =
@@ -541,6 +584,16 @@ BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const A
   return preview;
 }
 
+BrushPreview OpeningBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
+  BrushPreview preview {
+      .block = CellMarker(aim.point.array().round().cast<int>().matrix()), .valid = false, .kind = BuildKind::kBuild};
+  if (const auto aimed = AimOpening(owner.world(), aim, tool.get<BuildTool>(), view.tuning.get())) {
+    preview.lines = aimed->lines;
+    preview.valid = OpeningAllowed(owner, aimed->opening, view).has_value();
+  }
+  return preview;
+}
+
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   const flecs::entity owner = brush.parent();
   const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
@@ -561,6 +614,10 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   }
   if (tool->get<BuildTool>().mode == ToolMode::kBridge) {
     brush.set(BridgeBrushPreview(owner, *tool, *aim, view));
+    return;
+  }
+  if (tool->get<BuildTool>().mode == ToolMode::kOpening) {
+    brush.set(OpeningBrushPreview(owner, *tool, *aim, view));
     return;
   }
   const BuildKind kind = KindOf(owner);
@@ -638,6 +695,7 @@ void RegisterSystems(flecs::world world) {
       .write<WallBridgeDraft>()
       .write<WallNode>()
       .write<WallSegment>()
+      .write<z13::station::WallOpening>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
   world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, BlockIndex,
@@ -653,6 +711,7 @@ void RegisterSystems(flecs::world world) {
       .write<z13::station::BlockChange>()
       .write<z13::station::WallSegment>()
       .write<z13::station::WallNode>()
+      .write<z13::station::WallOpening>()
       .run(ProcessDestroyRequests);
 
   // Last, so the preview shows this frame's blocks; the render draws it in OnStore.
@@ -673,6 +732,7 @@ void RegisterSystems(flecs::world world) {
       .read<WallBridgeDraft>()
       .read<WallNode>()
       .read<WallSegment>()
+      .read<z13::station::WallOpening>()
       .write<BrushPreview>()
       .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockIndex& index,
                                     const BlockPalette& palette, const BuildingTuning& tuning) {

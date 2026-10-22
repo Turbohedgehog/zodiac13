@@ -97,7 +97,8 @@ TEST(BuildToolTest, TheModeKeyCyclesTheModes) {
   const flecs::entity player = LocalBuilder(test_world);
   ASSERT_EQ(ModeOf(player), ToolMode::kBuild);
 
-  for (const ToolMode expected : {ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall, ToolMode::kMerge, ToolMode::kBridge, ToolMode::kBuild}) {
+  for (const ToolMode expected : {ToolMode::kDestroy, ToolMode::kCut, ToolMode::kCutIn, ToolMode::kWall,
+                                  ToolMode::kMerge, ToolMode::kBridge, ToolMode::kOpening, ToolMode::kBuild}) {
     Tap(test_world, kModeKey, TickOnly(test_world));
     EXPECT_EQ(ModeOf(player), expected);
   }
@@ -251,6 +252,7 @@ TEST(BuildToolTest, TheTouchLayerFollowsTheHeldToolsMode) {
   for (const auto& [mode, layer] : {std::pair {ToolMode::kWall, z13::input::TouchLayer::kWall},
                                     std::pair {ToolMode::kMerge, z13::input::TouchLayer::kMerge},
                                     std::pair {ToolMode::kBridge, z13::input::TouchLayer::kBridge},
+                                    std::pair {ToolMode::kOpening, z13::input::TouchLayer::kOpening},
                                     std::pair {ToolMode::kDestroy, z13::input::TouchLayer::kBlock}}) {
     BuildToolOf(player).get_mut<BuildTool>().mode = mode;
     test_world.Tick();
@@ -268,6 +270,26 @@ TEST(BuildToolTest, TheWallLayersButtonsSetTheThickness) {
   EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 2);
   TapButton(test_world, z13::input::TouchControl::kThinner);
   EXPECT_EQ(BuildToolOf(player).get<BuildTool>().wall_thickness, 1);
+}
+
+TEST(BuildToolTest, TheOpeningLayersButtonsSetTheWidthAndTheKind) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kOpening;
+  test_world.Tick();
+  const int width = BuildToolOf(player).get<BuildTool>().opening_width;
+
+  TapButton(test_world, z13::input::TouchControl::kThicker);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_width, width + 1);
+  TapButton(test_world, z13::input::TouchControl::kThinner);
+  TapButton(test_world, z13::input::TouchControl::kThinner);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_width, width - 1);
+
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kDoor);
+  TapButton(test_world, z13::input::TouchControl::kOpeningKind);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kWindow);
+  TapButton(test_world, z13::input::TouchControl::kOpeningKind);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kDoor);
 }
 
 TEST(BuildToolTest, TheMergeLayersButtonStepsTheMergeTarget) {
