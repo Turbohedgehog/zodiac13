@@ -124,6 +124,20 @@ TEST(WallBridgeTest, SticksOfOtherAxesMakeABentWallOfTwoTriangles) {
   EXPECT_EQ(bridge->blocks.size(), 2u);
 }
 
+TEST(WallBridgeTest, FlippingTakesTheOtherDiagonalOfABentWall) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const uint32_t turned = AddStickAt(test_world, {kGap, 3, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+  const auto palette = test_world.World().get<z13::building::primitives::BlockPalette>().palette;
+
+  const auto plain = PlanBridge(test_world.World(), a, turned, kThickness, kEye, palette);
+  const auto flipped = PlanBridge(test_world.World(), a, turned, kThickness, kEye, palette, true);
+
+  ASSERT_TRUE(plain.has_value()) << plain.error();
+  ASSERT_TRUE(flipped.has_value()) << flipped.error();
+  EXPECT_EQ(flipped->wall.diagonal, z13::building::primitives::Flipped(plain->wall.diagonal));
+}
+
 TEST(WallBridgeTest, AStickOfTheSameAxisIsPreferredToAnOldOneOfAnother) {
   Z13TestWorld test_world = StationWorld();
   const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);

@@ -47,7 +47,7 @@ constexpr ToolModeInfo ToolModeInfoOf(ToolMode mode) {
     case ToolMode::kMerge:
       return {.label = "Merge", .touch_layer = TouchLayer::kMerge, .uses_wheel = true};
     case ToolMode::kBridge:
-      return {.label = "Bridge", .touch_layer = TouchLayer::kWall, .uses_wheel = true};
+      return {.label = "Bridge", .touch_layer = TouchLayer::kBridge, .uses_wheel = true};
   }
   return {};
 }

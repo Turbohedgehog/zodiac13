@@ -20,6 +20,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <vector>
 
@@ -99,6 +100,40 @@ TEST(WallBendTest, ADiagonalOutsideAFlatQuadIsNotChosen) {
   wall.stick_b = {WallAxis::kX, 4};
 
   EXPECT_EQ(DefaultDiagonal(wall), WallDiagonal::kTipToBase);
+}
+
+TEST(WallBendTest, TheFoldIsTheAngleBetweenTheTrianglesNormals) {
+  for (const WallDiagonal diagonal : {WallDiagonal::kBaseToTip, WallDiagonal::kTipToBase}) {
+    WallGeometry wall = Bent(2, diagonal);
+    wall.node_b = {7, 2, 3};
+    EXPECT_NEAR(FoldDegrees(wall), FoldOf(wall, diagonal) * 180.0 / std::numbers::pi, 1e-6);
+  }
+  EXPECT_NEAR(FoldDegrees(Bent(2, WallDiagonal::kBaseToTip)), 90.0, 1e-9);
+  WallGeometry straight = Bent(2, WallDiagonal::kBaseToTip);
+  straight.stick_b = {WallAxis::kZ, 6};
+  EXPECT_NEAR(FoldDegrees(straight), 0.0, 1e-9);
+}
+
+TEST(WallBendTest, AFoldIsWithinALimitAtOrAboveItsAngle) {
+  WallGeometry wall = Bent(2, WallDiagonal::kBaseToTip);
+  wall.node_b = {5, -1, 0};
+  wall.stick_b = {WallAxis::kX, 5};
+  wall.diagonal = WallDiagonal::kTipToBase;
+  const double angle = FoldDegrees(wall);
+
+  EXPECT_FALSE(FoldWithin(wall, static_cast<int>(std::floor(angle))));
+  EXPECT_TRUE(FoldWithin(wall, static_cast<int>(std::ceil(angle))));
+  wall.diagonal = Flipped(wall.diagonal);
+  EXPECT_TRUE(FoldWithin(wall, 90));
+  EXPECT_FALSE(FoldWithin(wall, 89));
+}
+
+TEST(WallBendTest, AParallelWallNeverFolds) {
+  WallGeometry wall = Bent(2, WallDiagonal::kBaseToTip);
+  wall.stick_b = {WallAxis::kZ, 4};
+
+  EXPECT_TRUE(FoldWithin(wall, 1));
+  EXPECT_EQ(Flipped(Flipped(WallDiagonal::kBaseToTip)), WallDiagonal::kBaseToTip);
 }
 
 TEST(WallBendTest, ABentWallIsTwoTrianglePanelsThickenedTowardOneSide) {

@@ -17,6 +17,10 @@ Findings that came up in this repo's reviews, beyond CLAUDE.md's rules themselve
 - Tuning numbers as constants instead of settings; magic numbers.
 - New headers: include what the file uses, and no more — a wide header pulled in for one type (measure with perf-measure's `header_width.py`).
 - New `.cpp`/`.fbs` listed in its `CMakeLists.txt`.
+- A helper the code already has, written again: grep `lib_core/utils` and the file's own anonymous namespace before adding a conversion, a sign, a clamp or a near-equality (`Sign` in `wall_seam.cpp` for `x < 0 ? -1 : 1` branches; `z13::math::ToRadians`/`ToDegrees` for degrees; `z13::math::kEpsilon`).
+- A floating-point value compared with zero or another float by `==`: test the integers it comes from (`isZero()` on an integer vector), or compare within a tolerance named once.
+- A `switch` that only maps one enum to a value or a list (a panel per layer, a layout field per button): a `constexpr std::array` indexed by the enumerator (with a `static_assert` on its size) or a table of member pointers reads shorter and can't lose a case to `[[fallthrough]]`. Keep the `switch` when each case does different work.
+- A list of every enumerator kept next to the enum (the layers to scan, the modes to cycle): derive it from the table instead, so a new enumerator is added in one place.
 
 ## Tests
 

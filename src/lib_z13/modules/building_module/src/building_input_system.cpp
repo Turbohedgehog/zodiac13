@@ -113,6 +113,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   constexpr std::string_view kWallActions = "z13.fbs.building.WallAction";
   build_action_ids.thicker_wall = find_action_id(z13::fbs::building::WallAction::THICKER_WALL, kWallActions);
   build_action_ids.thinner_wall = find_action_id(z13::fbs::building::WallAction::THINNER_WALL, kWallActions);
+  build_action_ids.flip_diagonal = find_action_id(z13::fbs::building::WallAction::FLIP_DIAGONAL, kWallActions);
 }
 
 void SetActionGroup(z13::input::ActionListener& action_listener, std::string_view group, bool wanted) {
@@ -162,7 +163,8 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
 }
 
 // A click lays the next point of a wall, bridge or merge; the wheel sets the wall's or bridge's
-// thickness or steps the merge target; the destroy key drops what is in the making (else it destroys, as in any mode).
+// thickness or steps the merge target; the flip key turns a bridge's diagonal; the destroy key
+// drops what is in the making (else it destroys, as in any mode).
 void ApplyWallTool(
     flecs::entity e, flecs::entity tool, ToolMode mode, const z13::input::ActionListener& listener,
     const BuildActionIds& ids, const BuildingTuning& tuning) {
@@ -173,6 +175,11 @@ void ApplyWallTool(
     state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
   } else if (wheel != 0) {
     state.merge_at = z13::NextEnumerator(state.merge_at);
+  }
+  if (mode == ToolMode::kBridge && e.has<z13::station::WallBridgeDraft>() &&
+      IsSwitchedOn(listener, ids.flip_diagonal)) {
+    z13::station::WallBridgeDraft& draft = e.get_mut<z13::station::WallBridgeDraft>();
+    draft.flipped = !draft.flipped;
   }
   if (IsSwitchedOn(listener, ids.build_block)) {
     e.add<RequestBuildBlock>();

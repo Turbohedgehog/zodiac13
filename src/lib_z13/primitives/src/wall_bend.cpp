@@ -17,7 +17,10 @@
 #include <primitives/wall_bend.h>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
+
+#include <lib_core/utils/math.h>
 
 namespace z13::building::primitives {
 
@@ -36,6 +39,9 @@ Eigen::Vector3i Along(const WallStick& stick) {
 int Sign(int64_t value) {
   return (value > 0) - (value < 0);
 }
+
+// Folds closer than this count as equal.
+constexpr double kTie = 1e-12;
 
 // The cosine of the angle between the triangles' normals, as its sign and its square.
 struct Fold {
@@ -57,12 +63,17 @@ Fold FoldOf(const std::array<Triangle, 2>& triangles) {
 
 // Whether `a` folds the surface less: its normals' cosine is the larger, by more than rounding.
 bool Flatter(const Fold& a, const Fold& b) {
-  constexpr double kTie = 1e-12;
   if (a.sign != b.sign) {
     return a.sign > b.sign;
   }
   const double gain = a.cosine_squared - b.cosine_squared;
   return a.sign >= 0 ? gain > kTie : gain < -kTie;
+}
+
+// The cosine of the fold of a bent wall: one for a flat surface, minus one for a doubled-back one.
+double CosineOf(const WallGeometry& wall) {
+  const Fold fold = FoldOf(BentTriangles(wall, wall.diagonal));
+  return fold.sign * std::sqrt(fold.cosine_squared);
 }
 
 }  // namespace
@@ -86,6 +97,22 @@ WallDiagonal DefaultDiagonal(const WallGeometry& wall) {
   const Fold tip_to_base = FoldOf(BentTriangles(wall, WallDiagonal::kTipToBase));
   const Fold base_to_tip = FoldOf(BentTriangles(wall, WallDiagonal::kBaseToTip));
   return Flatter(tip_to_base, base_to_tip) ? WallDiagonal::kTipToBase : WallDiagonal::kBaseToTip;
+}
+
+WallDiagonal Flipped(WallDiagonal diagonal) {
+  return diagonal == WallDiagonal::kBaseToTip ? WallDiagonal::kTipToBase : WallDiagonal::kBaseToTip;
+}
+
+double FoldDegrees(const WallGeometry& wall) {
+  if (!IsBent(wall)) {
+    return 0.0;
+  }
+  return z13::math::ToDegrees(std::acos(std::clamp(CosineOf(wall), -1.0, 1.0)));
+}
+
+bool FoldWithin(const WallGeometry& wall, int max_degrees) {
+  return !IsBent(wall) ||
+         CosineOf(wall) >= std::cos(z13::math::ToRadians(static_cast<double>(max_degrees))) - kTie;
 }
 
 std::optional<int> MinBentThickness(const WallGeometry& wall) {

@@ -41,6 +41,15 @@ std::array<Triangle, 2> BentTriangles(const WallGeometry& wall, z13::station::Wa
 // normals; the one from a's base on a tie.
 z13::station::WallDiagonal DefaultDiagonal(const WallGeometry& wall);
 
+z13::station::WallDiagonal Flipped(z13::station::WallDiagonal diagonal);
+
+// The angle in degrees between the normals of the bent wall's two triangles; zero for any other
+// wall, and for a flat surface.
+double FoldDegrees(const WallGeometry& wall);
+
+// Whether the fold is at most `max_degrees`, decided on the cosine with rounding allowed for.
+bool FoldWithin(const WallGeometry& wall, int max_degrees);
+
 // The thicker of the two triangles' least thickness; nothing if one is a line.
 std::optional<int> MinBentThickness(const WallGeometry& wall);
 

@@ -55,6 +55,7 @@ TEST(TouchMappingTest, TheToolsButtonsShowOnlyWithATool) {
     EXPECT_TRUE(InLayer(TouchLayer::kBlock, control));
     EXPECT_TRUE(InLayer(TouchLayer::kWall, control));
     EXPECT_TRUE(InLayer(TouchLayer::kMerge, control));
+    EXPECT_TRUE(InLayer(TouchLayer::kBridge, control));
   }
   EXPECT_TRUE(InLayer(TouchLayer::kWalk, TouchControl::kJump));
   EXPECT_TRUE(InLayer(TouchLayer::kWall, TouchControl::kJump));
@@ -68,6 +69,9 @@ TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
   EXPECT_FALSE(InLayer(TouchLayer::kBlock, TouchControl::kThicker));
   EXPECT_TRUE(InLayer(TouchLayer::kMerge, TouchControl::kMergeAt));
   EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kMergeAt));
+  EXPECT_TRUE(InLayer(TouchLayer::kBridge, TouchControl::kFlipDiagonal));
+  EXPECT_TRUE(InLayer(TouchLayer::kBridge, TouchControl::kThicker));
+  EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kFlipDiagonal));
 
   // The wall layer's first button sits where the block layer's first does, so a hidden one
   // doesn't catch a touch.
@@ -78,8 +82,16 @@ TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
   EXPECT_NE(ControlAt(layout, TouchLayer::kWall, second, kScreen), TouchControl::kNextPrimitive);
 }
 
+TEST(TouchMappingTest, ALayerOutsideTheEnumHasNoPanel) {
+  const TouchLayer unknown = static_cast<TouchLayer>(99);
+
+  EXPECT_TRUE(PanelOf(unknown).empty());
+  EXPECT_FALSE(InLayer(unknown, TouchControl::kThicker));
+  EXPECT_TRUE(InLayer(unknown, TouchControl::kJump));
+}
+
 TEST(TouchMappingTest, EveryPanelButtonHasAKey) {
-  for (const TouchLayer layer : {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge}) {
+  for (const TouchLayer layer : {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge, TouchLayer::kBridge}) {
     EXPECT_FALSE(PanelOf(layer).empty());
     for (const TouchControl control : PanelOf(layer)) {
       EXPECT_TRUE(ButtonKey(control).has_value());
@@ -161,7 +173,8 @@ TEST(TouchMappingTest, TheHotbarCellsSitInARowAndClearOfTheButtons) {
   for (size_t cell = 1; cell < kHotbarCellButtons.size(); ++cell) {
     EXPECT_NEAR(CellRect(layout, cell, kScreen).min().x(), CellRect(layout, cell - 1, kScreen).max().x(), kEpsilon);
   }
-  for (const TouchLayer layer : {TouchLayer::kWalk, TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge}) {
+  for (const TouchLayer layer :
+       {TouchLayer::kWalk, TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge, TouchLayer::kBridge}) {
     for (const TouchButton& button : kTouchButtons) {
       if (InLayer(layer, button.control)) {
         EXPECT_EQ(ControlAt(layout, layer, ButtonCenter(layout, layer, button.control, kScreen), kScreen),
