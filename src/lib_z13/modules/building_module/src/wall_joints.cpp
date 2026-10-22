@@ -17,6 +17,9 @@
 #include "wall_joints.h"
 
 #include <algorithm>
+#include <array>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include <primitives/wall_bend.h>
@@ -27,7 +30,13 @@ namespace z13::building {
 namespace {
 
 using z13::building::primitives::PlanSeam;
+using z13::building::primitives::PlanTee;
+using z13::building::primitives::PlanWall;
 using z13::building::primitives::PlanWallAt;
+
+// Nodes of two to four walls are solved.
+constexpr size_t kMinWallsAtNode = 2;
+constexpr size_t kMaxWallsAtNode = 4;
 
 // One wall's end at a node.
 struct WallEndAt {
@@ -40,25 +49,66 @@ void SetSeam(WallJoints& joints, const WallEndAt& end, const z13::building::prim
   (end.at_a ? ends.at_a : ends.at_b) = seam;
 }
 
+// The two walls of a node that run on through it, the lowest ids first.
+std::optional<std::array<size_t, 2>> ThroughPair(const std::vector<PlanWall>& plans) {
+  for (size_t first = 0; first < plans.size(); ++first) {
+    for (size_t second = first + 1; second < plans.size(); ++second) {
+      if (z13::building::primitives::RunsThrough(plans[first], plans[second])) {
+        return std::array<size_t, 2> {first, second};
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+void Refuse(WallJoints& joints, const WallEndAt& end, const std::string& reason) {
+  joints.refused.emplace(end.wall->id, reason);
+}
+
+// Two walls meet along one seam. Three or four meet as a T or an X when two run on through the
+// node: the others end on the faces of those, the lower ids running through.
 void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach) {
   const auto parallel = [](const JointWall& wall) { return !z13::building::primitives::IsBent(wall.geometry); };
-  if (meeting.size() != 2 || meeting[0].wall == meeting[1].wall ||
-      meeting[0].wall->geometry.stick_a.axis != meeting[1].wall->geometry.stick_a.axis ||
-      !parallel(*meeting[0].wall) || !parallel(*meeting[1].wall)) {
+  const auto fits = [&](const WallEndAt& end) {
+    return parallel(*end.wall) && end.wall->geometry.stick_a.axis == meeting.front().wall->geometry.stick_a.axis;
+  };
+  if (meeting.size() < kMinWallsAtNode || meeting.size() > kMaxWallsAtNode || !std::ranges::all_of(meeting, fits)) {
     return;
   }
   std::ranges::sort(meeting, {}, [](const WallEndAt& end) { return end.wall->id; });
-  const auto first = PlanWallAt(meeting[0].wall->geometry, meeting[0].at_a);
-  const auto second = PlanWallAt(meeting[1].wall->geometry, meeting[1].at_a);
-  if (!first || !second) {
+  if (std::ranges::adjacent_find(meeting, {}, [](const WallEndAt& end) { return end.wall; }) != meeting.end()) {
     return;
   }
-  const auto seam = PlanSeam(*first, *second, max_reach);
+  std::vector<PlanWall> plans;
   for (const WallEndAt& end : meeting) {
+    const auto plan = PlanWallAt(end.wall->geometry, end.at_a);
+    if (!plan) {
+      return;
+    }
+    plans.push_back(*plan);
+  }
+  const std::optional<std::array<size_t, 2>> through =
+      meeting.size() == kMinWallsAtNode ? std::optional(std::array<size_t, 2> {0, 1}) : ThroughPair(plans);
+  if (!through) {
+    return;
+  }
+  const auto seam = PlanSeam(plans[(*through)[0]], plans[(*through)[1]], max_reach);
+  for (const size_t index : *through) {
     if (seam) {
-      SetSeam(joints, end, *seam);
+      SetSeam(joints, meeting[index], *seam);
     } else {
-      joints.refused.emplace(end.wall->id, seam.error());
+      Refuse(joints, meeting[index], seam.error());
+    }
+  }
+  for (size_t index = 0; index < meeting.size(); ++index) {
+    if (index == (*through)[0] || index == (*through)[1]) {
+      continue;
+    }
+    const auto tee = PlanTee(plans[index], plans[(*through)[0]], max_reach);
+    if (tee) {
+      SetSeam(joints, meeting[index], *tee);
+    } else {
+      Refuse(joints, meeting[index], tee.error());
     }
   }
 }

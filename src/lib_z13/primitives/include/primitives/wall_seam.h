@@ -80,4 +80,12 @@ std::expected<z13::station::Block, std::string> CutPanelBlock(
 // short to keep a cell beyond the seam.
 std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanWall& second, int max_reach);
 
+// Whether two walls from one node run on through it: opposite ways along one line, thickened alike.
+bool RunsThrough(const PlanWall& first, const PlanWall& second);
+
+// The seam of a wall (`branch`) that ends on the side of another (`through`) running on past
+// their node: the face of `through` that the branch leaves toward. Errors as for PlanSeam, and
+// for walls along one line.
+std::expected<WallSeam, std::string> PlanTee(const PlanWall& branch, const PlanWall& through, int max_reach);
+
 }  // namespace z13::building::primitives

@@ -164,6 +164,39 @@ std::expected<WallSeam, std::string> PlanSeam(const PlanWall& first, const PlanW
   return WallSeam {.line = Reduced(inner.cross(outer)), .inner = inner, .outer = outer};
 }
 
+bool RunsThrough(const PlanWall& first, const PlanWall& second) {
+  return CrossOf(first.direction, second.direction) == 0 && first.direction.dot(second.direction) < 0 &&
+         first.offset == second.offset;
+}
+
+std::expected<WallSeam, std::string> PlanTee(const PlanWall& branch, const PlanWall& through, int max_reach) {
+  if (branch.node != through.node) {
+    return std::unexpected(std::string {"the walls don't share a node"});
+  }
+  if (!IsUsable(branch) || !IsUsable(through)) {
+    return std::unexpected(std::string {"a wall of no length or thickness, or longer than a panel, has no seam"});
+  }
+  const int64_t turn = CrossOf(through.direction, branch.direction);
+  if (turn == 0) {
+    return std::unexpected(std::string {"the walls run along one line"});
+  }
+  // The branch meets the face of `through` on its own side: the thickened one when it leaves that way.
+  const bool toward_offset = Sign(turn) == Sign(CrossOf(through.direction, through.offset));
+  const Homogeneous face = toward_offset ? LineThrough(through.offset, through.direction)
+                                         : LineThrough(Eigen::Vector2i::Zero(), through.direction);
+  const PlanPoint inner = WithPositiveWeight(face.cross(LineThrough(Eigen::Vector2i::Zero(), branch.direction)));
+  const PlanPoint outer = WithPositiveWeight(face.cross(LineThrough(branch.offset, branch.direction)));
+  for (const PlanPoint& tip : {inner, outer}) {
+    if (const auto problem = CheckReach(tip, max_reach)) {
+      return std::unexpected(*problem);
+    }
+    if (const auto problem = CheckRemaining(branch, tip)) {
+      return std::unexpected(*problem);
+    }
+  }
+  return WallSeam {.line = Reduced(face), .inner = inner, .outer = outer};
+}
+
 namespace {
 
 using z13::station::Block;
