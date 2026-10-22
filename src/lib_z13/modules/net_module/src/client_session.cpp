@@ -65,6 +65,13 @@ std::string OptionalText(const std::optional<T>& value) {
   return value ? std::to_string(*value) : std::string("none");
 }
 
+// The Welcome already put the client in a game; one that failed has no scene, so back to the menu.
+void FailJoin(flecs::world world, std::string reason) {
+  world.remove<z13::gameplay::Gameplay>();
+  world.add<z13::gameplay::Pause>();
+  FailSession(world, std::move(reason));
+}
+
 Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   Z13_PROFILE_ZONE("JoinFromWelcome");
   auto payload = DecodeCatchUp(welcome.catch_up);
@@ -102,7 +109,7 @@ Status JoinFromWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
 void HandleWelcome(flecs::world world, const fbn::WelcomeT& welcome) {
   if (const Status joined = JoinFromWelcome(world, welcome); !joined) {
     log_warn("NetSession(client): unusable Welcome: {}", joined.error());
-    FailSession(world, joined.error());
+    FailJoin(world, joined.error());
   } else {
     log_info("NetSession(client): joined as player {}", welcome.player_id);
   }
@@ -346,7 +353,7 @@ bool FinishPendingJoin(flecs::world world) {
   if (world.has<ft::RollbackFailed>()) {
     const std::string reason = world.get<ft::RollbackFailed>().reason;
     world.remove<ft::RollbackFailed>();
-    FailSession(world, reason);
+    FailJoin(world, reason);
     return false;
   }
 

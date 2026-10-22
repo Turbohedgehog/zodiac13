@@ -19,6 +19,8 @@
 #include <memory>
 #include <string>
 
+#include <lib_core/state/rollback.h>
+
 #include <z13_settings/settings.h>
 
 #include <net_module/in_memory_transport.h>
@@ -117,6 +119,24 @@ TEST(SessionSettingsTest, ClientRefusesServerSettingsItsHistoryCannotCover) {
 
   EXPECT_FALSE(client.World().has<Gameplay>());
   EXPECT_EQ(client.World().get<NetTuning>(), NetTuning {}) << "nothing adopted from a refused join";
+}
+
+TEST(SessionSettingsTest, AJoinThatFailsAfterTheWelcomeReturnsToTheMenu) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network, ServerSettings());
+  Z13TestWorld client = MakeClient(network);
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return client.World().has<Gameplay>() &&
+           client.World().get<ConnectionStatus>().state == ConnectionState::kConnecting;
+  }));
+
+  client.World().set<z13::flecs_tools::RollbackFailed>({.reason = "no history"});
+  ASSERT_TRUE(RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+    return client.World().get<ConnectionStatus>().state == ConnectionState::kFailed;
+  }));
+
+  EXPECT_FALSE(client.World().has<Gameplay>());
+  EXPECT_TRUE(client.World().has<z13::gameplay::Pause>()) << "the main menu shows while paused";
 }
 
 }  // namespace

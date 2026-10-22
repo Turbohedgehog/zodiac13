@@ -51,9 +51,8 @@ std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, uint32_t n
     return lines;
   }
   for (const WallStick& stick : SticksAt(world, node_id)) {
-    const Eigen::Vector3f along =
-        Eigen::Vector3f::Unit(static_cast<int>(stick.axis)) * static_cast<float>(stick.length);
-    lines.push_back({.from = cell->cast<float>(), .to = cell->cast<float>() + along});
+    lines.push_back({.from = cell->cast<float>(),
+                     .to = (*cell + z13::building::primitives::StickOffset(stick)).cast<float>()});
   }
   return lines;
 }

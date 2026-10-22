@@ -81,8 +81,7 @@ std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick&
 }
 
 BrushLine StickLine(const Eigen::Vector3i& node, WallAxis axis, int length) {
-  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(axis)) * static_cast<float>(length);
-  return Line(node.cast<float>(), node.cast<float>() + along);
+  return Line(node.cast<float>(), (node + z13::building::primitives::StickOffset({axis, length})).cast<float>());
 }
 
 std::vector<BrushLine> HeightLines(const WallDraft& draft, int length) {
@@ -135,10 +134,8 @@ std::vector<Eigen::Vector3i> WallAnchors(flecs::world world) {
   world.query<const WallSegment>().each([&](const WallSegment& segment) {
     for (const bool at_b : {false, true}) {
       const z13::station::WallStick& stick = at_b ? segment.stick_b : segment.stick_a;
-      Eigen::Vector3i along = Eigen::Vector3i::Zero();
-      along[Index(stick.axis)] = stick.length;
       if (const auto node = nodes.find(at_b ? segment.node_b : segment.node_a); node != nodes.end()) {
-        anchors.push_back(node->second + along);
+        anchors.push_back(node->second + z13::building::primitives::StickOffset(stick));
       }
     }
   });
