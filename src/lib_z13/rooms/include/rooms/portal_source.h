@@ -42,7 +42,7 @@ struct PortalSource {
 bool IsSealing(const z13::building::primitives::Primitive& primitive);
 
 // The opening of a door frame (the gap between its posts) or of a transparent block (all
-// of it); nothing for other blocks.
+// of it); nothing for other blocks, nor for a panel that is not square to the grid.
 std::optional<PortalSource> PortalOf(
     const z13::station::Block& block, const z13::building::primitives::Primitive& primitive);
 

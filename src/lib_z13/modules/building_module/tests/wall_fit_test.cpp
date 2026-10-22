@@ -145,5 +145,41 @@ TEST(WallFitTest, AWallThatBreaksAJointIsRefused) {
   EXPECT_NE(fits.error().find("joint"), std::string::npos) << fits.error();
 }
 
+Status OpeningFits(Z13TestWorld& test_world, const z13::station::WallOpening& opening) {
+  return CheckOpeningFits(test_world.World(), opening, ViewOf(test_world.World()));
+}
+
+constexpr uint32_t kFirstSegment = 1;
+
+TEST(WallFitTest, ADoorInTheMiddleOfAWallFits) {
+  Z13TestWorld test_world = StationWorld();
+  Lay(test_world, Wall(kCorner, kCorner + kUp));
+
+  const Status fits = OpeningFits(
+      test_world, {.segment_id = kFirstSegment, .kind = z13::station::OpeningKind::kDoor, .offset = 4, .width = 3,
+                   .height = 5});
+
+  EXPECT_TRUE(fits.has_value()) << (fits ? "" : fits.error());
+}
+
+TEST(WallFitTest, AnOpeningTooTallForTheWallIsRefused) {
+  Z13TestWorld test_world = StationWorld();
+  Lay(test_world, Wall(kCorner, kCorner + kUp));
+
+  const Status fits = OpeningFits(
+      test_world, {.segment_id = kFirstSegment, .kind = z13::station::OpeningKind::kDoor, .offset = 4, .width = 3,
+                   .height = kStickLength});
+
+  ASSERT_FALSE(fits.has_value());
+  EXPECT_NE(fits.error().find("up a wall"), std::string::npos) << fits.error();
+}
+
+TEST(WallFitTest, AnOpeningInAWallThatIsGoneIsRefused) {
+  Z13TestWorld test_world = StationWorld();
+
+  EXPECT_FALSE(OpeningFits(test_world, {.segment_id = kFirstSegment, .offset = 4, .width = 3, .height = 5})
+                   .has_value());
+}
+
 }  // namespace
 }  // namespace z13::building

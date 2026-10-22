@@ -68,23 +68,27 @@ struct PanelKey {
 void RegisterComponents(flecs::world world) {
   // WallStick first: WallSegment holds two.
   z13::flecs_tools::RegisterComponentMeta<z13::station::WallStick>(world);
-  z13::flecs_tools::RegisterComponents<WallNode, WallSegment, WallPanelOf, z13::station::WallDraft,
-                                          z13::station::WallMergeDraft, z13::station::WallBridgeDraft>(world);
+  z13::flecs_tools::RegisterComponents<WallNode, WallSegment, z13::station::WallOpening, WallPanelOf,
+                                       z13::station::WallDraft, z13::station::WallMergeDraft,
+                                       z13::station::WallBridgeDraft>(world);
 }
 
 // The panels each segment should have; a segment that can't have them has none. Walls meeting
 // two at a node end along one seam, or square where that can't be had.
 std::map<PanelKey, Block> ExpectedPanels(
     const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
-    const z13::building::primitives::Palette& palette, int joint_reach) {
+    const flecs::query<const z13::station::WallOpening>& openings, const z13::building::primitives::Palette& palette,
+    int joint_reach) {
   std::unordered_map<uint32_t, Eigen::Vector3i> cells;
   nodes.each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
+  std::unordered_map<uint32_t, std::vector<z13::station::WallOpening>> cut;
+  openings.each([&cut](const z13::station::WallOpening& opening) { cut[opening.segment_id].push_back(opening); });
   std::vector<JointWall> walls;
   segments.each([&](const WallSegment& segment) {
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
     if (a != cells.end() && b != cells.end()) {
-      walls.push_back(JointWallOf(segment, a->second, b->second));
+      walls.push_back(JointWallOf(segment, a->second, b->second, cut[segment.id]));
     }
   });
   const WallJoints joints = SolveJoints(walls, joint_reach);
@@ -104,10 +108,11 @@ std::map<PanelKey, Block> ExpectedPanels(
 
 void SyncPanels(
     flecs::world world, const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
+    const flecs::query<const z13::station::WallOpening>& openings,
     const flecs::query<const WallPanelOf, const Block>& panels, z13::gameplay::IdCounters& counters,
     const BlockPalette& palette, const BuildingTuning& tuning) {
   const std::map<PanelKey, Block> expected =
-      ExpectedPanels(nodes, segments, palette.palette, tuning.wall_joint_max_reach_cells);
+      ExpectedPanels(nodes, segments, openings, palette.palette, tuning.wall_joint_max_reach_cells);
 
   std::map<PanelKey, Panel> existing;
   std::vector<Panel> stale;
@@ -134,20 +139,22 @@ void SyncPanels(
 void RegisterSystems(flecs::world world) {
   const auto nodes = world.query<const WallNode>("WallPanelSystem::Nodes");
   const auto segments = world.query<const WallSegment>("WallPanelSystem::Segments");
+  const auto openings = world.query<const z13::station::WallOpening>("WallPanelSystem::Openings");
   const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
   world.system<z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>("WallPanelSystem::SyncPanels")
       .kind<WallPanelPhase>()
       .with<StationMode>()
       .read<WallNode>()
       .read<WallSegment>()
+      .read<z13::station::WallOpening>()
       .read<WallPanelOf>()
       .write<Block>()
       .write<WallPanelOf>()
       .write<z13::station::BlockChange>()
-      .each([nodes, segments, panels](
+      .each([nodes, segments, openings, panels](
                 flecs::iter& it, size_t, z13::gameplay::IdCounters& counters, const BlockPalette& palette,
                 const BuildingTuning& tuning) {
-        SyncPanels(it.world(), nodes, segments, panels, counters, palette, tuning);
+        SyncPanels(it.world(), nodes, segments, openings, panels, counters, palette, tuning);
       });
 }
 

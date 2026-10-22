@@ -19,6 +19,7 @@
 #include <flecs.h>
 
 #include <lib_core/utils/status.h>
+#include <z13/components/wall.h>
 #include <primitives/wall_panel.h>
 
 #include "build_validation.h"
@@ -28,5 +29,9 @@ namespace z13::building {
 // Whether `wall` can be laid: no joint breaks, and its panel and the neighbours it re-cuts
 // fit, not counting the panels they replace.
 Status CheckWallFits(flecs::world world, const z13::building::primitives::WallGeometry& wall, const BuildView& view);
+
+// Whether `opening` can be cut in its segment beside those there: the wall's pieces come out
+// and fit, not counting the panels they replace.
+Status CheckOpeningFits(flecs::world world, const z13::station::WallOpening& opening, const BuildView& view);
 
 }  // namespace z13::building

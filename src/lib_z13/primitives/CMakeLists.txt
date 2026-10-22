@@ -21,6 +21,7 @@ z13_add_library(
   src/station_assets.cpp
   src/triangle_panel.cpp
   src/wall_bend.cpp
+  src/wall_opening.cpp
   src/wall_panel.cpp
   src/wall_seam.cpp
   PUBLIC

@@ -25,17 +25,19 @@
 #include <vector>
 
 #include <z13/components/block.h>
+#include <z13/components/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_seam.h>
 
 namespace z13::building {
 
-// A wall segment with its nodes' cells.
+// A wall segment with its nodes' cells and the openings cut in it.
 struct JointWall {
   uint32_t id {};
   uint32_t node_a {};
   uint32_t node_b {};
   z13::building::primitives::WallGeometry geometry;
+  std::vector<z13::station::WallOpening> openings;
 };
 
 // The joints of a set of walls: at a node where exactly two walls with the same stick axis
@@ -53,7 +55,8 @@ WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach);
 std::expected<z13::station::Block, std::string> JointPanel(
     const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette);
 
-// The panels `wall` stands as: one, as JointPanel, or the two triangles of a bent wall.
+// The panels `wall` stands as: one (JointPanel), the two triangles of a bent wall, or the pieces
+// around its openings.
 std::expected<std::vector<z13::station::Block>, std::string> JointPanels(
     const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette);
 
