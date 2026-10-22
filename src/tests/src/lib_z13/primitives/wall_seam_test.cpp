@@ -325,6 +325,15 @@ TEST(WallSeamTest, ATeeEndsTheBranchOnTheFaceItLeavesToward) {
   EXPECT_EQ(south->line, SeamLine(0, 1, 0));
 }
 
+TEST(WallSeamTest, WallsRunThroughANodeOppositeWaysAlongOneLineThickenedAlike) {
+  const PlanWall east = Wall({10, 0}, {0, 2});
+
+  EXPECT_TRUE(RunsThrough(east, Wall({-7, 0}, {0, 2})));
+  EXPECT_FALSE(RunsThrough(east, Wall({-7, 0}, {0, -2}))) << "thickened the other way";
+  EXPECT_FALSE(RunsThrough(east, Wall({7, 0}, {0, 2}))) << "the same way";
+  EXPECT_FALSE(RunsThrough(east, Wall({0, 7}, {2, 0}))) << "across";
+}
+
 TEST(WallSeamTest, ATeeBranchMustLeaveTheLineAndKeepACell) {
   const PlanWall through = Wall({10, 0}, {0, 2});
 
