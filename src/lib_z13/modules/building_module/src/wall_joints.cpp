@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <primitives/wall_bend.h>
+#include <primitives/wall_opening.h>
 #include <primitives/wall_panel.h>
 
 namespace z13::building {
@@ -143,6 +144,15 @@ std::expected<std::vector<z13::station::Block>, std::string> JointPanels(
     const JointWall& wall, const WallJoints& joints, const z13::building::primitives::Palette& palette) {
   if (z13::building::primitives::IsBent(wall.geometry)) {
     return z13::building::primitives::WallPanelBlocks(wall.geometry, palette);
+  }
+  if (!wall.openings.empty()) {
+    const auto ends = joints.ends.find(wall.id);
+    if (ends != joints.ends.end()) {
+      if (auto cut = z13::building::primitives::OpeningPanels(wall.geometry, ends->second, wall.openings, palette)) {
+        return cut;
+      }
+    }
+    return z13::building::primitives::OpeningPanels(wall.geometry, {}, wall.openings, palette);
   }
   auto panel = JointPanel(wall, joints, palette);
   if (!panel) {

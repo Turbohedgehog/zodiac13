@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <format>
+#include <string>
 #include <vector>
 
 #include <z13/components/block.h>
@@ -84,6 +85,28 @@ Status CheckWallFits(flecs::world world, const z13::building::primitives::WallGe
       if (const Status fits = ValidateBuild(panel, view, z13::station::BrushPreview::Kind::kBuild, replaced); !fits) {
         return fits;
       }
+    }
+  }
+  return {};
+}
+
+Status CheckOpeningFits(flecs::world world, const z13::station::WallOpening& opening, const BuildView& view) {
+  const std::vector<JointWall> walls = JointWallsOf(world);
+  const auto found = std::ranges::find(walls, opening.segment_id, &JointWall::id);
+  if (found == walls.end()) {
+    return std::unexpected(std::string {"the opening's wall is gone"});
+  }
+  JointWall wall = *found;
+  wall.openings.push_back(opening);
+  const WallJoints joints = SolveJoints(walls, view.tuning.get().wall_joint_max_reach_cells);
+  const auto panels = JointPanels(wall, joints, view.palette);
+  if (!panels) {
+    return std::unexpected(panels.error());
+  }
+  const std::vector<grid::BlockId> replaced = PanelsOf(world, {wall});
+  for (const z13::station::Block& panel : *panels) {
+    if (const Status fits = ValidateBuild(panel, view, z13::station::BrushPreview::Kind::kBuild, replaced); !fits) {
+      return fits;
     }
   }
   return {};

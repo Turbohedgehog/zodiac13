@@ -38,6 +38,7 @@ struct IdCounters {
   uint32_t last_block_id {};
   uint32_t last_wall_node_id {};
   uint32_t last_wall_segment_id {};
+  uint32_t last_wall_opening_id {};
   uint32_t last_item_id {};
 };
 

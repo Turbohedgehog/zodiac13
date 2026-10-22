@@ -28,8 +28,9 @@ using z13::building::primitives::Primitive;
 using z13::building::primitives::PrimitiveFlags;
 using z13::building::primitives::ShapeKind;
 
-// The thin axis of every door and window is the primitive's own Y.
+// The thin axis of every door and window is the primitive's own Y, of a panel its Z.
 constexpr int kThicknessAxis = 1;
+constexpr int kPanelThicknessAxis = 2;
 
 CellBox InPrimitiveFrame(const Block& block, const Primitive& primitive, bool door_gap) {
   const Eigen::Vector3i size = block.spec.size;
@@ -58,9 +59,13 @@ std::optional<PortalSource> PortalOf(const Block& block, const Primitive& primit
   if (!door && !transparent) {
     return std::nullopt;
   }
+  const bool panel = primitive.shape.kind == ShapeKind::kPanel;
+  if (panel && (block.spec.slant != 0 || block.spec.HasCorners() || block.spec.HasFaceCuts())) {
+    return std::nullopt;
+  }
   const CellPose pose = z13::building::primitives::PoseOf(block);
   Eigen::Index axis {};
-  pose.rotation.col(kThicknessAxis).cwiseAbs().maxCoeff(&axis);
+  pose.rotation.col(panel ? kPanelThicknessAxis : kThicknessAxis).cwiseAbs().maxCoeff(&axis);
   return PortalSource {
       .opening = InWorld(InPrimitiveFrame(block, primitive, door), pose),
       .axis = static_cast<Axis>(axis),

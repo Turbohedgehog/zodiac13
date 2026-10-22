@@ -44,6 +44,7 @@ set(
   src/lib_z13/primitives/cut_test.cpp
   src/lib_z13/primitives/triangle_panel_test.cpp
   src/lib_z13/primitives/wall_bend_test.cpp
+  src/lib_z13/primitives/wall_opening_test.cpp
   src/lib_z13/primitives/wall_panel_block_test.cpp
   src/lib_z13/primitives/wall_seam_test.cpp
   src/lib_z13/primitives/draw_order_test.cpp
@@ -55,6 +56,7 @@ set(
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/openings_test.cpp
+  src/lib_z13/rooms/portal_source_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
   src/lib_z13/rooms/room_changes_test.cpp

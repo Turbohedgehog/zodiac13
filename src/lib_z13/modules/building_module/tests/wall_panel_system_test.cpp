@@ -336,5 +336,81 @@ TEST(WallPanelSystemTest, ADestroyedWallLeavesTheOtherSquareCutAgain) {
   EXPECT_FALSE(panels.front().spec.HasCorners());
 }
 
+// kFrom to kTo is 8 steps; the opening is in the middle of it.
+void AddOpening(Z13TestWorld& test_world, uint32_t segment_id, z13::station::OpeningKind kind, int sill, int height) {
+  flecs::world world = test_world.World();
+  SpawnWallOpening(world, world.get_mut<z13::gameplay::IdCounters>(),
+                   {.segment_id = segment_id, .kind = kind, .offset = 3, .width = 2, .sill = sill, .height = height});
+}
+
+TEST(WallPanelSystemTest, ADoorSplitsThePanelAroundItsGap) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddWall(test_world, kFrom, kTo);
+  test_world.Tick();
+  ASSERT_EQ(Panels(test_world.World()).size(), 1u);
+
+  AddOpening(test_world, segment.get<WallSegment>().id, z13::station::OpeningKind::kDoor, 0, 5);
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_EQ(Panels(test_world.World()).size(), 3u);
+}
+
+TEST(WallPanelSystemTest, AWindowHasAPaneOfGlass) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddWall(test_world, kFrom, kTo);
+  AddOpening(test_world, segment.get<WallSegment>().id, z13::station::OpeningKind::kWindow, 2, 3);
+  test_world.Tick();
+  test_world.Tick();
+
+  const std::vector<Block> panels = Panels(test_world.World());
+  EXPECT_EQ(panels.size(), 5u);
+  EXPECT_EQ(std::ranges::count(panels, z13::station::kGlassPanelPrimitiveId,
+                               [](const Block& block) { return block.spec.type_id; }),
+            1);
+}
+
+TEST(WallPanelSystemTest, AnOpeningTheWallCannotHoldLeavesItWithoutPanels) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddWall(test_world, kFrom, kTo);
+  AddOpening(test_world, segment.get<WallSegment>().id, z13::station::OpeningKind::kDoor, 0, kStickLength);
+  test_world.Tick();
+  test_world.Tick();
+
+  EXPECT_TRUE(Panels(test_world.World()).empty());
+}
+
+TEST(WallPanelSystemTest, RemovingASegmentRemovesItsOpenings) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddWall(test_world, kFrom, kTo);
+  AddOpening(test_world, segment.get<WallSegment>().id, z13::station::OpeningKind::kDoor, 0, 5);
+  test_world.Tick();
+  ASSERT_EQ(test_world.World().count<z13::station::WallOpening>(), 1);
+
+  DestroyWallSegment(test_world.World(), segment.get<WallSegment>().id);
+  test_world.Tick();
+
+  EXPECT_EQ(test_world.World().count<z13::station::WallOpening>(), 0);
+  EXPECT_TRUE(Panels(test_world.World()).empty());
+}
+
+TEST(WallPanelSystemTest, AWallWithADoorSurvivesSaveAndLoad) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity segment = AddWall(test_world, kFrom, kTo);
+  AddOpening(test_world, segment.get<WallSegment>().id, z13::station::OpeningKind::kDoor, 0, 5);
+  test_world.Tick();
+  const auto snapshot = z13::flecs_tools::CaptureState(test_world.World());
+  ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+
+  Z13TestWorld loaded = StationWorld();
+  ASSERT_TRUE(z13::flecs_tools::RestoreWorld(loaded.World(), *snapshot).has_value());
+  loaded.Tick();
+  loaded.Tick();
+
+  EXPECT_EQ(loaded.World().count<z13::station::WallOpening>(), 1);
+  EXPECT_EQ(Panels(loaded.World()), Panels(test_world.World()));
+  EXPECT_EQ(Panels(loaded.World()).size(), 3u);
+}
+
 }  // namespace
 }  // namespace z13::building

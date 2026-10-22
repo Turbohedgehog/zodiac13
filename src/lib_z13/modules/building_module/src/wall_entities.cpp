@@ -45,6 +45,10 @@ std::string SegmentName(uint32_t id) {
   return std::format("WallSegment_{}", id);
 }
 
+std::string OpeningName(uint32_t id) {
+  return std::format("WallOpening_{}", id);
+}
+
 bool UsesNode(flecs::world world, uint32_t node_id, uint32_t except_segment) {
   bool used = false;
   world.query<const WallSegment>().each([&](const WallSegment& segment) {
@@ -93,7 +97,9 @@ flecs::entity SpawnWall(
                                        .diagonal = wall.diagonal});
 }
 
-JointWall JointWallOf(const WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b) {
+JointWall JointWallOf(
+    const WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b,
+    std::vector<z13::station::WallOpening> openings) {
   return {.id = segment.id,
           .node_a = segment.node_a,
           .node_b = segment.node_b,
@@ -102,7 +108,26 @@ JointWall JointWallOf(const WallSegment& segment, const Eigen::Vector3i& cell_a,
                        .stick_a = segment.stick_a,
                        .stick_b = segment.stick_b,
                        .thickness = segment.thickness,
-                       .diagonal = segment.diagonal}};
+                       .diagonal = segment.diagonal},
+          .openings = std::move(openings)};
+}
+
+flecs::entity SpawnWallOpening(
+    flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallOpening& opening) {
+  z13::station::WallOpening made = opening;
+  made.id = ++counters.last_wall_opening_id;
+  return world.entity(OpeningName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
+}
+
+std::vector<z13::station::WallOpening> OpeningsOf(flecs::world world, uint32_t segment_id) {
+  std::vector<z13::station::WallOpening> openings;
+  world.query<const z13::station::WallOpening>().each([&](const z13::station::WallOpening& opening) {
+    if (opening.segment_id == segment_id) {
+      openings.push_back(opening);
+    }
+  });
+  std::ranges::sort(openings, {}, &z13::station::WallOpening::id);
+  return openings;
 }
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {
@@ -116,15 +141,21 @@ std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id) {
 std::vector<JointWall> JointWallsOf(flecs::world world) {
   std::map<uint32_t, Eigen::Vector3i> cells;
   world.query<const WallNode>().each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
+  std::map<uint32_t, std::vector<z13::station::WallOpening>> openings;
+  world.query<const z13::station::WallOpening>().each(
+      [&openings](const z13::station::WallOpening& opening) { openings[opening.segment_id].push_back(opening); });
   std::vector<JointWall> walls;
   world.query<const WallSegment>().each([&](const WallSegment& segment) {
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
     if (a != cells.end() && b != cells.end()) {
-      walls.push_back(JointWallOf(segment, a->second, b->second));
+      walls.push_back(JointWallOf(segment, a->second, b->second, openings[segment.id]));
     }
   });
   std::ranges::sort(walls, {}, &JointWall::id);
+  for (JointWall& wall : walls) {
+    std::ranges::sort(wall.openings, {}, &z13::station::WallOpening::id);
+  }
   return walls;
 }
 
@@ -157,6 +188,16 @@ void DestroyWallSegment(flecs::world world, uint32_t segment_id) {
     return;
   }
   const WallSegment gone = segment->get<WallSegment>();
+  std::vector<flecs::entity> openings;
+  world.query<const z13::station::WallOpening>().each(
+      [&](flecs::entity entity, const z13::station::WallOpening& opening) {
+        if (opening.segment_id == segment_id) {
+          openings.push_back(entity);
+        }
+      });
+  for (const flecs::entity opening : openings) {
+    opening.destruct();
+  }
   segment->destruct();
   for (const uint32_t node_id : {gone.node_a, gone.node_b}) {
     if (const auto node = FindWallNode(world, node_id); node && !UsesNode(world, node_id, gone.id)) {

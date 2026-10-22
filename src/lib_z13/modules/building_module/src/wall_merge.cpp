@@ -114,11 +114,19 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
     if (!Touches(segment, first) && !Touches(segment, second)) {
       const auto from = cells.find(segment.node_a);
       const auto to = cells.find(segment.node_b);
-      if (segment.stick_a != segment.stick_b && from != cells.end() && to != cells.end() &&
-          OnLine(segment, from->second, to->second, merge.cell)) {
+      if (from == cells.end() || to == cells.end() || !OnLine(segment, from->second, to->second, merge.cell)) {
+        continue;
+      }
+      if (segment.stick_a != segment.stick_b) {
         return std::unexpected(std::string {"a wall with unequal sticks can't be divided"});
       }
+      if (!OpeningsOf(world, segment.id).empty()) {
+        return std::unexpected(std::string {"a wall with openings can't be divided"});
+      }
       continue;
+    }
+    if (!OpeningsOf(world, segment.id).empty()) {
+      return std::unexpected(std::string {"a wall with openings can't be moved by a merge"});
     }
     if (Touches(segment, first) && Touches(segment, second)) {
       return std::unexpected(std::string {"a wall joins the two nodes"});

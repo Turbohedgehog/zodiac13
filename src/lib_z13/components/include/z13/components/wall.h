@@ -91,6 +91,22 @@ struct WallBridgeDraft {
   bool flipped {};
 };
 
+// A door's opening reaches the floor; a window's holds a pane of glass.
+enum class OpeningKind : uint8_t { kDoor, kWindow };
+
+// A gap in a segment's panel: `offset` and `width` in WallSteps from node a, `sill` and `height`
+// in cells up the stick.
+struct WallOpening {
+  using State = void;
+  uint32_t id {};
+  uint32_t segment_id {};
+  OpeningKind kind {};
+  int offset {};
+  int width {};
+  int sill {};
+  int height {};
+};
+
 // Marks a block derived from a segment (`part` of its one or two); the segment owns it
 // (WallPanelSystem).
 struct WallPanelOf {

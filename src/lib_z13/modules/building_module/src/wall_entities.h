@@ -47,9 +47,17 @@ uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, con
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id);
 std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id);
 
-// The wall of `segment` with its nodes at `cell_a` and `cell_b`.
+// The wall of `segment` with its nodes at `cell_a` and `cell_b`, and its openings.
 JointWall JointWallOf(
-    const z13::station::WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b);
+    const z13::station::WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b,
+    std::vector<z13::station::WallOpening> openings = {});
+
+// An opening in a segment, named by the next id of `counters`.
+flecs::entity SpawnWallOpening(
+    flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallOpening& opening);
+
+// The openings of a segment, by id.
+std::vector<z13::station::WallOpening> OpeningsOf(flecs::world world, uint32_t segment_id);
 
 // Every segment with its nodes' cells, in segment id order.
 std::vector<JointWall> JointWallsOf(flecs::world world);
@@ -58,7 +66,7 @@ std::vector<JointWall> JointWallsOf(flecs::world world);
 // wall that is not spawned yet, above all existing ones).
 std::vector<JointWall> JointWallsWith(flecs::world world, const z13::building::primitives::WallGeometry& wall);
 
-// Removes a segment, and the nodes no other segment uses.
+// Removes a segment with its openings, and the nodes no other segment uses.
 void DestroyWallSegment(flecs::world world, uint32_t segment_id);
 
 }  // namespace z13::building

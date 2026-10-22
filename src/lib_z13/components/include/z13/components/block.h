@@ -33,6 +33,9 @@ inline constexpr int kCubeEdgeCells = 2;
 // The wall panel (assets/station/palette.json): a parallelogram prism of any direction.
 inline constexpr uint32_t kPanelPrimitiveId = 12;
 
+// The pane of a wall's window (assets/station/palette.json): a transparent Panel.
+inline constexpr uint32_t kGlassPanelPrimitiveId = 30;
+
 // The 24 turns that map the grid onto itself, named by where the primitive's +X faces and
 // where its +Z points. The identity comes first.
 enum class Orientation : uint8_t {

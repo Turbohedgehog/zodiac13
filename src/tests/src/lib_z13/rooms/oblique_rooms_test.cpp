@@ -20,6 +20,7 @@
 #include <z13_tests/shipped_station.h>
 
 #include <primitives/occupancy.h>
+#include <primitives/wall_opening.h>
 #include <rooms/room_builder.h>
 
 namespace z13::station::rooms {
@@ -107,6 +108,45 @@ TEST(ObliqueRoomsTest, AWallSealsItsBox) {
 
   ASSERT_EQ(boxes.size(), 1U);
   EXPECT_EQ(boxes[0], (CellBox {.min = {1, 2, 3}, .extent = {8, 1, 8}}));
+}
+
+// A wall across the middle of the room with an opening in it, from the pieces OpeningPanels cuts.
+RoomSources WallWithOpening(const z13::station::WallOpening& opening) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const z13::building::primitives::WallGeometry wall {
+      .node_a = {5, 1, 1}, .node_b = {5, 1 + kSide, 1}, .stick_a = {z13::station::WallAxis::kZ, kHeight},
+      .stick_b = {z13::station::WallAxis::kZ, kHeight}, .thickness = 1};
+  RoomSources sources {.sealed = Shell()};
+  const auto blocks = z13::building::primitives::OpeningPanels(wall, {}, {{opening}}, palette).value();
+  for (const z13::station::Block& block : blocks) {
+    const auto sealed = SealedBoxes(block, palette);
+    sources.sealed.insert(sources.sealed.end(), sealed.begin(), sealed.end());
+    if (const auto portal = PortalOf(block, palette.Find(block.spec.type_id).value())) {
+      sources.portals.push_back(*portal);
+    }
+  }
+  return sources;
+}
+
+TEST(ObliqueRoomsTest, ADoorInAWallJoinsTheRoomsOnItsTwoSides) {
+  const RoomGraph graph = BuildRooms(WallWithOpening({.kind = z13::station::OpeningKind::kDoor, .offset = 4,
+                                                      .width = 3, .height = 4})).value();
+
+  ASSERT_EQ(graph.rooms.size(), 3U);
+  ASSERT_EQ(graph.portals.size(), 1U);
+  EXPECT_EQ(graph.portals.front().area_cells, 3 * 4);
+  EXPECT_NE(graph.RoomAt({2, 5, 3}), graph.RoomAt({8, 5, 3}));
+}
+
+TEST(ObliqueRoomsTest, AWindowInAWallSeesThroughButKeepsTheRoomsApart) {
+  const RoomGraph graph = BuildRooms(WallWithOpening({.kind = z13::station::OpeningKind::kWindow, .offset = 4,
+                                                      .width = 3, .sill = 1, .height = 2})).value();
+
+  ASSERT_EQ(graph.rooms.size(), 3U);
+  ASSERT_EQ(graph.portals.size(), 1U);
+  EXPECT_EQ(graph.portals.front().area_cells, 3 * 2);
+  EXPECT_TRUE(graph.portals.front().visible);
+  EXPECT_FALSE(graph.portals.front().passable);
 }
 
 }  // namespace

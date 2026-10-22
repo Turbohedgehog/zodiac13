@@ -171,6 +171,30 @@ TEST(WallMergeTest, ANodeOnAWallDividesIt) {
   EXPECT_EQ(test_world.World().count<WallPanelOf>(), 4);
 }
 
+void AddDoor(Z13TestWorld& test_world, uint32_t segment_id) {
+  flecs::world world = test_world.World();
+  SpawnWallOpening(world, world.get_mut<z13::gameplay::IdCounters>(),
+                   {.segment_id = segment_id, .kind = z13::station::OpeningKind::kDoor, .offset = 3, .width = 2,
+                    .height = 4});
+}
+
+TEST(WallMergeTest, AWallWithAnOpeningIsNeitherMovedNorDividedByAMerge) {
+  Z13TestWorld test_world = StationWorld();
+  const uint32_t p = AddNode(test_world, {0, 0, 0});
+  const uint32_t q = AddNode(test_world, {20, 0, 0});
+  AddWall(test_world, p, q);
+  AddDoor(test_world, 1);
+  const uint32_t x = AddNode(test_world, {8, 3, 0});
+  const uint32_t y = AddNode(test_world, {12, -3, 0});
+  const uint32_t x_far = AddNode(test_world, {8, 10, 0});
+  AddWall(test_world, x, x_far);
+  const uint32_t elsewhere = AddNode(test_world, kElsewhere);
+
+  EXPECT_FALSE(Merge(test_world, x, y, MergeAt::kCenter).has_value()) << "divides the wall with the door";
+  EXPECT_FALSE(Merge(test_world, p, elsewhere, MergeAt::kCenter).has_value()) << "moves it";
+  EXPECT_TRUE(Merge(test_world, x_far, elsewhere, MergeAt::kCenter).has_value());
+}
+
 TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
