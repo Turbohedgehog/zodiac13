@@ -18,6 +18,7 @@
 | `station-primitives-plan.md` | block primitives, palette, test stations, load measurements | stages 0-7 done; "Замеры нагрузки", snapshot step (в) open |
 | `station-systems-plan.md` | rooms, render culling, lights, gas, power, doors, gravity, thread pool | "Порядок работ" (20 stages, many done), dependency line, "Открытые вопросы" |
 | `performance-research-plan.md` | long operations, profiling tools, load agents | table "Долгие операции", "Решения под вопросом", stages `f/profiling-tools` → `f/perf-baseline` |
+| `frame-time-plan.md` | why a frame is slow (19 fps at one spot on Windows Release) and how to see it: frame breakdown in the overlay, toggles, a headless simulation bench for PRoot | "Порядок работ", "Замеры" |
 | `multi-grid-plan.md` | several grids (asteroids, rotated builds) | stages `f/grid-model` ... `f/grid-docking`; planned before `f/utility-contract` |
 | `oblique-walls-plan.md` | oblique walls and space partition | stages 0-1 done (partition bench, incremental rooms) |
 | `skew-station-plan.md` | the `shard` station: a small fragment of the future big station, with walls at different angles; grows with the oblique-walls stages | zones table, "Порядок работ" |
