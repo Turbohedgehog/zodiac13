@@ -61,6 +61,7 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kThinner, z13::fbs::input::Keycode::TOUCH_THINNER, "-"},
     TouchButton {TouchControl::kMergeAt, z13::fbs::input::Keycode::TOUCH_MERGE_AT, "Pin"},
     TouchButton {TouchControl::kFlipDiagonal, z13::fbs::input::Keycode::TOUCH_FLIP_DIAGONAL, "Flip"},
+    TouchButton {TouchControl::kBend, z13::fbs::input::Keycode::TOUCH_BEND, "Bend"},
     TouchButton {TouchControl::kDestroy, z13::fbs::input::Keycode::TOUCH_DESTROY, "X"},
 };
 
@@ -70,7 +71,8 @@ constexpr std::array kToolButtons = {TouchControl::kToolMode, TouchControl::kPri
 // The panel of each layer, left to right from the layout's tool_panel_x/y.
 constexpr std::array kBlockPanel = {TouchControl::kPreviousPrimitive, TouchControl::kNextPrimitive,
                                     TouchControl::kTurnZ, TouchControl::kTurnY, TouchControl::kTurnX};
-constexpr std::array kWallPanel = {TouchControl::kThicker, TouchControl::kThinner};
+constexpr std::array kWallPanel = {TouchControl::kThicker, TouchControl::kThinner, TouchControl::kBend,
+                                   TouchControl::kFlipDiagonal};
 constexpr std::array kMergePanel = {TouchControl::kMergeAt};
 constexpr std::array kBridgePanel = {TouchControl::kThicker, TouchControl::kThinner, TouchControl::kFlipDiagonal};
 

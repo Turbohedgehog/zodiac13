@@ -45,6 +45,7 @@ struct BuildActionIds {
   std::optional<IdType> thicker_wall;
   std::optional<IdType> thinner_wall;
   std::optional<IdType> flip_diagonal;
+  std::optional<IdType> bend_wall;
 };
 
 // Whether the action went down this frame; false for an action the config lacks.

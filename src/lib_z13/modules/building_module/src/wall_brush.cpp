@@ -80,10 +80,22 @@ std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick&
   return {Line(from, to), Line(middle, tip), Line(tip, tip - back + along), Line(tip, tip - back - along)};
 }
 
+BrushLine StickLine(const Eigen::Vector3i& node, WallAxis axis, int length) {
+  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(axis)) * static_cast<float>(length);
+  return Line(node.cast<float>(), node.cast<float>() + along);
+}
+
 std::vector<BrushLine> HeightLines(const WallDraft& draft, int length) {
-  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(draft.stick_axis)) * static_cast<float>(length);
-  return {Line(draft.first.cast<float>(), draft.first.cast<float>() + along),
-          Line(draft.second.cast<float>(), draft.second.cast<float>() + along)};
+  return {StickLine(draft.first, draft.stick_axis, length), StickLine(draft.second, draft.stick_axis, length)};
+}
+
+// The first node's stick, and the second's where the fourth click would put it.
+std::vector<BrushLine> TipLines(const WallDraft& draft, const std::optional<z13::station::WallStick>& tip) {
+  std::vector<BrushLine> lines {StickLine(draft.first, draft.stick_axis, draft.stick_length)};
+  if (tip) {
+    lines.push_back(StickLine(draft.second, tip->axis, tip->length));
+  }
+  return lines;
 }
 
 // The axis of the face the aim rests on, when that face lies in the plane through `first`.
@@ -223,6 +235,19 @@ std::optional<int> PickHeight(
   return length != 0 ? std::optional(length) : std::nullopt;
 }
 
+std::optional<z13::station::WallStick> PickTip(
+    const Aim& aim, const Eigen::Vector3i& second, std::span<const Eigen::Vector3i> anchors,
+    const WallPicking& picking) {
+  const auto pick = PickStick(aim, second, anchors, picking);
+  if (!pick) {
+    return std::nullopt;
+  }
+  const Eigen::Vector3i offset = pick->point - second;
+  Eigen::Index axis = 0;
+  offset.cwiseAbs().maxCoeff(&axis);
+  return z13::station::WallStick {.axis = static_cast<WallAxis>(axis), .length = offset[axis]};
+}
+
 std::expected<WallClick, std::string> ClickWall(
     const std::optional<WallDraft>& draft, const Aim& aim, std::span<const Eigen::Vector3i> anchors,
     const WallPicking& picking, int thickness) {
@@ -242,14 +267,36 @@ std::expected<WallClick, std::string> ClickWall(
     next.stick_axis = stick->axis;
     return WallClick {.draft = next};
   }
-  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
-  if (!length) {
-    return std::unexpected(std::string {"the view ray finds no length along the axis"});
+  if (draft->stage == WallDraft::Stage::kHeight) {
+    const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
+    if (!length) {
+      return std::unexpected(std::string {"the view ray finds no length along the axis"});
+    }
+    if (draft->bent) {
+      WallDraft next = *draft;
+      next.stage = WallDraft::Stage::kTip;
+      next.stick_length = *length;
+      return WallClick {.draft = next};
+    }
+    return WallClick {.wall = WallGeometry {
+                          .node_a = draft->first, .node_b = draft->second,
+                          .stick_a = {.axis = draft->stick_axis, .length = *length},
+                          .stick_b = {.axis = draft->stick_axis, .length = *length}, .thickness = thickness}};
   }
-  return WallClick {.wall = WallGeometry {
-                        .node_a = draft->first, .node_b = draft->second,
-                        .stick_a = {.axis = draft->stick_axis, .length = *length},
-                        .stick_b = {.axis = draft->stick_axis, .length = *length}, .thickness = thickness}};
+  const auto tip = PickTip(aim, draft->second, anchors, picking);
+  if (!tip) {
+    return std::unexpected(std::string {"the view ray meets no plane through the second point, or the stick is empty"});
+  }
+  WallGeometry wall {.node_a = draft->first, .node_b = draft->second,
+                     .stick_a = {.axis = draft->stick_axis, .length = draft->stick_length}, .stick_b = *tip,
+                     .thickness = thickness};
+  if (z13::building::primitives::IsBent(wall)) {
+    wall.diagonal = z13::building::primitives::DefaultDiagonal(wall);
+    if (draft->flipped) {
+      wall.diagonal = z13::building::primitives::Flipped(wall.diagonal);
+    }
+  }
+  return WallClick {.wall = wall};
 }
 
 std::expected<FacedWall, std::string> FacingEye(
@@ -298,20 +345,33 @@ WallPreview PreviewWall(
     }
     return {.block = CellMarker(stick->point), .lines = StickLines(draft->first, *stick, aim.eye), .makeable = true};
   }
-  const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
-  if (!length) {
-    return {.block = CellMarker(draft->second), .makeable = false};
+  std::vector<BrushLine> lines;
+  if (draft->stage == WallDraft::Stage::kHeight) {
+    const auto length = PickHeight(aim, draft->first, draft->second, draft->stick_axis, anchors, picking);
+    if (!length) {
+      return {.block = CellMarker(draft->second), .makeable = false};
+    }
+    lines = HeightLines(*draft, *length);
+  } else {
+    const auto tip = PickTip(aim, draft->second, anchors, picking);
+    lines = TipLines(*draft, tip);
+    if (!tip) {
+      return {.block = CellMarker(draft->second), .lines = lines, .makeable = false};
+    }
   }
   const auto click = ClickWall(draft, aim, anchors, picking, thickness);
+  if (click && click->draft) {
+    return {.block = CellMarker(draft->second), .lines = lines, .makeable = true};
+  }
   if (const auto faced = click && click->wall ? FacingEye(*click->wall, aim.eye, palette)
                                               : std::unexpected(std::string {"no wall"})) {
     return {.block = faced->blocks.front(),
             .parts = {faced->blocks.begin() + 1, faced->blocks.end()},
-            .lines = HeightLines(*draft, *length),
+            .lines = lines,
             .makeable = true,
             .wall = faced->wall};
   }
-  return {.block = CellMarker(draft->second), .lines = HeightLines(*draft, *length), .makeable = false};
+  return {.block = CellMarker(draft->second), .lines = lines, .makeable = false};
 }
 
 }  // namespace z13::building

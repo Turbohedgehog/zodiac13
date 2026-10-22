@@ -59,8 +59,10 @@ enum Action : int16 (action, action_group: "Building") {
 enum WallAction : int16 (action, action_group: "BuildingWall") {
   THICKER_WALL (display_text: "Thicker wall", default_keycodes: "MOUSE_WHEEL_UP TOUCH_THICKER TOUCH_MERGE_AT"),
   THINNER_WALL (display_text: "Thinner wall", default_keycodes: "MOUSE_WHEEL_DOWN TOUCH_THINNER"),
-  // With a bridge in the making: the bent wall takes the other diagonal.
+  // With a bridge or wall in the making: the bent wall takes the other diagonal.
   FLIP_DIAGONAL (display_text: "Flip the wall's diagonal", default_keycodes: "KEY_T TOUCH_FLIP_DIAGONAL"),
+  // With a wall in the making: a fourth click sets the stick at its second node, so the wall bends.
+  BEND_WALL (display_text: "Bend the wall", default_keycodes: "KEY_C TOUCH_BEND"),
 }
 
 root_type Block;

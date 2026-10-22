@@ -71,7 +71,14 @@ std::optional<int> PickHeight(
     const Aim& aim, const Eigen::Vector3i& first, const Eigen::Vector3i& second, z13::station::WallAxis axis,
     std::span<const Eigen::Vector3i> anchors, const WallPicking& picking);
 
-// What a click makes of the draft: the next draft, or with the third click the wall (its
+// The stick of a bent wall's second node: the plane through `second` is chosen as PickStick
+// chooses, and the stick runs along the axis the picked point is furthest from `second` on.
+// Nothing where PickStick finds none.
+std::optional<z13::station::WallStick> PickTip(
+    const Aim& aim, const Eigen::Vector3i& second, std::span<const Eigen::Vector3i> anchors,
+    const WallPicking& picking);
+
+// What a click makes of the draft: the next draft, or with the last click the wall (its
 // thickness unsigned until FacingEye).
 struct WallClick {
   std::optional<z13::station::WallDraft> draft;

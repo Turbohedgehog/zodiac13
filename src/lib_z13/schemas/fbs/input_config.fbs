@@ -179,6 +179,7 @@ enum Keycode : int16 {
   TOUCH_THINNER (display_text: "Touch thinner wall"),
   TOUCH_MERGE_AT (display_text: "Touch merge target"),
   TOUCH_FLIP_DIAGONAL (display_text: "Touch flip the wall's diagonal"),
+  TOUCH_BEND (display_text: "Touch bend the wall"),
   TOUCH_DESTROY (display_text: "Touch destroy or cancel"),
 }
 

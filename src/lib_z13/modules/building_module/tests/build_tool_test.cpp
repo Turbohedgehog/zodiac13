@@ -298,6 +298,39 @@ TEST(BuildToolTest, TheFlipButtonTurnsTheBridgesDiagonalOnlyWithABridgeInTheMaki
   EXPECT_FALSE(player.get<z13::station::WallBridgeDraft>().flipped);
 }
 
+TEST(BuildToolTest, TheBendAndFlipButtonsTurnAWallInTheMakingOnly) {
+  using z13::station::WallDraft;
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+
+  TapButton(test_world, z13::input::TouchControl::kBend);
+  EXPECT_FALSE(player.has<WallDraft>());
+
+  player.set(WallDraft {.stage = WallDraft::Stage::kHeight});
+  TapButton(test_world, z13::input::TouchControl::kBend);
+  EXPECT_TRUE(player.get<WallDraft>().bent);
+  TapButton(test_world, z13::input::TouchControl::kFlipDiagonal);
+  EXPECT_TRUE(player.get<WallDraft>().flipped);
+  TapButton(test_world, z13::input::TouchControl::kFlipDiagonal);
+  EXPECT_FALSE(player.get<WallDraft>().flipped);
+}
+
+TEST(BuildToolTest, TakingTheBendBackAtTheTipStageGoesBackToTheHeight) {
+  using z13::station::WallDraft;
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity player = LocalBuilder(test_world);
+  BuildToolOf(player).get_mut<BuildTool>().mode = ToolMode::kWall;
+  test_world.Tick();
+  player.set(WallDraft {.stage = WallDraft::Stage::kTip, .bent = true});
+
+  TapButton(test_world, z13::input::TouchControl::kBend);
+
+  EXPECT_FALSE(player.get<WallDraft>().bent);
+  EXPECT_EQ(player.get<WallDraft>().stage, WallDraft::Stage::kHeight);
+}
+
 TEST(BuildToolTest, TheDestroyButtonDropsAWallInTheMakingElseDestroys) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity player = LocalBuilder(test_world);
