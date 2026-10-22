@@ -18,6 +18,7 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/occupancy.h>
 #include <rooms/portal_source.h>
 #include <z13/components/block.h>
 #include <z13_tests/shipped_station.h>
@@ -25,37 +26,51 @@
 namespace z13::station::rooms {
 namespace {
 
+using z13::building::primitives::CellBox;
+
 const z13::building::primitives::Palette& ShippedPalette() {
   static const z13::building::primitives::Palette palette = z13::testing::ShippedPalette().value();
   return palette;
 }
 
-std::optional<PortalSource> PortalOfGlass(const Block& block) {
-  return PortalOf(block, ShippedPalette().Find(block.spec.type_id).value());
+std::vector<PortalSource> PortalsOfBlock(const Block& block) {
+  return PortalsOf(block, ShippedPalette().Find(block.spec.type_id).value(), ShippedPalette());
 }
 
 Block Glass(const Eigen::Vector3i& size, int slant) {
   return {.spec = {.type_id = kGlassPanelPrimitiveId, .size = size, .slant = slant}, .cell = {2, 3, 4}};
 }
 
-TEST(PortalSourceTest, APaneSquareToTheGridIsAVisiblePortalAcrossItsThickness) {
-  const std::optional<PortalSource> portal = PortalOfGlass(Glass({4, 6, 1}, 0));
+TEST(PortalSourceTest, APaneSquareToTheGridIsOneVisiblePortalAcrossItsThickness) {
+  const std::vector<PortalSource> portals = PortalsOfBlock(Glass({4, 6, 1}, 0));
 
-  ASSERT_TRUE(portal.has_value());
-  EXPECT_EQ(portal->opening, (z13::building::primitives::CellBox {.min = {2, 3, 4}, .extent = {4, 6, 1}}));
-  EXPECT_EQ(portal->axis, Axis::kZ);
-  EXPECT_TRUE(portal->visible);
-  EXPECT_FALSE(portal->passable);
+  ASSERT_EQ(portals.size(), 1U);
+  EXPECT_EQ(portals.front().opening, (CellBox {.min = {2, 3, 4}, .extent = {4, 6, 1}}));
+  EXPECT_EQ(portals.front().axis, Axis::kZ);
+  EXPECT_TRUE(portals.front().visible);
+  EXPECT_FALSE(portals.front().passable);
 }
 
-TEST(PortalSourceTest, ASlantedPaneIsNoPortalYet) {
-  EXPECT_FALSE(PortalOfGlass(Glass({4, 6, 3}, 2)).has_value());
+TEST(PortalSourceTest, ASlantedPaneIsAPortalForEachBoxItSealsCrossedAlongItsThickness) {
+  const Block pane = Glass({6, 2, 4}, 3);
+
+  const std::vector<PortalSource> portals = PortalsOfBlock(pane);
+
+  const std::vector<CellBox> sealed = z13::building::primitives::SealedBoxes(pane, ShippedPalette());
+  ASSERT_EQ(portals.size(), sealed.size());
+  ASSERT_GT(portals.size(), 1U);
+  for (size_t i = 0; i < portals.size(); ++i) {
+    EXPECT_EQ(portals[i].opening, sealed[i]);
+    EXPECT_EQ(portals[i].axis, Axis::kZ);
+    EXPECT_TRUE(portals[i].visible);
+    EXPECT_FALSE(portals[i].passable);
+  }
 }
 
 TEST(PortalSourceTest, APlainPanelIsNoPortal) {
   Block panel = Glass({4, 6, 1}, 0);
   panel.spec.type_id = kPanelPrimitiveId;
-  EXPECT_FALSE(PortalOfGlass(panel).has_value());
+  EXPECT_TRUE(PortalsOfBlock(panel).empty());
 }
 
 }  // namespace

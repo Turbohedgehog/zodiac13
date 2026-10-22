@@ -42,6 +42,8 @@ ALLOWED = [
      "empty constants"),
     (r"^z13::(\w+::|\(anonymous namespace\)::)*k[A-Z]\w*$",
      "constexpr constants from our headers and from the .cpp files of static libraries"),
+    (r"enum_constant_to_name.*(6result|::result)$",
+     "flecs' name of an enum constant, a string it works out once per binary for each enum a component holds"),
     (r"::data\(\)::bfbsData$", "binary FlatBuffers schemas embedded by flatc"),
     (r"::\w+\(\) const::bfbs_string$", "a string field's schema default, which flatc's accessor returns: a constant"),
     (r"::__tracy_source_location\d+U?$",

@@ -15,6 +15,7 @@ z13_add_library(
   src/openings.cpp
   src/parallel_for.cpp
   src/portal_source.cpp
+  src/room_sources.cpp
   src/room_builder.cpp
   src/room_cache.cpp
   src/room_changes.cpp

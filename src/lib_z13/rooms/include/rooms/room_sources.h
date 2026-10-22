@@ -19,7 +19,9 @@
 
 #include <vector>
 
+#include <primitives/palette.h>
 #include <primitives/placement.h>
+#include <z13/components/block.h>
 #include <rooms/portal_source.h>
 
 namespace z13::station::rooms {
@@ -30,6 +32,11 @@ struct RoomSources {
   std::vector<z13::building::primitives::CellBox> sealed;
   std::vector<PortalSource> portals;
 };
+
+// Adds the sealed boxes and portals of a sealing block to `sources`; false for a block that
+// seals nothing.
+bool AddBlockSources(
+    const z13::station::Block& block, const z13::building::primitives::Palette& palette, RoomSources& sources);
 
 // Sources added and removed since a graph was built.
 struct RoomSourceEdits {
