@@ -319,7 +319,7 @@ def decor_props(station):
 
 
 def write_decor(path, props, replaces):
-    """One prop per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/decor.fbs)."""
+    """One prop per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/decor.fbs)."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in props]
     path.parent.mkdir(parents=True, exist_ok=True)
     body = ",\n    ".join(lines)

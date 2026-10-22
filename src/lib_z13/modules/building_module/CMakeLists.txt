@@ -3,6 +3,13 @@ project(building_module)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS dll)
 
+# The schema only this module uses; it includes the shared ones.
+z13_generate_schemas(
+  BUILDING_MODULE_SCHEMAS
+  SCHEMAS ${PROJECT_SOURCE_DIR}/fbs/building.fbs
+  INCLUDE ${Z13_SHARED_SCHEMA_DIR}
+)
+
 z13_add_plugin(
   ${PROJECT_NAME} modules/building_module FBS_HEADERS EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
@@ -42,3 +49,7 @@ z13_add_plugin(
   zodiac13::grid
   Boost::dll
 )
+
+add_dependencies(${PROJECT_NAME} GENERATE_BUILDING_MODULE_SCHEMAS)
+target_include_directories(
+  ${PROJECT_NAME} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/BUILDING_MODULE_SCHEMAS>)

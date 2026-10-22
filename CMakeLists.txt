@@ -110,6 +110,7 @@ else()
 endif()
 
 include(cmake/z13_targets.cmake)
+include(cmake/z13_schemas.cmake)
 
 add_subdirectory(src/lib_profile)
 add_subdirectory(src/lib_core)
