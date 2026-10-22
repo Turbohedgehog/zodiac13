@@ -534,7 +534,7 @@ def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
 
 
 def write_blueprint(path, blocks):
-    """One block per line, in FlatBuffers JSON (src/lib_z13/schemas/fbs/blueprint.fbs)."""
+    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs)."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii")
