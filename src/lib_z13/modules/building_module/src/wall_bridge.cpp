@@ -44,6 +44,19 @@ std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id) {
   return sticks;
 }
 
+std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, uint32_t node_id) {
+  const auto cell = WallNodeCell(world, node_id);
+  std::vector<z13::station::BrushLine> lines;
+  if (!cell) {
+    return lines;
+  }
+  for (const WallStick& stick : SticksAt(world, node_id)) {
+    const Eigen::Vector3f along = Eigen::Vector3f::Unit(static_cast<int>(stick.axis)) * static_cast<float>(stick.length);
+    lines.push_back({.from = cell->cast<float>(), .to = cell->cast<float>() + along});
+  }
+  return lines;
+}
+
 std::expected<FacedWall, std::string> PlanBridge(
     flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette, bool flip_diagonal) {

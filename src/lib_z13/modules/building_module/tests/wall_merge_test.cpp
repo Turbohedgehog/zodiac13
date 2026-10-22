@@ -212,6 +212,36 @@ TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
   EXPECT_TRUE(WallNodeCell(test_world.World(), a).has_value());
 }
 
+TEST(WallMergeTest, TheNodePickedFirstStaysMarkedWithItsSticksWhileAimingElsewhere) {
+  Z13TestWorld test_world = StationWorld();
+  const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
+  z13::testing::BuildToolOf(builder).get_mut<BuildTool>().mode = ToolMode::kMerge;
+  test_world.Tick();
+  const auto preview_of = [&] {
+    std::optional<BrushPreview> preview;
+    builder.children([&preview](flecs::entity child) {
+      if (child.has<BrushPreview>()) {
+        preview = child.get<BrushPreview>();
+      }
+    });
+    return preview.value();
+  };
+  const Eigen::Vector3i cell = preview_of().block.cell;
+  AddWall(test_world, AddNode(test_world, cell), AddNode(test_world, cell + Eigen::Vector3i(0, 10, 0)));
+
+  builder.add<RequestBuildBlock>();
+  test_world.Tick();
+  test_world.Tick();
+
+  const BrushPreview preview = preview_of();
+  ASSERT_TRUE(builder.has<WallMergeDraft>());
+  ASSERT_EQ(preview.parts.size(), 1u);
+  EXPECT_EQ(preview.parts.front().cell, cell);
+  ASSERT_FALSE(preview.lines.empty());
+  EXPECT_EQ(preview.lines.front().from, cell.cast<float>());
+  EXPECT_EQ(preview.lines.front().to, (cell + Eigen::Vector3i(0, 0, kStickLength)).cast<float>());
+}
+
 TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));

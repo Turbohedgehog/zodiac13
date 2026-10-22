@@ -81,6 +81,7 @@ using z13::station::Block;
 using z13::station::BlockBrush;
 using z13::station::BlockSpec;
 using z13::station::BrushDrag;
+using z13::station::BrushLine;
 using z13::station::BrushPreview;
 using BuildKind = BrushPreview::Kind;
 using z13::station::BuildPermission;
@@ -486,6 +487,22 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
           .parts = preview.parts};
 }
 
+// What the Merge and Bridge modes show of their nodes: the one picked first as a marker, and the
+// sticks of that one and of the one aimed at.
+void AddNodeMarks(
+    flecs::world world, const std::optional<uint32_t>& first, const std::optional<uint32_t>& hovered,
+    BrushPreview& preview) {
+  for (const std::optional<uint32_t>& node : {first, hovered}) {
+    if (node) {
+      const std::vector<BrushLine> sticks = StickLinesAt(world, *node);
+      preview.lines.insert(preview.lines.end(), sticks.begin(), sticks.end());
+    }
+  }
+  if (const auto cell = first ? WallNodeCell(world, *first) : std::nullopt) {
+    preview.parts.push_back(CellMarker(*cell));
+  }
+}
+
 BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
   flecs::world world = owner.world();
   const std::optional<uint32_t> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
@@ -499,7 +516,9 @@ BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Ai
     valid = plan.has_value();
     shown = plan ? plan->cell : shown;
   }
-  return {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
+  BrushPreview preview {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
+  AddNodeMarks(world, first, hovered, preview);
+  return preview;
 }
 
 BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
@@ -508,15 +527,18 @@ BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const A
   const std::optional<uint32_t> first = BridgeDraftNode(owner);
   const std::optional<Eigen::Vector3i> cell = hovered ? WallNodeCell(world, *hovered) : std::nullopt;
   const Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
+  BrushPreview preview {.block = CellMarker(shown), .valid = false, .kind = BuildKind::kBuild};
   if (first && hovered) {
     if (const auto bridge = CheckedBridge(owner, tool, *first, *hovered, aim, view)) {
-      return {.block = bridge->blocks.front(), .valid = true, .kind = BuildKind::kBuild,
-              .parts = {bridge->blocks.begin() + 1, bridge->blocks.end()}};
+      preview.block = bridge->blocks.front();
+      preview.valid = true;
+      preview.parts = {bridge->blocks.begin() + 1, bridge->blocks.end()};
     }
-    return {.block = CellMarker(shown), .valid = false, .kind = BuildKind::kBuild};
+  } else {
+    preview.valid = hovered && !SticksAt(world, *hovered).empty() && CheckPermission(owner).has_value();
   }
-  const bool valid = hovered && !SticksAt(world, *hovered).empty() && CheckPermission(owner).has_value();
-  return {.block = CellMarker(shown), .valid = valid, .kind = BuildKind::kBuild};
+  AddNodeMarks(world, first, hovered, preview);
+  return preview;
 }
 
 void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
