@@ -9,6 +9,15 @@ if(WIN32)
   set(ENET_PLATFORM_LIBS winmm ws2_32)
 endif()
 
+# The schemas only this module uses; they include the shared ones and lib_core's.
+z13_generate_schemas(
+  NET_MODULE_SCHEMAS
+  SCHEMAS
+  ${PROJECT_SOURCE_DIR}/fbs/discovery.fbs
+  ${PROJECT_SOURCE_DIR}/fbs/net.fbs
+  INCLUDE ${Z13_SHARED_SCHEMA_DIR} ${CMAKE_SOURCE_DIR}/src/lib_core/fbs
+)
+
 z13_add_plugin(
   ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>"
@@ -53,3 +62,7 @@ z13_add_plugin(
   ${ENET_PLATFORM_LIBS}
   Boost::dll
 )
+
+# net_generated.h is in protocol.h, so the plugin's users need the directory.
+add_dependencies(${PROJECT_NAME} GENERATE_NET_MODULE_SCHEMAS)
+target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/NET_MODULE_SCHEMAS>)

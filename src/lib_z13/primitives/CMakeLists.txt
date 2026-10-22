@@ -2,6 +2,15 @@ project(primitives)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
+# The schemas only this library uses; they include the shared ones.
+z13_generate_schemas(
+  PRIMITIVES_SCHEMAS
+  SCHEMAS
+  ${PROJECT_SOURCE_DIR}/fbs/blueprint.fbs
+  ${PROJECT_SOURCE_DIR}/fbs/decor.fbs
+  INCLUDE ${Z13_SHARED_SCHEMA_DIR}
+)
+
 # Stateless functions only, so each plugin linking its own copy shares nothing.
 z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS
@@ -29,3 +38,6 @@ z13_add_library(
   zodiac13::fbs_schemas
   zodiac13::components
 )
+
+add_dependencies(${PROJECT_NAME} GENERATE_PRIMITIVES_SCHEMAS)
+target_include_directories(${PROJECT_NAME} PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/PRIMITIVES_SCHEMAS>)

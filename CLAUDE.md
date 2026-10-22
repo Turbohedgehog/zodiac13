@@ -26,7 +26,7 @@ How to build, test and wait on builds is in the build-and-test skill; the rules:
 - `src/lib_z13/touch` — `touch`, a stateless static library without flecs: maps touches to input (`touch_mapping.h`: the floating stick with its dead zone and steps, the look zone, the buttons laid out by the `TouchLayout` settings), for `z13_module`'s `TouchInputSystem` and the raylib HUD.
 - `src/lib_raylib_module` — rendering/platform/GUI plugin: `render/` (environment, the lamps' baked light (`cell_light` on 3D textures), flashlights (Forward+ clusters) and shadow maps, skybox, render resources; remote entities are drawn through `pose_smoothing`), `platform/` (SDL), `gui/` (ImGui windows/keybindings), `tools/` (asset loading, Assimp, input publishing, math conversion). Factory in `raylib_module_factory.cpp`.
 - `src/lib_z13/z13_launcher` — loads module factories (`.so` plugins) into one flecs world at startup.
-- `src/lib_z13/schemas/fbs` — FlatBuffers schemas for world (de)serialization (`lib_core/state/world_serializer.h`).
+- `src/lib_z13/schemas/fbs` — FlatBuffers schemas more than one library uses (`z13_generate_schemas`, `cmake/z13_schemas.cmake`); a schema with one user lives beside it (`net_module/fbs`, `primitives/fbs`, `building_module/fbs`).
 - `src/tests` — the `z13_test_runner` gtest binary; links module factories directly (see `Z13TestWorld`) rather than loading them as plugins.
 - `src/zodiac13` — the actual game executable (`main.cpp`).
 
