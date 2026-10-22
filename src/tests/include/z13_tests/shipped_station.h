@@ -70,15 +70,7 @@ inline z13::station::rooms::RoomSources RoomSourcesOf(const std::vector<z13::sta
                                                       const z13::building::primitives::Palette& palette) {
   z13::station::rooms::RoomSources sources;
   for (const z13::station::Block& block : blocks) {
-    const z13::building::primitives::Primitive& primitive = palette.Find(block.spec.type_id)->get();
-    if (!z13::station::rooms::IsSealing(primitive)) {
-      continue;
-    }
-    const auto sealed = z13::building::primitives::SealedBoxes(block, palette);
-    sources.sealed.insert(sources.sealed.end(), sealed.begin(), sealed.end());
-    if (const auto portal = z13::station::rooms::PortalOf(block, primitive)) {
-      sources.portals.push_back(*portal);
-    }
+    z13::station::rooms::AddBlockSources(block, palette, sources);
   }
   return sources;
 }

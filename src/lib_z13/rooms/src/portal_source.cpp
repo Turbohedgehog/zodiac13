@@ -18,12 +18,15 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/occupancy.h>
+
 namespace z13::station::rooms {
 
 namespace {
 
 using z13::building::primitives::CellBox;
 using z13::building::primitives::CellPose;
+using z13::building::primitives::Palette;
 using z13::building::primitives::Primitive;
 using z13::building::primitives::PrimitiveFlags;
 using z13::building::primitives::ShapeKind;
@@ -53,26 +56,31 @@ bool IsSealing(const Primitive& primitive) {
   return primitive.Has(PrimitiveFlags::GasSealing);
 }
 
-std::optional<PortalSource> PortalOf(const Block& block, const Primitive& primitive) {
+std::vector<PortalSource> PortalsOf(const Block& block, const Primitive& primitive, const Palette& palette) {
   const bool door = primitive.shape.kind == ShapeKind::kDoorFrame;
   const bool transparent = primitive.Has(PrimitiveFlags::Transparent);
   if (!door && !transparent) {
-    return std::nullopt;
+    return {};
   }
   const bool panel = primitive.shape.kind == ShapeKind::kPanel;
-  if (panel && (block.spec.slant != 0 || block.spec.HasCorners() || block.spec.HasFaceCuts())) {
-    return std::nullopt;
-  }
   const CellPose pose = z13::building::primitives::PoseOf(block);
   Eigen::Index axis {};
   pose.rotation.col(panel ? kPanelThicknessAxis : kThicknessAxis).cwiseAbs().maxCoeff(&axis);
-  return PortalSource {
-      .opening = InWorld(InPrimitiveFrame(block, primitive, door), pose),
-      .axis = static_cast<Axis>(axis),
-      .visible = transparent,
-      // Doors stay closed until they have a state (f/doors).
-      .passable = false,
-  };
+  // Doors stay closed until they have a state (f/doors).
+  const PortalSource portal {.axis = static_cast<Axis>(axis), .visible = transparent, .passable = false};
+  const bool square = !panel || (block.spec.slant == 0 && !block.spec.HasCorners() && !block.spec.HasFaceCuts());
+  if (square) {
+    PortalSource whole = portal;
+    whole.opening = InWorld(InPrimitiveFrame(block, primitive, door), pose);
+    return {whole};
+  }
+  std::vector<PortalSource> portals;
+  for (const CellBox& box : z13::building::primitives::SealedBoxes(block, palette)) {
+    PortalSource step = portal;
+    step.opening = box;
+    portals.push_back(step);
+  }
+  return portals;
 }
 
 }  // namespace z13::station::rooms

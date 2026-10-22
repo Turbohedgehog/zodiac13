@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
+#include <vector>
 
 #include <z13/components/block.h>
 #include <primitives/palette.h>
@@ -41,9 +41,11 @@ struct PortalSource {
 
 bool IsSealing(const z13::building::primitives::Primitive& primitive);
 
-// The opening of a door frame (the gap between its posts) or of a transparent block (all
-// of it); nothing for other blocks, nor for a panel that is not square to the grid.
-std::optional<PortalSource> PortalOf(
-    const z13::station::Block& block, const z13::building::primitives::Primitive& primitive);
+// The openings of a door frame (the gap between its posts) or of a transparent block (all of
+// it); a panel that is not square to the grid has one for each box it seals, crossed along the
+// axis it thickens along. None for other blocks.
+std::vector<PortalSource> PortalsOf(
+    const z13::station::Block& block, const z13::building::primitives::Primitive& primitive,
+    const z13::building::primitives::Palette& palette);
 
 }  // namespace z13::station::rooms

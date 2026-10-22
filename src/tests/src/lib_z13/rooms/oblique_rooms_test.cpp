@@ -119,11 +119,7 @@ RoomSources WallWithOpening(const z13::station::WallOpening& opening) {
   RoomSources sources {.sealed = Shell()};
   const auto blocks = z13::building::primitives::OpeningPanels(wall, {}, {{opening}}, palette).value();
   for (const z13::station::Block& block : blocks) {
-    const auto sealed = SealedBoxes(block, palette);
-    sources.sealed.insert(sources.sealed.end(), sealed.begin(), sealed.end());
-    if (const auto portal = PortalOf(block, palette.Find(block.spec.type_id).value())) {
-      sources.portals.push_back(*portal);
-    }
+    AddBlockSources(block, palette, sources);
   }
   return sources;
 }
@@ -147,6 +143,37 @@ TEST(ObliqueRoomsTest, AWindowInAWallSeesThroughButKeepsTheRoomsApart) {
   EXPECT_EQ(graph.portals.front().area_cells, 3 * 2);
   EXPECT_TRUE(graph.portals.front().visible);
   EXPECT_FALSE(graph.portals.front().passable);
+}
+
+// A wall across the room from corner to corner, with a window in it.
+RoomSources ObliqueWallWithWindow() {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const z13::building::primitives::WallGeometry wall {
+      .node_a = {1, 1, 1}, .node_b = {1 + kSide, 1 + kSide, 1}, .stick_a = {z13::station::WallAxis::kZ, kHeight},
+      .stick_b = {z13::station::WallAxis::kZ, kHeight}, .thickness = 2};
+  const z13::station::WallOpening window {
+      .kind = z13::station::OpeningKind::kWindow, .offset = 4, .width = 3, .sill = 1, .height = 2};
+  RoomSources sources {.sealed = Shell()};
+  const auto blocks = z13::building::primitives::OpeningPanels(wall, {}, {{window}}, palette).value();
+  for (const z13::station::Block& block : blocks) {
+    AddBlockSources(block, palette, sources);
+  }
+  return sources;
+}
+
+TEST(ObliqueRoomsTest, AWindowInADiagonalWallSeesThroughButKeepsTheRoomsApart) {
+  const RoomGraph graph = BuildRooms(ObliqueWallWithWindow()).value();
+
+  ASSERT_EQ(graph.rooms.size(), 3U);
+  EXPECT_NE(graph.RoomAt({8, 3, 3}), graph.RoomAt({3, 8, 3}));
+  ASSERT_FALSE(graph.portals.empty());
+  int area = 0;
+  for (const Portal& portal : graph.portals) {
+    EXPECT_TRUE(portal.visible);
+    EXPECT_FALSE(portal.passable);
+    area += portal.area_cells;
+  }
+  EXPECT_GT(area, 0);
 }
 
 }  // namespace
