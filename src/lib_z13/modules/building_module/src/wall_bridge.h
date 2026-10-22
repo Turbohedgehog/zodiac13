@@ -35,6 +35,10 @@ namespace z13::building {
 // The sticks of the walls standing at the node, in segment id order.
 std::vector<z13::station::WallStick> SticksAt(flecs::world world, uint32_t node_id);
 
+// The sticks standing at the node as lines from its cell, for the brush to show; none for a
+// node that isn't there.
+std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, uint32_t node_id);
+
 // The wall bridging the stick at `first` (its oldest wall's) to one at `second`, thickened to the
 // side nearer `eye`, or why there is none. The one at `second` is the oldest of the same axis and
 // direction (a trapezoid when the lengths differ), else the oldest of another axis (a bent wall,
