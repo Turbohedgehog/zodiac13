@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <format>
 #include <map>
+#include <set>
 #include <vector>
 
 #include <z13/components/wall.h>
@@ -102,6 +103,7 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
     flecs::world world, uint32_t first, uint32_t second, MergeAt at,
     const z13::building::primitives::Palette& palette, int joint_reach) {
   NodeCells cells = CellsOfNodes(world);
+  const std::set<uint32_t> with_openings = SegmentsWithOpenings(world);
   const auto first_cell = cells.find(first);
   const auto second_cell = cells.find(second);
   if (first == second || first_cell == cells.end() || second_cell == cells.end()) {
@@ -120,12 +122,12 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
       if (segment.stick_a != segment.stick_b) {
         return std::unexpected(std::string {"a wall with unequal sticks can't be divided"});
       }
-      if (!OpeningsOf(world, segment.id).empty()) {
+      if (with_openings.contains(segment.id)) {
         return std::unexpected(std::string {"a wall with openings can't be divided"});
       }
       continue;
     }
-    if (!OpeningsOf(world, segment.id).empty()) {
+    if (with_openings.contains(segment.id)) {
       return std::unexpected(std::string {"a wall with openings can't be moved by a merge"});
     }
     if (Touches(segment, first) && Touches(segment, second)) {

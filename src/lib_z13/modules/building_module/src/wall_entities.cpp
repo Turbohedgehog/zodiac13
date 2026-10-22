@@ -20,6 +20,7 @@
 #include <format>
 #include <map>
 #include <numeric>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -119,15 +120,11 @@ flecs::entity SpawnWallOpening(
   return world.entity(OpeningName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
 }
 
-std::vector<z13::station::WallOpening> OpeningsOf(flecs::world world, uint32_t segment_id) {
-  std::vector<z13::station::WallOpening> openings;
-  world.query<const z13::station::WallOpening>().each([&](const z13::station::WallOpening& opening) {
-    if (opening.segment_id == segment_id) {
-      openings.push_back(opening);
-    }
-  });
-  std::ranges::sort(openings, {}, &z13::station::WallOpening::id);
-  return openings;
+std::set<uint32_t> SegmentsWithOpenings(flecs::world world) {
+  std::set<uint32_t> segments;
+  world.query<const z13::station::WallOpening>().each(
+      [&segments](const z13::station::WallOpening& opening) { segments.insert(opening.segment_id); });
+  return segments;
 }
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id) {

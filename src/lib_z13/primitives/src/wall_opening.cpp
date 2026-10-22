@@ -38,10 +38,6 @@ using z13::station::WallOpening;
 constexpr int kMinSideSteps = 1;
 constexpr int kMinLintelCells = 1;
 
-int Sign(int value) {
-  return (value > 0) - (value < 0);
-}
-
 // A part of the wall: between two steps, and two heights up the stick.
 struct Stretch {
   int from_step {};
@@ -135,7 +131,7 @@ std::expected<std::vector<Block>, std::string> OpeningPanels(
   const int axis = static_cast<int>(wall.stick_a.axis);
   span[axis] = 0;
   const Eigen::Vector3i step = span / steps;
-  const int direction = Sign(wall.stick_a.length);
+  const int direction = std::clamp(wall.stick_a.length, -1, 1);
   std::vector<Block> blocks;
   for (const Stretch& stretch : StretchesOf(steps, std::abs(wall.stick_a.length), ends, sorted)) {
     if (stretch.to_step == stretch.from_step) {
