@@ -35,6 +35,7 @@ set(
   src/lib_core/lifecycle_test.cpp
   src/lib_core/pose_smoothing_test.cpp
   src/lib_core/schema_attributes_test.cpp
+  src/lib_core/system_stats_test.cpp
   src/lib_core/thread_pool_test.cpp
   src/lib_core/tick_log_test.cpp
   src/lib_core/tick_pacer_test.cpp
@@ -63,6 +64,7 @@ set(
   src/lib_z13/rooms/room_parallel_test.cpp
   src/lib_z13/rooms/room_update_test.cpp
   src/lib_z13/rooms/room_visibility_test.cpp
+  src/lib_z13/rooms/space_walk_test.cpp
   src/lib_z13/rooms/tour_viewpoints_test.cpp
   src/lib_z13/touch/touch_mapping_test.cpp
   src/test_runner.cpp
@@ -157,6 +159,7 @@ if(Z13_BUILD_BENCHMARKS)
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/space_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
   )

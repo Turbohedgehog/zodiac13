@@ -24,6 +24,7 @@ z13_add_library(
   src/room_parts.cpp
   src/room_update.cpp
   src/room_visibility.cpp
+  src/space_walk.cpp
   src/topology_fingerprint.cpp
   src/tour_viewpoints.cpp
   PUBLIC
