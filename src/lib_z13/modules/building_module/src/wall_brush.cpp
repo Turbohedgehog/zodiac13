@@ -80,7 +80,6 @@ std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick&
   return {Line(from, to), Line(middle, tip), Line(tip, tip - back + along), Line(tip, tip - back - along)};
 }
 
-// The line from `node` along `axis` by `length`.
 BrushLine StickLine(const Eigen::Vector3i& node, WallAxis axis, int length) {
   const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(axis)) * static_cast<float>(length);
   return Line(node.cast<float>(), node.cast<float>() + along);
