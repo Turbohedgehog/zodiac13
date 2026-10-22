@@ -30,6 +30,9 @@
 
 namespace z13::building::primitives {
 
+// From a stick's node to its tip.
+Eigen::Vector3i StickOffset(const z13::station::WallStick& stick);
+
 // Whether the wall's sticks lie along different axes, so that its surface is two triangles.
 bool IsBent(const WallGeometry& wall);
 

@@ -30,12 +30,6 @@ using z13::station::Block;
 using z13::station::WallDiagonal;
 using z13::station::WallStick;
 
-Eigen::Vector3i Along(const WallStick& stick) {
-  Eigen::Vector3i along = Eigen::Vector3i::Zero();
-  along[static_cast<int>(stick.axis)] = stick.length;
-  return along;
-}
-
 int Sign(int64_t value) {
   return (value > 0) - (value < 0);
 }
@@ -78,15 +72,21 @@ double CosineOf(const WallGeometry& wall) {
 
 }  // namespace
 
+Eigen::Vector3i StickOffset(const WallStick& stick) {
+  Eigen::Vector3i offset = Eigen::Vector3i::Zero();
+  offset[static_cast<int>(stick.axis)] = stick.length;
+  return offset;
+}
+
 bool IsBent(const WallGeometry& wall) {
   return wall.stick_a.axis != wall.stick_b.axis;
 }
 
 std::array<Triangle, 2> BentTriangles(const WallGeometry& wall, WallDiagonal diagonal) {
   const Eigen::Vector3i a_base = wall.node_a;
-  const Eigen::Vector3i a_tip = wall.node_a + Along(wall.stick_a);
+  const Eigen::Vector3i a_tip = wall.node_a + StickOffset(wall.stick_a);
   const Eigen::Vector3i b_base = wall.node_b;
-  const Eigen::Vector3i b_tip = wall.node_b + Along(wall.stick_b);
+  const Eigen::Vector3i b_tip = wall.node_b + StickOffset(wall.stick_b);
   if (diagonal == WallDiagonal::kBaseToTip) {
     return {Triangle {a_base, a_tip, b_tip}, Triangle {a_base, b_tip, b_base}};
   }
