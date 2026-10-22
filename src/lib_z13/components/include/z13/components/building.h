@@ -36,6 +36,9 @@ enum class ToolMode : uint8_t { kBuild, kDestroy, kCut, kCutIn, kWall, kMerge, k
 // the first one's place or the last one's. The wheel steps through them.
 enum class MergeAt : uint8_t { kCenter, kFirst, kLast };
 
+// How wide, in WallSteps, a new build tool cuts its openings; the wheel changes it.
+inline constexpr int kDefaultOpeningWidthSteps = 4;
+
 // On a build tool item, with its BlockBrush: a tool given away builds the same.
 struct BuildTool {
   using State = void;
@@ -45,7 +48,7 @@ struct BuildTool {
   MergeAt merge_at {};
   // What the Opening mode cuts, and how wide in WallSteps.
   z13::station::OpeningKind opening_kind {};
-  int opening_width = 4;
+  int opening_width = kDefaultOpeningWidthSteps;
 };
 
 // The mode the tool works in this frame: a held cut key overrides the tool's own on PC.

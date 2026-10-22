@@ -62,7 +62,7 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kMergeAt, z13::fbs::input::Keycode::TOUCH_MERGE_AT, "Pin"},
     TouchButton {TouchControl::kFlipDiagonal, z13::fbs::input::Keycode::TOUCH_FLIP_DIAGONAL, "Flip"},
     TouchButton {TouchControl::kBend, z13::fbs::input::Keycode::TOUCH_BEND, "Bend"},
-    TouchButton {TouchControl::kOpeningKind, z13::fbs::input::Keycode::TOUCH_OPENING_KIND, "Door"},
+    TouchButton {TouchControl::kOpeningKind, z13::fbs::input::Keycode::TOUCH_OPENING_KIND, "Kind"},
     TouchButton {TouchControl::kDestroy, z13::fbs::input::Keycode::TOUCH_DESTROY, "X"},
 };
 
