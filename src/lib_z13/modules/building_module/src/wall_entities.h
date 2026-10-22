@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <vector>
 
 #include <flecs.h>
@@ -56,8 +57,8 @@ JointWall JointWallOf(
 flecs::entity SpawnWallOpening(
     flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallOpening& opening);
 
-// The openings of a segment, by id.
-std::vector<z13::station::WallOpening> OpeningsOf(flecs::world world, uint32_t segment_id);
+// The ids of the segments that have an opening.
+std::set<uint32_t> SegmentsWithOpenings(flecs::world world);
 
 // Every segment with its nodes' cells, in segment id order.
 std::vector<JointWall> JointWallsOf(flecs::world world);
