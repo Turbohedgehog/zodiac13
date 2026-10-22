@@ -82,7 +82,8 @@ std::optional<Keycode> ButtonKey(TouchControl control) {
 }
 
 std::span<const TouchControl> PanelOf(TouchLayer layer) {
-  return kPanels[static_cast<size_t>(layer)];
+  const size_t index = static_cast<size_t>(layer);
+  return index < kPanels.size() ? kPanels[index] : std::span<const TouchControl> {};
 }
 
 bool InLayer(TouchLayer layer, TouchControl control) {

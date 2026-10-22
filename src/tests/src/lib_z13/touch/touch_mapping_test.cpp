@@ -82,6 +82,14 @@ TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
   EXPECT_NE(ControlAt(layout, TouchLayer::kWall, second, kScreen), TouchControl::kNextPrimitive);
 }
 
+TEST(TouchMappingTest, ALayerOutsideTheEnumHasNoPanel) {
+  const TouchLayer unknown = static_cast<TouchLayer>(99);
+
+  EXPECT_TRUE(PanelOf(unknown).empty());
+  EXPECT_FALSE(InLayer(unknown, TouchControl::kThicker));
+  EXPECT_TRUE(InLayer(unknown, TouchControl::kJump) == InLayer(TouchLayer::kWalk, TouchControl::kJump));
+}
+
 TEST(TouchMappingTest, EveryPanelButtonHasAKey) {
   for (const TouchLayer layer : {TouchLayer::kBlock, TouchLayer::kWall, TouchLayer::kMerge, TouchLayer::kBridge}) {
     EXPECT_FALSE(PanelOf(layer).empty());
