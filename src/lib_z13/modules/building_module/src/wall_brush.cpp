@@ -80,19 +80,21 @@ std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick&
   return {Line(from, to), Line(middle, tip), Line(tip, tip - back + along), Line(tip, tip - back - along)};
 }
 
+// The line from `node` along `axis` by `length`.
+BrushLine StickLine(const Eigen::Vector3i& node, WallAxis axis, int length) {
+  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(axis)) * static_cast<float>(length);
+  return Line(node.cast<float>(), node.cast<float>() + along);
+}
+
 std::vector<BrushLine> HeightLines(const WallDraft& draft, int length) {
-  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(draft.stick_axis)) * static_cast<float>(length);
-  return {Line(draft.first.cast<float>(), draft.first.cast<float>() + along),
-          Line(draft.second.cast<float>(), draft.second.cast<float>() + along)};
+  return {StickLine(draft.first, draft.stick_axis, length), StickLine(draft.second, draft.stick_axis, length)};
 }
 
 // The first node's stick, and the second's where the fourth click would put it.
 std::vector<BrushLine> TipLines(const WallDraft& draft, const std::optional<z13::station::WallStick>& tip) {
-  const Eigen::Vector3f along = Eigen::Vector3f::Unit(Index(draft.stick_axis)) * static_cast<float>(draft.stick_length);
-  std::vector<BrushLine> lines {Line(draft.first.cast<float>(), draft.first.cast<float>() + along)};
+  std::vector<BrushLine> lines {StickLine(draft.first, draft.stick_axis, draft.stick_length)};
   if (tip) {
-    const Eigen::Vector3f reach = Eigen::Vector3f::Unit(Index(tip->axis)) * static_cast<float>(tip->length);
-    lines.push_back(Line(draft.second.cast<float>(), draft.second.cast<float>() + reach));
+    lines.push_back(StickLine(draft.second, tip->axis, tip->length));
   }
   return lines;
 }
