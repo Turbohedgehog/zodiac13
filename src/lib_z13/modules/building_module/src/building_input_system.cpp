@@ -115,6 +115,8 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.thinner_wall = find_action_id(z13::fbs::building::WallAction::THINNER_WALL, kWallActions);
   build_action_ids.flip_diagonal = find_action_id(z13::fbs::building::WallAction::FLIP_DIAGONAL, kWallActions);
   build_action_ids.bend_wall = find_action_id(z13::fbs::building::WallAction::BEND_WALL, kWallActions);
+  build_action_ids.toggle_opening_kind =
+      find_action_id(z13::fbs::building::WallAction::TOGGLE_OPENING_KIND, kWallActions);
 }
 
 void SetActionGroup(z13::input::ActionListener& action_listener, std::string_view group, bool wanted) {
@@ -186,9 +188,10 @@ void TurnDraft(flecs::entity e, ToolMode mode, const z13::input::ActionListener&
   }
 }
 
-// A click lays the next point of a wall, bridge or merge; the wheel sets the wall's or bridge's
-// thickness or steps the merge target; the destroy key drops what is in the making (else it
-// destroys, as in any mode).
+// A click lays the next point of a wall, bridge or merge, or cuts an opening; the wheel sets the
+// wall's or bridge's thickness, the opening's width or steps the merge target; the opening key
+// switches a door and a window; the destroy key drops what is in the making (else it destroys,
+// as in any mode).
 void ApplyWallTool(
     flecs::entity e, flecs::entity tool, ToolMode mode, const z13::input::ActionListener& listener,
     const BuildActionIds& ids, const BuildingTuning& tuning) {
@@ -197,6 +200,11 @@ void ApplyWallTool(
       (IsSwitchedOn(listener, ids.thicker_wall) ? 1 : 0) - (IsSwitchedOn(listener, ids.thinner_wall) ? 1 : 0);
   if (mode == ToolMode::kWall || mode == ToolMode::kBridge) {
     state.wall_thickness = std::clamp(state.wall_thickness + wheel, 1, tuning.wall_max_thickness_cells);
+  } else if (mode == ToolMode::kOpening) {
+    state.opening_width = std::clamp(state.opening_width + wheel, 1, tuning.opening_max_width_steps);
+    if (IsSwitchedOn(listener, ids.toggle_opening_kind)) {
+      state.opening_kind = z13::NextEnumerator(state.opening_kind);
+    }
   } else if (wheel != 0) {
     state.merge_at = z13::NextEnumerator(state.merge_at);
   }

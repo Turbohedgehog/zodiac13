@@ -63,6 +63,8 @@ enum WallAction : int16 (action, action_group: "BuildingWall") {
   FLIP_DIAGONAL (display_text: "Flip the wall's diagonal", default_keycodes: "KEY_T TOUCH_FLIP_DIAGONAL"),
   // With a wall in the making: a fourth click sets the stick at its second node, so the wall bends.
   BEND_WALL (display_text: "Bend the wall", default_keycodes: "KEY_C TOUCH_BEND"),
+  // In the Opening mode: the opening to cut is a window instead of a door, and back.
+  TOGGLE_OPENING_KIND (display_text: "Door or window", default_keycodes: "KEY_Y TOUCH_OPENING_KIND"),
 }
 
 root_type Block;

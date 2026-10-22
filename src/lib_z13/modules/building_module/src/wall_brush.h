@@ -35,6 +35,9 @@
 
 namespace z13::building {
 
+// Below this a ray counts as parallel to a plane or line.
+inline constexpr float kParallelEpsilon = 1e-4f;
+
 // How a click finds its point: anchors within `snap_cells` win over the grid, and the view ray
 // looks for planes up to `reach_cells` away.
 struct WallPicking {

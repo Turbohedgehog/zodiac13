@@ -45,6 +45,7 @@ struct BuildActionIds {
   std::optional<IdType> thicker_wall;
   std::optional<IdType> thinner_wall;
   std::optional<IdType> flip_diagonal;
+  std::optional<IdType> toggle_opening_kind;
   std::optional<IdType> bend_wall;
 };
 

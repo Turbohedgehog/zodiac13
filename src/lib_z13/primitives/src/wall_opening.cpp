@@ -34,10 +34,6 @@ using z13::station::Block;
 using z13::station::OpeningKind;
 using z13::station::WallOpening;
 
-// What an opening leaves of the wall: a step at each end, a cell above.
-constexpr int kMinSideSteps = 1;
-constexpr int kMinLintelCells = 1;
-
 // A part of the wall: between two steps, and two heights up the stick.
 struct Stretch {
   int from_step {};

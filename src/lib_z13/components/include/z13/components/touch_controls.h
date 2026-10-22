@@ -29,12 +29,12 @@ namespace z13::input {
 enum class TouchControl {
   kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats, kBrush,
   kPreviousPrimitive, kNextPrimitive, kTurnZ, kTurnY, kTurnX,
-  kThicker, kThinner, kMergeAt, kFlipDiagonal, kBend, kDestroy,
+  kThicker, kThinner, kMergeAt, kFlipDiagonal, kBend, kOpeningKind, kDestroy,
   kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
 };
 
 // Which of the tool's buttons show and answer (touch/touch_mapping.h): the build tool's mode picks it.
-enum class TouchLayer { kWalk, kBlock, kWall, kMerge, kBridge };
+enum class TouchLayer { kWalk, kBlock, kWall, kMerge, kBridge, kOpening };
 
 struct TouchFinger {
   uint64_t finger {};

@@ -180,6 +180,7 @@ enum Keycode : int16 {
   TOUCH_MERGE_AT (display_text: "Touch merge target"),
   TOUCH_FLIP_DIAGONAL (display_text: "Touch flip the wall's diagonal"),
   TOUCH_BEND (display_text: "Touch bend the wall"),
+  TOUCH_OPENING_KIND (display_text: "Touch door or window"),
   TOUCH_DESTROY (display_text: "Touch destroy or cancel"),
 }
 

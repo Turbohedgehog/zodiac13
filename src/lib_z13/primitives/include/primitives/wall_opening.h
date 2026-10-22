@@ -28,6 +28,10 @@
 
 namespace z13::building::primitives {
 
+// An opening leaves at least this many steps of wall at each end of the wall, and a cell above it.
+inline constexpr int kMinSideSteps = 1;
+inline constexpr int kMinLintelCells = 1;
+
 // The whole steps a wall's openings are measured in: its plan offset over their gcd, so every
 // step ends on whole cells. Zero where the nodes coincide in the plane.
 int WallSteps(const WallGeometry& wall);

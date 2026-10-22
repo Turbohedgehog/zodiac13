@@ -62,6 +62,7 @@ constexpr std::array kTouchButtons = {
     TouchButton {TouchControl::kMergeAt, z13::fbs::input::Keycode::TOUCH_MERGE_AT, "Pin"},
     TouchButton {TouchControl::kFlipDiagonal, z13::fbs::input::Keycode::TOUCH_FLIP_DIAGONAL, "Flip"},
     TouchButton {TouchControl::kBend, z13::fbs::input::Keycode::TOUCH_BEND, "Bend"},
+    TouchButton {TouchControl::kOpeningKind, z13::fbs::input::Keycode::TOUCH_OPENING_KIND, "Door"},
     TouchButton {TouchControl::kDestroy, z13::fbs::input::Keycode::TOUCH_DESTROY, "X"},
 };
 
@@ -75,6 +76,7 @@ constexpr std::array kWallPanel = {TouchControl::kThicker, TouchControl::kThinne
                                    TouchControl::kFlipDiagonal};
 constexpr std::array kMergePanel = {TouchControl::kMergeAt};
 constexpr std::array kBridgePanel = {TouchControl::kThicker, TouchControl::kThinner, TouchControl::kFlipDiagonal};
+constexpr std::array kOpeningPanel = {TouchControl::kThicker, TouchControl::kThinner, TouchControl::kOpeningKind};
 
 std::span<const TouchControl> PanelOf(TouchLayer layer);
 // Whether `control` shows and answers in `layer`: the walking buttons always, the tool's with a
