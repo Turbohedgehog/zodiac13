@@ -71,7 +71,9 @@ TEST(TouchMappingTest, APanelButtonAnswersOnlyInItsLayer) {
   EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kMergeAt));
   EXPECT_TRUE(InLayer(TouchLayer::kBridge, TouchControl::kFlipDiagonal));
   EXPECT_TRUE(InLayer(TouchLayer::kBridge, TouchControl::kThicker));
-  EXPECT_FALSE(InLayer(TouchLayer::kWall, TouchControl::kFlipDiagonal));
+  EXPECT_TRUE(InLayer(TouchLayer::kWall, TouchControl::kFlipDiagonal));
+  EXPECT_TRUE(InLayer(TouchLayer::kWall, TouchControl::kBend));
+  EXPECT_FALSE(InLayer(TouchLayer::kBridge, TouchControl::kBend));
 
   // The wall layer's first button sits where the block layer's first does, so a hidden one
   // doesn't catch a touch.

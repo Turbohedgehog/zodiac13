@@ -27,6 +27,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/player_parts.h>
 #include <z13/components/wall.h>
+#include <primitives/wall_bend.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
@@ -220,6 +221,102 @@ TEST(WallBrushTest, ThreeClicksMakeTheWallAndItThickensTowardTheEye) {
   ASSERT_TRUE(near_low && near_high);
   EXPECT_LT(near_low->wall.thickness * near_high->wall.thickness, 0);
   EXPECT_NE(near_low->blocks.front().cell, near_high->blocks.front().cell);
+}
+
+// A bent draft after its third click: a stick of 8 along z at the origin, the second node at (12, 4, 0).
+WallDraft BentDraftAtTheTip() {
+  return {.stage = WallDraft::Stage::kTip, .first = kOrigin, .second = {12, 4, 0}, .stick_axis = WallAxis::kZ,
+          .stick_length = 8, .bent = true};
+}
+
+// From straight above the second node, down onto the floor at (12, 10): a stick of 6 along y.
+Aim TipRay() {
+  return RayThrough({12.f, 10.f, 6.f}, {12.f, 10.f, 0.f});
+}
+
+TEST(WallBrushTest, TheTipIsTheStickAlongTheAxisThePickedPointIsFurthestOn) {
+  const Eigen::Vector3i second {12, 4, 0};
+
+  const auto along_y = PickTip(TipRay(), second, {}, kPicking);
+  ASSERT_TRUE(along_y.has_value());
+  EXPECT_EQ(along_y->axis, WallAxis::kY);
+  EXPECT_EQ(along_y->length, 6);
+
+  const auto backwards = PickTip(RayThrough({9.f, 3.f, 6.f}, {9.f, 3.f, 0.f}), second, {}, kPicking);
+  ASSERT_TRUE(backwards.has_value());
+  EXPECT_EQ(backwards->axis, WallAxis::kX);
+  EXPECT_EQ(backwards->length, -3);
+
+  // Straight down onto the node itself: no stick.
+  EXPECT_FALSE(PickTip(RayThrough({12.f, 4.f, 6.f}, {12.f, 4.f, 0.f}), second, {}, kPicking).has_value());
+}
+
+TEST(WallBrushTest, ABentDraftTakesAFourthClickForTheStickAtTheSecondNode) {
+  const std::vector<Eigen::Vector3i> none;
+  WallDraft height {.stage = WallDraft::Stage::kHeight, .first = kOrigin, .second = {12, 4, 0},
+                    .stick_axis = WallAxis::kZ, .bent = true};
+
+  const auto third = ClickWall(height, RayThrough({30.f, 0.f, 8.f}, {20.f, 0.f, 8.f}), none, kPicking, kThickness);
+  ASSERT_TRUE(third && third->draft && !third->wall);
+  EXPECT_EQ(third->draft->stage, WallDraft::Stage::kTip);
+  EXPECT_EQ(third->draft->stick_length, 8);
+
+  const auto fourth = ClickWall(third->draft, TipRay(), none, kPicking, kThickness);
+  ASSERT_TRUE(fourth && fourth->wall);
+  EXPECT_EQ(fourth->wall->node_a, kOrigin);
+  EXPECT_EQ(fourth->wall->node_b, Eigen::Vector3i(12, 4, 0));
+  EXPECT_EQ(fourth->wall->stick_a, (z13::station::WallStick {WallAxis::kZ, 8}));
+  EXPECT_EQ(fourth->wall->stick_b, (z13::station::WallStick {WallAxis::kY, 6}));
+  EXPECT_EQ(fourth->wall->diagonal, z13::building::primitives::DefaultDiagonal(*fourth->wall));
+}
+
+TEST(WallBrushTest, AFlippedDraftTakesTheOtherDiagonal) {
+  const std::vector<Eigen::Vector3i> none;
+  WallDraft draft = BentDraftAtTheTip();
+  const auto plain = ClickWall(draft, TipRay(), none, kPicking, kThickness);
+  draft.flipped = true;
+  const auto flipped = ClickWall(draft, TipRay(), none, kPicking, kThickness);
+
+  ASSERT_TRUE(plain && plain->wall && flipped && flipped->wall);
+  EXPECT_EQ(flipped->wall->diagonal, z13::building::primitives::Flipped(plain->wall->diagonal));
+}
+
+TEST(WallBrushTest, ATipOnTheFirstSticksAxisMakesATrapezoid) {
+  const std::vector<Eigen::Vector3i> none;
+  // From the side onto the y plane through the second node: a stick of 5 along z.
+  const auto click = ClickWall(
+      BentDraftAtTheTip(), RayThrough({12.f, -10.f, 5.f}, {12.f, 4.f, 5.f}), none, kPicking, kThickness);
+
+  ASSERT_TRUE(click && click->wall);
+  EXPECT_EQ(click->wall->stick_b, (z13::station::WallStick {WallAxis::kZ, 5}));
+  EXPECT_FALSE(z13::building::primitives::IsBent(*click->wall));
+}
+
+TEST(WallBrushTest, TheTipPreviewDrawsBothSticksAndShowsTheBentWall) {
+  const auto palette = z13::testing::ShippedPalette().value();
+
+  const WallPreview preview = PreviewWall(BentDraftAtTheTip(), TipRay(), {}, kPicking, kThickness, palette);
+
+  EXPECT_TRUE(preview.makeable);
+  ASSERT_TRUE(preview.wall.has_value());
+  EXPECT_EQ(preview.parts.size(), 1u);
+  ASSERT_EQ(preview.lines.size(), 2u);
+  EXPECT_EQ(preview.lines[0].to, Eigen::Vector3f(0.f, 0.f, 8.f));
+  EXPECT_EQ(preview.lines[1].from, Eigen::Vector3f(12.f, 4.f, 0.f));
+  EXPECT_EQ(preview.lines[1].to, Eigen::Vector3f(12.f, 10.f, 0.f));
+}
+
+TEST(WallBrushTest, ABentDraftsHeightClickPreviewsTheSticksAndLaysNoWall) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  const WallDraft draft {.stage = WallDraft::Stage::kHeight, .first = kOrigin, .second = {12, 4, 0},
+                         .stick_axis = WallAxis::kZ, .bent = true};
+
+  const WallPreview preview =
+      PreviewWall(draft, RayThrough({30.f, 0.f, 8.f}, {20.f, 0.f, 8.f}), {}, kPicking, kThickness, palette);
+
+  EXPECT_TRUE(preview.makeable);
+  EXPECT_FALSE(preview.wall.has_value());
+  EXPECT_EQ(preview.lines.size(), 2u);
 }
 
 TEST(WallBrushTest, TheStickPreviewDrawsTheStickAndTheArrowAlongTheLeftOverAxis) {

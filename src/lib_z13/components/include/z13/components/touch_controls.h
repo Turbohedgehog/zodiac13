@@ -29,7 +29,7 @@ namespace z13::input {
 enum class TouchControl {
   kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats, kBrush,
   kPreviousPrimitive, kNextPrimitive, kTurnZ, kTurnY, kTurnX,
-  kThicker, kThinner, kMergeAt, kFlipDiagonal, kDestroy,
+  kThicker, kThinner, kMergeAt, kFlipDiagonal, kBend, kDestroy,
   kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
 };
 

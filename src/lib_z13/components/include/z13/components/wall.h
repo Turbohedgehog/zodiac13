@@ -63,14 +63,18 @@ struct WallSegment {
 
 // A player's wall in the making (the Wall brush mode): the first click set `first`; the second
 // the other end of the stick, in a plane through `first`, with `stick_axis` left over as the
-// axis the third click measures the wall's other edge along.
+// axis the third click measures the wall's other edge along. A bent draft takes a fourth click
+// for the stick at `second` (`stick_length` is the first's), and `flipped` the other diagonal.
 struct WallDraft {
   using State = void;
-  enum class Stage : uint8_t { kStick, kHeight };
+  enum class Stage : uint8_t { kStick, kHeight, kTip };
   Stage stage {};
   Eigen::Vector3i first = Eigen::Vector3i::Zero();
   Eigen::Vector3i second = Eigen::Vector3i::Zero();
   WallAxis stick_axis = WallAxis::kZ;
+  int stick_length {};
+  bool bent {};
+  bool flipped {};
 };
 
 // A player's first click of the Merge mode: the node the second click merges into.

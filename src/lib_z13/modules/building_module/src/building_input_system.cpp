@@ -114,6 +114,7 @@ void OnConfigUpdated(flecs::entity e, z13::input::OnConfigUpdatedEvent, const z1
   build_action_ids.thicker_wall = find_action_id(z13::fbs::building::WallAction::THICKER_WALL, kWallActions);
   build_action_ids.thinner_wall = find_action_id(z13::fbs::building::WallAction::THINNER_WALL, kWallActions);
   build_action_ids.flip_diagonal = find_action_id(z13::fbs::building::WallAction::FLIP_DIAGONAL, kWallActions);
+  build_action_ids.bend_wall = find_action_id(z13::fbs::building::WallAction::BEND_WALL, kWallActions);
 }
 
 void SetActionGroup(z13::input::ActionListener& action_listener, std::string_view group, bool wanted) {
@@ -162,9 +163,32 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
   return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
 }
 
+// The flip key turns the diagonal of a bridge or wall in the making; the bend key gives a wall a
+// stick of its own at its second node (and takes it away again).
+void TurnDraft(flecs::entity e, ToolMode mode, const z13::input::ActionListener& listener, const BuildActionIds& ids) {
+  const bool flip = IsSwitchedOn(listener, ids.flip_diagonal);
+  if (mode == ToolMode::kBridge && e.has<z13::station::WallBridgeDraft>() && flip) {
+    z13::station::WallBridgeDraft& draft = e.get_mut<z13::station::WallBridgeDraft>();
+    draft.flipped = !draft.flipped;
+  }
+  if (mode != ToolMode::kWall || !e.has<z13::station::WallDraft>()) {
+    return;
+  }
+  z13::station::WallDraft& draft = e.get_mut<z13::station::WallDraft>();
+  if (flip) {
+    draft.flipped = !draft.flipped;
+  }
+  if (IsSwitchedOn(listener, ids.bend_wall)) {
+    draft.bent = !draft.bent;
+    if (!draft.bent && draft.stage == z13::station::WallDraft::Stage::kTip) {
+      draft.stage = z13::station::WallDraft::Stage::kHeight;
+    }
+  }
+}
+
 // A click lays the next point of a wall, bridge or merge; the wheel sets the wall's or bridge's
-// thickness or steps the merge target; the flip key turns a bridge's diagonal; the destroy key
-// drops what is in the making (else it destroys, as in any mode).
+// thickness or steps the merge target; the destroy key drops what is in the making (else it
+// destroys, as in any mode).
 void ApplyWallTool(
     flecs::entity e, flecs::entity tool, ToolMode mode, const z13::input::ActionListener& listener,
     const BuildActionIds& ids, const BuildingTuning& tuning) {
@@ -176,11 +200,7 @@ void ApplyWallTool(
   } else if (wheel != 0) {
     state.merge_at = z13::NextEnumerator(state.merge_at);
   }
-  if (mode == ToolMode::kBridge && e.has<z13::station::WallBridgeDraft>() &&
-      IsSwitchedOn(listener, ids.flip_diagonal)) {
-    z13::station::WallBridgeDraft& draft = e.get_mut<z13::station::WallBridgeDraft>();
-    draft.flipped = !draft.flipped;
-  }
+  TurnDraft(e, mode, listener, ids);
   if (IsSwitchedOn(listener, ids.build_block)) {
     e.add<RequestBuildBlock>();
   }
