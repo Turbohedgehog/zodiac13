@@ -16,12 +16,10 @@
 
 // A bench, not a test (see docs/frame-time-plan.md). Run it with
 //   z13_test_runner --gtest_also_run_disabled_tests --gtest_filter='PropsCullingBench.*'
-// Three ways to pick the props in view along the RenderPrepBench route, with the props repeated
-// 1, 10 and 100 times (to see how each grows): every box through ViewCulling::Visible (the renderer's way), a Boost.Geometry
-// R-tree asked for the boxes meeting the frustum's bounding box and then filtered by Visible, and
-// a BoxTree that prunes by Visible on its nodes. Each must give the same props. DynamicProps then
-// moves the props every frame and times what a frame costs in all: updating the structure and
-// picking.
+// Picking the props in view along RenderPrepBench's route, repeated 1, 10 and 100 times, by
+// ViewCulling::Visible on each (the renderer's way), a Boost.Geometry R-tree and a BoxTree.
+// DynamicProps moves them every frame and times updating the structure plus picking. Every way
+// must pick the same props.
 
 #include <gtest/gtest.h>
 
@@ -33,6 +31,7 @@
 #include <iostream>
 #include <memory>
 #include <numbers>
+#include <optional>
 #include <random>
 #include <span>
 #include <string>
@@ -151,6 +150,42 @@ struct Timings {
   size_t found {};
 };
 
+// RenderPrepBench's route: along the corridors, round the rooms and out round the station.
+std::vector<Stop> RouteOf(const rooms::RoomGraph& graph, const std::vector<z13::station::Block>& blocks) {
+  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
+  std::vector<Stop> stops;
+  AddStops(stops, "corridor", rooms::CorridorWalk(graph, slow_spot, kCorridorRooms));
+  AddStops(stops, "tour", rooms::TourViewpoints(graph, kTourRooms));
+  const std::vector<Eigen::Vector3f> inside {slow_spot};
+  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(blocks), inside);
+  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
+    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
+  }
+  return stops;
+}
+
+struct OctantProps {
+  std::vector<z13::station::Block> blocks;
+  rooms::RoomGraph graph;
+  std::vector<Eigen::AlignedBox3f> props;
+};
+
+std::optional<OctantProps> LoadOctantProps() {
+  const auto palette = ShippedPalette();
+  const auto blocks = palette ? ShippedBlueprint(kOctantScene, *palette) : std::unexpected(palette.error());
+  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
+  const auto decor = decor_json ? primitives::ParseDecor(*decor_json) : std::unexpected(decor_json.error());
+  if (!blocks || !decor) {
+    return std::nullopt;
+  }
+  auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
+  if (!graph) {
+    return std::nullopt;
+  }
+  Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
+  return OctantProps {.blocks = *blocks, .graph = *std::move(graph), .props = std::move(scene.props)};
+}
+
 std::vector<uint32_t> LinearPick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) {
   std::vector<uint32_t> visible;
   for (uint32_t i = 0; i < boxes.size(); ++i) {
@@ -174,32 +209,14 @@ std::vector<uint32_t> RtreePick(
 }
 
 TEST(PropsCullingBench, DISABLED_OctantWalk) {
-  const auto palette = ShippedPalette();
-  ASSERT_TRUE(palette.has_value()) << palette.error();
-  const auto blocks = ShippedBlueprint(kOctantScene, *palette);
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
-  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
-  ASSERT_TRUE(decor_json.has_value()) << decor_json.error();
-  const auto decor = primitives::ParseDecor(*decor_json);
-  ASSERT_TRUE(decor.has_value()) << decor.error();
-  const auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
-  ASSERT_TRUE(graph.has_value()) << graph.error();
-  const Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
-
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(*graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(*graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(*blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
-  }
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
   ASSERT_GT(stops.size(), 1U);
 
   Timings previous;
   for (const int times : kRepeatCounts) {
-    const std::vector<Eigen::AlignedBox3f> boxes = Repeated(scene.props, times);
+    const std::vector<Eigen::AlignedBox3f> boxes = Repeated(octant->props, times);
     const auto build_start = std::chrono::steady_clock::now();
     const BoxTree tree(boxes);
     const double tree_build_ms = Ms(std::chrono::steady_clock::now() - build_start);
@@ -219,7 +236,7 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
     for (const Stop& stop : stops) {
       const rooms::CameraView view =
           CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
-      const rooms::ViewCulling culling(view, std::cref(*graph));
+      const rooms::ViewCulling culling(view, std::cref(octant->graph));
       const Eigen::AlignedBox3f frustum = FrustumBounds(view.view_projection);
 
       std::vector<uint32_t> expected = LinearPick(boxes, culling);
@@ -434,27 +451,9 @@ struct FrameStats {
 };
 
 TEST(PropsCullingBench, DISABLED_DynamicProps) {
-  const auto palette = ShippedPalette();
-  ASSERT_TRUE(palette.has_value()) << palette.error();
-  const auto blocks = ShippedBlueprint(kOctantScene, *palette);
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
-  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
-  ASSERT_TRUE(decor_json.has_value()) << decor_json.error();
-  const auto decor = primitives::ParseDecor(*decor_json);
-  ASSERT_TRUE(decor.has_value()) << decor.error();
-  const auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
-  ASSERT_TRUE(graph.has_value()) << graph.error();
-  const Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
-
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(*graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(*graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(*blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
-  }
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
   std::vector<const Stop*> views;
   for (const Stop& stop : stops) {
     if (std::ranges::contains(kDynamicStops, stop.label)) {
@@ -464,7 +463,7 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
   ASSERT_EQ(views.size(), kDynamicStops.size());
 
   for (const DynamicCase& dynamic : kDynamicCases) {
-    const std::vector<Eigen::AlignedBox3f> base = Repeated(scene.props, dynamic.times);
+    const std::vector<Eigen::AlignedBox3f> base = Repeated(octant->props, dynamic.times);
     std::vector<Eigen::AlignedBox3f> boxes = base;
     std::mt19937 random(11);
     std::uniform_real_distribution<float> unit(0.f, 1.f);
@@ -502,7 +501,7 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
       const Stop& stop = *views[static_cast<size_t>(frame) % views.size()];
       const rooms::CameraView view =
           CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
-      const rooms::ViewCulling culling(view, std::cref(*graph));
+      const rooms::ViewCulling culling(view, std::cref(octant->graph));
       const Eigen::AlignedBox3f frustum = FrustumBounds(view.view_projection);
       const std::vector<uint32_t> expected = LinearPick(boxes, culling);
       for (size_t s = 0; s < strategies.size(); ++s) {
