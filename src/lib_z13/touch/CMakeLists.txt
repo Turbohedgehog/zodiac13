@@ -4,7 +4,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 
 # Stateless, like primitives: each plugin linking its own copy shares nothing.
 z13_add_library(
-  ${PROJECT_NAME} STATIC FBS_HEADERS
+  ${PROJECT_NAME} STATIC FBS_HEADERS OPTIMIZE_IN_DEBUG
   SOURCES
   src/touch_mapping.cpp
   PUBLIC

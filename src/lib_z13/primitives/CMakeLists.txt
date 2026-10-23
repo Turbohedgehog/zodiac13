@@ -13,7 +13,7 @@ z13_generate_schemas(
 
 # Stateless functions only, so each plugin linking its own copy shares nothing.
 z13_add_library(
-  ${PROJECT_NAME} STATIC FBS_HEADERS
+  ${PROJECT_NAME} STATIC FBS_HEADERS OPTIMIZE_IN_DEBUG
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/blueprint.cpp
