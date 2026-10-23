@@ -28,8 +28,12 @@ void FrameRecorder::Add(FrameSample sample) {
   frames_.push_back(std::move(sample));
   ++added_;
   const double window_ms = std::chrono::duration<double, std::milli>(window_).count();
-  while (frames_.size() > 1 && covered_ms_ - frames_.front().period_ms >= window_ms) {
-    covered_ms_ -= frames_.front().period_ms;
+  while (frames_.size() > 1) {
+    const double oldest_ms = frames_.front().period_ms;
+    if (covered_ms_ - oldest_ms < window_ms) {
+      break;
+    }
+    covered_ms_ -= oldest_ms;
     frames_.pop_front();
   }
   const size_t first = added_ - frames_.size();

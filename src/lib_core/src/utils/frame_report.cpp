@@ -167,10 +167,11 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
     std::format_to(out, "\nSlowest frames, over {} times the median (oldest is #0):\n", kSlowFactor);
   }
   for (const size_t index : order | std::views::take(kSlowestFrames)) {
-    const std::vector<FrameStage> parts = PartsOf(frames[index]);
+    const FrameSample& frame = frames[index];
+    const std::vector<FrameStage> parts = PartsOf(frame);
     const auto biggest = std::ranges::max_element(parts, {}, &FrameStage::ms);
-    std::format_to(out, "  #{:<4} {:7.2f} ms  mostly {} {:.2f} ms ({:.0f}%)\n", index, frames[index].period_ms,
-                   biggest->name, biggest->ms, frames[index].period_ms > 0.0 ? biggest->ms / frames[index].period_ms * 100.0 : 0.0);
+    std::format_to(out, "  #{:<4} {:7.2f} ms  mostly {} {:.2f} ms ({:.0f}%)\n", index, frame.period_ms, biggest->name,
+                   biggest->ms, frame.period_ms > 0.0 ? biggest->ms / frame.period_ms * 100.0 : 0.0);
   }
   return text;
 }
