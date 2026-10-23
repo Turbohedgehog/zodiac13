@@ -17,6 +17,7 @@
 #include "raylib_system.h"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string_view>
@@ -37,6 +38,7 @@
 #include "gui/gui_system.h"
 #include "platform/sdl_platform.h"
 #include "render/block_meshes.h"
+#include "render/frame_profile.h"
 #include "render/render_components.h"
 
 namespace z13::raylib {
@@ -154,13 +156,16 @@ void RegisterSystems(flecs::world world) {
         platform.BeginFrame(kClearColor[0], kClearColor[1], kClearColor[2]);
       });
 
-  world.system<const RaylibData, SdlPlatformData>("RaylibSystem::FrameEnd")
+  world.system<const RaylibData, SdlPlatformData, FrameProfile>("RaylibSystem::FrameEnd")
       .kind<FinalizeRender>()
       .tick_source<RenderGate>()
-      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data) {
+      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data, FrameProfile& profile) {
         flecs::world world = it.world();
         SdlPlatform& platform = *platform_data.platform;
+        const auto swap_start = FrameProfile::Clock::now();
         platform.EndFrame();
+        profile.timeline.MarkPresent(
+            std::chrono::duration<double, std::milli>(FrameProfile::Clock::now() - swap_start).count());
         if (platform.QuitRequested()) {
           world.add<RaylibWindowClosed>();
         }

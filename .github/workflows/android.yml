@@ -85,6 +85,7 @@ jobs:
             -DANDROID_STL=c++_shared
             -DZ13_VERSION_PATCH=${{ env.VERSION_CODE }}
             -DZ13_VERSION_SUFFIX=${{ env.VERSION_SUFFIX }}
+            -DZ13_PROFILE=${{ inputs.release && 'OFF' || 'ON' }}
             -DCMAKE_C_COMPILER_LAUNCHER=ccache
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 

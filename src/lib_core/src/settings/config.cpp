@@ -33,6 +33,7 @@ constexpr std::string_view kServerOption = "server";
 constexpr std::string_view kConnectOption = "connect";
 constexpr std::string_view kHeadlessOption = "headless";
 constexpr std::string_view kLogOption = "log";
+constexpr std::string_view kFrameLogOption = "frame-log";
 constexpr std::string_view kInputScriptOption = "input-script";
 constexpr std::string_view kStationOption = "station";
 constexpr std::string_view kStationSceneOption = "station-scene";
@@ -67,6 +68,8 @@ Config::Config() {
        "Join host[:port] on startup instead of showing the main menu")
       (kHeadlessOption.data(), po::bool_switch(&command_line_.headless),
        "With --connect: a client without a window or renderer, loading the server's module list")
+      (kFrameLogOption.data(), po::bool_switch(&command_line_.frame_log),
+       "Log a line a second with the frame times (read it with adb logcat on a phone)")
       (kLogOption.data(), po::value<std::string>()->implicit_value(""),
        "Also write this run's log to a file in this directory (default: logs in the game data directory)")
       (kInputScriptOption.data(), po::value<std::string>(),
@@ -293,6 +296,10 @@ std::optional<Endpoint> Config::GetConnectEndpoint() const {
 
 bool Config::IsHeadless() const {
   return command_line_.headless;
+}
+
+bool Config::IsFrameLog() const {
+  return command_line_.frame_log;
 }
 
 std::optional<LogFileOption> Config::GetLogFile() const {

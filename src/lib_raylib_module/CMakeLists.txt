@@ -25,6 +25,7 @@ z13_add_plugin(
   src/gui/main_menu_window.cpp
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp
+  src/gui/profile_window.cpp
   src/gui/render_diagnostics.cpp
   src/gui/room_label.cpp
   src/gui/start_game_window.cpp
@@ -47,6 +48,7 @@ z13_add_plugin(
   src/render/cell_lighting_state.cpp
   src/render/debug_view.cpp
   src/render/environment_render_system.cpp
+  src/render/frame_profile.cpp
   src/render/gl_depth_buffer.cpp
   src/render/gl_volumes.cpp
   src/render/lights.cpp

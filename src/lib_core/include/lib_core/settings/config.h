@@ -83,6 +83,8 @@ class Config {
   std::optional<Endpoint> GetConnectEndpoint() const;
   // --headless: with --connect, a client without a window, on the server's module list.
   bool IsHeadless() const;
+  // --frame-log: the game logs a line a second with its frame times, for a phone's logcat.
+  bool IsFrameLog() const;
   // --log [DIR]: the launcher also writes the run's log to a file. std::nullopt when not given.
   std::optional<LogFileOption> GetLogFile() const;
   // --input-script PATH: input played once the local player is in the game (z13_module's
@@ -114,6 +116,7 @@ class Config {
     uint16_t port {kDefaultServerPort};
     std::optional<Endpoint> connect_endpoint;
     bool headless {};
+    bool frame_log {};
     std::optional<LogFileOption> log_file;
     std::optional<std::filesystem::path> input_script;
   };

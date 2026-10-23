@@ -79,6 +79,7 @@
 #include "block_chunks.h"
 #include "block_meshes.h"
 #include "cell_lighting.h"
+#include "frame_profile.h"
 #include "lights.h"
 #include "render_components.h"
 #include "render_resources.h"
@@ -120,10 +121,12 @@ const Eigen::Vector3f kFlashlightTint(1.f, 0.95f, 0.85f);
 const Eigen::Vector3f kShipAmbientSky(0.30f, 0.32f, 0.40f);
 const Eigen::Vector3f kShipAmbientGround(0.12f, 0.10f, 0.09f);
 
+constexpr std::chrono::seconds kFrameLogInterval {1};
+
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
                                          BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour, StationProps,
-                                         z13::VisualSmoothing, z13::RenderTuning>(world);
+                                         FrameProfile, z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
 // Everything not the local player's own chases its simulated transform in real time, so
@@ -198,6 +201,19 @@ void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const Asse
     world.set<RenderModel>(LoadSpaceship(lighting, assets));
   } else if (!wanted && world.has<RenderModel>()) {
     world.remove<RenderModel>();
+  }
+}
+
+// The previous frame's times go to the profile; --frame-log adds a line of them to the log a second.
+void StartProfiledFrame(flecs::world& world, z13::flecs_tools::FrameKind) {
+  FrameProfile& profile = world.get_mut<FrameProfile>();
+  const RenderStats& stats = world.get<RenderStats>();
+  const auto now = FrameProfile::Clock::now();
+  profile.timeline.StartFrame(now, world.has<gameplay::Pause>(), StagesOf(stats.times),
+                              [world] { return z13::SystemTimes(world); });
+  if (profile.log_each_second && (!profile.last_logged || now - *profile.last_logged >= kFrameLogInterval)) {
+    profile.last_logged = now;
+    log_info("[frame] {}", ProfileLine(profile.timeline.Recorder(), stats));
   }
 }
 
@@ -900,6 +916,10 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::VisualSmoothing>({});
   world.set<z13::RenderTuning>({});
   world.set<RenderStats>({});
+  world.set<FrameProfile>({});
+  // The frame report names the heaviest systems.
+  ecs_measure_system_time(world, true);
+  z13::flecs_tools::OnFrameStart(world, StartProfiledFrame);
   // Shared by the closures below; lives as long as the world.
   auto drawing = std::make_shared<SmoothedDrawing>();
 
@@ -925,6 +945,7 @@ void RegisterSystems(flecs::world world) {
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox(assets.source));
         const auto config = z13::GetCoreConfig(world);
+        world.get_mut<FrameProfile>().log_each_second = config && config->get().IsFrameLog();
         if (const auto tour = config ? config->get().GetRenderTourPath() : std::nullopt) {
           world.set(RenderTour(*tour, config->get().GetRenderTourViews()));
           ecs_measure_system_time(world, true);
@@ -1061,7 +1082,7 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize, RenderStats, const z13::station::rooms::RoomCache*,
+  world.system<const RaylibCamera, const WindowSize, RenderStats, FrameProfile, const z13::station::rooms::RoomCache*,
                z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const CellLighting*,
                ShadowMaps*>("EnvironmentRenderSystem::Draw")
       .kind<Render>()
@@ -1069,10 +1090,11 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::BrushPreview>()
       .each([brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
-                const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
+                FrameProfile& profile, const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
                 const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
                 ShadowMaps* shadows) {
         flecs::world world = it.world();
+        profile.timeline.MarkDrawStart(FrameProfile::Clock::now());
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);
 
