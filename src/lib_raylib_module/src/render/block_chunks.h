@@ -28,6 +28,7 @@
 #include <raylib.h>
 
 #include <z13/components/block.h>
+#include <rooms/view_culling.h>
 #include <lib_core/utils/asset_source.h>
 #include <primitives/geometry.h>
 
@@ -35,7 +36,7 @@ namespace z13::raylib {
 
 struct Lighting;
 struct RenderStats;
-class ViewCulling;
+using z13::station::rooms::ViewCulling;
 
 // Blocks merged into one model per render chunk and material (primitives/chunk_mesh.h),
 // opaque and transparent ones apart. Singleton exempt from the "no pointers" rule (see

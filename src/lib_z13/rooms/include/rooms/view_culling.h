@@ -26,11 +26,11 @@
 #include <lib_core/utils/frustum.h>
 #include <rooms/room_graph.h>
 
-namespace z13::raylib {
+namespace z13::station::rooms {
 
 // A room the camera sees, and the frustum narrowed to the portals it is seen through.
 struct SeenRoom {
-  z13::station::rooms::RoomId room {};
+  RoomId room {};
   // Nothing for the vacuum, which has no bounds.
   std::optional<Eigen::AlignedBox3f> bounds;
   z13::math::Frustum frustum;
@@ -57,14 +57,14 @@ class ViewCulling {
   bool Visible(const Eigen::AlignedBox3f& box) const;
 
   // Sorted; nothing without a graph or with the eye inside a block.
-  const std::optional<std::vector<z13::station::rooms::RoomId>>& SeenRooms() const;
+  const std::optional<std::vector<RoomId>>& SeenRooms() const;
   std::optional<size_t> SeenRoomCount() const;
 
  private:
   z13::math::Frustum frustum_;
-  std::optional<std::vector<z13::station::rooms::RoomId>> seen_rooms_;
+  std::optional<std::vector<RoomId>> seen_rooms_;
   // Also nothing in the vacuum, which has no bounds to cull by.
   std::optional<std::vector<SeenRoom>> culling_rooms_;
 };
 
-}  // namespace z13::raylib
+}  // namespace z13::station::rooms

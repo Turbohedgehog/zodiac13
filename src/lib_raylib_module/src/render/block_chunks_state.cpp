@@ -30,7 +30,7 @@
 #include "block_model.h"
 #include "render_components.h"
 #include "render_stats.h"
-#include "view_culling.h"
+#include <rooms/view_culling.h>
 
 namespace z13::raylib {
 

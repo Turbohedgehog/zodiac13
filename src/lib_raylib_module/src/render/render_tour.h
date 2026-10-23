@@ -31,9 +31,11 @@
 #include <rooms/tour_viewpoints.h>
 
 #include "render_stats.h"
-#include "view_culling.h"
+#include <rooms/view_culling.h>
 
 namespace z13::raylib {
+
+using z13::station::rooms::ViewCulling;
 
 // One stop of the tour: a viewpoint, drawn with the rooms culling or with the frustum alone.
 struct TourStop {
