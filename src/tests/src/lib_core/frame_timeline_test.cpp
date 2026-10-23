@@ -29,13 +29,13 @@ using std::chrono::milliseconds;
 constexpr double kTolerance = 1e-9;
 constexpr milliseconds kFrame {16};
 
-const SystemSampler kNoSystems;
+const std::vector<double> kNoSystems;
 
 // Starts the next frame `ms` after `from`; returns when it started.
 Clock::time_point Next(FrameTimeline& timeline, Clock::time_point from, milliseconds ms, bool paused = false,
-                       const std::vector<FrameStage>& stages = {}, const SystemSampler& sampler = kNoSystems) {
+                       const std::vector<FrameStage>& stages = {}, const std::vector<double>& totals = kNoSystems) {
   const Clock::time_point now = from + ms;
-  timeline.StartFrame(now, paused, stages, sampler);
+  timeline.StartFrame(now, paused, stages, totals);
   return now;
 }
 
@@ -115,23 +115,29 @@ TEST(FrameTimelineTest, PausedFramesAreNotRecordedAndEndingThePauseStartsOver) {
   EXPECT_EQ(timeline.Recorder().Size(), 1U);
 }
 
-TEST(FrameTimelineTest, SamplesTheSystemsOnceAnInterval) {
+TEST(FrameTimelineTest, AFrameGetsWhatEachSystemSpentDuringIt) {
   FrameTimeline timeline;
-  int calls = 0;
-  const SystemSampler sampler = [&calls] {
-    ++calls;
-    return std::vector<SystemTime> {{.path = "a", .ms = 0.0}};
-  };
   Clock::time_point now = Clock::now();
-  timeline.StartFrame(now, false, {}, sampler);
-  EXPECT_EQ(calls, 1) << "the first frame takes a baseline";
-  for (int i = 0; i < 10; ++i) {
-    now = Next(timeline, now, kFrame, false, {}, sampler);
-  }
-  EXPECT_EQ(calls, 1) << "160 ms is under the interval";
+  timeline.StartFrame(now, false, {}, std::vector<double> {1.0, 2.0});
+  Next(timeline, now, kFrame, false, {}, std::vector<double> {4.0, 9.0});
 
-  Next(timeline, now, kSystemTotalsInterval, false, {}, sampler);
-  EXPECT_EQ(calls, 2);
+  const std::vector<float> spent = timeline.Recorder().Frames().front().system_ms;
+  ASSERT_EQ(spent.size(), 2U);
+  EXPECT_NEAR(spent[0], 3.0, kTolerance);
+  EXPECT_NEAR(spent[1], 7.0, kTolerance);
+}
+
+TEST(FrameTimelineTest, WithoutComparableTotalsAFrameKnowsNoSystems) {
+  FrameTimeline timeline;
+  Clock::time_point now = Clock::now();
+  timeline.StartFrame(now, false, {}, std::vector<double> {1.0, 2.0});
+  now = Next(timeline, now, kFrame, false, {}, std::vector<double> {4.0, 9.0, 1.0});
+  Next(timeline, now, kFrame, false, {}, std::vector<double> {5.0, 9.0, 2.0});
+
+  const std::vector<FrameSample> frames = timeline.Recorder().Frames();
+  ASSERT_EQ(frames.size(), 2U);
+  EXPECT_TRUE(frames[0].system_ms.empty()) << "a system appeared";
+  EXPECT_EQ(frames[1].system_ms.size(), 3U);
 }
 
 TEST(FrameTimelineTest, CountsWhatItSawAndLeftOut) {

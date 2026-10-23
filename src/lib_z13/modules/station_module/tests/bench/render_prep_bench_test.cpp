@@ -18,12 +18,14 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
 
 #include <primitives/decor.h>
 #include <primitives/station_assets.h>
+#include <rooms/box_tree.h>
 #include <rooms/corridor_walk.h>
 #include <rooms/room_builder.h>
 #include <rooms/space_walk.h>
@@ -70,18 +72,31 @@ double MedianMs(Work&& work) {
 struct Result {
   double culling_ms {};
   double pick_ms {};
+  double chunks_ms {};
+  double props_tree_ms {};
   size_t seen_rooms {};
   Drawn drawn;
 };
 
-Result Measure(const Scene& scene, const rooms::RoomGraph& graph, const Stop& stop) {
+struct PickedScene {
+  Scene scene;
+  Scene chunks;
+  rooms::BoxTree props;
+};
+
+Result Measure(const PickedScene& picked, const rooms::RoomGraph& graph, const Stop& stop) {
   const rooms::CameraView view =
       CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
   Result result;
   result.culling_ms = MedianMs([&] { const rooms::ViewCulling culling(view, std::cref(graph)); });
   const rooms::ViewCulling culling(view, std::cref(graph));
   result.seen_rooms = culling.SeenRoomCount().value_or(0);
-  result.pick_ms = MedianMs([&] { result.drawn = PickVisible(scene, culling, view.eye); });
+  result.pick_ms = MedianMs([&] { result.drawn = PickVisible(picked.scene, culling, view.eye); });
+  result.chunks_ms = MedianMs([&] { auto drawn = PickVisible(picked.chunks, culling, view.eye); });
+  result.props_tree_ms = MedianMs([&] {
+    std::vector<uint32_t> visible;
+    picked.props.Query(culling, visible);
+  });
   return result;
 }
 
@@ -145,22 +160,30 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
 
   const std::vector<Stop> stops = OctantRoute(*graph, *blocks);
   ASSERT_GT(stops.size(), 1U);
+  Scene chunks = scene;
+  chunks.props.clear();
+  const PickedScene picked {.scene = scene,
+                            .chunks = std::move(chunks),
+                            .props = rooms::BoxTree(scene.props, z13::RenderTuning().prop_tree_loose_ratio)};
 
-  std::string csv = "stop,eye_x_m,eye_y_m,eye_z_m,culling_ms,pick_ms,seen_rooms,chunks,meshes,triangles,glass,props\n";
+  std::string csv =
+      "stop,eye_x_m,eye_y_m,eye_z_m,culling_ms,pick_ms,chunks_ms,props_tree_ms,seen_rooms,chunks,meshes,triangles,"
+      "glass,props\n";
   double worst_total_ms = 0.0;
   std::string worst;
   for (const Stop& stop : stops) {
-    const Result result = Measure(scene, *graph, stop);
+    const Result result = Measure(picked, *graph, stop);
     const Eigen::Vector3f eye = stop.eye * z13::station::kCellSize;
     std::cout << std::format(
-        "[ bench ] {:<11} eye {:7.2f} {:7.2f} {:6.2f} m  culling {:7.3f} ms  pick {:7.3f} ms  rooms {:4}  chunks {:4}  "
-        "meshes {:5}  triangles {:8}  glass {:3}  props {:4}\n",
-        stop.label, eye.x(), eye.y(), eye.z(), result.culling_ms, result.pick_ms, result.seen_rooms,
-        result.drawn.chunks, result.drawn.meshes, result.drawn.triangles, result.drawn.glass, result.drawn.props);
+        "[ bench ] {:<11} eye {:7.2f} {:7.2f} {:6.2f} m  culling {:7.3f} ms  pick {:7.3f} ms (chunks {:6.3f}, props in "
+        "a tree {:6.3f})  rooms {:4}  chunks {:4}  meshes {:5}  triangles {:8}  glass {:3}  props {:4}\n",
+        stop.label, eye.x(), eye.y(), eye.z(), result.culling_ms, result.pick_ms, result.chunks_ms,
+        result.props_tree_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes, result.drawn.triangles,
+        result.drawn.glass, result.drawn.props);
     csv += std::format(
-        "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(), eye.z(),
-        result.culling_ms, result.pick_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes,
-        result.drawn.triangles, result.drawn.glass, result.drawn.props);
+        "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(),
+        eye.z(), result.culling_ms, result.pick_ms, result.chunks_ms, result.props_tree_ms, result.seen_rooms,
+        result.drawn.chunks, result.drawn.meshes, result.drawn.triangles, result.drawn.glass, result.drawn.props);
     if (stop.label.starts_with("orbit") || stop.label == "overview" || stop.label == "exit") {
       const CullingBreakdown breakdown = BreakDownCulling(*graph, stop);
       std::cout << std::format(

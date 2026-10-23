@@ -31,6 +31,23 @@ std::vector<SystemTime> SystemTimes(flecs::world world) {
   return times;
 }
 
+void SystemTimeSampler::Sample(flecs::world world, std::vector<double>& totals) {
+  if (const int32_t counted = ecs_count_id(world, EcsSystem); counted != counted_) {
+    counted_ = counted;
+    systems_.clear();
+    paths_.clear();
+    world.query_builder().with(flecs::System).build().each([&](flecs::entity system) {
+      systems_.push_back(system.id());
+      paths_.emplace_back(system.path());
+    });
+  }
+  totals.resize(systems_.size());
+  for (size_t i = 0; i < systems_.size(); ++i) {
+    const ecs_system_t* data = ecs_system_get(world, systems_[i]);
+    totals[i] = data != nullptr ? static_cast<double>(data->time_spent) * kMsPerSecond : 0.0;
+  }
+}
+
 std::vector<SystemTime> SystemTimesPerFrame(
     const std::vector<SystemTime>& before, const std::vector<SystemTime>& after, int frames) {
   std::vector<SystemTime> spent;

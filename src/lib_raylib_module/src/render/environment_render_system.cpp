@@ -208,8 +208,8 @@ void StartProfiledFrame(flecs::world& world, z13::flecs_tools::FrameKind) {
   FrameProfile& profile = world.get_mut<FrameProfile>();
   const RenderStats& stats = world.get<RenderStats>();
   const auto now = FrameProfile::Clock::now();
-  profile.timeline.StartFrame(now, world.has<gameplay::Pause>(), StagesOf(stats.times),
-                              [world] { return z13::SystemTimes(world); });
+  profile.systems.Sample(world, profile.system_totals);
+  profile.timeline.StartFrame(now, world.has<gameplay::Pause>(), StagesOf(stats.times), profile.system_totals);
   if (profile.log_each_second && (!profile.last_logged || now - *profile.last_logged >= kFrameLogInterval)) {
     profile.last_logged = now;
     log_info("[frame] {}", ProfileLine(profile.timeline.Recorder(), stats));

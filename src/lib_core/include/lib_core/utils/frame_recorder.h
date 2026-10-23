@@ -22,8 +22,6 @@
 #include <string_view>
 #include <vector>
 
-#include <lib_core/utils/system_times.h>
-
 namespace z13 {
 
 // `name` is a constant its recorder owns.
@@ -40,6 +38,8 @@ struct FrameSample {
   double present_ms {};
   // Empty for a frame that wasn't drawn.
   std::vector<FrameStage> stages;
+  // What each system spent, in ms, in the order of the report's system paths; empty when unknown.
+  std::vector<float> system_ms;
 };
 
 inline constexpr std::chrono::seconds kFrameReportWindow {10};
@@ -49,28 +49,14 @@ class FrameRecorder {
   explicit FrameRecorder(std::chrono::milliseconds window = kFrameReportWindow);
 
   void Add(FrameSample sample);
-  // `totals` is SystemTimes now; the frames added between two calls give the mean per frame.
-  void AddSystemTotals(std::vector<SystemTime> totals);
-
   std::vector<FrameSample> Frames() const;
-  // Nothing before there are two totals.
-  std::vector<SystemTime> SystemsPerFrame() const;
-
   size_t Size() const { return frames_.size(); }
   void Clear();
 
  private:
-  struct SystemTotals {
-    size_t frame {};
-    std::vector<SystemTime> totals;
-  };
-
   std::chrono::milliseconds window_ {};
   std::deque<FrameSample> frames_;
   double covered_ms_ {};
-  // The front frame's index is added_ - frames_.size().
-  size_t added_ {};
-  std::deque<SystemTotals> systems_;
 };
 
 }  // namespace z13

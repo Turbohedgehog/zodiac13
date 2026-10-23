@@ -85,10 +85,14 @@ TEST(FrameReportTest, ThePartsNeverMakeTheRestNegative) {
 TEST(FrameReportTest, ReportsHeaderCountersSystemsAndSlowFrames) {
   std::vector<FrameSample> frames(20, Frame(10.0, 2.0, 1.0));
   frames[7] = Frame(80.0, 70.0, 1.0);
+  for (FrameSample& frame : frames) {
+    frame.system_ms = {0.5f, 1.75f};
+  }
+  frames[7].system_ms = {0.5f, 61.5f};
   const FrameReportInput input {
       .header = {{"Device", "test phone"}},
       .counters = {{"Chunks", "98 / 117"}},
-      .systems = {{.path = "light", .ms = 0.5}, {.path = "physics", .ms = 1.75}},
+      .system_paths = {"light", "physics"},
   };
 
   const std::string report = FrameReport(frames, input);
@@ -98,6 +102,7 @@ TEST(FrameReportTest, ReportsHeaderCountersSystemsAndSlowFrames) {
   EXPECT_TRUE(Contains(report, "#7 "));
   EXPECT_TRUE(Contains(report, "mostly simulation 70.00 ms (88%)"));
   EXPECT_LT(report.find("physics"), report.find("light")) << "the heavier system first";
+  EXPECT_TRUE(Contains(report, "systems: physics 61.5, light 0.5")) << "what the slow frame spent";
 }
 
 TEST(FrameReportTest, TheSlowestFramesAreListedLongestFirstAndCapped) {
@@ -117,6 +122,22 @@ TEST(FrameReportTest, SaysSoWhenNoFrameStoodOut) {
 
   EXPECT_TRUE(Contains(report, "No frame took over"));
   EXPECT_FALSE(Contains(report, "Slowest frames"));
+}
+
+TEST(FrameReportTest, SystemMeansAverageTheFramesThatKnowTheirSystems) {
+  FrameSample first = Frame(10.0);
+  first.system_ms = {1.0f, 4.0f};
+  FrameSample second = Frame(10.0);
+  second.system_ms = {3.0f, 8.0f};
+  const FrameSample unknown = Frame(10.0);
+  const std::vector<std::string> paths {"a", "b"};
+
+  const std::vector<SystemTime> means = SystemMeans(std::vector {first, second, unknown}, paths);
+  ASSERT_EQ(means.size(), 2U);
+  EXPECT_EQ(means[0].path, "b");
+  EXPECT_NEAR(means[0].ms, 6.0, kTolerance);
+  EXPECT_NEAR(means[1].ms, 2.0, kTolerance);
+  EXPECT_TRUE(SystemMeans(std::vector {unknown}, paths).empty());
 }
 
 }  // namespace
