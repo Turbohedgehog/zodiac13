@@ -17,6 +17,7 @@
 #include "report_view.h"
 
 #include <algorithm>
+#include <string_view>
 
 #include <lib_core/utils/text_lines.h>
 
@@ -26,7 +27,7 @@ namespace z13::raylib::gui {
 
 namespace {
 
-constexpr const char* kBoxId = "##report";
+constexpr std::string_view kBoxId = "##report";
 constexpr float kLongPressSeconds = 0.45f;
 // A finger near the box's top or bottom edge scrolls it, so a selection can reach lines out of view.
 constexpr float kEdgeEm = 2.f;
@@ -101,7 +102,7 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
 }
 
 void ReportView::Draw(const ImVec2& size) {
-  if (ImGui::BeginChild(kBoxId, size, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+  if (ImGui::BeginChild(kBoxId.data(), size, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
     // Lines touch, so a line's place is its index times the text height.
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.f});
     const float line_height = ImGui::GetTextLineHeight();
@@ -117,7 +118,8 @@ void ReportView::Draw(const ImVec2& size) {
         const float top = origin.y + static_cast<float>(i) * line_height;
         draw->AddRectFilled({left, top}, {right, top + line_height}, kSelectionColor);
       }
-      ImGui::TextUnformatted(lines_[i].c_str(), lines_[i].c_str() + lines_[i].size());
+      const std::string& line = lines_[i];
+      ImGui::TextUnformatted(line.c_str(), line.c_str() + line.size());
     }
     ImGui::PopStyleVar();
   }
