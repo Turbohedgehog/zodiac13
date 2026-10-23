@@ -22,6 +22,8 @@ Findings that came up in this repo's reviews, beyond CLAUDE.md's rules themselve
 - A `switch` that only maps one enum to a value or a list (a panel per layer, a layout field per button): a `constexpr std::array` indexed by the enumerator (with a `static_assert` on its size) or a table of member pointers reads shorter and can't lose a case to `[[fallthrough]]`. Keep the `switch` when each case does different work.
 - A list of every enumerator kept next to the enum (the layers to scan, the modes to cycle): derive it from the table instead, so a new enumerator is added in one place.
 
+- Code that runs every frame for hundreds of objects (culling, picking, per-portal or per-prop math) is written with plain structs and arrays of `float`, not Eigen expressions: a Debug build (the one we develop and measure in) keeps every temporary, and the same loop costs 3-5 times as much (`Frustum::Intersects`, `Through`). Keep Eigen at the edges of such code, and leave a comment on each such place saying why it is not Eigen (CLAUDE.md, "Code style"); a loop of this kind without one gets one.
+
 ## Tests
 
 - New behaviour has a test that fails without the change (run it once against the old code when in doubt).

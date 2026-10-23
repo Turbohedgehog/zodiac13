@@ -28,7 +28,9 @@
 #include <rooms/room_builder.h>
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
+#include <rooms/room_visibility.h>
 #include <rooms/view_culling.h>
+#include <lib_core/utils/frustum.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/camera_view.h>
@@ -93,6 +95,36 @@ Result Measure(const Scene& scene, const rooms::RoomGraph& graph, const Stop& st
   return result;
 }
 
+// Where the culling time of a view goes: the walk over the portals (room_visibility.h), which the
+// ViewCulling constructor does first, against the whole constructor, and how many portals the
+// walk can touch.
+struct CullingBreakdown {
+  double walk_ms {};
+  size_t portals {};
+};
+
+CullingBreakdown BreakDownCulling(const rooms::RoomGraph& graph, const Stop& stop) {
+  const rooms::CameraView view =
+      CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
+  const auto eye_room = graph.RoomAt(stop.eye.array().floor().cast<int>());
+  CullingBreakdown breakdown;
+  if (!eye_room) {
+    return breakdown;
+  }
+  const Eigen::Matrix4f cells_to_clip =
+      view.view_projection * Eigen::Affine3f(Eigen::Scaling(z13::station::kCellSize)).matrix();
+  const rooms::RoomView room_view {.eye_room = *eye_room, .eye = stop.eye, .view_projection = cells_to_clip,
+                                   .screen = z13::math::Frustum::FullScreen(), .min_extent = Eigen::Vector2f::Zero()};
+  rooms::ScreenRegions regions;
+  breakdown.walk_ms = MedianMs([&] { regions = rooms::VisibleRooms(graph, room_view); });
+  for (const auto& [room, region] : regions) {
+    for (const size_t index : graph.PortalsOf(room)) {
+      breakdown.portals += graph.portals[index].visible ? 1 : 0;
+    }
+  }
+  return breakdown;
+}
+
 std::filesystem::path OutputDir() {
   const char* dir = std::getenv(kOutputDirEnv.data());
   return dir != nullptr ? std::filesystem::path(dir) : std::filesystem::temp_directory_path() / kDefaultOutputDirName;
@@ -154,6 +186,12 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
         "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(), eye.z(),
         result.culling_ms, result.pick_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes,
         result.drawn.triangles, result.drawn.glass, result.drawn.props);
+    if (stop.label.starts_with("orbit") || stop.label == "overview" || stop.label == "exit") {
+      const CullingBreakdown breakdown = BreakDownCulling(*graph, stop);
+      std::cout << std::format(
+          "[ bench ]   culling: the walk over portals {:7.3f} ms of {:7.3f}, {} visible portals in the rooms it saw\n",
+          breakdown.walk_ms, result.culling_ms, breakdown.portals);
+    }
     if (result.culling_ms + result.pick_ms > worst_total_ms) {
       worst_total_ms = result.culling_ms + result.pick_ms;
       worst = stop.label;
