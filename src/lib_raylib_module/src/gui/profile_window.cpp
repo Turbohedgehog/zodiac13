@@ -33,13 +33,27 @@ namespace {
 constexpr float kReportWidthEm = 48.f;
 constexpr float kReportHeightEm = 22.f;
 
+// A finger on a phone is a mouse to ImGui: dragging in a text field selects, so the report is
+// plain text in a child window that a drag scrolls.
+void DrawScrollableText(const std::string& text) {
+  if (ImGui::BeginChild("##report", {Em(kReportWidthEm), Em(kReportHeightEm)}, ImGuiChildFlags_Borders,
+                        ImGuiWindowFlags_HorizontalScrollbar)) {
+    ImGui::TextUnformatted(text.c_str());
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+      const ImVec2 drag = ImGui::GetIO().MouseDelta;
+      ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
+      ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
+    }
+  }
+  ImGui::EndChild();
+}
+
 }  // namespace
 
 ProfileWindow::ProfileWindow(flecs::world world) : Window(world, "Profile"), report_(ProfileReport(world)) {}
 
 void ProfileWindow::DrawBody() {
-  ImGui::InputTextMultiline("##report", report_.data(), report_.size() + 1,
-                            {Em(kReportWidthEm), Em(kReportHeightEm)}, ImGuiInputTextFlags_ReadOnly);
+  DrawScrollableText(report_);
   if (ImGui::Button("Copy and save", ButtonSize())) {
     status_ = CaptureProfileReport(report_);
   }
