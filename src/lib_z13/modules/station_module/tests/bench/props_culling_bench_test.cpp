@@ -45,14 +45,12 @@
 #include <primitives/decor.h>
 #include <primitives/station_assets.h>
 #include <rooms/box_tree.h>
-#include <rooms/corridor_walk.h>
 #include <rooms/room_builder.h>
-#include <rooms/space_walk.h>
-#include <rooms/tour_viewpoints.h>
 #include <rooms/view_culling.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/camera_view.h>
+#include <z13_tests/octant_route.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/virtual_render.h>
 
@@ -71,13 +69,9 @@ using Rtree = bgi::rtree<Entry, bgi::rstar<16>>;
 
 // Each timing is repeated this many times and the median kept.
 constexpr int kRepeats = 9;
-constexpr size_t kCorridorRooms = 40;
-constexpr size_t kTourRooms = 8;
 // How far (meters) a repeated prop is moved from the original, so the density follows the station.
 constexpr float kScatterM = 4.f;
 constexpr std::array kRepeatCounts {1, 10, 100};
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 
 double Ms(std::chrono::steady_clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
@@ -125,33 +119,6 @@ std::vector<Eigen::AlignedBox3f> Repeated(const std::vector<Eigen::AlignedBox3f>
     }
   }
   return result;
-}
-
-struct Stop {
-  std::string label;
-  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
-  Eigen::Vector3f target = Eigen::Vector3f::Zero();
-};
-
-void AddStops(std::vector<Stop>& stops, std::string_view prefix, const std::vector<rooms::Viewpoint>& viewpoints) {
-  for (size_t i = 0; i < viewpoints.size(); ++i) {
-    stops.push_back(
-        {.label = std::format("{}{}", prefix, i), .eye = viewpoints[i].eye, .target = viewpoints[i].target});
-  }
-}
-
-// RenderPrepBench's route: along the corridors, round the rooms and out round the station.
-std::vector<Stop> RouteOf(const rooms::RoomGraph& graph, const std::vector<z13::station::Block>& blocks) {
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
-  }
-  return stops;
 }
 
 std::vector<uint32_t> LinearPick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) {
@@ -208,7 +175,7 @@ struct Timings {
 TEST(PropsCullingBench, DISABLED_OctantWalk) {
   const auto octant = LoadOctantProps();
   ASSERT_TRUE(octant.has_value());
-  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
+  const std::vector<Stop> stops = OctantRoute(octant->graph, octant->blocks);
   ASSERT_GT(stops.size(), 1U);
 
   Timings previous;
@@ -369,7 +336,7 @@ struct FrameStats {
 TEST(PropsCullingBench, DISABLED_DynamicProps) {
   const auto octant = LoadOctantProps();
   ASSERT_TRUE(octant.has_value());
-  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
+  const std::vector<Stop> stops = OctantRoute(octant->graph, octant->blocks);
   std::vector<const Stop*> views;
   for (const Stop& stop : stops) {
     if (std::ranges::contains(kDynamicStops, stop.label)) {

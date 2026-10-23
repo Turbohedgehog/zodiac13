@@ -34,6 +34,7 @@
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/camera_view.h>
+#include <z13_tests/octant_route.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/virtual_render.h>
 
@@ -48,11 +49,6 @@ constexpr std::string_view kDefaultOutputDirName = "z13_render_prep";
 constexpr std::string_view kCsvFileName = "viewpoints.csv";
 // Each pick is timed this many times and the median kept.
 constexpr int kRepeats = 5;
-// How many rooms the corridor walk may enter, and how many the tour picks.
-constexpr size_t kCorridorRooms = 40;
-constexpr size_t kTourRooms = 8;
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 
 double Ms(std::chrono::steady_clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
@@ -69,12 +65,6 @@ double MedianMs(Work&& work) {
   std::ranges::sort(times);
   return times[times.size() / 2];
 }
-
-struct Stop {
-  std::string label;
-  Eigen::Vector3f eye = Eigen::Vector3f::Zero();
-  Eigen::Vector3f target = Eigen::Vector3f::Zero();
-};
 
 // What one view costs and draws.
 struct Result {
@@ -130,13 +120,6 @@ std::filesystem::path OutputDir() {
   return dir != nullptr ? std::filesystem::path(dir) : std::filesystem::temp_directory_path() / kDefaultOutputDirName;
 }
 
-void AddStops(std::vector<Stop>& stops, std::string_view prefix, const std::vector<rooms::Viewpoint>& viewpoints) {
-  for (size_t i = 0; i < viewpoints.size(); ++i) {
-    stops.push_back(
-        {.label = std::format("{}{}", prefix, i), .eye = viewpoints[i].eye, .target = viewpoints[i].target});
-  }
-}
-
 TEST(RenderPrepBench, DISABLED_OctantWalk) {
   const auto palette = ShippedPalette();
   ASSERT_TRUE(palette.has_value()) << palette.error();
@@ -160,15 +143,7 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
       rooms_ms, graph->rooms.size(), graph->portals.size(), scene.opaque.size(), scene.glass.size(),
       scene.props.size(), scene_ms);
 
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(*graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(*graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(*blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
-  }
+  const std::vector<Stop> stops = OctantRoute(*graph, *blocks);
   ASSERT_GT(stops.size(), 1U);
 
   std::string csv = "stop,eye_x_m,eye_y_m,eye_z_m,culling_ms,pick_ms,seen_rooms,chunks,meshes,triangles,glass,props\n";
