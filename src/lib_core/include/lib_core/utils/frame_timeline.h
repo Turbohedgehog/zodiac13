@@ -17,6 +17,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <optional>
 #include <span>
 
@@ -27,6 +28,15 @@ namespace z13 {
 
 // How often the systems' time is sampled for a frame report.
 inline constexpr std::chrono::seconds kSystemTotalsInterval {1};
+
+// What a FrameTimeline has seen since it was made, for telling an empty report from a broken one.
+struct FrameTimelineCounts {
+  size_t started {};
+  // Frames left out because the game was paused.
+  size_t paused {};
+  // Times the recorded frames were dropped: the end of a pause, or a call to Clear.
+  size_t cleared {};
+};
 
 // Turns the marks a host frame leaves (where it started, where its drawing started, how long the
 // swap took) into the FrameSample the recorder keeps. A frame is recorded when the next one
@@ -46,10 +56,12 @@ class FrameTimeline {
   void MarkPresent(double ms);
 
   const FrameRecorder& Recorder() const { return recorder_; }
+  const FrameTimelineCounts& Counts() const { return counts_; }
   void Clear();
 
  private:
   FrameRecorder recorder_;
+  FrameTimelineCounts counts_;
   std::optional<Clock::time_point> start_;
   std::optional<Clock::time_point> draw_start_;
   double present_ms_ {};

@@ -57,7 +57,7 @@ TEST(FrameReportTest, NoFramesSummarizeToZeros) {
   EXPECT_EQ(summary.frames, 0U);
   EXPECT_NEAR(summary.mean_fps, 0.0, kTolerance);
   EXPECT_NEAR(summary.low_fps, 0.0, kTolerance);
-  EXPECT_FALSE(FrameReport({}, {}).empty());
+  EXPECT_TRUE(Contains(FrameReport({}, {}), "No frames recorded"));
 }
 
 TEST(FrameReportTest, TimeSharesNameWhereTheFrameWent) {

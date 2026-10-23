@@ -33,6 +33,8 @@ void FrameTimeline::StartFrame(
   if (paused_ && !paused) {
     Clear();
   }
+  ++counts_.started;
+  counts_.paused += paused ? 1 : 0;
   if (start_ && !paused_) {
     FrameSample sample {.period_ms = MsBetween(*start_, now)};
     if (draw_start_) {
@@ -63,6 +65,7 @@ void FrameTimeline::MarkPresent(double ms) {
 }
 
 void FrameTimeline::Clear() {
+  ++counts_.cleared;
   recorder_.Clear();
   systems_sampled_.reset();
 }

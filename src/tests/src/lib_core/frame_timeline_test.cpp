@@ -134,6 +134,20 @@ TEST(FrameTimelineTest, SamplesTheSystemsOnceAnInterval) {
   EXPECT_EQ(calls, 2);
 }
 
+TEST(FrameTimelineTest, CountsWhatItSawAndLeftOut) {
+  FrameTimeline timeline;
+  Clock::time_point now = Clock::now();
+  timeline.StartFrame(now, false, {}, kNoSystems);
+  now = Next(timeline, now, kFrame);
+  now = Next(timeline, now, kFrame, true);
+  now = Next(timeline, now, kFrame, true);
+  now = Next(timeline, now, kFrame, false);
+
+  EXPECT_EQ(timeline.Counts().started, 5U);
+  EXPECT_EQ(timeline.Counts().paused, 2U);
+  EXPECT_EQ(timeline.Counts().cleared, 1U) << "the end of the pause";
+}
+
 TEST(FrameTimelineTest, ClearForgetsTheFramesAndTheSystems) {
   FrameTimeline timeline;
   Clock::time_point now = Clock::now();

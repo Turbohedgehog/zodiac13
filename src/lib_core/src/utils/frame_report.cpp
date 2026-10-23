@@ -129,6 +129,9 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
   for (const auto& [name, value] : input.header) {
     std::format_to(out, "{}: {}\n", name, value);
   }
+  if (frames.empty()) {
+    std::format_to(out, "\nNo frames recorded: play for a few seconds, then open the menu.\n");
+  }
   std::format_to(out, "\nFPS: mean {:.1f}, median {:.1f}, slowest 1% {:.1f}\n", summary.mean_fps, summary.median_fps,
                  summary.low_fps);
   std::format_to(out, "Frame: mean {:.2f} ms, median {:.2f} ms, 99th percentile {:.2f} ms, worst {:.2f} ms\n",
