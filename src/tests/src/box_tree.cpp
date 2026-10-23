@@ -63,17 +63,15 @@ BoxTree::BoxTree(const std::vector<Eigen::AlignedBox3f>& boxes) : ids_(boxes.siz
 
 uint32_t BoxTree::Build(size_t begin, size_t end, uint32_t parent, const std::vector<Eigen::AlignedBox3f>& boxes) {
   const auto index = static_cast<uint32_t>(nodes_.size());
-  nodes_.emplace_back();
-  parents_.push_back(parent);
   Eigen::AlignedBox3f bounds;
   Eigen::AlignedBox3f centers;
   for (size_t i = begin; i < end; ++i) {
-    bounds.extend(boxes[ids_[i]]);
-    centers.extend(centers_[ids_[i]]);
+    const uint32_t id = ids_[i];
+    bounds.extend(boxes[id]);
+    centers.extend(centers_[id]);
   }
-  nodes_[index].bounds = bounds;
-  nodes_[index].first = static_cast<uint32_t>(begin);
-  nodes_[index].count = static_cast<uint32_t>(end - begin);
+  nodes_.push_back({.bounds = bounds, .first = static_cast<uint32_t>(begin), .count = static_cast<uint32_t>(end - begin)});
+  parents_.push_back(parent);
   if (end - begin <= kLeafItems) {
     leaves_.resize(std::max(leaves_.size(), end), 0);
     std::fill(leaves_.begin() + static_cast<std::ptrdiff_t>(begin), leaves_.begin() + static_cast<std::ptrdiff_t>(end), index);
@@ -122,10 +120,11 @@ void BoxTree::Refit(const std::vector<uint32_t>& moved, const std::vector<Eigen:
     dirty_[leaves_[slot]] = 1;
   }
   for (size_t i = nodes_.size(); i-- > 0;) {
-    if (dirty_[i] == 0) {
+    uint8_t& dirty = dirty_[i];
+    if (dirty == 0) {
       continue;
     }
-    dirty_[i] = 0;
+    dirty = 0;
     RefitNode(i);
     if (i != 0) {
       dirty_[parents_[i]] = 1;
