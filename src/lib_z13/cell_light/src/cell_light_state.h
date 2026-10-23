@@ -24,6 +24,7 @@
 
 #include <cell_light/cell_light.h>
 
+#include "glass_bridges.h"
 #include "lamp_flood.h"
 #include "light_nodes.h"
 
@@ -32,7 +33,8 @@ namespace z13::station::light {
 class CellLight::State {
  public:
   State() = default;
-  State(std::span<const z13::building::primitives::CellBox> opaque, std::span<const Lamp> lamps);
+  State(std::span<const z13::building::primitives::CellBox> opaque, std::span<const GlassBox> glass,
+        std::span<const Lamp> lamps);
 
   LightChanges Apply(const LightEdits& edits);
 
@@ -55,6 +57,7 @@ class CellLight::State {
   void ClearCubes(const z13::building::primitives::CellBox& cubes);
 
   LightNodes nodes_;
+  GlassBridges bridges_;
   std::vector<Eigen::Vector3f> light_;
   // The luminance-weighted sum of the directions to each node's lamps, and that luminance.
   std::vector<Eigen::Vector3f> directions_;

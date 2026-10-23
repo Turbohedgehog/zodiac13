@@ -21,12 +21,11 @@
 #include <optional>
 #include <span>
 
+#include <vector>
+
 #include <lib_core/utils/frame_recorder.h>
-#include <lib_core/utils/system_times.h>
 
 namespace z13 {
-
-inline constexpr std::chrono::seconds kSystemTotalsInterval {1};
 
 // For telling an empty report from a broken one.
 struct FrameTimelineCounts {
@@ -42,10 +41,11 @@ class FrameTimeline {
  public:
   using Clock = std::chrono::steady_clock;
 
-  // `stages` are the previous frame's and count only if it was drawn. A paused game's frames are
-  // left out, and the frames recorded before the pause are dropped when it ends.
-  void StartFrame(
-      Clock::time_point now, bool paused, std::span<const FrameStage> stages, const SystemSampler& sample_systems);
+  // `stages` count only if the previous frame was drawn; the differences of `system_totals` (from
+  // SystemTimeSampler) are system_ms. A paused game's frames are left out, and the frames before
+  // the pause are dropped when it ends.
+  void StartFrame(Clock::time_point now, bool paused, std::span<const FrameStage> stages,
+                  std::span<const double> system_totals);
   // A frame that never calls this wasn't drawn.
   void MarkDrawStart(Clock::time_point now);
   void MarkPresent(double ms);
@@ -61,7 +61,7 @@ class FrameTimeline {
   std::optional<Clock::time_point> draw_start_;
   double present_ms_ {};
   bool paused_ {};
-  std::optional<Clock::time_point> systems_sampled_;
+  std::vector<double> system_totals_;
 };
 
 }  // namespace z13

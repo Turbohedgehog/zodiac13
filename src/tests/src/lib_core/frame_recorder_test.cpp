@@ -61,45 +61,12 @@ TEST(FrameRecorderTest, ClearEmptiesItButKeepsTheWindow) {
   for (int i = 0; i < 5; ++i) {
     recorder.Add(Frame(kFrameMs));
   }
-  recorder.AddSystemTotals({{.path = "a", .ms = 1.0}});
   recorder.Clear();
   for (int i = 0; i < 25; ++i) {
     recorder.Add(Frame(kFrameMs));
   }
 
   EXPECT_EQ(recorder.Size(), 10U);
-  EXPECT_TRUE(recorder.SystemsPerFrame().empty());
-}
-
-TEST(FrameRecorderTest, SystemsPerFrameIsTheMeanBetweenTheTotals) {
-  FrameRecorder recorder(kWindow);
-  recorder.AddSystemTotals({{.path = "a", .ms = 10.0}});
-  EXPECT_TRUE(recorder.SystemsPerFrame().empty()) << "one sample brackets nothing";
-  for (int i = 0; i < 4; ++i) {
-    recorder.Add(Frame(kFrameMs));
-  }
-  recorder.AddSystemTotals({{.path = "a", .ms = 18.0}});
-
-  const std::vector<SystemTime> systems = recorder.SystemsPerFrame();
-  ASSERT_EQ(systems.size(), 1U);
-  EXPECT_NEAR(systems.front().ms, 2.0, kTolerance) << "8 ms over 4 frames";
-}
-
-TEST(FrameRecorderTest, TotalsOlderThanTheWindowAreDropped) {
-  FrameRecorder recorder(kWindow);
-  double total = 0.0;
-  for (int second = 0; second < 5; ++second) {
-    recorder.AddSystemTotals({{.path = "a", .ms = total}});
-    for (int i = 0; i < 10; ++i) {
-      recorder.Add(Frame(kFrameMs));
-      total += second == 4 ? 3.0 : 1.0;
-    }
-  }
-  recorder.AddSystemTotals({{.path = "a", .ms = total}});
-
-  const std::vector<SystemTime> systems = recorder.SystemsPerFrame();
-  ASSERT_EQ(systems.size(), 1U);
-  EXPECT_NEAR(systems.front().ms, 3.0, kTolerance) << "only the last second is averaged";
 }
 
 }  // namespace

@@ -135,6 +135,41 @@ TEST(PaletteTest, RejectsALightThatReachesNothing) {
   EXPECT_FALSE(ParsePalette(Palette(Lamp(R"({"radius_cells": 4})"))).has_value());
 }
 
+std::string Glass(std::string_view extra) {
+  return std::format(
+      R"({{"id": 1, "name": "Window", "shape_type": "Box", "shape": {{}}, "min_size": {{"x": 1, "y": 1, "z": 1}},
+           "max_size": {{"x": 4, "y": 1, "z": 4}},
+           "material": {{"first": {{"r": 9, "g": 9, "b": 9, "a": 90}}, "second": {{"r": 9, "g": 9, "b": 9, "a": 90}}}},
+           "flags": "Solid Transparent"{}}})",
+      extra);
+}
+
+TEST(PaletteTest, GlassPassesAllLightUnlessItSaysOtherwise) {
+  const auto plain = ParsePalette(Palette(Glass("")));
+  const auto tinted = ParsePalette(Palette(Glass(R"(, "light_transmission": 0.1)")));
+  ASSERT_TRUE(plain.has_value()) << plain.error();
+  ASSERT_TRUE(tinted.has_value()) << tinted.error();
+
+  EXPECT_FLOAT_EQ(plain->primitives.front().light_transmission, 1.f);
+  EXPECT_FLOAT_EQ(tinted->primitives.front().light_transmission, 0.1f);
+}
+
+TEST(PaletteTest, RejectsALightTransmissionOutsideZeroToOne) {
+  EXPECT_FALSE(ParsePalette(Palette(Glass(R"(, "light_transmission": -0.5)"))).has_value());
+  EXPECT_FALSE(ParsePalette(Palette(Glass(R"(, "light_transmission": 1.5)"))).has_value());
+}
+
+TEST(PaletteTest, ShippedGlassLetsThroughOnlyAShareOfLight) {
+  const auto palette = z13::testing::ShippedPalette();
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  for (const Primitive& primitive : palette->primitives) {
+    if (primitive.Has(PrimitiveFlags::Transparent)) {
+      EXPECT_LT(primitive.light_transmission, 1.f) << primitive.name;
+    }
+  }
+}
+
 // A switch-sized box with `interaction`, an Interaction in JSON.
 std::string Interactive(std::string_view interaction) {
   return std::format(

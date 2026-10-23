@@ -31,6 +31,7 @@ constexpr float kPathShortening = 1.f / std::numbers::sqrt2_v<float>;
 struct QueuedNode {
   uint32_t node {};
   uint32_t steps {};
+  float transmission = 1.f;
 };
 
 }  // namespace
@@ -44,8 +45,8 @@ std::optional<Eigen::Vector3f> EmitterOf(const LightNodes& nodes, const Lamp& la
   return std::nullopt;
 }
 
-std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, const Eigen::Vector3f& emitter,
-                                    FloodMarks& marks) {
+std::vector<Contribution> FloodLamp(const LightNodes& nodes, const GlassBridges& bridges, const Lamp& lamp,
+                                    const Eigen::Vector3f& emitter, FloodMarks& marks) {
   const auto seed = nodes.NodeAt(emitter.array().floor().cast<int>());
   if (!seed || lamp.radius <= 0.f) {
     return {};
@@ -56,8 +57,26 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, c
   std::vector<Contribution> reached;
   std::vector<QueuedNode> queue {{.node = static_cast<uint32_t>(*seed)}};
   marks.flood_of_node[*seed] = flood;
-  for (size_t head = 0; head < queue.size(); ++head) {
-    const QueuedNode current = queue[head];
+  // Past a pane the flood waits until the open ways are used up, so a lit room's nodes
+  // never take their light through its window from the dimmer side.
+  std::vector<QueuedNode> behind_glass;
+  for (size_t head = 0;;) {
+    if (head == queue.size()) {
+      std::ranges::sort(behind_glass, [](const QueuedNode& a, const QueuedNode& b) {
+        return a.transmission != b.transmission ? a.transmission > b.transmission : a.steps < b.steps;
+      });
+      for (const QueuedNode& waiting : behind_glass) {
+        if (marks.flood_of_node[waiting.node] != flood) {
+          marks.flood_of_node[waiting.node] = flood;
+          queue.push_back(waiting);
+        }
+      }
+      behind_glass.clear();
+      if (head == queue.size()) {
+        break;
+      }
+    }
+    const QueuedNode current = queue[head++];
     const Eigen::Vector3f& centre = nodes.Centre(current.node);
     const float dx = centre.x() - emitter.x();
     const float dy = centre.y() - emitter.y();
@@ -69,7 +88,12 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, c
       continue;
     }
     const float fade = 1.f - (distance * distance / radius_squared);
-    reached.push_back({.node = current.node, .weight = fade * fade});
+    reached.push_back({.node = current.node, .weight = fade * fade * current.transmission});
+    for (const Bridge& bridge : bridges.From(current.node)) {
+      behind_glass.push_back({.node = bridge.node,
+                              .steps = current.steps + 1,
+                              .transmission = current.transmission * bridge.transmission});
+    }
     const uint32_t links = nodes.Links(current.node);
     if (links == 0) {
       continue;
@@ -88,7 +112,7 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, c
         const auto next = static_cast<uint32_t>(LightLayout::NodeIndex(next_cube, piece));
         if (marks.flood_of_node[next] != flood) {
           marks.flood_of_node[next] = flood;
-          queue.push_back({.node = next, .steps = current.steps + 1});
+          queue.push_back({.node = next, .steps = current.steps + 1, .transmission = current.transmission});
         }
       }
     }

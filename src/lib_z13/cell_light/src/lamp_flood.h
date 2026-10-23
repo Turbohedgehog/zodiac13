@@ -24,6 +24,7 @@
 
 #include <cell_light/lamp.h>
 
+#include "glass_bridges.h"
 #include "light_nodes.h"
 
 namespace z13::station::light {
@@ -55,8 +56,9 @@ std::optional<Eigen::Vector3f> EmitterOf(const LightNodes& nodes, const Lamp& la
 
 // Floods the lamp's light from `emitter`'s node through the linked nodes within its radius. It fades
 // as (1 - d²/r²)² with d the longer of the straight distance and the path's (light bending
-// round a wall reaches less far).
-std::vector<Contribution> FloodLamp(const LightNodes& nodes, const Lamp& lamp, const Eigen::Vector3f& emitter,
-                                    FloodMarks& marks);
+// round a wall reaches less far). Across a pane of glass (`bridges`) it goes on, but only to nodes
+// no open way reached, and scaled by the pane's transmission.
+std::vector<Contribution> FloodLamp(const LightNodes& nodes, const GlassBridges& bridges, const Lamp& lamp,
+                                    const Eigen::Vector3f& emitter, FloodMarks& marks);
 
 }  // namespace z13::station::light

@@ -96,6 +96,7 @@ CellBox CellsOfCubes(const LightLayout& layout, const CellBox& cubes) {
 std::optional<CellBox> Bounds(const LightEdits& edits) {
   std::optional<CellBox> bounds;
   std::ranges::for_each(edits.opaque_added, [&bounds](const CellBox& box) { Extend(bounds, box); });
+  std::ranges::for_each(edits.glass_added, [&bounds](const GlassBox& glass) { Extend(bounds, glass.cells); });
   std::ranges::for_each(edits.lamps_added, [&bounds](const Lamp& lamp) { Extend(bounds, LampCell(lamp)); });
   return bounds;
 }
@@ -103,11 +104,14 @@ std::optional<CellBox> Bounds(const LightEdits& edits) {
 }  // namespace
 
 bool LightEdits::Empty() const {
-  return opaque_added.empty() && opaque_removed.empty() && lamps_added.empty() && lamps_removed.empty();
+  return opaque_added.empty() && opaque_removed.empty() && glass_added.empty() && glass_removed.empty() &&
+         lamps_added.empty() && lamps_removed.empty();
 }
 
-CellLight::State::State(std::span<const CellBox> opaque, std::span<const Lamp> lamps) {
-  const LightEdits all {.opaque_added = {opaque.begin(), opaque.end()}, .lamps_added = {lamps.begin(), lamps.end()}};
+CellLight::State::State(std::span<const CellBox> opaque, std::span<const GlassBox> glass, std::span<const Lamp> lamps) {
+  const LightEdits all {.opaque_added = {opaque.begin(), opaque.end()},
+                        .glass_added = {glass.begin(), glass.end()},
+                        .lamps_added = {lamps.begin(), lamps.end()}};
   Rebuild(FitLayout(Bounds(all), kOuterMargin), {}, all, {});
 }
 
@@ -117,7 +121,16 @@ void CellLight::State::Rebuild(
   nodes_.CopyOpaque(nodes);
   std::ranges::for_each(edits.opaque_removed, [this](const CellBox& box) { nodes_.SetOpaque(box, false); });
   std::ranges::for_each(edits.opaque_added, [this](const CellBox& box) { nodes_.SetOpaque(box, true); });
+  for (const GlassBox& glass : edits.glass_removed) {
+    nodes_.SetOpaque(glass.cells, false);
+    bridges_.Remove(glass);
+  }
+  for (const GlassBox& glass : edits.glass_added) {
+    nodes_.SetOpaque(glass.cells, true);
+    bridges_.Add(glass);
+  }
   nodes_.Relabel({.min = Eigen::Vector3i::Zero(), .extent = layout.cubes});
+  bridges_.RefreshAll(nodes_);
 
   const size_t node_count = layout.CubeCount() * kPiecesPerNode;
   light_.assign(node_count, Eigen::Vector3f::Zero());
@@ -155,9 +168,22 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
     nodes_.SetOpaque(box, true);
     Extend(changed_cells, box);
   }
+  for (const GlassBox& glass : edits.glass_removed) {
+    nodes_.SetOpaque(glass.cells, false);
+    bridges_.Remove(glass);
+    Extend(changed_cells, glass.cells);
+  }
+  for (const GlassBox& glass : edits.glass_added) {
+    nodes_.SetOpaque(glass.cells, true);
+    bridges_.Add(glass);
+    Extend(changed_cells, glass.cells);
+  }
   // Nodes whose ids now mean other pieces: cleared, and flooded again by every lamp reaching them.
   const CellBox relabelled = changed_cells ? CubesOf(layout, *changed_cells) : CellBox {};
   nodes_.Relabel(relabelled);
+  if (changed_cells) {
+    bridges_.Refresh(nodes_, CellsOfCubes(layout, relabelled));
+  }
   const CellBox reaching = relabelled.Grown(Eigen::Vector3i::Ones());
 
   std::optional<CellBox> lit;
@@ -197,7 +223,8 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
 
 void CellLight::State::Flood(LampState& lamp) {
   lamp.emitter = EmitterOf(nodes_, lamp.lamp);
-  lamp.contributions = lamp.emitter ? FloodLamp(nodes_, lamp.lamp, *lamp.emitter, marks_) : std::vector<Contribution> {};
+  lamp.contributions =
+      lamp.emitter ? FloodLamp(nodes_, bridges_, lamp.lamp, *lamp.emitter, marks_) : std::vector<Contribution> {};
   std::array low {INT_MAX, INT_MAX, INT_MAX};
   std::array high {INT_MIN, INT_MIN, INT_MIN};
   for (const Contribution& reached : lamp.contributions) {

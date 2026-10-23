@@ -205,5 +205,59 @@ TEST(CellLightTest, ABlockOutsideGrowsTheLayout) {
   ExpectSameLight(edited, CellLight(With(Hall(), {far}), std::vector {kLampInA}));
 }
 
+constexpr float kPaneTransmission = 0.1f;
+constexpr float kTransmissionTolerance = 1e-3f;
+
+GlassBox Pane(int x, float transmission = kPaneTransmission) {
+  return {.cells = Partition(x), .transmission = transmission};
+}
+
+TEST(CellLightTest, GlassPassesItsShareOfTheLight) {
+  const CellLight open(Hall(), std::vector {kLampInA});
+  const CellLight glazed(Hall(), std::vector {Pane(20)}, std::vector {kLampInA});
+
+  EXPECT_TRUE(LightOf(glazed, kCellInA).isApprox(LightOf(open, kCellInA), kTolerance))
+      << "the lamp's own side is as lit";
+  EXPECT_GT(LightOf(glazed, kCellInB).minCoeff(), 0.f);
+  EXPECT_TRUE(LightOf(glazed, kCellInB).isApprox(kPaneTransmission * LightOf(open, kCellInB), kTransmissionTolerance));
+}
+
+TEST(CellLightTest, TheTwoSidesOfAPaneAreNodesApart) {
+  const CellLight glazed(Hall(), std::vector {Pane(22)}, std::vector {kLampInA});
+
+  ASSERT_TRUE(glazed.NodeAt({21, 8, 2}) && glazed.NodeAt({23, 8, 2}));
+  EXPECT_NE(*glazed.NodeAt({21, 8, 2}), *glazed.NodeAt({23, 8, 2}));
+  EXPECT_FALSE(glazed.NodeAt({22, 8, 2})) << "the pane itself holds no light";
+}
+
+TEST(CellLightTest, GlassThatPassesNothingIsAWall) {
+  const CellLight glazed(Hall(), std::vector {Pane(20, 0.f)}, std::vector {kLampInA});
+
+  EXPECT_GT(LightOf(glazed, kCellInA).minCoeff(), 0.f);
+  EXPECT_TRUE(LightOf(glazed, kCellInB).isZero());
+}
+
+TEST(CellLightTest, AnOpenWayBeatsTheWindow) {
+  const CellLight doorway(With(Hall(), PartitionWithDoorway(20)), std::vector {kLampInA});
+  const CellBox window_in_the_doorway {.min = {20, 1, 1}, .extent = {1, 4, 1}};
+  const GlassBox window {.cells = window_in_the_doorway, .transmission = 0.5f};
+  const CellLight both(With(Hall(), PartitionWithDoorway(20)), std::vector {window}, std::vector {kLampInA});
+
+  // The glass is in the floor row of the doorway, which is open above it: B's light is the doorway's.
+  EXPECT_TRUE(LightOf(both, kCellInB).isApprox(LightOf(doorway, kCellInB), kTolerance));
+}
+
+TEST(CellLightTest, GlassEditsEndWhereAFullBuildDoes) {
+  CellLight edited(Hall(), std::vector {kLampInA});
+
+  edited.Apply({.glass_added = {Pane(22)}, .lamps_added = {kOtherLamp}});
+  edited.Apply({.opaque_added = {Partition(30)}, .glass_added = {Pane(14)}, .glass_removed = {Pane(22)}});
+  edited.Apply({.glass_added = {Pane(14, 0.5f)}, .glass_removed = {Pane(14)}});
+  edited.Apply({.lamps_removed = {kLampInA}});
+
+  ExpectSameLight(edited,
+                  CellLight(With(Hall(), {Partition(30)}), std::vector {Pane(14, 0.5f)}, std::vector {kOtherLamp}));
+}
+
 }  // namespace
 }  // namespace z13::station::light

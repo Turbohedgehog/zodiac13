@@ -19,8 +19,8 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
-#include <functional>
 #include <iterator>
+#include <functional>
 #include <numeric>
 #include <ranges>
 
@@ -33,6 +33,7 @@ namespace {
 constexpr double kLowFraction = 0.01;
 constexpr double kPeriodPercentile = 0.99;
 constexpr size_t kTopSystems = 8;
+constexpr size_t kSlowFrameSystems = 3;
 constexpr size_t kSlowestFrames = 8;
 constexpr double kSlowFactor = 1.5;
 constexpr double kPercent = 100.0;
@@ -64,6 +65,23 @@ std::vector<FrameStage> PartsOf(const FrameSample& frame) {
   return parts;
 }
 
+std::string HeaviestSystems(const FrameSample& frame, std::span<const std::string> paths) {
+  if (frame.system_ms.size() != paths.size()) {
+    return {};
+  }
+  std::vector<size_t> order(paths.size());
+  std::iota(order.begin(), order.end(), 0U);
+  std::ranges::sort(order, std::greater<>(), [&](size_t i) { return frame.system_ms[i]; });
+  std::string text;
+  for (const size_t index : order | std::views::take(kSlowFrameSystems)) {
+    const float ms = frame.system_ms[index];
+    if (ms >= kMinSystemMs) {
+      text += std::format("{}{} {:.1f}", text.empty() ? "" : ", ", paths[index], ms);
+    }
+  }
+  return text;
+}
+
 }  // namespace
 
 FrameSummary SummarizeFrames(std::span<const FrameSample> frames) {
@@ -84,6 +102,23 @@ FrameSummary SummarizeFrames(std::span<const FrameSample> frames) {
       std::max<size_t>(1, static_cast<size_t>(std::ceil(kLowFraction * static_cast<double>(periods.size()))));
   summary.low_fps = periods.empty() ? 0.0 : Fps(Mean(std::span(periods).last(std::min(slowest, periods.size()))));
   return summary;
+}
+
+std::vector<SystemTime> SystemMeans(std::span<const FrameSample> frames, std::span<const std::string> paths) {
+  std::vector<double> sums(paths.size());
+  size_t counted = 0;
+  for (const FrameSample& frame : frames) {
+    if (frame.system_ms.size() == paths.size()) {
+      ++counted;
+      std::ranges::transform(sums, frame.system_ms, sums.begin(), std::plus<>());
+    }
+  }
+  std::vector<SystemTime> means;
+  for (size_t i = 0; counted > 0 && i < paths.size(); ++i) {
+    means.push_back({.path = paths[i], .ms = sums[i] / static_cast<double>(counted)});
+  }
+  std::ranges::sort(means, std::greater<>(), &SystemTime::ms);
+  return means;
 }
 
 std::vector<FrameShare> TimeShares(std::span<const FrameSample> frames) {
@@ -130,8 +165,7 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
     std::format_to(out, "  {:<24} {:7.2f}  {:5.1f}%\n", share.name, share.ms, share.share * kPercent);
   }
 
-  std::vector<SystemTime> systems = input.systems;
-  std::ranges::sort(systems, std::greater<>(), &SystemTime::ms);
+  const std::vector<SystemTime> systems = SystemMeans(frames, input.system_paths);
   if (!systems.empty()) {
     std::format_to(out, "\nHeaviest systems (mean ms per frame):\n");
     for (const SystemTime& system : systems | std::views::take(kTopSystems)) {
@@ -163,6 +197,9 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
     const auto biggest = std::ranges::max_element(parts, {}, &FrameStage::ms);
     std::format_to(out, "  #{:<4} {:7.2f} ms  mostly {} {:.2f} ms ({:.0f}%)\n", index, frame.period_ms, biggest->name,
                    biggest->ms, frame.period_ms > 0.0 ? biggest->ms / frame.period_ms * kPercent : 0.0);
+    if (const std::string systems_text = HeaviestSystems(frame, input.system_paths); !systems_text.empty()) {
+      std::format_to(out, "        systems: {}\n", systems_text);
+    }
   }
   return text;
 }

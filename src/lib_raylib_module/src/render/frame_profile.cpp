@@ -114,7 +114,7 @@ std::string ProfileReport(flecs::world world) {
   const z13::FrameTimelineCounts& counts = profile->timeline.Counts();
   input.header.emplace_back("Recorder", std::format("{} frames started, {} paused, {} restarts", counts.started,
                                                      counts.paused, counts.cleared));
-  input.systems = profile->timeline.Recorder().SystemsPerFrame();
+  input.system_paths = profile->systems.Paths();
   const std::vector<z13::FrameSample> frames = profile->timeline.Recorder().Frames();
   return z13::FrameReport(frames, input);
 }

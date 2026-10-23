@@ -16,6 +16,8 @@
 
 #include <lib_core/utils/frame_timeline.h>
 
+#include <algorithm>
+#include <iterator>
 #include <vector>
 
 namespace z13 {
@@ -28,8 +30,8 @@ double MsBetween(FrameTimeline::Clock::time_point from, FrameTimeline::Clock::ti
 
 }  // namespace
 
-void FrameTimeline::StartFrame(
-    Clock::time_point now, bool paused, std::span<const FrameStage> stages, const SystemSampler& sample_systems) {
+void FrameTimeline::StartFrame(Clock::time_point now, bool paused, std::span<const FrameStage> stages,
+                               std::span<const double> system_totals) {
   if (paused_ && !paused) {
     Clear();
   }
@@ -44,16 +46,17 @@ void FrameTimeline::StartFrame(
     } else {
       sample.simulation_ms = sample.period_ms;
     }
+    if (system_totals.size() == system_totals_.size()) {
+      std::ranges::transform(system_totals, system_totals_, std::back_inserter(sample.system_ms),
+                             [](double now_ms, double before_ms) { return static_cast<float>(now_ms - before_ms); });
+    }
     recorder_.Add(std::move(sample));
   }
   start_ = now;
   draw_start_.reset();
   present_ms_ = 0.0;
   paused_ = paused;
-  if (!paused && sample_systems && (!systems_sampled_ || now - *systems_sampled_ >= kSystemTotalsInterval)) {
-    recorder_.AddSystemTotals(sample_systems());
-    systems_sampled_ = now;
-  }
+  system_totals_.assign(system_totals.begin(), system_totals.end());
 }
 
 void FrameTimeline::MarkDrawStart(Clock::time_point now) {
@@ -67,7 +70,6 @@ void FrameTimeline::MarkPresent(double ms) {
 void FrameTimeline::Clear() {
   ++counts_.cleared;
   recorder_.Clear();
-  systems_sampled_.reset();
 }
 
 }  // namespace z13

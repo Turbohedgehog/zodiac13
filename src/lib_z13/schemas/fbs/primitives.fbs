@@ -112,6 +112,8 @@ table Primitive {
   material: Checker;
   flags: PrimitiveFlags;
   light: LightSource;
+  // The share of a lamp's light a Transparent primitive lets through (cell_light); others block it.
+  light_transmission: float = 1;
   interaction: Interaction;
 }
 
