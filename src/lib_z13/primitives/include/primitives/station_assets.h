@@ -37,6 +37,8 @@ inline constexpr std::string_view kPropModelsDir = "models/props";
 inline constexpr std::string_view kPropModelExtension = ".glb";
 // The largest shipped station, offered first.
 inline constexpr std::string_view kFeaturedScene = "spire";
+// The station most of the render measuring is done in.
+inline constexpr std::string_view kOctantScene = "octant";
 
 // Station asset files, relative to assets/.
 std::filesystem::path PaletteFile();

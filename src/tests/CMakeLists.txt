@@ -60,6 +60,7 @@ set(
   src/lib_z13/primitives/occupancy_test.cpp
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
+  src/lib_z13/primitives/station_viewpoints_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/box_tree_test.cpp
   src/lib_z13/rooms/corridor_walk_test.cpp

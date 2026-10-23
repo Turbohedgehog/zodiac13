@@ -28,6 +28,7 @@ z13_add_library(
   src/panel_prism.cpp
   src/placement.cpp
   src/station_assets.cpp
+  src/station_viewpoints.cpp
   src/triangle_panel.cpp
   src/wall_bend.cpp
   src/wall_opening.cpp
