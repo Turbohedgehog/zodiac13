@@ -44,6 +44,7 @@
 #include <primitives/placement.h>
 #include <rooms/space_walk.h>
 #include <z13_tests/shipped_station.h>
+#include <z13_tests/virtual_render.h>
 
 #include "../support/z13_test_world.h"
 
@@ -71,25 +72,6 @@ constexpr std::string_view kWholeTick = "whole tick";
 
 double Ms(std::chrono::steady_clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
-}
-
-primitives::CellBox HullOf(const std::vector<z13::station::Block>& blocks) {
-  Eigen::Vector3i min = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
-  Eigen::Vector3i max = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
-  for (const z13::station::Block& block : blocks) {
-    const primitives::CellBox box = primitives::OccupiedCells(block);
-    min = min.cwiseMin(box.min);
-    max = max.cwiseMax(box.End());
-  }
-  return {.min = min, .extent = max - min};
-}
-
-Eigen::Matrix4f PoseMatrix(const z13::CameraPose& pose) {
-  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  transform.block<3, 3>(0, 0) =
-      Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitX(), z13::Forward(pose)).toRotationMatrix();
-  z13::math::SetTranslation(pose.eye, transform);
-  return transform;
 }
 
 std::filesystem::path OutputDir() {

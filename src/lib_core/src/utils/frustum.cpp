@@ -28,6 +28,17 @@ constexpr int kDepthRow = 2;
 constexpr int kWRow = 3;
 // A low and a high plane on each axis.
 constexpr int kPlanesPerAxis = 2;
+constexpr int kSpaceAxes = 3;
+
+// Whether any point of the box is on the plane's inner side.
+bool InFront(const Eigen::Vector4f& plane, const float* low, const float* high) {
+  const float* p = plane.data();
+  float distance = p[kWRow];
+  for (int axis = 0; axis < kSpaceAxes; ++axis) {
+    distance += p[axis] * (p[axis] >= 0.f ? high[axis] : low[axis]);
+  }
+  return distance >= 0.f;
+}
 
 }  // namespace
 
@@ -51,12 +62,26 @@ Eigen::AlignedBox2f Frustum::FullScreen() {
   return {Eigen::Vector2f::Constant(-1.f), Eigen::Vector2f::Constant(1.f)};
 }
 
+// Plain loops over the raw floats: culling runs on every chunk and prop of every frame, and Eigen's
+// expression temporaries cost tens of times as much in a Debug build.
 bool Frustum::Intersects(const Eigen::AlignedBox3f& box) const {
-  return std::ranges::none_of(planes_, [&box](const Eigen::Vector4f& plane) {
-    const Eigen::Vector3f normal = plane.head<3>();
-    const Eigen::Vector3f farthest_inside = (normal.array() >= 0.f).select(box.max(), box.min());
-    return normal.dot(farthest_inside) + plane.w() < 0.f;
-  });
+  const float* low = box.min().data();
+  const float* high = box.max().data();
+  for (const Eigen::Vector4f& plane : planes_) {
+    if (!InFront(plane, low, high)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Frustum::IntersectsSides(const std::array<float, 3>& low, const std::array<float, 3>& high) const {
+  for (int plane = 0; plane < kScreenAxes * kPlanesPerAxis; ++plane) {
+    if (!InFront(planes_[plane], low.data(), high.data())) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace z13::math

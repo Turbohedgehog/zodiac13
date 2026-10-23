@@ -31,6 +31,7 @@ using z13::station::kCellSize;
 
 // The blocks around a room lie just outside its free cells.
 constexpr int kWallCells = 1;
+constexpr int kSpaceAxes = 3;
 
 std::optional<Eigen::AlignedBox3f> BoundsOf(const RoomGraph& graph, RoomId room) {
   const auto found = graph.FindRoom(room);
@@ -56,6 +57,21 @@ ScreenRegions RegionsInView(const CameraView& view, const RoomGraph& graph, Room
                                                    .view_projection = cells_to_clip,
                                                    .screen = z13::math::Frustum::FullScreen(),
                                                    .min_extent = min_extent});
+}
+
+// Whether two boxes share a point. Raw floats, not Eigen: its Debug temporaries make this loop
+// several times as slow (see Frustum::Intersects).
+bool Overlap(const Eigen::AlignedBox3f& first, const Eigen::AlignedBox3f& second) {
+  const float* first_low = first.min().data();
+  const float* first_high = first.max().data();
+  const float* second_low = second.min().data();
+  const float* second_high = second.max().data();
+  for (int axis = 0; axis < kSpaceAxes; ++axis) {
+    if (first_low[axis] > second_high[axis] || second_low[axis] > first_high[axis]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 std::vector<SeenRoom> CullingRooms(const CameraView& view, const RoomGraph& graph, const ScreenRegions& regions) {
@@ -94,7 +110,7 @@ bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {
     return false;
   }
   return !culling_rooms_ || std::ranges::any_of(*culling_rooms_, [&box](const SeenRoom& room) {
-    return (!room.bounds || room.bounds->intersects(box)) && room.frustum.Intersects(box);
+    return (!room.bounds || Overlap(*room.bounds, box)) && room.frustum.Intersects(box);
   });
 }
 

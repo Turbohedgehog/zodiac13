@@ -22,19 +22,20 @@
 
 #include <Eigen/Dense>
 
-#include <primitives/chunk_mesh.h>
 #include <primitives/decor.h>
-#include <primitives/draw_order.h>
 #include <primitives/station_assets.h>
 #include <rooms/corridor_walk.h>
 #include <rooms/room_builder.h>
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
+#include <rooms/room_visibility.h>
 #include <rooms/view_culling.h>
+#include <lib_core/utils/frustum.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/camera_view.h>
 #include <z13_tests/shipped_station.h>
+#include <z13_tests/virtual_render.h>
 
 namespace z13::testing {
 namespace {
@@ -50,8 +51,6 @@ constexpr int kRepeats = 5;
 // How many rooms the corridor walk may enter, and how many the tour picks.
 constexpr size_t kCorridorRooms = 40;
 constexpr size_t kTourRooms = 8;
-// A prop is culled by a box this far (meters) around its position: its model isn't loaded here.
-constexpr float kPropHalfExtentM = 0.5f;
 // Where the 19 fps were seen (release, 2026-10-22), in meters.
 const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 
@@ -71,76 +70,6 @@ double MedianMs(Work&& work) {
   return times[times.size() / 2];
 }
 
-// A chunk as the renderer keeps it: where it is (meters) and what drawing it costs.
-struct Chunk {
-  Eigen::Vector3i key = Eigen::Vector3i::Zero();
-  Eigen::AlignedBox3f bounds;
-  size_t meshes {};
-  size_t triangles {};
-};
-
-std::vector<Chunk> ChunksOf(
-    const std::vector<z13::station::Block>& blocks, primitives::OptionalPalette palette, int chunk_cells) {
-  std::vector<Chunk> chunks;
-  for (const auto& [key, chunk_blocks] : primitives::GroupByChunk(blocks, chunk_cells)) {
-    const primitives::ChunkMesh mesh = primitives::BuildChunkMesh(chunk_blocks, palette);
-    Chunk chunk {.key = key,
-                 .bounds = {mesh.bounds.min.cast<float>() * z13::station::kCellSize,
-                            mesh.bounds.End().cast<float>() * z13::station::kCellSize},
-                 .meshes = mesh.parts.size()};
-    for (const primitives::MaterialMesh& part : mesh.parts) {
-      chunk.triangles += part.mesh.positions.size() / 3;
-    }
-    chunks.push_back(chunk);
-  }
-  std::ranges::sort(chunks, [](const Chunk& a, const Chunk& b) {
-    return std::lexicographical_compare(a.key.begin(), a.key.end(), b.key.begin(), b.key.end());
-  });
-  return chunks;
-}
-
-// The station as the renderer shows it: the blocks the props don't stand in for, split into opaque
-// and glass chunks, and the props' boxes.
-struct Scene {
-  std::vector<Chunk> opaque;
-  std::vector<Chunk> glass;
-  std::vector<Eigen::AlignedBox3f> props;
-};
-
-Scene SceneOf(const std::vector<z13::station::Block>& all, const primitives::Palette& palette,
-              const primitives::Decor& decor, int chunk_cells) {
-  std::vector<uint32_t> hidden;
-  for (const std::string& name : decor.replaces) {
-    if (const auto primitive = palette.Find(name)) {
-      hidden.push_back(primitive->get().id);
-    }
-  }
-  std::vector<z13::station::Block> opaque;
-  std::vector<z13::station::Block> glass;
-  for (const z13::station::Block& block : all) {
-    if (std::ranges::contains(hidden, block.spec.type_id)) {
-      continue;
-    }
-    (primitives::IsTransparent(block, palette) ? glass : opaque).push_back(block);
-  }
-  Scene scene {.opaque = ChunksOf(opaque, palette, chunk_cells), .glass = ChunksOf(glass, palette, chunk_cells)};
-  for (const primitives::Prop& prop : decor.props) {
-    scene.props.push_back({prop.position.array() - kPropHalfExtentM, prop.position.array() + kPropHalfExtentM});
-  }
-  return scene;
-}
-
-primitives::CellBox HullOf(const std::vector<z13::station::Block>& blocks) {
-  Eigen::Vector3i min = Eigen::Vector3i::Constant(std::numeric_limits<int>::max());
-  Eigen::Vector3i max = Eigen::Vector3i::Constant(std::numeric_limits<int>::min());
-  for (const z13::station::Block& block : blocks) {
-    const primitives::CellBox box = primitives::OccupiedCells(block);
-    min = min.cwiseMin(box.min);
-    max = max.cwiseMax(box.End());
-  }
-  return {.min = min, .extent = max - min};
-}
-
 struct Stop {
   std::string label;
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
@@ -152,11 +81,7 @@ struct Result {
   double culling_ms {};
   double pick_ms {};
   size_t seen_rooms {};
-  size_t chunks_drawn {};
-  size_t meshes_drawn {};
-  size_t triangles_drawn {};
-  size_t glass_drawn {};
-  size_t props_drawn {};
+  Drawn drawn;
 };
 
 Result Measure(const Scene& scene, const rooms::RoomGraph& graph, const Stop& stop) {
@@ -166,34 +91,38 @@ Result Measure(const Scene& scene, const rooms::RoomGraph& graph, const Stop& st
   result.culling_ms = MedianMs([&] { const rooms::ViewCulling culling(view, std::cref(graph)); });
   const rooms::ViewCulling culling(view, std::cref(graph));
   result.seen_rooms = culling.SeenRoomCount().value_or(0);
-  std::vector<primitives::ChunkBounds> visible_glass;
-  result.pick_ms = MedianMs([&] {
-    Result drawn;
-    for (const Chunk& chunk : scene.opaque) {
-      if (culling.Visible(chunk.bounds)) {
-        ++drawn.chunks_drawn;
-        drawn.meshes_drawn += chunk.meshes;
-        drawn.triangles_drawn += chunk.triangles;
-      }
-    }
-    visible_glass.clear();
-    for (const Chunk& chunk : scene.glass) {
-      if (culling.Visible(chunk.bounds)) {
-        visible_glass.push_back({.key = chunk.key, .bounds = chunk.bounds});
-        drawn.meshes_drawn += chunk.meshes;
-        drawn.triangles_drawn += chunk.triangles;
-      }
-    }
-    primitives::SortFarthestFirst(visible_glass, view.eye);
-    drawn.glass_drawn = visible_glass.size();
-    drawn.props_drawn = std::ranges::count_if(scene.props, [&](const auto& box) { return culling.Visible(box); });
-    result.chunks_drawn = drawn.chunks_drawn;
-    result.meshes_drawn = drawn.meshes_drawn;
-    result.triangles_drawn = drawn.triangles_drawn;
-    result.glass_drawn = drawn.glass_drawn;
-    result.props_drawn = drawn.props_drawn;
-  });
+  result.pick_ms = MedianMs([&] { result.drawn = PickVisible(scene, culling, view.eye); });
   return result;
+}
+
+// Where the culling time of a view goes: the walk over the portals (room_visibility.h), which the
+// ViewCulling constructor does first, against the whole constructor, and how many portals the
+// walk can touch.
+struct CullingBreakdown {
+  double walk_ms {};
+  size_t portals {};
+};
+
+CullingBreakdown BreakDownCulling(const rooms::RoomGraph& graph, const Stop& stop) {
+  const rooms::CameraView view =
+      CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
+  const auto eye_room = graph.RoomAt(stop.eye.array().floor().cast<int>());
+  CullingBreakdown breakdown;
+  if (!eye_room) {
+    return breakdown;
+  }
+  const Eigen::Matrix4f cells_to_clip =
+      view.view_projection * Eigen::Affine3f(Eigen::Scaling(z13::station::kCellSize)).matrix();
+  const rooms::RoomView room_view {.eye_room = *eye_room, .eye = stop.eye, .view_projection = cells_to_clip,
+                                   .screen = z13::math::Frustum::FullScreen(), .min_extent = Eigen::Vector2f::Zero()};
+  rooms::ScreenRegions regions;
+  breakdown.walk_ms = MedianMs([&] { regions = rooms::VisibleRooms(graph, room_view); });
+  for (const auto& [room, region] : regions) {
+    for (const size_t index : graph.PortalsOf(room)) {
+      breakdown.portals += graph.portals[index].visible ? 1 : 0;
+    }
+  }
+  return breakdown;
 }
 
 std::filesystem::path OutputDir() {
@@ -252,11 +181,17 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
         "[ bench ] {:<11} eye {:7.2f} {:7.2f} {:6.2f} m  culling {:7.3f} ms  pick {:7.3f} ms  rooms {:4}  chunks {:4}  "
         "meshes {:5}  triangles {:8}  glass {:3}  props {:4}\n",
         stop.label, eye.x(), eye.y(), eye.z(), result.culling_ms, result.pick_ms, result.seen_rooms,
-        result.chunks_drawn, result.meshes_drawn, result.triangles_drawn, result.glass_drawn, result.props_drawn);
+        result.drawn.chunks, result.drawn.meshes, result.drawn.triangles, result.drawn.glass, result.drawn.props);
     csv += std::format(
         "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(), eye.z(),
-        result.culling_ms, result.pick_ms, result.seen_rooms, result.chunks_drawn, result.meshes_drawn,
-        result.triangles_drawn, result.glass_drawn, result.props_drawn);
+        result.culling_ms, result.pick_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes,
+        result.drawn.triangles, result.drawn.glass, result.drawn.props);
+    if (stop.label.starts_with("orbit") || stop.label == "overview" || stop.label == "exit") {
+      const CullingBreakdown breakdown = BreakDownCulling(*graph, stop);
+      std::cout << std::format(
+          "[ bench ]   culling: the walk over portals {:7.3f} ms of {:7.3f}, {} visible portals in the rooms it saw\n",
+          breakdown.walk_ms, result.culling_ms, breakdown.portals);
+    }
     if (result.culling_ms + result.pick_ms > worst_total_ms) {
       worst_total_ms = result.culling_ms + result.pick_ms;
       worst = stop.label;
