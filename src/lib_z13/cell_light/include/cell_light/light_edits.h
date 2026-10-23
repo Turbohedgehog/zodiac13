@@ -25,11 +25,22 @@
 
 namespace z13::station::light {
 
+// A pane of glass: opaque to the nodes, so its two sides keep their own light, with `transmission`
+// of a lamp's light crossing it (Primitive::light_transmission).
+struct GlassBox {
+  z13::building::primitives::CellBox cells;
+  float transmission = 1.f;
+
+  bool operator==(const GlassBox&) const = default;
+};
+
 // What changed since the light was flooded. Opaque blocks don't overlap (ValidateBuild),
 // so a removed box frees its cells.
 struct LightEdits {
   std::vector<z13::building::primitives::CellBox> opaque_added;
   std::vector<z13::building::primitives::CellBox> opaque_removed;
+  std::vector<GlassBox> glass_added;
+  std::vector<GlassBox> glass_removed;
   std::vector<Lamp> lamps_added;
   std::vector<Lamp> lamps_removed;
 

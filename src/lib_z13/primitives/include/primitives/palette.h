@@ -92,6 +92,7 @@ struct Primitive {
   Checker material;
   PrimitiveFlags flags {};
   std::optional<LightSource> light;
+  float light_transmission = 1.f;
   std::optional<Interaction> interaction;
 
   bool Has(PrimitiveFlags flag) const { return (flags & flag) == flag; }
