@@ -60,8 +60,9 @@ void BoxTree::BuildAll(std::span<const Eigen::AlignedBox3f> boxes) {
   items_.reserve(boxes.size());
   slots_.resize(boxes.size());
   for (size_t slot = 0; slot < ids_.size(); ++slot) {
-    items_.push_back(boxes[ids_[slot]]);
-    slots_[ids_[slot]] = static_cast<uint32_t>(slot);
+    const uint32_t id = ids_[slot];
+    items_.push_back(boxes[id]);
+    slots_[id] = static_cast<uint32_t>(slot);
   }
   dirty_.assign(nodes_.size(), 0);
   volume_ = std::accumulate(nodes_.begin(), nodes_.end(), 0.0, [](double sum, const BoxTreeNode& node) {
@@ -73,13 +74,15 @@ void BoxTree::BuildAll(std::span<const Eigen::AlignedBox3f> boxes) {
 
 uint32_t BoxTree::Build(size_t begin, size_t end, uint32_t parent, std::span<const Eigen::AlignedBox3f> boxes) {
   const auto index = static_cast<uint32_t>(nodes_.size());
-  nodes_.push_back({.first = static_cast<uint32_t>(begin), .count = static_cast<uint32_t>(end - begin)});
-  parents_.push_back(parent);
+  Eigen::AlignedBox3f bounds;
   Eigen::AlignedBox3f centers;
   for (size_t i = begin; i < end; ++i) {
-    nodes_[index].bounds.extend(boxes[ids_[i]]);
-    centers.extend(centers_[ids_[i]]);
+    const uint32_t id = ids_[i];
+    bounds.extend(boxes[id]);
+    centers.extend(centers_[id]);
   }
+  nodes_.push_back({.bounds = bounds, .first = static_cast<uint32_t>(begin), .count = static_cast<uint32_t>(end - begin)});
+  parents_.push_back(parent);
   if (end - begin <= kLeafItems) {
     std::fill(leaves_.begin() + static_cast<std::ptrdiff_t>(begin), leaves_.begin() + static_cast<std::ptrdiff_t>(end), index);
     return index;
@@ -91,6 +94,7 @@ uint32_t BoxTree::Build(size_t begin, size_t end, uint32_t parent, std::span<con
                    ids_.begin() + static_cast<std::ptrdiff_t>(end),
                    [&](uint32_t a, uint32_t b) { return centers_[a][axis] < centers_[b][axis]; });
   Build(begin, static_cast<size_t>(middle), index, boxes);
+  // Indexed again: building the right half may have moved the nodes.
   nodes_[index].right = Build(static_cast<size_t>(middle), end, index, boxes);
   return index;
 }
@@ -123,10 +127,11 @@ void BoxTree::Update(std::span<const uint32_t> moved, std::span<const Eigen::Ali
   // A child always comes after its parent, so one pass backwards refits each dirty node after its
   // children and marks the parent.
   for (size_t i = nodes_.size(); i-- > 0;) {
-    if (dirty_[i] == 0) {
+    uint8_t& dirty = dirty_[i];
+    if (dirty == 0) {
       continue;
     }
-    dirty_[i] = 0;
+    dirty = 0;
     RefitNode(i);
     if (i != 0) {
       dirty_[parents_[i]] = 1;
