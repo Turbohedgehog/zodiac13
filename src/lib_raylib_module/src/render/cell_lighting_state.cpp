@@ -34,6 +34,7 @@ namespace {
 
 using z13::building::primitives::CellBox;
 using z13::station::light::CellLight;
+using z13::station::light::GlassBox;
 using z13::station::light::Lamp;
 using z13::station::light::LightEdits;
 using z13::station::light::NodeTexel;
@@ -46,6 +47,10 @@ bool BoxBefore(const CellBox& a, const CellBox& b) {
     return std::array {box.min.x(), box.min.y(), box.min.z(), box.extent.x(), box.extent.y(), box.extent.z()};
   };
   return key(a) < key(b);
+}
+
+bool GlassBefore(const GlassBox& a, const GlassBox& b) {
+  return BoxBefore(a.cells, b.cells) || (a.cells == b.cells && a.transmission < b.transmission);
 }
 
 bool LampBefore(const Lamp& a, const Lamp& b) {
@@ -90,23 +95,31 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
     return {};
   }
   std::vector<CellBox> opaque;
+  std::vector<GlassBox> glass;
   for (const z13::station::Block& block : blocks) {
-    if (!z13::building::primitives::IsTransparent(block, palette)) {
-      // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
-      const std::vector<CellBox> boxes = z13::building::primitives::SealedBoxes(block, palette);
+    // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
+    const std::vector<CellBox> boxes = z13::building::primitives::SealedBoxes(block, palette);
+    if (z13::building::primitives::IsTransparent(block, palette)) {
+      const float transmission = palette->get().Find(block.spec.type_id)->get().light_transmission;
+      std::ranges::transform(boxes, std::back_inserter(glass), [transmission](const CellBox& cells) {
+        return GlassBox {.cells = cells, .transmission = transmission};
+      });
+    } else {
       opaque.insert(opaque.end(), boxes.begin(), boxes.end());
     }
   }
   std::ranges::sort(opaque, BoxBefore);
+  std::ranges::sort(glass, GlassBefore);
   std::vector<Lamp> lamps;
   std::ranges::transform(z13::building::primitives::LightsOf(blocks, palette), std::back_inserter(lamps),
                          z13::station::light::LampOf);
   std::ranges::sort(lamps, LampBefore);
 
   if (!SyncedWith(palette)) {
-    light_.emplace(opaque, lamps);
+    light_.emplace(opaque, glass, lamps);
     palette_hash_ = palette ? std::optional(palette->get().hash) : std::nullopt;
     opaque_ = std::move(opaque);
+    glass_ = std::move(glass);
     lamps_ = std::move(lamps);
     shining_ = light_->ShiningLamps();
     return Remake();
@@ -114,10 +127,13 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   const LightEdits edits {
       .opaque_added = Missing(opaque, opaque_, BoxBefore),
       .opaque_removed = Missing(opaque_, opaque, BoxBefore),
+      .glass_added = Missing(glass, glass_, GlassBefore),
+      .glass_removed = Missing(glass_, glass, GlassBefore),
       .lamps_added = Missing(lamps, lamps_, LampBefore),
       .lamps_removed = Missing(lamps_, lamps, LampBefore),
   };
   opaque_ = std::move(opaque);
+  glass_ = std::move(glass);
   lamps_ = std::move(lamps);
   const z13::station::light::LightChanges changes = light_->Apply(edits);
   shining_ = light_->ShiningLamps();

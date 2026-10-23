@@ -39,6 +39,8 @@ class CellLight {
  public:
   CellLight();
   CellLight(std::span<const z13::building::primitives::CellBox> opaque, std::span<const Lamp> lamps);
+  CellLight(std::span<const z13::building::primitives::CellBox> opaque, std::span<const GlassBox> glass,
+            std::span<const Lamp> lamps);
 
   LightChanges Apply(const LightEdits& edits);
 

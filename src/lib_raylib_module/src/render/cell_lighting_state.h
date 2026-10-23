@@ -59,6 +59,7 @@ class CellLighting::State {
   std::optional<Volume> colors_;
   // What the light was built from, sorted, to tell what changed.
   std::vector<z13::building::primitives::CellBox> opaque_;
+  std::vector<z13::station::light::GlassBox> glass_;
   std::vector<z13::station::light::Lamp> lamps_;
   std::vector<z13::station::light::Lamp> shining_;
   std::optional<uint64_t> palette_hash_;

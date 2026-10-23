@@ -144,8 +144,12 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
       },
       .flags = source.flags,
       .light = *light,
+      .light_transmission = source.light_transmission,
       .interaction = *interaction,
   };
+  if (primitive.light_transmission < 0.f || primitive.light_transmission > 1.f) {
+    return Error("light_transmission is within 0..1");
+  }
   if ((primitive.min_size.array() < 1).any() || (primitive.max_size.array() > max_size_cells).any()) {
     return Error(std::format("sizes must be 1..{} cells", max_size_cells));
   }

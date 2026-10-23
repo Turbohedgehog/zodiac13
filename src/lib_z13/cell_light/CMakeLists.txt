@@ -9,6 +9,7 @@ z13_add_library(
   SOURCES
   src/cell_light.cpp
   src/cell_light_state.cpp
+  src/glass_bridges.cpp
   src/lamp.cpp
   src/lamp_flood.cpp
   src/light_nodes.cpp
