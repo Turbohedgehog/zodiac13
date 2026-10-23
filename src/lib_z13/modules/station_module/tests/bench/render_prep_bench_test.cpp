@@ -166,7 +166,9 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
                             .chunks = std::move(chunks),
                             .props = rooms::BoxTree(scene.props, z13::RenderTuning().prop_tree_loose_ratio)};
 
-  std::string csv = "stop,eye_x_m,eye_y_m,eye_z_m,culling_ms,pick_ms,chunks_ms,props_tree_ms,seen_rooms,chunks,meshes,triangles,glass,props\n";
+  std::string csv =
+      "stop,eye_x_m,eye_y_m,eye_z_m,culling_ms,pick_ms,chunks_ms,props_tree_ms,seen_rooms,chunks,meshes,triangles,"
+      "glass,props\n";
   double worst_total_ms = 0.0;
   std::string worst;
   for (const Stop& stop : stops) {
@@ -176,11 +178,12 @@ TEST(RenderPrepBench, DISABLED_OctantWalk) {
         "[ bench ] {:<11} eye {:7.2f} {:7.2f} {:6.2f} m  culling {:7.3f} ms  pick {:7.3f} ms (chunks {:6.3f}, props in "
         "a tree {:6.3f})  rooms {:4}  chunks {:4}  meshes {:5}  triangles {:8}  glass {:3}  props {:4}\n",
         stop.label, eye.x(), eye.y(), eye.z(), result.culling_ms, result.pick_ms, result.chunks_ms,
-        result.props_tree_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes, result.drawn.triangles, result.drawn.glass, result.drawn.props);
+        result.props_tree_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes, result.drawn.triangles,
+        result.drawn.glass, result.drawn.props);
     csv += std::format(
-        "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(), eye.z(),
-        result.culling_ms, result.pick_ms, result.chunks_ms, result.props_tree_ms, result.seen_rooms, result.drawn.chunks, result.drawn.meshes,
-        result.drawn.triangles, result.drawn.glass, result.drawn.props);
+        "{},{:.2f},{:.2f},{:.2f},{:.3f},{:.3f},{:.3f},{:.3f},{},{},{},{},{},{}\n", stop.label, eye.x(), eye.y(),
+        eye.z(), result.culling_ms, result.pick_ms, result.chunks_ms, result.props_tree_ms, result.seen_rooms,
+        result.drawn.chunks, result.drawn.meshes, result.drawn.triangles, result.drawn.glass, result.drawn.props);
     if (stop.label.starts_with("orbit") || stop.label == "overview" || stop.label == "exit") {
       const CullingBreakdown breakdown = BreakDownCulling(*graph, stop);
       std::cout << std::format(
