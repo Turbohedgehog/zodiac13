@@ -58,8 +58,10 @@
 #include "pending_transition.h"
 #include "palette_window.h"
 #include "pause_menu_window.h"
+#include "profile_window.h"
 #include "platform/gl_profile.h"
 #include "render/debug_view.h"
+#include "render/frame_profile.h"
 #include "render/render_components.h"
 #include "platform/sdl_platform.h"
 #include "render/render_stats.h"
@@ -247,6 +249,9 @@ void RegisterSystems(flecs::world world) {
           touch->stats_area = fraction(stats_drawn.area);
           touch->brush_areas.clear();
           std::ranges::transform(brush_areas, std::back_inserter(touch->brush_areas), fraction);
+        }
+        if (ImGui::IsKeyPressed(gui::kProfileCaptureKey, false) && !ImGui::GetIO().WantTextInput) {
+          log_info("[profile] {}", gui::CaptureProfileReport(ProfileReport(world)));
         }
         if (!ImGui::GetIO().WantTextInput && world.has<Lighting>()) {
           if (ImGui::IsKeyPressed(gui::kDebugViewPreviousKey, false)) {

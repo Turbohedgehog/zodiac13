@@ -28,6 +28,7 @@
 #include "gui_widgets.h"
 #include "input_settings_window.h"
 #include "pending_transition.h"
+#include "profile_window.h"
 #include "render_diagnostics.h"
 
 namespace z13::raylib::gui {
@@ -53,6 +54,9 @@ void GameplayPauseMenuWindow::DrawBody() {
   }
   if (ImGui::Button("Graphics...", ButtonSize())) {
     RequestPush(MakeGraphicsSettings(World()));
+  }
+  if (ImGui::Button("Profile...", ButtonSize())) {
+    RequestPush(MakeProfileWindow(World()));
   }
   if (ImGui::Button("Exit to Main Menu", ButtonSize())) {
     // Pause stays set, so GuiSystem::Draw shows the main menu once Gameplay is gone.

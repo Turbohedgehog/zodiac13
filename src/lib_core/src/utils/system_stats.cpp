@@ -23,17 +23,9 @@
 #include <numeric>
 #include <ranges>
 
+#include <lib_core/utils/statistics.h>
+
 namespace z13 {
-
-namespace {
-
-double MedianOf(std::vector<double> values) {
-  std::ranges::sort(values);
-  const size_t middle = values.size() / 2;
-  return values.size() % 2 == 1 ? values[middle] : (values[middle - 1] + values[middle]) / 2.0;
-}
-
-}  // namespace
 
 void SystemFrameStats::AddFrame(const std::vector<SystemTime>& before, const std::vector<SystemTime>& after) {
   std::unordered_map<std::string, double> earlier;
@@ -59,7 +51,7 @@ std::vector<SystemSummary> SystemFrameStats::Summary() const {
                        .mean_ms = std::accumulate(samples.begin(), samples.end(), 0.0) / static_cast<double>(frames_),
                        .min_ms = min,
                        .max_ms = max,
-                       .median_ms = MedianOf(samples)});
+                       .median_ms = Median(samples)});
   }
   std::ranges::sort(summary, std::greater<>(), &SystemSummary::mean_ms);
   return summary;

@@ -32,6 +32,8 @@ namespace z13::raylib::gui {
 // A debug key, not a game action: it never goes through the command stream.
 inline constexpr ImGuiKey kStatsOverlayKey = ImGuiKey_F3;
 inline constexpr ImGuiKey kRoomOverlayKey = ImGuiKey_F4;
+// Copies the frame report of the last seconds to the clipboard and saves it.
+inline constexpr ImGuiKey kProfileCaptureKey = ImGuiKey_F5;
 inline constexpr ImGuiKey kDebugViewPreviousKey = ImGuiKey_F11;
 inline constexpr ImGuiKey kDebugViewNextKey = ImGuiKey_F12;
 

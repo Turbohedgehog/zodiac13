@@ -31,11 +31,16 @@ set(
   src/lib_core/flecs_state/world_state_requests_test.cpp
   src/lib_core/flecs_state/world_state_test.cpp
   src/lib_core/frame_start_test.cpp
+  src/lib_core/frame_recorder_test.cpp
+  src/lib_core/frame_report_test.cpp
+  src/lib_core/frame_timeline_test.cpp
   src/lib_core/frustum_test.cpp
   src/lib_core/lifecycle_test.cpp
   src/lib_core/pose_smoothing_test.cpp
   src/lib_core/schema_attributes_test.cpp
+  src/lib_core/statistics_test.cpp
   src/lib_core/system_stats_test.cpp
+  src/lib_core/text_lines_test.cpp
   src/lib_core/thread_pool_test.cpp
   src/lib_core/tick_log_test.cpp
   src/lib_core/tick_pacer_test.cpp
