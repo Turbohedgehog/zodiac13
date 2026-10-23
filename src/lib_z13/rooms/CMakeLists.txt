@@ -9,6 +9,7 @@ z13_add_library(
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/cell_boxes.cpp
+  src/corridor_walk.cpp
   src/free_space.cpp
   src/local_leaves.cpp
   src/numbered_leaves.cpp
@@ -27,6 +28,7 @@ z13_add_library(
   src/space_walk.cpp
   src/topology_fingerprint.cpp
   src/tour_viewpoints.cpp
+  src/view_culling.cpp
   PUBLIC
   Eigen3::Eigen
   Boost::geometry
@@ -35,4 +37,5 @@ z13_add_library(
   zodiac13::primitives
   zodiac13::grid
   zodiac13::z13_profile
+  zodiac13::core
 )

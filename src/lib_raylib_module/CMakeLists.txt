@@ -57,7 +57,6 @@ z13_add_plugin(
   src/render/skybox.cpp
   src/render/station_props.cpp
   src/render/light_clusters.cpp
-  src/render/view_culling.cpp
   src/tools/assimp_loader.cpp
   src/tools/input_publisher.cpp
   src/tools/math_convert.cpp

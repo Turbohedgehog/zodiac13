@@ -26,7 +26,7 @@
 #include "../tools/assimp_loader.h"
 #include "../tools/math_convert.h"
 #include "render_resources.h"
-#include "view_culling.h"
+#include <rooms/view_culling.h>
 
 namespace z13::raylib {
 

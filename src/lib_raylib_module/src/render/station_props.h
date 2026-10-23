@@ -27,11 +27,12 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
+#include <rooms/view_culling.h>
 #include <lib_core/utils/asset_source.h>
 
 namespace z13::raylib {
 
-class ViewCulling;
+using z13::station::rooms::ViewCulling;
 
 // A prop of a station: a shared model at a pose.
 struct PlacedProp {

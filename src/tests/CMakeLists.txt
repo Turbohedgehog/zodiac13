@@ -56,7 +56,9 @@ set(
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
+  src/lib_z13/rooms/corridor_walk_test.cpp
   src/lib_z13/rooms/openings_test.cpp
+  src/lib_z13/rooms/view_culling_test.cpp
   src/lib_z13/rooms/portal_source_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
@@ -156,6 +158,7 @@ if(Z13_BUILD_BENCHMARKS)
     src/lib_core/bench/thread_pool_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/cell_light_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
+    ${MODULES_DIR}/station_module/tests/bench/render_prep_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp

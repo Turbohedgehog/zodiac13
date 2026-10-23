@@ -67,6 +67,7 @@
 #include <primitives/chunk_mesh.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
+#include <rooms/view_culling.h>
 #include <rooms/room_cache.h>
 #include <z13_settings/settings.h>
 
@@ -86,9 +87,11 @@
 #include "shadow_maps.h"
 #include "skybox.h"
 #include "station_props.h"
-#include "view_culling.h"
 
 namespace z13::raylib {
+
+using z13::station::rooms::CameraView;
+using z13::station::rooms::ViewCulling;
 
 namespace {
 

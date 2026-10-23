@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "view_culling.h"
+#include <rooms/view_culling.h>
 
 #include <algorithm>
 #include <iterator>
@@ -23,15 +23,11 @@
 #include <z13/components/block.h>
 #include <rooms/room_visibility.h>
 
-namespace z13::raylib {
+namespace z13::station::rooms {
 
 namespace {
 
 using z13::station::kCellSize;
-using z13::station::rooms::RoomGraph;
-using z13::station::rooms::RoomId;
-using z13::station::rooms::ScreenRegions;
-using z13::station::rooms::kVacuumRoom;
 
 // The blocks around a room lie just outside its free cells.
 constexpr int kWallCells = 1;
@@ -55,7 +51,7 @@ ScreenRegions RegionsInView(const CameraView& view, const RoomGraph& graph, Room
   const Eigen::Matrix4f cells_to_clip = view.view_projection * Eigen::Affine3f(Eigen::Scaling(kCellSize)).matrix();
   // What a window shows from the vacuum is drawn however small.
   const Eigen::Vector2f min_extent = eye_room == kVacuumRoom ? Eigen::Vector2f::Zero() : view.min_portal_extent;
-  return z13::station::rooms::VisibleRooms(graph, {.eye_room = eye_room,
+  return VisibleRooms(graph, {.eye_room = eye_room,
                                                    .eye = EyeInCells(view),
                                                    .view_projection = cells_to_clip,
                                                    .screen = z13::math::Frustum::FullScreen(),
@@ -110,4 +106,4 @@ std::optional<size_t> ViewCulling::SeenRoomCount() const {
   return seen_rooms_ ? std::optional(seen_rooms_->size()) : std::nullopt;
 }
 
-}  // namespace z13::raylib
+}  // namespace z13::station::rooms
