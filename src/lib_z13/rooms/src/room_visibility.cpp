@@ -19,8 +19,10 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <deque>
 #include <limits>
 #include <optional>
+#include <unordered_set>
 
 #include <lib_core/utils/frustum.h>
 
@@ -179,10 +181,14 @@ ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view) {
   }
   seen.emplace(view.eye_room, view.screen);
   const z13::math::Frustum sides(view.view_projection);
-  std::vector<RoomId> pending {view.eye_room};
+  // First in, first out, and a room waits once however often its region grows meanwhile, so it
+  // is walked with all it has gained rather than once for each portal that widened it.
+  std::deque<RoomId> pending {view.eye_room};
+  std::unordered_set<RoomId> waiting {view.eye_room};
   while (!pending.empty()) {
-    const RoomId room = pending.back();
-    pending.pop_back();
+    const RoomId room = pending.front();
+    pending.pop_front();
+    waiting.erase(room);
     const Eigen::AlignedBox2f room_region = seen.at(room);
     for (const size_t index : graph.PortalsOf(room)) {
       const Portal& portal = graph.portals[index];
@@ -204,7 +210,9 @@ ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view) {
         }
         region->second.extend(*through);
       }
-      pending.push_back(other);
+      if (waiting.insert(other).second) {
+        pending.push_back(other);
+      }
     }
   }
   return seen;

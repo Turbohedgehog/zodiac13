@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -50,6 +51,7 @@ constexpr std::string_view kDefaultOutputDirName = "z13_frame_walk";
 constexpr std::string_view kCsvFileName = "legs.csv";
 // What the world has built before the walk starts: bodies, rooms, the first snapshots.
 constexpr int kWarmUpTicks = 250;
+constexpr int kRuns = 3;
 // The frames the player takes between two stops, and the ticks it settles after the first move.
 constexpr int kFramesPerLeg = 30;
 constexpr int kSettleTicks = 30;
@@ -63,6 +65,11 @@ constexpr size_t kTopSystems = 8;
 constexpr double kMinSystemMs = 0.001;
 // Where the 19 fps were seen (release, 2026-10-22), in meters.
 const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
+// What a frame must stay under anywhere in the station, in Debug (docs/frame-time-plan.md): the
+// network's rollbacks and the real drawing come on top of what is measured here.
+constexpr double kTargetFps = 80.0;
+constexpr double kBudgetMs = z13::kMsPerSecond / kTargetFps;
+constexpr size_t kSlowestFrames = 12;
 
 double Ms(std::chrono::steady_clock::duration duration) {
   return std::chrono::duration<double, std::milli>(duration).count();
@@ -96,6 +103,10 @@ std::vector<Stop> StopsOf(const std::vector<rooms::Viewpoint>& viewpoints) {
 }
 
 struct Frame {
+  std::string leg;
+  // The system that took the most of the tick, and how much.
+  std::string top_system;
+  double top_ms {};
   double tick_ms {};
   double culling_ms {};
   double pick_ms {};
@@ -212,44 +223,69 @@ TEST(FrameWalkBench, DISABLED_OctantWalk) {
 
   ecs_measure_system_time(w, true);
   z13::SystemFrameStats systems;
-  std::vector<LegResult> results;
   std::vector<z13::SystemTime> before = z13::SystemTimes(w);
   bool moved = false;
-  for (const Leg& leg : legs) {
-    LegResult result {.label = leg.label, .outside = leg.outside};
-    for (int frame_index = 0; frame_index < kFramesPerLeg; ++frame_index) {
-      const float t = static_cast<float>(frame_index + 1) / static_cast<float>(kFramesPerLeg);
-      const Eigen::Vector3f eye = leg.from.eye + (t * (leg.to.eye - leg.from.eye));
-      const Eigen::Vector3f target = leg.from.target + (t * (leg.to.target - leg.from.target));
-      const Eigen::Vector3f eye_m = eye * z13::station::kCellSize;
-      const Eigen::Vector3f target_m = target * z13::station::kCellSize;
-      world.Player().set(PoseMatrix(z13::PoseLookingAt(eye_m, target_m)));
-      if (!moved) {
-        moved = true;
-        for (int tick = 0; tick < kSettleTicks; ++tick) {
-          world.Tick();
+  const auto walk_once = [&](bool first_run) {
+    std::vector<LegResult> walked;
+    for (const Leg& leg : legs) {
+      LegResult result {.label = leg.label, .outside = leg.outside};
+      for (int frame_index = 0; frame_index < kFramesPerLeg; ++frame_index) {
+        const float t = static_cast<float>(frame_index + 1) / static_cast<float>(kFramesPerLeg);
+        const Eigen::Vector3f eye = leg.from.eye + (t * (leg.to.eye - leg.from.eye));
+        const Eigen::Vector3f target = leg.from.target + (t * (leg.to.target - leg.from.target));
+        const Eigen::Vector3f eye_m = eye * z13::station::kCellSize;
+        const Eigen::Vector3f target_m = target * z13::station::kCellSize;
+        world.Player().set(PoseMatrix(z13::PoseLookingAt(eye_m, target_m)));
+        if (!moved) {
+          moved = true;
+          for (int tick = 0; tick < kSettleTicks; ++tick) {
+            world.Tick();
+          }
+          before = z13::SystemTimes(w);
         }
-        before = z13::SystemTimes(w);
+
+        Frame frame;
+        const auto tick_start = std::chrono::steady_clock::now();
+        world.Tick();
+        frame.tick_ms = Ms(std::chrono::steady_clock::now() - tick_start);
+        std::vector<z13::SystemTime> after = z13::SystemTimes(w);
+        if (first_run) {
+          systems.AddFrame(before, after);
+        }
+        const std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(before, after, 1);
+        frame.leg = leg.label;
+        if (!spent.empty()) {
+          frame.top_system = spent.front().path;
+          frame.top_ms = spent.front().ms;
+        }
+        before = std::move(after);
+
+        const rooms::CameraView view = CameraViewFrom(eye_m, target_m);
+        const auto culling_start = std::chrono::steady_clock::now();
+        const rooms::ViewCulling culling(view, std::cref(graph));
+        frame.culling_ms = Ms(std::chrono::steady_clock::now() - culling_start);
+        const auto pick_start = std::chrono::steady_clock::now();
+        frame.drawn = PickVisible(scene, culling, view.eye);
+        frame.pick_ms = Ms(std::chrono::steady_clock::now() - pick_start);
+        result.frames.push_back(frame);
       }
-
-      Frame frame;
-      const auto tick_start = std::chrono::steady_clock::now();
-      world.Tick();
-      frame.tick_ms = Ms(std::chrono::steady_clock::now() - tick_start);
-      std::vector<z13::SystemTime> after = z13::SystemTimes(w);
-      systems.AddFrame(before, after);
-      before = std::move(after);
-
-      const rooms::CameraView view = CameraViewFrom(eye_m, target_m);
-      const auto culling_start = std::chrono::steady_clock::now();
-      const rooms::ViewCulling culling(view, std::cref(graph));
-      frame.culling_ms = Ms(std::chrono::steady_clock::now() - culling_start);
-      const auto pick_start = std::chrono::steady_clock::now();
-      frame.drawn = PickVisible(scene, culling, view.eye);
-      frame.pick_ms = Ms(std::chrono::steady_clock::now() - pick_start);
-      result.frames.push_back(frame);
+      walked.push_back(std::move(result));
     }
-    results.push_back(std::move(result));
+    return walked;
+  };
+  // The walk is repeated and each frame keeps its fastest run: the phone's scheduler stalls a frame
+  // here and there for tens of ms, while a spike of our own (a snapshot, a rollback) comes back
+  // at the same frame of every run (a leg is two snapshot intervals long).
+  std::vector<LegResult> results = walk_once(true);
+  for (int run = 1; run < kRuns; ++run) {
+    const std::vector<LegResult> again = walk_once(false);
+    for (size_t leg = 0; leg < results.size(); ++leg) {
+      for (size_t frame = 0; frame < results[leg].frames.size(); ++frame) {
+        if (again[leg].frames[frame].Total() < results[leg].frames[frame].Total()) {
+          results[leg].frames[frame] = again[leg].frames[frame];
+        }
+      }
+    }
   }
   ecs_measure_system_time(w, false);
 
@@ -271,6 +307,23 @@ TEST(FrameWalkBench, DISABLED_OctantWalk) {
                        drawn.meshes, drawn.props);
   }
   std::cout << Summary("corridors, rooms", results, false) << Summary("outside", results, true);
+  std::vector<const Frame*> frames;
+  for (const LegResult& leg : results) {
+    for (const Frame& frame : leg.frames) {
+      frames.push_back(&frame);
+    }
+  }
+  std::ranges::sort(frames, [](const Frame* a, const Frame* b) { return a->Total() > b->Total(); });
+  const auto over = std::ranges::count_if(frames, [](const Frame* frame) { return frame->Total() > kBudgetMs; });
+  std::cout << std::format("[ bench ] frames over the {:.0f} fps budget ({:.1f} ms): {} of {}\n", kTargetFps, kBudgetMs,
+                           over, frames.size());
+  EXPECT_EQ(over, 0) << "frames slower than the " << kTargetFps << " fps budget";
+  for (const Frame* frame : std::span(frames).first(std::min(frames.size(), kSlowestFrames))) {
+    std::cout << std::format(
+        "    {:<18} {:6.2f} ms ({:5.1f} fps): tick {:5.2f}  culling {:5.2f}  pick {:5.2f}  worst system {} {:.2f} ms\n",
+        frame->leg, frame->Total(), Fps(frame->Total()), frame->tick_ms, frame->culling_ms, frame->pick_ms,
+        frame->top_system, frame->top_ms);
+  }
   const std::vector<z13::SystemSummary> top = systems.Summary();
   std::cout << "[ bench ] the systems that took the most per frame over the whole walk:\n";
   for (const z13::SystemSummary& system : std::span(top).first(std::min(top.size(), kTopSystems))) {
