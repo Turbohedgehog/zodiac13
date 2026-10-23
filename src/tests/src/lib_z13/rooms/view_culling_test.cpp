@@ -83,5 +83,24 @@ TEST(ViewCullingTest, FromSpaceTheRoomBehindAWindowIsSeenAndTheWallsAroundItAreN
   EXPECT_TRUE(culling.Visible(BoxAround({6.5f, 5.f, 4.f})));
 }
 
+TEST(ViewCullingTest, AllVisibleNeedsTheWholeBoxInAFrustumAndASeenRoom) {
+  const ViewCulling open_air(z13::testing::CameraViewFrom({0.f, 0.f, 0.f}, {10.f, 0.f, 0.f}), std::nullopt);
+  EXPECT_TRUE(open_air.AllVisible(BoxAround({20.f, 0.f, 0.f})));
+  EXPECT_FALSE(open_air.AllVisible(BoxAround({-20.f, 0.f, 0.f})));
+  EXPECT_FALSE(open_air.AllVisible(BoxAround({0.f, 0.f, 0.f}, 30.f))) << "the eye's own box leaves the frustum";
+
+  const RoomGraph graph = BuildRooms(RoomWithWindow()).value();
+  const Eigen::Vector3f eye_cells {3.5f, 5.5f, 4.5f};
+  const Eigen::Vector3f target_cells = eye_cells + Eigen::Vector3f(5.f, 0.f, 0.f);
+  const ViewCulling culling(
+      z13::testing::CameraViewFrom(eye_cells * kCellSize, target_cells * kCellSize), std::cref(graph));
+  const Eigen::AlignedBox3f inside = BoxAround({8.5f, 5.5f, 4.5f}, 1.f);
+  const Eigen::AlignedBox3f through_the_wall = BoxAround({kSide + 1.f, 5.5f, 4.5f}, 3.f);
+
+  EXPECT_TRUE(culling.AllVisible(inside));
+  EXPECT_TRUE(culling.Visible(through_the_wall));
+  EXPECT_FALSE(culling.AllVisible(through_the_wall)) << "it leaves the room's bounds";
+}
+
 }  // namespace
 }  // namespace z13::station::rooms

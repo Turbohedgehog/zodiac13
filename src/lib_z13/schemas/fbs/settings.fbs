@@ -51,6 +51,9 @@ table RenderTuning {
   chunk_cells: int32 = 64 (min: 1, max: 1024, cli: "--render-chunk-cells");
   // Rooms seen only through portals narrower than this on screen, in pixels, aren't drawn.
   min_portal_pixels: float = 2 (min: "0", max: "100", cli: "--render-min-portal-pixels");
+  // The props' tree (rooms/box_tree.h) is rebuilt when moving props have made its nodes this many times
+  // the volume of a fresh tree's: a rebuild costs a frame, a loose tree costs every one after it.
+  prop_tree_loose_ratio: float = 4 (min: "1.1", max: "100", cli: "--render-prop-tree-loose");
   // Flashlights lit in a frame, the nearest first (Forward+, light_clusters.h); lamps are baked (cell_light).
   frame_lights: int32 = 128 (min: 1, max: 1024, cli: "--render-frame-lights");
   // A light cluster: its screen tile in pixels, the depth slices between near_m and far_m (even

@@ -56,6 +56,16 @@ TEST(FrustumTest, KeepsBoxesInViewAndDropsTheOthers) {
   EXPECT_FALSE(frustum.Intersects(UnitBoxAt({0.f, 0.f, -200.f})));  // past the far plane
 }
 
+TEST(FrustumTest, ContainsOnlyBoxesWhollyInView) {
+  const Frustum frustum(Perspective());
+
+  EXPECT_TRUE(frustum.Contains(UnitBoxAt({0.f, 0.f, -10.f})));
+  EXPECT_FALSE(frustum.Contains(UnitBoxAt({10.f, 0.f, -10.f}))) << "across the right edge";
+  EXPECT_FALSE(frustum.Contains(UnitBoxAt({0.f, 0.f, 10.f}))) << "behind";
+  EXPECT_FALSE(frustum.Contains(UnitBoxAt({0.f, 0.f, -100.f}))) << "across the far plane";
+  EXPECT_TRUE(frustum.Intersects(UnitBoxAt({10.f, 0.f, -10.f})));
+}
+
 TEST(FrustumTest, FollowsTheView) {
   // The camera at x = 50, turned to look down +X.
   Eigen::Matrix4f view = Eigen::Matrix4f::Identity();

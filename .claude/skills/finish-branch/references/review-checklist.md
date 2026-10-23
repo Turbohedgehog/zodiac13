@@ -15,6 +15,7 @@ Findings that came up in this repo's reviews, beyond CLAUDE.md's rules themselve
 - Constants, keys and helpers defined twice (a struct built from settings in two places: give it one function).
 - A comparison or equality written by hand where `operator== = default` would do.
 - Tuning numbers as constants instead of settings; magic numbers.
+- The same element indexed two or three times in a row (`nodes_[i].a`, `nodes_[i].b`, `dirty_[i]` read and then written): one reference, or build the value and insert it whole.
 - New headers: include what the file uses, and no more — a wide header pulled in for one type (measure with perf-measure's `header_width.py`).
 - New `.cpp`/`.fbs` listed in its `CMakeLists.txt`.
 - A helper the code already has, written again: grep `lib_core/utils` and the file's own anonymous namespace before adding a conversion, a sign, a clamp or a near-equality (`Sign` in `wall_seam.cpp` for `x < 0 ? -1 : 1` branches; `z13::math::ToRadians`/`ToDegrees` for degrees; `z13::math::kEpsilon`).

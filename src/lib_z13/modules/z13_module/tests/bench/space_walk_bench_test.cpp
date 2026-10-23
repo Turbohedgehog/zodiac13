@@ -43,6 +43,7 @@
 #include <z13/components/block.h>
 #include <primitives/placement.h>
 #include <rooms/space_walk.h>
+#include <z13_tests/slow_spot.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/virtual_render.h>
 
@@ -66,8 +67,6 @@ constexpr int kMeasuredTicks = 120;
 constexpr size_t kTopSystems = 6;
 // Systems under this mean per tick are left out of the CSV.
 constexpr double kMinSystemMs = 0.001;
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 constexpr std::string_view kWholeTick = "whole tick";
 
 double Ms(std::chrono::steady_clock::duration duration) {

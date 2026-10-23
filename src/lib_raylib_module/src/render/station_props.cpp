@@ -16,8 +16,10 @@
 
 #include "station_props.h"
 
+#include <algorithm>
 #include <cmath>
 #include <format>
+#include <iterator>
 
 #include <lib_core/utils/log.h>
 #include <primitives/decor.h>
@@ -33,6 +35,7 @@ namespace z13::raylib {
 namespace {
 
 namespace primitives = z13::building::primitives;
+namespace rooms = z13::station::rooms;
 
 std::expected<std::shared_ptr<::Model>, std::string> LoadPropModel(
     const AssetSource& assets, std::string_view name, ::Shader lighting_shader) {
@@ -68,7 +71,7 @@ Eigen::AlignedBox3f BoundsOf(const ::Model& model, const Eigen::Matrix4f& transf
 }  // namespace
 
 std::expected<StationProps, std::string> StationProps::Load(
-    const AssetSource& assets, std::string_view scene, ::Shader lighting_shader) {
+    const AssetSource& assets, std::string_view scene, ::Shader lighting_shader, double tree_loose_ratio) {
   StationProps result;
   const auto json = assets.ReadAsset(primitives::DecorFile(scene));
   if (!json) {
@@ -99,22 +102,24 @@ std::expected<StationProps, std::string> StationProps::Load(
                              .transform = EigenToRaylibMatrix(matrix),
                              .bounds = BoundsOf(*found->second, matrix)});
   }
+  std::vector<Eigen::AlignedBox3f> bounds;
+  bounds.reserve(result.props_.size());
+  std::ranges::transform(result.props_, std::back_inserter(bounds), &PlacedProp::bounds);
+  result.tree_ = rooms::BoxTree(bounds, tree_loose_ratio);
   return result;
 }
 
 size_t StationProps::Draw(const ViewCulling& culling) const {
-  size_t drawn = 0;
-  for (const PlacedProp& prop : props_) {
-    if (!culling.Visible(prop.bounds)) {
-      continue;
-    }
+  std::vector<uint32_t> visible;
+  tree_.Query(culling, visible);
+  for (const uint32_t index : visible) {
+    const PlacedProp& prop = props_[index];
     const ::Model& model = *prop.model;
     for (int i = 0; i < model.meshCount; ++i) {
       DrawMesh(model.meshes[i], model.materials[model.meshMaterial[i]], prop.transform);
     }
-    ++drawn;
   }
-  return drawn;
+  return visible.size();
 }
 
 }  // namespace z13::raylib
