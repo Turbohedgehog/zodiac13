@@ -63,6 +63,8 @@ z13_add_library(
   src/utils/asset_source.cpp
   src/utils/install_dir.cpp
   src/utils/pose_smoothing.cpp
+  src/utils/frame_recorder.cpp
+  src/utils/frame_report.cpp
   src/utils/system_stats.cpp
   src/utils/system_times.cpp
   src/utils/thread_pool.cpp
