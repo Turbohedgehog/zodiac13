@@ -114,6 +114,15 @@ bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {
   });
 }
 
+bool ViewCulling::AllVisible(const Eigen::AlignedBox3f& box) const {
+  if (!frustum_.Contains(box)) {
+    return false;
+  }
+  return !culling_rooms_ || std::ranges::any_of(*culling_rooms_, [&box](const SeenRoom& room) {
+    return (!room.bounds || room.bounds->contains(box)) && room.frustum.Contains(box);
+  });
+}
+
 const std::optional<std::vector<RoomId>>& ViewCulling::SeenRooms() const {
   return seen_rooms_;
 }

@@ -30,12 +30,17 @@ constexpr int kWRow = 3;
 constexpr int kPlanesPerAxis = 2;
 constexpr int kSpaceAxes = 3;
 
-// Whether any point of the box is on the plane's inner side.
-bool InFront(const Eigen::Vector4f& plane, const float* low, const float* high) {
+// How much of a box has to be on a plane's inner side.
+enum class Reach { kAny, kAll };
+
+// The corner farthest along the plane's normal decides whether any of the box is inside, the
+// nearest whether all of it is.
+bool InFront(const Eigen::Vector4f& plane, const float* low, const float* high, Reach reach = Reach::kAny) {
   const float* p = plane.data();
   float distance = p[kWRow];
   for (int axis = 0; axis < kSpaceAxes; ++axis) {
-    distance += p[axis] * (p[axis] >= 0.f ? high[axis] : low[axis]);
+    const bool toward_high = (p[axis] >= 0.f) == (reach == Reach::kAny);
+    distance += p[axis] * (toward_high ? high[axis] : low[axis]);
   }
   return distance >= 0.f;
 }
@@ -73,6 +78,12 @@ bool Frustum::Intersects(const Eigen::AlignedBox3f& box) const {
     }
   }
   return true;
+}
+
+bool Frustum::Contains(const Eigen::AlignedBox3f& box) const {
+  const float* low = box.min().data();
+  const float* high = box.max().data();
+  return std::ranges::all_of(planes_, [&](const Eigen::Vector4f& plane) { return InFront(plane, low, high, Reach::kAll); });
 }
 
 bool Frustum::IntersectsSides(const std::array<float, 3>& low, const std::array<float, 3>& high) const {
