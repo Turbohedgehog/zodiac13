@@ -40,6 +40,9 @@ ALLOWED = [
      r"detail::make_color_map_from_arg_pack$|g_param_not_found$|integral_constant<)",
      "Boost.Graph named-parameter keywords and tags, header-only in rooms (station_module, raylib_module): "
      "empty constants"),
+    (r"^spdlog::details::os::default_eol$",
+     "a header's `static const char* = SPDLOG_EOL`: a constant line ending per binary, which a "
+     "Release build inlines and a Debug build keeps as a symbol"),
     (r"^z13::(\w+::|\(anonymous namespace\)::)*k[A-Z]\w*$",
      "constexpr constants from our headers and from the .cpp files of static libraries"),
     (r"enum_constant_to_name.*(6result|::result)$",
