@@ -40,6 +40,7 @@ set(
   src/lib_core/schema_attributes_test.cpp
   src/lib_core/statistics_test.cpp
   src/lib_core/system_stats_test.cpp
+  src/lib_core/system_time_sampler_test.cpp
   src/lib_core/text_lines_test.cpp
   src/lib_core/thread_pool_test.cpp
   src/lib_core/tick_log_test.cpp

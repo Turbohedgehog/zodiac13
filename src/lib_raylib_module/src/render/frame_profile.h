@@ -27,6 +27,7 @@
 
 #include <lib_core/utils/frame_recorder.h>
 #include <lib_core/utils/frame_timeline.h>
+#include <lib_core/utils/system_times.h>
 
 #include "render_stats.h"
 
@@ -38,6 +39,8 @@ struct FrameProfile {
   using Clock = std::chrono::steady_clock;
 
   z13::FrameTimeline timeline;
+  z13::SystemTimeSampler systems;
+  std::vector<double> system_totals;
   // Set by --frame-log.
   bool log_each_second {};
   std::optional<Clock::time_point> last_logged;

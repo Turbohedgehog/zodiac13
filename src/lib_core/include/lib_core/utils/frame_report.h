@@ -51,12 +51,15 @@ struct FrameShare {
 // Largest first; the rest is the period the parts don't account for.
 std::vector<FrameShare> TimeShares(std::span<const FrameSample> frames);
 
-// Counters are formatted text ("98 / 117"); systems are mean ms per frame.
+// Counters are formatted text ("98 / 117"); `system_paths` name the entries of the frames' system_ms.
 struct FrameReportInput {
   std::vector<std::pair<std::string, std::string>> header;
   std::vector<std::pair<std::string, std::string>> counters;
-  std::vector<SystemTime> systems;
+  std::vector<std::string> system_paths;
 };
+
+// Each system's mean ms per frame over the frames that know theirs, heaviest first.
+std::vector<SystemTime> SystemMeans(std::span<const FrameSample> frames, std::span<const std::string> paths);
 
 // A text a player can copy and send.
 std::string FrameReport(std::span<const FrameSample> frames, const FrameReportInput& input);

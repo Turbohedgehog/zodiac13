@@ -37,6 +37,23 @@ using SystemSampler = std::function<std::vector<SystemTime>()>;
 // Every system's time so far; flecs counts it only while ecs_measure_system_time is on.
 std::vector<SystemTime> SystemTimes(flecs::world world);
 
+// Every system's time so far in the order of Paths(), cheap enough for every frame: the systems are
+// found once and a sample is a read per system.
+class SystemTimeSampler {
+ public:
+  // Fills `totals` in ms. The systems are found anew when their number changed, and the totals
+  // then no longer line up with the earlier ones.
+  void Sample(flecs::world world, std::vector<double>& totals);
+
+  const std::vector<std::string>& Paths() const { return paths_; }
+
+ private:
+  // What the world counted when the systems were found, which a query may skip some of.
+  int32_t counted_ {};
+  std::vector<flecs::entity_t> systems_;
+  std::vector<std::string> paths_;
+};
+
 // What each system spent between two SystemTimes, per frame, heaviest first.
 std::vector<SystemTime> SystemTimesPerFrame(
     const std::vector<SystemTime>& before, const std::vector<SystemTime>& after, int frames);
