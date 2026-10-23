@@ -40,6 +40,16 @@ bool InFront(const Eigen::Vector4f& plane, const float* low, const float* high) 
   return distance >= 0.f;
 }
 
+// Whether every point of the box is on the plane's inner side.
+bool AllInFront(const Eigen::Vector4f& plane, const float* low, const float* high) {
+  const float* p = plane.data();
+  float distance = p[kWRow];
+  for (int axis = 0; axis < kSpaceAxes; ++axis) {
+    distance += p[axis] * (p[axis] >= 0.f ? low[axis] : high[axis]);
+  }
+  return distance >= 0.f;
+}
+
 }  // namespace
 
 Frustum::Frustum(const Eigen::Matrix4f& view_projection) : Frustum(view_projection, FullScreen()) {
@@ -73,6 +83,12 @@ bool Frustum::Intersects(const Eigen::AlignedBox3f& box) const {
     }
   }
   return true;
+}
+
+bool Frustum::Contains(const Eigen::AlignedBox3f& box) const {
+  const float* low = box.min().data();
+  const float* high = box.max().data();
+  return std::ranges::all_of(planes_, [&](const Eigen::Vector4f& plane) { return AllInFront(plane, low, high); });
 }
 
 bool Frustum::IntersectsSides(const std::array<float, 3>& low, const std::array<float, 3>& high) const {

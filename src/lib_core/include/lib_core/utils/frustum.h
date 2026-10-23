@@ -34,6 +34,8 @@ class Frustum {
 
   // Conservative: a box near a corner of the frustum may pass though it lies outside.
   bool Intersects(const Eigen::AlignedBox3f& box) const;
+  // Whether the whole box is inside; false for one that only crosses a plane.
+  bool Contains(const Eigen::AlignedBox3f& box) const;
   // The same for the four side planes alone, with the box as its low and high corners: nothing
   // is said of how near or far it is.
   bool IntersectsSides(const std::array<float, 3>& low, const std::array<float, 3>& high) const;
