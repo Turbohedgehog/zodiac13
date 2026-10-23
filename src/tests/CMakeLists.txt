@@ -157,7 +157,6 @@ if(Z13_BUILD_BENCHMARKS)
     APPEND
     PROJECT_SOURCE_FILES
     src/lib_core/bench/thread_pool_bench_test.cpp
-    src/box_tree.cpp
     ${MODULES_DIR}/station_module/tests/bench/cell_light_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/props_culling_bench_test.cpp
@@ -170,9 +169,6 @@ if(Z13_BUILD_BENCHMARKS)
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
   )
-  # The prototype tree runs in the benchmarks beside rooms, which is built with -O1 in Debug.
-  set_source_files_properties(
-    src/box_tree.cpp PROPERTIES COMPILE_OPTIONS "$<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O1>")
 endif()
 
 # Standalone DLL exercising lib_core and lib_z13.
