@@ -26,6 +26,7 @@ z13_add_plugin(
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp
   src/gui/profile_window.cpp
+  src/gui/report_view.cpp
   src/gui/render_diagnostics.cpp
   src/gui/room_label.cpp
   src/gui/start_game_window.cpp

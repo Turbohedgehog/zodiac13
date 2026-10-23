@@ -67,6 +67,7 @@ z13_add_library(
   src/utils/frame_report.cpp
   src/utils/frame_timeline.cpp
   src/utils/system_stats.cpp
+  src/utils/text_lines.cpp
   src/utils/system_times.cpp
   src/utils/thread_pool.cpp
   src/world/core.cpp

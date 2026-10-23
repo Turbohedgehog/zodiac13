@@ -33,31 +33,25 @@ namespace {
 constexpr float kReportWidthEm = 48.f;
 constexpr float kReportHeightEm = 22.f;
 
-// A finger on a phone is a mouse to ImGui: dragging in a text field selects, so the report is
-// plain text in a child window that a drag scrolls.
-void DrawScrollableText(const std::string& text) {
-  if (ImGui::BeginChild("##report", {Em(kReportWidthEm), Em(kReportHeightEm)}, ImGuiChildFlags_Borders,
-                        ImGuiWindowFlags_HorizontalScrollbar)) {
-    ImGui::TextUnformatted(text.c_str());
-    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-      const ImVec2 drag = ImGui::GetIO().MouseDelta;
-      ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
-      ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
-    }
-  }
-  ImGui::EndChild();
-}
-
 }  // namespace
 
-ProfileWindow::ProfileWindow(flecs::world world) : Window(world, "Profile"), report_(ProfileReport(world)) {}
+ProfileWindow::ProfileWindow(flecs::world world) : Window(world, "Profile"), report_(ProfileReport(world)) {
+  view_.SetText(report_);
+}
 
 void ProfileWindow::DrawBody() {
-  DrawScrollableText(report_);
+  view_.Draw({Em(kReportWidthEm), Em(kReportHeightEm)});
+  ImGui::TextUnformatted("Drag to scroll; press and hold a line to select.");
+  ImGui::BeginDisabled(!view_.HasSelection());
+  if (ImGui::Button("Copy selection", ButtonSize())) {
+    ImGui::SetClipboardText(view_.Selection().c_str());
+    status_ = "Copied the selected lines.";
+  }
+  ImGui::EndDisabled();
+  ImGui::SameLine();
   if (ImGui::Button("Copy and save", ButtonSize())) {
     status_ = CaptureProfileReport(report_);
   }
-  ImGui::SameLine();
   // The paused game records nothing, so a new measuring starts by leaving the menu.
   if (ImGui::Button("Resume and measure", ButtonSize())) {
     World().get_mut<FrameProfile>().timeline.Clear();

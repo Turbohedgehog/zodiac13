@@ -21,6 +21,7 @@
 #include <flecs.h>
 
 #include "gui_windows.h"
+#include "report_view.h"
 
 namespace z13::raylib::gui {
 
@@ -35,6 +36,7 @@ class ProfileWindow : public Window {
 
  private:
   std::string report_;
+  ReportView view_;
   std::string status_;
 };
 
