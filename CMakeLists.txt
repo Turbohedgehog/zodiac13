@@ -59,6 +59,7 @@ option(Z13_PROFILE "Build with Tracy profiler zones" OFF)
 # Off: no raylib_module, so zodiac13 runs only as a windowless dedicated server (--server, whose
 # config loads no renderer). For machines without a display; CI builds the renderer.
 option(Z13_BUILD_RENDER "Build the render plugin (raylib_module)" ON)
+option(Z13_DEBUG_OPTIMIZE "Build the math libraries with -O1 in Debug (GCC, Clang)" ON)
 if(ANDROID AND NOT Z13_BUILD_RENDER)
     message(FATAL_ERROR "The Android app needs the renderer: Z13_BUILD_RENDER must be ON")
 endif()
