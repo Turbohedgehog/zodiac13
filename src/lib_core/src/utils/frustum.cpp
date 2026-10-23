@@ -40,7 +40,6 @@ bool InFront(const Eigen::Vector4f& plane, const float* low, const float* high) 
   return distance >= 0.f;
 }
 
-// Whether every point of the box is on the plane's inner side.
 bool AllInFront(const Eigen::Vector4f& plane, const float* low, const float* high) {
   const float* p = plane.data();
   float distance = p[kWRow];

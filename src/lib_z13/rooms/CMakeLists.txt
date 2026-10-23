@@ -8,6 +8,7 @@ z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS OPTIMIZE_IN_DEBUG
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
+  src/box_tree.cpp
   src/cell_boxes.cpp
   src/corridor_walk.cpp
   src/free_space.cpp

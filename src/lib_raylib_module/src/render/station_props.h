@@ -27,6 +27,7 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
+#include <rooms/box_tree.h>
 #include <rooms/view_culling.h>
 #include <lib_core/utils/asset_source.h>
 
@@ -63,6 +64,7 @@ class StationProps {
 
  private:
   std::vector<PlacedProp> props_;
+  z13::station::rooms::BoxTree tree_;
   std::vector<std::string> replaced_;
 };
 

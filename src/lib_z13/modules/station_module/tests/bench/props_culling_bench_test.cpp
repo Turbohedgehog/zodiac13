@@ -16,20 +16,18 @@
 
 // A bench, not a test (see docs/frame-time-plan.md). Run it with
 //   z13_test_runner --gtest_also_run_disabled_tests --gtest_filter='PropsCullingBench.*'
-// Three ways to pick the props in view along the RenderPrepBench route, with the props repeated
-// 1, 10 and 100 times (to see how each grows): every box through ViewCulling::Visible (the renderer's way), a Boost.Geometry
-// R-tree asked for the boxes meeting the frustum's bounding box and then filtered by Visible, and
-// a BoxTree that prunes by Visible on its nodes. Each must give the same props. DynamicProps then
-// moves the props every frame and times what a frame costs in all: updating the structure and
-// picking.
+// Picking the props in view along RenderPrepBench's route, repeated 1, 10 and 100 times, by
+// ViewCulling::Visible on each (the renderer before BoxTree), a Boost.Geometry R-tree and BoxTree.
+// DynamicProps moves them every frame and times updating the structure plus picking. Every way
+// must pick the same props.
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <format>
 #include <cmath>
+#include <format>
 #include <iostream>
 #include <memory>
 #include <numbers>
@@ -46,6 +44,7 @@
 
 #include <primitives/decor.h>
 #include <primitives/station_assets.h>
+#include <rooms/box_tree.h>
 #include <rooms/corridor_walk.h>
 #include <rooms/room_builder.h>
 #include <rooms/space_walk.h>
@@ -53,7 +52,6 @@
 #include <rooms/view_culling.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
-#include <z13_tests/box_tree.h>
 #include <z13_tests/camera_view.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/virtual_render.h>
@@ -142,14 +140,19 @@ void AddStops(std::vector<Stop>& stops, std::string_view prefix, const std::vect
   }
 }
 
-// Time of each way to pick on one view (ms) and how many props it found.
-struct Timings {
-  double linear_ms {};
-  double rtree_ms {};
-  double tree_ms {};
-  double fast_ms {};
-  size_t found {};
-};
+// RenderPrepBench's route: along the corridors, round the rooms and out round the station.
+std::vector<Stop> RouteOf(const rooms::RoomGraph& graph, const std::vector<z13::station::Block>& blocks) {
+  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
+  std::vector<Stop> stops;
+  AddStops(stops, "corridor", rooms::CorridorWalk(graph, slow_spot, kCorridorRooms));
+  AddStops(stops, "tour", rooms::TourViewpoints(graph, kTourRooms));
+  const std::vector<Eigen::Vector3f> inside {slow_spot};
+  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(blocks), inside);
+  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
+    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
+  }
+  return stops;
+}
 
 std::vector<uint32_t> LinearPick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) {
   std::vector<uint32_t> visible;
@@ -173,35 +176,46 @@ std::vector<uint32_t> RtreePick(
   return visible;
 }
 
-TEST(PropsCullingBench, DISABLED_OctantWalk) {
-  const auto palette = ShippedPalette();
-  ASSERT_TRUE(palette.has_value()) << palette.error();
-  const auto blocks = ShippedBlueprint(kOctantScene, *palette);
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
-  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
-  ASSERT_TRUE(decor_json.has_value()) << decor_json.error();
-  const auto decor = primitives::ParseDecor(*decor_json);
-  ASSERT_TRUE(decor.has_value()) << decor.error();
-  const auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
-  ASSERT_TRUE(graph.has_value()) << graph.error();
-  const Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
+struct OctantProps {
+  std::vector<z13::station::Block> blocks;
+  rooms::RoomGraph graph;
+  std::vector<Eigen::AlignedBox3f> props;
+};
 
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(*graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(*graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(*blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
+std::optional<OctantProps> LoadOctantProps() {
+  const auto palette = ShippedPalette();
+  const auto blocks = palette ? ShippedBlueprint(kOctantScene, *palette) : std::unexpected(palette.error());
+  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
+  const auto decor = decor_json ? primitives::ParseDecor(*decor_json) : std::unexpected(decor_json.error());
+  if (!blocks || !decor) {
+    return std::nullopt;
   }
+  auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
+  if (!graph) {
+    return std::nullopt;
+  }
+  Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
+  return OctantProps {.blocks = *blocks, .graph = *std::move(graph), .props = std::move(scene.props)};
+}
+
+struct Timings {
+  double linear_ms {};
+  double rtree_ms {};
+  double tree_ms {};
+  size_t found {};
+};
+
+TEST(PropsCullingBench, DISABLED_OctantWalk) {
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
   ASSERT_GT(stops.size(), 1U);
 
   Timings previous;
   for (const int times : kRepeatCounts) {
-    const std::vector<Eigen::AlignedBox3f> boxes = Repeated(scene.props, times);
+    const std::vector<Eigen::AlignedBox3f> boxes = Repeated(octant->props, times);
     const auto build_start = std::chrono::steady_clock::now();
-    const BoxTree tree(boxes);
+    const rooms::BoxTree tree(boxes);
     const double tree_build_ms = Ms(std::chrono::steady_clock::now() - build_start);
     const auto rtree_start = std::chrono::steady_clock::now();
     std::vector<Entry> entries;
@@ -211,15 +225,15 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
     const Rtree rtree(entries.begin(), entries.end());
     const double rtree_build_ms = Ms(std::chrono::steady_clock::now() - rtree_start);
     std::cout << std::format(
-        "[ bench ] x{}: {} props; built BoxTree {:.2f} ms ({} nodes), R-tree {:.2f} ms\n", times, boxes.size(),
-        tree_build_ms, tree.NodeCount(), rtree_build_ms);
+        "[ bench ] x{}: {} props; built BoxTree {:.2f} ms, R-tree {:.2f} ms\n", times, boxes.size(), tree_build_ms,
+        rtree_build_ms);
 
     Timings total;
     Timings worst;
     for (const Stop& stop : stops) {
       const rooms::CameraView view =
           CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
-      const rooms::ViewCulling culling(view, std::cref(*graph));
+      const rooms::ViewCulling culling(view, std::cref(octant->graph));
       const Eigen::AlignedBox3f frustum = FrustumBounds(view.view_projection);
 
       std::vector<uint32_t> expected = LinearPick(boxes, culling);
@@ -230,10 +244,6 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
       std::ranges::sort(from_tree);
       EXPECT_EQ(from_rtree, expected) << stop.label;
       EXPECT_EQ(from_tree, expected) << stop.label;
-      std::vector<uint32_t> from_fast;
-      tree.Query(culling, from_fast, true);
-      std::ranges::sort(from_fast);
-      EXPECT_EQ(from_fast, expected) << stop.label;
 
       Timings timings {.found = expected.size()};
       timings.linear_ms = MedianMs([&] { auto picked = LinearPick(boxes, culling); });
@@ -242,11 +252,6 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
         std::vector<uint32_t> picked;
         tree.Query(culling, picked);
       });
-      timings.fast_ms = MedianMs([&] {
-        std::vector<uint32_t> picked;
-        tree.Query(culling, picked, true);
-      });
-      total.fast_ms += timings.fast_ms;
       total.linear_ms += timings.linear_ms;
       total.rtree_ms += timings.rtree_ms;
       total.tree_ms += timings.tree_ms;
@@ -254,24 +259,18 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
       if (timings.linear_ms > worst.linear_ms) {
         worst = timings;
       }
-      if (times == kRepeatCounts[1]) {
-        std::cout << std::format(
-            "[ bench ]   {:<11} found {:5}  linear {:7.3f}  R-tree {:7.3f}  BoxTree {:7.3f}  +accept {:7.3f} ms\n", stop.label,
-            timings.found, timings.linear_ms, timings.rtree_ms, timings.tree_ms, timings.fast_ms);
-      }
     }
     const auto count = static_cast<double>(stops.size());
     std::cout << std::format(
-        "[ bench ] x{}: mean over {} views  linear {:.3f}  R-tree {:.3f}  BoxTree {:.3f}  +accept {:.3f} ms; slowest "
-        "linear view {:.3f} (R-tree {:.3f}, BoxTree {:.3f}, +accept {:.3f}, {} props)\n",
-        times, stops.size(), total.linear_ms / count, total.rtree_ms / count, total.tree_ms / count,
-        total.fast_ms / count, worst.linear_ms, worst.rtree_ms, worst.tree_ms, worst.fast_ms, worst.found);
+        "[ bench ] x{}: mean over {} views  linear {:.3f}  R-tree {:.3f}  BoxTree {:.3f} ms; slowest linear view "
+        "{:.3f} (R-tree {:.3f}, BoxTree {:.3f}, {} props)\n",
+        times, stops.size(), total.linear_ms / count, total.rtree_ms / count, total.tree_ms / count, worst.linear_ms,
+        worst.rtree_ms, worst.tree_ms, worst.found);
     if (previous.linear_ms > 0.0) {
       std::cout << std::format(
-          "[ bench ]   growth over the previous scale (10x the props): linear x{:.1f}  R-tree x{:.1f}  BoxTree x{:.1f}  "
-          "+accept x{:.1f}\n",
-          total.linear_ms / previous.linear_ms, total.rtree_ms / previous.rtree_ms, total.tree_ms / previous.tree_ms,
-          total.fast_ms / previous.fast_ms);
+          "[ bench ]   growth over the previous scale (10x the props): linear x{:.1f}  R-tree x{:.1f}  BoxTree x{:.1f}\n",
+          total.linear_ms / previous.linear_ms, total.rtree_ms / previous.rtree_ms,
+          total.tree_ms / previous.tree_ms);
     }
     previous = total;
   }
@@ -283,116 +282,51 @@ class Strategy {
  public:
   virtual ~Strategy() = default;
   virtual std::string Name() const = 0;
-  // The props in `moved` are now at `boxes`; `previous` is where they were.
-  virtual void Update(
-      const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& previous,
-      const std::vector<Eigen::AlignedBox3f>& boxes) = 0;
+  virtual void Update(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& boxes) = 0;
   virtual std::vector<uint32_t> Pick(
-      const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling,
-      const Eigen::AlignedBox3f& frustum) = 0;
-  size_t rebuilds {};
+      const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) = 0;
+  virtual size_t Rebuilds() const { return 0; }
 };
 
 class LinearStrategy : public Strategy {
  public:
   std::string Name() const override { return "linear"; }
-  void Update(const std::vector<uint32_t>&, const std::vector<Eigen::AlignedBox3f>&,
-              const std::vector<Eigen::AlignedBox3f>&) override {}
-  std::vector<uint32_t> Pick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling,
-                             const Eigen::AlignedBox3f&) override {
+  void Update(const std::vector<uint32_t>&, const std::vector<Eigen::AlignedBox3f>&) override {}
+  std::vector<uint32_t> Pick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) override {
     return LinearPick(boxes, culling);
   }
 };
 
-// Whichever BoxTree strategy: how it updates differs, picking is the same.
 class TreeStrategy : public Strategy {
  public:
-  enum class Mode { kRebuild, kRefit, kRefitMoved, kRefitMovedOrRebuild };
+  // kRebuild builds a new tree every frame; kUpdate lets the tree refit and rebuild itself.
+  enum class Mode { kRebuild, kUpdate };
 
-  TreeStrategy(Mode mode, const std::vector<Eigen::AlignedBox3f>& boxes)
-      : mode_(mode), tree_(std::make_unique<BoxTree>(boxes)), fresh_volume_(tree_->TotalVolume()) {}
+  TreeStrategy(Mode mode, const std::vector<Eigen::AlignedBox3f>& boxes) : mode_(mode), tree_(boxes) {}
 
-  std::string Name() const override {
-    switch (mode_) {
-      case Mode::kRebuild:
-        return "rebuild each frame";
-      case Mode::kRefit:
-        return "refit all";
-      case Mode::kRefitMoved:
-        return "refit moved";
-      case Mode::kRefitMovedOrRebuild:
-        return "refit moved + rebuild when loose";
-    }
-    return {};
-  }
+  std::string Name() const override { return mode_ == Mode::kRebuild ? "rebuild each frame" : "BoxTree::Update"; }
 
-  void Update(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>&,
-              const std::vector<Eigen::AlignedBox3f>& boxes) override {
-    switch (mode_) {
-      case Mode::kRebuild:
-        tree_ = std::make_unique<BoxTree>(boxes);
-        ++rebuilds;
-        break;
-      case Mode::kRefit:
-        tree_->Refit(boxes);
-        break;
-      case Mode::kRefitMoved:
-        tree_->Refit(moved, boxes);
-        break;
-      case Mode::kRefitMovedOrRebuild:
-        tree_->Refit(moved, boxes);
-        if (tree_->TotalVolume() > kLooseFactor * fresh_volume_) {
-          tree_ = std::make_unique<BoxTree>(boxes);
-          fresh_volume_ = tree_->TotalVolume();
-          ++rebuilds;
-        }
-        break;
+  void Update(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& boxes) override {
+    if (mode_ == Mode::kRebuild) {
+      tree_ = rooms::BoxTree(boxes);
+      ++rebuilt_;
+    } else {
+      tree_.Update(moved, boxes);
     }
   }
 
-  std::vector<uint32_t> Pick(const std::vector<Eigen::AlignedBox3f>&, const rooms::ViewCulling& culling,
-                             const Eigen::AlignedBox3f&) override {
+  std::vector<uint32_t> Pick(const std::vector<Eigen::AlignedBox3f>&, const rooms::ViewCulling& culling) override {
     std::vector<uint32_t> visible;
-    tree_->Query(culling, visible, true);
+    tree_.Query(culling, visible);
     return visible;
   }
 
- private:
-  // The tree is rebuilt when its nodes' volume is this many times a fresh tree's.
-  static constexpr double kLooseFactor = 2.0;
+  size_t Rebuilds() const override { return mode_ == Mode::kRebuild ? rebuilt_ : tree_.Rebuilds(); }
 
+ private:
   Mode mode_;
-  std::unique_ptr<BoxTree> tree_;
-  double fresh_volume_ {};
-};
-
-class RtreeStrategy : public Strategy {
- public:
-  explicit RtreeStrategy(const std::vector<Eigen::AlignedBox3f>& boxes) {
-    std::vector<Entry> entries;
-    for (uint32_t i = 0; i < boxes.size(); ++i) {
-      entries.emplace_back(ToBox(boxes[i]), i);
-    }
-    tree_ = Rtree(entries.begin(), entries.end());
-  }
-
-  std::string Name() const override { return "R-tree remove + insert moved"; }
-
-  void Update(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& previous,
-              const std::vector<Eigen::AlignedBox3f>& boxes) override {
-    for (const uint32_t id : moved) {
-      tree_.remove(Entry(ToBox(previous[id]), id));
-      tree_.insert(Entry(ToBox(boxes[id]), id));
-    }
-  }
-
-  std::vector<uint32_t> Pick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling,
-                             const Eigen::AlignedBox3f& frustum) override {
-    return RtreePick(tree_, boxes, culling, frustum);
-  }
-
- private:
-  Rtree tree_;
+  rooms::BoxTree tree_;
+  size_t rebuilt_ {};
 };
 
 // What a case moves: how many props, how far (meters) they travel there and back over the run.
@@ -401,20 +335,19 @@ struct DynamicCase {
   float share {};
   float travel_m {};
   int frames {};
-  bool rtree {};
 };
 
 // Furniture pushed about, and debris thrown fast.
 constexpr float kNudgeM = 2.f;
 constexpr float kFlungM = 30.f;
 constexpr std::array kDynamicCases {
-    DynamicCase {.times = 1, .share = 0.1f, .travel_m = kNudgeM, .frames = 300, .rtree = true},
-    DynamicCase {.times = 1, .share = 1.f, .travel_m = kFlungM, .frames = 300, .rtree = true},
-    DynamicCase {.times = 10, .share = 0.1f, .travel_m = kNudgeM, .frames = 200, .rtree = true},
-    DynamicCase {.times = 10, .share = 0.1f, .travel_m = kFlungM, .frames = 200, .rtree = true},
-    DynamicCase {.times = 10, .share = 1.f, .travel_m = kFlungM, .frames = 200, .rtree = true},
-    DynamicCase {.times = 100, .share = 0.1f, .travel_m = kNudgeM, .frames = 20, .rtree = false},
-    DynamicCase {.times = 100, .share = 1.f, .travel_m = kFlungM, .frames = 20, .rtree = false},
+    DynamicCase {.times = 1, .share = 0.1f, .travel_m = kNudgeM, .frames = 300},
+    DynamicCase {.times = 1, .share = 1.f, .travel_m = kFlungM, .frames = 300},
+    DynamicCase {.times = 10, .share = 0.1f, .travel_m = kNudgeM, .frames = 200},
+    DynamicCase {.times = 10, .share = 0.1f, .travel_m = kFlungM, .frames = 200},
+    DynamicCase {.times = 10, .share = 1.f, .travel_m = kFlungM, .frames = 200},
+    DynamicCase {.times = 100, .share = 0.1f, .travel_m = kNudgeM, .frames = 20},
+    DynamicCase {.times = 100, .share = 1.f, .travel_m = kFlungM, .frames = 20},
 };
 // The views the frames are picked from, one a frame in turn.
 constexpr std::array kDynamicStops {"corridor3", "tour33", "overview"};
@@ -434,27 +367,9 @@ struct FrameStats {
 };
 
 TEST(PropsCullingBench, DISABLED_DynamicProps) {
-  const auto palette = ShippedPalette();
-  ASSERT_TRUE(palette.has_value()) << palette.error();
-  const auto blocks = ShippedBlueprint(kOctantScene, *palette);
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
-  const auto decor_json = SourceAssets().ReadAsset(primitives::DecorFile(kOctantScene));
-  ASSERT_TRUE(decor_json.has_value()) << decor_json.error();
-  const auto decor = primitives::ParseDecor(*decor_json);
-  ASSERT_TRUE(decor.has_value()) << decor.error();
-  const auto graph = rooms::BuildRooms(RoomSourcesOf(*blocks, *palette));
-  ASSERT_TRUE(graph.has_value()) << graph.error();
-  const Scene scene = SceneOf(*blocks, *palette, *decor, z13::RenderTuning().chunk_cells);
-
-  const Eigen::Vector3f slow_spot = kSlowSpotM / z13::station::kCellSize;
-  std::vector<Stop> stops;
-  AddStops(stops, "corridor", rooms::CorridorWalk(*graph, slow_spot, kCorridorRooms));
-  AddStops(stops, "tour", rooms::TourViewpoints(*graph, kTourRooms));
-  const std::vector<Eigen::Vector3f> inside {slow_spot};
-  const std::vector<rooms::SpaceWalkStop> outside = rooms::SpaceWalkRoute(HullOf(*blocks), inside);
-  for (const rooms::SpaceWalkStop& stop : std::span(outside).subspan(1)) {
-    stops.push_back({.label = stop.label, .eye = stop.eye, .target = stop.target});
-  }
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  const std::vector<Stop> stops = RouteOf(octant->graph, octant->blocks);
   std::vector<const Stop*> views;
   for (const Stop& stop : stops) {
     if (std::ranges::contains(kDynamicStops, stop.label)) {
@@ -464,7 +379,7 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
   ASSERT_EQ(views.size(), kDynamicStops.size());
 
   for (const DynamicCase& dynamic : kDynamicCases) {
-    const std::vector<Eigen::AlignedBox3f> base = Repeated(scene.props, dynamic.times);
+    const std::vector<Eigen::AlignedBox3f> base = Repeated(octant->props, dynamic.times);
     std::vector<Eigen::AlignedBox3f> boxes = base;
     std::mt19937 random(11);
     std::uniform_real_distribution<float> unit(0.f, 1.f);
@@ -481,19 +396,13 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
     std::vector<std::unique_ptr<Strategy>> strategies;
     strategies.push_back(std::make_unique<LinearStrategy>());
     strategies.push_back(std::make_unique<TreeStrategy>(TreeStrategy::Mode::kRebuild, boxes));
-    strategies.push_back(std::make_unique<TreeStrategy>(TreeStrategy::Mode::kRefit, boxes));
-    strategies.push_back(std::make_unique<TreeStrategy>(TreeStrategy::Mode::kRefitMoved, boxes));
-    strategies.push_back(std::make_unique<TreeStrategy>(TreeStrategy::Mode::kRefitMovedOrRebuild, boxes));
-    if (dynamic.rtree) {
-      strategies.push_back(std::make_unique<RtreeStrategy>(boxes));
-    }
+    strategies.push_back(std::make_unique<TreeStrategy>(TreeStrategy::Mode::kUpdate, boxes));
     std::vector<FrameStats> stats(strategies.size());
 
     std::cout << std::format(
         "[ bench ] x{}: {} props, {} move up to {} m out and back over {} frames\n", dynamic.times, base.size(),
         moved.size(), dynamic.travel_m, dynamic.frames) << std::flush;
     for (int frame = 0; frame < dynamic.frames; ++frame) {
-      const std::vector<Eigen::AlignedBox3f> previous = boxes;
       const float travel = dynamic.travel_m * OutAndBack(frame, dynamic.frames);
       for (const uint32_t id : moved) {
         boxes[id] = base[id];
@@ -502,14 +411,13 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
       const Stop& stop = *views[static_cast<size_t>(frame) % views.size()];
       const rooms::CameraView view =
           CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
-      const rooms::ViewCulling culling(view, std::cref(*graph));
-      const Eigen::AlignedBox3f frustum = FrustumBounds(view.view_projection);
+      const rooms::ViewCulling culling(view, std::cref(octant->graph));
       const std::vector<uint32_t> expected = LinearPick(boxes, culling);
       for (size_t s = 0; s < strategies.size(); ++s) {
         const auto update_start = std::chrono::steady_clock::now();
-        strategies[s]->Update(moved, previous, boxes);
+        strategies[s]->Update(moved, boxes);
         const auto pick_start = std::chrono::steady_clock::now();
-        std::vector<uint32_t> picked = strategies[s]->Pick(boxes, culling, frustum);
+        std::vector<uint32_t> picked = strategies[s]->Pick(boxes, culling);
         const auto end = std::chrono::steady_clock::now();
         stats[s].update_ms += Ms(pick_start - update_start);
         stats[s].pick_ms += Ms(end - pick_start);
@@ -523,9 +431,9 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
     const auto frames = static_cast<double>(dynamic.frames);
     for (size_t s = 0; s < strategies.size(); ++s) {
       std::cout << std::format(
-          "[ bench ]   {:<34} update {:9.3f}  pick {:8.3f}  frame {:9.3f} ms (worst {:9.3f}), {} rebuilds\n",
+          "[ bench ]   {:<20} update {:9.3f}  pick {:8.3f}  frame {:9.3f} ms (worst {:9.3f}), {} rebuilds\n",
           strategies[s]->Name(), stats[s].update_ms / frames, stats[s].pick_ms / frames,
-          (stats[s].update_ms + stats[s].pick_ms) / frames, stats[s].worst_ms, strategies[s]->rebuilds)
+          (stats[s].update_ms + stats[s].pick_ms) / frames, stats[s].worst_ms, strategies[s]->Rebuilds())
                 << std::flush;
     }
   }

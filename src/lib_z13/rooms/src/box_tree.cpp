@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
-#include <z13_tests/box_tree.h>
+#include <rooms/box_tree.h>
 
 #include <algorithm>
 #include <numeric>
 
-namespace z13::testing {
+#include <rooms/view_culling.h>
+
+namespace z13::station::rooms {
 namespace {
 
 // Items in a leaf: small enough to test one by one, large enough to keep the tree shallow.
 constexpr size_t kLeafItems = 8;
+// Refitting around moved boxes loosens the tree; it is rebuilt when its nodes' volume is this many
+// times a fresh tree's (PropsCullingBench.DynamicProps).
+constexpr double kLooseVolumeRatio = 4.0;
 
-// Plain floats, not Eigen: a Debug build keeps every Eigen temporary and this runs on each node.
+// Plain floats, not Eigen: this runs on every node a refit touches, and a Debug build keeps every
+// Eigen temporary.
 double VolumeOf(const Eigen::AlignedBox3f& box) {
   const float* low = box.min().data();
   const float* high = box.max().data();
@@ -35,58 +41,58 @@ double VolumeOf(const Eigen::AlignedBox3f& box) {
 
 }  // namespace
 
-BoxTree::BoxTree(const std::vector<Eigen::AlignedBox3f>& boxes) : ids_(boxes.size()) {
+BoxTree::BoxTree(std::span<const Eigen::AlignedBox3f> boxes) {
+  BuildAll(boxes);
+}
+
+void BoxTree::BuildAll(std::span<const Eigen::AlignedBox3f> boxes) {
+  *this = BoxTree();
+  ids_.resize(boxes.size());
   std::iota(ids_.begin(), ids_.end(), 0U);
   centers_.reserve(boxes.size());
   for (const Eigen::AlignedBox3f& box : boxes) {
     centers_.push_back(box.center());
   }
+  leaves_.resize(boxes.size());
   if (!boxes.empty()) {
-    nodes_.reserve(boxes.size() / kLeafItems * 2 + 1);
+    nodes_.reserve((boxes.size() / kLeafItems * 2) + 1);
     Build(0, boxes.size(), 0, boxes);
   }
+  items_.reserve(boxes.size());
   slots_.resize(boxes.size());
   for (size_t slot = 0; slot < ids_.size(); ++slot) {
+    items_.push_back(boxes[ids_[slot]]);
     slots_[ids_[slot]] = static_cast<uint32_t>(slot);
   }
   dirty_.assign(nodes_.size(), 0);
-  for (const BoxTreeNode& node : nodes_) {
-    volume_ += VolumeOf(node.bounds);
-  }
-  items_.reserve(boxes.size());
-  for (const uint32_t id : ids_) {
-    items_.push_back(boxes[id]);
-  }
-  centers_.clear();
-  centers_.shrink_to_fit();
+  volume_ = std::accumulate(nodes_.begin(), nodes_.end(), 0.0, [](double sum, const BoxTreeNode& node) {
+    return sum + VolumeOf(node.bounds);
+  });
+  built_volume_ = volume_;
+  centers_ = {};
 }
 
-uint32_t BoxTree::Build(size_t begin, size_t end, uint32_t parent, const std::vector<Eigen::AlignedBox3f>& boxes) {
+uint32_t BoxTree::Build(size_t begin, size_t end, uint32_t parent, std::span<const Eigen::AlignedBox3f> boxes) {
   const auto index = static_cast<uint32_t>(nodes_.size());
-  nodes_.emplace_back();
+  nodes_.push_back({.first = static_cast<uint32_t>(begin), .count = static_cast<uint32_t>(end - begin)});
   parents_.push_back(parent);
-  Eigen::AlignedBox3f bounds;
   Eigen::AlignedBox3f centers;
   for (size_t i = begin; i < end; ++i) {
-    bounds.extend(boxes[ids_[i]]);
+    nodes_[index].bounds.extend(boxes[ids_[i]]);
     centers.extend(centers_[ids_[i]]);
   }
-  nodes_[index].bounds = bounds;
-  nodes_[index].first = static_cast<uint32_t>(begin);
-  nodes_[index].count = static_cast<uint32_t>(end - begin);
   if (end - begin <= kLeafItems) {
-    leaves_.resize(std::max(leaves_.size(), end), 0);
     std::fill(leaves_.begin() + static_cast<std::ptrdiff_t>(begin), leaves_.begin() + static_cast<std::ptrdiff_t>(end), index);
     return index;
   }
   Eigen::Index axis = 0;
   centers.sizes().maxCoeff(&axis);
-  const size_t middle = begin + (end - begin) / 2;
-  std::nth_element(ids_.begin() + static_cast<std::ptrdiff_t>(begin), ids_.begin() + static_cast<std::ptrdiff_t>(middle),
+  const auto middle = static_cast<std::ptrdiff_t>(begin + ((end - begin) / 2));
+  std::nth_element(ids_.begin() + static_cast<std::ptrdiff_t>(begin), ids_.begin() + middle,
                    ids_.begin() + static_cast<std::ptrdiff_t>(end),
                    [&](uint32_t a, uint32_t b) { return centers_[a][axis] < centers_[b][axis]; });
-  Build(begin, middle, index, boxes);
-  nodes_[index].right = Build(middle, end, index, boxes);
+  Build(begin, static_cast<size_t>(middle), index, boxes);
+  nodes_[index].right = Build(static_cast<size_t>(middle), end, index, boxes);
   return index;
 }
 
@@ -105,22 +111,18 @@ void BoxTree::RefitNode(size_t index) {
   volume_ += VolumeOf(node.bounds);
 }
 
-void BoxTree::Refit(const std::vector<Eigen::AlignedBox3f>& boxes) {
-  for (size_t slot = 0; slot < items_.size(); ++slot) {
-    items_[slot] = boxes[ids_[slot]];
+void BoxTree::Update(std::span<const uint32_t> moved, std::span<const Eigen::AlignedBox3f> boxes) {
+  if (boxes.size() != items_.size()) {
+    BuildAll(boxes);
+    return;
   }
-  // A child always comes after its parent, so one pass backwards refits every node after its children.
-  for (size_t i = nodes_.size(); i-- > 0;) {
-    RefitNode(i);
-  }
-}
-
-void BoxTree::Refit(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& boxes) {
   for (const uint32_t id : moved) {
     const uint32_t slot = slots_[id];
     items_[slot] = boxes[id];
     dirty_[leaves_[slot]] = 1;
   }
+  // A child always comes after its parent, so one pass backwards refits each dirty node after its
+  // children and marks the parent.
   for (size_t i = nodes_.size(); i-- > 0;) {
     if (dirty_[i] == 0) {
       continue;
@@ -131,10 +133,14 @@ void BoxTree::Refit(const std::vector<uint32_t>& moved, const std::vector<Eigen:
       dirty_[parents_[i]] = 1;
     }
   }
+  if (volume_ > kLooseVolumeRatio * built_volume_) {
+    const size_t rebuilds = rebuilds_ + 1;
+    BuildAll(boxes);
+    rebuilds_ = rebuilds;
+  }
 }
 
-void BoxTree::Query(
-    const z13::station::rooms::ViewCulling& culling, std::vector<uint32_t>& visible, bool fast_accept) const {
+void BoxTree::Query(const ViewCulling& culling, std::vector<uint32_t>& visible) const {
   if (nodes_.empty()) {
     return;
   }
@@ -146,7 +152,7 @@ void BoxTree::Query(
     if (!culling.Visible(node.bounds)) {
       continue;
     }
-    if (fast_accept && culling.AllVisible(node.bounds)) {
+    if (culling.AllVisible(node.bounds)) {
       visible.insert(visible.end(), ids_.begin() + node.first, ids_.begin() + node.first + node.count);
       continue;
     }
@@ -155,12 +161,12 @@ void BoxTree::Query(
       pending.push_back(index + 1);
       continue;
     }
-    for (uint32_t i = node.first; i < node.first + node.count; ++i) {
-      if (culling.Visible(items_[i])) {
-        visible.push_back(ids_[i]);
+    for (uint32_t slot = node.first; slot < node.first + node.count; ++slot) {
+      if (culling.Visible(items_[slot])) {
+        visible.push_back(ids_[slot]);
       }
     }
   }
 }
 
-}  // namespace z13::testing
+}  // namespace z13::station::rooms
