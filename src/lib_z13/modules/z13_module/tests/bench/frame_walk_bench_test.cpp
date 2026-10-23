@@ -34,6 +34,7 @@
 #include <rooms/view_culling.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
+#include <z13_tests/slow_spot.h>
 #include <z13_tests/camera_view.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/virtual_render.h>
@@ -63,8 +64,6 @@ constexpr size_t kTourHeadings = 4;
 constexpr size_t kTopSystems = 8;
 // Systems under this mean per frame are left out of the list.
 constexpr double kMinSystemMs = 0.001;
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 // What a frame must stay under anywhere in the station, in Debug (docs/frame-time-plan.md): the
 // network's rollbacks and the real drawing come on top of what is measured here.
 constexpr double kTargetFps = 80.0;

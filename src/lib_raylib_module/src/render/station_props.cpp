@@ -71,7 +71,7 @@ Eigen::AlignedBox3f BoundsOf(const ::Model& model, const Eigen::Matrix4f& transf
 }  // namespace
 
 std::expected<StationProps, std::string> StationProps::Load(
-    const AssetSource& assets, std::string_view scene, ::Shader lighting_shader) {
+    const AssetSource& assets, std::string_view scene, ::Shader lighting_shader, double tree_loose_ratio) {
   StationProps result;
   const auto json = assets.ReadAsset(primitives::DecorFile(scene));
   if (!json) {
@@ -105,7 +105,7 @@ std::expected<StationProps, std::string> StationProps::Load(
   std::vector<Eigen::AlignedBox3f> bounds;
   bounds.reserve(result.props_.size());
   std::ranges::transform(result.props_, std::back_inserter(bounds), &PlacedProp::bounds);
-  result.tree_ = rooms::BoxTree(bounds);
+  result.tree_ = rooms::BoxTree(bounds, tree_loose_ratio);
   return result;
 }
 

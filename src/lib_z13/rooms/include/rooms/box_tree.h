@@ -42,7 +42,9 @@ struct BoxTreeNode {
 class BoxTree {
  public:
   BoxTree() = default;
-  explicit BoxTree(std::span<const Eigen::AlignedBox3f> boxes);
+  // `loose_ratio`: how many times a fresh tree's node volume Update lets the tree grow before it
+  // rebuilds it.
+  BoxTree(std::span<const Eigen::AlignedBox3f> boxes, double loose_ratio);
 
   // Appends the indices of the boxes that `culling` shows, in no particular order. A node is
   // skipped when it is not visible and taken whole when all of it is.
@@ -74,6 +76,7 @@ class BoxTree {
   // The sum of the nodes' volumes, and what it was when the tree was built.
   double volume_ {};
   double built_volume_ {};
+  double loose_ratio_ {};
   size_t rebuilds_ {};
 };
 

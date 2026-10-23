@@ -34,6 +34,7 @@ constexpr int kBoxes = 600;
 constexpr float kSpreadM = 60.f;
 constexpr float kBoxSizeM = 1.f;
 constexpr unsigned kSeed = 3;
+constexpr double kLooseRatio = 4.0;
 
 ViewCulling Looking(const Eigen::Vector3f& eye, const Eigen::Vector3f& target) {
   return {z13::testing::CameraViewFrom(eye, target), std::nullopt};
@@ -69,7 +70,7 @@ std::vector<uint32_t> Sorted(const BoxTree& tree, const ViewCulling& culling) {
 TEST(BoxTreeTest, FindsTheSameBoxesAsTestingEachOne) {
   std::mt19937 random(kSeed);
   const std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
-  const BoxTree tree(boxes);
+  const BoxTree tree(boxes, kLooseRatio);
 
   for (const Eigen::Vector3f& target : {Eigen::Vector3f(10.f, 0.f, 0.f), Eigen::Vector3f(0.f, -10.f, 3.f),
                                          Eigen::Vector3f(-4.f, 5.f, -1.f)}) {
@@ -84,7 +85,7 @@ TEST(BoxTreeTest, FindsTheSameBoxesAsTestingEachOne) {
 TEST(BoxTreeTest, TakesWholeNodesInViewAndFindsNothingBehindTheCamera) {
   std::mt19937 random(kSeed);
   const std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
-  const BoxTree tree(boxes);
+  const BoxTree tree(boxes, kLooseRatio);
   // From far away every box is in the frustum; turned the other way none is.
   const ViewCulling all = Looking({0.f, -4.f * kSpreadM, 0.f}, {0.f, 0.f, 0.f});
   const ViewCulling none = Looking({0.f, -4.f * kSpreadM, 0.f}, {0.f, -8.f * kSpreadM, 0.f});
@@ -95,9 +96,9 @@ TEST(BoxTreeTest, TakesWholeNodesInViewAndFindsNothingBehindTheCamera) {
 
 TEST(BoxTreeTest, AnEmptyOrOneBoxTreeWorks) {
   const ViewCulling culling = Looking({0.f, 0.f, 0.f}, {10.f, 0.f, 0.f});
-  const BoxTree empty(std::vector<Eigen::AlignedBox3f> {});
+  const BoxTree empty(std::vector<Eigen::AlignedBox3f> {}, kLooseRatio);
   const std::vector<Eigen::AlignedBox3f> one {{Eigen::Vector3f(19.f, -1.f, -1.f), Eigen::Vector3f(21.f, 1.f, 1.f)}};
-  const BoxTree single(one);
+  const BoxTree single(one, kLooseRatio);
 
   EXPECT_TRUE(Sorted(empty, culling).empty());
   EXPECT_EQ(Sorted(single, culling), std::vector<uint32_t> {0});
@@ -106,7 +107,7 @@ TEST(BoxTreeTest, AnEmptyOrOneBoxTreeWorks) {
 TEST(BoxTreeTest, UpdateFollowsBoxesThatMoved) {
   std::mt19937 random(kSeed);
   std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
-  BoxTree tree(boxes);
+  BoxTree tree(boxes, kLooseRatio);
   std::vector<uint32_t> moved;
   for (uint32_t i = 0; i < boxes.size(); i += 5) {
     moved.push_back(i);
@@ -125,7 +126,7 @@ TEST(BoxTreeTest, UpdateFollowsBoxesThatMoved) {
 TEST(BoxTreeTest, RebuildsWhenMovingHasLoosenedIt) {
   std::mt19937 random(kSeed);
   std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
-  BoxTree tree(boxes);
+  BoxTree tree(boxes, kLooseRatio);
   std::vector<uint32_t> moved(boxes.size());
   std::iota(moved.begin(), moved.end(), 0U);
   std::uniform_real_distribution<float> fling(-4.f * kSpreadM, 4.f * kSpreadM);
@@ -142,10 +143,29 @@ TEST(BoxTreeTest, RebuildsWhenMovingHasLoosenedIt) {
   EXPECT_GT(tree.Rebuilds(), 0U);
 }
 
+TEST(BoxTreeTest, TheLooseRatioSaysWhenMovingRebuilds) {
+  constexpr double kTight = 1.01;
+  constexpr double kNever = 1e9;
+  std::mt19937 random(kSeed);
+  std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
+  BoxTree tight(boxes, kTight);
+  BoxTree never(boxes, kNever);
+  std::vector<uint32_t> moved(boxes.size());
+  std::iota(moved.begin(), moved.end(), 0U);
+  for (const uint32_t id : moved) {
+    boxes[id].translate(Eigen::Vector3f(id % 2 == 0 ? kSpreadM : -kSpreadM, 0.f, 0.f));
+  }
+  tight.Update(moved, boxes);
+  never.Update(moved, boxes);
+
+  EXPECT_GT(tight.Rebuilds(), 0U);
+  EXPECT_EQ(never.Rebuilds(), 0U);
+}
+
 TEST(BoxTreeTest, ADifferentNumberOfBoxesRebuilds) {
   std::mt19937 random(kSeed);
   std::vector<Eigen::AlignedBox3f> boxes = Scattered(random);
-  BoxTree tree(boxes);
+  BoxTree tree(boxes, kLooseRatio);
   boxes.pop_back();
   tree.Update({}, boxes);
   const ViewCulling culling = Looking({0.f, 0.f, 0.f}, {10.f, 0.f, 0.f});

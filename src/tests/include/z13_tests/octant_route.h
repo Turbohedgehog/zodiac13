@@ -29,12 +29,10 @@
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
 #include <z13/components/block.h>
+#include <z13_tests/slow_spot.h>
 #include <z13_tests/virtual_render.h>
 
 namespace z13::testing {
-
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-inline const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
 
 // How many rooms the corridor walk of OctantRoute may enter, and how many the tour picks.
 inline constexpr size_t kRouteCorridorRooms = 40;

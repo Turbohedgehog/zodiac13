@@ -50,9 +50,10 @@ class StationProps {
   using Singleton = void;
 
   // Loads the props of `scene` and the models they name; `lighting_shader` is borrowed by every
-  // material, id 0 keeps raylib's default. A scene without props yields none.
+  // material, id 0 keeps raylib's default. A scene without props yields none. `tree_loose_ratio` is
+  // RenderTuning's prop_tree_loose_ratio.
   static std::expected<StationProps, std::string> Load(
-      const AssetSource& assets, std::string_view scene, ::Shader lighting_shader);
+      const AssetSource& assets, std::string_view scene, ::Shader lighting_shader, double tree_loose_ratio);
 
   // The props in view; returns how many it drew.
   size_t Draw(const ViewCulling& culling) const;

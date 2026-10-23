@@ -202,14 +202,15 @@ void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const Asse
 }
 
 // Only a host knows its scene: a joining client's station comes without its props.
-void ReconcileStationProps(flecs::world world, const Lighting& lighting, const AssetSource& assets) {
+void ReconcileStationProps(
+    flecs::world world, const Lighting& lighting, const AssetSource& assets, const z13::RenderTuning& tuning) {
   if (z13::flecs_tools::IsCatchingUp(world)) {
     return;
   }
   const auto* choice = world.try_get<z13::station::StationSceneChoice>();
   const bool wanted = lighting.res && world.has<z13::station::StationMode>() && choice && choice->scene;
   if (wanted && !world.has<StationProps>()) {
-    auto props = StationProps::Load(assets, *choice->scene, *lighting.res->shader);
+    auto props = StationProps::Load(assets, *choice->scene, *lighting.res->shader, tuning.prop_tree_loose_ratio);
     if (props) {
       log_info("[raylib] {} props in '{}'", props->Count(), *choice->scene);
       world.set<StationProps>(*std::move(props));
@@ -942,14 +943,15 @@ void RegisterSystems(flecs::world world) {
         ReconcileSpaceship(it.world(), lighting, assets.source);
       });
 
-  world.system<const Lighting, const z13::Assets>("EnvironmentRenderSystem::ReconcileStationProps")
+  world.system<const Lighting, const z13::Assets, const z13::RenderTuning>("EnvironmentRenderSystem::ReconcileStationProps")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::StationMode>()
       .read<z13::station::StationSceneChoice>()
       .write<StationProps>()
-      .each([](flecs::iter& it, size_t, const Lighting& lighting, const z13::Assets& assets) {
-        ReconcileStationProps(it.world(), lighting, assets.source);
+      .each([](flecs::iter& it, size_t, const Lighting& lighting, const z13::Assets& assets,
+               const z13::RenderTuning& tuning) {
+        ReconcileStationProps(it.world(), lighting, assets.source, tuning);
       });
 
   world.system<const RaylibData, const gameplay::Camera>("EnvironmentRenderSystem::EnsureRaylibCamera")

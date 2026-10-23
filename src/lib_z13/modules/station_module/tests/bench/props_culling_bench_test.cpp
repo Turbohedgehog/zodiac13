@@ -121,6 +121,10 @@ std::vector<Eigen::AlignedBox3f> Repeated(const std::vector<Eigen::AlignedBox3f>
   return result;
 }
 
+double LooseRatio() {
+  return z13::RenderTuning().prop_tree_loose_ratio;
+}
+
 std::vector<uint32_t> LinearPick(const std::vector<Eigen::AlignedBox3f>& boxes, const rooms::ViewCulling& culling) {
   std::vector<uint32_t> visible;
   for (uint32_t i = 0; i < boxes.size(); ++i) {
@@ -182,7 +186,7 @@ TEST(PropsCullingBench, DISABLED_OctantWalk) {
   for (const int times : kRepeatCounts) {
     const std::vector<Eigen::AlignedBox3f> boxes = Repeated(octant->props, times);
     const auto build_start = std::chrono::steady_clock::now();
-    const rooms::BoxTree tree(boxes);
+    const rooms::BoxTree tree(boxes, LooseRatio());
     const double tree_build_ms = Ms(std::chrono::steady_clock::now() - build_start);
     const auto rtree_start = std::chrono::steady_clock::now();
     std::vector<Entry> entries;
@@ -269,13 +273,14 @@ class TreeStrategy : public Strategy {
   // kRebuild builds a new tree every frame; kUpdate lets the tree refit and rebuild itself.
   enum class Mode { kRebuild, kUpdate };
 
-  TreeStrategy(Mode mode, const std::vector<Eigen::AlignedBox3f>& boxes) : mode_(mode), tree_(boxes) {}
+  TreeStrategy(Mode mode, const std::vector<Eigen::AlignedBox3f>& boxes)
+      : mode_(mode), tree_(boxes, LooseRatio()) {}
 
   std::string Name() const override { return mode_ == Mode::kRebuild ? "rebuild each frame" : "BoxTree::Update"; }
 
   void Update(const std::vector<uint32_t>& moved, const std::vector<Eigen::AlignedBox3f>& boxes) override {
     if (mode_ == Mode::kRebuild) {
-      tree_ = rooms::BoxTree(boxes);
+      tree_ = rooms::BoxTree(boxes, LooseRatio());
       ++rebuilt_;
     } else {
       tree_.Update(moved, boxes);

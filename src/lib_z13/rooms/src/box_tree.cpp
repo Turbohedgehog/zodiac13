@@ -26,9 +26,6 @@ namespace {
 
 // Items in a leaf: small enough to test one by one, large enough to keep the tree shallow.
 constexpr size_t kLeafItems = 8;
-// Refitting around moved boxes loosens the tree; it is rebuilt when its nodes' volume is this many
-// times a fresh tree's (PropsCullingBench.DynamicProps).
-constexpr double kLooseVolumeRatio = 4.0;
 
 // Plain floats, not Eigen: this runs on every node a refit touches, and a Debug build keeps every
 // Eigen temporary.
@@ -41,12 +38,14 @@ double VolumeOf(const Eigen::AlignedBox3f& box) {
 
 }  // namespace
 
-BoxTree::BoxTree(std::span<const Eigen::AlignedBox3f> boxes) {
+BoxTree::BoxTree(std::span<const Eigen::AlignedBox3f> boxes, double loose_ratio) : loose_ratio_(loose_ratio) {
   BuildAll(boxes);
 }
 
 void BoxTree::BuildAll(std::span<const Eigen::AlignedBox3f> boxes) {
+  const double loose_ratio = loose_ratio_;
   *this = BoxTree();
+  loose_ratio_ = loose_ratio;
   ids_.resize(boxes.size());
   std::iota(ids_.begin(), ids_.end(), 0U);
   centers_.reserve(boxes.size());
@@ -133,7 +132,7 @@ void BoxTree::Update(std::span<const uint32_t> moved, std::span<const Eigen::Ali
       dirty_[parents_[i]] = 1;
     }
   }
-  if (volume_ > kLooseVolumeRatio * built_volume_) {
+  if (volume_ > loose_ratio_ * built_volume_) {
     const size_t rebuilds = rebuilds_ + 1;
     BuildAll(boxes);
     rebuilds_ = rebuilds;
