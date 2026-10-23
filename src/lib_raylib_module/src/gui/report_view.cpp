@@ -29,7 +29,7 @@ namespace {
 
 constexpr std::string_view kBoxId = "##report";
 constexpr float kLongPressSeconds = 0.45f;
-// A finger near the box's top or bottom edge scrolls it, so a selection can reach lines out of view.
+// A finger near the top or bottom edge scrolls the box, so a selection can reach lines out of view.
 constexpr float kEdgeEm = 2.f;
 constexpr float kEdgeScrollEmPerSecond = 12.f;
 constexpr ImU32 kSelectionColor = IM_COL32(70, 110, 200, 140);

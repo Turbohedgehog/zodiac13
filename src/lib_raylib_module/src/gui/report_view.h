@@ -27,16 +27,14 @@
 
 namespace z13::raylib::gui {
 
-// A report's text in a box a drag scrolls (ImGui reads a finger as a mouse, so a text field would
-// select instead). A long press on a line selects, and the finger moves the selection over the
-// lines; later taps grow, narrow and clear it (z13::SelectionAfterTap).
+// A drag scrolls (ImGui reads a finger as a mouse, so a text field would select); a long press
+// selects lines, later taps grow, narrow and clear the selection (z13::SelectionAfterTap).
 class ReportView {
  public:
   void SetText(const std::string& text);
   void Draw(const ImVec2& size);
 
   bool HasSelection() const { return selection_.has_value(); }
-  // The selected lines, each ended by a line feed.
   std::string Selection() const;
 
  private:

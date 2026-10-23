@@ -43,7 +43,6 @@ namespace {
 constexpr std::string_view kFileNamePrefix = "frame-report-";
 constexpr std::string_view kFileNameTimeFormat = "{:%Y%m%d-%H%M%S}";
 constexpr std::string_view kFileExtension = ".txt";
-// The parts of the frame --frame-log names, the largest first.
 constexpr size_t kLineShares = 3;
 
 #ifdef NDEBUG

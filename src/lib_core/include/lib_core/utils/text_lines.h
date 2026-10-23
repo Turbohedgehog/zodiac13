@@ -25,22 +25,20 @@
 
 namespace z13 {
 
-// The lines of `text`, without their line ends; a final line end doesn't start another line.
+// Without the line ends; a final one doesn't start another line.
 std::vector<std::string> SplitLines(std::string_view text);
 
-// The lines `first` to `last` (both included, in either order, clamped to the lines there are),
-// each ended by a line feed; nothing when there are no lines.
+// Both ends included, in either order, clamped to the lines there are; each line ends with a line feed.
 std::string JoinLines(std::span<const std::string> lines, size_t first, size_t last);
 
-// The lines a selection covers, both included; `first` is where it started.
+// `first` is where the selection started.
 struct LineSelection {
   size_t first {};
   size_t last {};
 };
 
-// What a tap on `line` makes of a selection: nothing without one; on a line outside it, the
-// selection grown to reach that line; on a line inside it, just that line; on the one selected
-// line, nothing.
+// A tap outside a selection grows it to that line, inside it leaves that line, on the one selected
+// line clears it; without a selection it does nothing.
 std::optional<LineSelection> SelectionAfterTap(const std::optional<LineSelection>& selection, size_t line);
 
 }  // namespace z13

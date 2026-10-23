@@ -27,7 +27,6 @@
 
 namespace z13 {
 
-// How a run of frames went, in milliseconds a frame (fps where named).
 struct FrameSummary {
   size_t frames {};
   double covered_ms {};
@@ -43,27 +42,23 @@ struct FrameSummary {
 
 FrameSummary SummarizeFrames(std::span<const FrameSample> frames);
 
-// A part of a frame's time and its share of the mean period.
 struct FrameShare {
   std::string name;
   double ms {};
   double share {};
 };
 
-// Where the mean frame's time goes, largest first: the simulation, each drawing stage by name, the
-// swap, and the rest of the period the parts don't account for.
+// Largest first; the rest is the period the parts don't account for.
 std::vector<FrameShare> TimeShares(std::span<const FrameSample> frames);
 
-// What a report adds to the frames: lines about the device and the run, counters the frames don't
-// carry (as text, "98 / 117"), and each system's mean time per frame.
+// Counters are formatted text ("98 / 117"); systems are mean ms per frame.
 struct FrameReportInput {
   std::vector<std::pair<std::string, std::string>> header;
   std::vector<std::pair<std::string, std::string>> counters;
   std::vector<SystemTime> systems;
 };
 
-// A text a player can copy and send: the summary, where the time goes, the heaviest systems, the
-// counters and the slowest frames each with the part that cost most.
+// A text a player can copy and send.
 std::string FrameReport(std::span<const FrameSample> frames, const FrameReportInput& input);
 
 }  // namespace z13

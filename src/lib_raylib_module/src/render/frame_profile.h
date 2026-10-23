@@ -32,27 +32,25 @@
 
 namespace z13::raylib {
 
-// How the game's frames are timed for a frame report (lib_core/utils/frame_report.h): the
-// timeline the frame's parts leave marks in, and the --frame-log line. Never state.
+// The timeline the frame's parts leave marks in. Never state.
 struct FrameProfile {
   using Singleton = void;
   using Clock = std::chrono::steady_clock;
 
   z13::FrameTimeline timeline;
-  // Set by --frame-log: a line of the frame times goes to the log once a second.
+  // Set by --frame-log.
   bool log_each_second {};
   std::optional<Clock::time_point> last_logged;
 };
 
 std::vector<z13::FrameStage> StagesOf(const DrawTimes& times);
 
-// The frame report of the last seconds, with the device and the station it was measured in.
 std::string ProfileReport(flecs::world world);
 
-// What --frame-log writes: the last frames' fps and where their time went, on one line.
+// The line --frame-log writes.
 std::string ProfileLine(const z13::FrameRecorder& recorder, const RenderStats& stats);
 
-// Writes `report` to the logs directory under a name with the time, and returns the path.
+// In the logs directory, under a name with the time.
 std::expected<std::filesystem::path, std::string> SaveProfileReport(const std::string& report);
 
 }  // namespace z13::raylib

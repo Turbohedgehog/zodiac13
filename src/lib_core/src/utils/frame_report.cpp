@@ -28,14 +28,11 @@ namespace z13 {
 
 namespace {
 
-// The fraction of frames the "low" fps is the mean of, and the percentile of the period.
 constexpr double kLowFraction = 0.01;
 constexpr double kPeriodPercentile = 0.99;
 constexpr size_t kTopSystems = 8;
 constexpr size_t kSlowestFrames = 8;
-// A frame is a slow one when its period is this many times the median.
 constexpr double kSlowFactor = 1.5;
-// A system under this mean per frame isn't worth a line.
 constexpr double kMinSystemMs = 0.01;
 constexpr std::string_view kSimulation = "simulation";
 constexpr std::string_view kPresent = "present (swap, vsync)";
@@ -49,7 +46,6 @@ double Fps(double period_ms) {
   return period_ms > 0.0 ? kMsPerSecond / period_ms : 0.0;
 }
 
-// The value at `fraction` of the sorted values, rounding the position up.
 double Percentile(const std::vector<double>& sorted, double fraction) {
   if (sorted.empty()) {
     return 0.0;
@@ -66,7 +62,7 @@ double Median(const std::vector<double>& sorted) {
   return sorted.size() % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
 }
 
-// The parts of one frame, in the order of its report; the rest is what they leave of the period.
+// The rest is what the parts leave of the period.
 std::vector<FrameStage> PartsOf(const FrameSample& frame) {
   std::vector<FrameStage> parts {{.name = kSimulation, .ms = frame.simulation_ms}};
   parts.insert(parts.end(), frame.stages.begin(), frame.stages.end());

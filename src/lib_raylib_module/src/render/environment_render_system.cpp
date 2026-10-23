@@ -204,7 +204,6 @@ void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const Asse
   }
 }
 
-// The previous frame's times go to the profile; --frame-log adds a line of them to the log a second.
 void StartProfiledFrame(flecs::world& world, z13::flecs_tools::FrameKind) {
   FrameProfile& profile = world.get_mut<FrameProfile>();
   const RenderStats& stats = world.get<RenderStats>();

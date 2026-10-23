@@ -29,9 +29,7 @@ namespace z13::raylib::gui {
 
 namespace {
 
-// The report's box, in font heights: wide enough for its longest line, tall enough for the
-// tables, scrolling past that; on a small screen what the title, the hint, the buttons and the
-// window's padding leave.
+// The report's box in font heights; on a small screen, what the title, hint, buttons and padding leave.
 constexpr float kReportWidthEm = 48.f;
 constexpr float kReportHeightEm = 22.f;
 constexpr float kChromeHeightEm = 10.f;

@@ -25,8 +25,7 @@
 
 namespace z13::raylib::gui {
 
-// The frame report of the last seconds before the pause, to read, copy or save; or resume the
-// game and start measuring over.
+// The frame report of the last seconds before the pause; resuming starts a new measuring.
 class ProfileWindow : public Window {
  public:
   explicit ProfileWindow(flecs::world world);
@@ -42,7 +41,7 @@ class ProfileWindow : public Window {
 
 WindowPtr MakeProfileWindow(flecs::world world);
 
-// Copies the report to the clipboard and saves it; returns what it did, for a log or a window.
+// Returns what it did, for a log or a window.
 std::string CaptureProfileReport(const std::string& report);
 
 }  // namespace z13::raylib::gui

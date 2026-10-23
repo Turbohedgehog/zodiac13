@@ -26,32 +26,27 @@
 
 namespace z13 {
 
-// How often the systems' time is sampled for a frame report.
 inline constexpr std::chrono::seconds kSystemTotalsInterval {1};
 
-// What a FrameTimeline has seen since it was made, for telling an empty report from a broken one.
+// For telling an empty report from a broken one.
 struct FrameTimelineCounts {
   size_t started {};
-  // Frames left out because the game was paused.
   size_t paused {};
-  // Times the recorded frames were dropped: the end of a pause, or a call to Clear.
+  // The end of a pause, or a call to Clear.
   size_t cleared {};
 };
 
-// Turns the marks a host frame leaves (where it started, where its drawing started, how long the
-// swap took) into the FrameSample the recorder keeps. A frame is recorded when the next one
-// starts, so its period is the time between the two starts.
+// Turns the marks a host frame leaves into the FrameSample the recorder keeps when the next frame
+// starts, so the period is start to start.
 class FrameTimeline {
  public:
   using Clock = std::chrono::steady_clock;
 
-  // The frame about to run starts at `now`. `stages` are the previous frame's drawing stages and
-  // count only if it was drawn (MarkDrawStart); `sample_systems`, if set, is called once an interval
-  // for the systems' totals. A paused game's frames aren't gameplay: they are left out, and the
-  // frames recorded before the pause are dropped when it ends.
+  // `stages` are the previous frame's and count only if it was drawn. A paused game's frames are
+  // left out, and the frames recorded before the pause are dropped when it ends.
   void StartFrame(
       Clock::time_point now, bool paused, std::span<const FrameStage> stages, const SystemSampler& sample_systems);
-  // The frame running now starts drawing (a frame that never calls this wasn't drawn).
+  // A frame that never calls this wasn't drawn.
   void MarkDrawStart(Clock::time_point now);
   void MarkPresent(double ms);
 
