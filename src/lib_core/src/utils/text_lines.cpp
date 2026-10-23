@@ -59,7 +59,8 @@ std::optional<LineSelection> SelectionAfterTap(const std::optional<LineSelection
   if (!selection) {
     return std::nullopt;
   }
-  const auto [low, high] = std::minmax(selection->first, selection->last);
+  const size_t low = selection->Low();
+  const size_t high = selection->High();
   if (line < low || line > high) {
     return LineSelection {.first = std::min(low, line), .last = std::max(high, line)};
   }

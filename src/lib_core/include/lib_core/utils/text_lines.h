@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -35,6 +36,9 @@ std::string JoinLines(std::span<const std::string> lines, size_t first, size_t l
 struct LineSelection {
   size_t first {};
   size_t last {};
+
+  size_t Low() const { return std::min(first, last); }
+  size_t High() const { return std::max(first, last); }
 };
 
 // A tap outside a selection grows it to that line, inside it leaves that line, on the one selected

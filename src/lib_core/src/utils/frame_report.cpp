@@ -24,6 +24,8 @@
 #include <numeric>
 #include <ranges>
 
+#include <lib_core/utils/statistics.h>
+
 namespace z13 {
 
 namespace {
@@ -33,14 +35,11 @@ constexpr double kPeriodPercentile = 0.99;
 constexpr size_t kTopSystems = 8;
 constexpr size_t kSlowestFrames = 8;
 constexpr double kSlowFactor = 1.5;
+constexpr double kPercent = 100.0;
 constexpr double kMinSystemMs = 0.01;
 constexpr std::string_view kSimulation = "simulation";
 constexpr std::string_view kPresent = "present (swap, vsync)";
 constexpr std::string_view kRest = "rest (GUI, waiting)";
-
-double Mean(std::span<const double> values) {
-  return values.empty() ? 0.0 : std::accumulate(values.begin(), values.end(), 0.0) / static_cast<double>(values.size());
-}
 
 double Fps(double period_ms) {
   return period_ms > 0.0 ? kMsPerSecond / period_ms : 0.0;
@@ -52,14 +51,6 @@ double Percentile(const std::vector<double>& sorted, double fraction) {
   }
   const auto index = static_cast<size_t>(std::ceil(fraction * static_cast<double>(sorted.size()))) - 1;
   return sorted[std::min(index, sorted.size() - 1)];
-}
-
-double Median(const std::vector<double>& sorted) {
-  if (sorted.empty()) {
-    return 0.0;
-  }
-  const size_t middle = sorted.size() / 2;
-  return sorted.size() % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
 }
 
 // The rest is what the parts leave of the period.
@@ -89,7 +80,8 @@ FrameSummary SummarizeFrames(std::span<const FrameSample> frames) {
   summary.worst_ms = periods.empty() ? 0.0 : periods.back();
   summary.mean_fps = Fps(summary.mean_ms);
   summary.median_fps = Fps(summary.median_ms);
-  const size_t slowest = std::max<size_t>(1, static_cast<size_t>(std::ceil(kLowFraction * static_cast<double>(periods.size()))));
+  const auto slowest =
+      std::max<size_t>(1, static_cast<size_t>(std::ceil(kLowFraction * static_cast<double>(periods.size()))));
   summary.low_fps = periods.empty() ? 0.0 : Fps(Mean(std::span(periods).last(std::min(slowest, periods.size()))));
   return summary;
 }
@@ -135,7 +127,7 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
 
   std::format_to(out, "\nWhere the time goes (mean ms per frame, share of the period):\n");
   for (const FrameShare& share : TimeShares(frames)) {
-    std::format_to(out, "  {:<24} {:7.2f}  {:5.1f}%\n", share.name, share.ms, share.share * 100.0);
+    std::format_to(out, "  {:<24} {:7.2f}  {:5.1f}%\n", share.name, share.ms, share.share * kPercent);
   }
 
   std::vector<SystemTime> systems = input.systems;
@@ -170,7 +162,7 @@ std::string FrameReport(std::span<const FrameSample> frames, const FrameReportIn
     const std::vector<FrameStage> parts = PartsOf(frame);
     const auto biggest = std::ranges::max_element(parts, {}, &FrameStage::ms);
     std::format_to(out, "  #{:<4} {:7.2f} ms  mostly {} {:.2f} ms ({:.0f}%)\n", index, frame.period_ms, biggest->name,
-                   biggest->ms, frame.period_ms > 0.0 ? biggest->ms / frame.period_ms * 100.0 : 0.0);
+                   biggest->ms, frame.period_ms > 0.0 ? biggest->ms / frame.period_ms * kPercent : 0.0);
   }
   return text;
 }

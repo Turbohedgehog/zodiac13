@@ -47,7 +47,8 @@ std::string ReportView::Selection() const {
 }
 
 size_t ReportView::LineAt(float y, const ImVec2& origin, float line_height) const {
-  const float line = std::clamp((y - origin.y) / line_height, 0.f, static_cast<float>(lines_.size() - 1));
+  const auto last = static_cast<float>(std::max<size_t>(lines_.size(), 1) - 1);
+  const float line = std::clamp((y - origin.y) / line_height, 0.f, last);
   return static_cast<size_t>(line);
 }
 
@@ -111,10 +112,8 @@ void ReportView::Draw(const ImVec2& size) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const float left = ImGui::GetWindowPos().x;
     const float right = left + ImGui::GetWindowWidth();
-    const size_t low = selection_ ? std::min(selection_->first, selection_->last) : 0;
-    const size_t high = selection_ ? std::max(selection_->first, selection_->last) : 0;
     for (size_t i = 0; i < lines_.size(); ++i) {
-      if (selection_ && i >= low && i <= high) {
+      if (selection_ && i >= selection_->Low() && i <= selection_->High()) {
         const float top = origin.y + static_cast<float>(i) * line_height;
         draw->AddRectFilled({left, top}, {right, top + line_height}, kSelectionColor);
       }

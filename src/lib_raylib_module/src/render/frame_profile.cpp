@@ -78,8 +78,8 @@ std::string ProfileReport(flecs::world world) {
   input.header.emplace_back("Build", BuildText());
   input.header.emplace_back("Platform", std::format("{}, {} cores", SDL_GetPlatform(), SDL_GetNumLogicalCPUCores()));
   if (const auto* platform = world.try_get<SdlPlatformData>(); platform != nullptr && platform->platform) {
-    input.header.emplace_back("GPU", std::format("{} ({})", platform->platform->Gl().renderer,
-                                                  platform->platform->Gl().version));
+    const GlInfo& gl = platform->platform->Gl();
+    input.header.emplace_back("GPU", std::format("{} ({})", gl.renderer, gl.version));
   }
   if (const auto* size = world.try_get<WindowSize>(); size != nullptr) {
     input.header.emplace_back("Window", std::format("{} x {}", size->size.x(), size->size.y()));

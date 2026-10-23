@@ -963,7 +963,8 @@ void RegisterSystems(flecs::world world) {
         ReconcileSpaceship(it.world(), lighting, assets.source);
       });
 
-  world.system<const Lighting, const z13::Assets, const z13::RenderTuning>("EnvironmentRenderSystem::ReconcileStationProps")
+  world.system<const Lighting, const z13::Assets, const z13::RenderTuning>(
+           "EnvironmentRenderSystem::ReconcileStationProps")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::StationMode>()
