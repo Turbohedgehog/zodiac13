@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -30,5 +31,16 @@ std::vector<std::string> SplitLines(std::string_view text);
 // The lines `first` to `last` (both included, in either order, clamped to the lines there are),
 // each ended by a line feed; nothing when there are no lines.
 std::string JoinLines(std::span<const std::string> lines, size_t first, size_t last);
+
+// The lines a selection covers, both included; `first` is where it started.
+struct LineSelection {
+  size_t first {};
+  size_t last {};
+};
+
+// What a tap on `line` makes of a selection: nothing without one; on a line outside it, the
+// selection grown to reach that line; on a line inside it, just that line; on the one selected
+// line, nothing.
+std::optional<LineSelection> SelectionAfterTap(const std::optional<LineSelection>& selection, size_t line);
 
 }  // namespace z13

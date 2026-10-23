@@ -16,6 +16,7 @@
 
 #include "profile_window.h"
 
+#include <algorithm>
 #include <format>
 #include <memory>
 
@@ -29,9 +30,19 @@ namespace z13::raylib::gui {
 namespace {
 
 // The report's box, in font heights: wide enough for its longest line, tall enough for the
-// tables, scrolling past that.
+// tables, scrolling past that; on a small screen what the title, the hint, the buttons and the
+// window's padding leave.
 constexpr float kReportWidthEm = 48.f;
 constexpr float kReportHeightEm = 22.f;
+constexpr float kChromeHeightEm = 10.f;
+constexpr float kChromeWidthEm = 4.f;
+constexpr float kMinReportHeightEm = 4.f;
+
+ImVec2 ReportSize() {
+  const ImVec2 display = ImGui::GetIO().DisplaySize;
+  return {std::min(Em(kReportWidthEm), display.x - Em(kChromeWidthEm)),
+          std::max(std::min(Em(kReportHeightEm), display.y - Em(kChromeHeightEm)), Em(kMinReportHeightEm))};
+}
 
 }  // namespace
 
@@ -40,29 +51,30 @@ ProfileWindow::ProfileWindow(flecs::world world) : Window(world, "Profile"), rep
 }
 
 void ProfileWindow::DrawBody() {
-  view_.Draw({Em(kReportWidthEm), Em(kReportHeightEm)});
-  ImGui::TextUnformatted("Drag to scroll; press and hold a line to select.");
+  view_.Draw(ReportSize());
+  ImGui::TextUnformatted("Drag: scroll. Hold a line: select. Tap: grow, narrow, clear.");
   ImGui::BeginDisabled(!view_.HasSelection());
-  if (ImGui::Button("Copy selection", ButtonSize())) {
+  if (ImGui::Button("Copy selection")) {
     ImGui::SetClipboardText(view_.Selection().c_str());
     status_ = "Copied the selected lines.";
   }
   ImGui::EndDisabled();
   ImGui::SameLine();
-  if (ImGui::Button("Copy and save", ButtonSize())) {
+  if (ImGui::Button("Copy and save")) {
     status_ = CaptureProfileReport(report_);
   }
+  ImGui::SameLine();
   // The paused game records nothing, so a new measuring starts by leaving the menu.
-  if (ImGui::Button("Resume and measure", ButtonSize())) {
+  if (ImGui::Button("Resume and measure")) {
     World().get_mut<FrameProfile>().timeline.Clear();
     RequestCloseMenu();
   }
+  ImGui::SameLine();
+  if (ImGui::Button("Back")) {
+    RequestPop();
+  }
   if (!status_.empty()) {
     ImGui::TextWrapped("%s", status_.c_str());
-  }
-  ImGui::Separator();
-  if (ImGui::Button("Back", ButtonSize())) {
-    RequestPop();
   }
 }
 

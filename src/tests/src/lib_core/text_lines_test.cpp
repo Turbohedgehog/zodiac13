@@ -52,5 +52,49 @@ TEST(TextLinesTest, JoinClampsToTheLinesThereAre) {
   EXPECT_TRUE(JoinLines({}, 0, 3).empty());
 }
 
+TEST(SelectionAfterTapTest, WithoutASelectionATapSelectsNothing) {
+  EXPECT_FALSE(SelectionAfterTap(std::nullopt, 3).has_value());
+}
+
+TEST(SelectionAfterTapTest, ATapOutsideGrowsTheSelectionToThatLine) {
+  const std::optional<LineSelection> selection = LineSelection {.first = 4, .last = 6};
+
+  const auto below = SelectionAfterTap(selection, 9);
+  ASSERT_TRUE(below.has_value());
+  EXPECT_EQ(below->first, 4U);
+  EXPECT_EQ(below->last, 9U);
+  const auto above = SelectionAfterTap(selection, 1);
+  ASSERT_TRUE(above.has_value());
+  EXPECT_EQ(above->first, 1U);
+  EXPECT_EQ(above->last, 6U);
+}
+
+TEST(SelectionAfterTapTest, GrowingWorksWhenTheSelectionWasMadeUpwards) {
+  const std::optional<LineSelection> selection = LineSelection {.first = 6, .last = 4};
+
+  const auto grown = SelectionAfterTap(selection, 8);
+  ASSERT_TRUE(grown.has_value());
+  EXPECT_EQ(grown->first, 4U);
+  EXPECT_EQ(grown->last, 8U);
+}
+
+TEST(SelectionAfterTapTest, ATapInsideNarrowsToThatLineAndAnotherTapClears) {
+  const std::optional<LineSelection> selection = LineSelection {.first = 4, .last = 6};
+
+  const auto narrowed = SelectionAfterTap(selection, 5);
+  ASSERT_TRUE(narrowed.has_value());
+  EXPECT_EQ(narrowed->first, 5U);
+  EXPECT_EQ(narrowed->last, 5U);
+  EXPECT_FALSE(SelectionAfterTap(narrowed, 5).has_value());
+}
+
+TEST(SelectionAfterTapTest, ATapOnOtherLineGrowsASingleLineSelection) {
+  const auto grown = SelectionAfterTap(LineSelection {.first = 5, .last = 5}, 7);
+
+  ASSERT_TRUE(grown.has_value());
+  EXPECT_EQ(grown->first, 5U);
+  EXPECT_EQ(grown->last, 7U);
+}
+
 }  // namespace
 }  // namespace z13

@@ -23,17 +23,13 @@
 
 #include <imgui.h>
 
+#include <lib_core/utils/text_lines.h>
+
 namespace z13::raylib::gui {
 
-// The lines a selection covers, both included; `first` is where it started.
-struct LineSelection {
-  size_t first {};
-  size_t last {};
-};
-
 // A report's text in a box a drag scrolls (ImGui reads a finger as a mouse, so a text field would
-// select instead) and a long press on a line selects: the finger then moves the selection over
-// the lines, and a tap clears it.
+// select instead). A long press on a line selects, and the finger moves the selection over the
+// lines; later taps grow, narrow and clear it (z13::SelectionAfterTap).
 class ReportView {
  public:
   void SetText(const std::string& text);
@@ -51,7 +47,7 @@ class ReportView {
   void ScrollNearTheEdge(float y);
 
   std::vector<std::string> lines_;
-  std::optional<LineSelection> selection_;
+  std::optional<z13::LineSelection> selection_;
   Gesture gesture_ {};
   size_t anchor_ {};
 };

@@ -55,4 +55,15 @@ std::string JoinLines(std::span<const std::string> lines, size_t first, size_t l
   return joined;
 }
 
+std::optional<LineSelection> SelectionAfterTap(const std::optional<LineSelection>& selection, size_t line) {
+  if (!selection) {
+    return std::nullopt;
+  }
+  const auto [low, high] = std::minmax(selection->first, selection->last);
+  if (line < low || line > high) {
+    return LineSelection {.first = std::min(low, line), .last = std::max(high, line)};
+  }
+  return low == high ? std::nullopt : std::optional(LineSelection {.first = line, .last = line});
+}
+
 }  // namespace z13

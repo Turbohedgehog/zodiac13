@@ -73,13 +73,15 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
   switch (gesture_) {
     case Gesture::kPressed:
       if (!down) {
-        selection_.reset();
+        const bool on_text = io.MousePos.y < origin.y + static_cast<float>(lines_.size()) * line_height;
+        selection_ = on_text ? z13::SelectionAfterTap(selection_, LineAt(io.MousePos.y, origin, line_height))
+                             : std::nullopt;
         gesture_ = Gesture::kNone;
       } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         gesture_ = Gesture::kScrolling;
       } else if (io.MouseDownDuration[ImGuiMouseButton_Left] >= kLongPressSeconds) {
         anchor_ = LineAt(io.MousePos.y, origin, line_height);
-        selection_ = LineSelection {.first = anchor_, .last = anchor_};
+        selection_ = z13::LineSelection {.first = anchor_, .last = anchor_};
         gesture_ = Gesture::kSelecting;
       }
       break;
@@ -89,7 +91,7 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
       gesture_ = down ? Gesture::kScrolling : Gesture::kNone;
       break;
     case Gesture::kSelecting:
-      selection_ = LineSelection {.first = anchor_, .last = LineAt(io.MousePos.y, origin, line_height)};
+      selection_ = z13::LineSelection {.first = anchor_, .last = LineAt(io.MousePos.y, origin, line_height)};
       ScrollNearTheEdge(io.MousePos.y);
       gesture_ = down ? Gesture::kSelecting : Gesture::kNone;
       break;
