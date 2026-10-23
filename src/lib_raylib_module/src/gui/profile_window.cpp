@@ -44,10 +44,10 @@ void ProfileWindow::DrawBody() {
     status_ = CaptureProfileReport(report_);
   }
   ImGui::SameLine();
-  if (ImGui::Button("Measure again", ButtonSize())) {
+  // The paused game records nothing, so a new measuring starts by leaving the menu.
+  if (ImGui::Button("Resume and measure", ButtonSize())) {
     World().get_mut<FrameProfile>().timeline.Clear();
-    report_ = ProfileReport(World());
-    status_ = "Play on, then open this window again.";
+    RequestCloseMenu();
   }
   if (!status_.empty()) {
     ImGui::TextWrapped("%s", status_.c_str());
