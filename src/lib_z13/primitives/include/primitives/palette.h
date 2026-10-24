@@ -27,8 +27,14 @@
 
 #include <Eigen/Dense>
 
-#include <primitives_generated.h>
 #include <z13/components/color.h>
+
+// primitives.fbs's flag sets, declared here so this header stays clear of primitives_generated.h:
+// code naming a flag or combining them includes that.
+namespace z13::fbs::station {
+enum class PrimitiveFlags : uint32_t;
+enum class InteractionMethods : uint8_t;
+}  // namespace z13::fbs::station
 
 namespace z13::building::primitives {
 
@@ -77,7 +83,7 @@ struct Interaction {
   InteractionMethods methods {};
   int sensor_cells {};
 
-  bool Accepts(InteractionMethods method) const { return (methods & method) == method; }
+  bool Accepts(InteractionMethods method) const;
   bool operator==(const Interaction&) const = default;
 };
 
@@ -95,7 +101,7 @@ struct Primitive {
   float light_transmission = 1.f;
   std::optional<Interaction> interaction;
 
-  bool Has(PrimitiveFlags flag) const { return (flags & flag) == flag; }
+  bool Has(PrimitiveFlags flag) const;
 };
 
 struct Palette {

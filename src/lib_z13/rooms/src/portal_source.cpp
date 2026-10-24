@@ -18,6 +18,8 @@
 
 #include <Eigen/Dense>
 
+#include <primitives_generated.h>
+
 #include <primitives/occupancy.h>
 
 namespace z13::station::rooms {

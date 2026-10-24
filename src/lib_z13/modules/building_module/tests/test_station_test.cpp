@@ -26,6 +26,8 @@
 
 #include <Eigen/Dense>
 
+#include <primitives_generated.h>
+
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/math.h>
 

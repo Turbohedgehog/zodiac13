@@ -15,6 +15,9 @@
  */
 
 #include <primitives/geometry.h>
+
+#include <primitives_generated.h>
+
 #include <primitives/panel_prism.h>
 
 #include <algorithm>

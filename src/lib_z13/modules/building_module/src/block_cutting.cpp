@@ -21,6 +21,8 @@
 #include <tuple>
 #include <utility>
 
+#include <primitives_generated.h>
+
 #include <z13/components/block_changes.h>
 #include <z13/components/wall.h>
 #include <primitives/cut.h>
