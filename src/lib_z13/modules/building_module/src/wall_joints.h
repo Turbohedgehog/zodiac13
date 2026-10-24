@@ -40,9 +40,9 @@ struct JointWall {
   std::vector<z13::station::WallOpening> openings;
 };
 
-// The joints of a set of walls: at a node where exactly two walls with the same stick axis
-// meet, both end along one seam. Other nodes, bent walls, and joints whose seam can't be had,
-// leave the walls square-cut there.
+// The joints of a set of walls: at a node of walls with one stick axis, two walls end along one
+// seam, or any number meet as a T or an X when two run through (the others end on their faces).
+// Other nodes, bent walls, and joints whose seam can't be had, leave the walls square-cut there.
 struct WallJoints {
   std::map<uint32_t, z13::building::primitives::WallEnds> ends;
   // The joints refused, by the ids of the walls in them, and why.
