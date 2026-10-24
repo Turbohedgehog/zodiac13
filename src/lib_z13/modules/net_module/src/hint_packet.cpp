@@ -28,30 +28,23 @@ constexpr size_t kPlayerBytes = sizeof(uint32_t);
 constexpr size_t kTickBytes = sizeof(uint32_t);
 constexpr size_t kCountBytes = sizeof(uint8_t);
 constexpr size_t kRecordBytes = 2 * sizeof(uint16_t);
-constexpr int kByteBits = 8;
-constexpr uint32_t kByteMask = 0xFF;
+constexpr size_t kByteBits = 8;
 
-void PutU32(std::vector<uint8_t>& out, uint32_t value) {
-  for (size_t shift = 0; shift < sizeof(uint32_t) * kByteBits; shift += kByteBits) {
-    out.push_back(static_cast<uint8_t>((value >> shift) & kByteMask));
+// Little-endian, a byte at a time.
+template <typename T>
+void Put(std::vector<uint8_t>& out, T value) {
+  for (size_t i = 0; i < sizeof(T); ++i) {
+    out.push_back(static_cast<uint8_t>(value >> (i * kByteBits)));
   }
 }
 
-void PutU16(std::vector<uint8_t>& out, uint16_t value) {
-  out.push_back(static_cast<uint8_t>(value & kByteMask));
-  out.push_back(static_cast<uint8_t>((value >> kByteBits) & kByteMask));
-}
-
-uint32_t GetU32(std::span<const uint8_t> bytes, size_t at) {
-  uint32_t value = 0;
-  for (size_t i = 0; i < sizeof(uint32_t); ++i) {
-    value |= static_cast<uint32_t>(bytes[at + i]) << (i * kByteBits);
+template <typename T>
+T Get(std::span<const uint8_t> bytes, size_t at) {
+  T value = 0;
+  for (size_t i = 0; i < sizeof(T); ++i) {
+    value |= static_cast<T>(static_cast<T>(bytes[at + i]) << (i * kByteBits));
   }
   return value;
-}
-
-uint16_t GetU16(std::span<const uint8_t> bytes, size_t at) {
-  return static_cast<uint16_t>(bytes[at] | (bytes[at + 1] << kByteBits));
 }
 
 // The tick with `low` as its low 32 bits that is nearest `now`.
@@ -65,13 +58,13 @@ std::vector<uint8_t> Encode(const HintPacket& packet, bool with_player) {
   std::vector<uint8_t> out;
   out.reserve(kPlayerBytes + kTickBytes + kCountBytes + count * kRecordBytes);
   if (with_player) {
-    PutU32(out, packet.player_id);
+    Put(out, packet.player_id);
   }
-  PutU32(out, static_cast<uint32_t>(packet.tick));
+  Put(out, static_cast<uint32_t>(packet.tick));
   out.push_back(static_cast<uint8_t>(count));
   for (const HintRecord& hint : packet.hints | std::views::take(count)) {
-    PutU16(out, hint.action_id);
-    PutU16(out, static_cast<uint16_t>(hint.value));
+    Put(out, hint.action_id);
+    Put(out, static_cast<uint16_t>(hint.value));
   }
   return out;
 }
@@ -84,10 +77,10 @@ std::expected<HintPacket, std::string> Decode(std::span<const uint8_t> bytes, ui
   size_t at = 0;
   HintPacket packet;
   if (with_player) {
-    packet.player_id = GetU32(bytes, at);
+    packet.player_id = Get<uint32_t>(bytes, at);
     at += kPlayerBytes;
   }
-  packet.tick = ResolveTick(now, GetU32(bytes, at));
+  packet.tick = ResolveTick(now, Get<uint32_t>(bytes, at));
   at += kTickBytes;
   const size_t count = bytes[at];
   at += kCountBytes;
@@ -96,7 +89,8 @@ std::expected<HintPacket, std::string> Decode(std::span<const uint8_t> bytes, ui
   }
   for (size_t i = 0; i < count; ++i, at += kRecordBytes) {
     packet.hints.push_back(
-        {.action_id = GetU16(bytes, at), .value = static_cast<int16_t>(GetU16(bytes, at + sizeof(uint16_t)))});
+        {.action_id = Get<uint16_t>(bytes, at),
+         .value = static_cast<int16_t>(Get<uint16_t>(bytes, at + sizeof(uint16_t)))});
   }
   return packet;
 }
