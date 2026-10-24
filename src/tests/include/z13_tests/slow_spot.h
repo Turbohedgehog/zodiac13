@@ -18,9 +18,18 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/station_assets.h>
+#include <primitives/station_viewpoints.h>
+
 namespace z13::testing {
 
-// Where the 19 fps were seen (release, 2026-10-22), in meters.
-inline const Eigen::Vector3f kSlowSpotM {193.32f, 80.17f, 1.75f};
+inline constexpr float kSlowSpotEyeM = 1.75f;
+
+// The octant's atrium, where the 19 fps were seen, in meters.
+inline const Eigen::Vector3f kSlowSpotM = [] {
+  const auto viewpoints = z13::building::primitives::StationViewpoints(z13::building::primitives::kOctantScene);
+  const Eigen::Vector2f floor = viewpoints.front().position_m;
+  return Eigen::Vector3f(floor.x(), floor.y(), kSlowSpotEyeM);
+}();
 
 }  // namespace z13::testing

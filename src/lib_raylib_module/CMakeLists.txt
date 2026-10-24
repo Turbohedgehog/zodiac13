@@ -25,6 +25,7 @@ z13_add_plugin(
   src/gui/main_menu_window.cpp
   src/gui/palette_window.cpp
   src/gui/pause_menu_window.cpp
+  src/gui/profile_teleport.cpp
   src/gui/profile_window.cpp
   src/gui/report_view.cpp
   src/gui/render_diagnostics.cpp

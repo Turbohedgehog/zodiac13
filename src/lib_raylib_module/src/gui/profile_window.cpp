@@ -22,7 +22,10 @@
 
 #include <imgui.h>
 
+#include <z13/components/station_mode.h>
+
 #include "gui_widgets.h"
+#include "profile_teleport.h"
 #include "render/frame_profile.h"
 
 namespace z13::raylib::gui {
@@ -46,6 +49,15 @@ ImVec2 ReportSize() {
 
 ProfileWindow::ProfileWindow(flecs::world world) : Window(world, "Profile"), report_(ProfileReport(world)) {
   view_.SetText(report_);
+  if (const auto* choice = world.try_get<z13::station::StationSceneChoice>(); choice != nullptr && choice->scene) {
+    viewpoints_ = z13::building::primitives::StationViewpoints(*choice->scene);
+  }
+}
+
+// The paused game records nothing, so a new measuring starts by leaving the menu.
+void ProfileWindow::ResumeAndMeasure() {
+  World().get_mut<FrameProfile>().timeline.Clear();
+  RequestCloseMenu();
 }
 
 void ProfileWindow::DrawBody() {
@@ -62,14 +74,21 @@ void ProfileWindow::DrawBody() {
     status_ = CaptureProfileReport(report_);
   }
   ImGui::SameLine();
-  // The paused game records nothing, so a new measuring starts by leaving the menu.
   if (ImGui::Button("Resume and measure")) {
-    World().get_mut<FrameProfile>().timeline.Clear();
-    RequestCloseMenu();
+    ResumeAndMeasure();
   }
   ImGui::SameLine();
   if (ImGui::Button("Back")) {
     RequestPop();
+  }
+  for (const z13::building::primitives::StationViewpoint& viewpoint : viewpoints_) {
+    if (ImGui::Button(std::format("Go to {} and measure", viewpoint.label).c_str())) {
+      if (const auto moved = TeleportLocalPlayer(World(), viewpoint.position_m)) {
+        ResumeAndMeasure();
+      } else {
+        status_ = std::format("Not moved: {}", moved.error());
+      }
+    }
   }
   if (!status_.empty()) {
     ImGui::TextWrapped("%s", status_.c_str());

@@ -17,8 +17,11 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <flecs.h>
+
+#include <primitives/station_viewpoints.h>
 
 #include "gui_windows.h"
 #include "report_view.h"
@@ -34,7 +37,10 @@ class ProfileWindow : public Window {
   void DrawBody() override;
 
  private:
+  void ResumeAndMeasure();
+
   std::string report_;
+  std::vector<z13::building::primitives::StationViewpoint> viewpoints_;
   ReportView view_;
   std::string status_;
 };
