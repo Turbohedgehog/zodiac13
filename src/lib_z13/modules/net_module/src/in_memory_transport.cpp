@@ -17,6 +17,7 @@
 #include <net_module/in_memory_transport.h>
 
 #include <algorithm>
+#include <compare>
 #include <format>
 #include <map>
 #include <optional>
@@ -42,6 +43,14 @@ struct PendingConnect {
   TransportId initiator = kInvalidTransportId;
   uint16_t port {};
   uint64_t give_up_at_tick {};
+};
+// ENet orders unreliable packets per channel and peer.
+struct UnreliableLane {
+  TransportId destination = kInvalidTransportId;
+  ConnectionId connection = kInvalidConnectionId;
+  Channel channel {};
+
+  auto operator<=>(const UnreliableLane&) const = default;
 };
 struct PendingPacket {
   uint64_t deliver_at_tick {};
@@ -128,7 +137,7 @@ class InMemoryNetworkState {
       deliver_at_tick = std::max(deliver_at_tick, last);
       last = deliver_at_tick;
     } else {
-      unreliable_sequence = next_unreliable_sequence_[{destination, destination_connection}]++;
+      unreliable_sequence = next_unreliable_sequence_[{destination, destination_connection, channel}]++;
     }
     pending_packets_.push_back({
         .deliver_at_tick = deliver_at_tick,
@@ -151,7 +160,7 @@ class InMemoryNetworkState {
       return true;
     }
     const auto [last, inserted] = last_unreliable_delivered_.try_emplace(
-        {packet.destination, packet.destination_connection}, *packet.unreliable_sequence);
+        {packet.destination, packet.destination_connection, packet.channel}, *packet.unreliable_sequence);
     if (!inserted && *packet.unreliable_sequence <= last->second) {
       return false;
     }
@@ -200,8 +209,8 @@ class InMemoryNetworkState {
   std::vector<PendingConnect> pending_connects_;
   std::vector<PendingPacket> pending_packets_;
   std::map<std::pair<TransportId, ConnectionId>, uint64_t> last_reliable_delivery_;
-  std::map<std::pair<TransportId, ConnectionId>, uint64_t> next_unreliable_sequence_;
-  std::map<std::pair<TransportId, ConnectionId>, uint64_t> last_unreliable_delivered_;
+  std::map<UnreliableLane, uint64_t> next_unreliable_sequence_;
+  std::map<UnreliableLane, uint64_t> last_unreliable_delivered_;
   std::vector<PendingDisconnect> pending_disconnects_;
 };
 

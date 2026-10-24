@@ -95,7 +95,8 @@ std::expected<HintPacket, std::string> Decode(std::span<const uint8_t> bytes, ui
     return std::unexpected(std::format("a hint packet of {} bytes does not hold {} hints", bytes.size(), count));
   }
   for (size_t i = 0; i < count; ++i, at += kRecordBytes) {
-    packet.hints.push_back({.action_id = GetU16(bytes, at), .value = static_cast<int16_t>(GetU16(bytes, at + sizeof(uint16_t)))});
+    packet.hints.push_back(
+        {.action_id = GetU16(bytes, at), .value = static_cast<int16_t>(GetU16(bytes, at + sizeof(uint16_t)))});
   }
   return packet;
 }

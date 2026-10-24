@@ -16,7 +16,6 @@
 
 #include "action_hints.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -39,7 +38,6 @@
 #include <z13_settings/net_tuning.h>
 
 #include "hint_classes.h"
-#include "wire_records.h"
 
 namespace z13::net {
 
@@ -186,9 +184,8 @@ void RelayActionHints(
   std::map<std::string_view, HintPacket> by_class;
   for (const HintRecord& hint : packet.hints) {
     if (const auto hint_class = HintClassOf(action_map, hint.action_id)) {
-      HintPacket& part = by_class.try_emplace(*hint_class, HintPacket {.player_id = packet.player_id, .tick = packet.tick})
-                             .first->second;
-      part.hints.push_back(hint);
+      const HintPacket empty {.player_id = packet.player_id, .tick = packet.tick};
+      by_class.try_emplace(*hint_class, empty).first->second.hints.push_back(hint);
     }
   }
   PlayerPositions positions(world);

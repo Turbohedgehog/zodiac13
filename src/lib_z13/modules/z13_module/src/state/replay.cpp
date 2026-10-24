@@ -150,8 +150,8 @@ void InjectRecordedActionValues(
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<z13::gameplay::RemoteActionState, z13::gameplay::ConfirmedInputTicks, z13::gameplay::ActionHints>(
-      world);
+  z13::flecs_tools::RegisterComponents<
+      z13::gameplay::RemoteActionState, z13::gameplay::ConfirmedInputTicks, z13::gameplay::ActionHints>(world);
 }
 
 void RegisterSystems(flecs::world world) {

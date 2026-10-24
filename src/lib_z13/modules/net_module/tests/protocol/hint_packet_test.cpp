@@ -28,7 +28,9 @@ constexpr uint64_t kNow = 5000;
 constexpr uint32_t kPlayer = 7;
 
 HintPacket SomeHints(uint64_t tick) {
-  return {.player_id = kPlayer, .tick = tick, .hints = {{.action_id = 8, .value = -4500}, {.action_id = 9, .value = 9000}}};
+  return {.player_id = kPlayer,
+          .tick = tick,
+          .hints = {{.action_id = 8, .value = -4500}, {.action_id = 9, .value = 9000}}};
 }
 
 TEST(HintPacketTest, AClientsHintsRoundTripWithoutThePlayer) {
