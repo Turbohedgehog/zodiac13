@@ -100,6 +100,7 @@ set(
   ${MODULES_DIR}/building_module/tests/wall_fit_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_opening_brush_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_joints_test.cpp
+  ${MODULES_DIR}/building_module/tests/wall_merge_net_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_merge_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
