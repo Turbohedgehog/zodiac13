@@ -23,6 +23,8 @@
 #include <string>
 #include <string_view>
 
+#include <primitives_generated.h>
+
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>
 #include <z13_tests/shipped_station.h>

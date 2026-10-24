@@ -25,6 +25,8 @@
 #include <numeric>
 #include <utility>
 
+#include <primitives_generated.h>
+
 namespace z13::building::primitives {
 
 namespace {

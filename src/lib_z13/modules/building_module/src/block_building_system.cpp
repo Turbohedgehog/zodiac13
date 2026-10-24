@@ -26,6 +26,8 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <primitives_generated.h>
+
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>

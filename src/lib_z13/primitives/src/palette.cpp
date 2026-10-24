@@ -28,10 +28,20 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
 
+#include <primitives_generated.h>
+
 #include <lib_core/utils/fnv_hash.h>
 #include <primitives/geometry.h>
 
 namespace z13::building::primitives {
+
+bool Interaction::Accepts(InteractionMethods method) const {
+  return (methods & method) == method;
+}
+
+bool Primitive::Has(PrimitiveFlags flag) const {
+  return (flags & flag) == flag;
+}
 
 namespace {
 
