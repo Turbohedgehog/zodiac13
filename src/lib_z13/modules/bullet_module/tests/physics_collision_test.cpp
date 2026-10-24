@@ -320,6 +320,8 @@ constexpr uint32_t kWallId = 2;  // assets/station/palette.json
 constexpr uint32_t kDoorId = 3;
 const Eigen::Vector3i kWallSize {8, 1, 8};
 const Eigen::Vector3i kDoorSize {6, 1, 10};
+constexpr uint32_t kWallDoorId = 31;
+const Eigen::Vector3i kWallDoorSize {4, 1, 8};
 // Both stand across y = 2 m, from x = 0 and the floor up.
 const Eigen::Vector3i kAcrossCell {0, 8, 0};
 constexpr float kBeforeY = 1.f;
@@ -361,6 +363,17 @@ TEST(StationCollisionTest, AClosedDoorLetsThePlayerThrough) {
   const Eigen::Vector3f moved = WalkAcross(test_world, kOpeningCentreX);
 
   EXPECT_NEAR(moved.y(), kBeyondY, kSweepTolerance);
+}
+
+// A wall's door leaf has no solid part, yet keeps a body: BlockChangeReader counts one per block.
+TEST(StationCollisionTest, AClosedDoorLeafInAWallLetsThePlayerThrough) {
+  z13::testing::Z13TestWorld test_world;
+  PlaceBlock(test_world, kWallDoorId, kWallDoorSize, kAcrossCell);
+
+  const Eigen::Vector3f moved = WalkAcross(test_world, kOpeningCentreX);
+
+  EXPECT_NEAR(moved.y(), kBeyondY, kSweepTolerance);
+  EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 1u);
 }
 
 TEST(StationCollisionTest, ADoorFrameStopsThePlayer) {

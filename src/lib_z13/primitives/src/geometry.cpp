@@ -240,7 +240,11 @@ std::vector<ConvexSolid> BlockSolids(OptionalPalette palette, const BlockShapeKe
   if (!solids) {
     solids = BuildSolids(box, shape.size);
   }
-  return solids.value_or(std::vector<ConvexSolid> {});
+  std::vector<ConvexSolid> built = solids.value_or(std::vector<ConvexSolid> {});
+  if (primitive && primitive->get().Has(PrimitiveFlags::Door)) {
+    std::ranges::for_each(built, [](ConvexSolid& solid) { solid.role = PartRole::kDoorLeaf; });
+  }
+  return built;
 }
 
 std::vector<ConvexSolid> Scaled(std::vector<ConvexSolid> solids, float factor) {

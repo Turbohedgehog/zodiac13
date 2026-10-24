@@ -36,6 +36,9 @@ inline constexpr uint32_t kPanelPrimitiveId = 12;
 // The pane of a wall's window (assets/station/palette.json): a transparent Panel.
 inline constexpr uint32_t kGlassPanelPrimitiveId = 30;
 
+// The leaf of a wall's door (assets/station/palette.json): a Panel with the Door flag.
+inline constexpr uint32_t kDoorPanelPrimitiveId = 31;
+
 // The 24 turns that map the grid onto itself, named by where the primitive's +X faces and
 // where its +Z points. The identity comes first.
 enum class Orientation : uint8_t {

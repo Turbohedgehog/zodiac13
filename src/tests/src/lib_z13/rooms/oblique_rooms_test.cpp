@@ -145,16 +145,14 @@ TEST(ObliqueRoomsTest, AWindowInAWallSeesThroughButKeepsTheRoomsApart) {
   EXPECT_FALSE(graph.portals.front().passable);
 }
 
-// A wall across the room from corner to corner, with a window in it.
-RoomSources ObliqueWallWithWindow() {
+// A wall across the room from corner to corner, with an opening in it.
+RoomSources ObliqueWallWith(const z13::station::WallOpening& opening) {
   const auto palette = z13::testing::ShippedPalette().value();
   const z13::building::primitives::WallGeometry wall {
       .node_a = {1, 1, 1}, .node_b = {1 + kSide, 1 + kSide, 1}, .stick_a = {z13::station::WallAxis::kZ, kHeight},
       .stick_b = {z13::station::WallAxis::kZ, kHeight}, .thickness = 2};
-  const z13::station::WallOpening window {
-      .kind = z13::station::OpeningKind::kWindow, .offset = 4, .width = 3, .sill = 1, .height = 2};
   RoomSources sources {.sealed = Shell()};
-  const auto blocks = z13::building::primitives::OpeningPanels(wall, {}, {{window}}, palette).value();
+  const auto blocks = z13::building::primitives::OpeningPanels(wall, {}, {{opening}}, palette).value();
   for (const z13::station::Block& block : blocks) {
     AddBlockSources(block, palette, sources);
   }
@@ -162,7 +160,8 @@ RoomSources ObliqueWallWithWindow() {
 }
 
 TEST(ObliqueRoomsTest, AWindowInADiagonalWallSeesThroughButKeepsTheRoomsApart) {
-  const RoomGraph graph = BuildRooms(ObliqueWallWithWindow()).value();
+  const RoomGraph graph = BuildRooms(ObliqueWallWith({.kind = z13::station::OpeningKind::kWindow, .offset = 4,
+                                                      .width = 3, .sill = 1, .height = 2})).value();
 
   ASSERT_EQ(graph.rooms.size(), 3U);
   EXPECT_NE(graph.RoomAt({8, 3, 3}), graph.RoomAt({3, 8, 3}));
@@ -174,6 +173,19 @@ TEST(ObliqueRoomsTest, AWindowInADiagonalWallSeesThroughButKeepsTheRoomsApart) {
     area += portal.area_cells;
   }
   EXPECT_GT(area, 0);
+}
+
+TEST(ObliqueRoomsTest, ADoorInADiagonalWallKeepsTheRoomsApartBehindAClosedPortal) {
+  const RoomGraph graph = BuildRooms(ObliqueWallWith({.kind = z13::station::OpeningKind::kDoor, .offset = 4,
+                                                      .width = 3, .height = 4})).value();
+
+  ASSERT_EQ(graph.rooms.size(), 3U);
+  EXPECT_NE(graph.RoomAt({8, 3, 3}), graph.RoomAt({3, 8, 3}));
+  ASSERT_FALSE(graph.portals.empty());
+  for (const Portal& portal : graph.portals) {
+    EXPECT_FALSE(portal.visible);
+    EXPECT_FALSE(portal.passable);
+  }
 }
 
 }  // namespace

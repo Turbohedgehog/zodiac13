@@ -353,7 +353,7 @@ TEST(WallPanelSystemTest, ADoorSplitsThePanelAroundItsGap) {
   test_world.Tick();
   test_world.Tick();
 
-  EXPECT_EQ(Panels(test_world.World()).size(), 3u);
+  EXPECT_EQ(Panels(test_world.World()).size(), 4u);
 }
 
 TEST(WallPanelSystemTest, AWindowHasAPaneOfGlass) {
@@ -409,7 +409,7 @@ TEST(WallPanelSystemTest, AWallWithADoorSurvivesSaveAndLoad) {
 
   EXPECT_EQ(loaded.World().count<z13::station::WallOpening>(), 1);
   EXPECT_EQ(Panels(loaded.World()), Panels(test_world.World()));
-  EXPECT_EQ(Panels(loaded.World()).size(), 3u);
+  EXPECT_EQ(Panels(loaded.World()).size(), 4u);
 }
 
 }  // namespace

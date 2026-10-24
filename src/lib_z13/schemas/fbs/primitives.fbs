@@ -66,6 +66,8 @@ enum PrimitiveFlags : uint (bit_flags) {
   Spawn,
   // A switch: using it turns it on or off.
   Switch,
+  // A door's leaf: closed, it seals the opening without blocking a body.
+  Door,
 }
 
 // How players may interact with a block of the primitive (docs/station-systems-plan.md, "Взаимодействие").
