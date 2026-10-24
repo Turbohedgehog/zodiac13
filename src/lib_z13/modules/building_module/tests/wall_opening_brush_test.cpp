@@ -118,7 +118,7 @@ TEST(WallOpeningBrushTest, AClickCutsADoorCentredOnTheAimAndLeavesWallAbove) {
   EXPECT_EQ(openings.front().offset, kAimedStep - kDefaultWidth / 2);
   EXPECT_EQ(openings.front().sill, 0);
   EXPECT_LT(openings.front().height, kStickLength);
-  EXPECT_EQ(PanelCount(test_world.World()), 3u);
+  EXPECT_EQ(PanelCount(test_world.World()), 4u);
 }
 
 TEST(WallOpeningBrushTest, AWindowIsCutAtASillWithAPane) {
@@ -190,7 +190,7 @@ TEST(WallOpeningBrushTest, DestroyingAtTheGapTakesTheOpeningAndLeavesTheWall) {
   AddWall(test_world);
   const flecs::entity builder = OpeningBuilder(test_world);
   Click(test_world, builder);
-  ASSERT_EQ(PanelCount(test_world.World()), 3u);
+  ASSERT_EQ(PanelCount(test_world.World()), 4u);
 
   builder.add<RequestDestroyBlock>();
   test_world.Tick();

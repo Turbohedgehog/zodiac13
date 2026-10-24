@@ -57,9 +57,9 @@ bool IsSealing(const Primitive& primitive) {
 }
 
 std::vector<PortalSource> PortalsOf(const Block& block, const Primitive& primitive, const Palette& palette) {
-  const bool door = primitive.shape.kind == ShapeKind::kDoorFrame;
+  const bool door_frame = primitive.shape.kind == ShapeKind::kDoorFrame;
   const bool transparent = primitive.Has(PrimitiveFlags::Transparent);
-  if (!door && !transparent) {
+  if (!door_frame && !transparent && !primitive.Has(PrimitiveFlags::Door)) {
     return {};
   }
   const bool panel = primitive.shape.kind == ShapeKind::kPanel;
@@ -71,7 +71,7 @@ std::vector<PortalSource> PortalsOf(const Block& block, const Primitive& primiti
   const bool square = !panel || (block.spec.slant == 0 && !block.spec.HasCorners() && !block.spec.HasFaceCuts());
   if (square) {
     PortalSource whole = portal;
-    whole.opening = InWorld(InPrimitiveFrame(block, primitive, door), pose);
+    whole.opening = InWorld(InPrimitiveFrame(block, primitive, door_frame), pose);
     return {whole};
   }
   std::vector<PortalSource> portals;

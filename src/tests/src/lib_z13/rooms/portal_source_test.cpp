@@ -67,6 +67,34 @@ TEST(PortalSourceTest, ASlantedPaneIsAPortalForEachBoxItSealsCrossedAlongItsThic
   }
 }
 
+Block DoorLeaf(const Eigen::Vector3i& size, int slant) {
+  Block leaf = Glass(size, slant);
+  leaf.spec.type_id = kDoorPanelPrimitiveId;
+  return leaf;
+}
+
+TEST(PortalSourceTest, ADoorLeafSquareToTheGridIsOneClosedPortalYouCannotSeeThrough) {
+  const std::vector<PortalSource> portals = PortalsOfBlock(DoorLeaf({4, 6, 1}, 0));
+
+  ASSERT_EQ(portals.size(), 1U);
+  EXPECT_EQ(portals.front().opening, (CellBox {.min = {2, 3, 4}, .extent = {4, 6, 1}}));
+  EXPECT_FALSE(portals.front().visible);
+  EXPECT_FALSE(portals.front().passable);
+}
+
+TEST(PortalSourceTest, ASlantedDoorLeafIsAClosedPortalForEachBoxItSeals) {
+  const Block leaf = DoorLeaf({6, 2, 4}, 3);
+
+  const std::vector<PortalSource> portals = PortalsOfBlock(leaf);
+
+  ASSERT_EQ(portals.size(), z13::building::primitives::SealedBoxes(leaf, ShippedPalette()).size());
+  ASSERT_GT(portals.size(), 1U);
+  for (const PortalSource& portal : portals) {
+    EXPECT_FALSE(portal.visible);
+    EXPECT_FALSE(portal.passable);
+  }
+}
+
 TEST(PortalSourceTest, APlainPanelIsNoPortal) {
   Block panel = Glass({4, 6, 1}, 0);
   panel.spec.type_id = kPanelPrimitiveId;

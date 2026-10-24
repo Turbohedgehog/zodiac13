@@ -84,9 +84,13 @@ TEST(WallOpeningTest, AStepIsTheWallsOffsetOverItsGcd) {
   EXPECT_EQ(WallSteps(Wall({0, 0, 5})), 0) << "the stick's own axis does not count";
 }
 
-TEST(WallOpeningTest, ADoorLeavesTheWallOnEachSideAndAbove) {
+TEST(WallOpeningTest, ADoorLeavesTheWallOnEachSideAndAboveAndFillsItsGapWithALeaf) {
   const std::vector<Block> panels = Panels(Wall({12, 0, 0}), {Door(4, 4, 6)});
-  EXPECT_EQ(panels.size(), 3u);
+  EXPECT_EQ(panels.size(), 4u);
+  EXPECT_EQ(std::ranges::count(panels, z13::station::kDoorPanelPrimitiveId, [](const Block& block) {
+              return block.spec.type_id;
+            }),
+            1);
 }
 
 TEST(WallOpeningTest, AWindowAddsASillAndAPane) {
@@ -121,11 +125,19 @@ TEST(WallOpeningTest, AWindowInAnObliqueWallLeavesNoGap) {
   ExpectTilesTheWall(Wall({-9, 6, 0}), {Window(1, 1, 2, 3)});
 }
 
+TEST(WallOpeningTest, ADoorInAnObliqueWallLeavesNoGapEither) {
+  ExpectTilesTheWall(Wall({8, 4, 0}), {Door(1, 2, 5)});
+  ExpectTilesTheWall(Wall({-9, 6, 0}), {Door(1, 1, 4)});
+}
+
 TEST(WallOpeningTest, ADoorInAnObliqueWallOpensTheCellsBetweenTheJambs) {
   const WallGeometry wall = Wall({8, 4, 0});
   const Cells whole = CellsOf(WallPanelBlock(wall, ShippedPalette()).value());
   Cells kept;
   for (const Block& block : Panels(wall, {Door(1, 2, 5)})) {
+    if (block.spec.type_id == z13::station::kDoorPanelPrimitiveId) {
+      continue;
+    }
     const Cells cells = CellsOf(block);
     kept.insert(cells.begin(), cells.end());
   }
@@ -143,7 +155,7 @@ TEST(WallOpeningTest, ADoorInAnObliqueWallOpensTheCellsBetweenTheJambs) {
 TEST(WallOpeningTest, TwoOpeningsInOneWall) {
   WallOpening second = Door(8, 2, 5);
   second.id = 3;
-  EXPECT_EQ(Panels(Wall({12, 0, 0}), {Door(2, 2, 5), second}).size(), 5u);
+  EXPECT_EQ(Panels(Wall({12, 0, 0}), {Door(2, 2, 5), second}).size(), 7u);
   ExpectTilesTheWall(Wall({12, 0, 0}), {Window(2, 2, 2, 3), Window(8, 2, 2, 3)});
 }
 

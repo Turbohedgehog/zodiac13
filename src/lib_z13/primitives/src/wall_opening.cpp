@@ -42,6 +42,7 @@ struct Stretch {
   int to_cell {};
   WallEnds ends;
   bool glass {};
+  bool door {};
 };
 
 std::optional<std::string> CheckOpenings(
@@ -91,6 +92,10 @@ std::vector<Stretch> StretchesOf(
       stretches.push_back({.from_step = opening.offset, .to_step = opening.offset + opening.width,
                            .from_cell = opening.sill, .to_cell = top, .glass = true});
     }
+    if (opening.kind == OpeningKind::kDoor) {
+      stretches.push_back({.from_step = opening.offset, .to_step = opening.offset + opening.width,
+                           .to_cell = top, .door = true});
+    }
     stretches.push_back({.from_step = opening.offset, .to_step = opening.offset + opening.width,
                          .from_cell = top, .to_cell = length});
     cursor = opening.offset + opening.width;
@@ -122,6 +127,9 @@ std::expected<std::vector<Block>, std::string> OpeningPanels(
   if (!palette.Find(z13::station::kGlassPanelPrimitiveId)) {
     return std::unexpected(std::string {"the palette has no wall glass"});
   }
+  if (!palette.Find(z13::station::kDoorPanelPrimitiveId)) {
+    return std::unexpected(std::string {"the palette has no wall door"});
+  }
 
   Eigen::Vector3i span = wall.node_b - wall.node_a;
   const int axis = static_cast<int>(wall.stick_a.axis);
@@ -145,6 +153,8 @@ std::expected<std::vector<Block>, std::string> OpeningPanels(
     }
     if (stretch.glass) {
       block->spec.type_id = z13::station::kGlassPanelPrimitiveId;
+    } else if (stretch.door) {
+      block->spec.type_id = z13::station::kDoorPanelPrimitiveId;
     }
     blocks.push_back(*block);
   }
