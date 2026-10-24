@@ -171,6 +171,7 @@ Status AdoptActionIds(flecs::world world, std::span<const uint32_t> ids) {
         .display_text = info.display_text,
         .default_keycodes = info.default_keycodes,
         .absolute = info.absolute,
+        .hint_class = info.hint_class,
         .enum_value = info.enum_value,
         .id = new_id,
     });

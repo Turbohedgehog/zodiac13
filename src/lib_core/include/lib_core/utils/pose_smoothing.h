@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <Eigen/Dense>
 
 namespace z13::math {
@@ -23,6 +25,9 @@ namespace z13::math {
 struct PoseSmoothingParams {
   // Roughly how long a correction takes to settle; 0 draws the target as is.
   float smooth_time_seconds {};
+  // The same for the rotation, which a hint-fed turn (a remote player's look) wants shorter than
+  // a position; without one it takes smooth_time_seconds.
+  std::optional<float> rotation_smooth_time_seconds;
   // An error past either limit (a teleport, a resync) jumps instead of gliding.
   float snap_distance {};
   float snap_angle_rad {};

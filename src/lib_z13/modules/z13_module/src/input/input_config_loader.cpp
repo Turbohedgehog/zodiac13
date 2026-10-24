@@ -52,6 +52,7 @@ static constexpr std::string_view kEmptyDisplayTextName = "display_text";
 static constexpr std::string_view kEmptyDisplayText = "";
 static constexpr std::string_view kDefaultKeycodes = "default_keycodes";
 static constexpr std::string_view kAbsoluteAttributeName = "absolute";
+static constexpr std::string_view kHintAttributeName = "hint";
 static constexpr std::string_view kDefaultKeycodesSeparators = " ,;";
 static constexpr std::string_view kTouchKeycodePrefix = "TOUCH_";
 
@@ -336,8 +337,12 @@ Status InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
       auto display_text = kEmptyDisplayText;
       std::vector<z13::fbs::input::Keycode> default_keycodes;
       bool absolute {};
+      std::optional<std::string_view> hint_class;
       if (const auto* value_attributes = value->attributes()) {
         absolute = value_attributes->LookupByKey(kAbsoluteAttributeName) != nullptr;
+        if (const auto* hint = value_attributes->LookupByKey(kHintAttributeName)) {
+          hint_class = hint->value()->string_view();
+        }
         if (const auto* value_group_name = value_attributes->LookupByKey(kActionGroupAttributeName)) {
           value_group = value_group_name->value()->string_view();
         }
@@ -363,6 +368,7 @@ Status InputConfigLoader::AppendFlatbufActionsFromBinarySchema(
           .display_text = display_text,
           .default_keycodes = default_keycodes,
           .absolute = absolute,
+          .hint_class = hint_class,
           .enum_value = value->value(),
           .id = action_map.action_map.size(),
         }

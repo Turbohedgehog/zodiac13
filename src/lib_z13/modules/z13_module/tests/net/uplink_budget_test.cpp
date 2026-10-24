@@ -49,8 +49,9 @@ using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
 using Keycode = z13::fbs::input::Keycode;
 
-// Measured peak (mouse look) is ~1.8 KB/s.
-constexpr uint64_t kClientUplinkBudgetBytesPerSecond = 2560;
+// Measured peak (mouse look, look hints included) is ~2.5 KB/s, ~1.8 of it commands; raised from 2560
+// to 3000 for the hints, which show a remote player's look sooner (docs/action-delivery-plan.md).
+constexpr uint64_t kClientUplinkBudgetBytesPerSecond = 3000;
 // Pings and clock sync only; measured at 48 B/s.
 constexpr uint64_t kIdleUplinkBudgetBytesPerSecond = 64;
 

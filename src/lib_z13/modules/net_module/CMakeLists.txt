@@ -22,6 +22,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>"
   SOURCES
+  src/action_hints.cpp
   src/catch_up.cpp
   src/client_session.cpp
   src/clock_sync.cpp
@@ -31,6 +32,8 @@ z13_add_plugin(
   src/enet_datagram.cpp
   src/enet_lifetime.cpp
   src/enet_transport.cpp
+  src/hint_classes.cpp
+  src/hint_packet.cpp
   src/in_memory_transport.cpp
   src/lan_discovery_system.cpp
   src/net_action_sender.cpp

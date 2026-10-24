@@ -20,6 +20,13 @@ include "attributes.fbs";
 
 namespace z13.fbs.net;
 
+// Who a hint of a class goes to (a class's tuning below, the action's `hint` attribute in common.fbs).
+enum HintFilter : ubyte {
+  None,  // nobody: the class is off
+  All,
+  Distance,  // the clients whose player is within the class's radius of the hinted player
+}
+
 table NetTuning {
   send_interval_ticks: uint64 = 3 (min: 1, cli);
   max_late_ticks: uint64 = 96 (cli);
@@ -31,4 +38,9 @@ table NetTuning {
   clock_catch_up_threshold_ticks: int64 = 2 (min: 1, cli);
   clock_catch_up_every_ticks: uint64 = 4 (min: 1, cli);
   clock_jump_threshold_ticks: int64 = 15 (min: 1, cli);
+
+  // The hint class "look" (the angles of a player's view): sent every this many ticks.
+  look_hint_interval_ticks: uint64 = 2 (min: 1, cli);
+  look_hint_filter: HintFilter = Distance;
+  look_hint_radius_m: double = 30 (min: 1, cli);
 }

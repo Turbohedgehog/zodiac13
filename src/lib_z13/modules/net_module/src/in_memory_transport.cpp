@@ -115,7 +115,7 @@ class InMemoryNetworkState {
     ++traffic.packets;
     traffic.bytes += data.size();
     // Only unreliable traffic drops: ENet retransmits reliable packets.
-    if (channel == Channel::kUnreliable && RollDrop()) {
+    if (channel != Channel::kReliable && RollDrop()) {
       return;
     }
     const auto extra_delay = extra_delay_to_.find(destination);

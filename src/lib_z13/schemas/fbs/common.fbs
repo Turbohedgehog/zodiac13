@@ -22,6 +22,8 @@ attribute "action";
 attribute "default_keycodes";
 // The value is a state (an angle), not an input: an unconfirmed tick keeps the last one.
 attribute "absolute";
+// The class of hints (net_tuning.fbs) the action's value is sent in ahead of its confirmation.
+attribute "hint";
 
 table CommonTable {
 }

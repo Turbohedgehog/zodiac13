@@ -32,8 +32,9 @@ constexpr ConnectionId kInvalidConnectionId = 0;
 
 // Reliable: CommandBatch/SequencedCommands/session messages -- a lost one would
 // break determinism. Unreliable: Ping/Pong -- see docs/client-server-plan.md's
-// protocol table for why they're split this way.
-enum class Channel : uint8_t { kReliable = 0, kUnreliable = 1 };
+// protocol table for why they're split this way. Hints: unreliable too, but their own compact
+// packets (hint_packet.h) rather than FlatBuffers messages.
+enum class Channel : uint8_t { kReliable = 0, kUnreliable = 1, kHints = 2 };
 
 enum class TransportEventKind { kConnected, kDisconnected, kReceived };
 

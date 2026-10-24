@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <net_module/protocol.h>
@@ -44,6 +45,8 @@ class NetSession {
   Status SendDatagram(const Endpoint& to, std::span<const uint8_t> bytes);
 
   void Send(ConnectionId connection, Channel channel, const Envelope& envelope);
+  // A packet that isn't an Envelope (the hints), already encoded.
+  void SendBytes(ConnectionId connection, Channel channel, std::span<const uint8_t> bytes);
   // Every tracked connection (AddConnection) except `except`, if given.
   void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
   // Bookkeeping is cleaned up on the kDisconnected event this produces.
@@ -56,6 +59,7 @@ class NetSession {
   // Server-side, once a ClientHello is accepted.
   void BindPlayer(ConnectionId connection, uint32_t player_id);
   std::optional<uint32_t> PlayerIdFor(ConnectionId connection) const;
+  std::vector<std::pair<ConnectionId, uint32_t>> PlayerConnections() const;
 
   // Client-side, from the first kConnected event.
   void SetServerConnection(ConnectionId connection);

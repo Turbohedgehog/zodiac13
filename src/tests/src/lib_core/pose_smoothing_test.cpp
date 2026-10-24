@@ -94,6 +94,21 @@ TEST(PoseSmoothingTest, ATurnGlidesInWithoutOvershoot) {
   EXPECT_NEAR(Yaw(pose), kTurnRad, kEpsilon);
 }
 
+TEST(PoseSmoothingTest, ATurnSettlesInItsOwnTimeAndAPositionInTheirs) {
+  PoseSmoothingParams params = kParams;
+  params.rotation_smooth_time_seconds = 0.02f;
+  SmoothedPose pose = PoseAt(At(Eigen::Vector3f::Zero()));
+  const Eigen::Matrix4f target = At(Eigen::Vector3f(3.f, 0.f, 0.f), 1.f);
+
+  constexpr int kFrames = 6;
+  for (int frame = 0; frame < kFrames; ++frame) {
+    ChasePose(pose, target, kFrameSeconds, params);
+  }
+
+  EXPECT_LT(std::abs(Yaw(pose) - 1.f), 0.05f) << "the turn is nearly there";
+  EXPECT_LT(pose.position.x(), 2.f) << "the position still glides in";
+}
+
 TEST(PoseSmoothingTest, AnErrorPastTheSnapLimitJumps) {
   SmoothedPose pose = PoseAt(At(Eigen::Vector3f::Zero()));
   const Eigen::Vector3f far(kParams.snap_distance * 2.f, 0.f, 0.f);
