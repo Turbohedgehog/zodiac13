@@ -15,9 +15,6 @@
  */
 
 #include <primitives/geometry.h>
-
-#include <primitives_generated.h>
-
 #include <primitives/panel_prism.h>
 
 #include <algorithm>
@@ -27,6 +24,8 @@
 #include <functional>
 #include <numeric>
 #include <utility>
+
+#include <primitives_generated.h>
 
 namespace z13::building::primitives {
 
