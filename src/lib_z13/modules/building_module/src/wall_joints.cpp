@@ -34,10 +34,9 @@ using z13::building::primitives::PlanSeam;
 using z13::building::primitives::PlanTee;
 using z13::building::primitives::PlanWall;
 using z13::building::primitives::PlanWallAt;
+using z13::building::primitives::TeesOverlap;
 
-// Nodes of two to four walls are solved.
 constexpr size_t kMinWallsAtNode = 2;
-constexpr size_t kMaxWallsAtNode = 4;
 
 // One wall's end at a node.
 struct WallEndAt {
@@ -73,7 +72,7 @@ void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach
   const auto fits = [&](const WallEndAt& end) {
     return parallel(*end.wall) && end.wall->geometry.stick_a.axis == meeting.front().wall->geometry.stick_a.axis;
   };
-  if (meeting.size() < kMinWallsAtNode || meeting.size() > kMaxWallsAtNode || !std::ranges::all_of(meeting, fits)) {
+  if (meeting.size() < kMinWallsAtNode || !std::ranges::all_of(meeting, fits)) {
     return;
   }
   std::ranges::sort(meeting, {}, [](const WallEndAt& end) { return end.wall->id; });
@@ -101,15 +100,21 @@ void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach
       Refuse(joints, meeting[index], seam.error());
     }
   }
+  const PlanWall& across = plans[(*through)[0]];
+  std::vector<z13::building::primitives::WallSeam> placed;
   for (size_t index = 0; index < meeting.size(); ++index) {
     if (index == (*through)[0] || index == (*through)[1]) {
       continue;
     }
-    const auto tee = PlanTee(plans[index], plans[(*through)[0]], max_reach);
-    if (tee) {
-      SetSeam(joints, meeting[index], *tee);
-    } else {
+    const auto tee = PlanTee(plans[index], across, max_reach);
+    if (!tee) {
       Refuse(joints, meeting[index], tee.error());
+    } else if (std::ranges::any_of(placed, [&](const auto& other) { return TeesOverlap(*tee, other, across); })) {
+      // Two branches on one face keep apart: the later one (the higher id) stays square-cut.
+      Refuse(joints, meeting[index], "the branch would overlap another on the same face");
+    } else {
+      SetSeam(joints, meeting[index], *tee);
+      placed.push_back(*tee);
     }
   }
 }

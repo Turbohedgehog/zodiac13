@@ -88,4 +88,8 @@ bool RunsThrough(const PlanWall& first, const PlanWall& second);
 // for walls along one line.
 std::expected<WallSeam, std::string> PlanTee(const PlanWall& branch, const PlanWall& through, int max_reach);
 
+// Whether two branch seams on one face of `through` take overlapping stretches of it: the bodies
+// of the two walls would intersect at the face. Seams on different faces never overlap.
+bool TeesOverlap(const WallSeam& first, const WallSeam& second, const PlanWall& through);
+
 }  // namespace z13::building::primitives

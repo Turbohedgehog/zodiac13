@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <format>
 #include <numeric>
+#include <utility>
 
 namespace z13::building::primitives {
 
@@ -195,6 +196,28 @@ std::expected<WallSeam, std::string> PlanTee(const PlanWall& branch, const PlanW
     }
   }
   return WallSeam {.line = Reduced(face), .inner = inner, .outer = outer};
+}
+
+bool TeesOverlap(const WallSeam& first, const WallSeam& second, const PlanWall& through) {
+  if (first.line != second.line) {
+    return false;
+  }
+  // A tip's place along the face, as the fraction first / second.
+  using Place = std::pair<int64_t, int64_t>;
+  const auto along = [&through](const PlanPoint& tip) {
+    return Place {(tip.x() * through.direction.x()) + (tip.y() * through.direction.y()), tip.z()};
+  };
+  const auto before = [](const Place& left, const Place& right) {
+    return left.first * right.second < right.first * left.second;
+  };
+  const auto stretch = [&](const WallSeam& seam) {
+    const Place one = along(seam.inner);
+    const Place other = along(seam.outer);
+    return before(other, one) ? std::pair {other, one} : std::pair {one, other};
+  };
+  const auto [first_low, first_high] = stretch(first);
+  const auto [second_low, second_high] = stretch(second);
+  return before(first_low, second_high) && before(second_low, first_high);
 }
 
 namespace {

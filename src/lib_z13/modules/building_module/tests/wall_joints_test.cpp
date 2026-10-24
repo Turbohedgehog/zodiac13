@@ -142,11 +142,27 @@ TEST(WallJointsTest, ThroughWallsThickenedDifferentlyOrNoWallsRunningThroughStay
   EXPECT_TRUE(SolveJoints(three, kReach).ends.empty());
 }
 
-TEST(WallJointsTest, MoreThanFourWallsAtANodeStaySquare) {
+// The X of Cross(4) with a fifth wall on the north face, running to `end`.
+std::vector<JointWall> CrossWithFifth(const Eigen::Vector3i& end) {
   std::vector<JointWall> many = Cross(4);
-  many.push_back(Wall(5, 1, 6, Geometry(kOrigin, {kLength, kLength, 0})));
+  many.push_back(Wall(5, 1, 6, Geometry(kOrigin, end)));
+  return many;
+}
 
-  EXPECT_TRUE(SolveJoints(many, kReach).ends.empty());
+TEST(WallJointsTest, AFifthWallApartFromTheOthersEndsOnTheFaceToo) {
+  const WallJoints joints = SolveJoints(CrossWithFifth({-kLength, kLength, 0}), kReach);
+
+  EXPECT_TRUE(joints.refused.empty());
+  ASSERT_TRUE(joints.ends.contains(5));
+  EXPECT_EQ(joints.ends.at(5).at_a->line, joints.ends.at(3).at_a->line);
+}
+
+TEST(WallJointsTest, AFifthWallOverlappingABranchStaysSquare) {
+  const WallJoints joints = SolveJoints(CrossWithFifth({1, kLength, 0}), kReach);
+
+  EXPECT_TRUE(joints.ends.contains(3));
+  EXPECT_FALSE(joints.ends.contains(5));
+  EXPECT_TRUE(joints.refused.contains(5));
 }
 
 TEST(WallJointsTest, WallsOfDifferentSticksStaySquare) {
