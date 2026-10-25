@@ -26,8 +26,7 @@
 
 #include "../support/load_session.h"
 
-// A client's clock runs ahead of the server's by the trip and the send interval, so its commands
-// arrive before their tick and the server has nothing to roll back (docs/network-scaling-plan.md).
+// A client's clock runs ahead of the server's, so its commands arrive before their tick.
 namespace z13::net {
 namespace {
 
