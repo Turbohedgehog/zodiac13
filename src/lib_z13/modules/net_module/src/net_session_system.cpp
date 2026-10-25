@@ -33,6 +33,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
@@ -175,6 +176,7 @@ void ServiceClient(flecs::world world, NetSession& session) {
 }
 
 void ServiceNetSession(flecs::world world) {
+  Z13_PROFILE_ZONE("ServiceNetSession");
   // Suspends defer: .immediate() alone still defers this SaveState()'s writes.
   const z13::ImmediateScope immediate(world);
 

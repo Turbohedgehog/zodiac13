@@ -27,6 +27,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/lifecycle.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/action_hints.h>
 #include <z13/components/action_map.h>
@@ -138,6 +139,7 @@ void ActionHintSystem::Register(flecs::world& world) {
 
 void HandleHintPacket(
     NetSession& session, flecs::world world, ConnectionId connection, std::span<const uint8_t> bytes) {
+  Z13_PROFILE_ZONE("HandleHintPacket");
   const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   auto decoded = DecodeOwnHints(bytes, now);
@@ -161,6 +163,7 @@ void HandleHintPacket(
 
 void RelayActionHints(
     NetSession& session, flecs::world world, std::optional<ConnectionId> except, const HintPacket& packet) {
+  Z13_PROFILE_ZONE("RelayActionHints");
   const auto& tuning = world.get<z13::NetTuning>();
   const auto& action_map = world.get<z13::input::ActionMap>();
   std::map<std::string_view, HintPacket> by_class;

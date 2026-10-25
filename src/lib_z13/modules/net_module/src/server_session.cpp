@@ -231,6 +231,7 @@ bool AllowCommand(CommandRateLimits& limits, ConnectionId connection, uint64_t n
 
 void HandleCommandBatch(
     NetSession& session, flecs::world world, ConnectionId connection, const fbn::CommandBatchT& batch) {
+  Z13_PROFILE_ZONE("HandleCommandBatch");
   const std::optional<uint32_t> player_id = session.PlayerIdFor(connection);
   if (!player_id) {
     log_warn("NetSession(server): dropping a CommandBatch from an unwelcomed connection {}", connection);
@@ -360,6 +361,7 @@ Status HandleServerReceived(
 }  // namespace
 
 void FinalizeLateInput(NetSession& session, flecs::world world) {
+  Z13_PROFILE_ZONE("FinalizeLateInput");
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const auto& tuning = world.get<NetTuning>();
   const uint64_t earliest = MakeScheduleWindow(world, now, tuning).earliest;
@@ -407,6 +409,7 @@ void FinalizeLateInput(NetSession& session, flecs::world world) {
 }
 
 Status ServiceServerSession(flecs::world world, NetSession& session, const z13::gameplay::IdCounters& counters) {
+  Z13_PROFILE_ZONE("ServiceServerSession");
   for (const TransportEvent& event : session.Service()) {
     switch (event.kind) {
       case TransportEventKind::kConnected:

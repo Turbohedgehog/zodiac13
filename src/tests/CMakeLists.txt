@@ -133,6 +133,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/input/touch_input_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/action_hints_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/clock_lead_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/convergence_test.cpp

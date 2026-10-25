@@ -31,6 +31,7 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/fnv_hash.h>
 #include <lib_core/utils/log.h>
+#include <lib_profile/profile.h>
 
 #include <z13/components/player.h>
 #include <z13/components/player_action.h>
@@ -128,6 +129,7 @@ std::string DescribeMismatch(const fbn::StateDigestT& local, const fbn::StateDig
 }  // namespace
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
+  Z13_PROFILE_ZONE("ComputeStateDigest");
   std::vector<std::string> names;
   world.query_builder().with<ft::StateEntity>().build().each(
       [&names](flecs::entity e) { names.emplace_back(e.path().c_str()); });
@@ -164,6 +166,7 @@ void RegisterStateDigestSystems(flecs::world world) {
 // ahead of this digest on the same ordered channel; T is final once every player is confirmed
 // through it (FinalizeLateInput).
 void SendSettledStateDigests(flecs::world world, NetSession& session, StateDigests& digests) {
+  Z13_PROFILE_ZONE("SendSettledStateDigests");
   const uint64_t now = world.get<ft::SimulationClock>().tick;
   const std::optional<uint64_t> deferred_rollback_tick = ft::DeferredRollbackTick(world);
   const uint64_t max_late_ticks = world.get<NetTuning>().max_late_ticks;

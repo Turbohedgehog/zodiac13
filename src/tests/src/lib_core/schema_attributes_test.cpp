@@ -138,6 +138,16 @@ TEST(SchemaRangesTest, NonFiniteValuesAreRejected) {
   EXPECT_FALSE(ValidateSettings(fps).has_value());
 }
 
+TEST(SettingsValidationTest, AClockLeadBeyondTheScheduleWindowIsRejected) {
+  Settings settings = MakeSettings();
+  settings.net->clock_lead_ticks = settings.net->max_schedule_ahead_ticks;
+
+  const auto valid = ValidateSettings(settings);
+
+  ASSERT_FALSE(valid.has_value());
+  EXPECT_NE(valid.error().find("net.clock_lead_ticks"), std::string::npos) << valid.error();
+}
+
 // A schema built at run time, so a bound the game's own schemas never use can be tried.
 class RuntimeSchemaTest : public ::testing::Test {
  protected:

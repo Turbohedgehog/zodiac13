@@ -27,10 +27,15 @@
 #include <functional>
 #include <iostream>
 #include <ranges>
+#include <string_view>
 #include <string>
 #include <vector>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/state/rollback.h>
+#include <lib_core/utils/system_times.h>
+
+#include <z13_settings/settings.h>
 
 #include "../../../net_module/src/net_session.h"
 #include "../support/load_session.h"
@@ -39,6 +44,7 @@ namespace z13::net {
 namespace {
 
 using z13::testing::LoadSession;
+using z13::testing::Steering;
 
 constexpr std::array kClientCounts = {1, 2, 4, 8, 16, 32};
 constexpr uint64_t kConnectTicks = 3000;
@@ -46,15 +52,22 @@ constexpr uint64_t kWarmUpTicks = 120;
 constexpr uint64_t kMeasuredTicks = 300;
 constexpr double kTicksPerSecond = 60.;
 constexpr size_t kTopMessages = 3;
+constexpr size_t kTopSystems = 6;
 
 struct Snapshot {
   SentTraffic server;
   uint64_t clients_bytes {};
   std::chrono::nanoseconds server_time {};
+  std::vector<z13::SystemTime> systems;
+  z13::flecs_tools::RollbackMetrics rollbacks;
 };
 
 Snapshot Take(LoadSession& session) {
-  Snapshot snapshot {.server = session.Server().World().get<NetSession>().Sent(), .server_time = session.ServerTime()};
+  flecs::world server = session.Server().World();
+  Snapshot snapshot {.server = server.get<NetSession>().Sent(),
+                     .server_time = session.ServerTime(),
+                     .systems = z13::SystemTimes(server),
+                     .rollbacks = server.get<z13::flecs_tools::RollbackMetrics>()};
   for (size_t i = 0; i < session.ClientCount(); ++i) {
     snapshot.clients_bytes += session.Client(i).World().get<NetSession>().Sent().Total().bytes;
   }
@@ -83,6 +96,15 @@ std::string TopMessages(const SentTraffic& before, const SentTraffic& after, dou
   return text;
 }
 
+std::string TopSystems(const std::vector<z13::SystemTime>& before, const std::vector<z13::SystemTime>& after) {
+  const std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(before, after, kMeasuredTicks);
+  std::string text = std::format(" all {:.2f} |", std::ranges::fold_left(spent | std::views::transform(&z13::SystemTime::ms), 0., std::plus<> {}));
+  for (const z13::SystemTime& system : spent | std::views::take(kTopSystems)) {
+    text += std::format(" {} {:.2f}", system.path, system.ms);
+  }
+  return text;
+}
+
 TEST(NetLoadBench, DISABLED_ServerLoadByClientCount) {
   std::cout << "clients | server ms/tick | server B/s (per client) | reliable / unreliable / hints B/s | client uplink B/s"
                " | top messages B/s\n";
@@ -92,11 +114,13 @@ TEST(NetLoadBench, DISABLED_ServerLoadByClientCount) {
     for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
       session.Tick();
     }
+    ecs_measure_system_time(session.Server().World(), true);
     const Snapshot before = Take(session);
     for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
       session.Tick();
     }
     const Snapshot after = Take(session);
+    ecs_measure_system_time(session.Server().World(), false);
 
     const double seconds = static_cast<double>(kMeasuredTicks) / kTicksPerSecond;
     const double server_ms =
@@ -110,6 +134,89 @@ TEST(NetLoadBench, DISABLED_ServerLoadByClientCount) {
         server_bytes, server_bytes / clients, per_second(Channel::kReliable), per_second(Channel::kUnreliable),
         per_second(Channel::kHints), static_cast<double>(after.clients_bytes - before.clients_bytes) / seconds / clients,
         TopMessages(before.server, after.server, seconds));
+    std::cout << std::format(
+        "        server: {} rollbacks, {} ticks replayed; ms/tick by system:{}\n",
+        after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+        after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks, TopSystems(before.systems, after.systems));
+  }
+}
+
+TEST(NetLoadBench, DISABLED_RollbacksBySteering) {
+  struct Case {
+    std::string_view name;
+    Steering steering;
+  };
+  constexpr std::array cases = {
+      Case {"idle", {.walk = false, .look = false}}, Case {"walk", {.walk = true, .look = false}},
+      Case {"look", {.walk = false, .look = true}}, Case {"walk+look", {.walk = true, .look = true}}};
+  for (const int clients : {1, 4}) {
+    for (const Case& test_case : cases) {
+      LoadSession session(static_cast<size_t>(clients), test_case.steering);
+      ASSERT_TRUE(session.Connect(kConnectTicks));
+      for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot before = Take(session);
+      for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot after = Take(session);
+      std::cout << std::format(
+          "{} clients, {:9}: {} rollbacks, {} ticks replayed, server {:.2f} ms/tick\n", clients, test_case.name,
+          after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+          after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
+          std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
+    }
+  }
+}
+
+TEST(NetLoadBench, DISABLED_RollbacksByTuning) {
+  constexpr int kClients = 16;
+  for (const uint64_t send_interval : {3, 6}) {
+    for (const uint64_t rollback_delay : {6, 12, 24}) {
+      LoadSession session(kClients, {}, [&](z13::Settings& settings) {
+        settings.net->send_interval_ticks = send_interval;
+        settings.core->max_rollback_delay_ticks = rollback_delay;
+      });
+      ASSERT_TRUE(session.Connect(kConnectTicks));
+      for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot before = Take(session);
+      for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot after = Take(session);
+      std::cout << std::format(
+          "{} clients, send every {} ticks, rollback delay {:2}: {} rollbacks, {} ticks replayed, server {:.2f} ms/tick\n",
+          kClients, send_interval, rollback_delay, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+          after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
+          std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
+    }
+  }
+}
+
+TEST(NetLoadBench, DISABLED_RollbacksByClockLead) {
+  constexpr int kClients = 8;
+  constexpr z13::net::FaultConfig kLatency {.min_delay_ticks = 1, .max_delay_ticks = 2};
+  for (const uint64_t lead : {0, 2, 3, 4, 6, 8}) {
+    LoadSession session(kClients, {}, [lead](z13::Settings& settings) { settings.net->clock_lead_ticks = lead; });
+    session.Network().SetFaultConfig(kLatency);
+    ASSERT_TRUE(session.Connect(kConnectTicks));
+    for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+      session.Tick();
+    }
+    const Snapshot before = Take(session);
+    for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+      session.Tick();
+    }
+    const Snapshot after = Take(session);
+    std::cout << std::format(
+        "{} clients, one-way {}-{} ticks, clock lead {}: {} rollbacks, {} ticks replayed, server {:.2f} ms/tick\n",
+        kClients, kLatency.min_delay_ticks, kLatency.max_delay_ticks, lead,
+        after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+        after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
+        std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
   }
 }
 
