@@ -34,12 +34,6 @@ struct FaultConfig {
   uint32_t max_delay_ticks {};
 };
 
-// Payload only: UDP/IP and ENet headers come on top.
-struct TrafficStats {
-  uint64_t packets {};
-  uint64_t bytes {};
-};
-
 // Defined in in_memory_transport.cpp; only ever held behind a shared_ptr here.
 class InMemoryNetworkState;
 

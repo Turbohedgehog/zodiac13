@@ -26,6 +26,8 @@
 #include <net_module/protocol.h>
 #include <net_module/transport.h>
 
+#include "sent_traffic.h"
+
 namespace z13::net {
 
 // The live Transport plus connection/player bookkeeping, as a singleton exempt from the
@@ -49,6 +51,7 @@ class NetSession {
   void SendBytes(ConnectionId connection, Channel channel, std::span<const uint8_t> bytes);
   // Every tracked connection (AddConnection) except `except`, if given.
   void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
+  const SentTraffic& Sent() const;
   // Bookkeeping is cleaned up on the kDisconnected event this produces.
   void Disconnect(ConnectionId connection);
 

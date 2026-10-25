@@ -36,6 +36,12 @@ constexpr ConnectionId kInvalidConnectionId = 0;
 // packets (hint_packet.h) rather than FlatBuffers messages.
 enum class Channel : uint8_t { kReliable = 0, kUnreliable = 1, kHints = 2 };
 
+// Payload only: UDP/IP and ENet headers come on top.
+struct TrafficStats {
+  uint64_t packets {};
+  uint64_t bytes {};
+};
+
 enum class TransportEventKind { kConnected, kDisconnected, kReceived };
 
 struct TransportEvent {
