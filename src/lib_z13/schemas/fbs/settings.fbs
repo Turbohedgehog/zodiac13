@@ -40,6 +40,9 @@ table SessionTimeout {
 // How remote entities are drawn chasing their simulated pose (client only, never sent).
 table VisualSmoothing {
   smooth_time_seconds: float = 0.1 (min: 0, max: 2, cli: "--visual-smooth-time");
+  // A drawn turn settles in this time, shorter than a position because a remote player's look arrives as
+  // frequent hints (net_tuning.fbs).
+  rotation_smooth_time_seconds: float = 0.05 (min: 0, max: 2, cli: "--visual-rotation-smooth-time");
   // A correction past either limit (a teleport, a resync) is drawn at once.
   snap_distance: float = 20 (min: 0, cli: "--visual-snap-distance");
   snap_angle_deg: float = 90 (min: 0, max: 180, cli: "--visual-snap-angle");

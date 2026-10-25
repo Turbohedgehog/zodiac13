@@ -77,17 +77,28 @@ void ChasePose(SmoothedPose& pose, const Eigen::Matrix4f& target, float delta_se
   const Eigen::Vector3f target_position = ExtractTranslation(target);
   const Eigen::Quaternionf target_rotation = RotationOf(target);
   const Eigen::Vector3f rotation_error = RotationVector(pose.rotation, target_rotation);
-  if (params.smooth_time_seconds <= 0.f || delta_seconds <= 0.f ||
-      (target_position - pose.position).norm() > params.snap_distance ||
+  if (delta_seconds <= 0.f || (target_position - pose.position).norm() > params.snap_distance ||
       rotation_error.norm() > params.snap_angle_rad) {
     pose = PoseAt(target);
     return;
   }
 
-  pose.position = SpringStep(pose.position, target_position, pose.velocity, params.smooth_time_seconds, delta_seconds);
-  const Eigen::Vector3f turn = SpringStep(
-      Eigen::Vector3f::Zero(), rotation_error, pose.angular_velocity, params.smooth_time_seconds, delta_seconds);
-  pose.rotation = (FromRotationVector(turn) * pose.rotation).normalized();
+  if (params.smooth_time_seconds > 0.f) {
+    pose.position =
+        SpringStep(pose.position, target_position, pose.velocity, params.smooth_time_seconds, delta_seconds);
+  } else {
+    pose.position = target_position;
+    pose.velocity.setZero();
+  }
+  const float rotation_time = params.rotation_smooth_time_seconds.value_or(params.smooth_time_seconds);
+  if (rotation_time > 0.f) {
+    const Eigen::Vector3f turn =
+        SpringStep(Eigen::Vector3f::Zero(), rotation_error, pose.angular_velocity, rotation_time, delta_seconds);
+    pose.rotation = (FromRotationVector(turn) * pose.rotation).normalized();
+  } else {
+    pose.rotation = target_rotation;
+    pose.angular_velocity.setZero();
+  }
 }
 
 Eigen::Matrix4f DrawnTransform(const SmoothedPose& pose, const Eigen::Matrix4f& target) {

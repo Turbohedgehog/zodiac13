@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <utility>
 
 #include <boost/container/flat_map.hpp>
@@ -32,6 +33,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/player.h>
+#include <z13/components/action_hints.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/action_map.h>
 #include <z13/components/input_phases.h>
@@ -113,14 +115,15 @@ void AdvanceRecordedValues(
   state.synced_tick = clock.tick;
 }
 
-bool IsUnconfirmed(
+// The tick a remote player's input is confirmed through, if `tick` is past it.
+std::optional<uint64_t> UnconfirmedSince(
     uint32_t player_id, uint64_t tick, const z13::gameplay::LocalPlayer& local_player,
     const z13::gameplay::ConfirmedInputTicks& confirmed) {
   if (local_player.id == player_id) {
-    return false;
+    return std::nullopt;
   }
   const auto found = confirmed.by_player.find(player_id);
-  return found != confirmed.by_player.end() && tick > found->second;
+  return found != confirmed.by_player.end() && tick > found->second ? std::optional(found->second) : std::nullopt;
 }
 
 // Unknown actions are zeroed too, or a fresh local value would leak through as prediction.
@@ -128,27 +131,34 @@ void InjectRecordedActionValues(
     flecs::iter& it, size_t i, const z13::gameplay::Player& player,
     z13::input::ActionListener& action_listener, const z13::gameplay::RemoteActionState& state,
     const z13::input::ActionMap& action_map, const ft::SimulationClock& clock,
-    const z13::gameplay::LocalPlayer& local_player, const z13::gameplay::ConfirmedInputTicks& confirmed) {
+    const z13::gameplay::LocalPlayer& local_player, const z13::gameplay::ConfirmedInputTicks& confirmed,
+    const z13::gameplay::ActionHints& hints) {
   if (!IsLogDriven(it.world(), it.entity(i))) {
     return;
   }
 
-  const bool unconfirmed = IsUnconfirmed(player.id, clock.tick, local_player, confirmed);
+  const std::optional<uint64_t> unconfirmed_since = UnconfirmedSince(player.id, clock.tick, local_player, confirmed);
   for (const auto& action_info : action_map.action_map.get<z13::input::ActionMap::IdTag>()) {
     const auto found = state.current_values.find({player.id, action_info.id});
-    const bool released = found == state.current_values.end() || (unconfirmed && !action_info.absolute);
-    action_listener.action_values[action_info.id].current_value = released ? 0.f : found->second;
+    const bool released = found == state.current_values.end() || (unconfirmed_since && !action_info.absolute);
+    float value = released ? 0.f : found->second;
+    if (unconfirmed_since && action_info.hint_class) {
+      value = hints.ValueAt(player.id, action_info.id, clock.tick, *unconfirmed_since).value_or(value);
+    }
+    action_listener.action_values[action_info.id].current_value = value;
   }
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<z13::gameplay::RemoteActionState, z13::gameplay::ConfirmedInputTicks>(world);
+  z13::flecs_tools::RegisterComponents<
+      z13::gameplay::RemoteActionState, z13::gameplay::ConfirmedInputTicks, z13::gameplay::ActionHints>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<z13::gameplay::RemoteActionState>({});
   world.set<z13::gameplay::ConfirmedInputTicks>({});
+  world.set<z13::gameplay::ActionHints>({});
 
   world.system<
       const ft::SimulationClock, const z13::gameplay::PlayerActionLog, z13::gameplay::RemoteActionState>(
@@ -160,7 +170,7 @@ void RegisterSystems(flecs::world world) {
   world.system<
       const z13::gameplay::Player, z13::input::ActionListener, const z13::gameplay::RemoteActionState,
       const z13::input::ActionMap, const ft::SimulationClock, const z13::gameplay::LocalPlayer,
-      const z13::gameplay::ConfirmedInputTicks>(
+      const z13::gameplay::ConfirmedInputTicks, const z13::gameplay::ActionHints>(
       "Replay::InjectRecordedActionValues")
       .kind<z13::input::RemoteActionFramePhase>()
       .each(InjectRecordedActionValues);

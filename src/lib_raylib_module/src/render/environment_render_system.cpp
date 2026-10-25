@@ -296,6 +296,7 @@ void ChaseDrawnPoses(SmoothedDrawing& drawing, const VisualSmoothing& settings, 
   drawing.last_frame = now;
   const z13::math::PoseSmoothingParams params {
       .smooth_time_seconds = settings.smooth_time_seconds,
+      .rotation_smooth_time_seconds = settings.rotation_smooth_time_seconds,
       .snap_distance = settings.snap_distance,
       .snap_angle_rad = z13::math::ToRadians(settings.snap_angle_deg),
   };

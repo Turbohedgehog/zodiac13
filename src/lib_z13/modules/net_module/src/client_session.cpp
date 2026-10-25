@@ -43,6 +43,7 @@
 #include <net_module/protocol.h>
 #include <net_module/state_digest.h>
 
+#include "action_hints.h"
 #include "catch_up.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
@@ -189,6 +190,12 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
 }
 
 void HandleClientReceived(flecs::world world, const TransportEvent& event) {
+  if (event.channel == Channel::kHints) {
+    if (world.get<z13::gameplay::LocalPlayer>().id) {
+      StoreRelayedHints(world, AsUint8(event.data));
+    }
+    return;
+  }
   const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
     log_warn("NetSession(client): dropping malformed packet: {}", decoded.error());

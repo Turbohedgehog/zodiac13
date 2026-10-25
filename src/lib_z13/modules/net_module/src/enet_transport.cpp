@@ -32,7 +32,7 @@ namespace z13::net {
 
 namespace {
 
-constexpr size_t kChannelCount = 2;  // Channel::kReliable, Channel::kUnreliable
+constexpr size_t kChannelCount = 3;  // Channel::kReliable, kUnreliable, kHints
 
 struct EnetHostDeleter {
   void operator()(ENetHost* host) const {

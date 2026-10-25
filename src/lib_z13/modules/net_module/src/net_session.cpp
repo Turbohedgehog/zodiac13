@@ -56,6 +56,10 @@ void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& 
   state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
 }
 
+void NetSession::SendBytes(ConnectionId connection, Channel channel, std::span<const uint8_t> bytes) {
+  state_->transport->Send(connection, channel, std::as_bytes(bytes));
+}
+
 void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except) {
   State& state = *state_;
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
@@ -92,6 +96,11 @@ std::optional<uint32_t> NetSession::PlayerIdFor(ConnectionId connection) const {
   const auto& by_connection = state_->connection_to_player;
   const auto player = by_connection.find(connection);
   return player != by_connection.end() ? std::optional(player->second) : std::nullopt;
+}
+
+std::vector<std::pair<ConnectionId, uint32_t>> NetSession::PlayerConnections() const {
+  const auto& by_connection = state_->connection_to_player;
+  return {by_connection.begin(), by_connection.end()};
 }
 
 void NetSession::SetServerConnection(ConnectionId connection) {

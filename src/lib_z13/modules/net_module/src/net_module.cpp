@@ -18,6 +18,7 @@
 
 #include <flecs.h>
 
+#include "action_hints.h"
 #include "lan_discovery_system.h"
 #include "net_action_sender.h"
 #include "net_session_system.h"
@@ -28,6 +29,7 @@ namespace z13::net {
 NetModule::NetModule(flecs::world& world) {
   NetSessionSystem::Register(world);
   NetActionSender::Register(world);
+  ActionHintSystem::Register(world);
   RemoteInput::Register(world);
   LanDiscoverySystem::Register(world);
 }

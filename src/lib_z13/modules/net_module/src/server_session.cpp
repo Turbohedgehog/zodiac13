@@ -42,6 +42,7 @@
 #include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 
+#include "action_hints.h"
 #include "catch_up.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
@@ -325,8 +326,12 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
 
 Status HandleServerReceived(
     NetSession& session, flecs::world world, const TransportEvent& event, const z13::gameplay::IdCounters& counters) {
-  const auto decoded = DecodeMessage(AsUint8(event.data));
   const ConnectionId connection = event.connection;
+  if (event.channel == Channel::kHints) {
+    HandleHintPacket(session, world, connection, AsUint8(event.data));
+    return {};
+  }
+  const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
     log_warn("NetSession(server): dropping malformed packet from connection {}: {}", connection, decoded.error());
     // Disconnect() raises no kDisconnected for us.

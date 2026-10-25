@@ -109,6 +109,7 @@ set(
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
+  ${MODULES_DIR}/net_module/tests/protocol/hint_packet_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
@@ -130,6 +131,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/input/input_pipeline_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/input_script_test.cpp
   ${MODULES_DIR}/z13_module/tests/input/touch_input_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/action_hints_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/action_negotiation_net_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
