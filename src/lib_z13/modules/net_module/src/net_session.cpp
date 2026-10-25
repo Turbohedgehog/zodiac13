@@ -28,6 +28,7 @@ class NetSession::State {
   std::unordered_set<ConnectionId> connections;
   std::unordered_map<ConnectionId, uint32_t> connection_to_player;
   std::optional<ConnectionId> server_connection;
+  SentTraffic sent;
 };
 
 void NetSession::Open(std::unique_ptr<Transport> transport) {
@@ -53,10 +54,12 @@ Status NetSession::SendDatagram(const Endpoint& to, std::span<const uint8_t> byt
 
 void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
+  state_->sent.Record({connection, channel}, envelope.body.type, bytes.size());
   state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
 }
 
 void NetSession::SendBytes(ConnectionId connection, Channel channel, std::span<const uint8_t> bytes) {
+  state_->sent.Record({connection, channel}, std::nullopt, bytes.size());
   state_->transport->Send(connection, channel, std::as_bytes(bytes));
 }
 
@@ -66,9 +69,14 @@ void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optio
   const auto payload = std::as_bytes(std::span(bytes));
   for (const ConnectionId connection : state.connections) {
     if (connection != except) {
+      state.sent.Record({connection, channel}, envelope.body.type, bytes.size());
       state.transport->Send(connection, channel, payload);
     }
   }
+}
+
+const SentTraffic& NetSession::Sent() const {
+  return state_->sent;
 }
 
 void NetSession::Disconnect(ConnectionId connection) {

@@ -144,6 +144,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/paused_peer_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/quick_save_in_session_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/remote_prediction_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/server_traffic_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/session_churn_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/session_settings_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/station_session_test.cpp
@@ -158,6 +159,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/state/quick_save_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/two_player_replay_test.cpp
   ${MODULES_DIR}/z13_module/tests/state/world_snapshot_history_test.cpp
+  ${MODULES_DIR}/z13_module/tests/support/load_session.cpp
   ${MODULES_DIR}/z13_module/tests/support/motion_metrics.cpp
   ${MODULES_DIR}/z13_module/tests/support/z13_test_world.cpp
 )
@@ -174,6 +176,7 @@ if(Z13_BUILD_BENCHMARKS)
     ${MODULES_DIR}/station_module/tests/bench/room_build_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/room_edit_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/frame_walk_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/net_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/space_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
