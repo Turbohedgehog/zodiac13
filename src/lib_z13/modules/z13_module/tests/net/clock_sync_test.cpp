@@ -32,6 +32,7 @@
 #include <z13/components/player.h>
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
+#include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -40,7 +41,14 @@
 namespace z13::net {
 namespace {
 
-const NetTuning kTuning;
+// The estimator tests run without a lead; ALeadPutsTheClientAheadOfTheServer covers it.
+NetTuning MakeTuning(uint64_t lead_ticks) {
+  NetTuning tuning;
+  tuning.clock_lead_ticks = lead_ticks;
+  return tuning;
+}
+
+const NetTuning kTuning = MakeTuning(0);
 const int64_t kClockCatchUpThresholdTicks = kTuning.clock_catch_up_threshold_ticks;
 const uint64_t kClockCatchUpEveryTicks = kTuning.clock_catch_up_every_ticks;
 const int64_t kClockJumpThresholdTicks = kTuning.clock_jump_threshold_ticks;
@@ -58,12 +66,19 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint64_t kSecondsToSettle = 4;
 
-Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld({std::string(kServerArg)}, network);
+z13::Settings MakeLeadSettings(uint64_t lead_ticks) {
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->clock_lead_ticks = lead_ticks;
+  return settings;
 }
 
-Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network) {
-  return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
+Z13TestWorld MakeServer(const std::shared_ptr<InMemoryNetwork>& network, uint64_t lead_ticks = 0) {
+  return Z13TestWorld({std::string(kServerArg)}, network, MakeLeadSettings(lead_ticks));
+}
+
+Z13TestWorld MakeClient(const std::shared_ptr<InMemoryNetwork>& network, uint64_t lead_ticks = 0) {
+  return Z13TestWorld(
+      {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, MakeLeadSettings(lead_ticks));
 }
 
 bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::Gameplay>() &&
@@ -337,6 +352,19 @@ TEST(ClockSyncTest, TheEstimateFindsTheRealOffsetAcrossAFixedDelay) {
   ASSERT_TRUE(estimate.has_value());
   EXPECT_LE(std::abs(*estimate - RealOffset(server, client)), 2)
       << "estimate " << *estimate << " vs real " << RealOffset(server, client);
+}
+
+TEST(ClockSyncTest, ALeadPutsTheClientAheadOfTheServer) {
+  constexpr uint64_t kLeadTicks = 6;
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network, kLeadTicks);
+  Z13TestWorld client = MakeClient(network, kLeadTicks);
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
+
+  RunNetworkUntil(*network, {server, client}, kNetTestDeltaTime, 60 * kSecondsToSettle, [] { return false; });
+
+  EXPECT_NEAR(RealOffset(server, client), -static_cast<int64_t>(kLeadTicks), kClockCatchUpThresholdTicks + 1);
 }
 
 TEST(ClockSyncTest, LosingEveryPingLeavesTheSessionAloneAndTheNextOneRecovers) {

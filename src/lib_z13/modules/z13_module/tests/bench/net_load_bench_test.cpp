@@ -196,5 +196,29 @@ TEST(NetLoadBench, DISABLED_RollbacksByTuning) {
   }
 }
 
+TEST(NetLoadBench, DISABLED_RollbacksByClockLead) {
+  constexpr int kClients = 8;
+  constexpr z13::net::FaultConfig kLatency {.min_delay_ticks = 1, .max_delay_ticks = 2};
+  for (const uint64_t lead : {0, 2, 3, 4, 6, 8}) {
+    LoadSession session(kClients, {}, [lead](z13::Settings& settings) { settings.net->clock_lead_ticks = lead; });
+    session.Network().SetFaultConfig(kLatency);
+    ASSERT_TRUE(session.Connect(kConnectTicks));
+    for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+      session.Tick();
+    }
+    const Snapshot before = Take(session);
+    for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+      session.Tick();
+    }
+    const Snapshot after = Take(session);
+    std::cout << std::format(
+        "{} clients, one-way {}-{} ticks, clock lead {}: {} rollbacks, {} ticks replayed, server {:.2f} ms/tick\n",
+        kClients, kLatency.min_delay_ticks, kLatency.max_delay_ticks, lead,
+        after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+        after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
+        std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
+  }
+}
+
 }  // namespace
 }  // namespace z13::net
