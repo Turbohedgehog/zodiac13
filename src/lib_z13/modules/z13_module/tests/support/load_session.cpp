@@ -22,6 +22,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input_events.h>
 #include <z13/components/net.h>
+#include <z13_settings/settings.h>
 
 #include "building_test_helpers.h"
 #include "test_network.h"
@@ -38,12 +39,15 @@ constexpr int kLookJitterY = 3;
 
 }  // namespace
 
-LoadSession::LoadSession(size_t clients) {
-  server_ = std::make_unique<Z13TestWorld>(std::vector {std::string(kServerArg)}, network_);
+LoadSession::LoadSession(size_t clients, Steering steering, const std::function<void(z13::Settings&)>& tune)
+    : steering_(steering) {
+  z13::Settings settings = z13::MakeSettings();
+  tune(settings);
   walking_.assign(clients, false);
+  server_ = std::make_unique<Z13TestWorld>(std::vector {std::string(kServerArg)}, network_, settings);
   for (size_t i = 0; i < clients; ++i) {
     clients_.push_back(std::make_unique<Z13TestWorld>(
-        std::vector {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_));
+        std::vector {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_, settings));
   }
 }
 
@@ -63,9 +67,12 @@ bool LoadSession::Connect(uint64_t max_ticks) {
 
 void LoadSession::Steer(size_t index) {
   Z13TestWorld& client = *clients_[index];
-  if (!walking_[index]) {
+  if (steering_.walk && !walking_[index]) {
     client.EmitInput(KeyDown(Keycode::KEY_W));
     walking_[index] = true;
+  }
+  if (!steering_.look) {
+    return;
   }
   const uint64_t phase = tick_ + index;
   z13::input::MouseMoveEvent look;

@@ -18,20 +18,31 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
 #include <net_module/in_memory_transport.h>
 
+#include <z13_settings/settings_fwd.h>
+
 #include "z13_test_world.h"
 
 namespace z13::testing {
+
+// What each client of a LoadSession does every tick.
+struct Steering {
+  bool walk = true;
+  bool look = true;
+};
 
 // A server and N clients on one InMemoryNetwork, each client walking and turning its view every tick,
 // for the measurements of docs/network-scaling-plan.md.
 class LoadSession {
  public:
-  explicit LoadSession(size_t clients);
+  // `tune` changes the settings of every world before it is built.
+  explicit LoadSession(
+      size_t clients, Steering steering = {}, const std::function<void(z13::Settings&)>& tune = [](z13::Settings&) {});
 
   bool Connect(uint64_t max_ticks);
   // One frame of every world, the server first; only the server's frame is timed.
@@ -50,6 +61,7 @@ class LoadSession {
   std::shared_ptr<z13::net::InMemoryNetwork> network_ = std::make_shared<z13::net::InMemoryNetwork>();
   std::unique_ptr<Z13TestWorld> server_;
   std::vector<std::unique_ptr<Z13TestWorld>> clients_;
+  Steering steering_;
   std::vector<bool> walking_;
   uint64_t tick_ {};
   std::chrono::nanoseconds server_time_ {};
