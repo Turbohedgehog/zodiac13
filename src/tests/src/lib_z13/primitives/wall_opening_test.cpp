@@ -25,6 +25,7 @@
 
 #include <primitives/occupancy.h>
 #include <primitives/wall_opening.h>
+#include <primitives/wall_seam.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::building::primitives {
@@ -73,8 +74,9 @@ Cells CellsOf(const Block& block) {
   return cells;
 }
 
-std::vector<Block> Panels(const WallGeometry& wall, const std::vector<WallOpening>& openings) {
-  return OpeningPanels(wall, {}, openings, ShippedPalette()).value();
+std::vector<Block> Panels(
+    const WallGeometry& wall, const std::vector<WallOpening>& openings, const WallEnds& ends = {}) {
+  return OpeningPanels(wall, ends, openings, ShippedPalette()).value();
 }
 
 TEST(WallOpeningTest, AStepIsTheWallsOffsetOverItsGcd) {
@@ -103,15 +105,16 @@ TEST(WallOpeningTest, AWindowAddsASillAndAPane) {
 }
 
 // The pieces and the pane tile the wall: no cell twice, none left out.
-void ExpectTilesTheWall(const WallGeometry& wall, const std::vector<WallOpening>& openings) {
+void ExpectTilesTheWall(
+    const WallGeometry& wall, const std::vector<WallOpening>& openings, const WallEnds& ends = {}) {
   Cells union_of_pieces;
   size_t total = 0;
-  for (const Block& block : Panels(wall, openings)) {
+  for (const Block& block : Panels(wall, openings, ends)) {
     const Cells cells = CellsOf(block);
     total += cells.size();
     union_of_pieces.insert(cells.begin(), cells.end());
   }
-  const Cells whole = CellsOf(WallPanelBlock(wall, ShippedPalette()).value());
+  const Cells whole = CellsOf(WallPanelBlock(wall, ShippedPalette(), ends).value());
   EXPECT_EQ(total, union_of_pieces.size()) << "a cell in two pieces";
   EXPECT_EQ(union_of_pieces, whole);
 }
@@ -178,13 +181,61 @@ TEST(WallOpeningTest, OpeningsTheWallCannotHoldAreRefused) {
   EXPECT_FALSE(refused({Door(4, 4, 5)}));
 }
 
-TEST(WallOpeningTest, BentAndTrapezoidWallsTakeNoOpenings) {
-  WallGeometry trapezoid = Wall({12, 0, 0});
-  trapezoid.stick_b.length = kHeight - 2;
-  EXPECT_FALSE(OpeningPanels(trapezoid, {}, {{Door(4, 4, 5)}}, ShippedPalette()).has_value());
+TEST(WallOpeningTest, ABentWallTakesNoOpenings) {
   WallGeometry bent = Wall({12, 0, 0});
   bent.stick_b = {WallAxis::kY, kHeight};
   EXPECT_FALSE(OpeningPanels(bent, {}, {{Door(4, 4, 5)}}, ShippedPalette()).has_value());
+}
+
+WallGeometry Trapezoid(const Eigen::Vector3i& to, int far_length) {
+  WallGeometry wall = Wall(to);
+  wall.stick_b.length = far_length;
+  return wall;
+}
+
+// The pieces of a trapezoid share no cell, and the cells of a column meet without a gap.
+void ExpectPiecesMeet(const WallGeometry& wall, const std::vector<WallOpening>& openings) {
+  std::set<std::array<int, 3>> seen;
+  for (const Block& block : Panels(wall, openings)) {
+    for (const auto& cell : CellsOf(block)) {
+      EXPECT_TRUE(seen.insert(cell).second) << "a cell in two pieces";
+    }
+  }
+  for (const auto& cell : seen) {
+    const std::array<int, 3> above {cell[0], cell[1], cell[2] + 1};
+    const std::array<int, 3> two_above {cell[0], cell[1], cell[2] + 2};
+    EXPECT_TRUE(seen.contains(above) || !seen.contains(two_above)) << "a gap in a column";
+  }
+}
+
+TEST(WallOpeningTest, ADoorInATrapezoidKeepsTheBrokenTopOfTheWall) {
+  const WallGeometry wall = Trapezoid({12, 0, 0}, kHeight - 4);
+  EXPECT_EQ(Panels(wall, {Door(4, 4, 3)}).size(), 4u);
+  ExpectPiecesMeet(wall, {Door(4, 4, 3)});
+}
+
+TEST(WallOpeningTest, AWindowInAnObliqueTrapezoidLeavesNoGap) {
+  ExpectPiecesMeet(Trapezoid({8, 4, 0}, kHeight - 3), {Window(1, 2, 1, 3)});
+}
+
+TEST(WallOpeningTest, AnOpeningInATrapezoidKeepsACellOfWallAboveItsLowerSide) {
+  const WallGeometry wall = Trapezoid({12, 0, 0}, 4);
+  EXPECT_FALSE(OpeningPanels(wall, {}, {{Door(8, 3, 4)}}, ShippedPalette()).has_value()) << "the low side is under 5";
+  EXPECT_TRUE(OpeningPanels(wall, {}, {{Door(2, 3, 5)}}, ShippedPalette()).has_value());
+}
+
+void ExpectSeamedWallTilesWithAnOpening(const WallGeometry& wall, const WallGeometry& other, const WallOpening& opening) {
+  constexpr int kReach = 16;
+  const auto seam = PlanSeam(PlanWallAt(other, true).value(), PlanWallAt(wall, true).value(), kReach);
+  ASSERT_TRUE(seam.has_value()) << seam.error();
+  ExpectTilesTheWall(wall, {opening}, {.at_a = *seam});
+}
+
+TEST(WallOpeningTest, AWallSeamedAtAnAngleTakesAnOpening) {
+  const WallGeometry east {
+      .node_b = {12, 0, 0}, .stick_a = {WallAxis::kZ, kHeight}, .stick_b = {WallAxis::kZ, kHeight}, .thickness = 2};
+  ExpectSeamedWallTilesWithAnOpening(Wall({8, 8, 0}), east, Door(3, 3, 5));
+  ExpectSeamedWallTilesWithAnOpening(Wall({6, 12, 0}), east, Window(2, 2, 1, 3));
 }
 
 }  // namespace

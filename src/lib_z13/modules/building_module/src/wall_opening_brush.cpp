@@ -59,8 +59,7 @@ std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point
   using z13::building::primitives::PlanAxesOf;
   const auto& geometry = wall.geometry;
   const int steps = z13::building::primitives::WallSteps(geometry);
-  if (steps == 0 || z13::building::primitives::IsBent(geometry) ||
-      geometry.stick_a.length != geometry.stick_b.length) {
+  if (steps == 0 || z13::building::primitives::IsBent(geometry)) {
     return std::nullopt;
   }
   const int stick = static_cast<int>(geometry.stick_a.axis);
@@ -77,7 +76,7 @@ std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point
   const float high = static_cast<float>(std::max(0, geometry.thickness));
   distance = std::max({low - across, across - high, 0.f});
   const float height = static_cast<float>(direction) * rel[stick];
-  const float length = static_cast<float>(std::abs(geometry.stick_a.length));
+  const float length = static_cast<float>(std::max(std::abs(geometry.stick_a.length), std::abs(geometry.stick_b.length)));
   const bool within = distance <= kPickSlackCells && along >= -kPickSlackCells &&
                       along <= static_cast<float>(steps) + kPickSlackCells && height >= -kPickSlackCells &&
                       height <= length + kPickSlackCells;
@@ -132,7 +131,6 @@ std::optional<AimedOpening> AimOpening(
   if (!hit) {
     return std::nullopt;
   }
-  const int length = std::abs(hit->wall->geometry.stick_a.length);
   const int width = std::clamp(tool.opening_width, 1, hit->steps);
   const int last_offset = std::max(kMinSideSteps, hit->steps - width - kMinSideSteps);
   WallOpening opening {
@@ -141,6 +139,10 @@ std::optional<AimedOpening> AimOpening(
       .offset = std::clamp(static_cast<int>(std::lround(hit->along - (static_cast<float>(width) / 2.f))),
                            kMinSideSteps, last_offset),
       .width = width};
+  const auto& geometry = hit->wall->geometry;
+  const int length = std::min(
+      z13::building::primitives::WallHeightAt(geometry, hit->steps, opening.offset),
+      z13::building::primitives::WallHeightAt(geometry, hit->steps, opening.offset + width));
   const int headroom = std::max(1, length - kMinLintelCells);
   if (tool.opening_kind == OpeningKind::kDoor) {
     opening.height = std::clamp(tuning.opening_door_height_cells, 1, headroom);

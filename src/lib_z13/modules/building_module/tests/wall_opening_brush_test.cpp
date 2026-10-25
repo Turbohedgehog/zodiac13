@@ -59,14 +59,14 @@ const Eigen::Vector3i kTo {8, 4, 0};
 constexpr int kAimedStep = 4;
 constexpr int kDefaultWidth = 4;
 
-void AddWall(Z13TestWorld& test_world) {
+void AddWall(Z13TestWorld& test_world, int far_stick_length = kStickLength) {
   flecs::world world = test_world.World();
   auto& counters = world.get_mut<z13::gameplay::IdCounters>();
   const uint32_t a = SpawnWallNode(world, counters, kFrom).get<WallNode>().id;
   const uint32_t b = SpawnWallNode(world, counters, kTo).get<WallNode>().id;
   SpawnWallSegment(world, counters,
                    {.node_a = a, .node_b = b, .stick_a = {WallAxis::kZ, kStickLength},
-                    .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness});
+                    .stick_b = {WallAxis::kZ, far_stick_length}, .thickness = kThickness});
 }
 
 flecs::entity OpeningBuilder(Z13TestWorld& test_world, OpeningKind kind = OpeningKind::kDoor) {
@@ -118,6 +118,20 @@ TEST(WallOpeningBrushTest, AClickCutsADoorCentredOnTheAimAndLeavesWallAbove) {
   EXPECT_EQ(openings.front().offset, kAimedStep - kDefaultWidth / 2);
   EXPECT_EQ(openings.front().sill, 0);
   EXPECT_LT(openings.front().height, kStickLength);
+  EXPECT_EQ(PanelCount(test_world.World()), 4u);
+}
+
+TEST(WallOpeningBrushTest, ADoorInATrapezoidStaysUnderTheLowerSideOfItsCut) {
+  constexpr int kFarStick = 5;
+  Z13TestWorld test_world = StationWorld();
+  AddWall(test_world, kFarStick);
+  const flecs::entity builder = OpeningBuilder(test_world);
+
+  Click(test_world, builder);
+
+  const std::vector<WallOpening> openings = Openings(test_world.World());
+  ASSERT_EQ(openings.size(), 1u);
+  EXPECT_LE(openings.front().height, kFarStick) << "a default door of 8 would reach the wall's top";
   EXPECT_EQ(PanelCount(test_world.World()), 4u);
 }
 

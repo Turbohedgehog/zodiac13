@@ -36,10 +36,14 @@ inline constexpr int kMinLintelCells = 1;
 // step ends on whole cells. Zero where the nodes coincide in the plane.
 int WallSteps(const WallGeometry& wall);
 
+// The wall's height at a step, in whole cells: the sticks' lengths interpolated and rounded, so
+// neighbouring stretches meet at the same height, and a trapezoid's top is a broken line.
+int WallHeightAt(const WallGeometry& wall, int steps, int step);
+
 // The wall's panels around its openings: the wall beside, above and (under a window) below each,
 // and a pane of glass in a window; the seams at the ends go to the first and last. An error for
-// a bent or trapezoid wall, openings that overlap or leave less than a step of wall at an end or
-// a cell above them, or a door with a sill.
+// a bent wall, openings that overlap or leave less than a step of wall at an end or a cell above
+// them (at either side of the opening), or a door with a sill.
 std::expected<std::vector<z13::station::Block>, std::string> OpeningPanels(
     const WallGeometry& wall, const WallEnds& ends, std::span<const z13::station::WallOpening> openings,
     const Palette& palette);
