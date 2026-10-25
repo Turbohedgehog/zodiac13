@@ -22,8 +22,6 @@
 #include <string_view>
 #include <vector>
 
-#include <Eigen/Dense>
-
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
@@ -38,6 +36,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include "hint_classes.h"
+#include "player_positions.h"
 
 namespace z13::net {
 
@@ -52,38 +51,18 @@ std::optional<std::string_view> HintClassOf(const z13::input::ActionMap& action_
   return info == by_id.end() ? std::nullopt : info->hint_class;
 }
 
-// Where the players stand, read when a distance filter asks.
-class PlayerPositions {
- public:
-  explicit PlayerPositions(flecs::world world) : world_(world) {}
-
-  std::optional<Eigen::Vector3f> Of(uint32_t player_id) {
-    if (!positions_) {
-      positions_.emplace();
-      world_.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>().build().each(
-          [this](const z13::gameplay::Player& player, const Eigen::Matrix4f& transform) {
-            positions_->insert_or_assign(player.id, Eigen::Vector3f(transform.block<3, 1>(0, 3)));
-          });
-    }
-    const auto found = positions_->find(player_id);
-    return found == positions_->end() ? std::nullopt : std::optional(found->second);
-  }
-
- private:
-  flecs::world world_;
-  std::optional<std::map<uint32_t, Eigen::Vector3f>> positions_;
-};
-
-bool Reaches(const HintClassTuning& tuning, PlayerPositions& positions, uint32_t subject, uint32_t recipient) {
+bool Reaches(const HintClassTuning& tuning, flecs::world world, uint32_t subject, uint32_t recipient) {
   switch (tuning.filter) {
     case fbn::HintFilter::None:
       return false;
     case fbn::HintFilter::All:
       return true;
     case fbn::HintFilter::Distance: {
-      const auto from = positions.Of(subject);
-      const auto to = positions.Of(recipient);
-      return from && to && (*from - *to).norm() <= tuning.radius_m;
+      const auto& by_player = CurrentPlayerPositions(world).by_player;
+      const auto from = by_player.find(subject);
+      const auto to = by_player.find(recipient);
+      return from != by_player.end() && to != by_player.end() &&
+          (from->second - to->second).norm() <= tuning.radius_m;
     }
   }
   return false;
@@ -133,13 +112,14 @@ void SendOwnHints(
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<SentActionHints, ReceivedHintTicks>(world);
+  z13::flecs_tools::RegisterComponents<SentActionHints, ReceivedHintTicks, PlayerPositions>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<SentActionHints>({});
   world.set<ReceivedHintTicks>({});
+  world.set<PlayerPositions>({});
   world.system<
       NetSession, const ft::SimulationClock, const z13::gameplay::LocalPlayer, SentActionHints,
       const z13::gameplay::LastRecordedActionValues, const z13::input::ActionMap, const z13::NetTuning>(
@@ -190,7 +170,6 @@ void RelayActionHints(
       by_class.try_emplace(*hint_class, empty).first->second.hints.push_back(hint);
     }
   }
-  PlayerPositions positions(world);
   const auto recipients = session.PlayerConnections();
   for (const auto& [name, part] : by_class) {
     const auto hint_class = FindHintClass(tuning, name);
@@ -200,7 +179,7 @@ void RelayActionHints(
     const std::vector<uint8_t> bytes = EncodeRelayedHints(part);
     for (const auto& [connection, player_id] : recipients) {
       if (connection != except && player_id != packet.player_id &&
-          Reaches(*hint_class, positions, packet.player_id, player_id)) {
+          Reaches(*hint_class, world, packet.player_id, player_id)) {
         session.SendBytes(connection, Channel::kHints, bytes);
       }
     }

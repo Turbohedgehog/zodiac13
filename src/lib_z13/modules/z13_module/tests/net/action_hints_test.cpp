@@ -43,6 +43,7 @@
 
 #include "../../../net_module/src/action_hints.h"
 #include "../../../net_module/src/hint_packet.h"
+#include "../../../net_module/src/player_positions.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"
 
@@ -71,6 +72,7 @@ constexpr float kStillEpsilon = 1e-4f;
 // A player spawns kSpawnSpacing (3 m) from the next, and the radius setting is at least 1 m.
 constexpr double kNearbyRadiusM = 30.;
 constexpr double kFarRadiusM = 1.;
+constexpr float kMovedM = 5.f;
 
 bool IsConnected(Z13TestWorld& world) {
   return world.World().has<z13::gameplay::Gameplay>() &&
@@ -254,6 +256,22 @@ TEST(ActionHintsTest, TheServerRelaysOnlyHintActionsAndNoRepeat) {
     session.Tick();
   }
   EXPECT_FLOAT_EQ(session.B().World().get<z13::gameplay::ActionHints>().by_action.at({session.AId(), look}).back().value, 45.f);
+}
+
+TEST(ActionHintsTest, PlayerPositionsAreReadOncePerTick) {
+  HintedSession session(HintFilter::Distance, kNearbyRadiusM);
+  ASSERT_TRUE(session.Connected());
+  flecs::world server = session.Server().World();
+  const flecs::entity player = server.lookup(z13::gameplay::PlayerEntityName(session.AId()).c_str());
+  ASSERT_TRUE(player);
+  const auto position_of_a = [&] { return CurrentPlayerPositions(server).by_player.at(session.AId()); };
+  const Eigen::Vector3f before = position_of_a();
+
+  player.get_mut<Eigen::Matrix4f>()(0, 3) += kMovedM;
+  EXPECT_EQ(position_of_a(), before) << "the world was read again within the tick";
+
+  session.Tick();
+  EXPECT_EQ(position_of_a(), Eigen::Vector3f(player.get<Eigen::Matrix4f>().block<3, 1>(0, 3)));
 }
 
 TEST(ActionHintsTest, AHintStandsInOnlyUntilTheConfirmedCommandsReachItsTick) {

@@ -42,6 +42,7 @@ z13_add_plugin(
   src/net_session.cpp
   src/net_session_system.cpp
   src/network_interfaces.cpp
+  src/player_positions.cpp
   src/protocol.cpp
   src/remote_input.cpp
   src/reply_limiter.cpp
