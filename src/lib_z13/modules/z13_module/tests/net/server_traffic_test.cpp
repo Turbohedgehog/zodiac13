@@ -28,7 +28,6 @@
 #include "../../../net_module/src/net_session.h"
 #include "../support/load_session.h"
 
-// The counters of what a session sends (docs/network-scaling-plan.md, f/net-load-metrics).
 namespace z13::net {
 namespace {
 
