@@ -89,6 +89,10 @@ bool Reaches(const HintClassTuning& tuning, PlayerPositions& positions, uint32_t
   return false;
 }
 
+bool IsDue(const std::optional<HintClassTuning>& hint_class, uint64_t tick) {
+  return hint_class && hint_class->filter != fbn::HintFilter::None && tick % hint_class->interval_ticks == 0;
+}
+
 void SendOwnHints(
     flecs::iter& it, size_t, NetSession& session, const ft::SimulationClock& clock,
     const z13::gameplay::LocalPlayer& local_player, SentActionHints& sent,
@@ -103,10 +107,8 @@ void SendOwnHints(
     if (!info.hint_class || info.id > std::numeric_limits<uint16_t>::max()) {
       continue;
     }
-    const auto hint_class = FindHintClass(tuning, *info.hint_class);
     const auto value = last_recorded.values.find(info.id);
-    if (!hint_class || hint_class->filter == fbn::HintFilter::None || clock.tick % hint_class->interval_ticks != 0 ||
-        value == last_recorded.values.end()) {
+    if (!IsDue(FindHintClass(tuning, *info.hint_class), clock.tick) || value == last_recorded.values.end()) {
       continue;
     }
     SentActionHint& was = sent.by_action[info.id];
