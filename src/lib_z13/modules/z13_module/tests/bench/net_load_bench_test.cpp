@@ -33,6 +33,7 @@
 
 #include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/system_times.h>
 
 #include <z13_settings/settings.h>
@@ -138,6 +139,36 @@ TEST(NetLoadBench, DISABLED_ServerLoadByClientCount) {
         "        server: {} rollbacks, {} ticks replayed; ms/tick by system:{}\n",
         after.rollbacks.rollbacks - before.rollbacks.rollbacks,
         after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks, TopSystems(before.systems, after.systems));
+  }
+}
+
+TEST(NetLoadBench, DISABLED_RollbackCostByClientCount) {
+  constexpr int kRepeats = 50;
+  std::cout << "clients | capture ms | restore ms | state entities\n";
+  for (const int clients : kClientCounts) {
+    LoadSession session(static_cast<size_t>(clients));
+    ASSERT_TRUE(session.Connect(kConnectTicks)) << clients << " clients didn't connect";
+    for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+      session.Tick();
+    }
+    flecs::world server = session.Server().World();
+    const auto snapshot = z13::flecs_tools::CaptureState(server);
+    ASSERT_TRUE(snapshot.has_value());
+    const auto start = std::chrono::steady_clock::now();
+    for (int repeat = 0; repeat < kRepeats; ++repeat) {
+      ASSERT_TRUE(z13::flecs_tools::CaptureState(server).has_value());
+    }
+    const auto captured = std::chrono::steady_clock::now();
+    for (int repeat = 0; repeat < kRepeats; ++repeat) {
+      ASSERT_TRUE(z13::flecs_tools::RestoreWorld(server, *snapshot).has_value());
+    }
+    const auto restored = std::chrono::steady_clock::now();
+    const auto per_repeat = [](auto from, auto to) {
+      return std::chrono::duration<double, std::milli>(to - from).count() / kRepeats;
+    };
+    std::cout << std::format(
+        "{:7} | {:10.2f} | {:10.2f} | {}\n", clients, per_repeat(start, captured), per_repeat(captured, restored),
+        snapshot->entities.size());
   }
 }
 
