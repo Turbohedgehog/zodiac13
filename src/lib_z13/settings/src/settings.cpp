@@ -177,6 +177,11 @@ Status ValidateSettings(const Settings& settings) {
     return Invalid("net.max_late_ticks", "plus net.max_schedule_ahead_ticks must fit a command's 8-bit tick delta");
   }
 
+  // Commands made at the lead arrive ahead of the server's tick, and the server takes no further than this.
+  if (settings.net->clock_lead_ticks >= settings.net->max_schedule_ahead_ticks) {
+    return Invalid("net.clock_lead_ticks", "must be below net.max_schedule_ahead_ticks");
+  }
+
   // A rollback for the oldest accepted command needs a snapshot at least that old.
   const CoreSettings& core = *settings.core;
   const double needed_seconds =
