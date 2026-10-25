@@ -26,7 +26,6 @@
 
 namespace z13::net {
 
-// Where each player stands, for the hint distance filter.
 struct PlayerPositions {
   using Singleton = void;
   using SessionScoped = void;
