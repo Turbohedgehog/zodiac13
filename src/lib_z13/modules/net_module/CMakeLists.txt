@@ -47,6 +47,7 @@ z13_add_plugin(
   src/remote_input.cpp
   src/reply_limiter.cpp
   src/scheduled_commands.cpp
+  src/sector_system.cpp
   src/sent_traffic.cpp
   src/server_finder.cpp
   src/server_session.cpp
@@ -61,6 +62,7 @@ z13_add_plugin(
   zodiac13::core
   zodiac13::components
   zodiac13::primitives
+  zodiac13::sectors
   zodiac13::z13_module
   unofficial::enet::enet
   $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
