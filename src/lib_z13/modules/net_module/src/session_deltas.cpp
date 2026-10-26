@@ -34,6 +34,7 @@
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>
 
+#include "interest_deltas.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -73,6 +74,14 @@ void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
     ApplyPlayerJoined(world, *joined);
   } else if (const auto* left = std::get_if<fbn::PlayerLeftT>(&delta)) {
     ApplyPlayerLeft(world, *left);
+  } else if (const auto* entered = std::get_if<fbn::EntityEnteredT>(&delta)) {
+    ApplyEntityEntered(world, *entered);
+  } else if (const auto* gone = std::get_if<fbn::EntityLeftT>(&delta)) {
+    ApplyEntityLeft(world, *gone);
+  } else if (const auto* sector_entered = std::get_if<fbn::SectorEnteredT>(&delta)) {
+    ApplySectorEntered(world, *sector_entered);
+  } else if (const auto* sector_left = std::get_if<fbn::SectorLeftT>(&delta)) {
+    ApplySectorLeft(world, *sector_left);
   }
 }
 

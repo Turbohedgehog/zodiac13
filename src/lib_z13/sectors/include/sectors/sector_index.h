@@ -56,6 +56,8 @@ class SectorIndex {
   std::span<const SectorMember> MembersIn(const SectorKey& sector) const;
   std::optional<SectorKey> Locate(SectorMember member) const;
   std::vector<uint64_t> IdsOf(MemberKind kind) const;
+  // The sectors holding any member, in no particular order.
+  std::vector<SectorKey> Occupied() const;
   size_t Count(MemberKind kind) const { return where_[static_cast<size_t>(kind)].size(); }
 
  private:

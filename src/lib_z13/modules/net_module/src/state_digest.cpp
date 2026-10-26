@@ -129,6 +129,34 @@ std::string DescribeMismatch(const fbn::StateDigestT& local, const fbn::StateDig
   return description;
 }
 
+std::optional<uint64_t> HashOfSector(const fbn::StateDigestT& digest, const sectors::SectorKey& sector) {
+  const auto found = std::ranges::find_if(digest.sector_hashes, [&](const fbn::SectorHashWire& entry) {
+    return entry.x() == sector.x() && entry.y() == sector.y() && entry.z() == sector.z();
+  });
+  return found == digest.sector_hashes.end() ? std::nullopt : std::optional(found->hash());
+}
+
+// A client with interest events holds part of the world: it checks the sectors it shows, not the rest.
+bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDigestT& local,
+                      const fbn::StateDigestT& remote) {
+  const auto center = world.get<sectors::SectorIndex>().Locate({.kind = sectors::MemberKind::kPlayer, .id = local_id});
+  if (!center) {
+    return true;
+  }
+  const int radius = world.get<NetTuning>().interest_radius_sectors;
+  for (int dx = -radius; dx <= radius; ++dx) {
+    for (int dy = -radius; dy <= radius; ++dy) {
+      for (int dz = -radius; dz <= radius; ++dz) {
+        const sectors::SectorKey sector = *center + sectors::SectorKey(dx, dy, dz);
+        if (HashOfSector(local, sector) != HashOfSector(remote, sector)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
@@ -215,7 +243,10 @@ std::optional<DigestMismatch> CheckReceivedStateDigests(flecs::world world, Stat
       return true;
     }
     ++digests.checked;
-    if (!mismatch && !DigestsMatch(local->second, remote)) {
+    const bool matches = world.get<NetTuning>().interest_events
+        ? InnerRingMatches(world, *local_id, local->second, remote)
+        : DigestsMatch(local->second, remote);
+    if (!mismatch && !matches) {
       mismatch = DigestMismatch {.tick = remote.tick, .description = DescribeMismatch(local->second, remote)};
     } else if (!mismatch) {
       log_debug("NetSession(client): state digest at tick {} matches", remote.tick);

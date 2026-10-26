@@ -235,6 +235,10 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       },
       [&](const fbn::PlayerJoinedT& joined) { queue_session_delta(joined); },
       [&](const fbn::PlayerLeftT& left) { queue_session_delta(left); },
+      [&](const fbn::EntityEnteredT& entered) { queue_session_delta(entered); },
+      [&](const fbn::EntityLeftT& left) { queue_session_delta(left); },
+      [&](const fbn::SectorEnteredT& entered) { queue_session_delta(entered); },
+      [&](const fbn::SectorLeftT& left) { queue_session_delta(left); },
       [world, welcomed](const fbn::ResyncT& resync) {
         if (welcomed) {
           HandleResync(world, resync);

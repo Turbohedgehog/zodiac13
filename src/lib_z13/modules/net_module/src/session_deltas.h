@@ -34,7 +34,9 @@
 
 namespace z13::net {
 
-using SessionDelta = std::variant<fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT>;
+using SessionDelta = std::variant<
+    fbs::net::PlayerJoinedT, fbs::net::PlayerLeftT, fbs::net::EntityEnteredT, fbs::net::EntityLeftT,
+    fbs::net::SectorEnteredT, fbs::net::SectorLeftT>;
 
 struct ScheduledSessionDelta {
   uint64_t apply_tick {};
