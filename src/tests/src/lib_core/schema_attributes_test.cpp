@@ -281,6 +281,45 @@ TEST(SchemaCliTest, SetsNestedNumericFieldsFromText) {
   EXPECT_EQ(result.net->clock_catch_up_threshold_ticks, -3);
 }
 
+TEST(SchemaCliTest, SetsABoolFieldFromTrueAndFalse) {
+  Settings settings = MakeSettings();
+  auto packed = Pack(settings);
+  auto* table = flatbuffers::GetMutableRoot<flatbuffers::Table>(packed.GetBufferPointer());
+  const reflection::Object& root = *Schema().root_table();
+
+  ASSERT_TRUE(schema::SetFieldFromText(Schema(), root, *table, "net.interest_events", "true").has_value());
+  Settings turned_on;
+  fbs::settings::GetSettings(packed.GetBufferPointer())->UnPackTo(&turned_on);
+  EXPECT_TRUE(turned_on.net->interest_events);
+
+  ASSERT_TRUE(schema::SetFieldFromText(Schema(), root, *table, "net.interest_events", "false").has_value());
+  Settings turned_off;
+  fbs::settings::GetSettings(packed.GetBufferPointer())->UnPackTo(&turned_off);
+  EXPECT_FALSE(turned_off.net->interest_events);
+  EXPECT_FALSE(schema::SetFieldFromText(Schema(), root, *table, "net.interest_events", "yes").has_value());
+}
+
+TEST(SchemaCliTest, ABoolOptionIsAFlagWithoutAValue) {
+  const auto options = schema::CollectCliOptions(Schema(), *Schema().root_table());
+  ASSERT_TRUE(options.has_value()) << options.error();
+  const schema::CliOption* events = Find(*options, "net.interest_events");
+  ASSERT_NE(events, nullptr);
+  EXPECT_TRUE(events->flag);
+  EXPECT_NE(events->help.find("default false"), std::string::npos) << events->help;
+
+  const auto on = ApplyArguments({"--interest-events"}, MakeSettings());
+  ASSERT_TRUE(on.has_value()) << on.error();
+  EXPECT_TRUE(on->net->interest_events);
+
+  Settings base = MakeSettings();
+  base.net->interest_events = true;
+  const auto off = ApplyArguments({"--interest-events=false"}, base);
+  ASSERT_TRUE(off.has_value()) << off.error();
+  EXPECT_FALSE(off->net->interest_events);
+
+  EXPECT_FALSE(ApplyArguments({"--interest-events=maybe"}, MakeSettings()).has_value());
+}
+
 TEST(SchemaCliTest, RejectsWhatCannotBeWritten) {
   Settings settings = MakeSettings();
   auto packed = Pack(settings);

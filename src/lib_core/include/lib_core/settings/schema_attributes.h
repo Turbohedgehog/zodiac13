@@ -33,6 +33,7 @@
 //   (non_empty)          a string field that must hold some text, checked by ValidateRanges;
 //   (cli)                a command-line option named after the field (max_late_ticks -> --max-late-ticks);
 //   (cli: "-f,--fps")    explicit names, like argparse: one long form and an optional one-letter short form;
+//                        on a bool field it is a flag: `--x` alone is true, `--x=false` turns it off;
 //   (default_android: "0") the field's default on that platform, set by ApplyPlatformDefaults.
 // Nested tables are walked recursively; a field is addressed by its dotted path ("net.max_late_ticks").
 namespace z13::schema {
@@ -40,6 +41,8 @@ namespace z13::schema {
 inline constexpr std::string_view kMinAttribute = "min";
 inline constexpr std::string_view kMaxAttribute = "max";
 inline constexpr std::string_view kCliAttribute = "cli";
+inline constexpr std::string_view kBoolTrueText = "true";
+inline constexpr std::string_view kBoolFalseText = "false";
 inline constexpr std::string_view kNonEmptyAttribute = "non_empty";
 inline constexpr std::string_view kPlatformDefaultPrefix = "default_";
 
@@ -51,12 +54,13 @@ struct CliOption {
   std::optional<char> short_name;
   std::string path;
   std::string help;
+  bool flag {};  // a bool field: the option may come without a value
 };
 
 std::expected<std::vector<CliOption>, std::string> CollectCliOptions(
     const reflection::Schema& schema, const reflection::Object& root);
 
-// Writes `text` into the numeric field at `path`. The field must be present in the buffer
+// Writes `text` into the numeric or bool (true/false) field at `path`. The field must be present in the buffer
 // (build it with ForceDefaults), since a scalar equal to its default is otherwise omitted.
 Status SetFieldFromText(
     const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,

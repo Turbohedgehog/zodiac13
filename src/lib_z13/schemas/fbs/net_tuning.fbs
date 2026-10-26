@@ -53,7 +53,7 @@ table NetTuning {
   interest_margin_sectors: int32 = 1 (min: 0, max: 4, cli);
   // Tells each client of the players and sectors that enter or leave its interest and checks its digests in the inner
   // ring only, while commands still go to everyone (docs/interest-design.md); on for good with the filtering.
-  interest_events: bool = false;
+  interest_events: bool = false (cli);
 
   // The hint class "look" (the angles of a player's view): sent every this many ticks.
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);
