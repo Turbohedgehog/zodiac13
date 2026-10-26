@@ -102,6 +102,12 @@ std::span<const ClientId> InterestMap::SubscribersOf(const SectorKey& sector) co
   return found == subscribers_.end() ? std::span<const ClientId> {} : std::span<const ClientId> {found->second};
 }
 
+std::vector<SectorKey> InterestMap::SectorsOf(ClientId client) const {
+  const auto found = zones_.find(client);
+  return found == zones_.end() ? std::vector<SectorKey> {}
+                               : std::vector<SectorKey> {found->second.sectors.begin(), found->second.sectors.end()};
+}
+
 std::vector<ClientId> InterestMap::Clients() const {
   std::vector<ClientId> clients;
   clients.reserve(zones_.size());

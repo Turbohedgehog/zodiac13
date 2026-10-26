@@ -65,6 +65,8 @@ class InterestMap {
   // In no particular order.
   std::span<const ClientId> SubscribersOf(const SectorKey& sector) const;
   std::vector<ClientId> Clients() const;
+  // The sectors the client is subscribed to, in no particular order.
+  std::vector<SectorKey> SectorsOf(ClientId client) const;
   size_t SectorCount(ClientId client) const;
 
  private:

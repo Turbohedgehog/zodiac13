@@ -1,0 +1,51 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+
+#include <flecs.h>
+
+#include <sectors/interest_map.h>
+#include <sectors/sector.h>
+
+#include "net_session.h"
+
+namespace z13::net {
+
+// What the server has told one client about: the sectors whose blocks it holds and the players
+// it has (docs/interest-design.md). Starts as the whole world, which is what a Welcome or Resync gives.
+struct ClientKnowledge {
+  using SectorSet = std::unordered_set<sectors::SectorKey, sectors::SectorHash>;
+  SectorSet sectors;
+  SectorSet presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
+  std::unordered_set<uint32_t> players;
+};
+
+struct InterestKnowledge {
+  using Singleton = void;
+  using SessionScoped = void;
+  std::unordered_map<sectors::ClientId, ClientKnowledge> by_client;
+};
+
+// Sends every client the sectors and players that entered or left its interest since the last
+// call, to apply at the next tick.
+void SendInterestEvents(flecs::world world);
+
+}  // namespace z13::net

@@ -33,6 +33,7 @@
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
+#include "interest_events.h"
 #include "player_positions.h"
 #include "sector_system.h"
 
@@ -49,7 +50,7 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<InterestMap, InterestMetrics>(world);
+  z13::flecs_tools::RegisterComponents<InterestMap, InterestMetrics, InterestKnowledge>(world);
 }
 
 void UpdateInterest(
@@ -73,12 +74,16 @@ void UpdateInterest(
 void RegisterSystems(flecs::world world) {
   world.set(InterestMap {});
   world.set(InterestMetrics {});
+  world.set(InterestKnowledge {});
   world.system<const NetSession, InterestMap, const sectors::SectorIndex, const z13::NetTuning>(
           "InterestSystem::Update")
       .kind<InterestPhase>()
       .with<z13::net::ServerRole>()
-      .each([](const NetSession& session, InterestMap& map, const sectors::SectorIndex& index,
-               const z13::NetTuning& tuning) { UpdateInterest(session, map, index, tuning); });
+      .each([](flecs::iter& it, size_t, const NetSession& session, InterestMap& map, const sectors::SectorIndex& index,
+               const z13::NetTuning& tuning) {
+        UpdateInterest(session, map, index, tuning);
+        SendInterestEvents(it.world());
+      });
 }
 
 }  // namespace

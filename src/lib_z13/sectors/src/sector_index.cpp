@@ -63,6 +63,15 @@ std::span<const SectorMember> SectorIndex::MembersIn(const SectorKey& sector) co
   return held == members_.end() ? std::span<const SectorMember> {} : std::span<const SectorMember> {held->second};
 }
 
+std::vector<SectorKey> SectorIndex::Occupied() const {
+  std::vector<SectorKey> sectors;
+  sectors.reserve(members_.size());
+  for (const auto& [sector, held] : members_) {
+    sectors.push_back(sector);
+  }
+  return sectors;
+}
+
 std::optional<SectorKey> SectorIndex::Locate(SectorMember member) const {
   const auto& where = where_[static_cast<size_t>(member.kind)];
   const auto placed = where.find(member.id);

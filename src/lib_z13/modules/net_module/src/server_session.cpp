@@ -45,6 +45,7 @@
 
 #include "action_hints.h"
 #include "catch_up.h"
+#include "interest_events.h"
 #include "interest_system.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
@@ -195,6 +196,8 @@ Status HandleResyncRequest(
   if (!catch_up) {
     return std::unexpected(catch_up.error());
   }
+  // A Resync carries the whole world again.
+  world.get_mut<InterestKnowledge>().by_client.erase(*player_id);
   fbn::ResyncT resync;
   resync.catch_up = std::move(*catch_up);
 

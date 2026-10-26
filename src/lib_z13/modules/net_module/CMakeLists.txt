@@ -37,6 +37,8 @@ z13_add_plugin(
   src/in_memory_transport.cpp
   src/lan_discovery_system.cpp
   src/net_action_sender.cpp
+  src/interest_deltas.cpp
+  src/interest_events.cpp
   src/interest_system.cpp
   src/net_module.cpp
   src/net_module_factory.cpp

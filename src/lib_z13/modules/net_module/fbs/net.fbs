@@ -150,6 +150,35 @@ table PlayerLeft {
   player_id: uint;
 }
 
+// The interest events (docs/interest-design.md) are sent to one client, apply_tick like PlayerJoined's.
+// A player comes into the client's presence: the state is the snapshot's, so the client rolls back
+// to apply_tick and replays.
+table EntityEntered {
+  apply_tick: ulong;
+  entity_state: z13.fbs.state.WorldSnapshot;  // the player's entity only
+}
+
+table EntityLeft {
+  apply_tick: ulong;
+  player_id: uint;
+}
+
+// The sector's blocks replace the client's own.
+table SectorEntered {
+  apply_tick: ulong;
+  sector_x: int;
+  sector_y: int;
+  sector_z: int;
+  blocks: z13.fbs.state.WorldSnapshot;
+}
+
+table SectorLeft {
+  apply_tick: ulong;
+  sector_x: int;
+  sector_y: int;
+  sector_z: int;
+}
+
 table SequencedCommands {
   player_id: uint;
   base_tick: ulong;  // already apply_tick
@@ -182,6 +211,7 @@ table StateDigest {
 union MessageBody {
   ClientHello, CommandBatch, ResyncRequest, Ping, Pong,
   Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest, CommandsRetimed,
+  EntityEntered, EntityLeft, SectorEntered, SectorLeft,
 }
 
 table MessageEnvelope {
