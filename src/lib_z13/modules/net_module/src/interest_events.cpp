@@ -207,6 +207,24 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
 
 }  // namespace
 
+void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
+                   std::optional<ConnectionId> except) {
+  if (!world.get<z13::NetTuning>().interest_events) {
+    session.Broadcast(Channel::kReliable, envelope, except);
+    return;
+  }
+  const auto& knowledge = world.get<InterestKnowledge>();
+  std::vector<ConnectionId> recipients;
+  for (const auto& [connection, client] : session.PlayerConnections()) {
+    const auto known = knowledge.by_client.find(client);
+    if (connection != except &&
+        (client == player_id || known == knowledge.by_client.end() || known->second.players.contains(player_id))) {
+      recipients.push_back(connection);
+    }
+  }
+  session.Multicast(Channel::kReliable, envelope, recipients);
+}
+
 void SendInterestEvents(flecs::world world) {
   if (!world.get<z13::NetTuning>().interest_events) {
     return;

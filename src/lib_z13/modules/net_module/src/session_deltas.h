@@ -53,8 +53,9 @@ struct ScheduledSessionDeltas {
   std::vector<ScheduledSessionDelta> history;
 };
 
+// The delta is sent to the clients that have `player_id` (SendToKnowing).
 void ScheduleSessionDelta(
-    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta,
+    NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta, uint32_t player_id,
     std::optional<Eigen::Vector3f> spawn_position = std::nullopt);
 Status SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id);
 // Deltas apply before same-tick commands, so the leave waits past the player's last one.
