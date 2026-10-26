@@ -33,6 +33,7 @@
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
+#include "catch_up.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -120,6 +121,10 @@ bool SendEntityEntered(const EventSender& sender, uint32_t player_id) {
   fbn::EntityEnteredT entered;
   entered.apply_tick = sender.apply_tick;
   entered.entity_state = ToWire(*state);
+  const PlayerInput input = InputOf(sender.world, player_id, sender.apply_tick - 1);
+  entered.held_values = ToWire(input.held_values);
+  entered.pending = ToWire(input.pending);
+  entered.input_through = ToWire(input.confirmed.by_player);
   sender.Send(std::move(entered));
   return true;
 }

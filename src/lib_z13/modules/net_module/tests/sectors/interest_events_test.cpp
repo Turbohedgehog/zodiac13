@@ -42,6 +42,7 @@
 #include "../../../station_module/tests/support/room_blocks.h"
 #include "../../../z13_module/tests/support/load_session.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
+#include "../../src/catch_up.h"
 #include "../../src/interest_deltas.h"
 #include "../../src/interest_events.h"
 #include "../../src/session_deltas.h"
@@ -144,7 +145,8 @@ constexpr uint64_t kSettleTicks = 30;
 class InterestEventsTest : public ::testing::Test {
  protected:
   InterestEventsTest()
-      : session_(2, {.walk = false, .look = false}, [](z13::Settings& settings) { settings.net->interest_events = true; }) {}
+      : session_(2, {.walk = true, .look = false},
+                 [](z13::Settings& settings) { settings.net->interest_events = true; }) {}
 
   void SetUp() override {
     ASSERT_TRUE(session_.Connect(kConnectTicks));
@@ -176,13 +178,49 @@ TEST_F(InterestEventsTest, APlayerWhoWalksOutOfReachIsRemovedFromTheOtherClient)
   const uint32_t gone = PlayerOf(session_.Client(1));
   const flecs::entity player = session_.Server().World().lookup(z13::gameplay::PlayerEntityName(gone).c_str());
   ASSERT_TRUE(player.is_valid());
-  const float far_meters = static_cast<float>(kFarSector * session_.Server().World().get<z13::NetTuning>().sector_size_cells) *
-                           z13::station::kCellSize;
+  const int sector_cells = session_.Server().World().get<z13::NetTuning>().sector_size_cells;
+  const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
 
   player.set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
   Run(kSettleTicks);
 
   EXPECT_TRUE(Received<fbs::net::EntityLeftT>(session_.Client(0), [gone](const auto& e) { return e.player_id == gone; }));
+}
+
+TEST_F(InterestEventsTest, APlayerEnteringAClientsPresenceBringsItsHeldInput) {
+  const uint32_t walker = PlayerOf(session_.Client(1));
+  const flecs::entity player = session_.Server().World().lookup(z13::gameplay::PlayerEntityName(walker).c_str());
+  const flecs::entity watcher = session_.Server().World().lookup(
+      z13::gameplay::PlayerEntityName(PlayerOf(session_.Client(0))).c_str());
+  ASSERT_TRUE(player.is_valid() && watcher.is_valid());
+  const int sector_cells = session_.Server().World().get<z13::NetTuning>().sector_size_cells;
+  const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
+  player.set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+  Run(kSettleTicks);
+
+  player.set(watcher.get<Eigen::Matrix4f>());
+  Run(kSettleTicks);
+
+  EXPECT_TRUE(Received<fbs::net::EntityEnteredT>(session_.Client(0), [walker](const auto& e) {
+    return !e.held_values.empty() && e.held_values.front().player_id() == walker;
+  }));
+}
+
+TEST(InterestDeltasTest, MergingAPlayersInputTwiceAddsItOnce) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const z13::gameplay::PlayerActionRecord held {.tick = 3, .player_id = kEntityPlayer, .action_id = 1, .value = 1.f};
+  const z13::gameplay::PlayerActionRecord later {.tick = 90, .player_id = kEntityPlayer, .action_id = 2, .value = 1.f};
+  const PlayerInput input {.held_values = {held}, .pending = {later}};
+  const auto entries = [&] { return world.World().get<z13::gameplay::PlayerActionLog>().log.Entries().size(); };
+  const auto queued = [&] { return world.World().get<z13::gameplay::ScheduledCommands>().records.size(); };
+  const size_t logged_before = entries();
+
+  MergePlayerInput(world.World(), input);
+  MergePlayerInput(world.World(), input);
+
+  EXPECT_EQ(entries(), logged_before + 1);
+  EXPECT_EQ(queued(), 1u);
 }
 
 }  // namespace
