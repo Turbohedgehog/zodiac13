@@ -34,6 +34,9 @@ namespace z13 {
 
 namespace {
 
+// A client's interest is a cube of (2 * rings + 1)³ sectors: this keeps it from growing into thousands.
+constexpr int kMostInterestSectors = 4;
+
 std::unexpected<std::string> Invalid(std::string_view field, std::string requirement) {
   return std::unexpected(std::format("settings: {} {}", field, requirement));
 }
@@ -187,6 +190,11 @@ Status ValidateSettings(const Settings& settings) {
 
   if (settings.net->sector_size_cells % settings.building->index_chunk_cells != 0) {
     return Invalid("net.sector_size_cells", "must be a multiple of building.index_chunk_cells");
+  }
+
+  if (settings.net->interest_radius_sectors + settings.net->interest_margin_sectors > kMostInterestSectors) {
+    return Invalid("net.interest_radius_sectors",
+                   std::format("plus net.interest_margin_sectors must not exceed {}", kMostInterestSectors));
   }
 
   // A rollback for the oldest accepted command needs a snapshot at least that old.

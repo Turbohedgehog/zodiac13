@@ -6,6 +6,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS
   SOURCES
+  src/interest_map.cpp
   src/sector.cpp
   src/sector_index.cpp
   PUBLIC

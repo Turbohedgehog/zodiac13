@@ -47,6 +47,10 @@ table NetTuning {
 
   // Side of a sector, in cells: a multiple of building.index_chunk_cells, so a sector is whole snapshot chunk groups.
   sector_size_cells: int32 = 64 (min: 1, cli);
+  // How far a client's interest reaches from its sector, in sectors: the inner ring is shown and checked, the margin
+  // around it is simulated too so the inner ring's borders come out as on the server.
+  interest_radius_sectors: int32 = 1 (min: 0, max: 4, cli);
+  interest_margin_sectors: int32 = 1 (min: 0, max: 4, cli);
 
   // The hint class "look" (the angles of a player's view): sent every this many ticks.
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);

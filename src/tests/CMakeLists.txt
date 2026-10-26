@@ -47,6 +47,8 @@ set(
   src/lib_core/tick_pacer_test.cpp
   src/lib_z13/cell_light/cell_light_test.cpp
   src/lib_z13/grid/block_index_test.cpp
+  src/lib_z13/sectors/interest_bench_test.cpp
+  src/lib_z13/sectors/interest_map_test.cpp
   src/lib_z13/sectors/sector_index_test.cpp
   src/lib_z13/sectors/sector_test.cpp
   src/lib_z13/primitives/chunk_mesh_test.cpp
@@ -112,6 +114,7 @@ set(
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/hint_packet_test.cpp
+  ${MODULES_DIR}/net_module/tests/sectors/interest_system_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_system_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp

@@ -45,6 +45,7 @@
 
 #include "action_hints.h"
 #include "catch_up.h"
+#include "interest_system.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
 #include "session_deltas.h"
@@ -305,6 +306,7 @@ void HandleCommandBatch(
   sequenced.through_tick = through_tick;
   Envelope envelope;
   envelope.body.Set(std::move(sequenced));
+  CountRelay(world, session, *player_id);
   session.Broadcast(Channel::kReliable, envelope, connection);
 }
 
