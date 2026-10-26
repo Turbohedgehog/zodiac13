@@ -38,7 +38,6 @@ struct InterestView {
   std::unordered_set<uint32_t> players;
 };
 
-// The subscribed sectors and the ring of one sector around them.
 SectorSet Dilated(const SectorSet& sectors);
 
 // Nothing while the client has no interest yet (its player is not in the sector index).

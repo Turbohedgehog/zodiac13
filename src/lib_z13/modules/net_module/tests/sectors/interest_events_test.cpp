@@ -291,7 +291,8 @@ TEST_F(InterestStillTest, AFilteredSnapshotKeepsTheBlocksOfTheViewOnly) {
   const ft::WorldSnapshot filtered = FilterSnapshot(server, *snapshot, *view);
 
   const auto has = [&filtered](const std::string& name) {
-    return std::ranges::any_of(ft::AllEntities(filtered), [&name](const ft::EntitySnapshot& e) { return e.name == name; });
+    return std::ranges::any_of(
+        ft::AllEntities(filtered), [&name](const ft::EntitySnapshot& e) { return e.name == name; });
   };
   EXPECT_TRUE(has(near_block));
   EXPECT_FALSE(has(far_block));
