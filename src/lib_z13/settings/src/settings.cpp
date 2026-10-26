@@ -197,6 +197,11 @@ Status ValidateSettings(const Settings& settings) {
                    std::format("plus net.interest_margin_sectors must not exceed {}", kMostInterestSectors));
   }
 
+  // A player at the edge of its sector must see what its building reaches.
+  if (settings.net->interest_radius_sectors * settings.net->sector_size_cells < settings.building->wall_pick_reach_cells) {
+    return Invalid("net.interest_radius_sectors", "times net.sector_size_cells must cover building.wall_pick_reach_cells");
+  }
+
   // A rollback for the oldest accepted command needs a snapshot at least that old.
   const CoreSettings& core = *settings.core;
   const double needed_seconds =

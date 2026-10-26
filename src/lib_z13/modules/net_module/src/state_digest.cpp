@@ -33,12 +33,15 @@
 #include <lib_core/utils/log.h>
 #include <lib_profile/profile.h>
 
+#include <sectors/sector_index.h>
 #include <z13/components/player.h>
 #include <z13/components/player_action.h>
 
 #include <net_module/clock_sync.h>
+#include <z13_settings/building_tuning.h>
 
 #include "remote_input.h"
+#include "sector_hash.h"
 #include "server_session.h"
 #include "wire_records.h"
 
@@ -138,6 +141,12 @@ fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSn
   fbn::StateDigestT digest;
   digest.tick = snapshot.tick;
   digest.state_hash = ft::HashSnapshot(snapshot.snapshot);
+  if (world.has<sectors::SectorIndex>() && world.has<z13::BuildingTuning>()) {
+    SectorHashes by_sector = HashBySector(
+        world, snapshot.snapshot, world.get<sectors::SectorIndex>(), world.get<z13::BuildingTuning>().index_chunk_cells);
+    digest.global_hash = by_sector.global;
+    digest.sector_hashes = std::move(by_sector.by_sector);
+  }
   digest.entity_count = static_cast<uint32_t>(names.size());
   digest.name_hash = HashNames(names);
   world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>().build().each(

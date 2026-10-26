@@ -50,6 +50,14 @@ struct PoseWire {
   z: float;
 }
 
+// One sector's share of StateDigest.state_hash's snapshot (docs/interest-design.md).
+struct SectorHashWire {
+  x: int;
+  y: int;
+  z: int;
+  hash: ulong;
+}
+
 // 16 bytes (padded).
 struct PlayerTickWire {
   player_id: uint;
@@ -160,6 +168,9 @@ table StateDigest {
   name_hash: ulong;
   // HashSnapshot of the tick's snapshot: what the digests are compared by.
   state_hash: ulong;
+  // The same snapshot by sector, plus what lies in none; sorted by sector.
+  global_hash: ulong;
+  sector_hashes: [SectorHashWire];
   positions: [PoseWire];
   // Per player, the tick their input is final through (ConfirmedInputTicks): past it, released.
   input_through: [PlayerTickWire];

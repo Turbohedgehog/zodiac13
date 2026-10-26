@@ -115,6 +115,7 @@ set(
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/hint_packet_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/interest_system_test.cpp
+  ${MODULES_DIR}/net_module/tests/sectors/sector_hash_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_system_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp

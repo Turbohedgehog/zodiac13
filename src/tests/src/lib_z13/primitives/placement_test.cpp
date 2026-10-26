@@ -177,6 +177,12 @@ TEST(PlacementTest, ADragSizesATurnedBrushAlongItsOwnAxes) {
   EXPECT_EQ(OccupiedCells(block).extent, Eigen::Vector3i(1, 6, 8));
 }
 
+TEST(PlacementTest, APackedChunkUnpacksToTheSameChunk) {
+  for (const Eigen::Vector3i chunk : {Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(-1, 2, -300), Eigen::Vector3i(5000, -7000, 1)}) {
+    EXPECT_EQ(UnpackChunk(PackChunk(chunk)), chunk);
+  }
+}
+
 TEST(PlacementTest, CellBoxesOverlapOnlyWhenTheyShareACell) {
   const CellBox box {.min = {0, 0, 0}, .extent = {2, 2, 2}};
   EXPECT_TRUE(box.Overlaps({.min = {1, 1, 1}, .extent = {2, 2, 2}}));

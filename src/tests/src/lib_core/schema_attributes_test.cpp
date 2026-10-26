@@ -179,6 +179,16 @@ TEST(SettingsValidationTest, AnInterestTooWideIsRejected) {
   EXPECT_NE(valid.error().find("net.interest_radius_sectors"), std::string::npos) << valid.error();
 }
 
+TEST(SettingsValidationTest, AnInterestThatMissesTheBuildingReachIsRejected) {
+  Settings settings = MakeSettings();
+  settings.net->interest_radius_sectors = 0;
+
+  const auto valid = ValidateSettings(settings);
+
+  ASSERT_FALSE(valid.has_value());
+  EXPECT_NE(valid.error().find("net.interest_radius_sectors"), std::string::npos) << valid.error();
+}
+
 // A schema built at run time, so a bound the game's own schemas never use can be tried.
 class RuntimeSchemaTest : public ::testing::Test {
  protected:

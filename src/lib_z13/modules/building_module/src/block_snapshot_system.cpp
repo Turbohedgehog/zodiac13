@@ -46,10 +46,6 @@ using z13::flecs_tools::MixHash;
 using z13::station::Block;
 using z13::station::SpawnPoint;
 
-constexpr int kChunkAxisBits = 21;
-constexpr int64_t kChunkAxisBias = int64_t {1} << (kChunkAxisBits - 1);
-constexpr uint64_t kChunkAxisMask = (uint64_t {1} << kChunkAxisBits) - 1;
-
 template <typename T>
 uint64_t Combine(uint64_t seed, T value) {
   if constexpr (std::is_same_v<T, float>) {
@@ -102,11 +98,7 @@ void InstallGrouping(flecs::world world) {
 }  // namespace
 
 z13::flecs_tools::SnapshotGroupId BlockSnapshotSystem::GroupIdOf(const Eigen::Vector3i& chunk) {
-  return std::accumulate(
-      chunk.data(), chunk.data() + chunk.size(), z13::flecs_tools::SnapshotGroupId {},
-      [](z13::flecs_tools::SnapshotGroupId id, int axis) {
-        return (id << kChunkAxisBits) | (static_cast<uint64_t>(axis + kChunkAxisBias) & kChunkAxisMask);
-      });
+  return z13::building::primitives::PackChunk(chunk);
 }
 
 void BlockSnapshotSystem::Register(flecs::world& world) {
