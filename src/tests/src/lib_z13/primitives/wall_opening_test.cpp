@@ -194,9 +194,10 @@ WallGeometry Trapezoid(const Eigen::Vector3i& to, int far_length) {
 }
 
 // The pieces of a trapezoid share no cell, and the cells of a column meet without a gap.
-void ExpectPiecesMeet(const WallGeometry& wall, const std::vector<WallOpening>& openings) {
+void ExpectPiecesMeet(
+    const WallGeometry& wall, const std::vector<WallOpening>& openings, const WallEnds& ends = {}) {
   std::set<std::array<int, 3>> seen;
-  for (const Block& block : Panels(wall, openings)) {
+  for (const Block& block : Panels(wall, openings, ends)) {
     for (const auto& cell : CellsOf(block)) {
       EXPECT_TRUE(seen.insert(cell).second) << "a cell in two pieces";
     }
@@ -216,6 +217,18 @@ TEST(WallOpeningTest, ADoorInATrapezoidKeepsTheBrokenTopOfTheWall) {
 
 TEST(WallOpeningTest, AWindowInAnObliqueTrapezoidLeavesNoGap) {
   ExpectPiecesMeet(Trapezoid({8, 4, 0}, kHeight - 3), {Window(1, 2, 1, 3)});
+}
+
+TEST(WallOpeningTest, ATrapezoidSeamedToAnotherWallTakesAnOpening) {
+  constexpr int kReach = 16;
+  const WallGeometry east {
+      .node_b = {12, 0, 0}, .stick_a = {WallAxis::kZ, kHeight}, .stick_b = {WallAxis::kZ, kHeight}, .thickness = 2};
+  WallGeometry north {.node_b = {0, 12, 0}, .stick_a = {WallAxis::kZ, kHeight}, .stick_b = {WallAxis::kZ, kHeight - 3},
+                      .thickness = 2};
+  const auto seam = PlanSeam(PlanWallAt(east, true).value(), PlanWallAt(north, true).value(), kReach);
+  ASSERT_TRUE(seam.has_value()) << seam.error();
+  ExpectPiecesMeet(north, {Door(4, 4, 3)}, {.at_a = *seam});
+  ExpectPiecesMeet(north, {Window(3, 3, 1, 3)}, {.at_a = *seam});
 }
 
 TEST(WallOpeningTest, AnOpeningInATrapezoidKeepsACellOfWallAboveItsLowerSide) {
