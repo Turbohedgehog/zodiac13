@@ -49,6 +49,8 @@
 #include <primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 
+#include <z13_settings/settings.h>
+
 #include <net_module/clock_sync.h>
 #include <net_module/protocol.h>
 
@@ -841,7 +843,9 @@ TEST(NetSessionTest, ClockOffsetIsMeasuredOnlyAgainstTheJoinedClock) {
   constexpr uint64_t kSlowMaxTicks = 1000;
   constexpr int64_t kOffsetTolerance = 3;
   auto network = std::make_shared<InMemoryNetwork>();
-  Z13TestWorld server = MakeServer(network);
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->dedicated_clock_lead_ticks = 0;
+  Z13TestWorld server({std::string(kServerArg)}, network, settings);
   RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kServerHeadStartTicks, [] { return false; });
   network->SetFaultConfig({.min_delay_ticks = kLatencyTicks, .max_delay_ticks = kLatencyTicks});
 

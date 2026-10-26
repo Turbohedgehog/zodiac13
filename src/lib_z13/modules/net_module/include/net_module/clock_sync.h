@@ -34,6 +34,10 @@ struct ClockSync {
   int64_t applied_at_ping {};
 };
 
+// The tuning a joining client gets: the lead a server with no player of its own can afford
+// replaces the listen server's.
+NetTuning TuningForClients(const NetTuning& tuning, bool dedicated);
+
 // Already taken off the offset.
 int64_t TakeClockAdjustment(ClockSync& sync, const NetTuning& tuning, uint64_t tick);
 

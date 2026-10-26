@@ -78,7 +78,9 @@ TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndTuning) {
       *network, {server, client}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client); }));
 
   EXPECT_EQ(client.Config().GetFPS(), server_settings.core->fps);
-  EXPECT_EQ(client.World().get<NetTuning>(), *server_settings.net);
+  auto expected = *server_settings.net;
+  expected.clock_lead_ticks = expected.dedicated_clock_lead_ticks;
+  EXPECT_EQ(client.World().get<NetTuning>(), expected) << "a dedicated server hands out its own clock lead";
   EXPECT_EQ(client.World().get<PhysicsTuning>(), *server_settings.physics);
   EXPECT_EQ(client.World().get<BuildingTuning>(), *server_settings.building);
   EXPECT_EQ(client.Config().GetCoreSettings().fps, CoreSettings {}.fps) << "the configured rate stays as it was";

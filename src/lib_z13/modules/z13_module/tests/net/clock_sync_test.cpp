@@ -69,6 +69,7 @@ constexpr uint64_t kSecondsToSettle = 4;
 z13::Settings MakeLeadSettings(uint64_t lead_ticks) {
   z13::Settings settings = z13::MakeSettings();
   settings.net->clock_lead_ticks = lead_ticks;
+  settings.net->dedicated_clock_lead_ticks = lead_ticks;
   return settings;
 }
 
@@ -126,6 +127,15 @@ TEST(ClockSyncTest, APongDuringAJumpCountsTheTicksStillToRun) {
 
   EXPECT_EQ(sync.rtt_ticks, 4);
   EXPECT_EQ(sync.offset_ticks, 52);
+}
+
+TEST(ClockSyncTest, ADedicatedServerHandsOutItsOwnLead) {
+  NetTuning tuning;
+  tuning.clock_lead_ticks = 2;
+  tuning.dedicated_clock_lead_ticks = 9;
+
+  EXPECT_EQ(TuningForClients(tuning, false).clock_lead_ticks, 2u);
+  EXPECT_EQ(TuningForClients(tuning, true).clock_lead_ticks, 9u);
 }
 
 TEST(ClockSyncTest, AnUnmeasuredClockIsLeftAlone) {
