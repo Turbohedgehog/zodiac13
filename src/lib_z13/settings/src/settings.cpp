@@ -185,6 +185,10 @@ Status ValidateSettings(const Settings& settings) {
     return Invalid("net.dedicated_clock_lead_ticks", "must be below net.max_schedule_ahead_ticks");
   }
 
+  if (settings.net->sector_size_cells % settings.building->index_chunk_cells != 0) {
+    return Invalid("net.sector_size_cells", "must be a multiple of building.index_chunk_cells");
+  }
+
   // A rollback for the oldest accepted command needs a snapshot at least that old.
   const CoreSettings& core = *settings.core;
   const double needed_seconds =

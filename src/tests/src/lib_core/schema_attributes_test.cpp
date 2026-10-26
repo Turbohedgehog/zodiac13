@@ -158,6 +158,16 @@ TEST(SettingsValidationTest, ADedicatedClockLeadBeyondTheScheduleWindowIsRejecte
   EXPECT_NE(valid.error().find("net.dedicated_clock_lead_ticks"), std::string::npos) << valid.error();
 }
 
+TEST(SettingsValidationTest, ASectorThatIsNotWholeChunksIsRejected) {
+  Settings settings = MakeSettings();
+  settings.net->sector_size_cells = settings.building->index_chunk_cells + 1;
+
+  const auto valid = ValidateSettings(settings);
+
+  ASSERT_FALSE(valid.has_value());
+  EXPECT_NE(valid.error().find("net.sector_size_cells"), std::string::npos) << valid.error();
+}
+
 // A schema built at run time, so a bound the game's own schemas never use can be tried.
 class RuntimeSchemaTest : public ::testing::Test {
  protected:
