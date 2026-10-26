@@ -156,6 +156,10 @@ table PlayerLeft {
 table EntityEntered {
   apply_tick: ulong;
   entity_state: z13.fbs.state.WorldSnapshot;  // the player's entity only
+  // The player's input, which the client has none of: as in CatchUp, with snapshot_tick = apply_tick - 1.
+  held_values: [ActionRecordWire];
+  pending: [ActionRecordWire];
+  input_through: [PlayerTickWire];
 }
 
 table EntityLeft {

@@ -29,6 +29,7 @@
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>
 
+#include "catch_up.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -65,6 +66,9 @@ void ApplyState(flecs::world world, const std::unique_ptr<fbs::state::WorldSnaps
 
 void ApplyEntityEntered(flecs::world world, const fbs::net::EntityEnteredT& entered) {
   ApplyState(world, entered.entity_state);
+  MergePlayerInput(world, {.held_values = FromWire(entered.held_values),
+                           .pending = FromWire(entered.pending),
+                           .confirmed = FromWire(entered.input_through)});
 }
 
 void ApplyEntityLeft(flecs::world world, const fbs::net::EntityLeftT& left) {

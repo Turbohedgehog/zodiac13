@@ -84,7 +84,52 @@ const ft::TimestampedSnapshot& CatchUpBase(
   return settled.empty() ? entries.front() : settled.front();
 }
 
+bool SameRecord(const z13::gameplay::PlayerActionRecord& a, const z13::gameplay::PlayerActionRecord& b) {
+  return a.tick == b.tick && a.player_id == b.player_id && a.action_id == b.action_id && a.value == b.value;
+}
+
+bool LogHolds(const z13::gameplay::PlayerActionLog& log, const z13::gameplay::PlayerActionRecord& record) {
+  const auto same_tick =
+      std::ranges::equal_range(log.log.Entries(), record.tick, {}, &z13::gameplay::PlayerActionRecord::tick);
+  return std::ranges::any_of(same_tick, [&record](const auto& entry) { return SameRecord(entry, record); });
+}
+
 }  // namespace
+
+PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick) {
+  PlayerInput input;
+  std::ranges::copy_if(HeldValues(world, snapshot_tick), std::back_inserter(input.held_values),
+                       [player_id](const auto& record) { return record.player_id == player_id; });
+  std::ranges::copy_if(world.get<z13::gameplay::ScheduledCommands>().records, std::back_inserter(input.pending),
+                       [player_id](const auto& record) { return record.player_id == player_id; });
+  const auto& confirmed = world.get<z13::gameplay::ConfirmedInputTicks>().by_player;
+  if (const auto through = confirmed.find(player_id); through != confirmed.end()) {
+    input.confirmed.by_player.emplace(*through);
+  }
+  return input;
+}
+
+void MergePlayerInput(flecs::world world, PlayerInput input) {
+  auto& log = world.get_mut<z13::gameplay::PlayerActionLog>();
+  std::vector<z13::gameplay::PlayerActionRecord> missing;
+  std::ranges::copy_if(input.held_values, std::back_inserter(missing),
+                       [&log](const auto& record) { return !LogHolds(log, record); });
+  if (!missing.empty()) {
+    std::ranges::sort(missing, RecordLess);
+    log.log.MergeSorted(std::move(missing), RecordLess);
+  }
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  for (const z13::gameplay::PlayerActionRecord& record : input.pending) {
+    const bool queued =
+        std::ranges::any_of(queue.records, [&record](const auto& entry) { return SameRecord(entry, record); });
+    if (!queued && !LogHolds(log, record)) {
+      QueueInOrder(queue, record);
+    }
+  }
+  for (const auto& [player_id, through_tick] : input.confirmed.by_player) {
+    ConfirmInputThrough(world, player_id, through_tick);
+  }
+}
 
 std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world) {
   auto catch_up = std::make_unique<fbs::net::CatchUpT>();

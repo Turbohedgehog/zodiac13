@@ -43,6 +43,18 @@ struct CatchUpPayload {
 
 std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world);
 
+// One player's input, for a peer that has none of it (docs/interest-design.md): what CatchUp
+// carries for everyone.
+struct PlayerInput {
+  std::vector<z13::gameplay::PlayerActionRecord> held_values;  // on the snapshot's tick
+  std::vector<z13::gameplay::PlayerActionRecord> pending;
+  z13::gameplay::ConfirmedInputTicks confirmed;
+};
+
+PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick);
+// Adds what the log and the queue lack, so applying it again on a replay changes nothing.
+void MergePlayerInput(flecs::world world, PlayerInput input);
+
 std::expected<CatchUpPayload, std::string> DecodeCatchUp(const std::unique_ptr<fbs::net::CatchUpT>& catch_up);
 // The span comes from the network, so it is bounded.
 bool IsPlausibleCatchUp(flecs::world world, uint64_t snapshot_tick, uint64_t target_tick);
