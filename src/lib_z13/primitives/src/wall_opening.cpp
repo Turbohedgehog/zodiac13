@@ -34,12 +34,14 @@ using z13::station::Block;
 using z13::station::OpeningKind;
 using z13::station::WallOpening;
 
-// A part of the wall: between two steps, and two heights up the stick.
+// A part of the wall: between two steps, and two heights up the stick; a stretch that follows the
+// wall's top ends at the top there instead of at `to_cell`.
 struct Stretch {
   int from_step {};
   int to_step {};
   int from_cell {};
   int to_cell {};
+  bool follows_top {};
   WallEnds ends;
   bool glass {};
   bool door {};
@@ -50,10 +52,9 @@ std::optional<std::string> CheckOpenings(
   if (IsBent(wall)) {
     return "a bent wall takes no openings";
   }
-  if (wall.stick_a.length != wall.stick_b.length) {
-    return "a wall with sticks of two lengths takes no openings";
+  if ((wall.stick_a.length < 0) != (wall.stick_b.length < 0)) {
+    return "a wall with sticks pointing opposite ways takes no openings";
   }
-  const int length = std::abs(wall.stick_a.length);
   int cursor = kMinSideSteps;
   for (const WallOpening& opening : sorted) {
     if (opening.width < 1 || opening.height < 1 || opening.sill < 0) {
@@ -69,6 +70,7 @@ std::optional<std::string> CheckOpenings(
     if (cursor > steps - kMinSideSteps) {
       return std::format("the opening ends at step {} of a wall {} steps long", cursor, steps);
     }
+    const int length = std::min(WallHeightAt(wall, steps, opening.offset), WallHeightAt(wall, steps, cursor));
     if (opening.sill + opening.height > length - kMinLintelCells) {
       return std::format("the opening reaches {} cells up a wall {} cells high", opening.sill + opening.height, length);
     }
@@ -76,12 +78,11 @@ std::optional<std::string> CheckOpenings(
   return std::nullopt;
 }
 
-std::vector<Stretch> StretchesOf(
-    int steps, int length, const WallEnds& ends, std::span<const WallOpening> sorted) {
+std::vector<Stretch> StretchesOf(int steps, const WallEnds& ends, std::span<const WallOpening> sorted) {
   std::vector<Stretch> stretches;
   int cursor = 0;
   for (const WallOpening& opening : sorted) {
-    stretches.push_back({.from_step = cursor, .to_step = opening.offset, .to_cell = length,
+    stretches.push_back({.from_step = cursor, .to_step = opening.offset, .follows_top = true,
                          .ends = {.at_a = cursor == 0 ? ends.at_a : std::nullopt}});
     const int top = opening.sill + opening.height;
     if (opening.sill > 0) {
@@ -97,10 +98,10 @@ std::vector<Stretch> StretchesOf(
                            .to_cell = top, .door = true});
     }
     stretches.push_back({.from_step = opening.offset, .to_step = opening.offset + opening.width,
-                         .from_cell = top, .to_cell = length});
+                         .from_cell = top, .follows_top = true});
     cursor = opening.offset + opening.width;
   }
-  stretches.push_back({.from_step = cursor, .to_step = steps, .to_cell = length, .ends = {.at_b = ends.at_b}});
+  stretches.push_back({.from_step = cursor, .to_step = steps, .follows_top = true, .ends = {.at_b = ends.at_b}});
   return stretches;
 }
 
@@ -110,6 +111,13 @@ int WallSteps(const WallGeometry& wall) {
   Eigen::Vector3i span = wall.node_b - wall.node_a;
   span[static_cast<int>(wall.stick_a.axis)] = 0;
   return std::gcd(std::gcd(std::abs(span.x()), std::abs(span.y())), std::abs(span.z()));
+}
+
+int WallHeightAt(const WallGeometry& wall, int steps, int step) {
+  const int near_length = std::abs(wall.stick_a.length);
+  const int far_length = std::abs(wall.stick_b.length);
+  const int scaled = (near_length * steps) + ((far_length - near_length) * step);
+  return ((2 * scaled) + steps) / (2 * steps);
 }
 
 std::expected<std::vector<Block>, std::string> OpeningPanels(
@@ -137,7 +145,7 @@ std::expected<std::vector<Block>, std::string> OpeningPanels(
   const Eigen::Vector3i step = span / steps;
   const int direction = std::clamp(wall.stick_a.length, -1, 1);
   std::vector<Block> blocks;
-  for (const Stretch& stretch : StretchesOf(steps, std::abs(wall.stick_a.length), ends, sorted)) {
+  for (const Stretch& stretch : StretchesOf(steps, ends, sorted)) {
     if (stretch.to_step == stretch.from_step) {
       continue;
     }
@@ -146,7 +154,11 @@ std::expected<std::vector<Block>, std::string> OpeningPanels(
     WallGeometry piece = wall;
     piece.node_a = wall.node_a + (step * stretch.from_step) + raised;
     piece.node_b = wall.node_a + (step * stretch.to_step) + raised;
-    piece.stick_a.length = piece.stick_b.length = direction * (stretch.to_cell - stretch.from_cell);
+    const auto length_at = [&](int step) {
+      return direction * ((stretch.follows_top ? WallHeightAt(wall, steps, step) : stretch.to_cell) - stretch.from_cell);
+    };
+    piece.stick_a.length = length_at(stretch.from_step);
+    piece.stick_b.length = length_at(stretch.to_step);
     auto block = WallPanelBlock(piece, palette, stretch.ends);
     if (!block) {
       return std::unexpected(std::move(block.error()));
