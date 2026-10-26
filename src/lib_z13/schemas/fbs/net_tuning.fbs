@@ -45,6 +45,9 @@ table NetTuning {
   // The same for a dedicated server, which has no player to see the lead: enough for a trip of two ticks.
   dedicated_clock_lead_ticks: uint64 = 7 (cli);
 
+  // Side of a sector, in cells: a multiple of building.index_chunk_cells, so a sector is whole snapshot chunk groups.
+  sector_size_cells: int32 = 64 (min: 1, cli);
+
   // The hint class "look" (the angles of a player's view): sent every this many ticks.
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);
   look_hint_filter: HintFilter = Distance;

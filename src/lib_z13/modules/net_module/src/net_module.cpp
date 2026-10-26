@@ -23,6 +23,7 @@
 #include "net_action_sender.h"
 #include "net_session_system.h"
 #include "remote_input.h"
+#include "sector_system.h"
 
 namespace z13::net {
 
@@ -31,6 +32,7 @@ NetModule::NetModule(flecs::world& world) {
   NetActionSender::Register(world);
   ActionHintSystem::Register(world);
   RemoteInput::Register(world);
+  SectorSystem::Register(world);
   LanDiscoverySystem::Register(world);
 }
 
