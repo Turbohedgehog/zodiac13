@@ -223,7 +223,11 @@ Status Config::AddSchemaOptions(
     }
     const std::string names =
         option.short_name ? std::format("{},{}", option.long_name, *option.short_name) : option.long_name;
-    options_description_.add_options()(names.c_str(), po::value<std::string>(), option.help.c_str());
+    auto value = po::value<std::string>();
+    if (option.flag) {
+      value->implicit_value(std::string(schema::kBoolTrueText));
+    }
+    options_description_.add_options()(names.c_str(), value, option.help.c_str());
   }
   schema_options_.push_back({.schema = &schema, .root = &root, .options = std::move(*collected)});
   return {};

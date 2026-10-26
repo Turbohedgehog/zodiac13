@@ -182,7 +182,9 @@ std::expected<std::pair<std::string, std::optional<char>>, std::string> ParseCli
 std::string DescribeField(const reflection::Field& field, std::string_view path) {
   std::string description = std::string(path);
   const auto type = field.type()->base_type();
-  if (flatbuffers::IsInteger(type)) {
+  if (type == reflection::Bool) {
+    description += std::format(" (default {}", field.default_integer() != 0 ? kBoolTrueText : kBoolFalseText);
+  } else if (flatbuffers::IsInteger(type)) {
     description += std::format(" (default {}", field.default_integer());
   } else {
     description += std::format(" (default {}", field.default_real());
@@ -214,8 +216,8 @@ Status CollectCliOptionsAt(
       spec = std::string_view {};
     }
     const auto type = field->type()->base_type();
-    if (!flatbuffers::IsScalar(type) || type == reflection::Bool) {
-      return std::unexpected(std::format("{}: cli is only supported on numeric fields", path));
+    if (!flatbuffers::IsScalar(type)) {
+      return std::unexpected(std::format("{}: cli is only supported on numeric and bool fields", path));
     }
     auto names = ParseCliNames(*spec, field->name()->string_view());
     if (!names) {
@@ -226,6 +228,7 @@ Status CollectCliOptionsAt(
         .short_name = names->second,
         .path = path,
         .help = DescribeField(*field, path),
+        .flag = type == reflection::Bool,
     });
   }
   return {};
@@ -296,11 +299,16 @@ Status SetFieldFromText(
     }
 
     const auto type = field->type()->base_type();
-    if (!flatbuffers::IsScalar(type) || type == reflection::Bool) {
-      return std::unexpected(std::format("'{}' is not a numeric field", path));
+    if (!flatbuffers::IsScalar(type)) {
+      return std::unexpected(std::format("'{}' is not a numeric or bool field", path));
     }
     bool set {};
-    if (flatbuffers::IsFloat(type)) {
+    if (type == reflection::Bool) {
+      if (text != kBoolTrueText && text != kBoolFalseText) {
+        return std::unexpected(std::format("'{}' is not {} or {} (for {})", text, kBoolTrueText, kBoolFalseText, path));
+      }
+      set = flatbuffers::SetAnyFieldI(current, *field, text == kBoolTrueText ? 1 : 0);
+    } else if (flatbuffers::IsFloat(type)) {
       const auto value = ParseNumber<double>(text);
       if (!value) {
         return std::unexpected(std::format("'{}' is not a number (for {})", text, path));
