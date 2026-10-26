@@ -4,6 +4,7 @@ One character is 1 m (4 grid cells). A wall of the plan becomes blocks one cell 
 line through its characters' first cells: x m on the plan is cell 4x.
 """
 
+import itertools
 import json
 
 CELLS_PER_M = 4
@@ -235,6 +236,56 @@ def wedge_block(vertices):
         if placed == wanted:
             return block(SLOPE, low, size, None if name == "FacePosXUpPosZ" else name)
     raise ValueError(f"no wedge has the vertices {sorted(vertices)}")
+
+
+# ----- Halls with slanted corners ------------------------------------------------------------
+
+def corner_uv(name, outer, cell_x, cell_y):
+    """Distances of a cell's middle (doubled) from the box corner `name` along x and y."""
+    x0, y0, x1, y1 = outer
+    u = (2 * cell_x + 1 - 2 * x0) if name[1] == "W" else (2 * x1 - 2 * cell_x - 1)
+    v = (2 * cell_y + 1 - 2 * y0) if name[0] == "N" else (2 * y1 - 2 * cell_y - 1)
+    return u, v
+
+
+def fill_corners(deck, corners):
+    """Marks the characters a hall's filled corner triangles reach as solid fill. `corners`: (name, the
+    hall's outer box in cells, steps) as in corner_blocks."""
+    for name, outer, steps in corners:
+        across, down = sum(step[0] for step in steps), sum(step[1] for step in steps)
+        for cy in range(outer[1] // CELLS_PER_M, outer[3] // CELLS_PER_M + 1):
+            for cx in range(outer[0] // CELLS_PER_M, outer[2] // CELLS_PER_M + 1):
+                if deck.grid[cy][cx] != " ":
+                    continue
+                for dy, dx in itertools.product(range(CELLS_PER_M), repeat=2):
+                    u, v = corner_uv(name, outer, cx * CELLS_PER_M + dx, cy * CELLS_PER_M + dy)
+                    if u > 0 and v > 0 and u * down + v * across < 2 * across * down:
+                        deck.grid[cy][cx] = MASS
+                        break
+
+
+def corner_blocks(name, outer, steps, z, wall_height):
+    """The filled triangle of one corner of a hall, as wall rows and one wedge prism per step. Each
+    step is a pair of cells along x and y; they add up to the triangle's legs."""
+    x0, y0, x1, y1 = outer
+    across = sum(step[0] for step in steps)
+
+    def at(u, v):
+        return (x0 + u if name[1] == "W" else x1 - u, y0 + v if name[0] == "N" else y1 - v)
+
+    blocks = []
+    u_start, v_low = across, 0
+    for step_x, step_y in steps:
+        v_high = v_low + step_y
+        width = u_start - step_x
+        if width > 0:
+            (xa, ya), (xb, yb) = at(0, v_low), at(width, v_high)
+            for y in range(min(ya, yb), max(ya, yb)):
+                blocks.append(block(WALL_BLOCK, (min(xa, xb), y, z), (width, 1, wall_height)))
+        triangle = [(width, v_low), (u_start, v_low), (width, v_high)]
+        blocks.append(wedge_block([(*at(u, v), height) for u, v in triangle for height in (z, z + wall_height)]))
+        u_start, v_low = width, v_high
+    return blocks
 
 
 def line_blocks(primitive, axis, start, line, z, length, height):
@@ -537,7 +588,7 @@ def write_blueprint(path, blocks):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs)."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii")
+    path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii", newline="\n")
 
 
 def block_kinds(blocks):
