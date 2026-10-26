@@ -28,6 +28,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <sectors/sector.h>
+#include <sectors/sector_index.h>
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/gameplay.h>
@@ -43,6 +44,7 @@
 #include "../../../z13_module/tests/support/load_session.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
 #include "../../src/catch_up.h"
+#include "../../src/interest_view.h"
 #include "../../src/interest_deltas.h"
 #include "../../src/interest_events.h"
 #include "../../src/net_session.h"
@@ -142,11 +144,13 @@ TEST(InterestDeltasTest, AnEntityLeftRemovesThePlayerAndAnEntityEnteredBringsItB
 
 constexpr uint64_t kConnectTicks = 600;
 constexpr uint64_t kSettleTicks = 30;
+// A catch-up starts from a snapshot older than the late window, so what it holds is that old.
+constexpr uint64_t kSnapshotAgeTicks = 250;
 
-class InterestEventsTest : public ::testing::Test {
+class InterestSessionTest : public ::testing::Test {
  protected:
-  InterestEventsTest()
-      : session_(2, {.walk = true, .look = false},
+  explicit InterestSessionTest(bool walk)
+      : session_(2, {.walk = walk, .look = false},
                  [](z13::Settings& settings) { settings.net->interest_events = true; }) {}
 
   void SetUp() override {
@@ -163,6 +167,18 @@ class InterestEventsTest : public ::testing::Test {
   static uint32_t PlayerOf(Z13TestWorld& client) { return client.World().get<z13::gameplay::LocalPlayer>().id.value(); }
 
   z13::testing::LoadSession session_;
+};
+
+// Both clients walk, so their commands flow.
+class InterestEventsTest : public InterestSessionTest {
+ protected:
+  InterestEventsTest() : InterestSessionTest(true) {}
+};
+
+// Both clients stand still, so a position set on the server stays.
+class InterestStillTest : public InterestSessionTest {
+ protected:
+  InterestStillTest() : InterestSessionTest(false) {}
 };
 
 template <typename Event>
@@ -231,6 +247,54 @@ TEST_F(InterestEventsTest, CommandsOfPlayersFarApartAreNotRelayedToEachOther) {
 
   EXPECT_GT(relayed_near, 0u);
   EXPECT_LT(RelayedCommands(session_.Server()) - far_before, relayed_near);
+}
+
+bool CatchUpHas(const std::unique_ptr<fbs::net::CatchUpT>& catch_up, const std::string& name) {
+  const auto payload = DecodeCatchUp(catch_up);
+  EXPECT_TRUE(payload.has_value());
+  const ft::EntityRefs entities = ft::AllEntities(payload->snapshot);
+  return std::ranges::any_of(entities, [&name](const ft::EntitySnapshot& entity) { return entity.name == name; });
+}
+
+TEST_F(InterestStillTest, AResyncCarriesOnlyWhatTheClientHas) {
+  flecs::world server = session_.Server().World();
+  const uint32_t watcher = PlayerOf(session_.Client(0));
+  const uint32_t mover = PlayerOf(session_.Client(1));
+  const int sector_cells = server.get<z13::NetTuning>().sector_size_cells;
+  const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
+  server.lookup(z13::gameplay::PlayerEntityName(mover).c_str())
+      .set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+  Run(kSnapshotAgeTicks);
+
+  const auto view = ViewOf(server, watcher);
+  ASSERT_TRUE(view.has_value());
+  const auto whole = MakeCatchUp(server);
+  const auto filtered = MakeCatchUp(server, view);
+  ASSERT_TRUE(whole.has_value() && filtered.has_value());
+
+  const std::string mover_name = z13::gameplay::PlayerEntityName(mover);
+  EXPECT_TRUE(CatchUpHas(*whole, mover_name));
+  EXPECT_FALSE(CatchUpHas(*filtered, mover_name));
+  EXPECT_TRUE(CatchUpHas(*filtered, z13::gameplay::PlayerEntityName(watcher)));
+}
+
+TEST_F(InterestStillTest, AFilteredSnapshotKeepsTheBlocksOfTheViewOnly) {
+  flecs::world server = session_.Server().World();
+  const std::string near_block = AddBlockInSector(session_.Server(), 0).name().c_str();
+  const std::string far_block = AddBlockInSector(session_.Server(), kFarSector, kStrayRow).name().c_str();
+  Run(kSettleTicks);
+  const auto view = ViewOf(server, PlayerOf(session_.Client(0)));
+  ASSERT_TRUE(view.has_value());
+  const auto snapshot = ft::CaptureState(server);
+  ASSERT_TRUE(snapshot.has_value());
+
+  const ft::WorldSnapshot filtered = FilterSnapshot(server, *snapshot, *view);
+
+  const auto has = [&filtered](const std::string& name) {
+    return std::ranges::any_of(ft::AllEntities(filtered), [&name](const ft::EntitySnapshot& e) { return e.name == name; });
+  };
+  EXPECT_TRUE(has(near_block));
+  EXPECT_FALSE(has(far_block));
 }
 
 TEST(InterestDeltasTest, MergingAPlayersInputTwiceAddsItOnce) {

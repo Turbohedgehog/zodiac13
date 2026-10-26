@@ -94,6 +94,14 @@ bool LogHolds(const z13::gameplay::PlayerActionLog& log, const z13::gameplay::Pl
   return std::ranges::any_of(same_tick, [&record](const auto& entry) { return SameRecord(entry, record); });
 }
 
+template <typename Predicate>
+std::vector<z13::gameplay::PlayerActionRecord> Filtered(
+    const std::vector<z13::gameplay::PlayerActionRecord>& records, const Predicate& keep) {
+  std::vector<z13::gameplay::PlayerActionRecord> kept;
+  std::ranges::copy_if(records, std::back_inserter(kept), keep);
+  return kept;
+}
+
 }  // namespace
 
 PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick) {
@@ -131,9 +139,16 @@ void MergePlayerInput(flecs::world world, PlayerInput input) {
   }
 }
 
-std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world) {
+std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(
+    flecs::world world, const std::optional<InterestView>& view) {
   auto catch_up = std::make_unique<fbs::net::CatchUpT>();
   catch_up->server_tick = world.get<ft::SimulationClock>().tick;
+  const auto in_view = [&view](const z13::gameplay::PlayerActionRecord& record) {
+    return !view || view->players.contains(record.player_id);
+  };
+  const auto filtered = [&](const ft::WorldSnapshot& snapshot) {
+    return view ? ToWire(FilterSnapshot(world, snapshot, *view)) : ToWire(snapshot);
+  };
 
   const auto& history = world.get<ft::WorldSnapshotHistory>();
   if (history.history.Empty()) {
@@ -141,19 +156,23 @@ std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flec
     if (!snapshot) {
       return std::unexpected(snapshot.error());
     }
-    catch_up->snapshot = ToWire(*snapshot);
+    catch_up->snapshot = filtered(*snapshot);
     catch_up->snapshot_tick = catch_up->server_tick;
   } else {
     const ft::TimestampedSnapshot& base =
         CatchUpBase(history, catch_up->server_tick, ft::DeferredRollbackTick(world), world.get<NetTuning>().max_late_ticks,
                     AllConfirmedThrough(world.get<z13::gameplay::ConfirmedInputTicks>()));
-    catch_up->snapshot = ToWire(base.snapshot);
+    catch_up->snapshot = filtered(base.snapshot);
     catch_up->snapshot_tick = base.tick;
-    catch_up->actions = ToWire(ActionsSince(world, base.tick));
+    catch_up->actions = ToWire(Filtered(ActionsSince(world, base.tick), in_view));
   }
-  catch_up->held_values = ToWire(HeldValues(world, catch_up->snapshot_tick));
-  catch_up->pending = ToWire(world.get<z13::gameplay::ScheduledCommands>().records);
-  catch_up->input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>().by_player);
+  catch_up->held_values = ToWire(Filtered(HeldValues(world, catch_up->snapshot_tick), in_view));
+  catch_up->pending = ToWire(Filtered(world.get<z13::gameplay::ScheduledCommands>().records, in_view));
+  auto confirmed = world.get<z13::gameplay::ConfirmedInputTicks>().by_player;
+  if (view) {
+    boost::container::erase_if(confirmed, [&view](const auto& entry) { return !view->players.contains(entry.first); });
+  }
+  catch_up->input_through = ToWire(confirmed);
   return catch_up;
 }
 

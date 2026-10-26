@@ -26,6 +26,7 @@
 #include <sectors/interest_map.h>
 #include <sectors/sector.h>
 
+#include "interest_view.h"
 #include "net_session.h"
 
 namespace z13::net {
@@ -33,7 +34,6 @@ namespace z13::net {
 // What the server has told one client about: the sectors whose blocks it holds and the players
 // it has (docs/interest-design.md). Starts as the whole world, which is what a Welcome or Resync gives.
 struct ClientKnowledge {
-  using SectorSet = std::unordered_set<sectors::SectorKey, sectors::SectorHash>;
   SectorSet sectors;
   SectorSet presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
   std::unordered_set<uint32_t> players;
@@ -49,6 +49,9 @@ struct InterestKnowledge {
 // to every connection when interest events are off. A client with no entry yet has the whole world.
 void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
                    std::optional<ConnectionId> except = std::nullopt);
+
+// After a Resync: the client holds `view`, or the whole world when it has none.
+void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view);
 
 // Sends every client the sectors and players that entered or left its interest since the last
 // call, to apply at the next tick.

@@ -47,6 +47,7 @@
 #include "catch_up.h"
 #include "interest_events.h"
 #include "interest_system.h"
+#include "interest_view.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
 #include "session_deltas.h"
@@ -192,12 +193,13 @@ Status HandleResyncRequest(
       log_info("NetSession(server): wrote {}", (*dumped)->string());
     }
   }
-  auto catch_up = MakeCatchUp(world);
+  // With interest events the Resync is the client's view, and what it holds is what the server then knows.
+  const std::optional<InterestView> view = world.get<NetTuning>().interest_events ? ViewOf(world, *player_id) : std::nullopt;
+  auto catch_up = MakeCatchUp(world, view);
   if (!catch_up) {
     return std::unexpected(catch_up.error());
   }
-  // A Resync carries the whole world again.
-  world.get_mut<InterestKnowledge>().by_client.erase(*player_id);
+  RememberResync(world, *player_id, view);
   fbn::ResyncT resync;
   resync.catch_up = std::move(*catch_up);
 

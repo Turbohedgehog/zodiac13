@@ -40,6 +40,7 @@ z13_add_plugin(
   src/interest_deltas.cpp
   src/interest_events.cpp
   src/interest_system.cpp
+  src/interest_view.cpp
   src/net_module.cpp
   src/net_module_factory.cpp
   src/net_session.cpp

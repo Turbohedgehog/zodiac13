@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,8 @@
 #include <z13/components/player_action.h>
 
 #include <net_module/protocol.h>
+
+#include "interest_view.h"
 
 namespace z13::net {
 
@@ -41,7 +44,9 @@ struct CatchUpPayload {
   z13::gameplay::ConfirmedInputTicks confirmed;
 };
 
-std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(flecs::world world);
+// With a view, only what the view holds: its players and sectors, and their input.
+std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(
+    flecs::world world, const std::optional<InterestView>& view = std::nullopt);
 
 // One player's input, for a peer that has none of it (docs/interest-design.md): what CatchUp
 // carries for everyone.

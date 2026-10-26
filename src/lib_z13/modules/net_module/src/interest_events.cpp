@@ -44,10 +44,6 @@ namespace ft = z13::flecs_tools;
 namespace fbn = fbs::net;
 using sectors::MemberKind;
 using sectors::SectorKey;
-using SectorSet = ClientKnowledge::SectorSet;
-
-// A player's reach is within one sector (enforced by net.interest_radius_sectors' rule).
-constexpr int kPresenceRing = 1;
 
 // An event applies at the next tick: the state it carries is this tick's, after its systems.
 struct EventSender {
@@ -136,20 +132,6 @@ void SendEntityLeft(const EventSender& sender, uint32_t player_id) {
   sender.Send(std::move(left));
 }
 
-SectorSet Dilated(const SectorSet& wanted) {
-  SectorSet ring;
-  for (const SectorKey& sector : wanted) {
-    for (int dx = -kPresenceRing; dx <= kPresenceRing; ++dx) {
-      for (int dy = -kPresenceRing; dy <= kPresenceRing; ++dy) {
-        for (int dz = -kPresenceRing; dz <= kPresenceRing; ++dz) {
-          ring.insert(sector + SectorKey(dx, dy, dz));
-        }
-      }
-    }
-  }
-  return ring;
-}
-
 void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowledge& known, bool first) {
   const auto& map = sender.world.get<sectors::InterestMap>();
   const auto& index = sender.world.get<sectors::SectorIndex>();
@@ -223,6 +205,19 @@ void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, 
     }
   }
   session.Multicast(Channel::kReliable, envelope, recipients);
+}
+
+void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view) {
+  auto& by_client = world.get_mut<InterestKnowledge>().by_client;
+  if (!view) {
+    by_client.erase(client);
+    return;
+  }
+  ClientKnowledge& known = by_client[client];
+  known.sectors = view->sectors;
+  known.presence = view->presence;
+  known.players = view->players;
+  known.players.erase(client);
 }
 
 void SendInterestEvents(flecs::world world) {
