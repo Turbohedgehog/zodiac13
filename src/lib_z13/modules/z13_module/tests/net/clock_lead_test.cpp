@@ -41,7 +41,7 @@ constexpr uint64_t kWarmUpTicks = 120;
 constexpr uint64_t kMeasuredTicks = 150;
 
 uint64_t ServerRollbacksWithLead(uint64_t lead) {
-  LoadSession session(kClients, {}, [lead](z13::Settings& settings) { settings.net->clock_lead_ticks = lead; });
+  LoadSession session(kClients, {}, [lead](z13::Settings& settings) { settings.net->dedicated_clock_lead_ticks = lead; });
   session.Network().SetFaultConfig(kLatency);
   EXPECT_TRUE(session.Connect(kConnectTicks));
   for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {

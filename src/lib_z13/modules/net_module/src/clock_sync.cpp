@@ -23,6 +23,14 @@
 
 namespace z13::net {
 
+NetTuning TuningForClients(const NetTuning& tuning, bool dedicated) {
+  NetTuning clients = tuning;
+  if (dedicated) {
+    clients.clock_lead_ticks = tuning.dedicated_clock_lead_ticks;
+  }
+  return clients;
+}
+
 int64_t TakeClockAdjustment(ClockSync& sync, const NetTuning& tuning, uint64_t tick) {
   if (!sync.offset_ticks) {
     return 0;

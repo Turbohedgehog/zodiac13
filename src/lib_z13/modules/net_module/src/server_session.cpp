@@ -39,6 +39,7 @@
 #include <z13_module/input/action_negotiation.h>
 #include <z13_settings/settings.h>
 
+#include <net_module/clock_sync.h>
 #include <net_module/divergence_dump.h>
 #include <net_module/protocol.h>
 
@@ -95,8 +96,9 @@ Status SendWelcome(
   welcome.catch_up = std::move(*catch_up);
   welcome.action_ids = std::move(action_ids);
   const auto config = z13::GetCoreConfig(world);
+  const bool dedicated = config && config->get().IsServer();
   welcome.fps = config ? config->get().GetFPS() : z13::CoreSettings {}.fps;
-  welcome.tuning = std::make_unique<fbs::net::NetTuningT>(world.get<NetTuning>());
+  welcome.tuning = std::make_unique<fbs::net::NetTuningT>(TuningForClients(world.get<NetTuning>(), dedicated));
   welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
   welcome.building = std::make_unique<fbs::building::BuildingTuningT>(world.get<z13::BuildingTuning>());
 

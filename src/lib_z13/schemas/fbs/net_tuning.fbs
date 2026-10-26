@@ -40,8 +40,10 @@ table NetTuning {
   clock_jump_threshold_ticks: int64 = 15 (min: 1, cli);
   // Ticks a client's clock runs ahead of the server's: about the trip of its commands plus send_interval_ticks, so
   // they arrive before their tick and don't roll the server back. The server's player sees the others this
-  // much later; a dedicated server can raise it.
+  // much later, so a server with a player (listen) keeps it short.
   clock_lead_ticks: uint64 = 3 (cli);
+  // The same for a dedicated server, which has no player to see the lead: enough for a trip of two ticks.
+  dedicated_clock_lead_ticks: uint64 = 7 (cli);
 
   // The hint class "look" (the angles of a player's view): sent every this many ticks.
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);

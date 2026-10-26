@@ -181,6 +181,9 @@ Status ValidateSettings(const Settings& settings) {
   if (settings.net->clock_lead_ticks >= settings.net->max_schedule_ahead_ticks) {
     return Invalid("net.clock_lead_ticks", "must be below net.max_schedule_ahead_ticks");
   }
+  if (settings.net->dedicated_clock_lead_ticks >= settings.net->max_schedule_ahead_ticks) {
+    return Invalid("net.dedicated_clock_lead_ticks", "must be below net.max_schedule_ahead_ticks");
+  }
 
   // A rollback for the oldest accepted command needs a snapshot at least that old.
   const CoreSettings& core = *settings.core;
