@@ -45,6 +45,17 @@ using z13::testing::Z13TestWorld;
 
 constexpr uint32_t kMover = 30;
 constexpr float kBuilderHeightMeters = 1.5f;
+constexpr int kEmptySector = 5;
+constexpr int kStartSector = 7;
+constexpr int kEndSector = 9;
+// Mid-sector, so the player doesn't stand on a border.
+constexpr float kMidSector = 0.5f;
+
+Eigen::Matrix4f StandingIn(int sector_x, float sector_meters) {
+  return z13::testing::Facing(
+      {(static_cast<float>(sector_x) + kMidSector) * sector_meters, kMidSector * sector_meters, kBuilderHeightMeters},
+      Eigen::Vector3f::UnitX());
+}
 
 SectorHashes Hashes(Z13TestWorld& world) {
   flecs::world w = world.World();
@@ -69,7 +80,7 @@ TEST(SectorHashTest, ABlockChangesOnlyItsOwnSectorsHash) {
   world.Tick();
   const SectorHashes before = Hashes(world);
   const int sector_cells = SectorCells(world);
-  const Eigen::Vector3i cell = Eigen::Vector3i::Constant(5 * sector_cells + 1);
+  const Eigen::Vector3i cell = Eigen::Vector3i::Constant(kEmptySector * sector_cells + 1);
 
   z13::station::testing::AddBlock(world, {.spec = z13::station::CubeSpec(), .cell = cell});
   world.Tick();
@@ -88,18 +99,17 @@ TEST(SectorHashTest, APlayerMovesItsHashToTheSectorItEntered) {
   Z13TestWorld world = StationWorld();
   const int sector_cells = SectorCells(world);
   const float sector_meters = static_cast<float>(sector_cells) * z13::station::kCellSize;
-  const flecs::entity mover = z13::testing::AddBuilder(
-      world, kMover, z13::testing::Facing({7.5f * sector_meters, 0.5f * sector_meters, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+  const flecs::entity mover = z13::testing::AddBuilder(world, kMover, StandingIn(kStartSector, sector_meters));
   world.Tick();
   const SectorHashes there = Hashes(world);
 
-  mover.set(z13::testing::Facing({9.5f * sector_meters, 0.5f * sector_meters, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+  mover.set(StandingIn(kEndSector, sector_meters));
   world.Tick();
   const SectorHashes moved = Hashes(world);
 
-  EXPECT_TRUE(HashOf(there, {7, 0, 0}).has_value());
-  EXPECT_FALSE(HashOf(moved, {7, 0, 0}).has_value());
-  EXPECT_TRUE(HashOf(moved, {9, 0, 0}).has_value());
+  EXPECT_TRUE(HashOf(there, {kStartSector, 0, 0}).has_value());
+  EXPECT_FALSE(HashOf(moved, {kStartSector, 0, 0}).has_value());
+  EXPECT_TRUE(HashOf(moved, {kEndSector, 0, 0}).has_value());
 }
 
 TEST(SectorHashTest, ADigestCarriesTheSectorHashesOfItsSnapshot) {
