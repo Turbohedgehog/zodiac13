@@ -40,6 +40,7 @@
 #include <net_module/clock_sync.h>
 #include <z13_settings/building_tuning.h>
 
+#include "interest_view.h"
 #include "remote_input.h"
 #include "sector_hash.h"
 #include "server_session.h"
@@ -157,6 +158,34 @@ bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDig
   return true;
 }
 
+// What a client with interest events can compare: its view's sectors and players.
+fbn::StateDigestT DigestOfView(const fbn::StateDigestT& digest, const InterestView& view) {
+  fbn::StateDigestT part(digest);
+  const auto outside = [&view](const auto& entry) { return !view.players.contains(entry.player_id()); };
+  std::erase_if(part.positions, outside);
+  std::erase_if(part.input_through, outside);
+  std::erase_if(part.received_through, outside);
+  std::erase_if(part.sector_hashes, [&view](const fbn::SectorHashWire& entry) {
+    return !view.sectors.contains(sectors::SectorKey(entry.x(), entry.y(), entry.z()));
+  });
+  return part;
+}
+
+void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT& digest) {
+  if (!world.get<NetTuning>().interest_events) {
+    Envelope envelope;
+    envelope.body.Set(fbn::StateDigestT(digest));
+    session.Broadcast(Channel::kReliable, envelope);
+    return;
+  }
+  for (const auto& [connection, client] : session.PlayerConnections()) {
+    const std::optional<InterestView> view = ViewOf(world, client);
+    Envelope envelope;
+    envelope.body.Set(view ? DigestOfView(digest, *view) : fbn::StateDigestT(digest));
+    session.Send(connection, Channel::kReliable, envelope);
+  }
+}
+
 }  // namespace
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
@@ -220,9 +249,7 @@ void SendSettledStateDigests(flecs::world world, NetSession& session, StateDiges
     fbn::StateDigestT sent(digest);
     sent.input_through = ToWire(world.get<z13::gameplay::ConfirmedInputTicks>().by_player);
     sent.received_through = ToWire(world.get<ReceivedInputTicks>().by_player);
-    Envelope envelope;
-    envelope.body.Set(std::move(sent));
-    session.Broadcast(Channel::kReliable, envelope);
+    SendDigest(world, session, sent);
     digests.last_sent_tick = tick;
   }
 }

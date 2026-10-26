@@ -70,12 +70,12 @@ using z13::testing::Z13TestWorld;
 constexpr uint32_t kClientAId = 1;
 
 Z13TestWorld MakeServer(
-    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::testing::TestSettings()) {
   return Z13TestWorld({std::string(kServerArg)}, network, settings);
 }
 
 Z13TestWorld MakeClient(
-    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::MakeSettings()) {
+    const std::shared_ptr<InMemoryNetwork>& network, const z13::Settings& settings = z13::testing::TestSettings()) {
   return Z13TestWorld({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network, settings);
 }
 
@@ -155,7 +155,7 @@ TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovement) {
   constexpr double kSnapshotIntervalSeconds = 5.;
   constexpr double kSnapshotRetentionSeconds = 10.;
   auto network = std::make_shared<InMemoryNetwork>();
-  z13::Settings settings = z13::MakeSettings();
+  z13::Settings settings = z13::testing::TestSettings();
   settings.core->snapshot_interval_seconds = kSnapshotIntervalSeconds;
   settings.core->snapshot_retention_seconds = kSnapshotRetentionSeconds;
   Z13TestWorld server = MakeServer(network, settings);

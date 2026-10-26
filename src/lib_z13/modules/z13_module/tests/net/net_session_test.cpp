@@ -843,7 +843,7 @@ TEST(NetSessionTest, ClockOffsetIsMeasuredOnlyAgainstTheJoinedClock) {
   constexpr uint64_t kSlowMaxTicks = 1000;
   constexpr int64_t kOffsetTolerance = 3;
   auto network = std::make_shared<InMemoryNetwork>();
-  z13::Settings settings = z13::MakeSettings();
+  z13::Settings settings = z13::testing::TestSettings();
   settings.net->dedicated_clock_lead_ticks = 0;
   Z13TestWorld server({std::string(kServerArg)}, network, settings);
   RunNetworkUntil(*network, {server}, kNetTestDeltaTime, kServerHeadStartTicks, [] { return false; });

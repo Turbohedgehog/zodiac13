@@ -51,9 +51,10 @@ table NetTuning {
   // around it is simulated too so the inner ring's borders come out as on the server.
   interest_radius_sectors: int32 = 1 (min: 0, max: 4, cli);
   interest_margin_sectors: int32 = 1 (min: 0, max: 4, cli);
-  // Tells each client of the players and sectors that enter or leave its interest and checks its digests in the inner
-  // ring only, while commands still go to everyone (docs/interest-design.md); on for good with the filtering.
-  interest_events: bool = false (cli);
+  // Each client holds the world within its interest only (docs/interest-design.md): it is told of the players and
+  // sectors that enter or leave, gets a view in Welcome and Resync, and checks its digests in the inner ring. Off,
+  // every client has the whole world.
+  interest_events: bool = true (cli);
 
   // The hint class "look" (the angles of a player's view): sent every this many ticks.
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);

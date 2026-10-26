@@ -57,6 +57,10 @@ constexpr std::string_view kStationSceneArg = "--station-scene";
 // Headless z13::Core + z13_module world for integration tests: no raylib/SDL,
 // no on-disk input-config writes. Built in z13_test_world.cpp, so a test doesn't compile every
 // module factory and the settings schemas.
+// The schema defaults but with every client holding the whole world: most tests compare peers' worlds, and
+// those about interest turn net.interest_events on.
+z13::Settings TestSettings();
+
 class Z13TestWorld {
  public:
   // args are the command line (e.g. {kServerArg}, {kConnectArg, "host:1234"}); the default,
@@ -66,7 +70,7 @@ class Z13TestWorld {
   // each world gets its own, so a solo --server/--connect world never touches a socket.
   explicit Z13TestWorld(std::vector<std::string> args = {std::string(kSkipMainMenuArg)},
                         std::shared_ptr<z13::net::InMemoryNetwork> network = nullptr);
-  // With these settings instead of the schema defaults (MakeSettings).
+  // With these settings instead of TestSettings().
   Z13TestWorld(std::vector<std::string> args, std::shared_ptr<z13::net::InMemoryNetwork> network,
                const z13::Settings& settings);
   ~Z13TestWorld();

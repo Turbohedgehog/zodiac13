@@ -91,8 +91,14 @@ z13::WorldRef CreateWorld(
 
 }  // namespace
 
+z13::Settings TestSettings() {
+  z13::Settings settings = z13::MakeSettings();
+  settings.net->interest_events = false;
+  return settings;
+}
+
 Z13TestWorld::Z13TestWorld(std::vector<std::string> args, std::shared_ptr<z13::net::InMemoryNetwork> network)
-    : Z13TestWorld(std::move(args), std::move(network), z13::MakeSettings()) {}
+    : Z13TestWorld(std::move(args), std::move(network), TestSettings()) {}
 
 Z13TestWorld::Z13TestWorld(std::vector<std::string> args, std::shared_ptr<z13::net::InMemoryNetwork> network,
                            const z13::Settings& settings)

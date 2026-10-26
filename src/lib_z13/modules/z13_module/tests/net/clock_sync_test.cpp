@@ -67,7 +67,7 @@ using z13::testing::Z13TestWorld;
 constexpr uint64_t kSecondsToSettle = 4;
 
 z13::Settings MakeLeadSettings(uint64_t lead_ticks) {
-  z13::Settings settings = z13::MakeSettings();
+  z13::Settings settings = z13::testing::TestSettings();
   settings.net->clock_lead_ticks = lead_ticks;
   settings.net->dedicated_clock_lead_ticks = lead_ticks;
   return settings;

@@ -41,7 +41,7 @@ constexpr int kLookJitterY = 3;
 
 LoadSession::LoadSession(size_t clients, Steering steering, const std::function<void(z13::Settings&)>& tune)
     : steering_(steering) {
-  z13::Settings settings = z13::MakeSettings();
+  z13::Settings settings = TestSettings();
   tune(settings);
   walking_.assign(clients, false);
   server_ = std::make_unique<Z13TestWorld>(std::vector {std::string(kServerArg)}, network_, settings);

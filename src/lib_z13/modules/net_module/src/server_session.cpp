@@ -45,6 +45,11 @@
 
 #include "action_hints.h"
 #include "catch_up.h"
+#include <Eigen/Dense>
+
+#include <sectors/sector.h>
+#include <z13/components/block.h>
+
 #include "interest_events.h"
 #include "interest_system.h"
 #include "interest_view.h"
@@ -87,9 +92,9 @@ ScheduledCommandTick ScheduleTick(
 
 Status SendWelcome(
     NetSession& session, flecs::world world, ConnectionId connection, uint32_t player_id,
-    std::vector<uint32_t> action_ids) {
+    std::vector<uint32_t> action_ids, const std::optional<InterestView>& view) {
   Z13_PROFILE_ZONE("SendWelcome");
-  auto catch_up = MakeCatchUp(world);
+  auto catch_up = MakeCatchUp(world, view);
   if (!catch_up) {
     return std::unexpected(catch_up.error());
   }
@@ -112,8 +117,9 @@ Status SendWelcome(
   // The joiner ignores session deltas received before Welcome.
   const auto& deltas = world.get<ScheduledSessionDeltas>();
   const auto newer = std::ranges::upper_bound(deltas.history, snapshot_tick, {}, &ScheduledSessionDelta::apply_tick);
-  SendSessionDeltas(session, connection, {newer, deltas.history.end()});
-  SendSessionDeltas(session, connection, deltas.pending);
+  SendSessionDeltas(session, connection, {newer, deltas.history.end()}, view);
+  SendSessionDeltas(session, connection, deltas.pending, view);
+  RememberResync(world, player_id, view);
   return {};
 }
 
@@ -172,8 +178,20 @@ Status HandleClientHello(
 
   session.BindPlayer(connection, player_id);
   log_info("NetSession(server): connection {} joins as player {}", connection, player_id);
-  return SendWelcome(session, world, connection, player_id, std::move(*action_ids)).and_then([&] {
-    return SchedulePlayerJoined(session, world, player_id);
+  auto join = PrepareJoin(world, player_id);
+  if (!join) {
+    return std::unexpected(join.error());
+  }
+  // The joiner is not in the sector index until it spawns, so its view is the one around where it will.
+  std::optional<InterestView> view;
+  if (world.get<NetTuning>().interest_events) {
+    const int sector_cells = world.get<NetTuning>().sector_size_cells;
+    const Eigen::Vector3i cell = (join->spawn_position / z13::station::kCellSize).array().floor().cast<int>();
+    view = ViewAround(world, player_id, sectors::SectorOf(cell, sector_cells));
+  }
+  return SendWelcome(session, world, connection, player_id, std::move(*action_ids), view).and_then([&] {
+    ScheduleJoin(session, world, player_id, std::move(*join));
+    return Status {};
   });
 }
 

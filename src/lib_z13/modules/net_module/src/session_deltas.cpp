@@ -110,7 +110,7 @@ void ScheduleSessionDelta(
     NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta, uint32_t player_id,
     std::optional<Eigen::Vector3f> spawn_position) {
   world.get_mut<ScheduledSessionDeltas>().pending.push_back(
-      {.apply_tick = apply_tick, .delta = delta, .spawn_position = spawn_position});
+      {.apply_tick = apply_tick, .delta = delta, .player_id = player_id, .spawn_position = spawn_position});
 
   Envelope envelope;
   std::visit([&envelope](auto& body) { envelope.body.Set(std::move(body)); }, delta);
@@ -118,7 +118,7 @@ void ScheduleSessionDelta(
 }
 
 // Spawned only to serialize it: like everywhere else, it exists from apply_tick on.
-Status SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t player_id) {
+std::expected<PreparedJoin, std::string> PrepareJoin(flecs::world world, uint32_t player_id) {
   std::vector<Eigen::Vector3f> reserved;
   for (const ScheduledSessionDelta& item : world.get<ScheduledSessionDeltas>().pending) {
     if (item.spawn_position) {
@@ -126,19 +126,21 @@ Status SchedulePlayerJoined(NetSession& session, flecs::world world, uint32_t pl
     }
   }
   const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id, reserved);
-  const Eigen::Vector3f spawn_position = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
-  fbn::PlayerJoinedT joined;
-  joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
+  PreparedJoin join;
+  join.spawn_position = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
+  join.joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
   const auto entity_state = ft::CaptureEntityState(world, player);
   player.destruct();
   if (!entity_state) {
     return std::unexpected(entity_state.error());
   }
-  joined.entity_state = ToWire(*entity_state);
+  join.joined.entity_state = ToWire(*entity_state);
+  return join;
+}
 
-  const uint64_t apply_tick = joined.apply_tick;
-  ScheduleSessionDelta(session, world, apply_tick, std::move(joined), player_id, spawn_position);
-  return {};
+void ScheduleJoin(NetSession& session, flecs::world world, uint32_t player_id, PreparedJoin join) {
+  const uint64_t apply_tick = join.joined.apply_tick;
+  ScheduleSessionDelta(session, world, apply_tick, std::move(join.joined), player_id, join.spawn_position);
 }
 
 uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
@@ -150,8 +152,12 @@ uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
       [](uint64_t a, uint64_t b) { return std::max(a, b); });
 }
 
-void SendSessionDeltas(NetSession& session, ConnectionId connection, std::span<const ScheduledSessionDelta> deltas) {
+void SendSessionDeltas(NetSession& session, ConnectionId connection, std::span<const ScheduledSessionDelta> deltas,
+                       const std::optional<InterestView>& view) {
   for (const ScheduledSessionDelta& item : deltas) {
+    if (view && !view->players.contains(item.player_id)) {
+      continue;
+    }
     Envelope envelope;
     std::visit([&envelope](auto body) { envelope.body.Set(std::move(body)); }, item.delta);
     session.Send(connection, Channel::kReliable, envelope);

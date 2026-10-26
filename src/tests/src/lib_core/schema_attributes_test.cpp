@@ -305,15 +305,15 @@ TEST(SchemaCliTest, ABoolOptionIsAFlagWithoutAValue) {
   const schema::CliOption* events = Find(*options, "net.interest_events");
   ASSERT_NE(events, nullptr);
   EXPECT_TRUE(events->flag);
-  EXPECT_NE(events->help.find("default false"), std::string::npos) << events->help;
+  EXPECT_NE(events->help.find("default true"), std::string::npos) << events->help;
 
-  const auto on = ApplyArguments({"--interest-events"}, MakeSettings());
+  Settings base = MakeSettings();
+  base.net->interest_events = false;
+  const auto on = ApplyArguments({"--interest-events"}, base);
   ASSERT_TRUE(on.has_value()) << on.error();
   EXPECT_TRUE(on->net->interest_events);
 
-  Settings base = MakeSettings();
-  base.net->interest_events = true;
-  const auto off = ApplyArguments({"--interest-events=false"}, base);
+  const auto off = ApplyArguments({"--interest-events=false"}, MakeSettings());
   ASSERT_TRUE(off.has_value()) << off.error();
   EXPECT_FALSE(off->net->interest_events);
 
