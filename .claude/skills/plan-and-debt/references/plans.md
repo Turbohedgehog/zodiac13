@@ -11,6 +11,7 @@
 | `remote-sync-research.md` | measurements behind remote smoothing | research, no stages |
 | `network-sync-plan.md`, `state-restore-plan.md`, `serialization-plan.md` | action log + snapshot history, save/restore, one snapshot format | done; background for the code |
 | `network-scaling-plan.md` | scaling the network to ~200 players (sectors, interest) | "Порядок работ", "Открытые вопросы" |
+| `chat-plan.md` | text chat like SS13: local speech by range, radio frequencies with encryption keys; the server picks the recipients | "Порядок работ", "Открытые вопросы" |
 | `server-plan.md` | dedicated server: session phases, lobby, finalizer, admin console, mods, Docker | "Порядок работ", "Риски и открытые вопросы" |
 | `console-plan.md` | quake-like console | stage 1 done |
 | `main-menu-plan.md` | main menu | — |
