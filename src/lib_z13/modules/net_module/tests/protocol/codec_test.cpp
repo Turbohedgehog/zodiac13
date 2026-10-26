@@ -211,6 +211,8 @@ TEST(CodecTest, StateDigestRoundTripsPositionsAndInputThrough) {
   digest.entity_count = 12;
   digest.name_hash = 0xDEADBEEF;
   digest.state_hash = 0xFEEDFACE;
+  digest.global_hash = 0xC0FFEE;
+  digest.sector_hashes.emplace_back(-2, 0, 3, 0xABCDEF);
   digest.positions.emplace_back(1, 1.5f, 2.5f, 3.5f);
   digest.input_through.emplace_back(1, 75);
 
@@ -219,6 +221,11 @@ TEST(CodecTest, StateDigestRoundTripsPositionsAndInputThrough) {
   EXPECT_EQ(decoded.entity_count, 12u);
   EXPECT_EQ(decoded.name_hash, 0xDEADBEEFu);
   EXPECT_EQ(decoded.state_hash, 0xFEEDFACEu);
+  EXPECT_EQ(decoded.global_hash, 0xC0FFEEu);
+  ASSERT_EQ(decoded.sector_hashes.size(), 1u);
+  EXPECT_EQ(decoded.sector_hashes[0].x(), -2);
+  EXPECT_EQ(decoded.sector_hashes[0].z(), 3);
+  EXPECT_EQ(decoded.sector_hashes[0].hash(), 0xABCDEFu);
   ASSERT_EQ(decoded.positions.size(), 1u);
   EXPECT_EQ(decoded.positions[0].player_id(), 1u);
   EXPECT_FLOAT_EQ(decoded.positions[0].y(), 2.5f);

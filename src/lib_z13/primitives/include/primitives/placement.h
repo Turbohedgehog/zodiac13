@@ -84,6 +84,10 @@ struct CellHash {
 // in the chunk below zero.
 Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell, int chunk_cells);
 
+// A chunk as one number, 21 bits per axis; UnpackChunk gives the chunk back.
+uint64_t PackChunk(const Eigen::Vector3i& chunk);
+Eigen::Vector3i UnpackChunk(uint64_t packed);
+
 CellBox OccupiedCells(const z13::station::Block& block);
 CellPose PoseOf(const z13::station::Block& block);
 

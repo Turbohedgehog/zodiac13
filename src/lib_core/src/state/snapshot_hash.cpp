@@ -61,6 +61,10 @@ uint64_t Mix(uint64_t hash, const EntitySnapshot& entity) {
 
 }  // namespace
 
+uint64_t HashEntitySnapshot(const EntitySnapshot& entity) {
+  return Mix(kFnvOffsetBasis, entity);
+}
+
 uint64_t HashSnapshot(const WorldSnapshot& snapshot) {
   uint64_t hash = Mix(kFnvOffsetBasis, snapshot.entities.size());
   for (const EntitySnapshot& entity : snapshot.entities) {

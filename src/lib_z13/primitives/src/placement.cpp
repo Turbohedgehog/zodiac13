@@ -18,6 +18,8 @@
 #include <primitives/palette.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <numeric>
 
 namespace z13::building::primitives {
 
@@ -147,6 +149,27 @@ size_t CellHash::operator()(const Eigen::Vector3i& cell) const {
 
 Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell, int chunk_cells) {
   return cell.unaryExpr([chunk_cells](int c) { return c >= 0 ? c / chunk_cells : -((-c - 1) / chunk_cells) - 1; });
+}
+
+namespace {
+
+constexpr int kChunkAxisBits = 21;
+constexpr int64_t kChunkAxisBias = int64_t {1} << (kChunkAxisBits - 1);
+constexpr uint64_t kChunkAxisMask = (uint64_t {1} << kChunkAxisBits) - 1;
+
+}  // namespace
+
+uint64_t PackChunk(const Eigen::Vector3i& chunk) {
+  return std::accumulate(chunk.data(), chunk.data() + chunk.size(), uint64_t {}, [](uint64_t packed, int axis) {
+    return (packed << kChunkAxisBits) | (static_cast<uint64_t>(axis + kChunkAxisBias) & kChunkAxisMask);
+  });
+}
+
+Eigen::Vector3i UnpackChunk(uint64_t packed) {
+  const auto axis_at = [packed](int shift) {
+    return static_cast<int>(static_cast<int64_t>((packed >> shift) & kChunkAxisMask) - kChunkAxisBias);
+  };
+  return {axis_at(2 * kChunkAxisBits), axis_at(kChunkAxisBits), axis_at(0)};
 }
 
 CellBox OccupiedCells(const z13::station::Block& block) {

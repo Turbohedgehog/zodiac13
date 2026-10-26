@@ -26,4 +26,7 @@ namespace z13::flecs_tools {
 // counts by its fingerprint. What peers compare to find a desync (docs/net-core.md, Н6).
 uint64_t HashSnapshot(const WorldSnapshot& snapshot);
 
+// One entity's part of that hash, so a caller can total the entities of a region by itself.
+uint64_t HashEntitySnapshot(const EntitySnapshot& entity);
+
 }  // namespace z13::flecs_tools
