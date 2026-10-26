@@ -45,6 +45,7 @@
 #include "../../src/catch_up.h"
 #include "../../src/interest_deltas.h"
 #include "../../src/interest_events.h"
+#include "../../src/net_session.h"
 #include "../../src/session_deltas.h"
 #include "../../src/wire_records.h"
 
@@ -204,6 +205,32 @@ TEST_F(InterestEventsTest, APlayerEnteringAClientsPresenceBringsItsHeldInput) {
   EXPECT_TRUE(Received<fbs::net::EntityEnteredT>(session_.Client(0), [walker](const auto& e) {
     return !e.held_values.empty() && e.held_values.front().player_id() == walker;
   }));
+}
+
+uint64_t RelayedCommands(Z13TestWorld& server) {
+  const auto& by_message = server.World().get<NetSession>().Sent().by_message;
+  const auto found = by_message.find(fbs::net::MessageBody::SequencedCommands);
+  return found == by_message.end() ? 0 : found->second.packets;
+}
+
+TEST_F(InterestEventsTest, CommandsOfPlayersFarApartAreNotRelayedToEachOther) {
+  const uint32_t mover = PlayerOf(session_.Client(1));
+  const flecs::entity player = session_.Server().World().lookup(z13::gameplay::PlayerEntityName(mover).c_str());
+  ASSERT_TRUE(player.is_valid());
+  const uint64_t near_before = RelayedCommands(session_.Server());
+  Run(kSettleTicks);
+  const uint64_t relayed_near = RelayedCommands(session_.Server()) - near_before;
+
+  const int sector_cells = session_.Server().World().get<z13::NetTuning>().sector_size_cells;
+  const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
+  player.set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+  Run(kSettleTicks);
+  Run(kSettleTicks);
+  const uint64_t far_before = RelayedCommands(session_.Server());
+  Run(kSettleTicks);
+
+  EXPECT_GT(relayed_near, 0u);
+  EXPECT_LT(RelayedCommands(session_.Server()) - far_before, relayed_near);
 }
 
 TEST(InterestDeltasTest, MergingAPlayersInputTwiceAddsItOnce) {

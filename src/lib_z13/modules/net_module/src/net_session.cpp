@@ -75,6 +75,16 @@ void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optio
   }
 }
 
+void NetSession::Multicast(Channel channel, const Envelope& envelope, std::span<const ConnectionId> connections) {
+  State& state = *state_;
+  const std::vector<uint8_t> bytes = EncodeMessage(envelope);
+  const auto payload = std::as_bytes(std::span(bytes));
+  for (const ConnectionId connection : connections) {
+    state.sent.Record({connection, channel}, envelope.body.type, bytes.size());
+    state.transport->Send(connection, channel, payload);
+  }
+}
+
 const SentTraffic& NetSession::Sent() const {
   return state_->sent;
 }

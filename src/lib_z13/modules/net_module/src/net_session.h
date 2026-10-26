@@ -51,6 +51,8 @@ class NetSession {
   void SendBytes(ConnectionId connection, Channel channel, std::span<const uint8_t> bytes);
   // Every tracked connection (AddConnection) except `except`, if given.
   void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
+  // The same message to each of `connections`, encoded once.
+  void Multicast(Channel channel, const Envelope& envelope, std::span<const ConnectionId> connections);
   const SentTraffic& Sent() const;
   // Bookkeeping is cleaned up on the kDisconnected event this produces.
   void Disconnect(ConnectionId connection);

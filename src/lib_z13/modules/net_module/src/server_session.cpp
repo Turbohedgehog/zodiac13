@@ -310,7 +310,7 @@ void HandleCommandBatch(
   Envelope envelope;
   envelope.body.Set(std::move(sequenced));
   CountRelay(world, session, *player_id);
-  session.Broadcast(Channel::kReliable, envelope, connection);
+  SendToKnowing(world, session, *player_id, envelope, connection);
 }
 
 void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionId connection) {
@@ -329,7 +329,7 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
   left.apply_tick = LeaveApplyTick(world, *player_id);
   left.player_id = *player_id;
   const uint64_t apply_tick = left.apply_tick;
-  ScheduleSessionDelta(session, world, apply_tick, std::move(left));
+  ScheduleSessionDelta(session, world, apply_tick, std::move(left), *player_id);
 }
 
 Status HandleServerReceived(
@@ -411,7 +411,7 @@ void FinalizeLateInput(NetSession& session, flecs::world world) {
     sequenced.through_tick = final_tick;
     Envelope envelope;
     envelope.body.Set(std::move(sequenced));
-    session.Broadcast(Channel::kReliable, envelope);
+    SendToKnowing(world, session, player_id, envelope);
   }
 }
 
