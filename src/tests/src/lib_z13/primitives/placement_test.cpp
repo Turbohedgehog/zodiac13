@@ -178,7 +178,8 @@ TEST(PlacementTest, ADragSizesATurnedBrushAlongItsOwnAxes) {
 }
 
 TEST(PlacementTest, APackedChunkUnpacksToTheSameChunk) {
-  for (const Eigen::Vector3i chunk : {Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(-1, 2, -300), Eigen::Vector3i(5000, -7000, 1)}) {
+  const std::vector<Eigen::Vector3i> chunks {{0, 0, 0}, {-1, 2, -300}, {5000, -7000, 1}};
+  for (const Eigen::Vector3i& chunk : chunks) {
     EXPECT_EQ(UnpackChunk(PackChunk(chunk)), chunk);
   }
 }
