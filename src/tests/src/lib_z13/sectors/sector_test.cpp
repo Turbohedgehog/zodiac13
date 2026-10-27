@@ -61,5 +61,17 @@ TEST(SectorTest, AnEmptyBoxTouchesNothing) {
   EXPECT_TRUE(SectorsTouched({.min = {3, 3, 3}, .extent = {0, 1, 1}}, kSectorCells).empty());
 }
 
+TEST(SectorBoxTest, ABoxHoldsTheSectorsBetweenItsCornersAndGrowsOnEverySide) {
+  const SectorBox box {.min = {-1, 0, 2}, .max = {1, 1, 2}};
+
+  EXPECT_TRUE(box.Contains({0, 1, 2}));
+  EXPECT_TRUE(box.Contains({1, 0, 2}));
+  EXPECT_FALSE(box.Contains({2, 0, 2}));
+  EXPECT_FALSE(box.Contains({0, 0, 3}));
+  EXPECT_EQ(box.Sectors().size(), 6u);
+  EXPECT_TRUE(box.Grown(1).Contains({2, -1, 3}));
+  EXPECT_FALSE(box.Grown(1).Contains({3, 0, 2}));
+}
+
 }  // namespace
 }  // namespace z13::net::sectors

@@ -21,6 +21,7 @@
 #include <span>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <flecs.h>
 
@@ -36,8 +37,9 @@ namespace z13::net {
 // it has (docs/interest-design.md). Starts as the whole world, which is what a Welcome or Resync gives.
 struct ClientKnowledge {
   SectorSet sectors;
-  SectorSet presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
+  sectors::SectorBox presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
   std::unordered_set<uint32_t> players;
+  std::vector<sectors::SectorKey> unsent;  // entered, but the event could not be made yet
 };
 
 // What InterestMap::Update reported for each client this tick.

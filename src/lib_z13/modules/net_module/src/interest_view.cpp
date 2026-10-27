@@ -34,30 +34,13 @@ namespace {
 // A player's reach is within one sector (enforced by net.interest_radius_sectors' rule).
 constexpr int kPresenceRing = 1;
 
-}  // namespace
-
-SectorSet Dilated(const SectorSet& wanted) {
-  SectorSet ring;
-  for (const sectors::SectorKey& sector : wanted) {
-    for (int dx = -kPresenceRing; dx <= kPresenceRing; ++dx) {
-      for (int dy = -kPresenceRing; dy <= kPresenceRing; ++dy) {
-        for (int dz = -kPresenceRing; dz <= kPresenceRing; ++dz) {
-          ring.insert(sector + sectors::SectorKey(dx, dy, dz));
-        }
-      }
-    }
-  }
-  return ring;
-}
-
-namespace {
-
-InterestView ViewOfSectors(flecs::world world, sectors::ClientId client, SectorSet subscribed) {
+InterestView ViewOfSectors(
+    flecs::world world, sectors::ClientId client, SectorSet subscribed, const sectors::SectorBox& bounds) {
   InterestView view;
   view.sectors = std::move(subscribed);
-  view.presence = Dilated(view.sectors);
+  view.presence = PresenceOf(bounds);
   const auto& index = world.get<sectors::SectorIndex>();
-  for (const sectors::SectorKey& sector : view.presence) {
+  for (const sectors::SectorKey& sector : view.presence.Sectors()) {
     for (const sectors::SectorMember& member : index.MembersIn(sector)) {
       if (member.kind == sectors::MemberKind::kPlayer) {
         view.players.insert(static_cast<uint32_t>(member.id));
@@ -70,26 +53,27 @@ InterestView ViewOfSectors(flecs::world world, sectors::ClientId client, SectorS
 
 }  // namespace
 
+sectors::SectorBox PresenceOf(const sectors::SectorBox& subscribed) {
+  return subscribed.Grown(kPresenceRing);
+}
+
 InterestView ViewAround(flecs::world world, sectors::ClientId client, const sectors::SectorKey& center) {
   const auto& tuning = world.get<z13::NetTuning>();
   const int reach = tuning.interest_radius_sectors + tuning.interest_margin_sectors;
-  SectorSet subscribed;
-  for (int dx = -reach; dx <= reach; ++dx) {
-    for (int dy = -reach; dy <= reach; ++dy) {
-      for (int dz = -reach; dz <= reach; ++dz) {
-        subscribed.insert(center + sectors::SectorKey(dx, dy, dz));
-      }
-    }
-  }
-  return ViewOfSectors(world, client, std::move(subscribed));
+  const sectors::SectorBox bounds {
+      .min = center - sectors::SectorKey::Constant(reach), .max = center + sectors::SectorKey::Constant(reach)};
+  const std::vector<sectors::SectorKey> subscribed = bounds.Sectors();
+  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()}, bounds);
 }
 
 std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client) {
-  const std::vector<sectors::SectorKey> subscribed = world.get<sectors::InterestMap>().SectorsOf(client);
-  if (subscribed.empty()) {
+  const auto& map = world.get<sectors::InterestMap>();
+  const std::optional<sectors::SectorBox> bounds = map.BoundsOf(client);
+  if (!bounds) {
     return std::nullopt;
   }
-  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()});
+  const std::vector<sectors::SectorKey> subscribed = map.SectorsOf(client);
+  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()}, *bounds);
 }
 
 z13::flecs_tools::WorldSnapshot FilterSnapshot(

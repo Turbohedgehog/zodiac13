@@ -45,4 +45,16 @@ std::vector<SectorKey> SectorsTouched(const z13::building::primitives::CellBox& 
   return touched;
 }
 
+std::vector<SectorKey> SectorBox::Sectors() const {
+  std::vector<SectorKey> sectors;
+  for (int x = min.x(); x <= max.x(); ++x) {
+    for (int y = min.y(); y <= max.y(); ++y) {
+      for (int z = min.z(); z <= max.z(); ++z) {
+        sectors.emplace_back(x, y, z);
+      }
+    }
+  }
+  return sectors;
+}
+
 }  // namespace z13::net::sectors

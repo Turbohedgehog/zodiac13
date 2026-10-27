@@ -117,6 +117,19 @@ std::vector<ClientId> InterestMap::Clients() const {
   return clients;
 }
 
+std::optional<SectorBox> InterestMap::BoundsOf(ClientId client) const {
+  const auto found = zones_.find(client);
+  if (found == zones_.end() || found->second.sectors.empty()) {
+    return std::nullopt;
+  }
+  SectorBox bounds {.min = *found->second.sectors.begin(), .max = *found->second.sectors.begin()};
+  for (const SectorKey& sector : found->second.sectors) {
+    bounds.min = bounds.min.cwiseMin(sector);
+    bounds.max = bounds.max.cwiseMax(sector);
+  }
+  return bounds;
+}
+
 size_t InterestMap::SectorCount(ClientId client) const {
   const auto found = zones_.find(client);
   return found == zones_.end() ? 0 : found->second.sectors.size();

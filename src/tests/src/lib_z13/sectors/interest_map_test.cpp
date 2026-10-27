@@ -150,5 +150,17 @@ TEST(InterestMapTest, ASmallerShapeLeavesWhatIsBeyondItsHysteresis) {
   EXPECT_FALSE(map.Covers(kClient, {2, 0, 0}));
 }
 
+TEST(InterestMapTest, TheBoundsOfAClientHoldAllItsSectors) {
+  InterestMap map;
+  map.Update(kClient, {5, 0, -3}, {.radius = 1, .margin = 1});
+
+  const auto bounds = map.BoundsOf(kClient);
+
+  ASSERT_TRUE(bounds.has_value());
+  EXPECT_EQ(bounds->min, SectorKey(3, -2, -5));
+  EXPECT_EQ(bounds->max, SectorKey(7, 2, -1));
+  EXPECT_FALSE(map.BoundsOf(kClient + 1).has_value());
+}
+
 }  // namespace
 }  // namespace z13::net::sectors
