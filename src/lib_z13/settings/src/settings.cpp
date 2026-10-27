@@ -197,6 +197,10 @@ Status ValidateSettings(const Settings& settings) {
                    std::format("plus net.interest_margin_sectors must not exceed {}", kMostInterestSectors));
   }
 
+  if (settings.net->look_hint_near_radius_m > settings.net->look_hint_radius_m) {
+    return Invalid("net.look_hint_near_radius_m", "must not exceed net.look_hint_radius_m");
+  }
+
   // A player at the edge of its sector must see what its building reaches.
   if (settings.net->interest_radius_sectors * settings.net->sector_size_cells < settings.building->wall_pick_reach_cells) {
     return Invalid("net.interest_radius_sectors", "times net.sector_size_cells must cover building.wall_pick_reach_cells");

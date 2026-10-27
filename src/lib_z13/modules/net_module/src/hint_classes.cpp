@@ -28,13 +28,17 @@ struct HintClassFields {
   uint64_t fbs::net::NetTuningT::* interval_ticks {};
   fbs::net::HintFilter fbs::net::NetTuningT::* filter {};
   double fbs::net::NetTuningT::* radius_m {};
+  double fbs::net::NetTuningT::* near_radius_m {};
+  uint64_t fbs::net::NetTuningT::* far_every {};
 };
 
 constexpr std::array kClasses {
     HintClassFields {.name = "look",
                      .interval_ticks = &fbs::net::NetTuningT::look_hint_interval_ticks,
                      .filter = &fbs::net::NetTuningT::look_hint_filter,
-                     .radius_m = &fbs::net::NetTuningT::look_hint_radius_m},
+                     .radius_m = &fbs::net::NetTuningT::look_hint_radius_m,
+                     .near_radius_m = &fbs::net::NetTuningT::look_hint_near_radius_m,
+                     .far_every = &fbs::net::NetTuningT::look_hint_far_every},
 };
 
 }  // namespace
@@ -48,6 +52,8 @@ std::optional<HintClassTuning> FindHintClass(const z13::NetTuning& tuning, std::
       .interval_ticks = tuning.*(found->interval_ticks),
       .filter = tuning.*(found->filter),
       .radius_m = tuning.*(found->radius_m),
+      .near_radius_m = tuning.*(found->near_radius_m),
+      .far_every = tuning.*(found->far_every),
   };
 }
 

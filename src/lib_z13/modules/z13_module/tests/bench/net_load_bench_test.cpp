@@ -102,6 +102,20 @@ std::string TopMessages(const SentTraffic& before, const SentTraffic& after, dou
   return text;
 }
 
+std::string MessageRate(
+    const SentTraffic& before, const SentTraffic& after, fbs::net::MessageBody message, double seconds) {
+  const auto total = [&](const SentTraffic& sent) {
+    const auto found = sent.by_message.find(message);
+    return found == sent.by_message.end() ? TrafficStats {} : found->second;
+  };
+  const uint64_t packets = total(after).packets - total(before).packets;
+  const uint64_t bytes = total(after).bytes - total(before).bytes;
+  return std::format(
+      " {} {:.0f} packets/s, {:.0f} B/packet", fbs::net::EnumNameMessageBody(message),
+      static_cast<double>(packets) / seconds,
+      packets > 0 ? static_cast<double>(bytes) / static_cast<double>(packets) : 0.);
+}
+
 std::string TopSystems(const std::vector<z13::SystemTime>& before, const std::vector<z13::SystemTime>& after) {
   const std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(before, after, kMeasuredTicks);
   std::string text = std::format(" all {:.2f} |", std::ranges::fold_left(spent | std::views::transform(&z13::SystemTime::ms), 0., std::plus<> {}));
@@ -144,6 +158,9 @@ TEST(NetLoadBench, DISABLED_ServerLoadByClientCount) {
         "        server: {} rollbacks, {} ticks replayed; ms/tick by system:{}\n",
         after.rollbacks.rollbacks - before.rollbacks.rollbacks,
         after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks, TopSystems(before.systems, after.systems));
+    std::cout << std::format(
+        "        server sends:{}\n",
+        MessageRate(before.server, after.server, fbs::net::MessageBody::SequencedCommands, seconds));
   }
 }
 

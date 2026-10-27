@@ -53,6 +53,12 @@ class NetSession {
   void Broadcast(Channel channel, const Envelope& envelope, std::optional<ConnectionId> except = {});
   // The same message to each of `connections`, encoded once.
   void Multicast(Channel channel, const Envelope& envelope, std::span<const ConnectionId> connections);
+  // Held until FlushRelays() or the next reliable message to a connection, so it gets one SequencedCommands.
+  void QueueRun(
+      std::span<const ConnectionId> connections, const fbs::net::CommandRunWire& run,
+      std::span<const fbs::net::CommandWire> commands);
+  void FlushRelays();
+  std::vector<ConnectionId> Connections() const;
   const SentTraffic& Sent() const;
   // Bookkeeping is cleaned up on the kDisconnected event this produces.
   void Disconnect(ConnectionId connection);

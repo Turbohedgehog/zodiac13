@@ -120,6 +120,7 @@ set(
   ${MODULES_DIR}/net_module/tests/sectors/sector_hash_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_system_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
   ${MODULES_DIR}/station_module/tests/block_change_test.cpp

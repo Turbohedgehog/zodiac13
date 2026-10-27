@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <optional>
@@ -255,16 +256,15 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
   }
 }
 
-}  // namespace
-
-void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
-                   std::optional<ConnectionId> except) {
+std::vector<ConnectionId> KnowingConnections(
+    flecs::world world, const NetSession& session, uint32_t player_id, std::optional<ConnectionId> except) {
+  std::vector<ConnectionId> recipients;
   if (!world.get<z13::NetTuning>().interest_events) {
-    session.Broadcast(Channel::kReliable, envelope, except);
-    return;
+    std::ranges::copy_if(session.Connections(), std::back_inserter(recipients),
+                         [&](ConnectionId connection) { return connection != except; });
+    return recipients;
   }
   const auto& knowledge = world.get<InterestKnowledge>();
-  std::vector<ConnectionId> recipients;
   for (const auto& [connection, client] : session.PlayerConnections()) {
     const auto known = knowledge.by_client.find(client);
     if (connection != except &&
@@ -272,7 +272,20 @@ void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, 
       recipients.push_back(connection);
     }
   }
-  session.Multicast(Channel::kReliable, envelope, recipients);
+  return recipients;
+}
+
+}  // namespace
+
+void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
+                   std::optional<ConnectionId> except) {
+  session.Multicast(Channel::kReliable, envelope, KnowingConnections(world, session, player_id, except));
+}
+
+void RelayCommands(flecs::world world, NetSession& session, uint32_t player_id, uint64_t through_tick,
+                   const CommandRun& run, std::optional<ConnectionId> except) {
+  session.QueueRun(
+      KnowingConnections(world, session, player_id, except), ToWire(player_id, through_tick, run), run.commands);
 }
 
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view) {

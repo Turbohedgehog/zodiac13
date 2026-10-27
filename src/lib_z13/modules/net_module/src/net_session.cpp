@@ -29,6 +29,21 @@ class NetSession::State {
   std::unordered_map<ConnectionId, uint32_t> connection_to_player;
   std::optional<ConnectionId> server_connection;
   SentTraffic sent;
+  std::unordered_map<ConnectionId, fbs::net::SequencedCommandsT> pending_runs;
+
+  // Anything else sent on the reliable channel goes after the runs queued before it.
+  void FlushRuns(ConnectionId connection) {
+    const auto pending = pending_runs.find(connection);
+    if (pending == pending_runs.end()) {
+      return;
+    }
+    Envelope envelope;
+    envelope.body.Set(std::move(pending->second));
+    pending_runs.erase(pending);
+    const std::vector<uint8_t> bytes = EncodeMessage(envelope);
+    sent.Record({connection, Channel::kReliable}, envelope.body.type, bytes.size());
+    transport->Send(connection, Channel::kReliable, std::as_bytes(std::span(bytes)));
+  }
 };
 
 void NetSession::Open(std::unique_ptr<Transport> transport) {
@@ -53,6 +68,9 @@ Status NetSession::SendDatagram(const Endpoint& to, std::span<const uint8_t> byt
 }
 
 void NetSession::Send(ConnectionId connection, Channel channel, const Envelope& envelope) {
+  if (channel == Channel::kReliable) {
+    state_->FlushRuns(connection);
+  }
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
   state_->sent.Record({connection, channel}, envelope.body.type, bytes.size());
   state_->transport->Send(connection, channel, std::as_bytes(std::span(bytes)));
@@ -69,6 +87,9 @@ void NetSession::Broadcast(Channel channel, const Envelope& envelope, std::optio
   const auto payload = std::as_bytes(std::span(bytes));
   for (const ConnectionId connection : state.connections) {
     if (connection != except) {
+      if (channel == Channel::kReliable) {
+        state.FlushRuns(connection);
+      }
       state.sent.Record({connection, channel}, envelope.body.type, bytes.size());
       state.transport->Send(connection, channel, payload);
     }
@@ -80,9 +101,37 @@ void NetSession::Multicast(Channel channel, const Envelope& envelope, std::span<
   const std::vector<uint8_t> bytes = EncodeMessage(envelope);
   const auto payload = std::as_bytes(std::span(bytes));
   for (const ConnectionId connection : connections) {
+    if (channel == Channel::kReliable) {
+      state.FlushRuns(connection);
+    }
     state.sent.Record({connection, channel}, envelope.body.type, bytes.size());
     state.transport->Send(connection, channel, payload);
   }
+}
+
+void NetSession::QueueRun(
+    std::span<const ConnectionId> connections, const fbs::net::CommandRunWire& run,
+    std::span<const fbs::net::CommandWire> commands) {
+  for (const ConnectionId connection : connections) {
+    fbs::net::SequencedCommandsT& pending = state_->pending_runs[connection];
+    pending.runs.push_back(run);
+    pending.commands.insert(pending.commands.end(), commands.begin(), commands.end());
+  }
+}
+
+void NetSession::FlushRelays() {
+  State& state = *state_;
+  std::vector<ConnectionId> queued;
+  for (const auto& [connection, runs] : state.pending_runs) {
+    queued.push_back(connection);
+  }
+  for (const ConnectionId connection : queued) {
+    state.FlushRuns(connection);
+  }
+}
+
+std::vector<ConnectionId> NetSession::Connections() const {
+  return {state_->connections.begin(), state_->connections.end()};
 }
 
 const SentTraffic& NetSession::Sent() const {
@@ -100,6 +149,7 @@ void NetSession::AddConnection(ConnectionId connection) {
 void NetSession::RemoveConnection(ConnectionId connection) {
   State& state = *state_;
   state.connections.erase(connection);
+  state.pending_runs.erase(connection);
   state.connection_to_player.erase(connection);
   if (state.server_connection == connection) {
     state.server_connection.reset();
