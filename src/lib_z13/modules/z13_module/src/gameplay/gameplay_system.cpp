@@ -52,16 +52,17 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
     return;
   }
 
-  // Immediate, so SpawnPlayer below sees what the observers add.
+  // Immediate, so SpawnPlayer below sees what the observers add; they name it by these counters.
   {
     const z13::ImmediateScope immediate(world);
+    world.set<gameplay::IdCounters>({});
     const flecs::entity target = world.entity().add<PopulateSceneEvent>();
     world.event<PopulateSceneEvent>().id<PopulateSceneEvent>().entity(target).emit();
     target.destruct();
   }
 
   // Single-player and the server both play as id 0.
-  gameplay::IdCounters counters;
+  gameplay::IdCounters counters = world.get<gameplay::IdCounters>();
   const uint32_t local_id = counters.last_player_id++;
   SpawnPlayer(world, local_id);
   world.set<gameplay::IdCounters>(counters);

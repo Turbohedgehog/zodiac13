@@ -8,13 +8,12 @@ generate_spire.py. The halls' corners are solid fill under wedge prisms: exact s
 until the thin oblique walls of f/wall-segments exist.
 """
 
-import itertools
 from pathlib import Path
 
 from station_blueprint import (
     CELLS_PER_M, COUNTER, DOOR, FLOOR, MASS, SLAB_CELLS, SLOPE, WALL, WALL_BLOCK, WINDOW, Deck, block,
-    block_kinds, door_boxes, lamp_blocks, mask_blocks, render_plan, spawn_blocks, wall_blocks, wedge_block,
-    write_blueprint)
+    block_kinds, corner_blocks, door_boxes, fill_corners, lamp_blocks, mask_blocks, render_plan, spawn_blocks,
+    wall_blocks, wedge_block, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
 
@@ -124,30 +123,11 @@ class ShardDeck(Deck):
         self.label(*box, label)
 
     def mark_corners(self):
-        """Solid-fill characters of the halls' corners, wherever the filled triangle reaches the character."""
-        for name, outer, steps in CORNERS:
-            across, down = sum(step[0] for step in steps), sum(step[1] for step in steps)
-            for cy in range(outer[1] // CELLS_PER_M, outer[3] // CELLS_PER_M + 1):
-                for cx in range(outer[0] // CELLS_PER_M, outer[2] // CELLS_PER_M + 1):
-                    if self.grid[cy][cx] != " ":
-                        continue
-                    for dy, dx in itertools.product(range(CELLS_PER_M), repeat=2):
-                        u, v = corner_uv(name, outer, cx * CELLS_PER_M + dx, cy * CELLS_PER_M + dy)
-                        if u > 0 and v > 0 and u * down + v * across < 2 * across * down:
-                            self.grid[cy][cx] = MASS
-                            break
+        fill_corners(self, CORNERS)
 
     def corridor_door(self, x):
         for y in DOOR_ROWS:
             self.put(x, y, DOOR)
-
-
-def corner_uv(name, outer, cell_x, cell_y):
-    """Distances of a cell's middle (doubled) from the box corner `name` along x and y."""
-    x0, y0, x1, y1 = outer
-    u = (2 * cell_x + 1 - 2 * x0) if name[1] == "W" else (2 * x1 - 2 * cell_x - 1)
-    v = (2 * cell_y + 1 - 2 * y0) if name[0] == "N" else (2 * y1 - 2 * cell_y - 1)
-    return u, v
 
 
 def west_section(deck):
@@ -204,32 +184,9 @@ def deck_floor_z(deck):
     return (deck.number - 1) * DECK_PITCH_CELLS + SLAB_CELLS
 
 
-def corner_blocks(name, outer, steps, z):
-    """The filled triangle of one corner of a hall, as wall rows and one wedge prism per step."""
-    x0, y0, x1, y1 = outer
-    across = sum(step[0] for step in steps)
-
-    def at(u, v):
-        return (x0 + u if name[1] == "W" else x1 - u, y0 + v if name[0] == "N" else y1 - v)
-
-    blocks = []
-    u_start, v_low = across, 0
-    for step_x, step_y in steps:
-        v_high = v_low + step_y
-        width = u_start - step_x
-        if width > 0:
-            (xa, ya), (xb, yb) = at(0, v_low), at(width, v_high)
-            for y in range(min(ya, yb), max(ya, yb)):
-                blocks.append(block(WALL_BLOCK, (min(xa, xb), y, z), (width, 1, WALL_HEIGHT_CELLS)))
-        triangle = [(width, v_low), (u_start, v_low), (width, v_high)]
-        blocks.append(wedge_block([(*at(u, v), height) for u, v in triangle for height in (z, z + WALL_HEIGHT_CELLS)]))
-        u_start, v_low = width, v_high
-    return blocks
-
-
 def hall_corners(deck):
     z = deck_floor_z(deck)
-    return [b for name, outer, steps in CORNERS for b in corner_blocks(name, outer, steps, z)]
+    return [b for name, outer, steps in CORNERS for b in corner_blocks(name, outer, steps, z, WALL_HEIGHT_CELLS)]
 
 
 def ramp_blocks(ramp):

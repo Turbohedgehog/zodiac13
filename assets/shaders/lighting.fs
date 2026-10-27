@@ -230,9 +230,32 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
     }
     if (ownPiece >= uint(kPieces))
     {
+        // A floor beside an oblique wall lies in cells the wall's centre test makes opaque, up the whole
+        // wall: borrow the cell of a free neighbour, the ones beside it first, then those above.
         point = surface;
-        cell = ivec3(floor(point)) - cellOrigin;
-        if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
+        ivec3 own = ivec3(floor(point)) - cellOrigin;
+        for (int dz = 0; dz <= 1 && ownPiece >= uint(kPieces); dz++)
+        {
+            for (int dy = -1; dy <= 1 && ownPiece >= uint(kPieces); dy++)
+            {
+                for (int dx = -1; dx <= 1 && ownPiece >= uint(kPieces); dx++)
+                {
+                    ivec3 neighbour = own + ivec3(dx, dy, dz);
+                    if (any(lessThan(neighbour, ivec3(0))) || any(greaterThanEqual(neighbour, cellCubes*kNodeCells))) continue;
+                    uint label = texelFetch(cellLabels, neighbour, 0).r;
+                    if (label < uint(kPieces))
+                    {
+                        ownPiece = label;
+                        cell = neighbour;
+                    }
+                }
+            }
+        }
+        if (ownPiece >= uint(kPieces))
+        {
+            cell = own;
+            if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
+        }
     }
     ivec3 ownCube = cell/kNodeCells;
     vec3 cubePoint = (point - vec3(cellOrigin))/float(kNodeCells) - 0.5;

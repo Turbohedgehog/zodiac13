@@ -67,8 +67,36 @@ table BlueprintBlock {
   slant: ushort;
 }
 
+// z13::station::WallAxis, in the same order.
+enum WallAxis : ubyte {
+  X,
+  Y,
+  Z,
+}
+
+// z13::station::WallDiagonal, in the same order.
+enum WallDiagonal : ubyte {
+  BaseToTip,
+  TipToBase,
+}
+
+// A wall segment (z13::station::WallSegment) between two nodes at the cells `node_a` and `node_b`;
+// nodes at one cell are one node, so walls meeting there are stitched along a seam. Its panels are
+// derived when the scene is placed, not listed among the blocks.
+table BlueprintWall {
+  node_a: Cell;
+  node_b: Cell;
+  axis_a: WallAxis = Z;
+  length_a: int;
+  axis_b: WallAxis = Z;
+  length_b: int;
+  thickness: int;
+  diagonal: WallDiagonal;
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
+  walls: [BlueprintWall];
 }
 
 root_type Blueprint;

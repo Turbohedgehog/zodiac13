@@ -48,6 +48,7 @@
 #include "../../z13_module/tests/support/test_network.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/block_entities.h"
+#include "../src/blueprint_walls.h"
 #include "../src/build_validation.h"
 #include "support/station_builders.h"
 
@@ -143,7 +144,11 @@ TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   ASSERT_TRUE(test_world.World().has<StationMode>());
   const Palette palette = ShippedPalette();
   const std::vector<Block> shipped = ShippedStation(Scene(), palette);
-  EXPECT_EQ(Blocks(test_world.World()).size(), shipped.size());
+  const auto walls = z13::testing::ShippedBlueprintWalls(Scene());
+  ASSERT_TRUE(walls.has_value()) << walls.error();
+  const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {});
+  ASSERT_TRUE(panels.has_value()) << panels.error();
+  EXPECT_EQ(Blocks(test_world.World()).size(), shipped.size() + panels->size());
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), SpawnPoints(shipped, palette));
   const Eigen::Vector3f player = z13::math::ExtractTranslation<float>(
       test_world.World().lookup(PlayerEntityName(0).c_str()).get<Eigen::Matrix4f>());

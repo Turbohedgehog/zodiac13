@@ -4,6 +4,7 @@ One character is 1 m (4 grid cells). A wall of the plan becomes blocks one cell 
 line through its characters' first cells: x m on the plan is cell 4x.
 """
 
+import itertools
 import json
 
 CELLS_PER_M = 4
@@ -179,10 +180,12 @@ def kind_of(ch):
     return {WINDOW: WINDOW_KIND, COUNTER: COUNTER_KIND}.get(ch, WALL_KIND)
 
 
-def block(primitive, cell, size, orientation=None):
+def block(primitive, cell, size, orientation=None, slant=0):
     entry = {"primitive": primitive, "cell": dict(zip("xyz", cell)), "size": dict(zip("xyz", size))}
     if orientation:
         entry["orientation"] = orientation
+    if slant:
+        entry["slant"] = slant
     return entry
 
 
@@ -235,6 +238,118 @@ def wedge_block(vertices):
         if placed == wanted:
             return block(SLOPE, low, size, None if name == "FacePosXUpPosZ" else name)
     raise ValueError(f"no wedge has the vertices {sorted(vertices)}")
+
+
+# ----- Oblique walls -------------------------------------------------------------------------
+
+PANEL = "Panel"
+PANEL_MAX_SIZE_CELLS = 256
+
+
+def plan_axes(stick_axis, span):
+    """(major, minor): the axes of the stick axis's plane that carry the panel's run (the longer of
+    `span`, the lower on a tie) and its rise (primitives/wall_panel.h, PlanAxesOf)."""
+    first = 1 if stick_axis == 0 else 0
+    second = 1 if stick_axis == 2 else 2
+    major = first if abs(span[first]) >= abs(span[second]) else second
+    return major, (second if major == first else first)
+
+
+def min_wall_thickness(node_a, node_b, stick_axis=2):
+    """The thinnest panel between the nodes that holds air back (MinWallThickness): `t * run >= run + rise`."""
+    span = [b - a for a, b in zip(node_a, node_b)]
+    span[stick_axis] = 0
+    major, minor = plan_axes(stick_axis, span)
+    run, rise = abs(span[major]), abs(span[minor])
+    if run == 0:
+        raise ValueError("the wall's nodes coincide in its plane")
+    return (run + rise + run - 1) // run
+
+
+def wall_panel_block(node_a, node_b, thickness, stick_length, stick_axis=2, primitive=PANEL):
+    """The Panel block whose prism runs from node a to node b (b's offset along the stick axis dropped) over
+    the stick, `stick_length` cells long (signed), thickened by |thickness| cells along the lesser axis of the
+    plane to the side of its sign (primitives/wall_panel.cpp, WallPanelBlock, for sticks of one length). The
+    ends are cut by the grid. Raises ValueError for what the C++ function refuses."""
+    offset = [b - a for a, b in zip(node_a, node_b)]
+    offset[stick_axis] = 0
+    if not any(offset):
+        raise ValueError("the wall's nodes coincide in its plane")
+    if stick_length == 0 or thickness == 0:
+        raise ValueError("the wall has no stick length or thickness")
+    major, minor = plan_axes(stick_axis, offset)
+    run, rise, depth = abs(offset[major]), abs(offset[minor]), abs(thickness)
+    size = (run, abs(stick_length), rise + depth)
+    if depth * run < run + rise or any(extent > PANEL_MAX_SIZE_CELLS for extent in size):
+        raise ValueError(f"a panel of run {run}, rise {rise} and thickness {depth} isn't allowed")
+
+    thicken = [0, 0, 0]
+    thicken[minor] = (1 if thickness > 0 else -1) * depth
+    along = [0, 0, 0]
+    along[stick_axis] = stick_length
+    high = [a + o for a, o in zip(node_a, offset)]
+    bases = [list(node_a), [a + t for a, t in zip(node_a, thicken)], high, [h + t for h, t in zip(high, thicken)]]
+    target = {tuple(base) for base in bases} | {tuple(b + a for b, a in zip(base, along)) for base in bases}
+    lowest = tuple(min(point[i] for point in target) for i in range(3))
+    section = ((0, 0), (run, rise), (run, size[2]), (0, depth))
+    corners = [(x, y, z) for y in (0, size[1]) for x, z in section]
+    for name, columns in ORIENTATIONS:
+        rotate = lambda p: tuple(sum(columns[i][row] * p[i] for i in range(3)) for row in range(3))
+        # PoseOf: the origin keeps the rotated box's lowest corner on the block's cell.
+        origin = tuple(lowest[row] - min(rotate(size)[row], 0) for row in range(3))
+        if {tuple(o + r for o, r in zip(origin, rotate(corner))) for corner in corners} == target:
+            return block(primitive, lowest, size, None if name == "FacePosXUpPosZ" else name, rise)
+    raise ValueError("no turn of the panel fits the wall")
+
+
+# ----- Halls with slanted corners ------------------------------------------------------------
+
+def corner_uv(name, outer, cell_x, cell_y):
+    """Distances of a cell's middle (doubled) from the box corner `name` along x and y."""
+    x0, y0, x1, y1 = outer
+    u = (2 * cell_x + 1 - 2 * x0) if name[1] == "W" else (2 * x1 - 2 * cell_x - 1)
+    v = (2 * cell_y + 1 - 2 * y0) if name[0] == "N" else (2 * y1 - 2 * cell_y - 1)
+    return u, v
+
+
+def fill_corners(deck, corners):
+    """Marks the characters a hall's filled corner triangles reach as solid fill. `corners`: (name, the
+    hall's outer box in cells, steps) as in corner_blocks."""
+    for name, outer, steps in corners:
+        across, down = sum(step[0] for step in steps), sum(step[1] for step in steps)
+        for cy in range(outer[1] // CELLS_PER_M, outer[3] // CELLS_PER_M + 1):
+            for cx in range(outer[0] // CELLS_PER_M, outer[2] // CELLS_PER_M + 1):
+                if deck.grid[cy][cx] != " ":
+                    continue
+                for dy, dx in itertools.product(range(CELLS_PER_M), repeat=2):
+                    u, v = corner_uv(name, outer, cx * CELLS_PER_M + dx, cy * CELLS_PER_M + dy)
+                    if u > 0 and v > 0 and u * down + v * across < 2 * across * down:
+                        deck.grid[cy][cx] = MASS
+                        break
+
+
+def corner_blocks(name, outer, steps, z, wall_height, rows=WALL_BLOCK):
+    """The filled triangle of one corner of a hall, as rows of `rows` blocks and one wedge prism per step. Each
+    step is a pair of cells along x and y; they add up to the triangle's legs."""
+    x0, y0, x1, y1 = outer
+    across = sum(step[0] for step in steps)
+
+    def at(u, v):
+        return (x0 + u if name[1] == "W" else x1 - u, y0 + v if name[0] == "N" else y1 - v)
+
+    blocks = []
+    u_start, v_low = across, 0
+    for step_x, step_y in steps:
+        v_high = v_low + step_y
+        width = u_start - step_x
+        if width > 0:
+            (xa, ya), (xb, yb) = at(0, v_low), at(width, v_high)
+            for y in range(min(ya, yb), max(ya, yb)):
+                blocks.append(block(rows, (min(xa, xb), y, z), (width, 1, wall_height)))
+        triangle = [(width, v_low), (u_start, v_low), (width, v_high)]
+        blocks.append(wedge_block([(*at(u, v), height) for u, v in triangle for height in (z, z + wall_height)]))
+        u_start, v_low = width, v_high
+    return blocks
 
 
 def line_blocks(primitive, axis, start, line, z, length, height):
@@ -533,11 +648,23 @@ def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
     return lamps
 
 
-def write_blueprint(path, blocks):
-    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs)."""
+def wall_segment(node_a, node_b, thickness, stick_length, stick_axis=2):
+    """A wall segment of a blueprint (BlueprintWall): the game derives its panel and stitches it along a seam to
+    the segments that meet it at a node. Nodes at one cell are one node."""
+    axis = "XYZ"[stick_axis]
+    return {"node_a": dict(zip("xyz", node_a)), "node_b": dict(zip("xyz", node_b)), "axis_a": axis,
+            "length_a": stick_length, "axis_b": axis, "length_b": stick_length, "thickness": thickness}
+
+
+def write_blueprint(path, blocks, walls=()):
+    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
+    text = "{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]"
+    if walls:
+        wall_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in walls]
+        text += ",\n  \"walls\": [\n    " + ",\n    ".join(wall_lines) + "\n  ]"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii")
+    path.write_text(text + "\n}\n", encoding="ascii", newline="\n")
 
 
 def block_kinds(blocks):

@@ -35,6 +35,7 @@
 #include <z13_settings/building_tuning.h>
 
 #include "block_entities.h"
+#include "blueprint_walls.h"
 #include "build_validation.h"
 
 namespace z13::building {
@@ -51,19 +52,31 @@ void PopulateStationScene(
     const StationSceneChoice& choice,
     const BlockPalette& palette,
     const BuildingTuning& tuning,
-    const z13::Assets& assets) {
+    const z13::Assets& assets,
+    z13::gameplay::IdCounters& counters) {
   const auto& scene = choice.scene;
   if (!scene) {
     return;
   }
   flecs::world world = e.world();
   const std::filesystem::path file = z13::building::primitives::BlueprintFile(*scene);
-  const auto blocks = assets.source.ReadAsset(file).and_then([&palette](const std::string& json) {
-    return z13::building::primitives::ParseBlueprint(json, palette.palette);
+  const auto json = assets.source.ReadAsset(file);
+  const auto blocks = json.and_then([&palette](const std::string& text) {
+    return z13::building::primitives::ParseBlueprint(text, palette.palette);
+  });
+  const auto walls = json.and_then([](const std::string& text) {
+    return z13::building::primitives::ParseBlueprintWalls(text);
+  });
+  const auto panels = walls.and_then([&palette, &tuning](const auto& parsed) {
+    return BlueprintPanels(parsed, palette.palette, tuning);
   });
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.
-  const Status valid =
-      blocks.and_then([&](const auto& parsed) { return ValidateBlueprint(parsed, palette.palette, tuning); });
+  const Status valid = blocks.and_then([&](const auto& parsed) -> Status {
+    if (!panels) {
+      return std::unexpected(panels.error());
+    }
+    return ValidateBlueprint(parsed, palette.palette, tuning, *panels);
+  });
   if (!valid) {
     log_error("station: no scene '{}': {} ({})", *scene, valid.error(), file.string());
     return;
@@ -73,13 +86,14 @@ void PopulateStationScene(
   for (size_t i = 0; i < blocks->size(); ++i) {
     CreateBlock(world, std::format("Station_{}", i), (*blocks)[i], palette.palette, tuning);
   }
+  SpawnBlueprintWalls(world, counters, *walls);
 }
 
 void RegisterSystems(flecs::world world) {
   // Without the palette (CheckBlockPalette stops the launch first) this never fires.
   world
       .observer<z13::gameplay::PopulateSceneEvent, const StationSceneChoice, const BlockPalette, const BuildingTuning,
-                const z13::Assets>(
+                const z13::Assets, z13::gameplay::IdCounters>(
           "StationSceneSystem::PopulateStationScene")
       .event<z13::gameplay::PopulateSceneEvent>()
       .with<StationMode>()
