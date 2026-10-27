@@ -31,11 +31,16 @@
 #include <string>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <lib_core/settings/config.h>
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_serializer.h>
+#include <lib_core/utils/math.h>
 #include <lib_core/utils/system_times.h>
 
+#include <net_module/state_digest.h>
+#include <z13/components/player.h>
 #include <z13_settings/settings.h>
 
 #include "../../../net_module/src/net_session.h"
@@ -248,6 +253,61 @@ TEST(NetLoadBench, DISABLED_RollbacksByClockLead) {
         after.rollbacks.rollbacks - before.rollbacks.rollbacks,
         after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
         std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
+  }
+}
+
+// Players walking apart: what interest saves in traffic and server time, and what it costs in resyncs.
+TEST(NetLoadBench, DISABLED_InterestByClientCount) {
+  constexpr uint64_t kSpreadTicks = 900;
+  constexpr std::array kInterestClientCounts = {16};
+  std::cout << "clients | interest | server ms/tick | server B/s per client | SequencedCommands B/s per client"
+               " | resyncs | spread m\n";
+  for (const int clients : kInterestClientCounts) {
+    for (const bool interest : {false, true}) {
+      LoadSession session(
+          static_cast<size_t>(clients), {.walk = true, .look = false, .fan_out = true},
+          [interest](z13::Settings& settings) { settings.net->interest_events = interest; });
+      ASSERT_TRUE(session.Connect(kConnectTicks)) << clients << " clients didn't connect";
+      for (uint64_t tick = 0; tick < kSpreadTicks; ++tick) {
+        session.Tick();
+      }
+      ecs_measure_system_time(session.Server().World(), true);
+      const Snapshot before = Take(session);
+      for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot after = Take(session);
+      ecs_measure_system_time(session.Server().World(), false);
+
+      const double seconds = static_cast<double>(kMeasuredTicks) / kTicksPerSecond;
+      const auto commands = [](const SentTraffic& sent) {
+        const auto found = sent.by_message.find(fbs::net::MessageBody::SequencedCommands);
+        return found == sent.by_message.end() ? uint64_t {} : found->second.bytes;
+      };
+      uint64_t resyncs = 0;
+      for (size_t i = 0; i < session.ClientCount(); ++i) {
+        resyncs += session.Client(i).World().get<StateDigests>().resyncs;
+      }
+      Eigen::Vector3f centroid = Eigen::Vector3f::Zero();
+      std::vector<Eigen::Vector3f> positions;
+      session.Server().World().query<const z13::gameplay::Player, const Eigen::Matrix4f>().each(
+          [&](const z13::gameplay::Player&, const Eigen::Matrix4f& transform) {
+            positions.push_back(z13::math::ExtractTranslation<float>(transform));
+            centroid += positions.back();
+          });
+      centroid /= static_cast<float>(std::max<size_t>(positions.size(), 1));
+      double spread = 0.;
+      for (const Eigen::Vector3f& position : positions) {
+        spread += (position - centroid).norm() / static_cast<double>(std::max<size_t>(positions.size(), 1));
+      }
+      const double server_bytes = static_cast<double>(after.server.Total().bytes - before.server.Total().bytes);
+      std::cout << std::format(
+          "{:7} | {:8} | {:14.2f} | {:21.0f} | {:32.0f} | {:7} | {:8.1f}\n", clients, interest ? "on" : "off",
+          std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
+          server_bytes / seconds / clients,
+          static_cast<double>(commands(after.server) - commands(before.server)) / seconds / clients, resyncs, spread);
+      std::cout << std::format("        ms/tick by system:{}\n", TopSystems(before.systems, after.systems));
+    }
   }
 }
 

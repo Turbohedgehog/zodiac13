@@ -33,6 +33,8 @@ namespace {
 
 using Keycode = z13::fbs::input::Keycode;
 
+// Pixels of turn between neighbouring clients' headings; prime, so no number of clients lines two up.
+constexpr int kFanOutStepX = 137;
 constexpr int kLookStepX = 3;
 constexpr int kLookJitterX = 5;
 constexpr int kLookJitterY = 3;
@@ -68,6 +70,11 @@ bool LoadSession::Connect(uint64_t max_ticks) {
 void LoadSession::Steer(size_t index) {
   Z13TestWorld& client = *clients_[index];
   if (steering_.walk && !walking_[index]) {
+    if (steering_.fan_out) {
+      z13::input::MouseMoveEvent turn;
+      turn.delta = {.x = static_cast<int>(index) * kFanOutStepX, .y = 0};
+      client.EmitInput(turn);
+    }
     client.EmitInput(KeyDown(Keycode::KEY_W));
     walking_[index] = true;
   }
