@@ -9,7 +9,7 @@ import math
 
 import bpy
 import bmesh
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 LEVEL_M = 3.0
@@ -162,6 +162,16 @@ DISTRICTS = {
 }
 DISTRICT_CORE_ORIGIN = (3, 0)
 
+# Pitch of a district about its hinge, degrees: positive raises the far end. Neighbours on LINKS alternate;
+# the command wing and the bridge stay level.
+TILT_DEG = {
+    "hangar": -1, "medical": 1, "mining_dock": 1, "habitat": 1, "science": -1, "arrivals": -1,
+    "security": 1, "departure": -1, "greenhouse": -1, "old_wing": 1,
+}
+# Docking ports ride with the district they hang on.
+PORT_HOSTS = {"port_medical": "medical", "port_cargo": "hangar", "port_departure": "departure",
+              "port_old_wing": "old_wing"}
+
 # Small-craft docking ports: an airlock sleeve and a clamp ring at its tip. Host frame (hinge, angle),
 # point in that frame, direction relative to it, sleeve length, floor z.
 PORT_SLEEVE_W = 5.0
@@ -182,7 +192,7 @@ DOCK_PORTS = [
     ("port_medical", _frame("medical"), (27.5, 0), 0, 6, 9.0),
     ("port_cargo", _frame("hangar"), (22, -17.4), -90, 8, 0.0),
     ("port_reactor_s", _REACTOR_FRAME, (0, -10), -90, 6, 0.0),
-    ("port_reactor_n", _REACTOR_FRAME, (0, 10), 90, 6, 0.0),
+    ("port_reactor_n", _REACTOR_FRAME, (-5, 8.66), 120, 6, 0.0),
     ("port_departure", _frame("departure"), (14, 14.05), 90, 6, 3.0),
     ("port_old_wing", _frame("old_wing"), (24, -14), -90, 6, 0.0),
 ]
@@ -526,7 +536,36 @@ def tech_components():
     return sorted(groups.values(), key=len, reverse=True)
 
 
-def build():
+def _district_of(obj_name):
+    """The district a mass object belongs to, or None (spine, atrium, links, shared tunnels)."""
+    for district in DISTRICTS:
+        prefixes = (f"{district}_", f"ramps_{district}_", f"tunnel_{district}", f"bypass_{district}_",
+                    f"bypass_cross_{district}_", f"root_riser_{district}", f"riser_{district}")
+        if obj_name.startswith(prefixes):
+            return district
+    for port, district in PORT_HOSTS.items():
+        if obj_name.startswith(f"{port}_"):
+            return district
+    return None
+
+
+def apply_tilts(amplitude_deg):
+    """Pitches every tilted district about its hinge by TILT_DEG * amplitude_deg."""
+    bpy.context.view_layer.update()
+    for obj in bpy.data.objects:
+        district = _district_of(obj.name)
+        sign = TILT_DEG.get(district)
+        if not sign:
+            continue
+        spec = DISTRICTS[district]
+        angle = math.radians(spec["angle"])
+        axis = Vector((-math.sin(angle), math.cos(angle), 0.0))
+        pivot = Vector((*spec["hinge"], 0.0))
+        rotation = Matrix.Rotation(-math.radians(sign * amplitude_deg), 4, axis)
+        obj.matrix_world = Matrix.Translation(pivot) @ rotation @ Matrix.Translation(-pivot) @ obj.matrix_world
+
+
+def build(tilt_deg=0.0):
     _clear()
     for name, box, hinge, angle in SPINE_BOXES:
         _box(name, "spine", "front", box, hinge, angle)
@@ -616,3 +655,5 @@ def build():
     for core in TECH_RAMP_CORES:
         _ramp_core(*core)
     _spiral("ramp_atrium_spiral")
+    if tilt_deg:
+        apply_tilts(tilt_deg)
