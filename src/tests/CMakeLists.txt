@@ -151,6 +151,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/ghost_poses_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/id_counters_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/convergence_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/desync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/lan_discovery_world_test.cpp
