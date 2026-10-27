@@ -31,6 +31,8 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::building::primitives::WallGeometry;
 using z13::station::Block;
 using z13::station::BrushLine;
@@ -123,7 +125,7 @@ Eigen::Vector3i WallClickPoint(const Aim& aim, std::span<const Eigen::Vector3i> 
 }
 
 std::vector<Eigen::Vector3i> WallAnchors(flecs::world world) {
-  std::map<uint32_t, Eigen::Vector3i> nodes;
+  std::map<WallId, Eigen::Vector3i> nodes;
   std::vector<Eigen::Vector3i> anchors;
   world.query<const WallNode>().each([&](const WallNode& node) {
     nodes.emplace(node.id, node.cell);

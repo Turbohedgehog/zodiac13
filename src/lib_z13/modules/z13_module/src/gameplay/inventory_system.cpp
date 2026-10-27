@@ -27,6 +27,7 @@
 
 #include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 #include <z13/components/action_listener.h>
@@ -36,6 +37,7 @@
 #include <z13/components/input_events.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/player.h>
+#include <z13/components/spawn_stamp.h>
 #include <z13_module/input/input_config_loader.h>
 
 namespace z13::inventory {
@@ -73,18 +75,14 @@ bool IsSwitchedOn(const z13::input::ActionListener& listener, const std::optiona
   return value && value->IsSwitchedOn();
 }
 
-// Named after a state counter, like blocks, so every participant names it alike.
-std::string NextItemName(flecs::world world, z13::gameplay::IdCounters& counters) {
-  std::string name;
-  do {
-    name = std::format("Item_{}", ++counters.last_item_id);
-  } while (world.lookup(name.c_str()));
-  return name;
-}
+// The one item a player is given in the tick it joins.
+constexpr uint32_t kStarterToolIndex = 0;
 
-void GiveStarterKit(flecs::entity player, const Player& owner, z13::gameplay::IdCounters& counters) {
+void GiveStarterKit(flecs::entity player, const Player& owner) {
   flecs::world world = player.world();
-  world.entity(NextItemName(world, counters).c_str())
+  const z13::gameplay::SpawnStamp stamp {
+      .tick = world.get<z13::flecs_tools::SimulationClock>().tick, .player_id = owner.id};
+  world.entity(z13::gameplay::SpawnName("Item", stamp, kStarterToolIndex).c_str())
       .add<z13::flecs_tools::StateEntity>()
       .set(Item {.kind = ItemKind::kBuildTool})
       .set(CarriedBy {.player_id = owner.id, .cell = kStarterToolCell})
@@ -187,9 +185,8 @@ void RegisterSystems(flecs::world world) {
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
 
-  world.system<const Player, z13::gameplay::IdCounters>("InventorySystem::GiveStarterKit")
+  world.system<const Player>("InventorySystem::GiveStarterKit")
       .kind<InventoryPhase>()
-      .term_at(1).inout()
       .without<StarterKitGiven>()
       .order_by<Player>(z13::gameplay::CompareByPlayerId)
       .write<Item>()

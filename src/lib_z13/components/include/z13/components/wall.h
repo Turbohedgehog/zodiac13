@@ -24,13 +24,16 @@
 // between them, and the panel block a system derives from each segment.
 namespace z13::station {
 
+// Made by SpawnId (spawn_stamp.h).
+using WallId = uint64_t;
+
 // The axis a segment's "stick" runs along: a wall's height, or a floor's or ramp's width.
 enum class WallAxis : uint8_t { kX, kY, kZ };
 
 // A point on the grid; nodes are shared by id, which every participant has, unlike entity ids.
 struct WallNode {
   using State = void;
-  uint32_t id {};
+  WallId id {};
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
 };
 
@@ -52,9 +55,9 @@ enum class WallDiagonal : uint8_t { kBaseToTip, kTipToBase };
 // panel, of the surface (normal as a base, a tip, b tip, b base wind) for triangles.
 struct WallSegment {
   using State = void;
-  uint32_t id {};
-  uint32_t node_a {};
-  uint32_t node_b {};
+  WallId id {};
+  WallId node_a {};
+  WallId node_b {};
   WallStick stick_a;
   WallStick stick_b;
   int thickness {};
@@ -80,14 +83,14 @@ struct WallDraft {
 // A player's first click of the Merge mode: the node the second click merges into.
 struct WallMergeDraft {
   using State = void;
-  uint32_t node_id {};
+  WallId node_id {};
 };
 
 // A player's first click of the Bridge mode: the node whose stick the second click bridges to,
 // and whether a bent wall takes the diagonal other than the one that folds it least.
 struct WallBridgeDraft {
   using State = void;
-  uint32_t node_id {};
+  WallId node_id {};
   bool flipped {};
 };
 
@@ -98,8 +101,8 @@ enum class OpeningKind : uint8_t { kDoor, kWindow };
 // in cells up the stick.
 struct WallOpening {
   using State = void;
-  uint32_t id {};
-  uint32_t segment_id {};
+  WallId id {};
+  WallId segment_id {};
   OpeningKind kind {};
   int offset {};
   int width {};
@@ -111,7 +114,7 @@ struct WallOpening {
 // (WallPanelSystem).
 struct WallPanelOf {
   using State = void;
-  uint32_t segment_id {};
+  WallId segment_id {};
   uint32_t part {};
 };
 

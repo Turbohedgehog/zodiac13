@@ -35,6 +35,8 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::building::primitives::kMinLintelCells;
 using z13::building::primitives::kMinSideSteps;
 using z13::station::BrushLine;
@@ -158,7 +160,7 @@ std::optional<flecs::entity> OpeningUnder(flecs::world world, const Aim& aim) {
   if (ray.norm() < kParallelEpsilon) {
     return std::nullopt;
   }
-  std::optional<uint32_t> found;
+  std::optional<WallId> found;
   float nearest = 0.f;
   for (const JointWall& wall : JointWallsOf(world)) {
     const auto& geometry = wall.geometry;

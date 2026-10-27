@@ -32,10 +32,13 @@
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // The Opening mode: a click cuts a door or a window in the wall aimed at.
 namespace z13::building {
 namespace {
+
+using z13::station::WallId;
 
 using z13::station::BrushPreview;
 using z13::station::OpeningKind;
@@ -61,10 +64,10 @@ constexpr int kDefaultWidth = 4;
 
 void AddWall(Z13TestWorld& test_world, int far_stick_length = kStickLength) {
   flecs::world world = test_world.World();
-  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
-  const uint32_t a = SpawnWallNode(world, counters, kFrom).get<WallNode>().id;
-  const uint32_t b = SpawnWallNode(world, counters, kTo).get<WallNode>().id;
-  SpawnWallSegment(world, counters,
+  auto& namer = z13::testing::TestNamer(world);
+  const WallId a = SpawnWallNode(world, namer, kFrom).get<WallNode>().id;
+  const WallId b = SpawnWallNode(world, namer, kTo).get<WallNode>().id;
+  SpawnWallSegment(world, namer,
                    {.node_a = a, .node_b = b, .stick_a = {WallAxis::kZ, kStickLength},
                     .stick_b = {WallAxis::kZ, far_stick_length}, .thickness = kThickness});
 }

@@ -30,6 +30,8 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::building::primitives::PlanSeam;
 using z13::building::primitives::PlanTee;
 using z13::building::primitives::PlanWall;
@@ -122,7 +124,7 @@ void SolveNode(WallJoints& joints, std::vector<WallEndAt> meeting, int max_reach
 }  // namespace
 
 WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach) {
-  std::map<uint32_t, std::vector<WallEndAt>> at_node;
+  std::map<WallId, std::vector<WallEndAt>> at_node;
   for (const JointWall& wall : walls) {
     at_node[wall.node_a].push_back({.wall = &wall, .at_a = true});
     at_node[wall.node_b].push_back({.wall = &wall, .at_a = false});

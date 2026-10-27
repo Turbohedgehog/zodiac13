@@ -29,8 +29,8 @@ namespace z13::building {
 
 using z13::station::WallStick;
 
-std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id) {
-  std::vector<std::pair<uint32_t, WallStick>> found;
+std::vector<WallStick> SticksAt(flecs::world world, z13::station::WallId node_id) {
+  std::vector<std::pair<z13::station::WallId, WallStick>> found;
   world.query<const z13::station::WallSegment>().each([&](const z13::station::WallSegment& segment) {
     if (segment.node_a == node_id) {
       found.push_back({segment.id, segment.stick_a});
@@ -38,13 +38,13 @@ std::vector<WallStick> SticksAt(flecs::world world, uint32_t node_id) {
       found.push_back({segment.id, segment.stick_b});
     }
   });
-  std::ranges::sort(found, {}, &std::pair<uint32_t, WallStick>::first);
+  std::ranges::sort(found, {}, &std::pair<z13::station::WallId, WallStick>::first);
   std::vector<WallStick> sticks;
-  std::ranges::transform(found, std::back_inserter(sticks), &std::pair<uint32_t, WallStick>::second);
+  std::ranges::transform(found, std::back_inserter(sticks), &std::pair<z13::station::WallId, WallStick>::second);
   return sticks;
 }
 
-std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, uint32_t node_id) {
+std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, z13::station::WallId node_id) {
   const auto cell = WallNodeCell(world, node_id);
   std::vector<z13::station::BrushLine> lines;
   if (!cell) {
@@ -58,7 +58,8 @@ std::vector<z13::station::BrushLine> StickLinesAt(flecs::world world, uint32_t n
 }
 
 std::expected<FacedWall, std::string> PlanBridge(
-    flecs::world world, uint32_t first, uint32_t second, int thickness, const Eigen::Vector3f& eye,
+    flecs::world world, z13::station::WallId first, z13::station::WallId second, int thickness,
+    const Eigen::Vector3f& eye,
     const z13::building::primitives::Palette& palette, bool flip_diagonal) {
   const auto first_cell = WallNodeCell(world, first);
   const auto second_cell = WallNodeCell(world, second);

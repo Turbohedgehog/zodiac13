@@ -38,11 +38,14 @@
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // The Merge mode over a session: a client's two clicks merge two nodes on the server and in
 // every world, with no resync.
 namespace z13::building {
 namespace {
+
+using z13::station::WallId;
 
 using z13::station::BrushPreview;
 using z13::station::WallAxis;
@@ -73,8 +76,8 @@ struct Aims {
   Eigen::Vector3i second;
 };
 
-std::vector<uint32_t> NodeIds(flecs::world world) {
-  std::vector<uint32_t> ids;
+std::vector<WallId> NodeIds(flecs::world world) {
+  std::vector<WallId> ids;
   world.query<const WallNode>().each([&ids](const WallNode& node) { ids.push_back(node.id); });
   return ids;
 }
@@ -87,11 +90,11 @@ std::string Checkpoint(Z13TestWorld& test_world) {
 
 // A wall from a node at `cell` to one `kPartnerDistance` cells away along y, `toward` being 1 or -1.
 void AddWallFrom(flecs::world world, const Eigen::Vector3i& cell, int toward) {
-  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
-  const uint32_t node = SpawnWallNode(world, counters, cell).get<WallNode>().id;
-  const uint32_t partner =
-      SpawnWallNode(world, counters, cell + Eigen::Vector3i(0, toward * kPartnerDistance, 0)).get<WallNode>().id;
-  SpawnWallSegment(world, counters,
+  auto& namer = z13::testing::TestNamer(world);
+  const WallId node = SpawnWallNode(world, namer, cell).get<WallNode>().id;
+  const WallId partner =
+      SpawnWallNode(world, namer, cell + Eigen::Vector3i(0, toward * kPartnerDistance, 0)).get<WallNode>().id;
+  SpawnWallSegment(world, namer,
                    {.node_a = node, .node_b = partner, .stick_a = {WallAxis::kZ, kStickLength},
                        .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness});
 }

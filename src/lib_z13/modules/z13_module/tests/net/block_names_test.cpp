@@ -47,8 +47,7 @@ std::set<std::string> BlockNames(flecs::world world) {
   return names;
 }
 
-// Known problem (client-server-plan.md, "Технический долг"): fails until a block's name stops depending on a counter.
-TEST(IdCountersTest, DISABLED_ABlockBuiltBeyondAClientsPresenceIsNamedAsTheServerNamesIt) {
+TEST(NamesTest, ABlockBuiltBeyondAClientsPresenceIsNamedAsTheServerNamesIt) {
   LoadSession session(2, {.walk = false, .look = false}, [](z13::Settings& settings) {
     settings.net->interest_events = true;
   });

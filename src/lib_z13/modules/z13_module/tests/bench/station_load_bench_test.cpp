@@ -136,19 +136,18 @@ Eigen::Vector3f PlayerPosition(Z13TestWorld& world) {
   return z13::math::ExtractTranslation<float>(world.Player().get<Eigen::Matrix4f>());
 }
 
-// The station placed around the player, `copies` times along +x, with blocks named like
-// SpawnCube's so IdCounters stays in step.
+// The station placed around the player, `copies` times along +x.
 void PlaceStation(
     Z13TestWorld& world, const std::vector<z13::station::Block>& blocks, int copies, const StationLayout& layout) {
   flecs::world w = world.World();
   const Eigen::Vector3f origin = PlayerPosition(world) - layout.centre - Eigen::Vector3f(0.f, 0.f, kFloorBelowPlayer);
-  auto& counters = w.get_mut<z13::gameplay::IdCounters>();
+  size_t made = 0;
   for (int copy = 0; copy < copies; ++copy) {
     const Eigen::Vector3f copy_origin = origin + Eigen::Vector3f(layout.pitch * static_cast<float>(copy), 0.f, 0.f);
     const Eigen::Vector3i origin_cell = (copy_origin / kCellSize).array().round().cast<int>();
     for (z13::station::Block block : blocks) {
       block.cell += origin_cell;
-      w.entity(std::format("Block_{}", ++counters.last_block_id).c_str()).add<ft::StateEntity>().set(block);
+      w.entity(std::format("Block_{}", ++made).c_str()).add<ft::StateEntity>().set(block);
     }
   }
 }
@@ -359,11 +358,11 @@ uint64_t LateJoinSeconds() {
 // when the play ends.
 void BuildDuringPlay(Z13TestWorld& server, const std::vector<z13::station::Block>& blocks, const Eigen::Vector3i& offset,
                      size_t& built, size_t due) {
-  auto& counters = server.World().get_mut<z13::gameplay::IdCounters>();
+  size_t made = built;
   for (; built < std::min(due, blocks.size()); ++built) {
     z13::station::Block block = blocks[built];
     block.cell += offset;
-    z13::station::SpawnBlock(server.World().entity(std::format("Block_{}", ++counters.last_block_id).c_str()), block);
+    z13::station::SpawnBlock(server.World().entity(std::format("Built_{}", ++made).c_str()), block);
   }
 }
 

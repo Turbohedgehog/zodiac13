@@ -16,13 +16,16 @@
 
 #include "wall_panel_system.h"
 
+#include <format>
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <flecs.h>
 
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
@@ -45,6 +48,8 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::building::primitives::BlockPalette;
 using z13::station::Block;
 using z13::station::StationMode;
@@ -59,7 +64,7 @@ struct Panel {
 
 // One of a segment's panels: its single one, or either triangle of a bent wall.
 struct PanelKey {
-  uint32_t segment_id {};
+  WallId segment_id {};
   uint32_t part {};
 
   auto operator<=>(const PanelKey&) const = default;
@@ -79,9 +84,9 @@ std::map<PanelKey, Block> ExpectedPanels(
     const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const flecs::query<const z13::station::WallOpening>& openings, const z13::building::primitives::Palette& palette,
     int joint_reach) {
-  std::unordered_map<uint32_t, Eigen::Vector3i> cells;
+  std::unordered_map<WallId, Eigen::Vector3i> cells;
   nodes.each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
-  std::unordered_map<uint32_t, std::vector<z13::station::WallOpening>> cut;
+  std::unordered_map<WallId, std::vector<z13::station::WallOpening>> cut;
   openings.each([&cut](const z13::station::WallOpening& opening) { cut[opening.segment_id].push_back(opening); });
   std::vector<JointWall> walls;
   segments.each([&](const WallSegment& segment) {
@@ -109,8 +114,8 @@ std::map<PanelKey, Block> ExpectedPanels(
 void SyncPanels(
     flecs::world world, const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const flecs::query<const z13::station::WallOpening>& openings,
-    const flecs::query<const WallPanelOf, const Block>& panels, z13::gameplay::IdCounters& counters,
-    const BlockPalette& palette, const BuildingTuning& tuning) {
+    const flecs::query<const WallPanelOf, const Block>& panels, const BlockPalette& palette,
+    const BuildingTuning& tuning) {
   const std::map<PanelKey, Block> expected =
       ExpectedPanels(nodes, segments, openings, palette.palette, tuning.wall_joint_max_reach_cells);
 
@@ -128,9 +133,12 @@ void SyncPanels(
   for (const Panel& panel : stale) {
     z13::station::DestroyBlock(panel.entity, panel.block);
   }
+  const uint64_t tick = world.get<z13::flecs_tools::SimulationClock>().tick;
   for (const auto& [key, block] : expected) {
     if (!existing.contains(key)) {
-      z13::station::SpawnBlock(world.entity(NextBlockName(world, counters).c_str()), block)
+      // Named by the panel and the tick, since the one it replaces may still be there (its destruction is deferred).
+      const std::string name = std::format("WallPanel_{}_{}_{}", key.segment_id, key.part, tick);
+      z13::station::SpawnBlock(world.entity(name.c_str()), block)
           .set(WallPanelOf {.segment_id = key.segment_id, .part = key.part});
     }
   }
@@ -141,7 +149,7 @@ void RegisterSystems(flecs::world world) {
   const auto segments = world.query<const WallSegment>("WallPanelSystem::Segments");
   const auto openings = world.query<const z13::station::WallOpening>("WallPanelSystem::Openings");
   const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
-  world.system<z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>("WallPanelSystem::SyncPanels")
+  world.system<const BlockPalette, const BuildingTuning>("WallPanelSystem::SyncPanels")
       .kind<WallPanelPhase>()
       .with<StationMode>()
       .read<WallNode>()
@@ -152,9 +160,8 @@ void RegisterSystems(flecs::world world) {
       .write<WallPanelOf>()
       .write<z13::station::BlockChange>()
       .each([nodes, segments, openings, panels](
-                flecs::iter& it, size_t, z13::gameplay::IdCounters& counters, const BlockPalette& palette,
-                const BuildingTuning& tuning) {
-        SyncPanels(it.world(), nodes, segments, openings, panels, counters, palette, tuning);
+                flecs::iter& it, size_t, const BlockPalette& palette, const BuildingTuning& tuning) {
+        SyncPanels(it.world(), nodes, segments, openings, panels, palette, tuning);
       });
 }
 

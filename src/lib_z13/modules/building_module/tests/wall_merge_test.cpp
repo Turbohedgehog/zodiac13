@@ -35,10 +35,13 @@
 #include "../src/wall_entities.h"
 #include "../src/wall_merge.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // The Merge mode: two wall nodes becoming one, and the wall a node on its line divides.
 namespace z13::building {
 namespace {
+
+using z13::station::WallId;
 
 using z13::station::BrushPreview;
 using z13::station::WallAxis;
@@ -62,14 +65,14 @@ const Eigen::Vector3i kFar {20, 0, 0};
 const Eigen::Vector3i kNearOrigin {0, 1, 0};
 const Eigen::Vector3i kElsewhere {30, 40, 0};
 
-uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
+WallId AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
   flecs::world world = test_world.World();
-  return SpawnWallNode(world, world.get_mut<z13::gameplay::IdCounters>(), cell).get<WallNode>().id;
+  return SpawnWallNode(world, z13::testing::TestNamer(world), cell).get<WallNode>().id;
 }
 
-void AddWall(Z13TestWorld& test_world, uint32_t a, uint32_t b) {
+void AddWall(Z13TestWorld& test_world, WallId a, WallId b) {
   flecs::world world = test_world.World();
-  SpawnWallSegment(world, world.get_mut<z13::gameplay::IdCounters>(),
+  SpawnWallSegment(world, z13::testing::TestNamer(world),
                    {.node_a = a, .node_b = b, .stick_a = {WallAxis::kZ, kStickLength},
                        .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness});
 }
@@ -84,16 +87,16 @@ const z13::building::primitives::Palette& PaletteOf(Z13TestWorld& test_world) {
   return test_world.World().get<z13::building::primitives::BlockPalette>().palette;
 }
 
-std::expected<NodeMerge, std::string> Merge(Z13TestWorld& test_world, uint32_t first, uint32_t second, MergeAt at) {
+std::expected<NodeMerge, std::string> Merge(Z13TestWorld& test_world, WallId first, WallId second, MergeAt at) {
   return PlanNodeMerge(test_world.World(), first, second, at, PaletteOf(test_world), kJointReach);
 }
 
 TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddNode(test_world, {0, 0, 0});
-  const uint32_t b = AddNode(test_world, {8, 0, 0});
-  const uint32_t c = AddNode(test_world, {13, 0, 0});
-  const uint32_t d = AddNode(test_world, {20, 0, 0});
+  const WallId a = AddNode(test_world, {0, 0, 0});
+  const WallId b = AddNode(test_world, {8, 0, 0});
+  const WallId c = AddNode(test_world, {13, 0, 0});
+  const WallId d = AddNode(test_world, {20, 0, 0});
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
 
@@ -105,7 +108,7 @@ TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
   EXPECT_EQ(Merge(test_world, b, c, MergeAt::kLast)->cell,
             Eigen::Vector3i(13, 0, 0));
 
-  ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
+  ApplyNodeMerge(test_world.World(), z13::testing::TestNamer(test_world.World()), *merge);
   test_world.Tick();
   test_world.Tick();
 
@@ -121,8 +124,8 @@ TEST(WallMergeTest, TwoNodesMeetInTheirMiddleRoundedDown) {
 
 TEST(WallMergeTest, ANodeJoinedToItselfOrByAWallIsRefused) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddNode(test_world, {0, 0, 0});
-  const uint32_t b = AddNode(test_world, {8, 0, 0});
+  const WallId a = AddNode(test_world, {0, 0, 0});
+  const WallId b = AddNode(test_world, {8, 0, 0});
   AddWall(test_world, a, b);
 
   EXPECT_FALSE(Merge(test_world, a, a, MergeAt::kCenter).has_value());
@@ -131,9 +134,9 @@ TEST(WallMergeTest, ANodeJoinedToItselfOrByAWallIsRefused) {
 
 TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t p = AddNode(test_world, {0, 0, 0});
-  const uint32_t q = AddNode(test_world, {8, 0, 0});
-  const uint32_t r = AddNode(test_world, {8, 0, 0});
+  const WallId p = AddNode(test_world, {0, 0, 0});
+  const WallId q = AddNode(test_world, {8, 0, 0});
+  const WallId r = AddNode(test_world, {8, 0, 0});
   AddWall(test_world, p, q);
 
   // Moving p onto r's place would put both ends of the wall on one point.
@@ -144,20 +147,20 @@ TEST(WallMergeTest, AMergeThatLeavesAWallWithoutAPanelIsRefused) {
 
 TEST(WallMergeTest, ANodeOnAWallDividesIt) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t p = AddNode(test_world, {0, 0, 0});
-  const uint32_t q = AddNode(test_world, {20, 0, 0});
+  const WallId p = AddNode(test_world, {0, 0, 0});
+  const WallId q = AddNode(test_world, {20, 0, 0});
   AddWall(test_world, p, q);
-  const uint32_t x = AddNode(test_world, {8, 3, 0});
-  const uint32_t x_far = AddNode(test_world, {8, 10, 0});
-  const uint32_t y = AddNode(test_world, {12, -3, 0});
-  const uint32_t y_far = AddNode(test_world, {12, -10, 0});
+  const WallId x = AddNode(test_world, {8, 3, 0});
+  const WallId x_far = AddNode(test_world, {8, 10, 0});
+  const WallId y = AddNode(test_world, {12, -3, 0});
+  const WallId y_far = AddNode(test_world, {12, -10, 0});
   AddWall(test_world, x, x_far);
   AddWall(test_world, y, y_far);
 
   const auto merge = Merge(test_world, x, y, MergeAt::kCenter);
   ASSERT_TRUE(merge.has_value());
   ASSERT_EQ(merge->cell, Eigen::Vector3i(10, 0, 0));
-  ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
+  ApplyNodeMerge(test_world.World(), z13::testing::TestNamer(test_world.World()), *merge);
   test_world.Tick();
   test_world.Tick();
 
@@ -171,24 +174,24 @@ TEST(WallMergeTest, ANodeOnAWallDividesIt) {
   EXPECT_EQ(test_world.World().count<WallPanelOf>(), 4);
 }
 
-void AddDoor(Z13TestWorld& test_world, uint32_t segment_id) {
+void AddDoor(Z13TestWorld& test_world, WallId segment_id) {
   flecs::world world = test_world.World();
-  SpawnWallOpening(world, world.get_mut<z13::gameplay::IdCounters>(),
+  SpawnWallOpening(world, z13::testing::TestNamer(world),
                    {.segment_id = segment_id, .kind = z13::station::OpeningKind::kDoor, .offset = 3, .width = 2,
                     .height = 4});
 }
 
 TEST(WallMergeTest, AWallWithAnOpeningIsNeitherMovedNorDividedByAMerge) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t p = AddNode(test_world, {0, 0, 0});
-  const uint32_t q = AddNode(test_world, {20, 0, 0});
+  const WallId p = AddNode(test_world, {0, 0, 0});
+  const WallId q = AddNode(test_world, {20, 0, 0});
   AddWall(test_world, p, q);
-  AddDoor(test_world, 1);
-  const uint32_t x = AddNode(test_world, {8, 3, 0});
-  const uint32_t y = AddNode(test_world, {12, -3, 0});
-  const uint32_t x_far = AddNode(test_world, {8, 10, 0});
+  AddDoor(test_world, z13::testing::LastSegmentId(test_world.World()));
+  const WallId x = AddNode(test_world, {8, 3, 0});
+  const WallId y = AddNode(test_world, {12, -3, 0});
+  const WallId x_far = AddNode(test_world, {8, 10, 0});
   AddWall(test_world, x, x_far);
-  const uint32_t elsewhere = AddNode(test_world, kElsewhere);
+  const WallId elsewhere = AddNode(test_world, kElsewhere);
 
   EXPECT_FALSE(Merge(test_world, x, y, MergeAt::kCenter).has_value()) << "divides the wall with the door";
   EXPECT_FALSE(Merge(test_world, p, elsewhere, MergeAt::kCenter).has_value()) << "moves it";
@@ -211,8 +214,8 @@ TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
     return cell.value();
   };
   const Eigen::Vector3i first_cell = brush_cell();
-  const uint32_t a = AddNode(test_world, first_cell);
-  const uint32_t a_far = AddNode(test_world, first_cell + Eigen::Vector3i(0, 10, 0));
+  const WallId a = AddNode(test_world, first_cell);
+  const WallId a_far = AddNode(test_world, first_cell + Eigen::Vector3i(0, 10, 0));
   AddWall(test_world, a, a_far);
   builder.add<RequestBuildBlock>();
   test_world.Tick();
@@ -225,8 +228,8 @@ TEST(WallMergeTest, TwoClicksMergeTheNodesUnderTheBrush) {
   builder.set(transform);
   test_world.Tick();
   const Eigen::Vector3i second_cell = brush_cell();
-  const uint32_t b = AddNode(test_world, second_cell);
-  const uint32_t b_far = AddNode(test_world, second_cell - Eigen::Vector3i(0, 10, 0));
+  const WallId b = AddNode(test_world, second_cell);
+  const WallId b_far = AddNode(test_world, second_cell - Eigen::Vector3i(0, 10, 0));
   AddWall(test_world, b, b_far);
   builder.add<RequestBuildBlock>();
   test_world.Tick();
@@ -269,16 +272,16 @@ TEST(WallMergeTest, TheNodePickedFirstStaysMarkedWithItsSticksWhileAimingElsewhe
 TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
   Z13TestWorld test_world = StationWorld();
   const flecs::entity builder = AddBuilder(test_world, kBuilderId, Facing(kBuilderPosition, Eigen::Vector3f::UnitX()));
-  const uint32_t a = AddNode(test_world, {8, -4, 0});
-  const uint32_t b = AddNode(test_world, {12, 4, 0});
-  const uint32_t c = AddNode(test_world, {14, -4, 0});
-  const uint32_t d = AddNode(test_world, {22, 4, 0});
+  const WallId a = AddNode(test_world, {8, -4, 0});
+  const WallId b = AddNode(test_world, {12, 4, 0});
+  const WallId c = AddNode(test_world, {14, -4, 0});
+  const WallId d = AddNode(test_world, {22, 4, 0});
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
   test_world.Tick();
   const auto merge = Merge(test_world, b, c, MergeAt::kCenter);
   ASSERT_TRUE(merge.has_value());
-  ApplyNodeMerge(test_world.World(), test_world.World().get_mut<z13::gameplay::IdCounters>(), *merge);
+  ApplyNodeMerge(test_world.World(), z13::testing::TestNamer(test_world.World()), *merge);
   test_world.Tick();
   test_world.Tick();
   ASSERT_EQ(test_world.World().count<WallPanelOf>(), 2);
@@ -295,10 +298,10 @@ TEST(WallMergeTest, AMergedObliquePanelCanBeDestroyedAndTheOtherStays) {
 TEST(WallMergeTest, AMergeThatMakesAJointTooSharpIsRefused) {
   Z13TestWorld test_world = StationWorld();
   // Walls from b and c to a and d would leave the merged node about 3 degrees apart.
-  const uint32_t a = AddNode(test_world, kOrigin);
-  const uint32_t b = AddNode(test_world, kFar);
-  const uint32_t c = AddNode(test_world, kElsewhere);
-  const uint32_t d = AddNode(test_world, kNearOrigin);
+  const WallId a = AddNode(test_world, kOrigin);
+  const WallId b = AddNode(test_world, kFar);
+  const WallId c = AddNode(test_world, kElsewhere);
+  const WallId d = AddNode(test_world, kNearOrigin);
   AddWall(test_world, a, b);
   AddWall(test_world, c, d);
 

@@ -30,16 +30,11 @@ struct Gameplay {
   using Singleton = void;
 };
 
-// Monotonic id counters; a singleton that is world state.
+// The next player id to hand out; world state.
 struct IdCounters {
   using State = void;
   using Singleton = void;
   uint32_t last_player_id {};
-  uint32_t last_block_id {};
-  uint32_t last_wall_node_id {};
-  uint32_t last_wall_segment_id {};
-  uint32_t last_wall_opening_id {};
-  uint32_t last_item_id {};
 };
 
 struct Pause {
