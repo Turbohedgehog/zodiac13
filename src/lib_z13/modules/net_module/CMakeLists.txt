@@ -32,6 +32,8 @@ z13_add_plugin(
   src/enet_datagram.cpp
   src/enet_lifetime.cpp
   src/enet_transport.cpp
+  src/ghost_players.cpp
+  src/ghost_poses.cpp
   src/hint_classes.cpp
   src/hint_packet.cpp
   src/in_memory_transport.cpp
@@ -45,6 +47,7 @@ z13_add_plugin(
   src/net_module_factory.cpp
   src/net_session.cpp
   src/net_session_system.cpp
+  src/pose_packet.cpp
   src/network_interfaces.cpp
   src/player_positions.cpp
   src/protocol.cpp
@@ -59,6 +62,7 @@ z13_add_plugin(
   src/session_control.cpp
   src/session_deltas.cpp
   src/session_settings.cpp
+  src/simulated_set.cpp
   src/state_digest.cpp
   src/wire_records.cpp
   PUBLIC

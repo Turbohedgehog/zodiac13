@@ -32,9 +32,9 @@ constexpr ConnectionId kInvalidConnectionId = 0;
 
 // Reliable: CommandBatch/SequencedCommands/session messages -- a lost one would
 // break determinism. Unreliable: Ping/Pong -- see docs/client-server-plan.md's
-// protocol table for why they're split this way. Hints: unreliable too, but their own compact
-// packets (hint_packet.h) rather than FlatBuffers messages.
-enum class Channel : uint8_t { kReliable = 0, kUnreliable = 1, kHints = 2 };
+// protocol table for why they're split this way. Hints and poses: unreliable too, but their own compact
+// packets (hint_packet.h, pose_packet.h) rather than FlatBuffers messages.
+enum class Channel : uint8_t { kReliable = 0, kUnreliable = 1, kHints = 2, kPoses = 3 };
 
 // Payload only: UDP/IP and ENet headers come on top.
 struct TrafficStats {

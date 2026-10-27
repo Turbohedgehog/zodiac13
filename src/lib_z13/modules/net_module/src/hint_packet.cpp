@@ -20,6 +20,8 @@
 #include <format>
 #include <ranges>
 
+#include "byte_codec.h"
+
 namespace z13::net {
 
 namespace {
@@ -28,30 +30,6 @@ constexpr size_t kPlayerBytes = sizeof(uint32_t);
 constexpr size_t kTickBytes = sizeof(uint32_t);
 constexpr size_t kCountBytes = sizeof(uint8_t);
 constexpr size_t kRecordBytes = 2 * sizeof(uint16_t);
-constexpr size_t kByteBits = 8;
-
-// Little-endian, a byte at a time.
-template <typename T>
-void Put(std::vector<uint8_t>& out, T value) {
-  for (size_t i = 0; i < sizeof(T); ++i) {
-    out.push_back(static_cast<uint8_t>(value >> (i * kByteBits)));
-  }
-}
-
-template <typename T>
-T Get(std::span<const uint8_t> bytes, size_t at) {
-  T value = 0;
-  for (size_t i = 0; i < sizeof(T); ++i) {
-    value |= static_cast<T>(static_cast<T>(bytes[at + i]) << (i * kByteBits));
-  }
-  return value;
-}
-
-// The tick with `low` as its low 32 bits that is nearest `now`.
-uint64_t ResolveTick(uint64_t now, uint32_t low) {
-  const int64_t ahead = static_cast<int32_t>(low - static_cast<uint32_t>(now));
-  return std::max<int64_t>(static_cast<int64_t>(now) + ahead, 0);
-}
 
 std::vector<uint8_t> Encode(const HintPacket& packet, bool with_player) {
   const size_t count = std::min(packet.hints.size(), kMaxHintsPerPacket);

@@ -56,6 +56,7 @@
 
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/ghost.h>
 #include <z13/components/player.h>
 #include <z13/components/player_parts.h>
 #include <z13/components/action_listener.h>
@@ -286,6 +287,7 @@ AvatarModel LoadAvatar(const Lighting& lighting) {
 }
 
 using RemotePlayerQuery = flecs::query<const gameplay::Player, const Eigen::Matrix4f>;
+using GhostQuery = flecs::query<const gameplay::GhostPlayer, const Eigen::Matrix4f>;
 using DrawnQuery = flecs::query<const Eigen::Matrix4f>;
 using FlashlightQuery = flecs::query<const gameplay::Flashlight, const Eigen::Matrix4f>;
 
@@ -305,8 +307,8 @@ void ChaseDrawnPoses(SmoothedDrawing& drawing, const VisualSmoothing& settings, 
 }
 
 // Every avatar shares the one model; only its transform and tint change per player.
-void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const z13::DrawnPoses& drawn,
-                       const ViewCulling& culling) {
+void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote_players, const GhostQuery& ghosts,
+                       const z13::DrawnPoses& drawn, const ViewCulling& culling) {
   if (!world.has<AvatarModel>()) {
     return;
   }
@@ -314,7 +316,7 @@ void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remot
   if (!avatar.res || avatar.res->model->meshCount == 0) {
     return;
   }
-  remote_players.each([&](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+  const auto draw = [&](flecs::entity e, uint32_t player_id, const Eigen::Matrix4f& transform) {
     const Eigen::Matrix4f drawn_transform = z13::DrawnTransform(drawn, e, transform);
     const Eigen::Vector3f centre = z13::math::ExtractTranslation<float>(drawn_transform);
     const Eigen::Vector3f reach = Eigen::Vector3f::Constant(kAvatarRadius);
@@ -322,7 +324,13 @@ void DrawRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remot
       return;
     }
     avatar.res->model->transform = EigenToRaylibMatrix(drawn_transform);
-    DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player.id)));
+    DrawModel(*avatar.res->model, Vector3Zero(), 1.f, ToRaylibColor(z13::gameplay::PlayerColor(player_id)));
+  };
+  remote_players.each([&](flecs::entity e, const gameplay::Player& player, const Eigen::Matrix4f& transform) {
+    draw(e, player.id, transform);
+  });
+  ghosts.each([&](flecs::entity e, const gameplay::GhostPlayer& ghost, const Eigen::Matrix4f& transform) {
+    draw(e, ghost.id, transform);
   });
 }
 
@@ -854,9 +862,9 @@ void LogRemotePlayers(const flecs::world& world, const RemotePlayerQuery& remote
 // Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
-               const z13::DrawnPoses& drawn, const SceneView& view, RenderStats& stats) {
+               const GhostQuery& ghosts, const z13::DrawnPoses& drawn, const SceneView& view, RenderStats& stats) {
   stats = {};
-  stats.times.players_ms = MsOf([&] { DrawRemotePlayers(world, remote_players, drawn, view.culling); });
+  stats.times.players_ms = MsOf([&] { DrawRemotePlayers(world, remote_players, ghosts, drawn, view.culling); });
   if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
     return;
   }
@@ -1010,8 +1018,14 @@ void RegisterSystems(flecs::world world) {
           .without<z13::input::CurrentActionListenerTag>()
           .build();
 
+  GhostQuery ghost_query =
+      world.query_builder<const gameplay::GhostPlayer, const Eigen::Matrix4f>("EnvironmentRenderSystem::GhostQuery")
+          .build();
+
   DrawnQuery drawn_query = world.query_builder<const Eigen::Matrix4f>("EnvironmentRenderSystem::DrawnQuery")
                                .with<gameplay::Player>()
+                               .or_()
+                               .with<gameplay::GhostPlayer>()
                                .build();
 
   const FlashlightQuery flashlight_query =
@@ -1089,7 +1103,7 @@ void RegisterSystems(flecs::world world) {
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
-      .each([brush_query, remote_player_query, drawn_query, flashlight_query, drawing](
+      .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 FrameProfile& profile, const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
                 const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
@@ -1131,7 +1145,7 @@ void RegisterSystems(flecs::world world) {
           DrawBackground(world);
         });
 
-        DrawScene(world, brush_query, remote_player_query, drawing->poses, view, stats);
+        DrawScene(world, brush_query, remote_player_query, ghost_query, drawing->poses, view, stats);
         LogRemotePlayers(world, remote_player_query, *drawing, view);
         stats.culling_us = culling_us;
         stats.times.background_ms = background_ms;

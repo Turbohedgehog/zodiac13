@@ -48,6 +48,7 @@
 #include "server_session.h"
 #include "session_control.h"
 #include "session_deltas.h"
+#include "sector_hash.h"
 #include "session_settings.h"
 #include "state_digest_system.h"
 #include "transport_factories.h"
@@ -214,7 +215,7 @@ void ServiceNetSession(flecs::world world) {
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
       NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, LastCommandTicks, ReceivedInputTicks, PlayerIdAllocator,
-      StateDigests,
+      StateDigests, DigestSplits,
       NetTuning, z13::ConnectTimeout, z13::SessionTimeout, AdoptedSettings>(world);
 }
 
@@ -227,6 +228,7 @@ void RegisterSystems(flecs::world world) {
   world.set<ReceivedInputTicks>({});
   world.set<PlayerIdAllocator>({});
   world.set<StateDigests>({});
+  world.set<DigestSplits>({});
   // The launcher overwrites these with the loaded settings (z13::InstallSettings).
   world.set<NetTuning>({});
   world.set<z13::ConnectTimeout>({});

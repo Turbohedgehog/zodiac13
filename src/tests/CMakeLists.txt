@@ -115,10 +115,12 @@ set(
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/hint_packet_test.cpp
+  ${MODULES_DIR}/net_module/tests/protocol/pose_packet_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/interest_events_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/interest_system_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_hash_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_system_test.cpp
+  ${MODULES_DIR}/net_module/tests/sectors/simulated_set_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_loss_bench_test.cpp
@@ -148,6 +150,8 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/clock_lead_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/ghost_poses_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/id_counters_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/convergence_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/desync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/lan_discovery_world_test.cpp

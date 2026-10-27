@@ -337,5 +337,59 @@ TEST(NetLoadBench, DISABLED_InterestByClientCount) {
   }
 }
 
+// Everybody in one hall: what ghosts save when a client simulates only the K nearest players.
+TEST(NetLoadBench, DISABLED_HallByClientCount) {
+  constexpr std::array kHallClientCounts = {8, 16, 32};
+  constexpr size_t kSimulatedPlayers = 8;
+  constexpr size_t kSimulatedSlack = 2;
+  constexpr double kWholeStationM = 5000.;
+  std::cout << "clients | ghosts | server ms/tick | server B/s per client | SequencedCommands B/s | poses B/s | resyncs"
+               " | rollbacks (replayed ticks)\n";
+  for (const int clients : kHallClientCounts) {
+    for (const bool ghosts : {false, true}) {
+      LoadSession session(
+          static_cast<size_t>(clients), {}, [ghosts](z13::Settings& settings) {
+            settings.net->interest_events = true;
+            settings.net->ghosts = ghosts;
+            settings.net->ghost_radius_m = kWholeStationM;
+            settings.net->simulated_radius_m = kWholeStationM;
+            settings.net->simulated_players_max = kSimulatedPlayers;
+            settings.net->simulated_players_slack = kSimulatedSlack;
+          });
+      ASSERT_TRUE(session.Connect(kConnectTicks)) << clients << " clients didn't connect";
+      for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot before = Take(session);
+      for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+        session.Tick();
+      }
+      const Snapshot after = Take(session);
+
+      const double seconds = static_cast<double>(kMeasuredTicks) / kTicksPerSecond;
+      const auto message_bytes = [](const SentTraffic& sent, fbs::net::MessageBody message) {
+        const auto found = sent.by_message.find(message);
+        return found == sent.by_message.end() ? uint64_t {} : found->second.bytes;
+      };
+      uint64_t resyncs = 0;
+      for (size_t i = 0; i < session.ClientCount(); ++i) {
+        resyncs += session.Client(i).World().get<StateDigests>().resyncs;
+      }
+      const double per_client = seconds * clients;
+      const uint64_t poses_after = ChannelBytes(after.server, Channel::kPoses);
+      const double pose_bytes = static_cast<double>(poses_after - ChannelBytes(before.server, Channel::kPoses));
+      std::cout << std::format(
+          "{:7} | {:6} | {:14.2f} | {:21.0f} | {:21.0f} | {:9.0f} | {:7} | {} ({})\n", clients, ghosts ? "on" : "off",
+          std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
+          static_cast<double>(after.server.Total().bytes - before.server.Total().bytes) / per_client,
+          static_cast<double>(message_bytes(after.server, fbs::net::MessageBody::SequencedCommands) -
+                              message_bytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
+          pose_bytes / per_client,
+          resyncs, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+          after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace z13::net

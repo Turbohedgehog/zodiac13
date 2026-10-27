@@ -19,6 +19,8 @@
 #include <flecs.h>
 
 #include "action_hints.h"
+#include "ghost_players.h"
+#include "ghost_poses.h"
 #include "interest_system.h"
 #include "lan_discovery_system.h"
 #include "net_action_sender.h"
@@ -32,6 +34,8 @@ NetModule::NetModule(flecs::world& world) {
   NetSessionSystem::Register(world);
   NetActionSender::Register(world);
   ActionHintSystem::Register(world);
+  GhostPlayerSystem::Register(world);
+  GhostPoseSystem::Register(world);
   RemoteInput::Register(world);
   SectorSystem::Register(world);
   InterestSystem::Register(world);

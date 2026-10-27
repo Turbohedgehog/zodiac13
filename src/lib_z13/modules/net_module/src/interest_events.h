@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -41,6 +42,11 @@ struct ClientKnowledge {
   sectors::SectorBox presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
   std::unordered_set<uint32_t> players;
   std::vector<sectors::SectorKey> unsent;  // entered, but the event could not be made yet
+  // With net.ghosts, the players chosen to be simulated (ChooseSimulated); the others in the presence box are ghosts.
+  std::unordered_set<uint32_t> simulated;
+  // The players the client had from each tick on, for the digests of those ticks (under net.ghosts a player
+  // can enter or leave the client's sectors at any time).
+  std::map<uint64_t, std::unordered_set<uint32_t>> players_from;
 };
 
 // What InterestMap::Update reported for each client this tick.
@@ -60,6 +66,9 @@ void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, 
 // Queues player_id's `run` for the connections SendToKnowing would pick (NetSession::QueueRun).
 void RelayCommands(flecs::world world, NetSession& session, uint32_t player_id, uint64_t through_tick,
                    const CommandRun& run, std::optional<ConnectionId> except = std::nullopt);
+
+// The players the client had at `tick`; the current ones for a tick older than the record.
+const std::unordered_set<uint32_t>& PlayersAt(const ClientKnowledge& known, uint64_t tick);
 
 // After a Resync: the client holds `view`, or the whole world when it has none.
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view);
