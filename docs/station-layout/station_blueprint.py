@@ -328,8 +328,8 @@ def fill_corners(deck, corners):
                         break
 
 
-def corner_blocks(name, outer, steps, z, wall_height):
-    """The filled triangle of one corner of a hall, as wall rows and one wedge prism per step. Each
+def corner_blocks(name, outer, steps, z, wall_height, rows=WALL_BLOCK):
+    """The filled triangle of one corner of a hall, as rows of `rows` blocks and one wedge prism per step. Each
     step is a pair of cells along x and y; they add up to the triangle's legs."""
     x0, y0, x1, y1 = outer
     across = sum(step[0] for step in steps)
@@ -345,7 +345,7 @@ def corner_blocks(name, outer, steps, z, wall_height):
         if width > 0:
             (xa, ya), (xb, yb) = at(0, v_low), at(width, v_high)
             for y in range(min(ya, yb), max(ya, yb)):
-                blocks.append(block(WALL_BLOCK, (min(xa, xb), y, z), (width, 1, wall_height)))
+                blocks.append(block(rows, (min(xa, xb), y, z), (width, 1, wall_height)))
         triangle = [(width, v_low), (u_start, v_low), (width, v_high)]
         blocks.append(wedge_block([(*at(u, v), height) for u, v in triangle for height in (z, z + wall_height)]))
         u_start, v_low = width, v_high
@@ -648,11 +648,23 @@ def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
     return lamps
 
 
-def write_blueprint(path, blocks):
-    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs)."""
+def wall_segment(node_a, node_b, thickness, stick_length, stick_axis=2):
+    """A wall segment of a blueprint (BlueprintWall): the game derives its panel and stitches it along a seam to
+    the segments that meet it at a node. Nodes at one cell are one node."""
+    axis = "XYZ"[stick_axis]
+    return {"node_a": dict(zip("xyz", node_a)), "node_b": dict(zip("xyz", node_b)), "axis_a": axis,
+            "length_a": stick_length, "axis_b": axis, "length_b": stick_length, "thickness": thickness}
+
+
+def write_blueprint(path, blocks, walls=()):
+    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments."""
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
+    text = "{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]"
+    if walls:
+        wall_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in walls]
+        text += ",\n  \"walls\": [\n    " + ",\n    ".join(wall_lines) + "\n  ]"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]\n}\n", encoding="ascii", newline="\n")
+    path.write_text(text + "\n}\n", encoding="ascii", newline="\n")
 
 
 def block_kinds(blocks):

@@ -9,13 +9,14 @@ flats, and the spine is straight until its bend is drawn.
 
 import functools
 import math
+from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
 from station_blueprint import (
-    CELLS_PER_M, COUNTER, DOOR, FLOOR, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
+    CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, FLOOR, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
     block_kinds, door_boxes, lamp_blocks, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
-    write_blueprint)
+    wall_segment, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
 
@@ -82,7 +83,6 @@ ATRIUM_SPAN_Y = ((ATRIUM[1] + ATRIUM[3]) // 2 - FLAT_HALF_M, (ATRIUM[1] + ATRIUM
 # circle through those ends give three panels of equal turn.
 QUADRANT_NODES_HALF_CELLS = ((143, 33), (121, 83), (83, 121), (33, 143))
 PANEL_THICKNESS_CELLS = 2  # the least that holds air back on every one of the 22-45-degree panels
-SLAB_OVERHANG_CELLS = 2.5  # the slab reaches under the panels
 
 # The west spine: a corridor between two rows of rooms, open to the atrium.
 SPINE = (0, 11 + NORTH_M, 28, 27 + NORTH_M)  # its rooms end a character short of the atrium's flat
@@ -127,27 +127,24 @@ WINGS = (
 )
 
 # Galleries: a ring slab on every floor above the agora, 4 m wide, open in the middle.
-RING_INNER_RADIUS_CELLS = 56
-OCTAGON_DIAGONAL = 2 ** 0.5
-RAIL_X = (40, 52)
-RAIL_Y = (13 + NORTH_M, 25 + NORTH_M)
-INNER_X = (32, 60)
-INNER_Y = (5 + NORTH_M, 33 + NORTH_M)
+RAIL_THICKNESS_CELLS = 2
 FORECOURT = (43, 29 + NORTH_M, 49, 37 + NORTH_M)  # a balcony in the atrium before the bridge door, as wide as its flat
 
-# Flights: one per floor, round the atrium clockwise on the four sides, 12 m long and 11 cells wide, a few
-# cells off the flat so their ends clear the oblique panels. Each: (side, deck the flight starts on).
+# Flights: two a floor on opposite sides (E and W above odd floors, S and N above even ones), so every floor has
+# a way up and down. Each is a small wedge that lifts to the plate's height and a Panel plate, one block in
+# all, rising 1:2.5 along the flat of the ring (33 cells), a few cells off the wall.
 NORTH_CELLS = NORTH_M * CELLS_PER_M
-FLIGHT_SIDES = ("E", "S", "W", "N")
-FLIGHT_WEDGES = 3
-FLIGHT_RUN_CELLS = 16
+FLIGHT_SIDES_BY_PARITY = {1: ("E", "W"), 0: ("S", "N")}
+FLIGHT_LIP_RUN_CELLS = 5
+FLIGHT_LIP_RISE_CELLS = 2
+FLIGHT_PLATE_RUN_CELLS = 25
+FLIGHT_PLATE_THICKNESS_CELLS = 2  # the plate's top is this far above its line; 2 holds air back at 1:2.5
+FLIGHT_LENGTH_CELLS = FLIGHT_LIP_RUN_CELLS + FLIGHT_PLATE_RUN_CELLS
 FLIGHT_WIDTH_CELLS = 11
 FLIGHT_WALL_GAP_CELLS = 4
-FLIGHT_RISE_CELLS = 4
 WALL_LINE_CELLS = {side: cell for side, cell in
                    (("N", ATRIUM[1] * CELLS_PER_M), ("S", ATRIUM[3] * CELLS_PER_M),
                     ("W", ATRIUM[0] * CELLS_PER_M), ("E", ATRIUM[2] * CELLS_PER_M))}
-FLIGHT_ALONG = {"E": (156, 204), "S": (161, 209), "W": (156, 204), "N": (161, 209)}  # centred on the hall
 
 PODIUM = (172, 64 + NORTH_CELLS, 24)  # x, y, size in cells
 PODIUM_LAYERS = 4
@@ -190,32 +187,210 @@ def atrium_nodes():
     return [((cx2 + dx) // 2, (cy2 + dy) // 2) for dx, dy in atrium_offsets()]
 
 
-def atrium_panels(z, height):
-    """The oblique panels of one deck: every side of the 16-gon but the four flats, thickened outwards."""
+def oblique_sides():
+    """(node a, node b, minor axis, signed thickness) of the 12 oblique sides of the 16-gon, thickened outwards."""
     offsets, nodes = atrium_offsets(), atrium_nodes()
-    blocks = []
+    sides = []
     for i, (a, b) in enumerate(zip(nodes, nodes[1:] + nodes[:1])):
         if i % len(QUADRANT_NODES_HALF_CELLS) == len(QUADRANT_NODES_HALF_CELLS) - 1:
             continue  # a flat, a grid wall
-        major, minor = (0, 1) if abs(b[0] - a[0]) >= abs(b[1] - a[1]) else (1, 0)
-        mid = (offsets[i][minor] + offsets[(i + 1) % len(offsets)][minor])
-        blocks.append(wall_panel_block((*a, z), (*b, z), PANEL_THICKNESS_CELLS * (1 if mid > 0 else -1), height))
-    return blocks
+        minor = 1 if abs(b[0] - a[0]) >= abs(b[1] - a[1]) else 0
+        mid = offsets[i][minor] + offsets[(i + 1) % len(offsets)][minor]
+        sides.append((a, b, minor, PANEL_THICKNESS_CELLS * (1 if mid > 0 else -1)))
+    return sides
+
+
+def atrium_panels(z, height):
+    """The oblique panels of one deck, on its floor."""
+    return [wall_panel_block((*a, z), (*b, z), thickness, height) for a, b, _, thickness in oblique_sides()]
+
+
+def strictly_overlap(polygon, x, y):
+    """Whether a convex polygon and the cell (x, y) share area (touching edges do not count)."""
+    cell = [(x, y), (x + 1, y), (x + 1, y + 1), (x, y + 1)]
+    edges = [(p[1] - q[1], q[0] - p[0]) for ring in (polygon, cell) for p, q in zip(ring, ring[1:] + ring[:1])]
+    for nx, ny in edges:
+        first = [nx * px + ny * py for px, py in polygon]
+        second = [nx * px + ny * py for px, py in cell]
+        if max(first) <= min(second) or max(second) <= min(first):
+            return False
+    return True
 
 
 @functools.cache
-def atrium_polygon(margin):
-    """The 16-gon's corners in cells, grown outwards by about `margin` cells."""
-    cx, cy = (c / 2 for c in atrium_centre2())
-    return [(cx + px * (1 + margin / math.hypot(px, py)), cy + py * (1 + margin / math.hypot(px, py)))
-            for px, py in ((dx / 2, dy / 2) for dx, dy in atrium_offsets())]
+def atrium_polygon():
+    """The 16-gon's corners in cells."""
+    return [((cx2 + dx) / 2, (cy2 + dy) / 2) for cx2, cy2 in [atrium_centre2()] for dx, dy in atrium_offsets()]
 
 
-def inside_atrium(x, y, margin=0.0):
-    """Whether the point (cells) is inside the 16-gon grown outwards by about `margin` cells."""
-    polygon = atrium_polygon(margin)
+def inside_atrium(x, y):
+    """Whether the point (cells) is inside the 16-gon or on its edge."""
+    polygon = atrium_polygon()
     sides = [(bx - ax) * (y - ay) - (by - ay) * (x - ax) for (ax, ay), (bx, by) in zip(polygon, polygon[1:] + polygon[:1])]
     return all(side >= 0 for side in sides) or all(side <= 0 for side in sides)
+
+
+def touches_atrium(x, y):
+    """Whether the cell (x, y) has a corner in the 16-gon: a slab there stays under the panels' thickness."""
+    return any(inside_atrium(x + dx, y + dy) for dx in (0, 1) for dy in (0, 1))
+
+
+# ----- The gallery ring ----------------------------------------------------------------------
+
+# The floor of every gallery is a ring of wall segments (BlueprintWall), one for each side of the 16-gon and a
+# cell thick (a floor is a wall whose stick is one cell long): the game stitches them along seams at their shared
+# nodes, so the ring has no steps along its edges. Its outer edge is the outer face of the walls and panels; its
+# inner edge is the opening over the agora, `RING_WIDTH` cells inside the node lines along each side's minor axis.
+RING_WIDTH = {"flat": 15, "steep": 12, "diagonal": 14}
+FLAT_OUTER_CELLS = 1  # the flat's wall is one cell thick
+FLAT_BAND_CHARS = 4  # the ring's width at a flat (16 cells)
+
+
+def ring_sides():
+    """The 16 sides of the 16-gon: nodes a and b, the minor axis, the outward sign along it, the wall's thickness
+    outside the node line, the ring's width inside it, and the flat's name for the four flats."""
+    offsets, nodes = atrium_offsets(), atrium_nodes()
+    flat_names = {3: "S", 7: "W", 11: "N", 15: "E"}
+    sides = []
+    for i, (a, b) in enumerate(zip(nodes, nodes[1:] + nodes[:1])):
+        position = i % len(QUADRANT_NODES_HALF_CELLS)
+        flat = position == len(QUADRANT_NODES_HALF_CELLS) - 1
+        minor = 1 if abs(b[0] - a[0]) >= abs(b[1] - a[1]) else 0
+        mid = offsets[i][minor] + offsets[(i + 1) % len(offsets)][minor]
+        kind = "flat" if flat else ("diagonal" if position == 1 else "steep")
+        sides.append({"a": a, "b": b, "minor": minor, "out": 1 if mid > 0 else -1,
+                      "outer": FLAT_OUTER_CELLS if flat else PANEL_THICKNESS_CELLS, "width": RING_WIDTH[kind],
+                      "flat": flat_names.get(i)})
+    return sides
+
+
+def meet(first, second):
+    """The cell where two lines (point, direction) cross, rounded to the nearest."""
+    (px, py), (dx, dy) = first
+    (qx, qy), (ex, ey) = second
+    det = Fraction(dx * ey - dy * ex)
+    along = Fraction((qx - px) * ey - (qy - py) * ex) / det
+    return tuple(math.floor(c + Fraction(1, 2)) for c in (px + along * dx, py + along * dy))
+
+
+def offset_line(side, shift):
+    """The side's node line moved `shift` cells outward along its minor axis."""
+    point = list(side["a"])
+    point[side["minor"]] += side["out"] * shift
+    return tuple(point), (side["b"][0] - side["a"][0], side["b"][1] - side["a"][1])
+
+
+@functools.cache
+def ring_polygons():
+    """The ring's outer and inner polygons: the crossings of each side's line with the previous side's."""
+    sides = ring_sides()
+    outer = [meet(offset_line(sides[i - 1], sides[i - 1]["outer"]), offset_line(sides[i], sides[i]["outer"]))
+             for i in range(len(sides))]
+    inner = [meet(offset_line(sides[i - 1], -sides[i - 1]["width"]), offset_line(sides[i], -sides[i]["width"]))
+             for i in range(len(sides))]
+    return outer, inner
+
+
+def inside_convex(polygon, x, y):
+    sides = [(bx - ax) * (y - ay) - (by - ay) * (x - ax)
+             for (ax, ay), (bx, by) in zip(polygon, polygon[1:] + polygon[:1])]
+    return all(side >= 0 for side in sides) or all(side <= 0 for side in sides)
+
+
+@functools.cache
+def ring_cells():
+    """The cells the ring's segments cut (those the outer polygon cuts and the inner one doesn't hold whole): no
+    other slab goes there."""
+    outer, inner = ring_polygons()
+    xs, ys = [p[0] for p in outer], [p[1] for p in outer]
+    cells = set()
+    for y in range(min(ys) - 1, max(ys) + 1):
+        for x in range(min(xs) - 1, max(xs) + 1):
+            if strictly_overlap(outer, x, y) and not all(
+                    inside_convex(inner, x + dx, y + dy) for dx in (0, 1) for dy in (0, 1)):
+                cells.add((x, y))
+    return cells
+
+
+def flight_sides(index):
+    """The flats that have a flight from deck `index`, and so an opening in the slab above it."""
+    return FLIGHT_SIDES_BY_PARITY[index % 2] if 1 <= index < DECKS else ()
+
+
+def run_interval(side, footprint):
+    """The stretch of a flat a flight's footprint takes."""
+    x0, y0, x1, y1 = footprint
+    return (y0, y1) if side in "EW" else (x0, x1)
+
+
+def along_flat(side, node, coordinate):
+    """The point on a flat's line through `node` whose run coordinate is `coordinate`."""
+    return (node[0], coordinate) if side in "EW" else (coordinate, node[1])
+
+
+def run_axis(side):
+    return 1 if side in "EW" else 0
+
+
+def ring_segments(index):
+    """The segments of the floor ring of slab layer `index` (under deck index + 1): node a, node b, thickness. A
+    flat with a flight is cut in three: the middle one is only the ledge between the opening and the wall."""
+    sides = ring_sides()
+    outer, _ = ring_polygons()
+    z = index * DECK_PITCH_CELLS
+    segments = []
+    for i, side in enumerate(sides):
+        a, b = outer[i], outer[(i + 1) % len(sides)]
+        full = -side["out"] * (side["outer"] + side["width"])
+        name = side["flat"]
+        if name not in flight_sides(index):
+            segments.append((a, b, full))
+            continue
+        footprint = flight(name, index)[1]
+        axis = run_axis(name)
+        lo, hi = run_interval(name, footprint)
+        first, second = (lo, hi) if a[axis] < b[axis] else (hi, lo)
+        wall_edge = {"E": footprint[2], "S": footprint[3], "W": footprint[0], "N": footprint[1]}[name]
+        thin = -side["out"] * abs(a[side["minor"]] - wall_edge)
+        mid_a, mid_b = along_flat(name, a, first), along_flat(name, a, second)
+        segments += [(a, mid_a, full), (mid_a, mid_b, thin), (mid_b, b, full)]
+    return [((*a, z), (*b, z), thickness) for a, b, thickness in segments]
+
+
+def ring_rails(index):
+    """The railings along the ring's inner edge, on the floor of deck index + 1: the stretch of a flat where a flight
+    arrives or leaves and the one before the forecourt stay open."""
+    sides = ring_sides()
+    _, inner = ring_polygons()
+    z = deck_floor_z(index + 1)
+    segments = []
+    for i, side in enumerate(sides):
+        a, b = inner[i], inner[(i + 1) % len(sides)]
+        thickness = side["out"] * RAIL_THICKNESS_CELLS
+        name = side["flat"]
+        gap = None
+        if name in flight_sides(index):
+            gap = run_interval(name, flight(name, index)[1])
+        elif name in flight_sides(index + 1):  # a flight starting on this deck
+            gap = flight_along(name)
+        elif name == "S" and index == BRIDGE_DECK - 1:
+            gap = (FORECOURT[0] * CELLS_PER_M, FORECOURT[2] * CELLS_PER_M + 1)
+        if gap is None:
+            segments.append((a, b, thickness))
+            continue
+        axis = run_axis(name)
+        first, second = gap if a[axis] < b[axis] else gap[::-1]
+        segments += [(a, along_flat(name, a, first), thickness), (along_flat(name, a, second), b, thickness)]
+    return [((*a, z), (*b, z), thickness) for a, b, thickness in segments]
+
+
+def ring_walls():
+    """Every wall segment of the blueprint: the floor ring of each gallery layer and its railings."""
+    walls = []
+    for index in range(1, DECKS):
+        walls += [wall_segment(a, b, thickness, SLAB_CELLS) for a, b, thickness in ring_segments(index)]
+        walls += [wall_segment(a, b, thickness, COUNTER_HEIGHT_CELLS) for a, b, thickness in ring_rails(index)]
+    return walls
 
 
 # ----- Drawing ------------------------------------------------------------------------------
@@ -250,19 +425,13 @@ class HubDeck(Deck):
                     self.put(x, y, MASS)
 
     def railing(self):
-        """The ring's inner edge on the four straight sides; on the bridge deck the south side follows
-        the forecourt's edge instead."""
-        forecourt = self.number == BRIDGE_DECK
-        for x in range(RAIL_X[0], RAIL_X[1] + 1):
-            self.put(x, INNER_Y[0], COUNTER)
-            self.put(x, FORECOURT[1] if forecourt else INNER_Y[1], COUNTER)
-        for y in range(RAIL_Y[0], RAIL_Y[1] + 1):
-            self.put(INNER_X[0], y, COUNTER)
-            self.put(INNER_X[1], y, COUNTER)
-        if forecourt:
-            for y in range(FORECOURT[1] + 1, INNER_Y[1]):
-                for x in (FORECOURT[0], FORECOURT[2]):
-                    self.put(x, y, COUNTER)
+        """The bridge deck's forecourt: its front and its sides, down to the ring's inner edge; the ring's own
+        railings are wall segments (ring_rails)."""
+        for x in range(FORECOURT[0], FORECOURT[2] + 1):
+            self.put(x, FORECOURT[1], COUNTER)
+        for y in range(FORECOURT[1] + 1, FORECOURT[3] - FLAT_BAND_CHARS + 1):
+            for x in (FORECOURT[0], FORECOURT[2]):
+                self.put(x, y, COUNTER)
 
     def spine(self):
         x0, _, x1, _ = SPINE
@@ -325,7 +494,7 @@ def build_decks():
     for number in range(1, DECKS + 1):
         deck = HubDeck(number, "Agora" if number == 1 else f"Atrium level {number}")
         deck.atrium_walls()
-        if number > 1:
+        if number == BRIDGE_DECK:
             deck.railing()
         if number <= SPINE_DECKS:
             deck.spine()
@@ -345,51 +514,45 @@ def build_decks():
 
 # ----- Blueprint ----------------------------------------------------------------------------
 
-def inside_ring(cell_x, cell_y):
-    """Whether a cell is in the atrium's inner octagon, the open middle over the agora."""
-    centre_x = (outer_box(ATRIUM)[0] + outer_box(ATRIUM)[2]) / 2
-    centre_y = (outer_box(ATRIUM)[1] + outer_box(ATRIUM)[3]) / 2
-    dx, dy = abs(cell_x + 0.5 - centre_x), abs(cell_y + 0.5 - centre_y)
-    return (dx <= RING_INNER_RADIUS_CELLS and dy <= RING_INNER_RADIUS_CELLS
-            and dx + dy <= RING_INNER_RADIUS_CELLS * OCTAGON_DIAGONAL)
+def flight_along(side):
+    """The cells a flight runs along on `side`, centred on the hall."""
+    cx2, cy2 = atrium_centre2()
+    start = ((cy2 if side in "EW" else cx2) - FLIGHT_LENGTH_CELLS + 1) // 2
+    return start, start + FLIGHT_LENGTH_CELLS
 
 
 def flight(side, number):
-    """The blocks of flight `number` (from deck `number` to the next): its wedges, and its footprint box."""
+    """The blocks of the flight on `side` from deck `number` to the next: the lip wedge and the plate; and the
+    footprint of the opening it leaves in the slab above. It climbs clockwise: E up +y, S towards -x, W towards
+    -y, N up +x."""
     z0 = deck_floor_z(number)
-    start, end = FLIGHT_ALONG[side]
+    start, end = flight_along(side)
     wall = WALL_LINE_CELLS[side]
-    blocks = []
-    for i in range(FLIGHT_WEDGES):
-        rise = z0 + i * FLIGHT_RISE_CELLS
-        size = (FLIGHT_RUN_CELLS, FLIGHT_WIDTH_CELLS, FLIGHT_RISE_CELLS)
-        if side == "E":
-            blocks.append(block(SLOPE, (wall - FLIGHT_WALL_GAP_CELLS - FLIGHT_WIDTH_CELLS, start + i * FLIGHT_RUN_CELLS, rise), size,
-                                TO_POS_Y))
-        elif side == "W":
-            blocks.append(block(SLOPE, (wall + 1 + FLIGHT_WALL_GAP_CELLS, end - (i + 1) * FLIGHT_RUN_CELLS, rise), size,
-                                TO_NEG_Y))
-        elif side == "S":
-            blocks.append(block(SLOPE, (end - (i + 1) * FLIGHT_RUN_CELLS, wall - FLIGHT_WALL_GAP_CELLS - FLIGHT_WIDTH_CELLS,
-                                         rise), size, NEG_X))
-        else:
-            blocks.append(block(SLOPE, (start + i * FLIGHT_RUN_CELLS, wall + 1 + FLIGHT_WALL_GAP_CELLS, rise), size))
-    along = (start, end)
-    if side in "EW":
-        low = wall - FLIGHT_WALL_GAP_CELLS - FLIGHT_WIDTH_CELLS if side == "E" else wall + 1 + FLIGHT_WALL_GAP_CELLS
-        footprint = (low, along[0], low + FLIGHT_WIDTH_CELLS, along[1])
-    else:
-        low = wall - FLIGHT_WALL_GAP_CELLS - FLIGHT_WIDTH_CELLS if side == "S" else wall + 1 + FLIGHT_WALL_GAP_CELLS
-        footprint = (along[0], low, along[1], low + FLIGHT_WIDTH_CELLS)
+    low = (wall - FLIGHT_WALL_GAP_CELLS - FLIGHT_WIDTH_CELLS if side in "ES" else wall + 1 + FLIGHT_WALL_GAP_CELLS)
+    lip_size = (FLIGHT_LIP_RUN_CELLS, FLIGHT_WIDTH_CELLS, FLIGHT_LIP_RISE_CELLS)
+    top = z0 + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
+    plate = {"E": ((low, start + FLIGHT_LIP_RUN_CELLS), (low, end), 0),
+             "W": ((low, end - FLIGHT_LIP_RUN_CELLS), (low, start), 0),
+             "S": ((end - FLIGHT_LIP_RUN_CELLS, low), (start, low), 1),
+             "N": ((start + FLIGHT_LIP_RUN_CELLS, low), (end, low), 1)}[side]
+    (ax, ay), (bx, by), stick_axis = plate
+    lip = {"E": ((low, start, z0), TO_POS_Y), "W": ((low, end - FLIGHT_LIP_RUN_CELLS, z0), TO_NEG_Y),
+           "S": ((end - FLIGHT_LIP_RUN_CELLS, low, z0), NEG_X), "N": ((start, low, z0), None)}[side]
+    blocks = [block(SLOPE, lip[0], lip_size, lip[1]),
+              wall_panel_block((ax, ay, z0), (bx, by, top), FLIGHT_PLATE_THICKNESS_CELLS, FLIGHT_WIDTH_CELLS,
+                               stick_axis)]
+    run = (min(ax, bx), min(ay, by), max(ax, bx), max(ay, by))
+    footprint = ((run[0], run[1], run[0] + FLIGHT_WIDTH_CELLS, run[3]) if side in "EW"
+                 else (run[0], run[1], run[2], run[1] + FLIGHT_WIDTH_CELLS))
     return blocks, footprint
 
 
 def flights():
     found = []
     for number in range(1, DECKS):
-        side = FLIGHT_SIDES[(number - 1) % len(FLIGHT_SIDES)]
-        blocks, footprint = flight(side, number)
-        found.append((number, blocks, footprint))
+        for side in FLIGHT_SIDES_BY_PARITY[number % 2]:
+            blocks, footprint = flight(side, number)
+            found.append((number, blocks, footprint))
     return found
 
 
@@ -400,7 +563,8 @@ def vestibule_box(atrium_side):
 
 
 def slab_mask(index):
-    """The slab under deck `index + 1` (the roof for the top deck's): its footprint, open over flights."""
+    """The slab under deck `index + 1` (the roof for the top deck's): its footprint. The galleries' own floor,
+    the ring, is wall segments, so the slab leaves its cells and the opening over the agora."""
     x0, y0, x1, y1 = outer_box(ATRIUM)
     mask = [[False] * (WIDTH * CELLS_PER_M) for _ in range(DEPTH * CELLS_PER_M)]
 
@@ -409,14 +573,10 @@ def slab_mask(index):
             for x in range(box[0], box[2]):
                 mask[y][x] = True
 
-    for y in range(y0, y1):
-        for x in range(x0, x1):
-            mask[y][x] = inside_atrium(x + 0.5, y + 0.5, SLAB_OVERHANG_CELLS)
-    if 1 <= index < DECKS:  # the roof has no opening over the agora
+    if index == 0 or index == DECKS:
         for y in range(y0, y1):
             for x in range(x0, x1):
-                if inside_ring(x, y):
-                    mask[y][x] = False
+                mask[y][x] = touches_atrium(x, y)
     if index <= SPINE_DECKS:
         fill(outer_box(SPINE))
     if index in (HANGAR_DECKS.start - 1, HANGAR_DECKS.stop - 1):  # no slab inside the hall
@@ -430,11 +590,9 @@ def slab_mask(index):
         fill(outer_box(vestibule_box("N")))
     if index == BRIDGE_DECK - 1:
         fill(outer_box(FORECOURT))
-    for number, _, (fx0, fy0, fx1, fy1) in flights():
-        if number == index:
-            for y in range(fy0, fy1):
-                for x in range(fx0, fx1):
-                    mask[y][x] = False
+    if 1 <= index < DECKS:
+        for x, y in ring_cells():
+            mask[y][x] = False
     return mask
 
 
@@ -444,6 +602,14 @@ def slab_blocks():
         blocks += mask_blocks(slab_mask(index), index * DECK_PITCH_CELLS if index < DECKS else
                               (DECKS - 1) * DECK_PITCH_CELLS + SLAB_CELLS + TOP_DECK_WALL_HEIGHT_CELLS, FLOOR)
     return blocks
+
+
+def ring_ceiling_blocks():
+    """Boxes where the ring's floor is, for the lamps to hang from; they are not written to the blueprint."""
+    mask = [[False] * (WIDTH * CELLS_PER_M) for _ in range(DEPTH * CELLS_PER_M)]
+    for x, y in ring_cells():
+        mask[y][x] = True
+    return [b for index in range(1, DECKS) for b in mask_blocks(mask, index * DECK_PITCH_CELLS, FLOOR)]
 
 
 def podium_blocks():
@@ -461,8 +627,9 @@ def station_blocks(decks):
         deck.blocks = wall_blocks(deck.grid, z, wall_height=height) + atrium_panels(z, height)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
+    ceilings = ring_ceiling_blocks()
     for deck in decks:
-        lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks, wall_height(deck.number))
+        lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
         deck.blocks += lamps
         blocks += lamps
     return blocks
@@ -487,7 +654,7 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    write_blueprint(BLUEPRINT_FILE, blocks)
+    write_blueprint(BLUEPRINT_FILE, blocks, ring_walls())
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
