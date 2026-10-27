@@ -26,18 +26,14 @@
 #include <string>
 #include <vector>
 
-#include <enet/enet.h>
-
 #include <lib_core/utils/endpoint.h>
+#include <net_module/discovery_socket.h>
 
 namespace z13::net {
 
-class EnetLifetime;
-
 struct LossyProxyConfig {
   Endpoint server;
-  uint16_t port {};  // what the client connects to
-  double loss {};    // chance that a datagram is dropped, either way
+  double loss {};  // chance that a datagram is dropped, either way
   std::chrono::milliseconds one_way_delay {};
   uint32_t seed {};
 };
@@ -55,25 +51,24 @@ struct DelayedDatagram {
 class LossyUdpProxy {
  public:
   static std::expected<std::unique_ptr<LossyUdpProxy>, std::string> Create(const LossyProxyConfig& config);
-  ~LossyUdpProxy();
   LossyUdpProxy(const LossyUdpProxy&) = delete;
   LossyUdpProxy& operator=(const LossyUdpProxy&) = delete;
 
+  uint16_t Port() const { return front_.Port(); }
   void Pump();
   uint64_t Dropped() const { return dropped_; }
   uint64_t Forwarded() const { return forwarded_; }
 
  private:
-  explicit LossyUdpProxy(const LossyProxyConfig& config);
+  LossyUdpProxy(const LossyProxyConfig& config, DiscoverySocket front, DiscoverySocket back);
 
-  void Take(ENetSocket socket, ProxyDirection direction);
+  void Take(const DiscoverySocket& socket, ProxyDirection direction);
   void Release();
 
   LossyProxyConfig config_;
-  std::shared_ptr<EnetLifetime> lifetime_;
-  ENetSocket front_ {ENET_SOCKET_NULL};
-  ENetSocket back_ {ENET_SOCKET_NULL};
-  std::optional<ENetAddress> client_;
+  DiscoverySocket front_;
+  DiscoverySocket back_;
+  std::optional<Endpoint> client_;
   std::deque<DelayedDatagram> queue_;
   std::mt19937 random_;
   uint64_t dropped_ {};
