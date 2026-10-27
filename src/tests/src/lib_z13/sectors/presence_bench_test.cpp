@@ -77,7 +77,8 @@ TEST(PresenceBench, DISABLED_PlayersInAClientsPresence) {
     std::uniform_int_distribution<int> deck(0, kDeckSectors - 1);
     SectorIndex index;
     for (int id = 0; id < players; ++id) {
-      index.Place({MemberKind::kPlayer, static_cast<uint64_t>(id)}, SectorKey(across(random), across(random), deck(random)));
+      index.Place({MemberKind::kPlayer, static_cast<uint64_t>(id)},
+                  SectorKey(across(random), across(random), deck(random)));
     }
     const SectorKey before(0, 0, 0);
     const SectorKey after(1, 0, 0);
