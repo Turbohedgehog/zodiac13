@@ -58,6 +58,7 @@ constexpr uint64_t kWarmUpTicks = 120;
 constexpr uint64_t kMeasuredTicks = 300;
 constexpr double kTicksPerSecond = 60.;
 constexpr size_t kTopMessages = 3;
+constexpr size_t kAllMessages = 20;
 constexpr size_t kTopSystems = 6;
 
 struct Snapshot {
@@ -88,7 +89,8 @@ uint64_t ChannelBytes(const SentTraffic& sent, Channel channel) {
   return bytes;
 }
 
-std::string TopMessages(const SentTraffic& before, const SentTraffic& after, double seconds) {
+std::string TopMessages(
+    const SentTraffic& before, const SentTraffic& after, double seconds, size_t count = kTopMessages) {
   std::vector<std::pair<uint64_t, fbs::net::MessageBody>> grown;
   for (const auto& [message, stats] : after.by_message) {
     const auto was = before.by_message.find(message);
@@ -96,7 +98,7 @@ std::string TopMessages(const SentTraffic& before, const SentTraffic& after, dou
   }
   std::ranges::sort(grown, std::greater<> {});
   std::string text;
-  for (const auto& [bytes, message] : grown | std::views::take(kTopMessages)) {
+  for (const auto& [bytes, message] : grown | std::views::take(count)) {
     text += std::format(" {} {:.0f}", fbs::net::EnumNameMessageBody(message), static_cast<double>(bytes) / seconds);
   }
   return text;
@@ -324,6 +326,13 @@ TEST(NetLoadBench, DISABLED_InterestByClientCount) {
           server_bytes / seconds / clients,
           static_cast<double>(commands(after.server) - commands(before.server)) / seconds / clients, resyncs, spread);
       std::cout << std::format("        ms/tick by system:{}\n", TopSystems(before.systems, after.systems));
+      std::cout << std::format(
+          "        server B/s per client by message:{}\n",
+          TopMessages(before.server, after.server, seconds * clients, kAllMessages));
+      for (const auto message : {fbs::net::MessageBody::SectorEntered, fbs::net::MessageBody::SectorLeft}) {
+        std::cout << std::format(
+            "        server, all clients together:{}\n", MessageRate(before.server, after.server, message, seconds));
+      }
     }
   }
 }
