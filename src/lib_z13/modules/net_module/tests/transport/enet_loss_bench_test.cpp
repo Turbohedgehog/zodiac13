@@ -68,7 +68,7 @@ std::string_view NameOf(Shape shape) {
 }
 
 std::vector<std::byte> MakeMessage(uint32_t tick, Clock::time_point sent, size_t size) {
-  std::vector<std::byte> bytes(std::max(size, kHeaderBytes));
+  std::vector<std::byte> bytes(size);
   const int64_t sent_ns = sent.time_since_epoch().count();
   std::memcpy(bytes.data(), &sent_ns, sizeof sent_ns);
   std::memcpy(bytes.data() + sizeof sent_ns, &tick, sizeof tick);
@@ -76,7 +76,12 @@ std::vector<std::byte> MakeMessage(uint32_t tick, Clock::time_point sent, size_t
 }
 
 double Percentile(const std::vector<double>& sorted, double fraction) {
-  return sorted.empty() ? 0. : sorted[std::min(sorted.size() - 1, static_cast<size_t>(fraction * sorted.size()))];
+  if (sorted.empty()) {
+    return 0.;
+  }
+  // std::clamp, not min: windows.h (through ENet) defines min and max as macros.
+  const auto index = static_cast<size_t>(fraction * static_cast<double>(sorted.size()));
+  return sorted[std::clamp(index, size_t {}, sorted.size() - 1)];
 }
 
 struct Latencies {
