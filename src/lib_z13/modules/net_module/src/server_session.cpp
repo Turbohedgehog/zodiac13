@@ -353,6 +353,9 @@ Status HandleServerReceived(
     HandleHintPacket(session, world, connection, AsUint8(event.data));
     return {};
   }
+  if (event.channel == Channel::kPoses) {
+    return {};  // only the server sends poses
+  }
   const auto decoded = DecodeMessage(AsUint8(event.data));
   if (!decoded) {
     log_warn("NetSession(server): dropping malformed packet from connection {}: {}", connection, decoded.error());

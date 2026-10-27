@@ -376,14 +376,15 @@ TEST(NetLoadBench, DISABLED_HallByClientCount) {
         resyncs += session.Client(i).World().get<StateDigests>().resyncs;
       }
       const double per_client = seconds * clients;
+      const uint64_t poses_after = ChannelBytes(after.server, Channel::kPoses);
+      const double pose_bytes = static_cast<double>(poses_after - ChannelBytes(before.server, Channel::kPoses));
       std::cout << std::format(
           "{:7} | {:6} | {:14.2f} | {:21.0f} | {:21.0f} | {:9.0f} | {:7} | {} ({})\n", clients, ghosts ? "on" : "off",
           std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
           static_cast<double>(after.server.Total().bytes - before.server.Total().bytes) / per_client,
           static_cast<double>(message_bytes(after.server, fbs::net::MessageBody::SequencedCommands) -
                               message_bytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
-          static_cast<double>(ChannelBytes(after.server, Channel::kPoses) - ChannelBytes(before.server, Channel::kPoses)) /
-              per_client,
+          pose_bytes / per_client,
           resyncs, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
           after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
     }

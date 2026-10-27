@@ -57,7 +57,7 @@ struct SplitHashes {
   std::unordered_map<sectors::SectorKey, SectorHashParts, sectors::SectorHash> by_sector;
 };
 
-// Server: the digests' hashes in parts by tick, made when the digest is, since the sector index moves on before it is sent.
+// Server: the digests' hashes in parts by tick, made with the digest (the sector index moves on before it is sent).
 struct DigestSplits {
   using Singleton = void;
   using SessionScoped = void;

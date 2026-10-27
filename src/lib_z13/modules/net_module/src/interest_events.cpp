@@ -202,6 +202,7 @@ std::vector<uint32_t> ReselectSimulated(flecs::world world, sectors::ClientId cl
   std::ranges::copy_if(chosen, std::back_inserter(changed), [&](uint32_t id) { return !known.simulated.contains(id); });
   std::ranges::copy_if(known.simulated, std::back_inserter(changed), [&](uint32_t id) { return !chosen.contains(id); });
   known.simulated = std::move(chosen);
+  std::ranges::sort(changed);  // the sets are unordered; the events go out in one order every run
   return changed;
 }
 

@@ -73,7 +73,9 @@ class GhostPosesTest : public ::testing::Test {
     std::string text = "simulated:";
     const std::optional<uint32_t> own = Client(index).get<z13::gameplay::LocalPlayer>().id;
     Client(index).query_builder<const z13::gameplay::Player>().build().each(
-        [&](const z13::gameplay::Player& player) { text += std::format(" {}{}", player.id, player.id == own ? "(own)" : ""); });
+        [&](const z13::gameplay::Player& player) {
+          text += std::format(" {}{}", player.id, player.id == own ? "(own)" : "");
+        });
     text += "; ghosts:";
     for (const auto& [id, pose] : Client(index).get<GhostPlayers>().by_player) {
       text += std::format(" {}", id);
@@ -110,7 +112,8 @@ TEST_F(GhostPosesTest, AClientDrawsThePlayersOutsideItsPresenceAsGhosts) {
         [&](flecs::entity ghost, const z13::gameplay::GhostPlayer& marker, const Eigen::Matrix4f& transform) {
           ++ghosts;
           EXPECT_TRUE(stored.contains(marker.id));
-          EXPECT_FALSE(client.lookup(z13::gameplay::PlayerEntityName(marker.id).c_str())) << "a simulated player is also a ghost";
+          EXPECT_FALSE(client.lookup(z13::gameplay::PlayerEntityName(marker.id).c_str()))
+              << "a simulated player is also a ghost";
           EXPECT_FALSE(ghost.has<z13::flecs_tools::StateEntity>()) << "a ghost is state";
           const auto server = ServerPosition(marker.id);
           ASSERT_TRUE(server.has_value());

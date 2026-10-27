@@ -52,7 +52,8 @@ std::vector<PoseRecord> PosesOfPlayers(flecs::world world) {
 }
 
 bool IsDue(const z13::NetTuning& tuning, double distance_m, uint64_t tick) {
-  return distance_m <= tuning.ghost_near_radius_m || tick / tuning.ghost_pose_interval_ticks % tuning.ghost_far_every == 0;
+  const uint64_t pose_number = tick / tuning.ghost_pose_interval_ticks;
+  return distance_m <= tuning.ghost_near_radius_m || pose_number % tuning.ghost_far_every == 0;
 }
 
 void SendGhostPoses(
