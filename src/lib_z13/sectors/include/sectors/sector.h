@@ -29,6 +29,19 @@ namespace z13::net::sectors {
 using SectorKey = Eigen::Vector3i;
 using SectorHash = z13::building::primitives::CellHash;
 
+// The sectors from `min` to `max`, both included, along every axis.
+struct SectorBox {
+  SectorKey min = SectorKey::Zero();
+  SectorKey max = SectorKey::Zero();
+
+  bool Contains(const SectorKey& sector) const {
+    return (sector.array() >= min.array()).all() && (sector.array() <= max.array()).all();
+  }
+  SectorBox Grown(int by) const { return {min - SectorKey::Constant(by), max + SectorKey::Constant(by)}; }
+  // Every sector of the box, for a caller that has to visit them.
+  std::vector<SectorKey> Sectors() const;
+};
+
 // net_tuning.fbs's default, read in sector.cpp so this header doesn't include the schema.
 int DefaultSectorCells();
 

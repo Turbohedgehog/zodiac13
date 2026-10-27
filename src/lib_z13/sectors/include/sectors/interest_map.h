@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <unordered_map>
 #include <unordered_set>
@@ -67,6 +68,8 @@ class InterestMap {
   std::vector<ClientId> Clients() const;
   // The sectors the client is subscribed to, in no particular order.
   std::vector<SectorKey> SectorsOf(ClientId client) const;
+  // The smallest box holding the client's sectors; nothing while it has none.
+  std::optional<SectorBox> BoundsOf(ClientId client) const;
   size_t SectorCount(ClientId client) const;
 
  private:

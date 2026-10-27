@@ -163,7 +163,7 @@ bool IsPresent(const sectors::SectorIndex& index, const ClientKnowledge& known, 
     return false;
   }
   const auto sector = index.Locate({.kind = MemberKind::kPlayer, .id = player_id});
-  return sector && known.presence.contains(*sector);
+  return sector && known.presence.Contains(*sector);
 }
 
 // Sends the player's entry or exit if the client's knowledge of it is out of date.
@@ -196,22 +196,28 @@ void StartKnowledge(const sectors::SectorIndex& index, sectors::ClientId client,
 void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowledge& known, bool first,
                 const sectors::InterestChange& change, std::span<const uint64_t> moved_players) {
   const auto& index = sender.world.get<sectors::SectorIndex>();
+  const auto& map = sender.world.get<sectors::InterestMap>();
   const bool sectors_changed = first || !change.entered.empty() || !change.left.empty();
   if (sectors_changed) {
-    const std::vector<SectorKey> subscribed = sender.world.get<sectors::InterestMap>().SectorsOf(client);
-    const SectorSet wanted {subscribed.begin(), subscribed.end()};
+    known.presence = PresenceOf(*map.BoundsOf(client));
     if (first) {
+      const std::vector<SectorKey> subscribed = map.SectorsOf(client);
+      const SectorSet wanted {subscribed.begin(), subscribed.end()};
       StartKnowledge(index, client, wanted, known);
+      std::vector<SectorKey> outside;
+      std::ranges::copy_if(known.sectors, std::back_inserter(outside),
+                           [&wanted](const SectorKey& sector) { return !wanted.contains(sector); });
+      for (const SectorKey& sector : outside) {
+        SendSectorLeft(sender, sector);
+        known.sectors.erase(sector);
+      }
     }
-    known.presence = Dilated(wanted);
-    std::vector<SectorKey> left;
-    std::ranges::copy_if(known.sectors, std::back_inserter(left),
-                         [&wanted](const SectorKey& s) { return !wanted.contains(s); });
-    for (const SectorKey& sector : left) {
-      SendSectorLeft(sender, sector);
-      known.sectors.erase(sector);
+    for (const SectorKey& sector : change.left) {
+      if (known.sectors.erase(sector) > 0) {
+        SendSectorLeft(sender, sector);
+      }
     }
-    for (const SectorKey& sector : wanted) {
+    for (const SectorKey& sector : change.entered) {
       if (!known.sectors.contains(sector) && SendSectorEntered(sender, sector)) {
         known.sectors.insert(sector);
       }
