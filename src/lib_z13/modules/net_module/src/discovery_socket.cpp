@@ -28,8 +28,8 @@ namespace z13::net {
 
 namespace {
 
-// Discovery messages are a few hundred bytes; anything longer isn't one.
-constexpr size_t kMaxDatagram = 1024;
+// ENet's largest datagram (the loss bench relays game traffic); the discovery decoder refuses a longer message.
+constexpr size_t kMaxDatagram = 4096;
 
 ENetSocket Native(uint64_t socket) {
   return static_cast<ENetSocket>(socket);

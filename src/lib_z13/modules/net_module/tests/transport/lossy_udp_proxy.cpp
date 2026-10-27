@@ -16,67 +16,32 @@
 
 #include "lossy_udp_proxy.h"
 
-#include <array>
-#include <format>
-
-#include "../../src/enet_datagram.h"
-#include "../../src/enet_lifetime.h"
+#include <utility>
 
 namespace z13::net {
 
-namespace {
-
-// Larger than ENet's biggest datagram (its MTU maximum is 4096).
-constexpr size_t kMaxDatagram = 4096;
-
-}  // namespace
-
 std::expected<std::unique_ptr<LossyUdpProxy>, std::string> LossyUdpProxy::Create(const LossyProxyConfig& config) {
-  auto lifetime = AcquireEnetLifetime();
-  if (!lifetime) {
-    return std::unexpected(lifetime.error());
+  auto front = DiscoverySocket::Open();
+  auto back = DiscoverySocket::Open();
+  if (!front || !back) {
+    return std::unexpected(front ? back.error() : front.error());
   }
-  auto proxy = std::unique_ptr<LossyUdpProxy>(new LossyUdpProxy(config));
-  proxy->lifetime_ = *lifetime;
-  proxy->front_ = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
-  proxy->back_ = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
-  if (proxy->front_ == ENET_SOCKET_NULL || proxy->back_ == ENET_SOCKET_NULL) {
-    return std::unexpected("can't create the proxy's sockets");
-  }
-  ENetAddress address {.host = ENET_HOST_ANY, .port = config.port};
-  if (enet_socket_bind(proxy->front_, &address) != 0) {
-    return std::unexpected(std::format("can't bind the proxy to port {}", config.port));
-  }
-  constexpr int kNonBlocking = 1;
-  enet_socket_set_option(proxy->front_, ENET_SOCKOPT_NONBLOCK, kNonBlocking);
-  enet_socket_set_option(proxy->back_, ENET_SOCKOPT_NONBLOCK, kNonBlocking);
-  return proxy;
+  return std::unique_ptr<LossyUdpProxy>(new LossyUdpProxy(config, std::move(*front), std::move(*back)));
 }
 
-LossyUdpProxy::LossyUdpProxy(const LossyProxyConfig& config) : config_(config), random_(config.seed) {}
+LossyUdpProxy::LossyUdpProxy(const LossyProxyConfig& config, DiscoverySocket front, DiscoverySocket back)
+    : config_(config), front_(std::move(front)), back_(std::move(back)), random_(config.seed) {}
 
-LossyUdpProxy::~LossyUdpProxy() {
-  enet_socket_destroy(front_);
-  enet_socket_destroy(back_);
-}
-
-void LossyUdpProxy::Take(ENetSocket socket, ProxyDirection direction) {
-  std::array<uint8_t, kMaxDatagram> storage {};
-  ENetBuffer buffer {};  // its fields come in another order on Windows: assigned, not designated
-  buffer.data = storage.data();
-  buffer.dataLength = storage.size();
-  ENetAddress from {};
-  for (int received = enet_socket_receive(socket, &from, &buffer, 1); received > 0;
-       received = enet_socket_receive(socket, &from, &buffer, 1)) {
+void LossyUdpProxy::Take(const DiscoverySocket& socket, ProxyDirection direction) {
+  for (Datagram& datagram : socket.Receive()) {
     if (direction == ProxyDirection::kToServer) {
-      client_ = from;
+      client_ = datagram.from;
     }
     if (std::uniform_real_distribution<double>(0., 1.)(random_) < config_.loss) {
       ++dropped_;
       continue;
     }
-    queue_.push_back({std::chrono::steady_clock::now() + config_.one_way_delay, direction,
-                      {storage.begin(), storage.begin() + received}});
+    queue_.push_back({std::chrono::steady_clock::now() + config_.one_way_delay, direction, std::move(datagram.bytes)});
   }
 }
 
@@ -85,9 +50,9 @@ void LossyUdpProxy::Release() {
   for (; !queue_.empty() && queue_.front().due <= now; queue_.pop_front()) {
     const DelayedDatagram& datagram = queue_.front();
     if (datagram.direction == ProxyDirection::kToServer) {
-      SendDatagram(back_, config_.server, datagram.bytes);
+      back_.SendTo(config_.server, datagram.bytes);
     } else if (client_) {
-      SendDatagram(front_, EndpointOf(*client_), datagram.bytes);
+      front_.SendTo(*client_, datagram.bytes);
     }
     ++forwarded_;
   }
