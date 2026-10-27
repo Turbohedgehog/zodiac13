@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Draws the hub station's pilot as text and writes its blueprint (docs/hub-station-plan.md).
 
-The pilot is the atrium with the agora, the west spine and the bridge, to check the scale and the grid
-of the whole station. One character is 1 m (4 grid cells), as in generate_shard.py. The target atrium is
+The pilot is the atrium with the agora, the west spine, the bridge and the security wing opposite it, to check
+the scale and the grid of the whole station. One character is 1 m (4 grid cells), as in generate_shard.py. The target atrium is
 round and the spine bends; until station_blueprint.py can place oblique panels the atrium is an octagon
 whose 45-degree corners are solid fill under wedge prisms (as hall A of the shard), and the spine is straight.
 """
 
 from pathlib import Path
+from typing import NamedTuple
 
 from station_blueprint import (
     CELLS_PER_M, COUNTER, DOOR, FLOOR, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
@@ -38,12 +39,23 @@ class Room:
     SPINE = "SPINE {side}{n}"
     CORRIDOR = "CORRIDOR"
     BRIDGE = "BRIDGE"
+    SECURITY_LOBBY = "SECURITY LOBBY"
+    ARMORY = "ARMORY"
+    BRIG = "BRIG"
+    OFFICE = "OFFICE {n}"
+    BARRACKS = "BARRACKS {n}"
+    COMMAND_LOBBY = "COMMAND LOBBY"
+    MEETING = "MEETING ROOM"
+    COMMS = "COMMS"
+    CAPTAIN = "CAPTAIN"
+    HEADS = "HEADS' ROOM"
     SPAWN = "SPAWN"
 
 
 # ----- Geometry -----------------------------------------------------------------------------
 
-WIDTH, DEPTH = 66, 70
+NORTH_M = 26  # room ahead of the atrium (smaller y) for the security wing, which faces the bridge across the agora
+WIDTH, DEPTH = 66, 70 + NORTH_M
 DECK_PITCH_M = 3
 DECK_PITCH_CELLS = DECK_PITCH_M * CELLS_PER_M
 WALL_HEIGHT_CELLS = DECK_PITCH_CELLS - SLAB_CELLS
@@ -54,7 +66,7 @@ SPINE_DECKS = 4
 
 # The atrium: an octagon 36 m across the flats, its corners cut by 10 m legs (steps of 4 cells). The
 # outer box includes the east wall's cell, so all four corners are as long as the straight walls leave them.
-ATRIUM = (28, 1, 64, 37)
+ATRIUM = (28, 1 + NORTH_M, 64, 37 + NORTH_M)
 LEG_M = 10
 CORNER_STEPS = [(4, 4)] * LEG_M
 ATRIUM_SPAN_X = (ATRIUM[0] + LEG_M, ATRIUM[2] - LEG_M)
@@ -62,28 +74,53 @@ ATRIUM_SPAN_Y = (ATRIUM[1] + LEG_M, ATRIUM[3] - LEG_M)
 CORNER_NAMES = ("NW", "NE", "SW", "SE")
 
 # The west spine: a corridor between two rows of rooms, open to the atrium.
-SPINE = (1, 11, 28, 27)
+SPINE = (1, 11 + NORTH_M, 28, 27 + NORTH_M)
 SPINE_ROOM_X = (1, 10, 19)
 SPINE_ROOM_LENGTH_M = 9
-SPINE_ROW_Y = {"N": (11, 15), "S": (23, 27)}
-SPINE_OPENING_Y = (16, 22)
-SPINE_DOOR_ROWS = (19, 20)
+SPINE_ROW_Y = {"N": (11 + NORTH_M, 15 + NORTH_M), "S": (23 + NORTH_M, 27 + NORTH_M)}
+SPINE_OPENING_Y = (16 + NORTH_M, 22 + NORTH_M)
+SPINE_DOOR_ROWS = (19 + NORTH_M, 20 + NORTH_M)
 
 # The bridge: a hall north of the atrium, glazed at its far end, entered through a gap in the atrium wall.
-BRIDGE = (38, 37, 54, 67)
+BRIDGE = (38, 37 + NORTH_M, 54, 67 + NORTH_M)
 BRIDGE_OPENING_X = (42, 50)
+
+# Wings off the atrium's flat sides, 16 m wide: a lobby at the atrium and two rooms behind it on each deck,
+# open to the galleries. Security faces the bridge across the agora; the command wing sits under the bridge.
+WING_LOBBY_DEPTH_M = 8
+WING_OPENING_X = (42, 50)
+WING_ROOM_SPLIT_X = 46
+COMMAND_LENGTH_M = 22
+
+
+class Wing(NamedTuple):
+    box: tuple
+    decks: range
+    lobby: str
+    rooms: dict  # deck -> (west room, east room)
+    atrium_side: str  # which side of the box the atrium is on
+
+
+WINGS = (
+    Wing((38, 5, 54, ATRIUM[1]), range(1, 4), Room.SECURITY_LOBBY,
+         {1: (Room.ARMORY, Room.BRIG), 2: (Room.OFFICE.format(n=1), Room.OFFICE.format(n=2)),
+          3: (Room.BARRACKS.format(n=1), Room.BARRACKS.format(n=2))}, "S"),
+    Wing((38, ATRIUM[3], 54, ATRIUM[3] + COMMAND_LENGTH_M), range(6, 8), Room.COMMAND_LOBBY,
+         {6: (Room.MEETING, Room.COMMS), 7: (Room.CAPTAIN, Room.HEADS)}, "N"),
+)
 
 # Galleries: a ring slab on every floor above the agora, 4 m wide, open in the middle.
 RING_INNER_RADIUS_CELLS = 56
 OCTAGON_DIAGONAL = 2 ** 0.5
 RAIL_X = (40, 52)
-RAIL_Y = (13, 25)
+RAIL_Y = (13 + NORTH_M, 25 + NORTH_M)
 INNER_X = (32, 60)
-INNER_Y = (5, 33)
-FORECOURT = (40, 29, 52, 37)  # a balcony in the atrium before the bridge door
+INNER_Y = (5 + NORTH_M, 33 + NORTH_M)
+FORECOURT = (40, 29 + NORTH_M, 52, 37 + NORTH_M)  # a balcony in the atrium before the bridge door
 
 # Flights: one per floor, round the atrium clockwise on the four straight sides, 12 m long and 15 cells
 # wide against the wall. Each: (side, deck the flight starts on).
+NORTH_CELLS = NORTH_M * CELLS_PER_M
 FLIGHT_SIDES = ("E", "S", "W", "N")
 FLIGHT_WEDGES = 3
 FLIGHT_RUN_CELLS = 16
@@ -92,11 +129,12 @@ FLIGHT_RISE_CELLS = 4
 WALL_LINE_CELLS = {side: cell for side, cell in
                    (("N", ATRIUM[1] * CELLS_PER_M), ("S", ATRIUM[3] * CELLS_PER_M),
                     ("W", ATRIUM[0] * CELLS_PER_M), ("E", ATRIUM[2] * CELLS_PER_M))}
-FLIGHT_ALONG = {"E": (48, 96), "S": (152, 200), "W": (48, 96), "N": (152, 200)}
+FLIGHT_ALONG = {"E": (48 + NORTH_CELLS, 96 + NORTH_CELLS), "S": (152, 200), "W": (48 + NORTH_CELLS, 96 + NORTH_CELLS),
+                "N": (152, 200)}
 
-PODIUM = (172, 64, 24)  # x, y, size in cells
+PODIUM = (172, 64 + NORTH_CELLS, 24)  # x, y, size in cells
 PODIUM_LAYERS = 4
-SPAWN_ROOM = (34, 17, 38, 21)
+SPAWN_ROOM = (34, 17 + NORTH_M, 38, 21 + NORTH_M)
 
 
 def outer_box(box):
@@ -163,6 +201,20 @@ class HubDeck(Deck):
             self.put(x0, y, DOOR)
         self.label(x0, SPINE_ROW_Y["N"][1], x1, SPINE_ROW_Y["S"][0], Room.CORRIDOR)
 
+    def wing(self, wing):
+        x0, y0, x1, y1 = wing.box
+        toward_south = wing.atrium_side == "S"
+        lobby_edge = y1 - WING_LOBBY_DEPTH_M if toward_south else y0 + WING_LOBBY_DEPTH_M
+        lobby = (x0, lobby_edge, x1, y1) if toward_south else (x0, y0, x1, lobby_edge)
+        rooms_y = (y0, lobby_edge) if toward_south else (lobby_edge, y1)
+        self.room(*lobby, wing.lobby)
+        west, east = wing.rooms[self.number]
+        door = (wing.atrium_side, None)
+        self.room(x0, rooms_y[0], WING_ROOM_SPLIT_X, rooms_y[1], west, door)
+        self.room(WING_ROOM_SPLIT_X, rooms_y[0], x1, rooms_y[1], east, door)
+        for x in range(WING_OPENING_X[0], WING_OPENING_X[1] + 1):
+            self.put(x, y1 if toward_south else y0, " ")
+
     def bridge(self):
         x0, y0, x1, y1 = BRIDGE
         self.rect(*BRIDGE)
@@ -185,6 +237,9 @@ def build_decks():
             deck.railing()
         if number <= SPINE_DECKS:
             deck.spine()
+        for wing in WINGS:
+            if number in wing.decks:
+                deck.wing(wing)
         if number == BRIDGE_DECK:
             deck.bridge()
             deck.name = "Atrium top and bridge"
@@ -259,6 +314,9 @@ def slab_mask(index):
                     mask[y][x] = False
     if index <= SPINE_DECKS:
         fill(outer_box(SPINE))
+    for wing in WINGS:
+        if index in range(wing.decks.start - 1, wing.decks.stop):
+            fill(outer_box(wing.box))
     if index == BRIDGE_DECK - 1 or index == DECKS:
         fill(outer_box(BRIDGE))
     if index == BRIDGE_DECK - 1:
