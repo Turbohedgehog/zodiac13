@@ -40,6 +40,9 @@ struct InterestView {
 
 SectorSet Dilated(const SectorSet& sectors);
 
+// What a client joining at `center` will have: the view before its player is in the sector index.
+InterestView ViewAround(flecs::world world, sectors::ClientId client, const sectors::SectorKey& center);
+
 // Nothing while the client has no interest yet (its player is not in the sector index).
 std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client);
 

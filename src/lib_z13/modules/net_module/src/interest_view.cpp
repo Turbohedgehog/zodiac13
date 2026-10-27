@@ -17,6 +17,7 @@
 #include "interest_view.h"
 
 #include <memory>
+#include <utility>
 
 #include <Eigen/Core>
 
@@ -49,13 +50,11 @@ SectorSet Dilated(const SectorSet& wanted) {
   return ring;
 }
 
-std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client) {
-  const std::vector<sectors::SectorKey> subscribed = world.get<sectors::InterestMap>().SectorsOf(client);
-  if (subscribed.empty()) {
-    return std::nullopt;
-  }
+namespace {
+
+InterestView ViewOfSectors(flecs::world world, sectors::ClientId client, SectorSet subscribed) {
   InterestView view;
-  view.sectors = {subscribed.begin(), subscribed.end()};
+  view.sectors = std::move(subscribed);
   view.presence = Dilated(view.sectors);
   const auto& index = world.get<sectors::SectorIndex>();
   for (const sectors::SectorKey& sector : view.presence) {
@@ -67,6 +66,30 @@ std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client)
   }
   view.players.insert(client);
   return view;
+}
+
+}  // namespace
+
+InterestView ViewAround(flecs::world world, sectors::ClientId client, const sectors::SectorKey& center) {
+  const auto& tuning = world.get<z13::NetTuning>();
+  const int reach = tuning.interest_radius_sectors + tuning.interest_margin_sectors;
+  SectorSet subscribed;
+  for (int dx = -reach; dx <= reach; ++dx) {
+    for (int dy = -reach; dy <= reach; ++dy) {
+      for (int dz = -reach; dz <= reach; ++dz) {
+        subscribed.insert(center + sectors::SectorKey(dx, dy, dz));
+      }
+    }
+  }
+  return ViewOfSectors(world, client, std::move(subscribed));
+}
+
+std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client) {
+  const std::vector<sectors::SectorKey> subscribed = world.get<sectors::InterestMap>().SectorsOf(client);
+  if (subscribed.empty()) {
+    return std::nullopt;
+  }
+  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()});
 }
 
 z13::flecs_tools::WorldSnapshot FilterSnapshot(

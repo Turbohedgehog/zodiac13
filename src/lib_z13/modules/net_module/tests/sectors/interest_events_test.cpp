@@ -43,6 +43,8 @@
 #include "../../../station_module/tests/support/room_blocks.h"
 #include "../../../z13_module/tests/support/load_session.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
+#include <net_module/state_digest.h>
+
 #include "../../src/catch_up.h"
 #include "../../src/interest_view.h"
 #include "../../src/interest_deltas.h"
@@ -254,6 +256,16 @@ bool CatchUpHas(const std::unique_ptr<fbs::net::CatchUpT>& catch_up, const std::
   EXPECT_TRUE(payload.has_value());
   const ft::EntityRefs entities = ft::AllEntities(payload->snapshot);
   return std::ranges::any_of(entities, [&name](const ft::EntitySnapshot& entity) { return entity.name == name; });
+}
+
+TEST_F(InterestEventsTest, WalkingClientsInOneHallStayInSyncWithoutAResync) {
+  Run(kSnapshotAgeTicks);
+
+  for (size_t index = 0; index < session_.ClientCount(); ++index) {
+    const auto& digests = session_.Client(index).World().get<StateDigests>();
+    EXPECT_GT(digests.checked, 0u) << "client " << index;
+    EXPECT_EQ(digests.resyncs, 0u) << "client " << index;
+  }
 }
 
 TEST_F(InterestStillTest, AResyncCarriesOnlyWhatTheClientHas) {

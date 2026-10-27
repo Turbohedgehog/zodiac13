@@ -102,7 +102,7 @@ z13::input::ActionId ActionNamed(Z13TestWorld& world, std::string_view name) {
 class HintedSession {
  public:
   HintedSession(const HintFilter& filter, double radius_m, double drop_probability = 0.) {
-    z13::Settings settings = z13::MakeSettings();
+    z13::Settings settings = z13::testing::TestSettings();
     settings.net->look_hint_filter = filter;
     settings.net->look_hint_radius_m = radius_m;
     network_->SetFaultConfig({.drop_probability = drop_probability, .min_delay_ticks = 2, .max_delay_ticks = 4});

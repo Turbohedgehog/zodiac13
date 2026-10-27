@@ -215,7 +215,7 @@ bool IsConnected(Z13TestWorld& world) {return world.World().has<z13::gameplay::G
 }
 
 std::optional<BenchRun> Run(const Scenario& scenario, const NetProfile& profile, const TuningVariant& variant) {
-  z13::Settings settings = z13::MakeSettings();
+  z13::Settings settings = z13::testing::TestSettings();
   variant.apply(settings);
   auto network = std::make_shared<InMemoryNetwork>();
   network->SetFaultConfig(profile.fault);
