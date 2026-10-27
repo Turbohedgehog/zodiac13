@@ -128,20 +128,21 @@ WINGS = (
 
 # Galleries: a ring slab on every floor above the agora, 4 m wide, open in the middle.
 RAIL_THICKNESS_CELLS = 2
-FORECOURT = (43, 29 + NORTH_M, 49, 37 + NORTH_M)  # a balcony in the atrium before the bridge door, as wide as its flat
+FORECOURT = (43, 27 + NORTH_M, 49, 37 + NORTH_M)  # a balcony in the atrium before the bridge door, as wide as its flat
 
-# Flights: two a floor on opposite sides (E and W above odd floors, S and N above even ones), so every floor has
-# a way up and down. Each is a small wedge that lifts to the plate's height and a Panel plate, one block in
-# all, rising 1:2.5 along the flat of the ring (33 cells), a few cells off the wall.
+# Flights from each deck to the next, on the ring's flats: a small wedge that lifts to the plate's height and a
+# Panel plate, rising 1:2.5 along the flat (33 cells), a few cells off the wall. Not on a flat whose entrance is on
+# either deck (the spine's W up to deck 4, security's N up to 3, the command wing's and bridge's S from 6), and not
+# on the flat of the flight below (it would start over that flight's opening).
 NORTH_CELLS = NORTH_M * CELLS_PER_M
-FLIGHT_SIDES_BY_PARITY = {1: ("E", "W"), 0: ("S", "N")}
+FLIGHT_SIDES = {1: ("E",), 2: ("S",), 3: ("E",), 4: ("S", "N"), 5: ("E", "W"), 6: ("N",), 7: ("E", "W")}
 FLIGHT_LIP_RUN_CELLS = 5
 FLIGHT_LIP_RISE_CELLS = 2
 FLIGHT_PLATE_RUN_CELLS = 25
 FLIGHT_PLATE_THICKNESS_CELLS = 2  # the plate's top is this far above its line; 2 holds air back at 1:2.5
 FLIGHT_LENGTH_CELLS = FLIGHT_LIP_RUN_CELLS + FLIGHT_PLATE_RUN_CELLS
 FLIGHT_WIDTH_CELLS = 11
-FLIGHT_WALL_GAP_CELLS = 4
+FLIGHT_WALL_GAP_CELLS = 8  # a 2 m ledge between a flight's opening and the wall
 WALL_LINE_CELLS = {side: cell for side, cell in
                    (("N", ATRIUM[1] * CELLS_PER_M), ("S", ATRIUM[3] * CELLS_PER_M),
                     ("W", ATRIUM[0] * CELLS_PER_M), ("E", ATRIUM[2] * CELLS_PER_M))}
@@ -241,9 +242,9 @@ def touches_atrium(x, y):
 # cell thick (a floor is a wall whose stick is one cell long): the game stitches them along seams at their shared
 # nodes, so the ring has no steps along its edges. Its outer edge is the outer face of the walls and panels; its
 # inner edge is the opening over the agora, `RING_WIDTH` cells inside the node lines along each side's minor axis.
-RING_WIDTH = {"flat": 15, "steep": 12, "diagonal": 14}
+RING_WIDTH = {"flat": 19, "steep": 15, "diagonal": 17}
 FLAT_OUTER_CELLS = 1  # the flat's wall is one cell thick
-FLAT_BAND_CHARS = 4  # the ring's width at a flat (16 cells)
+FLAT_BAND_CHARS = 5  # the ring's width at a flat (20 cells)
 
 
 def ring_sides():
@@ -314,7 +315,7 @@ def ring_cells():
 
 def flight_sides(index):
     """The flats that have a flight from deck `index`, and so an opening in the slab above it."""
-    return FLIGHT_SIDES_BY_PARITY[index % 2] if 1 <= index < DECKS else ()
+    return FLIGHT_SIDES.get(index, ())
 
 
 def run_interval(side, footprint):
@@ -550,7 +551,7 @@ def flight(side, number):
 def flights():
     found = []
     for number in range(1, DECKS):
-        for side in FLIGHT_SIDES_BY_PARITY[number % 2]:
+        for side in FLIGHT_SIDES[number]:
             blocks, footprint = flight(side, number)
             found.append((number, blocks, footprint))
     return found
@@ -581,6 +582,11 @@ def slab_mask(index):
         fill(outer_box(SPINE))
     if index in (HANGAR_DECKS.start - 1, HANGAR_DECKS.stop - 1):  # no slab inside the hall
         fill(outer_box(DEPARTURE))
+    elif HANGAR_DECKS.start <= index < HANGAR_DECKS.stop - 1:  # between its decks only under its walls
+        dx0, dy0, dx1, dy1 = (c * CELLS_PER_M for c in DEPARTURE)
+        for box in ((dx0, dy0, dx0 + 1, dy1 + 1), (dx1, dy0, dx1 + 1, dy1 + 1),
+                    (dx0, dy0, dx1 + 1, dy0 + 1), (dx0, dy1, dx1 + 1, dy1 + 1)):
+            fill(box)
     for wing in WINGS:
         if index in range(wing.decks.start - 1, wing.decks.stop):
             fill(outer_box(wing.box))
