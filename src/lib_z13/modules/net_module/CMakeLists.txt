@@ -62,6 +62,7 @@ z13_add_plugin(
   src/session_control.cpp
   src/session_deltas.cpp
   src/session_settings.cpp
+  src/simulated_set.cpp
   src/state_digest.cpp
   src/wire_records.cpp
   PUBLIC

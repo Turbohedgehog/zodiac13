@@ -187,7 +187,7 @@ Status HandleClientHello(
   if (world.get<NetTuning>().interest_events) {
     const int sector_cells = world.get<NetTuning>().sector_size_cells;
     const Eigen::Vector3i cell = (join->spawn_position / z13::station::kCellSize).array().floor().cast<int>();
-    view = ViewAround(world, player_id, sectors::SectorOf(cell, sector_cells));
+    view = ViewAround(world, player_id, sectors::SectorOf(cell, sector_cells), join->spawn_position);
   }
   return SendWelcome(session, world, connection, player_id, std::move(*action_ids), view).and_then([&] {
     ScheduleJoin(session, world, player_id, std::move(*join));

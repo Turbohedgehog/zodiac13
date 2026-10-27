@@ -38,8 +38,10 @@
 #include <z13/components/player_action.h>
 
 #include <net_module/clock_sync.h>
+#include <z13/components/net.h>
 #include <z13_settings/building_tuning.h>
 
+#include "interest_events.h"
 #include "interest_view.h"
 #include "remote_input.h"
 #include "sector_hash.h"
@@ -81,6 +83,16 @@ void RecordStateDigest(
   std::erase_if(digests.local, [tick, retention = *retention_ticks](const auto& entry) {
     return entry.first + retention < tick;
   });
+  if (world.get<NetTuning>().ghosts && world.has<ServerRole>() && world.has<sectors::SectorIndex>() &&
+      world.has<z13::BuildingTuning>()) {
+    auto& splits = world.get_mut<DigestSplits>().by_tick;
+    splits.insert_or_assign(
+        tick, SplitBySector(world, snapshots.history.Entries().back().snapshot, world.get<sectors::SectorIndex>(),
+                            world.get<z13::BuildingTuning>().index_chunk_cells));
+    std::erase_if(splits, [tick, retention = *retention_ticks](const auto& entry) {
+      return entry.first + retention < tick;
+    });
+  }
 }
 
 // An own command the server didn't have when it sent the digest may yet be moved past the
@@ -158,9 +170,14 @@ bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDig
   return true;
 }
 
-// What a client with interest events can compare: its view's sectors and players.
-fbn::StateDigestT DigestOfView(const fbn::StateDigestT& digest, const InterestView& view) {
+// What a client with interest events can compare: its view's sectors and players. Under a budget a sector
+// holds players the client doesn't, so its hash counts only the view's (`split` is the digest's tick, split).
+fbn::StateDigestT DigestOfView(
+    const fbn::StateDigestT& digest, const InterestView& view, const std::optional<SplitHashes>& split) {
   fbn::StateDigestT part(digest);
+  if (split) {
+    part.sector_hashes = HashesOf(*split, &view.players);
+  }
   const auto outside = [&view](const auto& entry) { return !view.players.contains(entry.player_id()); };
   std::erase_if(part.positions, outside);
   std::erase_if(part.input_through, outside);
@@ -171,6 +188,12 @@ fbn::StateDigestT DigestOfView(const fbn::StateDigestT& digest, const InterestVi
   return part;
 }
 
+std::optional<SplitHashes> SplitOf(flecs::world world, uint64_t tick) {
+  const auto& splits = world.get<DigestSplits>().by_tick;
+  const auto found = splits.find(tick);
+  return found == splits.end() ? std::nullopt : std::optional(found->second);
+}
+
 void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT& digest) {
   if (!world.get<NetTuning>().interest_events) {
     Envelope envelope;
@@ -178,10 +201,17 @@ void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT
     session.Broadcast(Channel::kReliable, envelope);
     return;
   }
+  const std::optional<SplitHashes> split = SplitOf(world, digest.tick);
+  const auto& knowledge = world.get<InterestKnowledge>().by_client;
   for (const auto& [connection, client] : session.PlayerConnections()) {
-    const std::optional<InterestView> view = ViewOf(world, client);
+    std::optional<InterestView> view = ViewOf(world, client);
+    if (view && split && knowledge.contains(client)) {
+      // The client had the players of the digest's tick, not of the one it is sent in.
+      view->players = PlayersAt(knowledge.at(client), digest.tick);
+      view->players.insert(client);
+    }
     Envelope envelope;
-    envelope.body.Set(view ? DigestOfView(digest, *view) : fbn::StateDigestT(digest));
+    envelope.body.Set(view ? DigestOfView(digest, *view, split) : fbn::StateDigestT(digest));
     session.Send(connection, Channel::kReliable, envelope);
   }
 }

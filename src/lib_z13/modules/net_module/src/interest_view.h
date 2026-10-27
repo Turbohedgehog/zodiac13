@@ -20,6 +20,7 @@
 #include <optional>
 #include <unordered_set>
 
+#include <Eigen/Dense>
 #include <flecs.h>
 
 #include <lib_core/state/world_serializer.h>
@@ -41,10 +42,13 @@ struct InterestView {
 // Where another player's reach can touch what a client with these subscribed sectors has.
 sectors::SectorBox PresenceOf(const sectors::SectorBox& subscribed);
 
-// What a client joining at `center` will have: the view before its player is in the sector index.
-InterestView ViewAround(flecs::world world, sectors::ClientId client, const sectors::SectorKey& center);
+// What a client joining at `center` will have: the view before its player is in the sector index. Under a
+// net.ghosts budget the players it simulates are the nearest to `spawn`.
+InterestView ViewAround(
+    flecs::world world, sectors::ClientId client, const sectors::SectorKey& center, const Eigen::Vector3f& spawn);
 
-// Nothing while the client has no interest yet (its player is not in the sector index).
+// Nothing while the client has no interest yet (its player is not in the sector index). Under a net.ghosts budget
+// its players are the ones it simulates.
 std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client);
 
 // The snapshot of the view: the players in it and the block groups in its sectors, and what belongs to none.

@@ -71,4 +71,12 @@ table NetTuning {
   ghost_near_radius_m: double = 24 (min: 0, cli);
   ghost_pose_interval_ticks: uint64 = 6 (min: 1, cli);
   ghost_far_every: uint64 = 4 (min: 1, cli);
+  // With ghosts, a client simulates only the simulated_players_max nearest players within simulated_radius_m (a
+  // simulated one stays while it ranks within simulated_players_slack more and within simulated_hysteresis_m
+  // beyond the radius), chosen every simulated_reselect_ticks; the other players near it are ghosts.
+  simulated_players_max: uint64 = 24 (min: 1, cli);
+  simulated_players_slack: uint64 = 4 (min: 0, cli);
+  simulated_radius_m: double = 48 (min: 1, cli);
+  simulated_hysteresis_m: double = 6 (min: 0, cli);
+  simulated_reselect_ticks: uint64 = 30 (min: 1, cli);
 }

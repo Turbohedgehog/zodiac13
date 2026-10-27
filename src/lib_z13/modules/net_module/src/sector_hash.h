@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <flecs.h>
@@ -37,5 +40,35 @@ struct SectorHashes {
 
 SectorHashes HashBySector(flecs::world world, const z13::flecs_tools::WorldSnapshot& snapshot,
                           const sectors::SectorIndex& index, int chunk_cells);
+
+struct PlayerHash {
+  uint32_t player_id {};
+  uint64_t hash {};
+};
+
+// A sector's hash in parts: its block groups, then each player standing in it by name.
+struct SectorHashParts {
+  uint64_t blocks {};
+  std::vector<PlayerHash> players;
+};
+
+struct SplitHashes {
+  uint64_t global {};
+  std::unordered_map<sectors::SectorKey, SectorHashParts, sectors::SectorHash> by_sector;
+};
+
+// Server: the digests' hashes in parts by tick, made when the digest is, since the sector index moves on before it is sent.
+struct DigestSplits {
+  using Singleton = void;
+  using SessionScoped = void;
+  std::map<uint64_t, SplitHashes> by_tick;
+};
+
+SplitHashes SplitBySector(flecs::world world, const z13::flecs_tools::WorldSnapshot& snapshot,
+                          const sectors::SectorIndex& index, int chunk_cells);
+
+// The sectors' hashes counting only `players` (all of them when null): what a client that holds only some of the
+// players in a sector hashes. Sorted by sector.
+std::vector<fbs::net::SectorHashWire> HashesOf(const SplitHashes& split, const std::unordered_set<uint32_t>* players);
 
 }  // namespace z13::net

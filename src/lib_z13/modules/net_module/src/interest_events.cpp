@@ -38,6 +38,8 @@
 #include <z13_settings/net_tuning.h>
 
 #include "catch_up.h"
+#include "player_positions.h"
+#include "simulated_set.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -157,27 +159,77 @@ void SendEntityLeft(const EventSender& sender, uint32_t player_id) {
   sender.Send(std::move(left));
 }
 
-// Whether the client should have `player_id`: its reach touches the client's sectors.
+// Whether the client should have `player_id`: its reach touches the client's sectors and, under a budget, the
+// player is among those it simulates.
 bool IsPresent(const sectors::SectorIndex& index, const ClientKnowledge& known, sectors::ClientId client,
-               uint32_t player_id) {
-  if (player_id == client) {
+               uint32_t player_id, bool budgeted) {
+  if (player_id == client || (budgeted && !known.simulated.contains(player_id))) {
     return false;
   }
   const auto sector = index.Locate({.kind = MemberKind::kPlayer, .id = player_id});
   return sector && known.presence.Contains(*sector);
 }
 
+// How many max_late_ticks of players' history to keep: a digest is sent that long after its tick, and a bit more.
+constexpr uint64_t kHistoryHorizons = 2;
+
+SimulatedBudget BudgetOf(const z13::NetTuning& tuning) {
+  return {.max_players = tuning.simulated_players_max,
+          .slack = tuning.simulated_players_slack,
+          .radius_m = tuning.simulated_radius_m,
+          .hysteresis_m = tuning.simulated_hysteresis_m};
+}
+
+// Chooses again which of the players near the client it simulates; returns those whose place changed.
+std::vector<uint32_t> ReselectSimulated(flecs::world world, sectors::ClientId client, ClientKnowledge& known) {
+  const auto& positions = CurrentPlayerPositions(world).by_player;
+  const auto own = positions.find(client);
+  if (own == positions.end()) {
+    return {};
+  }
+  const auto& index = world.get<sectors::SectorIndex>();
+  std::vector<SimulatedCandidate> candidates;
+  for (const uint64_t id : index.IdsOf(MemberKind::kPlayer)) {
+    const auto player_id = static_cast<uint32_t>(id);
+    const auto position = positions.find(player_id);
+    if (position != positions.end() && IsPresent(index, known, client, player_id, false)) {
+      candidates.push_back({.player_id = player_id, .distance_m = (position->second - own->second).norm()});
+    }
+  }
+  std::unordered_set<uint32_t> chosen =
+      ChooseSimulated(candidates, known.simulated, BudgetOf(world.get<z13::NetTuning>()));
+  std::vector<uint32_t> changed;
+  std::ranges::copy_if(chosen, std::back_inserter(changed), [&](uint32_t id) { return !known.simulated.contains(id); });
+  std::ranges::copy_if(known.simulated, std::back_inserter(changed), [&](uint32_t id) { return !chosen.contains(id); });
+  known.simulated = std::move(chosen);
+  return changed;
+}
+
+// Notes that the client has `known.players` from `from_tick` on, and forgets what no digest can ask for.
+void RecordPlayers(ClientKnowledge& known, uint64_t from_tick, uint64_t horizon_ticks) {
+  known.players_from[from_tick] = known.players;
+  const uint64_t horizon = from_tick > horizon_ticks ? from_tick - horizon_ticks : 0;
+  auto in_force = known.players_from.upper_bound(horizon);
+  if (in_force != known.players_from.begin()) {
+    --in_force;
+  }
+  known.players_from.erase(known.players_from.begin(), in_force);
+}
+
 // Sends the player's entry or exit if the client's knowledge of it is out of date.
 void SyncPlayer(const EventSender& sender, const sectors::SectorIndex& index, sectors::ClientId client,
                 ClientKnowledge& known, uint32_t player_id) {
-  const bool present = IsPresent(index, known, client, player_id);
+  const bool present = IsPresent(index, known, client, player_id, sender.world.get<z13::NetTuning>().ghosts);
+  const uint64_t horizon_ticks = sender.world.get<z13::NetTuning>().max_late_ticks * kHistoryHorizons;
   if (known.players.contains(player_id)) {
     if (!present) {
       SendEntityLeft(sender, player_id);
       known.players.erase(player_id);
+      RecordPlayers(known, sender.apply_tick, horizon_ticks);
     }
   } else if (present && SendEntityEntered(sender, player_id)) {
     known.players.insert(player_id);
+    RecordPlayers(known, sender.apply_tick, horizon_ticks);
   }
 }
 
@@ -288,6 +340,11 @@ void RelayCommands(flecs::world world, NetSession& session, uint32_t player_id, 
       KnowingConnections(world, session, player_id, except), ToWire(player_id, through_tick, run), run.commands);
 }
 
+const std::unordered_set<uint32_t>& PlayersAt(const ClientKnowledge& known, uint64_t tick) {
+  const auto later = known.players_from.upper_bound(tick);
+  return later == known.players_from.begin() ? known.players : std::prev(later)->second;
+}
+
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view) {
   auto& by_client = world.get_mut<InterestKnowledge>().by_client;
   if (!view) {
@@ -299,6 +356,8 @@ void RememberResync(flecs::world world, sectors::ClientId client, const std::opt
   known.presence = view->presence;
   known.players = view->players;
   known.players.erase(client);
+  known.simulated = known.players;
+  known.players_from = {{0, known.players}};
 }
 
 void SendInterestEvents(flecs::world world, const InterestChanges& changes, std::span<const uint64_t> moved_players) {
@@ -308,7 +367,9 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
   auto& knowledge = world.get_mut<InterestKnowledge>();
   NetSession& session = world.get_mut<NetSession>();
   std::optional<SectorBlocks> blocks;
-  const uint64_t apply_tick = world.get<ft::SimulationClock>().tick + 1;
+  const uint64_t tick = world.get<ft::SimulationClock>().tick;
+  const uint64_t apply_tick = tick + 1;
+  const auto& tuning = world.get<z13::NetTuning>();
   std::unordered_set<sectors::ClientId> connected;
   for (const auto& [connection, player] : session.PlayerConnections()) {
     connected.insert(player);
@@ -318,8 +379,21 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
     }
     const auto [at, first] = knowledge.by_client.try_emplace(player);
     const auto change = changes.find(player);
-    SyncClient({world, std::ref(session), connection, apply_tick, std::ref(blocks)}, player, at->second, first,
+    const EventSender sender {world, std::ref(session), connection, apply_tick, std::ref(blocks)};
+    const bool reselect = tuning.ghosts &&
+        (first || tick % tuning.simulated_reselect_ticks == 0 ||
+         std::ranges::any_of(moved_players, [&](uint64_t id) {
+           const auto moved = static_cast<uint32_t>(id);
+           return !at->second.simulated.contains(moved) &&
+               IsPresent(world.get<sectors::SectorIndex>(), at->second, player, moved, false);
+         }));
+    const std::vector<uint32_t> reselected =
+        reselect ? ReselectSimulated(world, player, at->second) : std::vector<uint32_t> {};
+    SyncClient(sender, player, at->second, first,
                change == changes.end() ? sectors::InterestChange {} : change->second, moved_players);
+    for (const uint32_t id : reselected) {
+      SyncPlayer(sender, world.get<sectors::SectorIndex>(), player, at->second, id);
+    }
   }
   std::erase_if(knowledge.by_client, [&](const auto& entry) { return !connected.contains(entry.first); });
 }
