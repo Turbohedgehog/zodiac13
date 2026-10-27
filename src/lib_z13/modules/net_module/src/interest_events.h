@@ -21,6 +21,7 @@
 #include <span>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <flecs.h>
 
@@ -38,6 +39,7 @@ struct ClientKnowledge {
   SectorSet sectors;
   sectors::SectorBox presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
   std::unordered_set<uint32_t> players;
+  std::vector<sectors::SectorKey> unsent;  // entered, but the event could not be made yet
 };
 
 // What InterestMap::Update reported for each client this tick.

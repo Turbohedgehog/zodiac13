@@ -192,6 +192,23 @@ void StartKnowledge(const sectors::SectorIndex& index, sectors::ClientId client,
   known.players.erase(client);
 }
 
+// Sends the sectors the client has entered and has no event for yet; one that fails is tried again next tick.
+void SendUnsentSectors(const EventSender& sender, const sectors::InterestMap& map, sectors::ClientId client,
+                       ClientKnowledge& known) {
+  std::vector<SectorKey> failed;
+  for (const SectorKey& sector : known.unsent) {
+    if (!map.Covers(client, sector) || known.sectors.contains(sector)) {
+      continue;
+    }
+    if (SendSectorEntered(sender, sector)) {
+      known.sectors.insert(sector);
+    } else {
+      failed.push_back(sector);
+    }
+  }
+  known.unsent = std::move(failed);
+}
+
 // A client's sectors change rarely, so everything but the players that moved is worked out only then.
 void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowledge& known, bool first,
                 const sectors::InterestChange& change, std::span<const uint64_t> moved_players) {
@@ -218,10 +235,11 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
       }
     }
     for (const SectorKey& sector : change.entered) {
-      if (!known.sectors.contains(sector) && SendSectorEntered(sender, sector)) {
-        known.sectors.insert(sector);
+      if (!known.sectors.contains(sector)) {
+        known.unsent.push_back(sector);
       }
     }
+    SendUnsentSectors(sender, map, client, known);
     std::vector<uint32_t> everyone(known.players.begin(), known.players.end());
     for (const uint64_t id : index.IdsOf(MemberKind::kPlayer)) {
       everyone.push_back(static_cast<uint32_t>(id));
@@ -231,6 +249,7 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
     }
     return;
   }
+  SendUnsentSectors(sender, map, client, known);
   for (const uint64_t id : moved_players) {
     SyncPlayer(sender, index, client, known, static_cast<uint32_t>(id));
   }
