@@ -23,6 +23,7 @@
 
 #include <z13/components/block.h>
 #include <primitives/palette.h>
+#include <primitives/wall_panel.h>
 
 namespace z13::building::primitives {
 
@@ -30,5 +31,9 @@ namespace z13::building::primitives {
 // whose primitive the palette lacks. Placement isn't checked here: that's ValidateBuild's.
 std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
     std::string_view json, const Palette& palette);
+
+// The wall segments of a blueprint, apart from its blocks: each between nodes at two cells, which
+// walls meeting at one cell share. Their panels are derived from them when the scene is placed.
+std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::string_view json);
 
 }  // namespace z13::building::primitives

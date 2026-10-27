@@ -87,7 +87,8 @@ Status ValidateBuild(
 }
 
 Status ValidateBlueprint(
-    std::span<const Block> blocks, const z13::building::primitives::Palette& palette, const BuildingTuning& tuning) {
+    std::span<const Block> blocks, const z13::building::primitives::Palette& palette, const BuildingTuning& tuning,
+    std::span<const Block> wall_panels) {
   grid::BlockIndex index(tuning.index_chunk_cells);
   std::vector<CellBox> spawn_clearances;
   for (size_t i = 0; i < blocks.size(); ++i) {
@@ -100,6 +101,13 @@ Status ValidateBlueprint(
     index.Insert(i, z13::building::primitives::ShapeOfBlock(block, palette));
     if (palette.Find(block.spec.type_id)->get().Has(z13::building::primitives::PrimitiveFlags::Spawn)) {
       spawn_clearances.push_back(SpawnClearance(block, tuning));
+    }
+  }
+  const BuildView view {
+      .palette = palette, .index = index, .tuning = tuning, .players = {}, .spawn_clearances = spawn_clearances};
+  for (size_t i = 0; i < wall_panels.size(); ++i) {
+    if (const Status valid = ValidateBuild(wall_panels[i], view); !valid) {
+      return std::unexpected(std::format("wall panel {}: {}", i, valid.error()));
     }
   }
   return {};

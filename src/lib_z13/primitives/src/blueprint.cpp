@@ -32,11 +32,11 @@ namespace fbs_station = fbs::station;
 using z13::station::Orientation;
 
 static_assert(static_cast<size_t>(fbs_station::Orientation::MAX) == static_cast<size_t>(Orientation::kFaceNegZUpNegY));
+static_assert(static_cast<size_t>(fbs_station::WallAxis::MAX) == static_cast<size_t>(z13::station::WallAxis::kZ));
+static_assert(static_cast<size_t>(fbs_station::WallDiagonal::MAX) ==
+              static_cast<size_t>(z13::station::WallDiagonal::kTipToBase));
 
-}  // namespace
-
-std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
-    std::string_view json, const Palette& palette) {
+std::expected<fbs_station::BlueprintT, std::string> ParseSource(std::string_view json) {
   flatbuffers::Parser parser;
   if (!parser.Deserialize(reflection::GetSchema(fbs_station::BlueprintBinarySchema::data()))) {
     return std::unexpected("blueprint: failed to deserialize the binary schema");
@@ -46,6 +46,18 @@ std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
   }
   fbs_station::BlueprintT source;
   fbs_station::GetBlueprint(parser.builder_.GetBufferPointer())->UnPackTo(&source);
+  return source;
+}
+
+}  // namespace
+
+std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
+    std::string_view json, const Palette& palette) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  const fbs_station::BlueprintT& source = *parsed;
 
   std::vector<z13::station::Block> blocks;
   blocks.reserve(source.blocks.size());
@@ -71,6 +83,30 @@ std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
     });
   }
   return blocks;
+}
+
+std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  std::vector<WallGeometry> walls;
+  walls.reserve(parsed->walls.size());
+  for (size_t i = 0; i < parsed->walls.size(); ++i) {
+    const fbs_station::BlueprintWallT& entry = *parsed->walls[i];
+    if (!entry.node_a || !entry.node_b) {
+      return std::unexpected(std::format("blueprint: wall {}: no nodes", i));
+    }
+    walls.push_back({
+        .node_a = {entry.node_a->x(), entry.node_a->y(), entry.node_a->z()},
+        .node_b = {entry.node_b->x(), entry.node_b->y(), entry.node_b->z()},
+        .stick_a = {.axis = static_cast<z13::station::WallAxis>(entry.axis_a), .length = entry.length_a},
+        .stick_b = {.axis = static_cast<z13::station::WallAxis>(entry.axis_b), .length = entry.length_b},
+        .thickness = entry.thickness,
+        .diagonal = static_cast<z13::station::WallDiagonal>(entry.diagonal),
+    });
+  }
+  return walls;
 }
 
 }  // namespace z13::building::primitives

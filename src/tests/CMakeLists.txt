@@ -89,6 +89,7 @@ set(
   src/z13_launcher/station_assets_check_test.cpp
   ${MODULES_DIR}/building_module/tests/block_building_test.cpp
   ${MODULES_DIR}/building_module/tests/block_snapshot_test.cpp
+  ${MODULES_DIR}/building_module/tests/blueprint_walls_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_aim_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_test.cpp
   ${MODULES_DIR}/building_module/tests/build_tool_test.cpp

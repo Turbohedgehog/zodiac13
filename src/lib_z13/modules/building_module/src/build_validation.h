@@ -58,9 +58,11 @@ Status ValidateBuild(
     z13::station::BrushPreview::Kind kind = z13::station::BrushPreview::Kind::kBuild,
     std::span<const grid::BlockId> ignored = {});
 
+// `wall_panels` (what a blueprint's walls stand as) are judged against the blocks, not against one
+// another: panels stitched along a seam share its cells.
 Status ValidateBlueprint(
     std::span<const z13::station::Block> blocks, const z13::building::primitives::Palette& palette,
-    const BuildingTuning& tuning);
+    const BuildingTuning& tuning, std::span<const z13::station::Block> wall_panels = {});
 
 // The last spawn point stays, or new players would have nowhere to appear.
 Status ValidateDestroy(

@@ -19,6 +19,7 @@ z13_add_plugin(
   src/block_entities.cpp
   src/block_snapshot_system.cpp
   src/block_watch.cpp
+  src/blueprint_walls.cpp
   src/brush_aim.cpp
   src/brush_system.cpp
   src/build_action_ids.cpp
