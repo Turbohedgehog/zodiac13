@@ -48,6 +48,7 @@ set(
   src/lib_z13/cell_light/cell_light_test.cpp
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/sectors/interest_bench_test.cpp
+  src/lib_z13/sectors/presence_bench_test.cpp
   src/lib_z13/sectors/interest_map_test.cpp
   src/lib_z13/sectors/sector_index_test.cpp
   src/lib_z13/sectors/sector_test.cpp
