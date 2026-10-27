@@ -34,6 +34,8 @@ namespace z13::testing {
 struct Steering {
   bool walk = true;
   bool look = true;
+  // Each client turns to a heading of its own before it walks, so they spread out over the station.
+  bool fan_out = false;
 };
 
 // A server and N clients on one InMemoryNetwork, each client walking and turning its view every tick,

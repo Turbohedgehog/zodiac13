@@ -22,6 +22,7 @@
 #include <optional>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <sectors/sector.h>
@@ -56,14 +57,18 @@ class SectorIndex {
   std::span<const SectorMember> MembersIn(const SectorKey& sector) const;
   std::optional<SectorKey> Locate(SectorMember member) const;
   std::vector<uint64_t> IdsOf(MemberKind kind) const;
+  // The players placed in another sector, or removed, since the last call; in no particular order.
+  std::vector<uint64_t> TakeMovedPlayers();
   // The sectors holding any member, in no particular order.
   std::vector<SectorKey> Occupied() const;
   size_t Count(MemberKind kind) const { return where_[static_cast<size_t>(kind)].size(); }
 
  private:
   void Detach(SectorMember member, const SectorKey& sector);
+  void NoteMoved(SectorMember member);
 
   int sector_cells_ {};
+  std::unordered_set<uint64_t> moved_players_;
   std::array<std::unordered_map<uint64_t, SectorKey>, kMemberKindCount> where_;
   std::unordered_map<SectorKey, std::vector<SectorMember>, SectorHash> members_;
 };

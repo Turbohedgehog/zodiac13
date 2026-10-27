@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -39,6 +40,9 @@ struct ClientKnowledge {
   std::unordered_set<uint32_t> players;
 };
 
+// What InterestMap::Update reported for each client this tick.
+using InterestChanges = std::unordered_map<sectors::ClientId, sectors::InterestChange>;
+
 struct InterestKnowledge {
   using Singleton = void;
   using SessionScoped = void;
@@ -54,7 +58,7 @@ void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, 
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view);
 
 // Sends every client the sectors and players that entered or left its interest since the last
-// call, to apply at the next tick.
-void SendInterestEvents(flecs::world world);
+// call, to apply at the next tick. `moved_players` are those the sector index placed anew meanwhile.
+void SendInterestEvents(flecs::world world, const InterestChanges& changes, std::span<const uint64_t> moved_players);
 
 }  // namespace z13::net

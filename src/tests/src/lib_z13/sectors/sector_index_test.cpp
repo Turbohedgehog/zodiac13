@@ -108,5 +108,22 @@ TEST(SectorIndexTest, IdsOfAKindListOnlyThatKind) {
   EXPECT_EQ(ids, (std::vector<uint64_t> {1, 2}));
 }
 
+TEST(SectorIndexTest, TakingTheMovedPlayersListsThosePlacedAnewOrRemovedOnce) {
+  SectorIndex index;
+  index.Place({MemberKind::kPlayer, 1}, {0, 0, 0});
+  index.Place({MemberKind::kPlayer, 2}, {0, 0, 0});
+  index.Place({MemberKind::kBlock, 7}, {0, 0, 0});
+  EXPECT_EQ(index.TakeMovedPlayers().size(), 2u) << "players only, not blocks";
+  EXPECT_TRUE(index.TakeMovedPlayers().empty()) << "taken once";
+
+  index.Place({MemberKind::kPlayer, 1}, {0, 0, 0});
+  index.Place({MemberKind::kPlayer, 2}, {1, 0, 0});
+  index.Remove({MemberKind::kPlayer, 1});
+  std::vector<uint64_t> moved = index.TakeMovedPlayers();
+  std::ranges::sort(moved);
+
+  EXPECT_EQ(moved, (std::vector<uint64_t> {1, 2})) << "a placement in the same sector is no move";
+}
+
 }  // namespace
 }  // namespace z13::net::sectors

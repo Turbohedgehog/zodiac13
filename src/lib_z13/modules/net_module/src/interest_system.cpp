@@ -53,15 +53,16 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<InterestMap, InterestMetrics, InterestKnowledge>(world);
 }
 
-void UpdateInterest(
+InterestChanges UpdateInterest(
     const NetSession& session, InterestMap& map, const sectors::SectorIndex& index, const z13::NetTuning& tuning) {
   Z13_PROFILE_ZONE("InterestSystem::Update");
   const sectors::InterestShape shape {.radius = tuning.interest_radius_sectors, .margin = tuning.interest_margin_sectors};
   std::unordered_set<ClientId> connected;
+  InterestChanges changes;
   for (const auto& [connection, player] : session.PlayerConnections()) {
     connected.insert(player);
     if (const auto center = index.Locate({.kind = MemberKind::kPlayer, .id = player})) {
-      map.Update(player, *center, shape);
+      changes.emplace(player, map.Update(player, *center, shape));
     }
   }
   for (const ClientId client : map.Clients()) {
@@ -69,20 +70,21 @@ void UpdateInterest(
       map.Remove(client);
     }
   }
+  return changes;
 }
 
 void RegisterSystems(flecs::world world) {
   world.set(InterestMap {});
   world.set(InterestMetrics {});
   world.set(InterestKnowledge {});
-  world.system<const NetSession, InterestMap, const sectors::SectorIndex, const z13::NetTuning>(
+  world.system<const NetSession, InterestMap, sectors::SectorIndex, const z13::NetTuning>(
           "InterestSystem::Update")
       .kind<InterestPhase>()
       .with<z13::net::ServerRole>()
-      .each([](flecs::iter& it, size_t, const NetSession& session, InterestMap& map, const sectors::SectorIndex& index,
+      .each([](flecs::iter& it, size_t, const NetSession& session, InterestMap& map, sectors::SectorIndex& index,
                const z13::NetTuning& tuning) {
-        UpdateInterest(session, map, index, tuning);
-        SendInterestEvents(it.world());
+        const InterestChanges changes = UpdateInterest(session, map, index, tuning);
+        SendInterestEvents(it.world(), changes, index.TakeMovedPlayers());
       });
 }
 

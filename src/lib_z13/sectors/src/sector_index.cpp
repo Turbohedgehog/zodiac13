@@ -35,6 +35,7 @@ void SectorIndex::Place(SectorMember member, const SectorKey& sector) {
     Detach(member, placed->second);
     placed->second = sector;
   }
+  NoteMoved(member);
   members_[sector].push_back(member);
 }
 
@@ -46,6 +47,19 @@ void SectorIndex::Remove(SectorMember member) {
   }
   Detach(member, placed->second);
   where.erase(placed);
+  NoteMoved(member);
+}
+
+void SectorIndex::NoteMoved(SectorMember member) {
+  if (member.kind == MemberKind::kPlayer) {
+    moved_players_.insert(member.id);
+  }
+}
+
+std::vector<uint64_t> SectorIndex::TakeMovedPlayers() {
+  std::vector<uint64_t> moved(moved_players_.begin(), moved_players_.end());
+  moved_players_.clear();
+  return moved;
 }
 
 void SectorIndex::Detach(SectorMember member, const SectorKey& sector) {
