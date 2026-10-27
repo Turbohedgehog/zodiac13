@@ -20,10 +20,14 @@
 #include <cstdint>
 #include <functional>
 #include <ranges>
+#include <utility>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <net_module/in_memory_transport.h>
+#include <z13/components/player.h>
+#include <z13/components/player_action.h>
 
 #include "../../../net_module/src/net_session.h"
 #include "../support/load_session.h"
@@ -37,6 +41,10 @@ using z13::testing::LoadSession;
 constexpr size_t kClients = 3;
 constexpr uint64_t kConnectTicks = 600;
 constexpr uint64_t kLoadedTicks = 120;
+constexpr uint64_t kDeliveryTicks = 5;
+constexpr uint32_t kFirstFakePlayer = 900;
+constexpr uint32_t kSecondFakePlayer = 901;
+constexpr uint64_t kConfirmedAhead = 3;
 
 class ServerTrafficTest : public ::testing::Test {
  protected:
@@ -47,8 +55,47 @@ class ServerTrafficTest : public ::testing::Test {
     }
   }
 
+  // Sends client 0 a SequencedCommands of two runs, one command each, whose headers claim `counted` commands in all.
+  void SendTwoRuns(uint32_t counted) {
+    const uint64_t through = session_.Client(0).World().get<z13::flecs_tools::SimulationClock>().tick + kConfirmedAhead;
+    fbs::net::SequencedCommandsT sequenced;
+    sequenced.runs.emplace_back(through, through, kFirstFakePlayer, counted - 1);
+    sequenced.runs.emplace_back(through, through, kSecondFakePlayer, 1);
+    sequenced.commands.emplace_back(0, 1, 100);
+    sequenced.commands.emplace_back(0, 2, 100);
+    Envelope envelope;
+    envelope.body.Set(std::move(sequenced));
+    auto& server = session_.Server().World().get_mut<NetSession>();
+    const auto& connections = server.PlayerConnections();
+    const uint32_t client_player = *session_.Client(0).World().get<z13::gameplay::LocalPlayer>().id;
+    const auto client = std::ranges::find(connections, client_player, &std::pair<ConnectionId, uint32_t>::second);
+    ASSERT_NE(client, connections.end());
+    server.Send(client->first, Channel::kReliable, envelope);
+    for (uint64_t tick = 0; tick < kDeliveryTicks; ++tick) {
+      session_.Tick();
+    }
+  }
+
+  const auto& ClientConfirmed() {
+    return session_.Client(0).World().get<z13::gameplay::ConfirmedInputTicks>().by_player;
+  }
+
   LoadSession session_ {kClients};
 };
+
+TEST_F(ServerTrafficTest, ARelayedMessageWithTwoRunsConfirmsBothPlayers) {
+  SendTwoRuns(2);
+
+  EXPECT_TRUE(ClientConfirmed().contains(kFirstFakePlayer));
+  EXPECT_TRUE(ClientConfirmed().contains(kSecondFakePlayer));
+}
+
+TEST_F(ServerTrafficTest, ARelayedMessageWhoseRunsCountTooManyCommandsIsDropped) {
+  SendTwoRuns(3);
+
+  EXPECT_FALSE(ClientConfirmed().contains(kFirstFakePlayer));
+  EXPECT_FALSE(ClientConfirmed().contains(kSecondFakePlayer));
+}
 
 TEST_F(ServerTrafficTest, ClientCountersAddUpToWhatTheServerReceived) {
   uint64_t counted = 0;
