@@ -44,7 +44,6 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 constexpr uint16_t kServerPort = 27101;
-constexpr uint16_t kProxyPort = 27102;
 constexpr auto kOneWayDelay = std::chrono::milliseconds(25);
 constexpr auto kSendInterval = std::chrono::milliseconds(50);  // send_interval_ticks 3 at 60 Hz
 constexpr auto kRunTime = std::chrono::seconds(10);
@@ -68,7 +67,7 @@ std::string_view NameOf(Shape shape) {
 }
 
 std::vector<std::byte> MakeMessage(uint32_t tick, Clock::time_point sent, size_t size) {
-  std::vector<std::byte> bytes(std::max(size, kHeaderBytes));
+  std::vector<std::byte> bytes(size);
   const int64_t sent_ns = sent.time_since_epoch().count();
   std::memcpy(bytes.data(), &sent_ns, sizeof sent_ns);
   std::memcpy(bytes.data() + sizeof sent_ns, &tick, sizeof tick);
@@ -76,7 +75,11 @@ std::vector<std::byte> MakeMessage(uint32_t tick, Clock::time_point sent, size_t
 }
 
 double Percentile(const std::vector<double>& sorted, double fraction) {
-  return sorted.empty() ? 0. : sorted[std::min(sorted.size() - 1, static_cast<size_t>(fraction * sorted.size()))];
+  if (sorted.empty()) {
+    return 0.;
+  }
+  const auto index = static_cast<size_t>(fraction * static_cast<double>(sorted.size()));
+  return sorted[std::clamp(index, size_t {}, sorted.size() - 1)];
 }
 
 struct Latencies {
@@ -89,12 +92,15 @@ Latencies MeasureLatency(Shape shape, int players, double loss, uint32_t seed) {
   Latencies result;
   auto server = CreateEnetServerTransport(kServerPort);
   auto proxy = LossyUdpProxy::Create({.server = {.host = "127.0.0.1", .port = kServerPort},
-                                      .port = kProxyPort,
                                       .loss = loss,
                                       .one_way_delay = kOneWayDelay,
                                       .seed = seed});
-  auto client = CreateEnetClientTransport({.host = "127.0.0.1", .port = kProxyPort});
-  if (!server || !proxy || !client) {
+  if (!server || !proxy) {
+    ADD_FAILURE() << "can't set up the link";
+    return result;
+  }
+  auto client = CreateEnetClientTransport({.host = "127.0.0.1", .port = (*proxy)->Port()});
+  if (!client) {
     ADD_FAILURE() << "can't set up the link";
     return result;
   }
