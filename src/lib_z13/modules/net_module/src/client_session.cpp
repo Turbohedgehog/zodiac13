@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <format>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -132,19 +134,29 @@ void HandleResync(flecs::world world, const fbn::ResyncT& resync) {
 }
 
 void QueueSequencedCommands(flecs::world world, const fbn::SequencedCommandsT& sequenced) {
-  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
-  // Only FinalizeLateInput sends a player its own records: releases of what it held while its input
-  // didn't arrive. A key still down is then recorded as pressed again.
-  const bool own = sequenced.player_id == world.get<z13::gameplay::LocalPlayer>().id;
-  auto& last_recorded = world.get_mut<z13::gameplay::LastRecordedActionValues>().values;
-  for (const fbs::net::CommandWire& command : sequenced.commands) {
-    const z13::gameplay::PlayerActionRecord record = FromWire(command, sequenced.base_tick, sequenced.player_id);
-    QueueInOrder(queue, record);
-    if (own) {
-      last_recorded.insert_or_assign(record.action_id, record.value);
-    }
+  const auto counted = std::ranges::fold_left(
+      sequenced.runs | std::views::transform(&fbn::CommandRunWire::count), size_t {}, std::plus<> {});
+  if (counted != sequenced.commands.size()) {
+    log_warn("NetSession(client): dropping SequencedCommands whose runs count {} commands of {}", counted,
+             sequenced.commands.size());
+    return;
   }
-  ConfirmInputThrough(world, sequenced.player_id, sequenced.through_tick);
+  auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
+  auto& last_recorded = world.get_mut<z13::gameplay::LastRecordedActionValues>().values;
+  auto command = sequenced.commands.begin();
+  for (const fbn::CommandRunWire& run : sequenced.runs) {
+    // Only FinalizeLateInput sends a player its own records: releases of what it held while its input
+    // didn't arrive. A key still down is then recorded as pressed again.
+    const bool own = run.player_id() == world.get<z13::gameplay::LocalPlayer>().id;
+    for (const auto run_end = command + run.count(); command != run_end; ++command) {
+      const z13::gameplay::PlayerActionRecord record = FromWire(*command, run.base_tick(), run.player_id());
+      QueueInOrder(queue, record);
+      if (own) {
+        last_recorded.insert_or_assign(record.action_id, record.value);
+      }
+    }
+    ConfirmInputThrough(world, run.player_id(), run.through_tick());
+  }
 }
 
 void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {

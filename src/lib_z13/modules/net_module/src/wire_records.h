@@ -53,6 +53,9 @@ struct CommandRun {
 std::expected<CommandRun, std::string> ToCommandRun(
     const std::vector<z13::gameplay::PlayerActionRecord>& records, uint64_t empty_base_tick);
 
+// The header of `run` in a SequencedCommands; its commands follow the earlier runs' in `commands`.
+fbs::net::CommandRunWire ToWire(uint32_t player_id, uint64_t through_tick, const CommandRun& run);
+
 bool IsKnownActionId(const z13::input::ActionMap& action_map, uint16_t action_id);
 bool IsAbsoluteAction(const z13::input::ActionMap& action_map, z13::input::ActionId action_id);
 

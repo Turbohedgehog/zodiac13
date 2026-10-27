@@ -183,11 +183,18 @@ table SectorLeft {
   sector_z: int;
 }
 
-table SequencedCommands {
-  player_id: uint;
+// One player's run in a SequencedCommands: the next `count` of its `commands`.
+struct CommandRunWire {
   base_tick: ulong;  // already apply_tick
-  commands: [CommandWire];
   through_tick: ulong;  // as in CommandBatch
+  player_id: uint;
+  count: uint;
+}
+
+// The runs the server relays to a client in one flush: one message per tick, not one per player.
+table SequencedCommands {
+  runs: [CommandRunWire];
+  commands: [CommandWire];  // the runs' commands one after another
 }
 
 // To the sender only: the others get the moved commands in SequencedCommands.

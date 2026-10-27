@@ -103,7 +103,7 @@ FlatBuffers (`modules/net_module/fbs/net.fbs`, уже подключённый �
 | `Welcome{player_id, action_ids, fps, tuning, server_tick, snapshot, snapshot_tick, actions, held_values, pending}` / `Rejected{reason}` | 0, reliable | S→C |
 | `Resync{server_tick, snapshot, snapshot_tick, actions, held_values, pending}` | 0, reliable | S→C |
 | `PlayerJoined{apply_tick, entity_state}` / `PlayerLeft{apply_tick, player_id}` | 0, reliable | S→все |
-| `SequencedCommands{player_id, base_tick, [CommandWire]}` (`base_tick` — уже `apply_tick`) | 0, reliable | S→все, кроме отправителя |
+| `SequencedCommands{[CommandRunWire{base_tick, through_tick, player_id, count}], [CommandWire]}` (`base_tick` — уже `apply_tick`; пачки отправителей одного тика сервера в одном сообщении) | 0, reliable | S→все, кроме отправителя |
 | `StateDigest{tick, entity_count, name_hash, state_hash, [PoseWire]}` | 0, reliable | S→все |
 | `Pong{client_tick, server_tick}` | 1, unreliable | S→C |
 

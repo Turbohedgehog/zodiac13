@@ -52,7 +52,8 @@ std::optional<std::string_view> HintClassOf(const z13::input::ActionMap& action_
   return info == by_id.end() ? std::nullopt : info->hint_class;
 }
 
-bool Reaches(const HintClassTuning& tuning, flecs::world world, uint32_t subject, uint32_t recipient) {
+// `tick` is the hint packet's, a multiple of the class's interval: the far band takes every far_every-th.
+bool Reaches(const HintClassTuning& tuning, flecs::world world, uint32_t subject, uint32_t recipient, uint64_t tick) {
   switch (tuning.filter) {
     case fbn::HintFilter::None:
       return false;
@@ -62,8 +63,12 @@ bool Reaches(const HintClassTuning& tuning, flecs::world world, uint32_t subject
       const auto& by_player = CurrentPlayerPositions(world).by_player;
       const auto from = by_player.find(subject);
       const auto to = by_player.find(recipient);
-      return from != by_player.end() && to != by_player.end() &&
-          (from->second - to->second).norm() <= tuning.radius_m;
+      if (from == by_player.end() || to == by_player.end()) {
+        return false;
+      }
+      const double distance = (from->second - to->second).norm();
+      return distance <= tuning.near_radius_m ||
+          (distance <= tuning.radius_m && tick / tuning.interval_ticks % tuning.far_every == 0);
     }
   }
   return false;
@@ -182,7 +187,7 @@ void RelayActionHints(
     const std::vector<uint8_t> bytes = EncodeRelayedHints(part);
     for (const auto& [connection, player_id] : recipients) {
       if (connection != except && player_id != packet.player_id &&
-          Reaches(*hint_class, world, packet.player_id, player_id)) {
+          Reaches(*hint_class, world, packet.player_id, player_id, packet.tick)) {
         session.SendBytes(connection, Channel::kHints, bytes);
       }
     }

@@ -182,15 +182,38 @@ TEST(CodecTest, PlayerLeftRoundTrips) {
 
 TEST(CodecTest, SequencedCommandsRoundTrips) {
   fbn::SequencedCommandsT sequenced;
-  sequenced.player_id = 1;
-  sequenced.base_tick = 777;
+  sequenced.runs.emplace_back(777, 780, 1, 1);
+  sequenced.runs.emplace_back(790, 790, 2, 2);
   sequenced.commands.emplace_back(0, 4, 100);
+  sequenced.commands.emplace_back(0, 5, 200);
+  sequenced.commands.emplace_back(3, 6, 300);
 
   const auto decoded = RoundTrip(sequenced);
-  EXPECT_EQ(decoded.player_id, 1u);
-  EXPECT_EQ(decoded.base_tick, 777u);
-  ASSERT_EQ(decoded.commands.size(), 1u);
-  EXPECT_EQ(decoded.commands[0].action_id(), 4);
+  ASSERT_EQ(decoded.runs.size(), 2u);
+  EXPECT_EQ(decoded.runs[0].player_id(), 1u);
+  EXPECT_EQ(decoded.runs[0].base_tick(), 777u);
+  EXPECT_EQ(decoded.runs[0].through_tick(), 780u);
+  EXPECT_EQ(decoded.runs[1].count(), 2u);
+  ASSERT_EQ(decoded.commands.size(), 3u);
+  EXPECT_EQ(decoded.commands[2].action_id(), 6);
+}
+
+TEST(CodecTest, ARunInASequencedCommandsCostsLessThanAMessageOfItsOwn) {
+  const auto encoded_size = [](size_t runs) {
+    fbn::SequencedCommandsT sequenced;
+    for (size_t run = 0; run < runs; ++run) {
+      sequenced.runs.emplace_back(777, 780, run, 1);
+      sequenced.commands.emplace_back(0, 4, 100);
+    }
+    Envelope envelope;
+    envelope.body.Set(std::move(sequenced));
+    return EncodeMessage(envelope).size();
+  };
+
+  const size_t one_run = encoded_size(1);
+  const size_t sixteen_runs = encoded_size(16);
+
+  EXPECT_LT(sixteen_runs, one_run * 16 / 2);
 }
 
 TEST(CodecTest, CommandsRetimedRoundTrips) {

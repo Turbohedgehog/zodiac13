@@ -73,6 +73,10 @@ std::expected<CommandRun, std::string> ToCommandRun(
   return run;
 }
 
+fbs::net::CommandRunWire ToWire(uint32_t player_id, uint64_t through_tick, const CommandRun& run) {
+  return {run.base_tick, through_tick, player_id, static_cast<uint32_t>(run.commands.size())};
+}
+
 std::vector<fbs::net::PlayerTickWire> ToWire(const PlayerTicks& ticks) {
   std::vector<fbs::net::PlayerTickWire> wire;
   std::ranges::transform(ticks, std::back_inserter(wire), [](const auto& entry) {

@@ -323,15 +323,8 @@ void HandleCommandBatch(
     log_error("NetSession(server): can't relay commands from connection {}: {}", connection, run.error());
     return;
   }
-  fbn::SequencedCommandsT sequenced;
-  sequenced.player_id = *player_id;
-  sequenced.base_tick = run->base_tick;
-  sequenced.commands = std::move(run->commands);
-  sequenced.through_tick = through_tick;
-  Envelope envelope;
-  envelope.body.Set(std::move(sequenced));
   CountRelay(world, session, *player_id);
-  SendToKnowing(world, session, *player_id, envelope, connection);
+  RelayCommands(world, session, *player_id, through_tick, *run, connection);
 }
 
 void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionId connection) {
@@ -425,14 +418,7 @@ void FinalizeLateInput(NetSession& session, flecs::world world) {
     }
     log_info("NetSession(server): player {}'s input stopped at tick {}, releasing {} held actions", player_id,
              through, releases.size());
-    fbn::SequencedCommandsT sequenced;
-    sequenced.player_id = player_id;
-    sequenced.base_tick = run->base_tick;
-    sequenced.commands = std::move(run->commands);
-    sequenced.through_tick = final_tick;
-    Envelope envelope;
-    envelope.body.Set(std::move(sequenced));
-    SendToKnowing(world, session, player_id, envelope);
+    RelayCommands(world, session, player_id, final_tick, *run);
   }
 }
 

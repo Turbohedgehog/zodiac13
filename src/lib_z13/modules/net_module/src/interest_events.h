@@ -30,6 +30,7 @@
 
 #include "interest_view.h"
 #include "net_session.h"
+#include "wire_records.h"
 
 namespace z13::net {
 
@@ -55,6 +56,10 @@ struct InterestKnowledge {
 // to every connection when interest events are off. A client with no entry yet has the whole world.
 void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
                    std::optional<ConnectionId> except = std::nullopt);
+
+// Queues player_id's `run` for the connections SendToKnowing would pick (NetSession::QueueRun).
+void RelayCommands(flecs::world world, NetSession& session, uint32_t player_id, uint64_t through_tick,
+                   const CommandRun& run, std::optional<ConnectionId> except = std::nullopt);
 
 // After a Resync: the client holds `view`, or the whole world when it has none.
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view);

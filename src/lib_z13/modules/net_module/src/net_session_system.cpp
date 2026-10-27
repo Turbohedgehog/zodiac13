@@ -159,6 +159,7 @@ void ServiceServer(flecs::world world, NetSession& session) {
     return;
   }
   FinalizeLateInput(session, world);
+  session.FlushRelays();
   SendSettledStateDigests(world, session, world.get_mut<StateDigests>());
 }
 

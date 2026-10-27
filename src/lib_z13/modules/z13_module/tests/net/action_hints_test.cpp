@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -74,6 +75,13 @@ constexpr double kNearbyRadiusM = 30.;
 constexpr double kFarRadiusM = 1.;
 constexpr float kMovedM = 5.f;
 
+uint64_t ChannelPackets(const SentTraffic& sent, Channel channel) {
+  return std::ranges::fold_left(
+      sent.by_link | std::views::filter([&](const auto& entry) { return entry.first.channel == channel; }) |
+          std::views::transform([](const auto& entry) { return entry.second.packets; }),
+      uint64_t {}, std::plus<> {});
+}
+
 bool IsConnected(Z13TestWorld& world) {
   return world.World().has<z13::gameplay::Gameplay>() &&
       world.World().get<ConnectionStatus>().state == ConnectionState::kConnected;
@@ -98,13 +106,23 @@ z13::input::ActionId ActionNamed(Z13TestWorld& world, std::string_view name) {
   return found == by_name.end() ? 0 : found->id;
 }
 
+struct HintBands {
+  double near_radius_m {};
+  uint64_t far_every {};
+};
+
 // Server and two clients; A sweeps its view up and down while B watches.
 class HintedSession {
  public:
-  HintedSession(const HintFilter& filter, double radius_m, double drop_probability = 0.) {
+  // Without `bands` the whole radius is near: every hint reaches whoever is within it.
+  HintedSession(
+      const HintFilter& filter, double radius_m, double drop_probability = 0.,
+      const std::optional<HintBands>& bands = std::nullopt) {
     z13::Settings settings = z13::testing::TestSettings();
     settings.net->look_hint_filter = filter;
     settings.net->look_hint_radius_m = radius_m;
+    settings.net->look_hint_near_radius_m = bands ? bands->near_radius_m : radius_m;
+    settings.net->look_hint_far_every = bands ? bands->far_every : 1;
     network_->SetFaultConfig({.drop_probability = drop_probability, .min_delay_ticks = 2, .max_delay_ticks = 4});
     server_ = std::make_unique<Z13TestWorld>(std::vector {std::string(kServerArg)}, network_, settings);
     client_a_ = std::make_unique<Z13TestWorld>(Client(), network_, settings);
@@ -222,6 +240,23 @@ TEST(ActionHintsTest, OnlyTheClientsInTheFilterGetHints) {
   EXPECT_GT(hints_heard(HintFilter::All, kFarRadiusM), 0u);
   EXPECT_EQ(hints_heard(HintFilter::Distance, kFarRadiusM), 0u);
   EXPECT_EQ(hints_heard(HintFilter::None, kNearbyRadiusM), 0u);
+}
+
+TEST(ActionHintsTest, FarPlayersGetEveryNthHint) {
+  constexpr uint64_t kFarEvery = 4;
+  constexpr double kNoNearM = 0.;
+  const auto hint_packets = [](const HintBands& bands) {
+    HintedSession session(HintFilter::Distance, kNearbyRadiusM, 0., bands);
+    EXPECT_TRUE(session.Connected());
+    session.Sweep();
+    return ChannelPackets(session.Server().World().get<NetSession>().Sent(), Channel::kHints);
+  };
+
+  const uint64_t everything = hint_packets({.near_radius_m = kNearbyRadiusM, .far_every = kFarEvery});
+  const uint64_t thinned = hint_packets({.near_radius_m = kNoNearM, .far_every = kFarEvery});
+
+  EXPECT_GT(thinned, 0u);
+  EXPECT_LE(thinned * (kFarEvery - 1), everything) << "a far player still got more than every " << kFarEvery << "th";
 }
 
 TEST(ActionHintsTest, TheServerRelaysOnlyHintActionsAndNoRepeat) {

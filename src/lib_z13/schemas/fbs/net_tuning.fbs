@@ -60,4 +60,7 @@ table NetTuning {
   look_hint_interval_ticks: uint64 = 2 (min: 1, cli);
   look_hint_filter: HintFilter = Distance;
   look_hint_radius_m: double = 30 (min: 1, cli);
+  // Beyond this distance only every look_hint_far_every-th hint of a player is sent to a client.
+  look_hint_near_radius_m: double = 10 (min: 0, cli);
+  look_hint_far_every: uint64 = 4 (min: 1, cli);
 }

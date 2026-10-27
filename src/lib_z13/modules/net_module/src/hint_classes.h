@@ -28,6 +28,8 @@ struct HintClassTuning {
   uint64_t interval_ticks {};
   fbs::net::HintFilter filter {};
   double radius_m {};
+  double near_radius_m {};
+  uint64_t far_every {};
 };
 
 // The class an action's `hint` attribute names (common.fbs); a new class is its fields in

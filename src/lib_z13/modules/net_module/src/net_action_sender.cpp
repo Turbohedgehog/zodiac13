@@ -61,13 +61,9 @@ void Send(NetSession& session, bool is_server, uint32_t player_id, fbn::CommandB
     session.Send(*session.ServerConnection(), Channel::kReliable, envelope);
     return;
   }
-  fbn::SequencedCommandsT sequenced;
-  sequenced.player_id = player_id;
-  sequenced.base_tick = batch.base_tick;
-  sequenced.commands = std::move(batch.commands);
-  sequenced.through_tick = batch.through_tick;
-  envelope.body.Set(std::move(sequenced));
-  session.Broadcast(Channel::kReliable, envelope);
+  const CommandRun run {.base_tick = batch.base_tick, .commands = std::move(batch.commands)};
+  session.QueueRun(session.Connections(), ToWire(player_id, batch.through_tick, run), run.commands);
+  session.FlushRelays();
 }
 
 Status TrySendPendingCommands(
