@@ -49,12 +49,17 @@ class Room:
     COMMS = "COMMS"
     CAPTAIN = "CAPTAIN"
     HEADS = "HEADS' ROOM"
+    HANGAR = "DEPARTURE HANGAR"
     SPAWN = "SPAWN"
 
 
 # ----- Geometry -----------------------------------------------------------------------------
 
-NORTH_M = 26  # room ahead of the atrium (smaller y) for the security wing, which faces the bridge across the agora
+SECURITY_LENGTH_M = 22
+HANGAR_LENGTH_M = 30
+# Room ahead of the atrium (smaller y) for the security wing, which faces the bridge across the agora, and the
+# departure hangar behind it.
+NORTH_M = 4 + SECURITY_LENGTH_M + HANGAR_LENGTH_M
 WIDTH, DEPTH = 66, 70 + NORTH_M
 DECK_PITCH_M = 3
 DECK_PITCH_CELLS = DECK_PITCH_M * CELLS_PER_M
@@ -93,18 +98,24 @@ WING_ROOM_SPLIT_X = 46
 COMMAND_LENGTH_M = 22
 
 
+# The departure hangar behind the security wing: two decks tall as one hall, windows along its far wall.
+DEPARTURE = (32, 4, 60, HANGAR_LENGTH_M + 4)
+HANGAR_DECKS = range(1, 3)
+
+
 class Wing(NamedTuple):
     box: tuple
     decks: range
     lobby: str
     rooms: dict  # deck -> (west room, east room)
     atrium_side: str  # which side of the box the atrium is on
+    rear_door_decks: tuple = ()  # decks on which both rooms also have a door on the far side
 
 
 WINGS = (
-    Wing((38, 5, 54, ATRIUM[1]), range(1, 4), Room.SECURITY_LOBBY,
+    Wing((38, HANGAR_LENGTH_M + 4, 54, ATRIUM[1]), range(1, 4), Room.SECURITY_LOBBY,
          {1: (Room.ARMORY, Room.BRIG), 2: (Room.OFFICE.format(n=1), Room.OFFICE.format(n=2)),
-          3: (Room.BARRACKS.format(n=1), Room.BARRACKS.format(n=2))}, "S"),
+          3: (Room.BARRACKS.format(n=1), Room.BARRACKS.format(n=2))}, "S", rear_door_decks=(1,)),
     Wing((38, ATRIUM[3], 54, ATRIUM[3] + COMMAND_LENGTH_M), range(6, 8), Room.COMMAND_LOBBY,
          {6: (Room.MEETING, Room.COMMS), 7: (Room.CAPTAIN, Room.HEADS)}, "N"),
 )
@@ -214,6 +225,16 @@ class HubDeck(Deck):
         self.room(WING_ROOM_SPLIT_X, rooms_y[0], x1, rooms_y[1], east, door)
         for x in range(WING_OPENING_X[0], WING_OPENING_X[1] + 1):
             self.put(x, y1 if toward_south else y0, " ")
+        if self.number in wing.rear_door_decks:
+            rear = "N" if toward_south else "S"
+            self.door_on(x0, rooms_y[0], WING_ROOM_SPLIT_X, rooms_y[1], rear)
+            self.door_on(WING_ROOM_SPLIT_X, rooms_y[0], x1, rooms_y[1], rear)
+
+    def hangar(self):
+        x0, y0, x1, y1 = DEPARTURE
+        self.room(x0, y0, x1, y1, Room.HANGAR)
+        for x in range(x0 + 1, x1):
+            self.put(x, y0, WINDOW)
 
     def bridge(self):
         x0, y0, x1, y1 = BRIDGE
@@ -237,6 +258,8 @@ def build_decks():
             deck.railing()
         if number <= SPINE_DECKS:
             deck.spine()
+        if number in HANGAR_DECKS:
+            deck.hangar()
         for wing in WINGS:
             if number in wing.decks:
                 deck.wing(wing)
@@ -314,6 +337,8 @@ def slab_mask(index):
                     mask[y][x] = False
     if index <= SPINE_DECKS:
         fill(outer_box(SPINE))
+    if index in (HANGAR_DECKS.start - 1, HANGAR_DECKS.stop - 1):  # no slab inside the hall
+        fill(outer_box(DEPARTURE))
     for wing in WINGS:
         if index in range(wing.decks.start - 1, wing.decks.stop):
             fill(outer_box(wing.box))
