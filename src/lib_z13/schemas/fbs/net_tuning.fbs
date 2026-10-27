@@ -63,4 +63,12 @@ table NetTuning {
   // Beyond this distance only every look_hint_far_every-th hint of a player is sent to a client.
   look_hint_near_radius_m: double = 10 (min: 0, cli);
   look_hint_far_every: uint64 = 4 (min: 1, cli);
+
+  // Ghosts (docs/network-scaling-plan.md, 5b): poses of the players within ghost_radius_m that a client doesn't
+  // simulate, beyond ghost_near_radius_m only every ghost_far_every-th. Needs interest_events.
+  ghosts: bool = false (cli);
+  ghost_radius_m: double = 96 (min: 1, cli);
+  ghost_near_radius_m: double = 24 (min: 0, cli);
+  ghost_pose_interval_ticks: uint64 = 6 (min: 1, cli);
+  ghost_far_every: uint64 = 4 (min: 1, cli);
 }

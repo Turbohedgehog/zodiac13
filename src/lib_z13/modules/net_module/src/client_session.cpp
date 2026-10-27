@@ -47,6 +47,7 @@
 
 #include "action_hints.h"
 #include "catch_up.h"
+#include "ghost_players.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
 #include "session_control.h"
@@ -202,6 +203,10 @@ void MoveOwnCommands(flecs::world world, const fbn::CommandsRetimedT& retimed) {
 }
 
 void HandleClientReceived(flecs::world world, const TransportEvent& event) {
+  if (event.channel == Channel::kPoses) {
+    StoreGhostPoses(world, AsUint8(event.data));
+    return;
+  }
   if (event.channel == Channel::kHints) {
     if (world.get<z13::gameplay::LocalPlayer>().id) {
       StoreRelayedHints(world, AsUint8(event.data));
