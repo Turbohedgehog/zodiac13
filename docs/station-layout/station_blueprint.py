@@ -180,10 +180,12 @@ def kind_of(ch):
     return {WINDOW: WINDOW_KIND, COUNTER: COUNTER_KIND}.get(ch, WALL_KIND)
 
 
-def block(primitive, cell, size, orientation=None):
+def block(primitive, cell, size, orientation=None, slant=0):
     entry = {"primitive": primitive, "cell": dict(zip("xyz", cell)), "size": dict(zip("xyz", size))}
     if orientation:
         entry["orientation"] = orientation
+    if slant:
+        entry["slant"] = slant
     return entry
 
 
@@ -236,6 +238,68 @@ def wedge_block(vertices):
         if placed == wanted:
             return block(SLOPE, low, size, None if name == "FacePosXUpPosZ" else name)
     raise ValueError(f"no wedge has the vertices {sorted(vertices)}")
+
+
+# ----- Oblique walls -------------------------------------------------------------------------
+
+PANEL = "Panel"
+PANEL_MAX_SIZE_CELLS = 256
+
+
+def plan_axes(stick_axis, span):
+    """(major, minor): the axes of the stick axis's plane that carry the panel's run (the longer of
+    `span`, the lower on a tie) and its rise (primitives/wall_panel.h, PlanAxesOf)."""
+    first = 1 if stick_axis == 0 else 0
+    second = 1 if stick_axis == 2 else 2
+    major = first if abs(span[first]) >= abs(span[second]) else second
+    return major, (second if major == first else first)
+
+
+def min_wall_thickness(node_a, node_b, stick_axis=2):
+    """The thinnest panel between the nodes that holds air back (MinWallThickness): `t * run >= run + rise`."""
+    span = [b - a for a, b in zip(node_a, node_b)]
+    span[stick_axis] = 0
+    major, minor = plan_axes(stick_axis, span)
+    run, rise = abs(span[major]), abs(span[minor])
+    if run == 0:
+        raise ValueError("the wall's nodes coincide in its plane")
+    return (run + rise + run - 1) // run
+
+
+def wall_panel_block(node_a, node_b, thickness, stick_length, stick_axis=2, primitive=PANEL):
+    """The Panel block whose prism runs from node a to node b (b's offset along the stick axis dropped) over
+    the stick, `stick_length` cells long (signed), thickened by |thickness| cells along the lesser axis of the
+    plane to the side of its sign (primitives/wall_panel.cpp, WallPanelBlock, for sticks of one length). The
+    ends are cut by the grid. Raises ValueError for what the C++ function refuses."""
+    offset = [b - a for a, b in zip(node_a, node_b)]
+    offset[stick_axis] = 0
+    if not any(offset):
+        raise ValueError("the wall's nodes coincide in its plane")
+    if stick_length == 0 or thickness == 0:
+        raise ValueError("the wall has no stick length or thickness")
+    major, minor = plan_axes(stick_axis, offset)
+    run, rise, depth = abs(offset[major]), abs(offset[minor]), abs(thickness)
+    size = (run, abs(stick_length), rise + depth)
+    if depth * run < run + rise or any(extent > PANEL_MAX_SIZE_CELLS for extent in size):
+        raise ValueError(f"a panel of run {run}, rise {rise} and thickness {depth} isn't allowed")
+
+    thicken = [0, 0, 0]
+    thicken[minor] = (1 if thickness > 0 else -1) * depth
+    along = [0, 0, 0]
+    along[stick_axis] = stick_length
+    high = [a + o for a, o in zip(node_a, offset)]
+    bases = [list(node_a), [a + t for a, t in zip(node_a, thicken)], high, [h + t for h, t in zip(high, thicken)]]
+    target = {tuple(base) for base in bases} | {tuple(b + a for b, a in zip(base, along)) for base in bases}
+    lowest = tuple(min(point[i] for point in target) for i in range(3))
+    section = ((0, 0), (run, rise), (run, size[2]), (0, depth))
+    corners = [(x, y, z) for y in (0, size[1]) for x, z in section]
+    for name, columns in ORIENTATIONS:
+        rotate = lambda p: tuple(sum(columns[i][row] * p[i] for i in range(3)) for row in range(3))
+        # PoseOf: the origin keeps the rotated box's lowest corner on the block's cell.
+        origin = tuple(lowest[row] - min(rotate(size)[row], 0) for row in range(3))
+        if {tuple(o + r for o, r in zip(origin, rotate(corner))) for corner in corners} == target:
+            return block(primitive, lowest, size, None if name == "FacePosXUpPosZ" else name, rise)
+    raise ValueError("no turn of the panel fits the wall")
 
 
 # ----- Halls with slanted corners ------------------------------------------------------------
