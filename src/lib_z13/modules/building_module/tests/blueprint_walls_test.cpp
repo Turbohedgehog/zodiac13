@@ -70,12 +70,10 @@ TEST(BlueprintWallsTest, WallsMeetingAtANodeAreStitchedAndPlaceable) {
   ASSERT_TRUE(panels.has_value()) << panels.error();
   ASSERT_EQ(panels->size(), kBands.size());
 
-  // The seam moves the ends away from the square cut of a lone wall.
   const auto lone = z13::building::primitives::WallPanelBlock(kBands[0], palette);
   ASSERT_TRUE(lone.has_value()) << lone.error();
   EXPECT_NE((*panels)[0], *lone);
 
-  // Stitched panels share the seam's cells, so they are judged against the blocks, not one another.
   EXPECT_TRUE(ValidateBlueprint({}, palette, BuildingTuning {}, *panels).has_value());
 }
 
@@ -89,6 +87,16 @@ TEST(BlueprintWallsTest, APanelOnABlockIsRefused) {
   const auto valid = ValidateBlueprint(blocks, palette, BuildingTuning {}, *panels);
   ASSERT_FALSE(valid.has_value());
   EXPECT_NE(valid.error().find("wall panel"), std::string::npos) << valid.error();
+}
+
+
+// A refused joint squares the walls' ends and leaves wedge-shaped gaps between them.
+TEST(BlueprintWallsTest, TheWallsOfEveryShippedBlueprintAreStitchedWithoutRefusal) {
+  for (const std::string& scene : z13::testing::ShippedScenes()) {
+    const auto walls = z13::testing::ShippedBlueprintWalls(scene);
+    ASSERT_TRUE(walls.has_value()) << scene << ": " << walls.error();
+    EXPECT_TRUE(BlueprintJointRefusals(*walls, BuildingTuning {}).empty()) << scene;
+  }
 }
 
 }  // namespace

@@ -37,6 +37,11 @@ std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
     std::span<const z13::building::primitives::WallGeometry> walls, const z13::building::primitives::Palette& palette,
     const BuildingTuning& tuning);
 
+// The joints of a blueprint's walls that can't be had (a seam reaching too far from its node, ...), as
+// "wall a and wall b: why": there the walls are square-cut and leave gaps.
+std::vector<std::string> BlueprintJointRefusals(
+    std::span<const z13::building::primitives::WallGeometry> walls, const BuildingTuning& tuning);
+
 // Nodes and segments for the walls of a blueprint; their panels follow in WallPanelSystem.
 void SpawnBlueprintWalls(
     flecs::world world, z13::gameplay::IdCounters& counters,

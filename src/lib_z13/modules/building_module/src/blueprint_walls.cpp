@@ -35,11 +35,7 @@ struct CellLess {
   }
 };
 
-}  // namespace
-
-std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
-    std::span<const WallGeometry> walls, const z13::building::primitives::Palette& palette,
-    const BuildingTuning& tuning) {
+std::vector<JointWall> JointWallsOfBlueprint(std::span<const WallGeometry> walls) {
   std::map<Eigen::Vector3i, uint32_t, CellLess> node_ids;
   const auto node_of = [&node_ids](const Eigen::Vector3i& cell) {
     return node_ids.emplace(cell, static_cast<uint32_t>(node_ids.size() + 1)).first->second;
@@ -52,6 +48,15 @@ std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
                            .node_b = node_of(wall.node_b),
                            .geometry = wall});
   }
+  return joint_walls;
+}
+
+}  // namespace
+
+std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
+    std::span<const WallGeometry> walls, const z13::building::primitives::Palette& palette,
+    const BuildingTuning& tuning) {
+  const std::vector<JointWall> joint_walls = JointWallsOfBlueprint(walls);
   const WallJoints joints = SolveJoints(joint_walls, tuning.wall_joint_max_reach_cells);
   std::vector<z13::station::Block> panels;
   for (const JointWall& wall : joint_walls) {
@@ -62,6 +67,15 @@ std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
     panels.insert(panels.end(), blocks->begin(), blocks->end());
   }
   return panels;
+}
+
+std::vector<std::string> BlueprintJointRefusals(std::span<const WallGeometry> walls, const BuildingTuning& tuning) {
+  const WallJoints joints = SolveJoints(JointWallsOfBlueprint(walls), tuning.wall_joint_max_reach_cells);
+  std::vector<std::string> refusals;
+  for (const auto& [wall, why] : joints.refused) {
+    refusals.push_back(std::format("wall {}: {}", wall - 1, why));
+  }
+  return refusals;
 }
 
 void SpawnBlueprintWalls(
