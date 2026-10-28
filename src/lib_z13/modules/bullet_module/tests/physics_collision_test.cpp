@@ -284,19 +284,15 @@ TEST(PhysicsBodySyncTest, RecreatedPhysicsWorldGetsAllBodiesWhenABlockIsAddedThe
   EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 2u);
 }
 
-// Block bodies are static and asleep, so stepping skips their AABBs (see PhysicsWorld::State).
-TEST(PhysicsBodySyncTest, BlockBodiesAreStaticAndAsleep) {
+TEST(PhysicsBodySyncTest, BlockBodiesAreStatic) {
   z13::testing::Z13TestWorld test_world;
   SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
   test_world.Tick(kTestDeltaTime);
   test_world.Tick(kTestDeltaTime);
 
-  btDiscreteDynamicsWorld& dynamics_world = test_world.World().get_mut<PhysicsWorld>().DynamicsWorld();
-  EXPECT_FALSE(dynamics_world.getForceUpdateAllAabbs());
-  const btCollisionObjectArray& bodies = dynamics_world.getCollisionObjectArray();
+  const btCollisionObjectArray& bodies = test_world.World().get_mut<PhysicsWorld>().World().getCollisionObjectArray();
   ASSERT_EQ(bodies.size(), 1);
   EXPECT_TRUE(bodies[0]->isStaticObject());
-  EXPECT_FALSE(bodies[0]->isActive());
 }
 
 // The body follows the primitive's shape from the palette, not its bounding box: above

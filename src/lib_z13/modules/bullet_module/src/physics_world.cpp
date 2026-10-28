@@ -32,19 +32,9 @@ namespace z13::bullet_module {
 
 namespace {
 
-// mass = 0 -> Bullet treats a body as static (immovable); local inertia is
-// then unused, so the zero vector below is inert, not a real value.
-constexpr float kStaticMass = 0.f;
-const btVector3 kZeroVector(0.f, 0.f, 0.f);
-
 // Stops this short of a hit surface, so the next step doesn't start touching it.
 constexpr float kSweepSkin = 1e-3f;
 constexpr float kMinSweepDistance = 1e-5f;
-
-btRigidBody::btRigidBodyConstructionInfo MakeStaticBodyInfo(
-    btMotionState& motion_state, btCollisionShape& shape) {
-  return btRigidBody::btRigidBodyConstructionInfo(kStaticMass, &motion_state, &shape, kZeroVector);
-}
 
 // Bullet's user-data slot is a void*; stash the owning flecs entity id in it
 // (RaycastEntity's use case) rather than adding a second lookup table.
@@ -56,16 +46,16 @@ flecs::entity_t ToEntity(const void* user_pointer) {
   return static_cast<flecs::entity_t>(reinterpret_cast<uintptr_t>(user_pointer));
 }
 
-// Backing Bullet objects for one placed block's rigid body; see RigidBody in
+// Backing Bullet object for one placed block's body; see RigidBody in
 // bullet_components.h for why this lives here and not on the component.
 // class, not struct: the constructor establishes cross-pointers between
-// shape/motion_state/body that direct field access could invalidate.
+// shape/body that direct field access could invalidate.
 class BulletBody {
  public:
   BulletBody(
       flecs::entity_t entity, const btTransform& transform, BlockShapeKey key, std::shared_ptr<BlockShape> shape);
 
-  btRigidBody& Body() { return body_; }
+  btCollisionObject& Body() { return body_; }
 
   bool Matches(const BlockShapeKey& key, const btTransform& transform) const {
     const btTransform& current = body_.getWorldTransform();
@@ -75,19 +65,19 @@ class BulletBody {
 
  private:
   // Declaration order matters: members are destroyed in reverse, and body_
-  // depends on shape_/motion_state_ still being alive to tear down.
+  // depends on shape_ still being alive to tear down.
   BlockShapeKey key_;
   std::shared_ptr<BlockShape> shape_;
-  btDefaultMotionState motion_state_;
-  btRigidBody body_;
+  btCollisionObject body_;
 };
 
 BulletBody::BulletBody(
     flecs::entity_t entity, const btTransform& transform, BlockShapeKey key, std::shared_ptr<BlockShape> shape)
     : key_(std::move(key)),
-      shape_(std::move(shape)),
-      motion_state_(transform),
-      body_(MakeStaticBodyInfo(motion_state_, shape_->Shape())) {
+      shape_(std::move(shape)) {
+  body_.setCollisionShape(&shape_->Shape());
+  body_.setWorldTransform(transform);
+  body_.setCollisionFlags(btCollisionObject::CF_STATIC_OBJECT);
   body_.setUserPointer(ToUserPointer(entity));
 }
 
@@ -117,13 +107,9 @@ class PhysicsWorld::State {
  public:
   State()
       : dispatcher_(&collision_config_),
-        dynamics_world_(&dispatcher_, &broadphase_, &solver_, &collision_config_) {
-    // Every body is a static block, which Bullet keeps asleep: its AABB changes only when
-    // SyncBody re-adds it, so stepping needn't recompute thousands of them each tick.
-    dynamics_world_.setForceUpdateAllAabbs(false);
-  }
+        world_(&dispatcher_, &broadphase_, &collision_config_) {}
 
-  btDiscreteDynamicsWorld& DynamicsWorld() { return dynamics_world_; }
+  btCollisionWorld& World() { return world_; }
 
   size_t BodyCount() const { return bodies_.size(); }
 
@@ -137,12 +123,12 @@ class PhysicsWorld::State {
     }
 
     const auto it = bodies_.try_emplace(entity, entity, transform, key, SharedShape(key, solids)).first;
-    dynamics_world_.addRigidBody(&it->second.Body());
+    world_.addCollisionObject(&it->second.Body());
   }
 
   void RemoveBody(flecs::entity_t entity) {
     if (const auto it = bodies_.find(entity); it != bodies_.end()) {
-      dynamics_world_.removeRigidBody(&it->second.Body());
+      world_.removeCollisionObject(&it->second.Body());
       bodies_.erase(it);
     }
   }
@@ -150,7 +136,7 @@ class PhysicsWorld::State {
   void RemoveBodiesIf(const std::function<bool(flecs::entity_t)>& should_remove) {
     for (auto it = bodies_.begin(); it != bodies_.end();) {
       if (should_remove(it->first)) {
-        dynamics_world_.removeRigidBody(&it->second.Body());
+        world_.removeCollisionObject(&it->second.Body());
         it = bodies_.erase(it);
       } else {
         ++it;
@@ -170,12 +156,11 @@ class PhysicsWorld::State {
   }
 
   // Declaration order matters: members are destroyed in reverse, so
-  // dynamics_world_ must come after everything it points into (its own
+  // world_ must come after everything it points into (its own
   // collaborators and bodies_) to still find them alive while tearing down.
   btDefaultCollisionConfiguration collision_config_;
   btCollisionDispatcher dispatcher_;
   btDbvtBroadphase broadphase_;
-  btSequentialImpulseConstraintSolver solver_;
 
   // Node-based storage keeps a body's address (and Bullet's internal
   // cross-pointers into it) stable across insert/erase of other bodies.
@@ -183,14 +168,14 @@ class PhysicsWorld::State {
   // Weak: a shape goes with the last body using it.
   std::unordered_map<BlockShapeKey, std::weak_ptr<BlockShape>, z13::building::primitives::BlockShapeKeyHash> shapes_;
 
-  btDiscreteDynamicsWorld dynamics_world_;
+  btCollisionWorld world_;
 };
 
 PhysicsWorld::PhysicsWorld() : state_(std::make_shared<State>()) {
 }
 
-btDiscreteDynamicsWorld& PhysicsWorld::DynamicsWorld() {
-  return state_->DynamicsWorld();
+btCollisionWorld& PhysicsWorld::World() {
+  return state_->World();
 }
 
 void PhysicsWorld::SyncBody(
@@ -220,7 +205,7 @@ btVector3 PhysicsWorld::ResolveSpherePosition(const btVector3& desired_center, f
   probe.setWorldTransform(probe_transform);
 
   PenetrationCallback callback(probe);
-  state_->DynamicsWorld().contactTest(&probe, callback);
+  state_->World().contactTest(&probe, callback);
   return desired_center + callback.Correction();
 }
 
@@ -232,7 +217,7 @@ btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, 
     // Exactly `to` when unobstructed, so an unblocked step leaves the position bit-identical.
     const btVector3 target = i == 0 ? to : position + remaining;
     BlockingSweepCallback callback(target - position);
-    state_->DynamicsWorld().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
+    state_->World().convexSweepTest(&shape, AtPosition(position), AtPosition(target), callback);
     if (!callback.Hit()) {
       return target;
     }
@@ -247,7 +232,7 @@ btVector3 PhysicsWorld::SweepSphere(const btVector3& from, const btVector3& to, 
 
 std::optional<flecs::entity_t> PhysicsWorld::RaycastEntity(const btVector3& from, const btVector3& to) {
   ClosestRayCallback callback;
-  state_->DynamicsWorld().rayTest(from, to, callback);
+  state_->World().rayTest(from, to, callback);
   if (!callback.Hit()) {
     return std::nullopt;
   }

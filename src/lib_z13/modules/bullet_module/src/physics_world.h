@@ -48,7 +48,7 @@ class PhysicsWorld {
 
   PhysicsWorld();
 
-  btDiscreteDynamicsWorld& DynamicsWorld();
+  btCollisionWorld& World();
 
   // Creates the entity's body, or recreates it if its shape or `transform` no longer match.
   void SyncBody(

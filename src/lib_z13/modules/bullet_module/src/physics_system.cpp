@@ -58,9 +58,6 @@
 
 namespace z13::bullet_module {
 
-// Outside the anonymous namespace: its path breaks phase-order ties (see phase_order.h).
-struct PhysicsStepPhase {};
-
 // Where the player stood when the frame began; the collision sweep starts there. Derived
 // every frame, so a rollback or teleport between frames is never swept.
 struct SweepOrigin {
@@ -69,7 +66,6 @@ struct SweepOrigin {
 
 namespace {
 
-constexpr int kMaxSubSteps = 10;
 // Straight down or up, without sliding along what is hit.
 constexpr uint32_t kFloorProbeSweeps = 1;
 // A probe ending this close to its full length found no floor.
@@ -77,19 +73,9 @@ constexpr float kFloorProbeSkin = 1e-4f;
 // Meters a rising head is pushed back along the gravity to count as hitting a ceiling.
 constexpr float kCeilingPush = 1e-3f;
 
-void RegisterPipeline(flecs::world world) {
-  world.component<PhysicsStepPhase>().add(flecs::Phase).depends_on<z13::gameplay::PreUpdatePhase>();
-}
-
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning, z13::BuildingTuning>(
       world);
-}
-
-// Only term is a singleton, so $this is empty and the entity-taking .each()
-// overload would assert; use the iter/row overload.
-void StepPhysicsWorld(flecs::iter& it, size_t, PhysicsWorld& physics_world) {
-  physics_world.DynamicsWorld().stepSimulation(it.delta_time(), kMaxSubSteps);
 }
 
 using BlockQuery = flecs::query<const z13::station::Block>;
@@ -311,10 +297,6 @@ void RegisterSystems(flecs::world world) {
       .immediate()
       .run([](flecs::iter& it) { ReconcilePhysicsWorld(it.world()); });
 
-  world.system<PhysicsWorld>("PhysicsSystem::StepPhysicsWorld")
-      .kind<PhysicsStepPhase>()
-      .each(StepPhysicsWorld);
-
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
@@ -360,8 +342,6 @@ void RegisterSystems(flecs::world world) {
 
 void PhysicsSystem::Register(flecs::world& world) {
   OnRegisterComponents(world, RegisterComponents);
-
-  OnInitPhases(world, RegisterPipeline);
 
   OnInitSystems(world, RegisterSystems);
 }
