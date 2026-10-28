@@ -44,6 +44,8 @@
 #include <lib_core/settings/config.h>
 #include <lib_core/settings/core_settings.h>
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/snapshot_grouping.h>
+#include <lib_core/state/snapshot_hash.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/state_markers.h>
@@ -337,6 +339,84 @@ TEST(StationLoadBench, DISABLED_Join) {
   for (const std::string& scene : Stations()) {
     MeasureJoin(scene);
   }
+}
+
+// What the station's state work costs while no block changes: the capture that skips the groups, the scan it
+// falls back to, the restore, the digest, and the digest's old listing of every name.
+struct UnchangedRow {
+  std::string label;
+  size_t blocks {};
+  double capture_ms {};
+  double scan_ms {};
+  double restore_ms {};
+  double digest_ms {};
+  double digest_names_ms {};
+  double digest_hash_ms {};
+};
+
+UnchangedRow MeasureUnchanged(const std::string& label, const std::vector<z13::station::Block>& blocks, int copies) {
+  const StationLayout layout = LayoutOf(blocks);
+  UnchangedRow row {.label = label};
+  Z13TestWorld world;
+  world.Tick();
+  flecs::world w = world.World();
+  PlaceStation(world, blocks, copies, layout);
+  world.Tick();
+  row.blocks = static_cast<size_t>(w.count<z13::station::Block>());
+  world.Tick();
+
+  std::vector<double> capture;
+  std::vector<double> scan;
+  std::vector<double> restore;
+  std::vector<double> digest;
+  std::vector<double> names;
+  std::vector<double> hash;
+  for (int run = 0; run < kTimedRuns; ++run) {
+    std::expected<ft::WorldSnapshot, std::string> snapshot;
+    capture.push_back(Ms([&] { snapshot = ft::CaptureState(w); }));
+    EXPECT_TRUE(snapshot.has_value()) << (snapshot ? "" : snapshot.error());
+    if (!snapshot) {
+      return row;
+    }
+    // Without `unchanged` every capture scans the blocks and compares the groups' fingerprints.
+    auto unchanged = std::move(w.get_mut<ft::SnapshotGrouping>().unchanged);
+    w.get_mut<ft::SnapshotGrouping>().unchanged = nullptr;
+    scan.push_back(Ms([&] { snapshot = ft::CaptureState(w); }));
+    w.get_mut<ft::SnapshotGrouping>().unchanged = std::move(unchanged);
+    restore.push_back(Ms([&] { EXPECT_TRUE(ft::RestoreWorld(w, *snapshot).has_value()); }));
+    const ft::TimestampedSnapshot timestamped {.tick = 1, .snapshot = *snapshot};
+    digest.push_back(Ms([&] { z13::net::ComputeStateDigest(w, timestamped); }));
+    names.push_back(Ms([&] {
+      std::vector<std::string> paths;
+      w.query_builder().with<ft::StateEntity>().build().each(
+          [&paths](flecs::entity e) { paths.emplace_back(e.path().c_str()); });
+      std::ranges::sort(paths);
+    }));
+    hash.push_back(Ms([&] { ft::HashSnapshot(*snapshot); }));
+  }
+  row.capture_ms = Median(capture);
+  row.scan_ms = Median(scan);
+  row.restore_ms = Median(restore);
+  row.digest_ms = Median(digest);
+  row.digest_names_ms = Median(names);
+  row.digest_hash_ms = Median(hash);
+  return row;
+}
+
+TEST(StationLoadBench, DISABLED_UnchangedStateCost) {
+  for (const std::string& scene : Stations()) {
+    const auto blocks = ReadStation(scene);
+    ASSERT_TRUE(blocks.has_value()) << blocks.error();
+    std::cout << std::format("[ bench ] station '{}', no block changes: ms\n", scene);
+    std::cout << "[ bench ] scale  blocks  capture  scan+compare  restore  digest  (all names, as the digest listed them)  (HashSnapshot)\n";
+    for (const int scale : kScales) {
+      const UnchangedRow row = MeasureUnchanged(std::format("x{}", scale), *blocks, scale);
+      std::cout << std::format("[ bench ] {:<5}  {:>6}  {:>7.2f}  {:>12.2f}  {:>7.2f}  {:>6.2f}  {:>38.2f}  {:>14.2f}\n",
+                               row.label, row.blocks, row.capture_ms, row.scan_ms, row.restore_ms, row.digest_ms,
+                               row.digest_names_ms, row.digest_hash_ms);
+    }
+  }
+  std::cout << std::flush;
 }
 
 // How long the host plays before the late joiner connects, building meanwhile.

@@ -471,9 +471,31 @@ void PruneToSnapshot(flecs::entity e, const EntitySnapshot& s) {
 
 using GroupIds = std::unordered_set<SnapshotGroupId>;
 
-GroupIds MatchingGroups(flecs::world& world, const WorldSnapshot& snapshot, OptionalGrouping grouping) {
+// Whether the groups of the last capture are the world's groups now. The check consumes the
+// change `unchanged` reports, so a world it finds changed drops them: the next capture re-encodes.
+bool CapturedIsCurrent(flecs::world& world, const SnapshotGrouping& grouping) {
+  auto& captured = grouping.state_->captured;
+  const bool current = grouping.unchanged && grouping.unchanged(world) && !captured.empty();
+  if (!current) {
+    captured.clear();
+  }
+  return current;
+}
+
+GroupIds MatchingGroups(
+    flecs::world& world, const WorldSnapshot& snapshot, OptionalGrouping grouping, bool captured_is_current) {
   GroupIds matching;
   if (snapshot.groups.empty() || !grouping) {
+    return matching;
+  }
+  if (captured_is_current) {
+    const auto& captured = grouping->get().state_->captured;
+    for (const auto& group : snapshot.groups) {
+      if (const auto same = captured.find(group->id);
+          same != captured.end() && same->second->fingerprint == group->fingerprint) {
+        matching.insert(group->id);
+      }
+    }
     return matching;
   }
   const GroupBuckets buckets = ScanGroups(world, *grouping);
@@ -484,6 +506,45 @@ GroupIds MatchingGroups(flecs::world& world, const WorldSnapshot& snapshot, Opti
     }
   }
   return matching;
+}
+
+// The state entities the snapshot lacks. With the captured groups current, the entities of the
+// matching groups are skipped without being visited and the others are listed from the capture.
+std::vector<flecs::entity> StaleEntities(flecs::world& world, OptionalGrouping grouping, const GroupIds& matching,
+                                         const std::unordered_set<std::string>& names, bool captured_is_current) {
+  std::vector<flecs::entity> stale;
+  const auto is_stale = [&names](flecs::entity e) {
+    return StateEntityFilter(e) && e.name().length() > 0 && !names.contains(PathOf(e));
+  };
+  if (captured_is_current && grouping) {
+    world.query_builder().with<StateEntity>().without(*grouping->get().member).build().each([&](flecs::entity e) {
+      if (is_stale(e)) {
+        stale.push_back(e);
+      }
+    });
+    for (const auto& [id, group] : grouping->get().state_->captured) {
+      if (matching.contains(id)) {
+        continue;
+      }
+      for (const EntitySnapshot& member : group->entities) {
+        if (const flecs::entity e = world.lookup(member.name.c_str()); e && is_stale(e)) {
+          stale.push_back(e);
+        }
+      }
+    }
+    return stale;
+  }
+
+  const GroupOf group_of = matching.empty() ? GroupOf {} : grouping->get().make_group_of(world);
+  const auto in_matching_group = [&](flecs::entity e) {
+    return group_of && e.has(*grouping->get().member) && matching.contains(group_of(e));
+  };
+  world.query_builder().with<StateEntity>().build().each([&](flecs::entity e) {
+    if (!in_matching_group(e) && is_stale(e)) {
+      stale.push_back(e);
+    }
+  });
+  return stale;
 }
 
 EntityRefs EntitiesToApply(const WorldSnapshot& snapshot, const GroupIds& matching) {
@@ -501,7 +562,8 @@ EntityRefs EntitiesToApply(const WorldSnapshot& snapshot, const GroupIds& matchi
 Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
   Z13_PROFILE_ZONE("RestoreWorld");
   const OptionalGrouping grouping = ActiveGrouping(world.try_get<SnapshotGrouping>());
-  const GroupIds matching = MatchingGroups(world, snapshot, grouping);
+  const bool captured_is_current = grouping && CapturedIsCurrent(world, *grouping);
+  const GroupIds matching = MatchingGroups(world, snapshot, grouping, captured_is_current);
   const EntityRefs entities = EntitiesToApply(snapshot, matching);
   if (auto valid = ValidateEntities(world, entities); !valid) {
     return valid;
@@ -512,16 +574,7 @@ Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
     names.insert(s.name);
   }
 
-  const GroupOf group_of = matching.empty() ? GroupOf {} : grouping->get().make_group_of(world);
-  const auto in_matching_group = [&](flecs::entity e) {
-    return group_of && e.has(*grouping->get().member) && matching.contains(group_of(e));
-  };
-  std::vector<flecs::entity> stale_entities;
-  world.query_builder().with<StateEntity>().build().each([&](flecs::entity e) {
-    if (StateEntityFilter(e) && e.name().length() > 0 && !in_matching_group(e) && !names.contains(PathOf(e))) {
-      stale_entities.push_back(e);
-    }
-  });
+  const std::vector<flecs::entity> stale_entities = StaleEntities(world, grouping, matching, names, captured_is_current);
   for (const flecs::entity e : stale_entities) {
     e.destruct();
   }

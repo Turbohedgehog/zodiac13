@@ -155,5 +155,19 @@ TEST(SectorHashTest, ADigestCarriesTheSectorHashesOfItsSnapshot) {
   EXPECT_GT(digest.sector_hashes.size(), 0u);
 }
 
+// The names of the blocks are left to their groups' fingerprints, but the count still covers them.
+TEST(SectorHashTest, ADigestCountsTheGroupedBlocksAmongItsEntities) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  flecs::world w = world.World();
+  const auto snapshot = z13::flecs_tools::CaptureState(w);
+  ASSERT_TRUE(snapshot.has_value());
+  ASSERT_FALSE(snapshot->groups.empty());
+
+  const fbs::net::StateDigestT digest = ComputeStateDigest(w, {.tick = 1, .snapshot = *snapshot});
+
+  EXPECT_EQ(digest.entity_count, w.query_builder().with<z13::flecs_tools::StateEntity>().build().count());
+}
+
 }  // namespace
 }  // namespace z13::net

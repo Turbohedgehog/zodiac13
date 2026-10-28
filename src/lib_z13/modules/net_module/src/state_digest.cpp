@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <format>
 #include <iterator>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
+#include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/state/snapshot_hash.h>
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
@@ -220,9 +222,14 @@ void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
   Z13_PROFILE_ZONE("ComputeStateDigest");
+  // The names of grouped entities (blocks) are in their groups' fingerprints, so only the rest are listed.
+  const auto* grouping = world.try_get<ft::SnapshotGrouping>();
+  auto named = world.query_builder().with<ft::StateEntity>();
+  if (grouping != nullptr && grouping->member) {
+    named.without(*grouping->member);
+  }
   std::vector<std::string> names;
-  world.query_builder().with<ft::StateEntity>().build().each(
-      [&names](flecs::entity e) { names.emplace_back(e.path().c_str()); });
+  named.build().each([&names](flecs::entity e) { names.emplace_back(e.path().c_str()); });
   std::ranges::sort(names);
 
   fbn::StateDigestT digest;
@@ -234,7 +241,9 @@ fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSn
     digest.global_hash = by_sector.global;
     digest.sector_hashes = std::move(by_sector.by_sector);
   }
-  digest.entity_count = static_cast<uint32_t>(names.size());
+  digest.entity_count = std::accumulate(
+      snapshot.snapshot.groups.begin(), snapshot.snapshot.groups.end(), static_cast<uint32_t>(names.size()),
+      [](uint32_t count, const auto& group) { return count + static_cast<uint32_t>(group->entities.size()); });
   digest.name_hash = HashNames(names);
   world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>().build().each(
       [&digest](const z13::gameplay::Player& player, const Eigen::Matrix4f& transform) {
