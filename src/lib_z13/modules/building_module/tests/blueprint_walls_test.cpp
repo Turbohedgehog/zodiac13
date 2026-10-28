@@ -16,10 +16,15 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <format>
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include <primitives/blueprint.h>
+#include <primitives/geometry.h>
+#include <primitives/placement.h>
 #include <primitives/wall_panel.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_settings/building_tuning.h>
@@ -121,6 +126,38 @@ TEST(BlueprintWallsTest, TheWallsOfEveryShippedBlueprintAreStitchedWithoutRefusa
     ASSERT_TRUE(walls.has_value()) << scene << ": " << walls.error();
     EXPECT_TRUE(BlueprintJointRefusals(*walls, BuildingTuning {}).empty()) << scene;
   }
+}
+
+
+// Writes the wall panels of the shipped hub, seams and openings as the scene derives them, to $Z13_DUMP_PANELS for
+// blender/model_scripts/hub_blueprint.py (draw_dump); skipped without it.
+TEST(BlueprintWallsTest, DumpPanels) {
+  const char* path = std::getenv("Z13_DUMP_PANELS");
+  if (path == nullptr) {
+    GTEST_SKIP();
+  }
+  const auto palette = z13::testing::ShippedPalette().value();
+  const auto walls = z13::testing::ShippedBlueprintWalls("hub").value();
+  const auto openings = z13::testing::ShippedBlueprintOpenings("hub").value();
+  const auto panels = BlueprintPanels(walls, palette, BuildingTuning {}, openings).value();
+  std::ofstream out(path);
+  out << "[";
+  bool first_solid = true;
+  for (const z13::station::Block& panel : panels) {
+    const auto pose = z13::building::primitives::PoseOf(panel);
+    const auto solids = z13::building::primitives::BlockSolids(
+        palette, z13::building::primitives::ShapeKeyOf(panel.spec));
+    for (const auto& solid : solids) {
+      out << (first_solid ? "" : ",") << "[";
+      first_solid = false;
+      for (size_t i = 0; i < solid.vertices.size(); ++i) {
+        const Eigen::Vector3f v = pose.origin.cast<float>() + pose.rotation.cast<float>() * solid.vertices[i];
+        out << (i ? "," : "") << std::format("[{},{},{}]", v.x(), v.y(), v.z());
+      }
+      out << "]";
+    }
+  }
+  out << "]";
 }
 
 }  // namespace
