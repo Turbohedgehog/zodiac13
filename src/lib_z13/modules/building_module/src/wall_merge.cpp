@@ -33,11 +33,13 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::station::WallAxis;
 using z13::station::WallNode;
 using z13::station::WallSegment;
 
-using NodeCells = std::map<uint32_t, Eigen::Vector3i>;
+using NodeCells = std::map<WallId, Eigen::Vector3i>;
 
 NodeCells CellsOfNodes(flecs::world world) {
   NodeCells cells;
@@ -51,7 +53,7 @@ std::vector<WallSegment> SegmentsOf(flecs::world world) {
   return segments;
 }
 
-bool Touches(const WallSegment& segment, uint32_t node_id) {
+bool Touches(const WallSegment& segment, WallId node_id) {
   return segment.node_a == node_id || segment.node_b == node_id;
 }
 
@@ -84,13 +86,13 @@ bool OnLine(const WallSegment& segment, const Eigen::Vector3i& a, const Eigen::V
 
 }  // namespace
 
-std::optional<Eigen::Vector3i> WallNodeCell(flecs::world world, uint32_t node_id) {
+std::optional<Eigen::Vector3i> WallNodeCell(flecs::world world, WallId node_id) {
   const NodeCells cells = CellsOfNodes(world);
   const auto found = cells.find(node_id);
   return found != cells.end() ? std::optional(found->second) : std::nullopt;
 }
 
-std::optional<uint32_t> NearestWallNode(flecs::world world, const Aim& aim, float snap_cells) {
+std::optional<WallId> NearestWallNode(flecs::world world, const Aim& aim, float snap_cells) {
   const NodeCells cells = CellsOfNodes(world);
   const auto distance = [&aim](const NodeCells::value_type& node) {
     return (node.second.cast<float>() - aim.point).norm();
@@ -100,10 +102,10 @@ std::optional<uint32_t> NearestWallNode(flecs::world world, const Aim& aim, floa
 }
 
 std::expected<NodeMerge, std::string> PlanNodeMerge(
-    flecs::world world, uint32_t first, uint32_t second, MergeAt at,
+    flecs::world world, WallId first, WallId second, MergeAt at,
     const z13::building::primitives::Palette& palette, int joint_reach) {
   NodeCells cells = CellsOfNodes(world);
-  const std::set<uint32_t> with_openings = SegmentsWithOpenings(world);
+  const std::set<WallId> with_openings = SegmentsWithOpenings(world);
   const auto first_cell = cells.find(first);
   const auto second_cell = cells.find(second);
   if (first == second || first_cell == cells.end() || second_cell == cells.end()) {
@@ -162,7 +164,7 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
   return merge;
 }
 
-void ApplyNodeMerge(flecs::world world, z13::gameplay::IdCounters& counters, const NodeMerge& merge) {
+void ApplyNodeMerge(flecs::world world, z13::gameplay::SpawnNamer& namer, const NodeMerge& merge) {
   const NodeCells cells = CellsOfNodes(world);
   std::vector<WallSegment> halves;
   world.query<WallSegment>().each([&](WallSegment& segment) {
@@ -175,11 +177,11 @@ void ApplyNodeMerge(flecs::world world, z13::gameplay::IdCounters& counters, con
       segment.node_b = merge.keep;
     }
   });
-  // Segment ids come from a counter, so the order they are spawned in must be the same everywhere.
+  // Segment ids are numbered as they are spawned, so the order they are spawned in must be the same everywhere.
   std::ranges::sort(halves, {}, &WallSegment::id);
   for (WallSegment& half : halves) {
     half.node_a = merge.keep;
-    SpawnWallSegment(world, counters, half);
+    SpawnWallSegment(world, namer, half);
   }
   if (const auto node = FindWallNode(world, merge.keep)) {
     node->get_mut<WallNode>().cell = merge.cell;

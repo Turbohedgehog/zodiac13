@@ -54,6 +54,6 @@ std::expected<CutPlan, std::string> PlanCut(
     flecs::world world, const BuildView& view, const MadeBlocks& made, const CutRequest& request);
 
 // Removes the planned blocks and creates the remainders, in the index as well.
-void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run);
+void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run, z13::gameplay::SpawnNamer& namer);
 
 }  // namespace z13::building

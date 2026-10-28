@@ -20,16 +20,15 @@
 
 #include <flecs.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/block.h>
+#include <z13/components/spawn_stamp.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
 namespace z13::building {
 
-// The next unused "Block_N", counting up in `counters`.
-std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counters);
+z13::gameplay::SpawnStamp StampNow(flecs::world world, uint32_t player_id);
 
 // A state entity for `block`; a primitive with the Spawn flag also makes it a SpawnPoint,
 // facing the primitive's +X.

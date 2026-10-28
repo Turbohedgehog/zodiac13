@@ -73,6 +73,8 @@ namespace z13::building {
 
 namespace {
 
+using z13::station::WallId;
+
 using z13::building::grid::BlockIndex;
 using z13::building::primitives::BlockPalette;
 using z13::building::primitives::CellBox;
@@ -229,6 +231,10 @@ WallPicking PickingOf(const BuildingTuning& tuning) {
 
 // A click of the Wall mode: it sets the draft's next point, and the third makes the wall
 // from its nodes (existing ones where it snapped to them).
+z13::gameplay::SpawnNamer& NamerOf(BuildRun& run, flecs::entity player) {
+  return run.NamerOf(StampNow(player.world(), player.get<z13::gameplay::Player>().id));
+}
+
 void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
   flecs::world world = player.world();
   const std::optional<WallDraft> draft = DraftOf(player);
@@ -250,19 +256,19 @@ void ProcessWallClick(flecs::entity player, flecs::entity tool, const Aim& aim, 
     log_debug("station: wall refused: {}", valid.error());
     return;
   }
-  SpawnWall(world, run.counters, faced->wall);
+  SpawnWall(world, NamerOf(run, player), faced->wall);
   player.remove<WallDraft>();
 }
 
-std::optional<uint32_t> MergeDraftNode(flecs::entity player) {
+std::optional<WallId> MergeDraftNode(flecs::entity player) {
   return player.has<WallMergeDraft>() ? std::optional(player.get<WallMergeDraft>().node_id) : std::nullopt;
 }
 
 // A click of the Merge mode: the first picks a wall node, the second merges it with another.
 void ProcessMergeClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
   flecs::world world = player.world();
-  const std::optional<uint32_t> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
-  const std::optional<uint32_t> first = MergeDraftNode(player);
+  const std::optional<WallId> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
+  const std::optional<WallId> first = MergeDraftNode(player);
   const auto plan = CheckPermission(player).and_then([&]() -> std::expected<std::optional<NodeMerge>, std::string> {
     if (!clicked) {
       return std::unexpected(std::string {"no wall node there"});
@@ -282,18 +288,18 @@ void ProcessMergeClick(flecs::entity player, flecs::entity tool, const Aim& aim,
     player.set(WallMergeDraft {.node_id = *clicked});
     return;
   }
-  ApplyNodeMerge(world, run.counters, **plan);
+  ApplyNodeMerge(world, NamerOf(run, player), **plan);
   player.remove<WallMergeDraft>();
 }
 
-std::optional<uint32_t> BridgeDraftNode(flecs::entity player) {
+std::optional<WallId> BridgeDraftNode(flecs::entity player) {
   return player.has<WallBridgeDraft>() ? std::optional(player.get<WallBridgeDraft>().node_id) : std::nullopt;
 }
 
 // The bridge from the stick at `first` to the one at `second` with the tool's thickness, if it
 // can stand: the player may build and the wall fits (wall_fit.h).
 std::expected<FacedWall, std::string> CheckedBridge(
-    flecs::entity player, flecs::entity tool, uint32_t first, uint32_t second, const Aim& aim,
+    flecs::entity player, flecs::entity tool, WallId first, WallId second, const Aim& aim,
     const BuildView& view) {
   flecs::world world = player.world();
   const bool flipped = player.has<WallBridgeDraft>() && player.get<WallBridgeDraft>().flipped;
@@ -313,8 +319,8 @@ std::expected<FacedWall, std::string> CheckedBridge(
 // whose stick matches.
 void ProcessBridgeClick(flecs::entity player, flecs::entity tool, const Aim& aim, BuildRun& run) {
   flecs::world world = player.world();
-  const std::optional<uint32_t> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
-  const std::optional<uint32_t> first = BridgeDraftNode(player);
+  const std::optional<WallId> clicked = NearestWallNode(world, aim, run.tuning.get().wall_snap_cells);
+  const std::optional<WallId> first = BridgeDraftNode(player);
   const auto picked = CheckPermission(player).and_then([&]() -> Status {
     if (!clicked || SticksAt(world, *clicked).empty()) {
       return std::unexpected(std::string {"no wall node there"});
@@ -334,7 +340,7 @@ void ProcessBridgeClick(flecs::entity player, flecs::entity tool, const Aim& aim
     log_debug("station: bridge refused: {}", bridge.error());
     return;
   }
-  SpawnWall(world, run.counters, bridge->wall);
+  SpawnWall(world, NamerOf(run, player), bridge->wall);
   player.remove<WallBridgeDraft>();
 }
 
@@ -354,7 +360,7 @@ void ProcessOpeningClick(flecs::entity player, flecs::entity tool, const Aim& ai
     log_debug("station: opening refused: {}", allowed.error());
     return;
   }
-  SpawnWallOpening(player.world(), run.counters, aimed->opening);
+  SpawnWallOpening(player.world(), NamerOf(run, player), aimed->opening);
 }
 
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
@@ -420,12 +426,12 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
       log_debug("station: cut refused: {}", plan.error());
       return;
     }
-    ApplyCut(world, *plan, run);
+    ApplyCut(world, *plan, run, NamerOf(run, player));
     run.spawn_points -= plan->spawn_points_removed;
   }
   if (kind != BuildKind::kCut) {
     const flecs::entity created =
-        CreateBlock(world, NextBlockName(world, run.counters), block, run.palette, run.tuning);
+        CreateBlock(world, NamerOf(run, player).NextName("Block"), block, run.palette, run.tuning);
     run.index.get().Insert(created.id(), ShapeOfBlock(block, run.palette));
     run.made.emplace(created.id(), block);
     if (spawns) {
@@ -444,11 +450,10 @@ void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const Spa
   std::optional<BuildRun> run;
   while (it.next()) {
     if (!run) {
-      const auto& tuning = it.field<const BuildingTuning>(5)[0];
+      const auto& tuning = it.field<const BuildingTuning>(4)[0];
       run = BuildRun {
           .index = it.field<BlockIndex>(2)[0],
-          .counters = it.field<z13::gameplay::IdCounters>(3)[0],
-          .palette = it.field<const BlockPalette>(4)[0].palette,
+          .palette = it.field<const BlockPalette>(3)[0].palette,
           .tuning = tuning,
           .players = PlayerSpheres(players),
           .spawn_clearances = SpawnClearances(spawn_blocks, tuning),
@@ -535,9 +540,9 @@ BrushPreview WallBrushPreview(flecs::entity owner, flecs::entity tool, const Aim
 // What the Merge and Bridge modes show of their nodes: the one picked first as a marker, and the
 // sticks of that one and of the one aimed at.
 void AddNodeMarks(
-    flecs::world world, const std::optional<uint32_t>& first, const std::optional<uint32_t>& hovered,
+    flecs::world world, const std::optional<WallId>& first, const std::optional<WallId>& hovered,
     BrushPreview& preview) {
-  for (const std::optional<uint32_t>& node : {first, hovered != first ? hovered : std::nullopt}) {
+  for (const std::optional<WallId>& node : {first, hovered != first ? hovered : std::nullopt}) {
     if (node) {
       const std::vector<BrushLine> sticks = StickLinesAt(world, *node);
       preview.lines.insert(preview.lines.end(), sticks.begin(), sticks.end());
@@ -550,8 +555,8 @@ void AddNodeMarks(
 
 BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
   flecs::world world = owner.world();
-  const std::optional<uint32_t> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
-  const std::optional<uint32_t> first = MergeDraftNode(owner);
+  const std::optional<WallId> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
+  const std::optional<WallId> first = MergeDraftNode(owner);
   const std::optional<Eigen::Vector3i> cell = hovered ? WallNodeCell(world, *hovered) : std::nullopt;
   bool valid = hovered.has_value() && CheckPermission(owner).has_value();
   Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
@@ -568,8 +573,8 @@ BrushPreview MergeBrushPreview(flecs::entity owner, flecs::entity tool, const Ai
 
 BrushPreview BridgeBrushPreview(flecs::entity owner, flecs::entity tool, const Aim& aim, const BuildView& view) {
   flecs::world world = owner.world();
-  const std::optional<uint32_t> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
-  const std::optional<uint32_t> first = BridgeDraftNode(owner);
+  const std::optional<WallId> hovered = NearestWallNode(world, aim, view.tuning.get().wall_snap_cells);
+  const std::optional<WallId> first = BridgeDraftNode(owner);
   const std::optional<Eigen::Vector3i> cell = hovered ? WallNodeCell(world, *hovered) : std::nullopt;
   const Eigen::Vector3i shown = cell.value_or(aim.point.array().round().cast<int>().matrix());
   BrushPreview preview {.block = CellMarker(shown), .valid = false, .kind = BuildKind::kBuild};
@@ -676,11 +681,10 @@ void RegisterSystems(flecs::world world) {
 
   // Same-tick requests compete, so they go in player id order (see CompareByPlayerId).
   world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, BlockIndex,
-               z13::gameplay::IdCounters, const BlockPalette, const BuildingTuning>(
+               const BlockPalette, const BuildingTuning>(
       "BlockBuildingSystem::ProcessBuildRequests")
       .kind<StationBuildPhase>()
       .term_at(2).inout()
-      .term_at(3).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::inventory::ActiveItem>()

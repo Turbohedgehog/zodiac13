@@ -33,7 +33,7 @@ using z13::testing::EnterBuildMode;
 using z13::testing::kTestDeltaTime;
 using z13::testing::Z13TestWorld;
 
-constexpr uint32_t kFirstBlockId = 1;
+constexpr uint32_t kNextPlayerId = 1;
 
 void PlaceBlock(Z13TestWorld& test_world) {EnterBuildMode(test_world);
   Click(test_world, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
@@ -78,7 +78,7 @@ TEST(MainMenuTest, ExitToMainMenuDestroysPlayerAndBlocks) {
 TEST(MainMenuTest, RestartedGameGetsFreshIdCounters) {
   Z13TestWorld test_world;
   PlaceBlock(test_world);
-  ASSERT_EQ(test_world.World().get<IdCounters>().last_block_id, kFirstBlockId);
+  ASSERT_EQ(test_world.World().get<IdCounters>().last_player_id, kNextPlayerId);
 
   test_world.ExitToMainMenu();
   test_world.Tick(kTestDeltaTime);
@@ -86,7 +86,7 @@ TEST(MainMenuTest, RestartedGameGetsFreshIdCounters) {
   PlaceBlock(test_world);
 
   EXPECT_EQ(test_world.World().count<Block>(), 1);
-  EXPECT_EQ(test_world.World().get<IdCounters>().last_block_id, kFirstBlockId);
+  EXPECT_EQ(test_world.World().get<IdCounters>().last_player_id, kNextPlayerId);
 }
 
 }  // namespace

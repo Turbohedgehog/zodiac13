@@ -23,7 +23,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/spawn_stamp.h>
 #include <z13/components/wall.h>
 #include <primitives/wall_panel.h>
 
@@ -31,35 +31,33 @@
 
 namespace z13::building {
 
-// A node at `cell` named by the next id of `counters`.
-flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3i& cell);
+flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell);
 
 // A segment between two nodes (by id); its panel block follows in WallPanelSystem.
 flecs::entity SpawnWallSegment(
-    flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallSegment& segment);
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::station::WallSegment& segment);
 
 // A segment for `wall` between nodes at its two ends, existing ones where nodes already stand.
 flecs::entity SpawnWall(
-    flecs::world world, z13::gameplay::IdCounters& counters, const z13::building::primitives::WallGeometry& wall);
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall);
 
 // The id of the node at `cell`, spawning one when there is none.
-uint32_t WallNodeAt(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3i& cell);
+z13::station::WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell);
 
-std::optional<flecs::entity> FindWallNode(flecs::world world, uint32_t id);
-std::optional<flecs::entity> FindWallSegment(flecs::world world, uint32_t id);
-std::optional<flecs::entity> FindWallOpening(flecs::world world, uint32_t id);
+std::optional<flecs::entity> FindWallNode(flecs::world world, z13::station::WallId id);
+std::optional<flecs::entity> FindWallSegment(flecs::world world, z13::station::WallId id);
+std::optional<flecs::entity> FindWallOpening(flecs::world world, z13::station::WallId id);
 
 // The wall of `segment` with its nodes at `cell_a` and `cell_b`, and its openings.
 JointWall JointWallOf(
     const z13::station::WallSegment& segment, const Eigen::Vector3i& cell_a, const Eigen::Vector3i& cell_b,
     std::vector<z13::station::WallOpening> openings = {});
 
-// An opening in a segment, named by the next id of `counters`.
 flecs::entity SpawnWallOpening(
-    flecs::world world, z13::gameplay::IdCounters& counters, const z13::station::WallOpening& opening);
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::station::WallOpening& opening);
 
 // The ids of the segments that have an opening.
-std::set<uint32_t> SegmentsWithOpenings(flecs::world world);
+std::set<z13::station::WallId> SegmentsWithOpenings(flecs::world world);
 
 // Every segment with its nodes' cells, in segment id order.
 std::vector<JointWall> JointWallsOf(flecs::world world);
@@ -69,6 +67,6 @@ std::vector<JointWall> JointWallsOf(flecs::world world);
 std::vector<JointWall> JointWallsWith(flecs::world world, const z13::building::primitives::WallGeometry& wall);
 
 // Removes a segment with its openings, and the nodes no other segment uses.
-void DestroyWallSegment(flecs::world world, uint32_t segment_id);
+void DestroyWallSegment(flecs::world world, z13::station::WallId segment_id);
 
 }  // namespace z13::building

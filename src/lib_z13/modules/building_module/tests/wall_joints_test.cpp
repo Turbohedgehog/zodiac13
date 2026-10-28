@@ -27,10 +27,13 @@
 #include "../src/wall_entities.h"
 #include "../src/wall_joints.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // Where walls meet two at a node they end along one seam; the changes that would break one are refused.
 namespace z13::building {
 namespace {
+
+using z13::station::WallId;
 
 using z13::station::WallAxis;
 using z13::testing::StationWorld;
@@ -58,7 +61,7 @@ WallGeometry Geometry(const Eigen::Vector3i& from, const Eigen::Vector3i& to, Wa
       .thickness = kThickness};
 }
 
-JointWall Wall(uint32_t id, uint32_t node_a, uint32_t node_b, const WallGeometry& geometry) {
+JointWall Wall(WallId id, WallId node_a, WallId node_b, const WallGeometry& geometry) {
   return {.id = id, .node_a = node_a, .node_b = node_b, .geometry = geometry};
 }
 
@@ -206,7 +209,7 @@ TEST(WallJointsTest, AWallAboutToBeLaidSeesTheNodesAtItsEnds) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
   const WallGeometry standing_wall = Geometry(kOrigin, kEast);
-  SpawnWall(world, world.get_mut<z13::gameplay::IdCounters>(), standing_wall);
+  SpawnWall(world, z13::testing::TestNamer(world), standing_wall);
   const std::vector<JointWall> standing = JointWallsOf(world);
 
   ASSERT_EQ(standing.size(), 1u);

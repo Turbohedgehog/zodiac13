@@ -355,7 +355,6 @@ TEST(GameStateTest, TransfersStateToAnotherWorld) {
   EXPECT_TRUE(target.Player().get<Eigen::Matrix4f>().isApprox(
       source.Player().get<Eigen::Matrix4f>(), kTestEpsilon));
   EXPECT_TRUE(target.Player().has<BuildingTool>());
-  EXPECT_EQ(Counters(target).last_block_id, Counters(source).last_block_id);
   EXPECT_EQ(Counters(target).last_player_id, Counters(source).last_player_id);
   // The settle frame above (Frames(target, 1)) advances SimulationClock.tick past what
   // was captured in `json`, same as any other state a live system could still touch
@@ -373,7 +372,7 @@ TEST(GameStateTest, SingletonsAreNotSavedButCountersAre) {
 
   EXPECT_EQ(json.find("Gameplay"), std::string::npos);
   EXPECT_NE(json.find("IdCounters"), std::string::npos);
-  EXPECT_EQ(Counters(test_world).last_block_id, 1u);
+  EXPECT_EQ(Counters(test_world).last_player_id, 1u);
 }
 
 TEST(GameStateTest, LoadingAnEmptySnapshotKeepsTheSingletons) {

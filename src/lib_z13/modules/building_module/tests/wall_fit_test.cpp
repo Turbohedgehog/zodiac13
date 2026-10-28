@@ -31,6 +31,7 @@
 #include "../src/wall_entities.h"
 #include "../src/wall_fit.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // Whether a wall can be laid: its panel and the panels it re-cuts, against what stands.
 namespace z13::building {
@@ -58,7 +59,7 @@ WallGeometry Wall(const Eigen::Vector3i& from, const Eigen::Vector3i& to, int th
 
 void Lay(Z13TestWorld& test_world, const WallGeometry& wall) {
   flecs::world world = test_world.World();
-  SpawnWall(world, world.get_mut<z13::gameplay::IdCounters>(), wall);
+  SpawnWall(world, z13::testing::TestNamer(world), wall);
   test_world.Tick();
   test_world.Tick();
 }
@@ -149,15 +150,17 @@ Status OpeningFits(Z13TestWorld& test_world, const z13::station::WallOpening& op
   return CheckOpeningFits(test_world.World(), opening, ViewOf(test_world.World()));
 }
 
-constexpr uint32_t kFirstSegment = 1;
+z13::station::WallId OnlySegment(Z13TestWorld& test_world) {
+  return z13::testing::LastSegmentId(test_world.World());
+}
 
 TEST(WallFitTest, ADoorInTheMiddleOfAWallFits) {
   Z13TestWorld test_world = StationWorld();
   Lay(test_world, Wall(kCorner, kCorner + kUp));
 
   const Status fits = OpeningFits(
-      test_world, {.segment_id = kFirstSegment, .kind = z13::station::OpeningKind::kDoor, .offset = 4, .width = 3,
-                   .height = 5});
+      test_world, {.segment_id = OnlySegment(test_world), .kind = z13::station::OpeningKind::kDoor, .offset = 4,
+                   .width = 3, .height = 5});
 
   EXPECT_TRUE(fits.has_value()) << (fits ? "" : fits.error());
 }
@@ -167,8 +170,8 @@ TEST(WallFitTest, AnOpeningTooTallForTheWallIsRefused) {
   Lay(test_world, Wall(kCorner, kCorner + kUp));
 
   const Status fits = OpeningFits(
-      test_world, {.segment_id = kFirstSegment, .kind = z13::station::OpeningKind::kDoor, .offset = 4, .width = 3,
-                   .height = kStickLength});
+      test_world, {.segment_id = OnlySegment(test_world), .kind = z13::station::OpeningKind::kDoor, .offset = 4,
+                   .width = 3, .height = kStickLength});
 
   ASSERT_FALSE(fits.has_value());
   EXPECT_NE(fits.error().find("up a wall"), std::string::npos) << fits.error();
@@ -177,7 +180,7 @@ TEST(WallFitTest, AnOpeningTooTallForTheWallIsRefused) {
 TEST(WallFitTest, AnOpeningInAWallThatIsGoneIsRefused) {
   Z13TestWorld test_world = StationWorld();
 
-  EXPECT_FALSE(OpeningFits(test_world, {.segment_id = kFirstSegment, .offset = 4, .width = 3, .height = 5})
+  EXPECT_FALSE(OpeningFits(test_world, {.segment_id = OnlySegment(test_world), .offset = 4, .width = 3, .height = 5})
                    .has_value());
 }
 

@@ -33,9 +33,9 @@ namespace z13::building {
 
 // A wall segment with its nodes' cells and the openings cut in it.
 struct JointWall {
-  uint32_t id {};
-  uint32_t node_a {};
-  uint32_t node_b {};
+  z13::station::WallId id {};
+  z13::station::WallId node_a {};
+  z13::station::WallId node_b {};
   z13::building::primitives::WallGeometry geometry;
   std::vector<z13::station::WallOpening> openings;
 };
@@ -44,9 +44,9 @@ struct JointWall {
 // seam, or any number meet as a T or an X when two run through (the others end on their faces).
 // Other nodes, bent walls, and joints whose seam can't be had, leave the walls square-cut there.
 struct WallJoints {
-  std::map<uint32_t, z13::building::primitives::WallEnds> ends;
+  std::map<z13::station::WallId, z13::building::primitives::WallEnds> ends;
   // The joints refused, by the ids of the walls in them, and why.
-  std::map<uint32_t, std::string> refused;
+  std::map<z13::station::WallId, std::string> refused;
 };
 
 WallJoints SolveJoints(std::span<const JointWall> walls, int max_reach);

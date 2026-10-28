@@ -88,7 +88,7 @@ std::expected<CutPlan, std::string> PlanCut(
   return plan;
 }
 
-void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
+void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run, z13::gameplay::SpawnNamer& namer) {
   for (const auto& [entity, block] : plan.removed) {
     run.index.get().Erase(entity.id());
     run.made.erase(entity.id());
@@ -96,7 +96,7 @@ void ApplyCut(flecs::world world, const CutPlan& plan, BuildRun& run) {
   }
   for (const Block& remainder : plan.remainders) {
     const flecs::entity created =
-        CreateBlock(world, NextBlockName(world, run.counters), remainder, run.palette, run.tuning);
+        CreateBlock(world, namer.NextName("Block"), remainder, run.palette, run.tuning);
     run.index.get().Insert(created.id(), z13::building::primitives::ShapeOfBlock(remainder, run.palette));
     run.made.emplace(created.id(), remainder);
   }

@@ -22,8 +22,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/gameplay.h>
 #include <z13/components/block.h>
+#include <z13/components/spawn_stamp.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
@@ -40,13 +40,18 @@ using MadeBlocks = std::unordered_map<flecs::entity_t, z13::station::Block>;
 // What the build requests of one tick share, so each sees what the ones before it made.
 struct BuildRun {
   std::reference_wrapper<grid::BlockIndex> index;
-  std::reference_wrapper<z13::gameplay::IdCounters> counters;
   std::reference_wrapper<const z13::building::primitives::Palette> palette;
   std::reference_wrapper<const BuildingTuning> tuning;
   std::vector<PlayerSphere> players;
   std::vector<z13::building::primitives::CellBox> spawn_clearances;
   int spawn_points {};
   MadeBlocks made;
+  // By player: what each spawns this tick is numbered in turn, across every request of the run.
+  std::unordered_map<uint32_t, z13::gameplay::SpawnNamer> namers;
+
+  z13::gameplay::SpawnNamer& NamerOf(const z13::gameplay::SpawnStamp& stamp) {
+    return namers.try_emplace(stamp.player_id, stamp).first->second;
+  }
 
   BuildView View() const {
     return {.palette = palette, .index = std::cref(index.get()), .tuning = tuning, .players = players,

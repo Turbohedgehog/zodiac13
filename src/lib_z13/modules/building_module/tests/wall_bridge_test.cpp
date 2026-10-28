@@ -37,10 +37,13 @@
 #include "../src/wall_bridge.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // The Bridge mode: a wall from the stick at one node to the same stick at another.
 namespace z13::building {
 namespace {
+
+using z13::station::WallId;
 
 using z13::station::BrushPreview;
 using z13::station::WallAxis;
@@ -62,36 +65,36 @@ constexpr int kRun = 10;
 constexpr int kGap = 20;
 const Eigen::Vector3f kEye {-50.f, 0.f, 0.f};
 
-uint32_t AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
+WallId AddNode(Z13TestWorld& test_world, const Eigen::Vector3i& cell) {
   flecs::world world = test_world.World();
-  return SpawnWallNode(world, world.get_mut<z13::gameplay::IdCounters>(), cell).get<WallNode>().id;
+  return SpawnWallNode(world, z13::testing::TestNamer(world), cell).get<WallNode>().id;
 }
 
-void AddWall(Z13TestWorld& test_world, uint32_t a, uint32_t b, WallAxis axis, int stick_length) {
+void AddWall(Z13TestWorld& test_world, WallId a, WallId b, WallAxis axis, int stick_length) {
   flecs::world world = test_world.World();
-  SpawnWallSegment(world, world.get_mut<z13::gameplay::IdCounters>(),
+  SpawnWallSegment(world, z13::testing::TestNamer(world),
                    {.node_a = a, .node_b = b, .stick_a = {axis, stick_length}, .stick_b = {axis, stick_length},
                        .thickness = kThickness});
 }
 
 // A wall of `stick_length` from `from` by `run`, so its node at `from` carries that stick.
-uint32_t AddStickAt(
+WallId AddStickAt(
     Z13TestWorld& test_world, const Eigen::Vector3i& from, WallAxis axis, int stick_length,
     const Eigen::Vector3i& run = Eigen::Vector3i(0, kRun, 0)) {
-  const uint32_t node = AddNode(test_world, from);
+  const WallId node = AddNode(test_world, from);
   AddWall(test_world, node, AddNode(test_world, from + run), axis, stick_length);
   return node;
 }
 
-std::expected<FacedWall, std::string> Bridge(Z13TestWorld& test_world, uint32_t first, uint32_t second) {
+std::expected<FacedWall, std::string> Bridge(Z13TestWorld& test_world, WallId first, WallId second) {
   return PlanBridge(test_world.World(), first, second, kThickness, kEye,
                     test_world.World().get<z13::building::primitives::BlockPalette>().palette);
 }
 
 TEST(WallBridgeTest, TwoNodesWithTheSameStickGetAWallBetweenThem) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t b = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId b = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kStickLength);
 
   const auto bridge = Bridge(test_world, a, b);
 
@@ -104,16 +107,16 @@ TEST(WallBridgeTest, TwoNodesWithTheSameStickGetAWallBetweenThem) {
 
 TEST(WallBridgeTest, SticksPointingOppositeWaysAreRefused) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t opposite = AddStickAt(test_world, {kGap, 0, kGap}, WallAxis::kZ, -kStickLength);
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId opposite = AddStickAt(test_world, {kGap, 0, kGap}, WallAxis::kZ, -kStickLength);
 
   EXPECT_FALSE(Bridge(test_world, a, opposite).has_value());
 }
 
 TEST(WallBridgeTest, SticksOfOtherAxesMakeABentWallOfTwoTriangles) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t turned = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId turned = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
 
   const auto bridge = Bridge(test_world, a, turned);
 
@@ -126,8 +129,8 @@ TEST(WallBridgeTest, SticksOfOtherAxesMakeABentWallOfTwoTriangles) {
 
 TEST(WallBridgeTest, FlippingTakesTheOtherDiagonalOfABentWall) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t turned = AddStickAt(test_world, {kGap, 3, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId turned = AddStickAt(test_world, {kGap, 3, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
   const auto palette = test_world.World().get<z13::building::primitives::BlockPalette>().palette;
 
   const auto plain = PlanBridge(test_world.World(), a, turned, kThickness, kEye, palette);
@@ -140,8 +143,8 @@ TEST(WallBridgeTest, FlippingTakesTheOtherDiagonalOfABentWall) {
 
 TEST(WallBridgeTest, AStickOfTheSameAxisIsPreferredToAnOldOneOfAnother) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t far = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId far = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kY, kStickLength, {kRun, 0, 0});
   AddWall(test_world, far, AddNode(test_world, {kGap, kRun, 0}), WallAxis::kZ, kStickLength);
 
   const auto bridge = Bridge(test_world, a, far);
@@ -153,8 +156,8 @@ TEST(WallBridgeTest, AStickOfTheSameAxisIsPreferredToAnOldOneOfAnother) {
 
 TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t tall = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t shorter = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
+  const WallId tall = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId shorter = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
 
   const auto down = Bridge(test_world, tall, shorter);
   const auto up = Bridge(test_world, shorter, tall);
@@ -171,12 +174,12 @@ TEST(WallBridgeTest, SticksOfOtherLengthMakeATrapezoidEitherWay) {
 
 TEST(WallBridgeTest, ABridgeCarriesTheStickOfTheNodeItReaches) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t b = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId b = AddStickAt(test_world, {kGap, 0, 0}, WallAxis::kZ, kShortStick);
   const auto bridge = Bridge(test_world, a, b);
   ASSERT_TRUE(bridge.has_value()) << bridge.error();
   flecs::world world = test_world.World();
-  SpawnWall(world, world.get_mut<z13::gameplay::IdCounters>(), bridge->wall);
+  SpawnWall(world, z13::testing::TestNamer(world), bridge->wall);
 
   EXPECT_EQ(SticksAt(world, a), (std::vector<WallStick> {{WallAxis::kZ, kStickLength}, {WallAxis::kZ, kStickLength}}));
   EXPECT_EQ(SticksAt(world, b), (std::vector<WallStick> {{WallAxis::kZ, kShortStick}, {WallAxis::kZ, kShortStick}}));
@@ -184,15 +187,15 @@ TEST(WallBridgeTest, ABridgeCarriesTheStickOfTheNodeItReaches) {
 
 TEST(WallBridgeTest, ANodeCannotBridgeToItself) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
 
   EXPECT_FALSE(Bridge(test_world, a, a).has_value());
 }
 
 TEST(WallBridgeTest, ANodeWithoutAWallHasNoStick) {
   Z13TestWorld test_world = StationWorld();
-  const uint32_t a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
-  const uint32_t bare = AddNode(test_world, {kGap, 0, 0});
+  const WallId a = AddStickAt(test_world, {0, 0, 0}, WallAxis::kZ, kStickLength);
+  const WallId bare = AddNode(test_world, {kGap, 0, 0});
 
   EXPECT_TRUE(SticksAt(test_world.World(), bare).empty());
   EXPECT_FALSE(Bridge(test_world, a, bare).has_value());
@@ -243,7 +246,7 @@ TEST(WallBridgeTest, TwoClicksLayAWallBetweenTheNodesUnderTheBrush) {
     return cell.value();
   };
   // Two wall ends facing across a gap along Z, which the bridge closes.
-  const uint32_t a = AddStickAt(test_world, brush_cell(), WallAxis::kX, kStickLength, {0, 0, -kRun});
+  const WallId a = AddStickAt(test_world, brush_cell(), WallAxis::kX, kStickLength, {0, 0, -kRun});
   builder.add<RequestBuildBlock>();
   test_world.Tick();
   ASSERT_TRUE(builder.has<WallBridgeDraft>());

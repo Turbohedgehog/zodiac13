@@ -16,6 +16,8 @@
 
 #include "building_system.h"
 
+#include "block_entities.h"
+
 #include <format>
 #include <string>
 #include <optional>
@@ -27,6 +29,7 @@
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/spawn_stamp.h>
 #include <z13/components/gameplay_phases.h>
 #include <z13/components/player.h>
 #include <z13/components/input_phases.h>
@@ -121,26 +124,15 @@ std::optional<Eigen::Matrix4f> FindBrushTransform(flecs::entity player) {
   return transform;
 }
 
-// Named after a state counter so names stay unique across save/load; a counter that
-// lags behind existing names (hand-edited or older save) skips the taken ones.
-//
-// Temporary: probing world.lookup() in a loop is a brute-force way to find a free
-// name and doesn't scale. Revisit once name collisions actually show up in practice.
-flecs::entity SpawnCube(flecs::world world, z13::gameplay::IdCounters& counters, const Eigen::Vector3f& center) {
-  std::string name;
-  do {
-    name = std::format("Block_{}", ++counters.last_block_id);
-  } while (world.lookup(name.c_str()));
-
+flecs::entity SpawnCube(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3f& center) {
   return z13::station::SpawnBlock(
-      world.entity(name.c_str()),
+      world.entity(namer.NextName("Block").c_str()),
       z13::building::primitives::PlaceCentredOn(center / z13::station::kCellSize, z13::station::CubeSpec()));
 }
 
 // The ship scene's free building: a cube at the brush, overlaps allowed. Station mode
 // builds through BlockBuildingSystem instead and leaves the request to it.
-void ProcessBuildBlockRequest(
-    flecs::entity player, RequestBuildBlock, const z13::gameplay::Player&, z13::gameplay::IdCounters& counters) {
+void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock, const z13::gameplay::Player& owner) {
   if (player.world().has<z13::station::StationMode>()) {
     return;
   }
@@ -151,7 +143,8 @@ void ProcessBuildBlockRequest(
     return;
   }
 
-  SpawnCube(player.world(), counters, z13::math::ExtractTranslation<float>(*brush_transform));
+  z13::gameplay::SpawnNamer namer(StampNow(player.world(), owner.id));
+  SpawnCube(player.world(), namer, z13::math::ExtractTranslation<float>(*brush_transform));
 }
 
 void UpdateBuildingTool(
@@ -193,7 +186,7 @@ void RegisterSystems(flecs::world world) {
   // the brush position UpdateBrush just refreshed this frame.
   // The write<> terms make flecs merge the spawned block before systems that read
   // it later in the frame (e.g. bullet's body sync).
-  world.system<RequestBuildBlock, const z13::gameplay::Player, z13::gameplay::IdCounters>(
+  world.system<RequestBuildBlock, const z13::gameplay::Player>(
       "BuildingSystem::ProcessBuildBlockRequest")
     .kind<UpdateBuildingToolPhase>()
     .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)

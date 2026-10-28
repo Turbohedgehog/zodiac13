@@ -18,6 +18,8 @@
 
 #include <format>
 
+#include <lib_core/time/simulation_clock.h>
+
 #include <Eigen/Dense>
 
 #include <primitives_generated.h>
@@ -66,12 +68,8 @@ CellBox SpawnClearance(const Block& marker, const BuildingTuning& tuning) {
   };
 }
 
-std::string NextBlockName(flecs::world world, z13::gameplay::IdCounters& counters) {
-  std::string name;
-  do {
-    name = std::format("Block_{}", ++counters.last_block_id);
-  } while (world.lookup(name.c_str()));
-  return name;
+z13::gameplay::SpawnStamp StampNow(flecs::world world, uint32_t player_id) {
+  return {.tick = world.get<z13::flecs_tools::SimulationClock>().tick, .player_id = player_id};
 }
 
 flecs::entity CreateBlock(

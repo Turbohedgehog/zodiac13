@@ -35,6 +35,7 @@
 #include "../src/wall_brush.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
+#include "support/test_namer.h"
 
 // The Wall mode's three clicks: snapping, the draft, the side the wall thickens to.
 namespace z13::building {
@@ -76,9 +77,9 @@ TEST(WallBrushTest, AClickRoundsToTheGridOrSnapsToAnAnchor) {
 TEST(WallBrushTest, AnchorsComeInOneOrderWhateverTheSpawnOrder) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
-  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  auto& namer = z13::testing::TestNamer(world);
   for (const Eigen::Vector3i& cell : {Eigen::Vector3i(5, 0, 0), Eigen::Vector3i(1, 9, 0), Eigen::Vector3i(1, 2, 3)}) {
-    SpawnWallNode(world, counters, cell);
+    SpawnWallNode(world, namer, cell);
   }
   const std::vector<Eigen::Vector3i> expected {{1, 2, 3}, {1, 9, 0}, {5, 0, 0}};
   EXPECT_EQ(WallAnchors(world), expected);
@@ -373,15 +374,15 @@ TEST(WallBrushTest, TheClicksCarryTheDraftAndARayAlongTheAxisFindsNoLength) {
 TEST(WallBrushTest, AWallGetsOneSegmentAndSharesTheNodesItMeets) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
-  auto& counters = world.get_mut<z13::gameplay::IdCounters>();
+  auto& namer = z13::testing::TestNamer(world);
   const z13::building::primitives::WallGeometry first {
       .node_a = {0, 0, 0}, .node_b = {12, 4, 0}, .stick_a = {WallAxis::kZ, 8}, .stick_b = {WallAxis::kZ, 8},
       .thickness = 2};
   auto second = first;
   second.node_a = first.node_b;
   second.node_b = {24, 4, 0};
-  SpawnWall(world, counters, first);
-  SpawnWall(world, counters, second);
+  SpawnWall(world, namer, first);
+  SpawnWall(world, namer, second);
   test_world.Tick();
   test_world.Tick();
 
