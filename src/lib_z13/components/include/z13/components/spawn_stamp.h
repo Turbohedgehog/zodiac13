@@ -30,6 +30,9 @@ struct SpawnStamp {
   uint32_t player_id {};
 };
 
+// The spawner of what the scene makes, in no player's name.
+constexpr uint32_t kSceneSpawner = 0xFFFF;
+
 constexpr int kSpawnPlayerBits = 16;
 constexpr int kSpawnIndexBits = 16;
 constexpr uint64_t kSpawnPlayerMask = (uint64_t {1} << kSpawnPlayerBits) - 1;

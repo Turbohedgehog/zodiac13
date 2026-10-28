@@ -52,8 +52,7 @@ void PopulateStationScene(
     const StationSceneChoice& choice,
     const BlockPalette& palette,
     const BuildingTuning& tuning,
-    const z13::Assets& assets,
-    z13::gameplay::IdCounters& counters) {
+    const z13::Assets& assets) {
   const auto& scene = choice.scene;
   if (!scene) {
     return;
@@ -86,14 +85,15 @@ void PopulateStationScene(
   for (size_t i = 0; i < blocks->size(); ++i) {
     CreateBlock(world, std::format("Station_{}", i), (*blocks)[i], palette.palette, tuning);
   }
-  SpawnBlueprintWalls(world, counters, *walls);
+  z13::gameplay::SpawnNamer namer(StampNow(world, z13::gameplay::kSceneSpawner));
+  SpawnBlueprintWalls(world, namer, *walls);
 }
 
 void RegisterSystems(flecs::world world) {
   // Without the palette (CheckBlockPalette stops the launch first) this never fires.
   world
       .observer<z13::gameplay::PopulateSceneEvent, const StationSceneChoice, const BlockPalette, const BuildingTuning,
-                const z13::Assets, z13::gameplay::IdCounters>(
+                const z13::Assets>(
           "StationSceneSystem::PopulateStationScene")
       .event<z13::gameplay::PopulateSceneEvent>()
       .with<StationMode>()

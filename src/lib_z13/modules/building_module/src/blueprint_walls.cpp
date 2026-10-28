@@ -78,10 +78,9 @@ std::vector<std::string> BlueprintJointRefusals(std::span<const WallGeometry> wa
   return refusals;
 }
 
-void SpawnBlueprintWalls(
-    flecs::world world, z13::gameplay::IdCounters& counters, std::span<const WallGeometry> walls) {
+void SpawnBlueprintWalls(flecs::world world, z13::gameplay::SpawnNamer& namer, std::span<const WallGeometry> walls) {
   for (const WallGeometry& wall : walls) {
-    SpawnWall(world, counters, wall);
+    SpawnWall(world, namer, wall);
   }
 }
 
