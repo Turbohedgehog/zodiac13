@@ -190,6 +190,7 @@ if(Z13_BUILD_BENCHMARKS)
     APPEND
     PROJECT_SOURCE_FILES
     src/lib_core/bench/thread_pool_bench_test.cpp
+    ${MODULES_DIR}/bullet_module/tests/bench/empty_sector_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/cell_light_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/props_culling_bench_test.cpp
