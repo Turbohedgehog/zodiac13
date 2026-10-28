@@ -20,6 +20,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -32,6 +33,7 @@
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/gameplay.h>
+#include <z13/components/inventory.h>
 #include <primitives/placement.h>
 #include <z13/components/net.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -41,6 +43,7 @@
 
 #include "../../../building_module/tests/support/station_builders.h"
 #include "../../../station_module/tests/support/room_blocks.h"
+#include "../../../z13_module/tests/support/building_test_helpers.h"
 #include "../../../z13_module/tests/support/load_session.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
 #include <net_module/state_digest.h>
@@ -168,6 +171,22 @@ class InterestSessionTest : public ::testing::Test {
 
   static uint32_t PlayerOf(Z13TestWorld& client) { return client.World().get<z13::gameplay::LocalPlayer>().id.value(); }
 
+  // Client 1's player walks out of reach of client 0 and comes back; returns its id.
+  uint32_t LeaveAndReenterThePresenceOfTheOtherClient() {
+    const uint32_t walker = PlayerOf(session_.Client(1));
+    const flecs::entity player = session_.Server().World().lookup(z13::gameplay::PlayerEntityName(walker).c_str());
+    const flecs::entity watcher = session_.Server().World().lookup(
+        z13::gameplay::PlayerEntityName(PlayerOf(session_.Client(0))).c_str());
+    EXPECT_TRUE(player.is_valid() && watcher.is_valid());
+    const int sector_cells = session_.Server().World().get<z13::NetTuning>().sector_size_cells;
+    const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
+    player.set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
+    Run(kSettleTicks);
+    player.set(watcher.get<Eigen::Matrix4f>());
+    Run(kSettleTicks);
+    return walker;
+  }
+
   z13::testing::LoadSession session_;
 };
 
@@ -207,22 +226,48 @@ TEST_F(InterestEventsTest, APlayerWhoWalksOutOfReachIsRemovedFromTheOtherClient)
 }
 
 TEST_F(InterestEventsTest, APlayerEnteringAClientsPresenceBringsItsHeldInput) {
-  const uint32_t walker = PlayerOf(session_.Client(1));
-  const flecs::entity player = session_.Server().World().lookup(z13::gameplay::PlayerEntityName(walker).c_str());
-  const flecs::entity watcher = session_.Server().World().lookup(
-      z13::gameplay::PlayerEntityName(PlayerOf(session_.Client(0))).c_str());
-  ASSERT_TRUE(player.is_valid() && watcher.is_valid());
-  const int sector_cells = session_.Server().World().get<z13::NetTuning>().sector_size_cells;
-  const float far_meters = static_cast<float>(kFarSector * sector_cells) * z13::station::kCellSize;
-  player.set(z13::testing::Facing({far_meters, 0.f, kBuilderHeightMeters}, Eigen::Vector3f::UnitX()));
-  Run(kSettleTicks);
-
-  player.set(watcher.get<Eigen::Matrix4f>());
-  Run(kSettleTicks);
+  const uint32_t walker = LeaveAndReenterThePresenceOfTheOtherClient();
 
   EXPECT_TRUE(Received<fbs::net::EntityEnteredT>(session_.Client(0), [walker](const auto& e) {
     return !e.held_values.empty() && e.held_values.front().player_id() == walker;
   }));
+}
+
+size_t ItemsCarriedBy(Z13TestWorld& world, uint32_t player_id) {
+  size_t items = 0;
+  world.World().query<const z13::inventory::Item, const z13::inventory::CarriedBy>().each(
+      [&](const z13::inventory::Item&, const z13::inventory::CarriedBy& carried) {
+        items += carried.player_id == player_id ? 1 : 0;
+      });
+  return items;
+}
+
+TEST_F(InterestStillTest, APlayerEnteringAClientsPresenceBringsItsItems) {
+  const uint32_t walker = LeaveAndReenterThePresenceOfTheOtherClient();
+
+  EXPECT_GT(ItemsCarriedBy(session_.Server(), walker), 0u);
+  EXPECT_EQ(ItemsCarriedBy(session_.Client(0), walker), ItemsCarriedBy(session_.Server(), walker));
+}
+
+std::optional<uint8_t> ActiveCellOf(Z13TestWorld& world, uint32_t player_id) {
+  const flecs::entity player = world.World().lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+  if (!player.is_valid() || !player.has<z13::inventory::Hotbar>()) {
+    return std::nullopt;
+  }
+  return player.get<z13::inventory::Hotbar>().active_cell;
+}
+
+TEST_F(InterestStillTest, TheToolKeyOfAPlayerWhoJustEnteredDoesTheSameOnTheOtherClient) {
+  const uint32_t walker = LeaveAndReenterThePresenceOfTheOtherClient();
+  const std::optional<uint8_t> before = ActiveCellOf(session_.Server(), walker);
+
+  z13::testing::Tap(session_.Client(1), z13::fbs::input::Keycode::KEY_TAB, [this] { session_.Tick(); });
+  Run(kSettleTicks);
+
+  const std::optional<uint8_t> after = ActiveCellOf(session_.Server(), walker);
+  ASSERT_TRUE(after.has_value());
+  EXPECT_NE(after, before);
+  EXPECT_EQ(ActiveCellOf(session_.Client(0), walker), after);
 }
 
 uint64_t RelayedCommands(Z13TestWorld& server) {
