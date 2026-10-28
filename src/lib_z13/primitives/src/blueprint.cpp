@@ -35,6 +35,8 @@ static_assert(static_cast<size_t>(fbs_station::Orientation::MAX) == static_cast<
 static_assert(static_cast<size_t>(fbs_station::WallAxis::MAX) == static_cast<size_t>(z13::station::WallAxis::kZ));
 static_assert(static_cast<size_t>(fbs_station::WallDiagonal::MAX) ==
               static_cast<size_t>(z13::station::WallDiagonal::kTipToBase));
+static_assert(static_cast<size_t>(fbs_station::OpeningKind::MAX) ==
+              static_cast<size_t>(z13::station::OpeningKind::kWindow));
 
 std::expected<fbs_station::BlueprintT, std::string> ParseSource(std::string_view json) {
   flatbuffers::Parser parser;
@@ -107,6 +109,27 @@ std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::s
     });
   }
   return walls;
+}
+
+std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
+    std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  std::vector<std::vector<z13::station::WallOpening>> openings;
+  openings.reserve(parsed->walls.size());
+  for (const auto& wall : parsed->walls) {
+    std::vector<z13::station::WallOpening>& of_wall = openings.emplace_back();
+    for (const auto& entry : wall->openings) {
+      of_wall.push_back({.kind = static_cast<z13::station::OpeningKind>(entry->kind),
+                         .offset = entry->offset,
+                         .width = entry->width,
+                         .sill = entry->sill,
+                         .height = entry->height});
+    }
+  }
+  return openings;
 }
 
 }  // namespace z13::building::primitives
