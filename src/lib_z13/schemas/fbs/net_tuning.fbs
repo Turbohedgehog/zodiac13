@@ -66,7 +66,7 @@ table NetTuning {
 
   // Ghosts (docs/network-scaling-plan.md, 5b): poses of the players within ghost_radius_m that a client doesn't
   // simulate, beyond ghost_near_radius_m only every ghost_far_every-th. Needs interest_events.
-  ghosts: bool = false (cli);
+  ghosts: bool = true (cli);
   ghost_radius_m: double = 96 (min: 1, cli);
   ghost_near_radius_m: double = 24 (min: 0, cli);
   ghost_pose_interval_ticks: uint64 = 6 (min: 1, cli);
