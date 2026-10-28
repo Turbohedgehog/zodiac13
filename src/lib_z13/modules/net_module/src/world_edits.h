@@ -21,7 +21,7 @@
 namespace z13::net {
 
 // Server, at the end of a tick: tells each client that doesn't simulate a player what the player's command changed
-// in the sectors the client holds (StateChange, docs/network-scaling-plan.md, stage 5b).
+// in the sectors the client holds (StateChange).
 void SendWorldEdits(flecs::world world);
 
 }  // namespace z13::net

@@ -33,8 +33,7 @@
 #include "support/station_builders.h"
 #include "support/test_namer.h"
 
-// What a player's command changes is recorded as StateChange, so that the server can tell the clients that don't
-// simulate the player (docs/network-scaling-plan.md, stage 5b).
+// What a player's command changes is recorded as StateChange.
 namespace z13::building {
 namespace {
 
@@ -71,7 +70,6 @@ std::vector<StateChange> TakeChanges(flecs::world world) {
   return changes;
 }
 
-// The wall entities of a world by name, each with its state as text.
 std::map<std::string, std::string> WallState(flecs::world world) {
   std::map<std::string, std::string> state;
   const auto add = [&](flecs::entity entity) {

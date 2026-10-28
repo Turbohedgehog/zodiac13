@@ -19,15 +19,12 @@
 #include <algorithm>
 #include <map>
 #include <optional>
-#include <ranges>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
-#include <lib_core/utils/log.h>
 
 #include <sectors/sector.h>
 #include <z13/components/block.h>

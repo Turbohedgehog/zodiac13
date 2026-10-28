@@ -40,8 +40,7 @@
 #include "support/station_builders.h"
 #include "support/test_namer.h"
 
-// A wall laid by a player a client doesn't simulate reaches the client as an edit, panels included
-// (docs/network-scaling-plan.md, stage 5b).
+// A wall laid by a player a client doesn't simulate reaches the client as an edit, panels included.
 namespace z13::building {
 namespace {
 
@@ -59,7 +58,6 @@ constexpr uint32_t kBuilderId = 2;
 constexpr int kThickness = 2;
 constexpr int kStickLength = 8;
 
-// Each block with its cell, by name.
 std::map<std::string, Eigen::Vector3i> BlocksByName(flecs::world world) {
   std::map<std::string, Eigen::Vector3i> blocks;
   world.query_builder<const z13::station::Block>().build().each(

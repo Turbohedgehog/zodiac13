@@ -20,7 +20,6 @@
 #include <functional>
 #include <optional>
 #include <string>
-#include <string_view>
 
 #include <Eigen/Dense>
 #include <flecs.h>
@@ -38,8 +37,7 @@ struct EditActor {
 
 // An edit of world state by a player's command, on an entity of its own until ClearBlockChangesPhase. Not state.
 // The server tells the clients that don't simulate the actor (docs/network-scaling-plan.md, stage 5b). A removal
-// keeps the entity's `name` and `cell`, since the entity is gone by the end of the tick; a set entity is found by
-// `entity` then, when a deferred spawn has a name too.
+// keeps the entity's `name` and `cell`, since the entity is gone by the end of the tick; a set one is found by `entity`.
 struct StateChange {
   StateChangeKind kind {};
   flecs::entity_t entity {};
@@ -64,7 +62,7 @@ class ActorScope {
   std::optional<uint32_t> previous_;
 };
 
-// Notes the edit of `entity` by the current actor, and nothing when none is acting.
+// Nothing when no player is acting.
 inline void RecordStateChange(
     flecs::entity entity, StateChangeKind kind, const std::optional<Eigen::Vector3i>& cell = std::nullopt) {
   flecs::world world = entity.world();

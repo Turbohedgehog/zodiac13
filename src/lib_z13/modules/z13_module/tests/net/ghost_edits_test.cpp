@@ -30,8 +30,8 @@
 #include "../support/building_test_helpers.h"
 #include "../support/load_session.h"
 
-// What a player a client doesn't simulate builds reaches the client as an edit (docs/network-scaling-plan.md,
-// stage 5b): it ends up with the same blocks as the server, and no resync.
+// What a player a client doesn't simulate builds reaches the client as an edit: it ends up with the same blocks
+// as the server, and no resync.
 namespace z13::net {
 namespace {
 
