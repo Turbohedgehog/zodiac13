@@ -26,12 +26,17 @@
 #include <format>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <Eigen/Dense>
 #include <bullet/btBulletDynamicsCommon.h>
 
+#include "../../src/block_shape.h"
+#include "../../src/blocking_sweep_callback.h"
+#include "../../src/penetration_callback.h"
 #include "../../src/physics_world.h"
 
 #include <primitives/geometry.h>
@@ -62,6 +67,42 @@ double Ms(F&& work) {
   work();
   return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
+
+// The blocks as plain collision objects in a btCollisionWorld, which has no step: the same queries as
+// PhysicsWorld's, to see what the blocks cost when Bullet's dynamics don't loop over them.
+class CollisionOnlyWorld {
+ public:
+  CollisionOnlyWorld() : dispatcher_(&config_), world_(&dispatcher_, &broadphase_, &config_) {}
+
+  void Add(const z13::station::Block& block, flecs::entity_t entity, const z13::building::primitives::Palette& palette) {
+    const BlockShapeKey key = z13::building::primitives::ShapeKeyOf(block.spec);
+    std::shared_ptr<BlockShape>& shape = shapes_[key];
+    if (!shape) {
+      shape = std::make_shared<BlockShape>(
+          z13::building::primitives::Scaled(z13::building::primitives::BlockSolids(palette, key), z13::station::kCellSize));
+    }
+    const Eigen::Isometry3f pose =
+        z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
+    auto object = std::make_unique<btCollisionObject>();
+    object->setCollisionShape(&shape->Shape());
+    object->setWorldTransform(ToBtTransform(pose.matrix()));
+    object->setCollisionFlags(btCollisionObject::CF_STATIC_OBJECT);
+    object->setUserPointer(reinterpret_cast<void*>(static_cast<uintptr_t>(entity)));
+    world_.addCollisionObject(object.get());
+    objects_.push_back(std::move(object));
+  }
+
+  btCollisionWorld& World() { return world_; }
+
+ private:
+  // Declaration order matters: the world goes first on teardown and still reads the objects.
+  btDefaultCollisionConfiguration config_;
+  btCollisionDispatcher dispatcher_;
+  btDbvtBroadphase broadphase_;
+  std::unordered_map<BlockShapeKey, std::shared_ptr<BlockShape>, z13::building::primitives::BlockShapeKeyHash> shapes_;
+  std::vector<std::unique_ptr<btCollisionObject>> objects_;
+  btCollisionWorld world_;
+};
 
 // The station `copies` times along +x; the first `first_copy_blocks` blocks are the first copy.
 struct Stand {
@@ -103,6 +144,29 @@ struct Cost {
   double step_ms {};
   double query_us {};
 };
+
+double QueryMicros(btCollisionWorld& world, const btVector3& from) {
+  const float radius = z13::PhysicsTuning {}.player_collider_radius;
+  btSphereShape probe_shape(radius);
+  btCollisionObject probe;
+  probe.setCollisionShape(&probe_shape);
+  btTransform at;
+  at.setIdentity();
+  at.setOrigin(from);
+  probe.setWorldTransform(at);
+  btTransform to_at = at;
+  to_at.setOrigin(from + btVector3(kQueryReach, 0.f, 0.f));
+  return Ms([&] {
+           for (int query = 0; query < kQueries; ++query) {
+             PenetrationCallback penetration(probe);
+             world.contactTest(&probe, penetration);
+             penetration.Correction();
+             BlockingSweepCallback sweep(to_at.getOrigin() - from);
+             world.convexSweepTest(&probe_shape, at, to_at, sweep);
+           }
+         }) *
+         1000.0 / kQueries;
+}
 
 // The player's queries start in the middle of the first copy's bottom deck.
 Cost Measure(PhysicsWorld& world, const Eigen::Vector3f& start) {
@@ -155,9 +219,20 @@ TEST(EmptySectorBench, DISABLED_StepAndQueries) {
       AddBodies(alone, stand, *palette, stand.first_copy_blocks);
       const Cost all = Measure(everything, player);
       const Cost one = Measure(alone, player);
-      std::cout << std::format("[ bench ] x{}  {:>6} / {:<6}  step {:>6.2f} / {:<6.2f}  queries {:>6.1f} / {:<6.1f}\n",
-                               copies, stand.blocks.size(), stand.first_copy_blocks, all.step_ms, one.step_ms,
-                               all.query_us, one.query_us);
+      CollisionOnlyWorld statics;
+      const double build_ms = Ms([&] {
+        for (size_t index = 0; index < stand.blocks.size(); ++index) {
+          statics.Add(stand.blocks[index], kFirstEntity + index, *palette);
+        }
+      });
+      const btVector3 from(player.x(), player.y(), player.z());
+      const double dynamics_us = QueryMicros(everything.DynamicsWorld(), from);
+      const double statics_us = QueryMicros(statics.World(), from);
+      std::cout << std::format(
+          "[ bench ] x{}  {:>6} / {:<6}  step {:>6.2f} / {:<6.2f}  queries {:>6.1f} / {:<6.1f}  "
+          "collision world: no step, queries {:>6.1f} (dynamics world {:>6.1f}), built in {:.0f} ms\n",
+          copies, stand.blocks.size(), stand.first_copy_blocks, all.step_ms, one.step_ms, all.query_us, one.query_us,
+          statics_us, dynamics_us, build_ms);
     }
   }
   std::cout << std::flush;
