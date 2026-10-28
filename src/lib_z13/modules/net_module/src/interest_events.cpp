@@ -17,11 +17,13 @@
 #include "interest_events.h"
 
 #include <algorithm>
+#include <expected>
 #include <functional>
 #include <iterator>
 #include <memory>
 #include <span>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <Eigen/Core>
@@ -33,6 +35,7 @@
 
 #include <primitives/placement.h>
 #include <sectors/sector_index.h>
+#include <z13/components/inventory.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
@@ -131,12 +134,37 @@ void SendSectorLeft(const EventSender& sender, const SectorKey& sector) {
   sender.Send(std::move(left));
 }
 
+// The player's entity and the items it carries, which are entities of their own.
+std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithItems(
+    const flecs::world& world, flecs::entity player, uint32_t player_id) {
+  auto state = ft::CaptureEntityState(world, player);
+  if (!state) {
+    return state;
+  }
+  std::vector<flecs::entity> items;
+  world.query<const z13::inventory::Item, const z13::inventory::CarriedBy>().each(
+      [&](flecs::entity item, const z13::inventory::Item&, const z13::inventory::CarriedBy& carried) {
+        if (carried.player_id == player_id) {
+          items.push_back(item);
+        }
+      });
+  for (const flecs::entity item : items) {
+    auto captured = ft::CaptureEntityState(world, item);
+    if (!captured) {
+      return captured;
+    }
+    std::ranges::move(captured->entities, std::back_inserter(state->entities));
+  }
+  std::ranges::sort(state->entities, {}, &ft::EntitySnapshot::name);
+  return state;
+}
+
 bool SendEntityEntered(const EventSender& sender, uint32_t player_id) {
   const flecs::entity player = sender.world.lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
   if (!player) {
     return false;
   }
-  const auto state = ft::CaptureEntityState(sender.world, player);
+  const auto state = CapturePlayerWithItems(sender.world, player, player_id);
   if (!state) {
     log_error("NetSession(server): can't capture player {} for an interest event: {}", player_id, state.error());
     return false;
