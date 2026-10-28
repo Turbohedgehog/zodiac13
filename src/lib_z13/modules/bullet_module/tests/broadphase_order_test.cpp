@@ -53,9 +53,8 @@ constexpr uint32_t kSeed = 13;
 constexpr size_t kProbes = 2000;
 // Entity ids are arbitrary but must be the same in every world: offset from the index.
 constexpr flecs::entity_t kFirstEntity = 1000;
-// Lets the DBVT's incremental optimization reshape the tree, as the server's ticks do.
-constexpr int kSteps = 120;
-constexpr float kStepSeconds = 1.f / 60.f;
+// Lets the DBVT's incremental optimization reshape the tree, which no tick does now: a stricter check.
+constexpr int kReshapes = 120;
 // How far a probe's sweep and ray reach, in meters: across a block and into its neighbors.
 constexpr float kProbeReach = 1.5f;
 // One block in this many is destroyed and rebuilt in the grown world.
@@ -160,9 +159,9 @@ std::vector<ProbeResult> RunProbes(PhysicsWorld& world, std::span<const Probe> p
   return results;
 }
 
-void Step(PhysicsWorld& world) {
-  for (int step = 0; step < kSteps; ++step) {
-    world.DynamicsWorld().stepSimulation(kStepSeconds);
+void Reshape(PhysicsWorld& world) {
+  for (int pass = 0; pass < kReshapes; ++pass) {
+    world.World().performDiscreteCollisionDetection();
   }
 }
 
@@ -220,17 +219,17 @@ TEST(BroadphaseOrderTest, QueriesDontDependOnTheOrderBodiesWereAdded) {
   PhysicsWorld grown;
   const auto half = shuffled.begin() + static_cast<std::ptrdiff_t>(shuffled.size() / 2);
   bodies.AddAll(grown, std::span(shuffled.begin(), half));
-  Step(grown);
+  Reshape(grown);
   bodies.AddAll(grown, std::span(half, shuffled.end()));
-  Step(grown);
+  Reshape(grown);
   for (size_t i = 0; i < order.size(); i += kRebuiltEvery) {
     bodies.Remove(grown, shuffled[i]);
   }
-  Step(grown);
+  Reshape(grown);
   for (size_t i = 0; i < order.size(); i += kRebuiltEvery) {
     bodies.Add(grown, shuffled[i]);
   }
-  Step(grown);
+  Reshape(grown);
   ExpectSameResults(expected, RunProbes(grown, probes), "grown");
 }
 
