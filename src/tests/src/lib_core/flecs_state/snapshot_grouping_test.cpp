@@ -30,6 +30,7 @@ constexpr float kAlsoInFirstGroup = 2.f;
 constexpr float kInSecondGroup = 11.f;
 constexpr float kMovedInSecondGroup = 12.f;
 constexpr float kInThirdGroup = 25.f;
+constexpr float kInFourthGroup = 35.f;
 
 void InstallGrouping(flecs::world& world) {
   world.set(ft::SnapshotGrouping {
@@ -163,6 +164,79 @@ TEST_F(SnapshotGroupingTest, AnUnchangedWorldIsNotFingerprintedAgain) {
   Capture();
   EXPECT_EQ(hashed, 1);
   world_.get_mut<ft::SnapshotGrouping>().unchanged = nullptr;
+}
+
+// A world `unchanged` calls quiet, restored from an older snapshot: the groups of the last capture stand in for
+// a scan of the world.
+class CurrentCaptureTest : public SnapshotGroupingTest {
+ protected:
+  void SetUp() override {
+    SnapshotGroupingTest::SetUp();
+    auto& grouping = world_.get_mut<ft::SnapshotGrouping>();
+    const auto hash_of = grouping.hash_of;
+    grouping.hash_of = [this, hash_of](flecs::entity e) {
+      ++hashed_;
+      return hash_of(e);
+    };
+    grouping.unchanged = [this](flecs::world) { return quiet_; };
+  }
+
+  void TearDown() override { world_.get_mut<ft::SnapshotGrouping>().unchanged = nullptr; }
+
+  int hashed_ {};
+  bool quiet_ {};
+};
+
+TEST_F(CurrentCaptureTest, RestoringAQuietWorldDoesNotFingerprintIt) {
+  Spawn("a", kInFirstGroup);
+  Spawn("c", kInSecondGroup);
+  const ft::WorldSnapshot snapshot = Capture();
+  quiet_ = true;
+  hashed_ = 0;
+  sets_.clear();
+
+  ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
+
+  EXPECT_EQ(hashed_, 0);
+  EXPECT_EQ(sets_["a"], 0);
+  EXPECT_EQ(sets_["c"], 0);
+}
+
+TEST_F(CurrentCaptureTest, RestoringAQuietWorldStillFixesTheGroupsThatDiffer) {
+  Spawn("a", kInFirstGroup);
+  Spawn("c", kInSecondGroup);
+  Spawn("d", kInFourthGroup);
+  const ft::WorldSnapshot snapshot = Capture();
+  Spawn("b", kAlsoInFirstGroup);
+  world_.lookup("c").set(Position {kMovedInSecondGroup, 0.f, 0.f});
+  Spawn("far", kInThirdGroup);
+  Capture();
+  quiet_ = true;
+  hashed_ = 0;
+  sets_.clear();
+
+  ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
+
+  EXPECT_EQ(hashed_, 0);
+  EXPECT_EQ(sets_["d"], 0);
+  EXPECT_FALSE(world_.lookup("b"));
+  EXPECT_FALSE(world_.lookup("far"));
+  EXPECT_EQ(XOf("c"), kInSecondGroup);
+}
+
+TEST_F(CurrentCaptureTest, RestoringAChangedWorldScansItAndTheNextCaptureEncodesAgain) {
+  Spawn("a", kInFirstGroup);
+  Spawn("c", kInSecondGroup);
+  const ft::WorldSnapshot snapshot = Capture();
+  world_.lookup("c").set(Position {kMovedInSecondGroup, 0.f, 0.f});
+  hashed_ = 0;
+
+  ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
+  EXPECT_GT(hashed_, 0);
+  EXPECT_EQ(XOf("c"), kInSecondGroup);
+
+  quiet_ = true;
+  EXPECT_EQ(Flatten(Capture()), Flatten(snapshot));
 }
 
 TEST_F(SnapshotGroupingTest, RestoreLeavesAnUnchangedGroupAlone) {
