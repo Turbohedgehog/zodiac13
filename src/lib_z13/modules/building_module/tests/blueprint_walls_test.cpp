@@ -77,6 +77,30 @@ TEST(BlueprintWallsTest, WallsMeetingAtANodeAreStitchedAndPlaceable) {
   EXPECT_TRUE(ValidateBlueprint({}, palette, BuildingTuning {}, *panels).has_value());
 }
 
+TEST(BlueprintWallsTest, AnOpeningCutsItsWallIntoPieces) {
+  const std::string json = R"({"blocks": [], "walls": [
+      {"node_a": {"x": 0, "y": 0, "z": 0}, "node_b": {"x": 20, "y": 0, "z": 0}, "length_a": 12, "length_b": 12,
+       "thickness": 2, "openings": [{"kind": "Door", "offset": 8, "width": 4, "height": 8}]},
+      {"node_a": {"x": 0, "y": 10, "z": 0}, "node_b": {"x": 20, "y": 10, "z": 0}, "length_a": 12, "length_b": 12,
+       "thickness": 2}]})";
+  const auto walls = z13::building::primitives::ParseBlueprintWalls(json);
+  const auto openings = z13::building::primitives::ParseBlueprintOpenings(json);
+  ASSERT_TRUE(walls.has_value()) << walls.error();
+  ASSERT_TRUE(openings.has_value()) << openings.error();
+  ASSERT_EQ(openings->size(), walls->size());
+  ASSERT_EQ((*openings)[0].size(), 1u);
+  EXPECT_EQ((*openings)[0][0].kind, z13::station::OpeningKind::kDoor);
+  EXPECT_EQ((*openings)[0][0].offset, 8);
+  EXPECT_EQ((*openings)[0][0].width, 4);
+  EXPECT_TRUE((*openings)[1].empty());
+
+  const auto palette = z13::testing::ShippedPalette().value();
+  const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {}, *openings);
+  ASSERT_TRUE(panels.has_value()) << panels.error();
+  constexpr size_t kPiecesAroundADoor = 4;  // beside it twice, over it, and the door's own panel
+  EXPECT_EQ(panels->size(), kPiecesAroundADoor + 1);
+}
+
 TEST(BlueprintWallsTest, APanelOnABlockIsRefused) {
   const auto palette = z13::testing::ShippedPalette().value();
   const auto panels = BlueprintPanels(kBands, palette, BuildingTuning {});

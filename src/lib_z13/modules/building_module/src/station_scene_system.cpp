@@ -66,8 +66,11 @@ void PopulateStationScene(
   const auto walls = json.and_then([](const std::string& text) {
     return z13::building::primitives::ParseBlueprintWalls(text);
   });
-  const auto panels = walls.and_then([&palette, &tuning](const auto& parsed) {
-    return BlueprintPanels(parsed, palette.palette, tuning);
+  const auto openings = json.and_then([](const std::string& text) {
+    return z13::building::primitives::ParseBlueprintOpenings(text);
+  });
+  const auto panels = walls.and_then([&](const auto& parsed) {
+    return openings.and_then([&](const auto& cut) { return BlueprintPanels(parsed, palette.palette, tuning, cut); });
   });
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.
   const Status valid = blocks.and_then([&](const auto& parsed) -> Status {
@@ -86,7 +89,7 @@ void PopulateStationScene(
     CreateBlock(world, std::format("Station_{}", i), (*blocks)[i], palette.palette, tuning);
   }
   z13::gameplay::SpawnNamer namer(StampNow(world, z13::gameplay::kSceneSpawner));
-  SpawnBlueprintWalls(world, namer, *walls);
+  SpawnBlueprintWalls(world, namer, *walls, *openings);
 }
 
 void RegisterSystems(flecs::world world) {

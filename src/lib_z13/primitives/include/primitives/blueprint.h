@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <z13/components/block.h>
+#include <z13/components/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
 
@@ -35,5 +36,10 @@ std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
 // The wall segments of a blueprint, apart from its blocks: each between nodes at two cells, which
 // walls meeting at one cell share. Their panels are derived from them when the scene is placed.
 std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::string_view json);
+
+// The openings cut in each wall of ParseBlueprintWalls, in the same order (an empty list for a wall without).
+// Their ids and segment ids are left for the scene to give.
+std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
+    std::string_view json);
 
 }  // namespace z13::building::primitives

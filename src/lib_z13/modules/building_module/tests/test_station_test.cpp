@@ -146,7 +146,9 @@ TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   const std::vector<Block> shipped = ShippedStation(Scene(), palette);
   const auto walls = z13::testing::ShippedBlueprintWalls(Scene());
   ASSERT_TRUE(walls.has_value()) << walls.error();
-  const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {});
+  const auto openings = z13::testing::ShippedBlueprintOpenings(Scene());
+  ASSERT_TRUE(openings.has_value()) << openings.error();
+  const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {}, *openings);
   ASSERT_TRUE(panels.has_value()) << panels.error();
   EXPECT_EQ(Blocks(test_world.World()).size(), shipped.size() + panels->size());
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), SpawnPoints(shipped, palette));

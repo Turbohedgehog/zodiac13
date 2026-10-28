@@ -80,6 +80,22 @@ enum WallDiagonal : ubyte {
   TipToBase,
 }
 
+// z13::station::OpeningKind, in the same order.
+enum OpeningKind : ubyte {
+  Door,
+  Window,
+}
+
+// A gap in a wall (z13::station::WallOpening): `offset` and `width` in wall steps from node a, `sill`
+// and `height` in cells up the stick.
+table BlueprintWallOpening {
+  kind: OpeningKind;
+  offset: int;
+  width: int;
+  sill: int;
+  height: int;
+}
+
 // A wall segment (z13::station::WallSegment) between two nodes at the cells `node_a` and `node_b`;
 // nodes at one cell are one node, so walls meeting there are stitched along a seam. Its panels are
 // derived when the scene is placed, not listed among the blocks.
@@ -92,6 +108,7 @@ table BlueprintWall {
   length_b: int;
   thickness: int;
   diagonal: WallDiagonal;
+  openings: [BlueprintWallOpening];
 }
 
 table Blueprint {
