@@ -27,5 +27,7 @@ void ApplyEntityEntered(flecs::world world, const fbs::net::EntityEnteredT& ente
 void ApplyEntityLeft(flecs::world world, const fbs::net::EntityLeftT& left);
 void ApplySectorEntered(flecs::world world, const fbs::net::SectorEnteredT& entered);
 void ApplySectorLeft(flecs::world world, const fbs::net::SectorLeftT& left);
+// Not on the server, which made the edit.
+void ApplyWorldEdit(flecs::world world, const fbs::net::WorldEditT& edit);
 
 }  // namespace z13::net

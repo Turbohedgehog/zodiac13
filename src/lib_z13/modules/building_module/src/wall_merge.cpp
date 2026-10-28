@@ -22,6 +22,7 @@
 #include <set>
 #include <vector>
 
+#include <z13/components/state_changes.h>
 #include <z13/components/wall.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
@@ -167,14 +168,16 @@ std::expected<NodeMerge, std::string> PlanNodeMerge(
 void ApplyNodeMerge(flecs::world world, z13::gameplay::SpawnNamer& namer, const NodeMerge& merge) {
   const NodeCells cells = CellsOfNodes(world);
   std::vector<WallSegment> halves;
-  world.query<WallSegment>().each([&](WallSegment& segment) {
+  world.query<WallSegment>().each([&](flecs::entity entity, WallSegment& segment) {
     if (Touches(segment, merge.drop)) {
       (segment.node_a == merge.drop ? segment.node_a : segment.node_b) = merge.keep;
+      z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kSet);
     } else if (const auto a = cells.find(segment.node_a), b = cells.find(segment.node_b);
                !Touches(segment, merge.keep) && a != cells.end() && b != cells.end() &&
                OnLine(segment, a->second, b->second, merge.cell)) {
       halves.push_back(segment);
       segment.node_b = merge.keep;
+      z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kSet);
     }
   });
   // Segment ids are numbered as they are spawned, so the order they are spawned in must be the same everywhere.
@@ -185,8 +188,10 @@ void ApplyNodeMerge(flecs::world world, z13::gameplay::SpawnNamer& namer, const 
   }
   if (const auto node = FindWallNode(world, merge.keep)) {
     node->get_mut<WallNode>().cell = merge.cell;
+    z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kSet);
   }
   if (const auto node = FindWallNode(world, merge.drop)) {
+    z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kRemoved, node->get<WallNode>().cell);
     node->destruct();
   }
 }

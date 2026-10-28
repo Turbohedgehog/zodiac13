@@ -270,13 +270,15 @@ void ResolvePlayerCollision(
 }
 
 void ProcessDestroyBlockRequest(
-    flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player&,
-    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning) {
+    flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player& owner,
+    const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning,
+    z13::gameplay::EditActor& actor) {
   // Station mode destroys through building_module's cell index instead.
   if (player.world().has<z13::station::StationMode>()) {
     return;
   }
   player.remove<z13::building::RequestDestroyBlock>();
+  const z13::gameplay::ActorScope scope(actor, owner.id);
 
   const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transform);
   const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
@@ -345,7 +347,7 @@ void RegisterSystems(flecs::world world) {
   // After ResolvePlayerCollision in the same phase, so the raycast sees the final player
   // transform; a later phase would run after rendering. write<> merges the destroy early.
   world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, PhysicsWorld,
-               const z13::BuildingTuning>("PhysicsSystem::ProcessDestroyBlockRequest")
+               const z13::BuildingTuning, z13::gameplay::EditActor>("PhysicsSystem::ProcessDestroyBlockRequest")
       .kind<z13::gameplay::PostUpdatePhase>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::station::StationMode>()

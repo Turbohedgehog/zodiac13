@@ -29,6 +29,7 @@
 #include <sectors/interest_map.h>
 #include <sectors/sector_index.h>
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/net.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
@@ -36,6 +37,7 @@
 #include "interest_events.h"
 #include "player_positions.h"
 #include "sector_system.h"
+#include "world_edits.h"
 
 namespace z13::net {
 
@@ -47,6 +49,8 @@ using sectors::MemberKind;
 
 void RegisterPipeline(flecs::world world) {
   world.component<InterestPhase>().add(flecs::Phase).depends_on<SectorPhase>();
+  // The edits are read from the changes of the tick, before they are cleared.
+  world.component<z13::station::ClearBlockChangesPhase>().add(flecs::Phase).depends_on<InterestPhase>();
 }
 
 void RegisterComponents(flecs::world world) {
@@ -85,6 +89,7 @@ void RegisterSystems(flecs::world world) {
                const z13::NetTuning& tuning) {
         const InterestChanges changes = UpdateInterest(session, map, index, tuning);
         SendInterestEvents(it.world(), changes, index.TakeMovedPlayers());
+        SendWorldEdits(it.world());
       });
 }
 
