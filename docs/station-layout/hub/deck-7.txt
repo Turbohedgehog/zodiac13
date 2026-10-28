@@ -2,7 +2,7 @@ Hub pilot, deck 7: Atrium level 7. Floor at 18 m above the agora.
 1 char = 1 m (4 cells). # wall, = window, D door, _ railing, @ solid fill of the atrium's slanted corner.
 The atrium is a 16-gon of oblique panels (drawn as @ outside it); the spine is straight (the target bends 22 degrees).
 
-    0         10        20        30        40        50        60
+    0         10        20        30        40        50        60        70        80
   0 
   1 
   2 
