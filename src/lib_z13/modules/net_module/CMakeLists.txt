@@ -65,6 +65,7 @@ z13_add_plugin(
   src/simulated_set.cpp
   src/state_digest.cpp
   src/wire_records.cpp
+  src/world_edits.cpp
   PUBLIC
   zodiac13::settings
   PRIVATE

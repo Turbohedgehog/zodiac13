@@ -117,8 +117,8 @@ Status SendWelcome(
   // The joiner ignores session deltas received before Welcome.
   const auto& deltas = world.get<ScheduledSessionDeltas>();
   const auto newer = std::ranges::upper_bound(deltas.history, snapshot_tick, {}, &ScheduledSessionDelta::apply_tick);
-  SendSessionDeltas(session, connection, {newer, deltas.history.end()}, view);
-  SendSessionDeltas(session, connection, deltas.pending, view);
+  SendSessionDeltas(session, connection, player_id, {newer, deltas.history.end()}, view);
+  SendSessionDeltas(session, connection, player_id, deltas.pending, view);
   RememberResync(world, player_id, view);
   return {};
 }

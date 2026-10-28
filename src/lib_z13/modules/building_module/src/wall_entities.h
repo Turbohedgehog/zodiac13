@@ -41,6 +41,9 @@ flecs::entity SpawnWallSegment(
 flecs::entity SpawnWall(
     flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall);
 
+// Where a segment stands: the cell of its first node.
+std::optional<Eigen::Vector3i> WallSegmentCell(flecs::world world, z13::station::WallId segment_id);
+
 // The id of the node at `cell`, spawning one when there is none.
 z13::station::WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell);
 

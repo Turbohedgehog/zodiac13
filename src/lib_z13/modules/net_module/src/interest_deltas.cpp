@@ -26,6 +26,7 @@
 #include <sectors/sector.h>
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
+#include <z13/components/net.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>
 
@@ -84,6 +85,26 @@ void ApplySectorEntered(flecs::world world, const fbs::net::SectorEnteredT& ente
 
 void ApplySectorLeft(flecs::world world, const fbs::net::SectorLeftT& left) {
   DestroyBlocksIn(world, {left.sector_x, left.sector_y, left.sector_z});
+}
+
+void ApplyWorldEdit(flecs::world world, const fbs::net::WorldEditT& edit) {
+  if (world.has<z13::net::ServerRole>()) {
+    return;
+  }
+  if (edit.entities) {
+    ApplyState(world, edit.entities);
+  }
+  for (const std::string& name : edit.removed) {
+    const flecs::entity e = world.lookup(name.c_str());
+    if (!e) {
+      continue;
+    }
+    if (const auto* block = e.try_get<z13::station::Block>()) {
+      z13::station::DestroyBlock(e, *block);
+    } else {
+      e.destruct();
+    }
+  }
 }
 
 }  // namespace z13::net

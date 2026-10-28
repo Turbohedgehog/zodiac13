@@ -24,6 +24,7 @@
 #include <lib_core/state/state_markers.h>
 
 #include <z13/components/block.h>
+#include <z13/components/state_changes.h>
 
 namespace z13::station {
 
@@ -46,11 +47,13 @@ struct BlockChange {
 inline flecs::entity SpawnBlock(flecs::entity entity, const Block& block) {
   entity.add<z13::flecs_tools::StateEntity>().set(block);
   entity.world().entity().set(BlockChange {.kind = BlockChangeKind::kAdded, .entity = entity.id(), .block = block});
+  z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kSet, block.cell);
   return entity;
 }
 
 inline void DestroyBlock(flecs::entity entity, const Block& block) {
   entity.world().entity().set(BlockChange {.kind = BlockChangeKind::kRemoved, .entity = entity.id(), .block = block});
+  z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kRemoved, block.cell);
   entity.destruct();
 }
 

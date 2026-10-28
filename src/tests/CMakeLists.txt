@@ -102,7 +102,9 @@ set(
   ${MODULES_DIR}/building_module/tests/station_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/test_station_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_bridge_test.cpp
+  ${MODULES_DIR}/building_module/tests/state_change_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_brush_test.cpp
+  ${MODULES_DIR}/building_module/tests/wall_edits_net_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_fit_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_opening_brush_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_joints_test.cpp
@@ -151,6 +153,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/net/clock_lead_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/clock_sync_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/command_stream_test.cpp
+  ${MODULES_DIR}/z13_module/tests/net/ghost_edits_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/ghost_poses_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/block_names_test.cpp
   ${MODULES_DIR}/z13_module/tests/net/convergence_test.cpp

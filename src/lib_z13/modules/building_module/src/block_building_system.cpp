@@ -459,8 +459,11 @@ void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const Spa
           .spawn_clearances = SpawnClearances(spawn_blocks, tuning),
           .spawn_points = it.world().count<SpawnPoint>()};
     }
+    auto& actor = it.field<z13::gameplay::EditActor>(5)[0];
     for (const size_t i : it) {
-      ProcessBuildRequest(it.entity(i), *run);
+      const flecs::entity player = it.entity(i);
+      const z13::gameplay::ActorScope scope(actor, player.get<z13::gameplay::Player>().id);
+      ProcessBuildRequest(player, *run);
     }
   }
 }
@@ -474,6 +477,9 @@ bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
   const auto aim = FindAim(player, index);
   const auto opening = aim ? OpeningUnder(player.world(), *aim) : std::nullopt;
   if (opening) {
+    z13::gameplay::RecordStateChange(
+        *opening, z13::gameplay::StateChangeKind::kRemoved,
+        WallSegmentCell(player.world(), opening->get<z13::station::WallOpening>().segment_id));
     opening->destruct();
   }
   return opening.has_value();
@@ -488,8 +494,10 @@ void ProcessDestroyRequests(flecs::iter& it) {
     auto& index = it.field<BlockIndex>(3)[0];
     const auto& palette = it.field<const BlockPalette>(4)[0];
     const auto& tuning = it.field<const BuildingTuning>(5)[0];
+    auto& actor = it.field<z13::gameplay::EditActor>(6)[0];
     for (const size_t i : it) {
       flecs::entity player = it.entity(i);
+      const z13::gameplay::ActorScope scope(actor, player.get<z13::gameplay::Player>().id);
       player.remove<z13::building::RequestDestroyBlock>();
       if (const auto permitted = CheckPermission(player); !permitted) {
         log_debug("station: destroy refused: {}", permitted.error());
@@ -681,10 +689,11 @@ void RegisterSystems(flecs::world world) {
 
   // Same-tick requests compete, so they go in player id order (see CompareByPlayerId).
   world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, BlockIndex,
-               const BlockPalette, const BuildingTuning>(
+               const BlockPalette, const BuildingTuning, z13::gameplay::EditActor>(
       "BlockBuildingSystem::ProcessBuildRequests")
       .kind<StationBuildPhase>()
       .term_at(2).inout()
+      .term_at(5).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::inventory::ActiveItem>()
@@ -705,9 +714,11 @@ void RegisterSystems(flecs::world world) {
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
   world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, BlockIndex,
-               const BlockPalette, const BuildingTuning>("BlockBuildingSystem::ProcessDestroyRequests")
+               const BlockPalette, const BuildingTuning, z13::gameplay::EditActor>(
+      "BlockBuildingSystem::ProcessDestroyRequests")
       .kind<StationBuildPhase>()
       .term_at(3).inout()
+      .term_at(6).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<BuildPermission>()

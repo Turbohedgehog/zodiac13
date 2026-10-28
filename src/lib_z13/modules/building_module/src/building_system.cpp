@@ -30,6 +30,7 @@
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/spawn_stamp.h>
+#include <z13/components/state_changes.h>
 #include <z13/components/gameplay_phases.h>
 #include <z13/components/player.h>
 #include <z13/components/input_phases.h>
@@ -132,7 +133,8 @@ flecs::entity SpawnCube(flecs::world world, z13::gameplay::SpawnNamer& namer, co
 
 // The ship scene's free building: a cube at the brush, overlaps allowed. Station mode
 // builds through BlockBuildingSystem instead and leaves the request to it.
-void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock, const z13::gameplay::Player& owner) {
+void ProcessBuildBlockRequest(
+    flecs::entity player, RequestBuildBlock, const z13::gameplay::Player& owner, z13::gameplay::EditActor& actor) {
   if (player.world().has<z13::station::StationMode>()) {
     return;
   }
@@ -143,6 +145,7 @@ void ProcessBuildBlockRequest(flecs::entity player, RequestBuildBlock, const z13
     return;
   }
 
+  const z13::gameplay::ActorScope scope(actor, owner.id);
   z13::gameplay::SpawnNamer namer(StampNow(player.world(), owner.id));
   SpawnCube(player.world(), namer, z13::math::ExtractTranslation<float>(*brush_transform));
 }
@@ -186,7 +189,7 @@ void RegisterSystems(flecs::world world) {
   // the brush position UpdateBrush just refreshed this frame.
   // The write<> terms make flecs merge the spawned block before systems that read
   // it later in the frame (e.g. bullet's body sync).
-  world.system<RequestBuildBlock, const z13::gameplay::Player>(
+  world.system<RequestBuildBlock, const z13::gameplay::Player, z13::gameplay::EditActor>(
       "BuildingSystem::ProcessBuildBlockRequest")
     .kind<UpdateBuildingToolPhase>()
     .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)

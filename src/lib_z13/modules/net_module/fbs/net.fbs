@@ -176,6 +176,14 @@ table SectorEntered {
   blocks: z13.fbs.state.WorldSnapshot;
 }
 
+// What a player's command changed, for a client that doesn't simulate the player: the entities it set and the
+// names it removed. `apply_tick` is the tick of the command, so the client rolls back and takes it there.
+table WorldEdit {
+  apply_tick: ulong;
+  entities: z13.fbs.state.WorldSnapshot;
+  removed: [string];
+}
+
 table SectorLeft {
   apply_tick: ulong;
   sector_x: int;
@@ -222,7 +230,7 @@ table StateDigest {
 union MessageBody {
   ClientHello, CommandBatch, ResyncRequest, Ping, Pong,
   Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest, CommandsRetimed,
-  EntityEntered, EntityLeft, SectorEntered, SectorLeft,
+  EntityEntered, EntityLeft, SectorEntered, SectorLeft, WorldEdit,
 }
 
 table MessageEnvelope {

@@ -19,10 +19,12 @@
 
 #include <flecs.h>
 
+#include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/block_changes.h>
 #include <z13/components/gameplay_phases.h>
+#include <z13/components/state_changes.h>
 
 namespace z13::gameplay {
 
@@ -33,7 +35,17 @@ void RegisterPipeline(flecs::world world) {
   world.component<z13::station::ClearBlockChangesPhase>().add(flecs::Phase).depends_on<PostUpdatePhase>();
 }
 
+void RegisterComponents(flecs::world world) {
+  z13::flecs_tools::RegisterComponents<z13::gameplay::EditActor>(world);
+}
+
 void RegisterSystems(flecs::world world) {
+  world.set(z13::gameplay::EditActor {});
+  world.system("BlockChangeSystem::ClearStateChanges")
+      .kind<z13::station::ClearBlockChangesPhase>()
+      .with<z13::gameplay::StateChange>()
+      .write<z13::gameplay::StateChange>()
+      .each([](flecs::entity change) { change.destruct(); });
   world.system("BlockChangeSystem::ClearChanges")
       .kind<z13::station::ClearBlockChangesPhase>()
       .with<z13::station::BlockChange>()
@@ -45,6 +57,7 @@ void RegisterSystems(flecs::world world) {
 
 void BlockChangeSystem::Register(flecs::world& world) {
   OnInitPhases(world, RegisterPipeline);
+  OnRegisterComponents(world, RegisterComponents);
 
   OnInitSystems(world, RegisterSystems);
 }

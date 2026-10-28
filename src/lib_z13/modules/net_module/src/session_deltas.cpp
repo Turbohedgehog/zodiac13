@@ -83,6 +83,8 @@ void ApplySessionDelta(flecs::world world, const SessionDelta& delta) {
     ApplySectorEntered(world, *sector_entered);
   } else if (const auto* sector_left = std::get_if<fbn::SectorLeftT>(&delta)) {
     ApplySectorLeft(world, *sector_left);
+  } else if (const auto* edit = std::get_if<fbn::WorldEditT>(&delta)) {
+    ApplyWorldEdit(world, *edit);
   }
 }
 
@@ -152,10 +154,11 @@ uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {
       [](uint64_t a, uint64_t b) { return std::max(a, b); });
 }
 
-void SendSessionDeltas(NetSession& session, ConnectionId connection, std::span<const ScheduledSessionDelta> deltas,
-                       const std::optional<InterestView>& view) {
+void SendSessionDeltas(NetSession& session, ConnectionId connection, uint32_t client,
+                       std::span<const ScheduledSessionDelta> deltas, const std::optional<InterestView>& view) {
   for (const ScheduledSessionDelta& item : deltas) {
-    if (view && !view->players.contains(item.player_id)) {
+    const bool for_this_client = item.recipient ? *item.recipient == client : true;
+    if (!for_this_client || (view && !item.recipient && !view->players.contains(item.player_id))) {
       continue;
     }
     Envelope envelope;

@@ -26,6 +26,8 @@
 
 #include <lib_core/state/state_markers.h>
 
+#include <z13/components/state_changes.h>
+
 namespace z13::building {
 
 namespace {
@@ -60,9 +62,11 @@ bool UsesNode(flecs::world world, WallId node_id, WallId except_segment) {
 }
 
 flecs::entity MakeNode(flecs::world world, WallId id, const Eigen::Vector3i& cell) {
-  return world.entity(NodeName(id).c_str())
-      .add<z13::flecs_tools::StateEntity>()
-      .set(WallNode {.id = id, .cell = cell});
+  const flecs::entity node = world.entity(NodeName(id).c_str())
+                                 .add<z13::flecs_tools::StateEntity>()
+                                 .set(WallNode {.id = id, .cell = cell});
+  z13::gameplay::RecordStateChange(node, z13::gameplay::StateChangeKind::kSet);
+  return node;
 }
 
 }  // namespace
@@ -74,7 +78,10 @@ flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::SpawnNamer& namer
 flecs::entity SpawnWallSegment(flecs::world world, z13::gameplay::SpawnNamer& namer, const WallSegment& segment) {
   WallSegment made = segment;
   made.id = namer.NextId();
-  return world.entity(SegmentName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
+  const flecs::entity entity =
+      world.entity(SegmentName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
+  z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kSet);
+  return entity;
 }
 
 WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell) {
@@ -121,7 +128,10 @@ flecs::entity SpawnWallOpening(
     flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::station::WallOpening& opening) {
   z13::station::WallOpening made = opening;
   made.id = namer.NextId();
-  return world.entity(OpeningName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
+  const flecs::entity entity =
+      world.entity(OpeningName(made.id).c_str()).add<z13::flecs_tools::StateEntity>().set(made);
+  z13::gameplay::RecordStateChange(entity, z13::gameplay::StateChangeKind::kSet);
+  return entity;
 }
 
 std::set<WallId> SegmentsWithOpenings(flecs::world world) {
@@ -141,6 +151,12 @@ std::optional<flecs::entity> FindWallSegment(flecs::world world, WallId id) {
 
 std::optional<flecs::entity> FindWallOpening(flecs::world world, WallId id) {
   return Find(world, OpeningName(id));
+}
+
+std::optional<Eigen::Vector3i> WallSegmentCell(flecs::world world, WallId segment_id) {
+  const auto segment = FindWallSegment(world, segment_id);
+  const auto node = segment ? FindWallNode(world, segment->get<WallSegment>().node_a) : std::nullopt;
+  return node ? std::optional(node->get<WallNode>().cell) : std::nullopt;
 }
 
 std::vector<JointWall> JointWallsOf(flecs::world world) {
@@ -200,12 +216,16 @@ void DestroyWallSegment(flecs::world world, WallId segment_id) {
           openings.push_back(entity);
         }
       });
+  const std::optional<Eigen::Vector3i> segment_cell = WallSegmentCell(world, segment_id);
   for (const flecs::entity opening : openings) {
+    z13::gameplay::RecordStateChange(opening, z13::gameplay::StateChangeKind::kRemoved, segment_cell);
     opening.destruct();
   }
+  z13::gameplay::RecordStateChange(*segment, z13::gameplay::StateChangeKind::kRemoved, segment_cell);
   segment->destruct();
   for (const WallId node_id : {gone.node_a, gone.node_b}) {
     if (const auto node = FindWallNode(world, node_id); node && !UsesNode(world, node_id, gone.id)) {
+      z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kRemoved, node->get<WallNode>().cell);
       node->destruct();
     }
   }
