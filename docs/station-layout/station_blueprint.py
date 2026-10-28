@@ -654,12 +654,22 @@ def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
     return lamps
 
 
-def wall_segment(node_a, node_b, thickness, stick_length, stick_axis=2):
+def wall_opening(offset, width, height, kind="Door", sill=0):
+    """An opening of a wall segment (BlueprintWallOpening): `offset` and `width` in the wall's steps (its plan
+    offset over the gcd of its parts) from node a, `sill` and `height` in cells up the stick. The wall keeps at
+    least a step at each end and a cell above the opening, so a wall of one step takes none."""
+    return {"kind": kind, "offset": offset, "width": width, "sill": sill, "height": height}
+
+
+def wall_segment(node_a, node_b, thickness, stick_length, stick_axis=2, openings=()):
     """A wall segment of a blueprint (BlueprintWall): the game derives its panel and stitches it along a seam to
     the segments that meet it at a node. Nodes at one cell are one node."""
     axis = "XYZ"[stick_axis]
-    return {"node_a": dict(zip("xyz", node_a)), "node_b": dict(zip("xyz", node_b)), "axis_a": axis,
+    wall = {"node_a": dict(zip("xyz", node_a)), "node_b": dict(zip("xyz", node_b)), "axis_a": axis,
             "length_a": stick_length, "axis_b": axis, "length_b": stick_length, "thickness": thickness}
+    if openings:
+        wall["openings"] = list(openings)
+    return wall
 
 
 # building_tuning.fbs, max_block_cells: a longer block would reach past the sector next to its own.
