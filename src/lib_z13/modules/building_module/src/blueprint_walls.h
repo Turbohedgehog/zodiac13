@@ -24,7 +24,7 @@
 #include <flecs.h>
 
 #include <z13/components/block.h>
-#include <z13/components/gameplay.h>
+#include <z13/components/spawn_stamp.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
 #include <z13_settings/building_tuning.h>
@@ -44,7 +44,7 @@ std::vector<std::string> BlueprintJointRefusals(
 
 // Nodes and segments for the walls of a blueprint; their panels follow in WallPanelSystem.
 void SpawnBlueprintWalls(
-    flecs::world world, z13::gameplay::IdCounters& counters,
+    flecs::world world, z13::gameplay::SpawnNamer& namer,
     std::span<const z13::building::primitives::WallGeometry> walls);
 
 }  // namespace z13::building
