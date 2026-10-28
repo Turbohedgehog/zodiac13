@@ -71,7 +71,9 @@ void ApplyPendingRollback(flecs::world& world) {
   }
   Z13_PROFILE_ZONE("ApplyPendingRollback");
   const uint64_t to_tick = *request.to_tick;
-  const uint64_t target_tick = request.target_tick;
+  // Asked from a replay frame, the target is that frame's clock; the replay's own is not to be lost.
+  const uint64_t target_tick = std::max(
+      request.target_tick, world.has<ReplayInProgress>() ? world.get<ReplayInProgress>().target_tick : uint64_t {});
   request.to_tick.reset();
   request.target_tick = 0;
 

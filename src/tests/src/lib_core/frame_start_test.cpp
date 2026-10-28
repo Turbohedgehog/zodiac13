@@ -84,6 +84,36 @@ TEST_F(FrameStartTest, RolledBackTicksAreReplayFrames) {
   EXPECT_EQ(frames_, expected);
 }
 
+// A session delta due in the past asks for a rollback from a replay frame, with the replay's clock as the target.
+TEST_F(FrameStartTest, ARollbackAskedDuringAReplayStillReplaysToThePresent) {
+  constexpr uint64_t kSnapshotTick {3};
+  constexpr uint64_t kPresentTick {12};
+  constexpr uint64_t kAskedAtTick {kSnapshotTick + 2};
+  while (Tick() < kSnapshotTick) {
+    ft::TickWorld(world_, 1.f);
+  }
+  world_.get_mut<ft::WorldSnapshotHistory>().history.Push({.tick = Tick(), .snapshot = ft::CaptureState(world_).value()});
+  while (Tick() < kPresentTick) {
+    ft::TickWorld(world_, 1.f);
+  }
+  bool asked = false;
+  world_.system("AskForARollback").kind(flecs::PreUpdate).immediate().run([&](flecs::iter&) {
+    if (!asked && world_.has<ft::ReplayInProgress>() && Tick() == kAskedAtTick) {
+      asked = true;
+      ft::RequestRollback(world_, kSnapshotTick, Tick());
+    }
+  });
+
+  ft::RequestRollback(world_, kSnapshotTick, kPresentTick + 1);
+  do {
+    ft::TickWorld(world_, 1.f);
+  } while (ft::IsCatchingUp(world_));
+
+  ASSERT_TRUE(asked);
+  EXPECT_EQ(world_.get<ft::RollbackMetrics>().rollbacks, 2u);
+  EXPECT_EQ(Tick(), kPresentTick + 1);
+}
+
 TEST_F(FrameStartTest, SystemFollowsATickSourceSetEarlierInTheSameFrame) {
   struct Gate {};
   struct LatePhase {};
