@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-// What the blocks of empty sectors cost the player's queries and the building of the Bullet world
-// (docs/network-scaling-plan.md, stage 6): the shipped stations side by side, the player in the first, all
-// the copies' bodies against that copy's alone. Run with `z13.py --bench --filter 'EmptySectorBench.*'`.
+// What the blocks of empty sectors cost the player's queries and the building of the Bullet world: the shipped
+// stations side by side, the player in the first, all copies' bodies against the first's alone.
 
 #include <gtest/gtest.h>
 
@@ -48,6 +47,7 @@ using z13::building::primitives::BlockShapeKey;
 
 constexpr int kCopies[] = {1, 2, 4};
 constexpr int kQueries = 2000;
+constexpr double kMicrosPerMs = 1000.0;
 constexpr flecs::entity_t kFirstEntity = 1000;
 constexpr float kCopyGapCells = 14.f;
 // Where in the first copy the player's queries start, in meters: over its bottom deck.
@@ -106,7 +106,7 @@ double QueryMicros(PhysicsWorld& world, const btVector3& from) {
              world.SweepSphere(from, from + btVector3(kQueryReach, 0.f, 0.f), radius, iterations);
            }
          }) *
-         1000.0 / kQueries;
+         kMicrosPerMs / kQueries;
 }
 
 TEST(EmptySectorBench, DISABLED_Queries) {
