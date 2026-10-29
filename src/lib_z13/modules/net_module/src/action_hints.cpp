@@ -183,10 +183,11 @@ void RelayActionHints(
     }
   }
   // A client that doesn't simulate the player has no use for its hints: a ghost's view comes with its pose.
-  const std::vector<ConnectionId> knowing = KnowingConnections(world, session, packet.player_id, except);
+  std::vector<ConnectionId> knowing = KnowingConnections(world, session, packet.player_id, except);
+  std::ranges::sort(knowing);
   std::vector<std::pair<ConnectionId, uint32_t>> recipients;
   std::ranges::copy_if(session.PlayerConnections(), std::back_inserter(recipients), [&](const auto& entry) {
-    return entry.second != packet.player_id && std::ranges::find(knowing, entry.first) != knowing.end();
+    return entry.second != packet.player_id && std::ranges::binary_search(knowing, entry.first);
   });
   for (const auto& [name, part] : by_class) {
     const auto hint_class = FindHintClass(tuning, name);
