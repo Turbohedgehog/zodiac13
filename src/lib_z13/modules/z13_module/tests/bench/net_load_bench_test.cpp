@@ -42,6 +42,7 @@
 #include <net_module/state_digest.h>
 #include <z13/components/player.h>
 #include <z13_settings/settings.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../../../net_module/src/net_session.h"
 #include "../support/load_session.h"
@@ -350,8 +351,7 @@ TEST(NetLoadBench, DISABLED_InterestByClientCount) {
   }
 }
 
-// Everybody in one hall: what ghosts save when a client simulates only the K nearest players. On the ship scene the
-// walkers fall off into the void, so the sector events here are of the fall (the station waits for f/sector-span).
+// Everybody in one hall of the `test` station: what ghosts save when a client simulates only the K nearest players.
 TEST(NetLoadBench, DISABLED_HallByClientCount) {
   constexpr std::array kHallClientCounts = {8, 16, 32};
   constexpr size_t kSimulatedPlayers = 8;
@@ -369,7 +369,8 @@ TEST(NetLoadBench, DISABLED_HallByClientCount) {
             settings.net->simulated_radius_m = kWholeStationM;
             settings.net->simulated_players_max = kSimulatedPlayers;
             settings.net->simulated_players_slack = kSimulatedSlack;
-          });
+          },
+          z13::testing::kTestScene);
       ASSERT_TRUE(session.Connect(kConnectTicks)) << clients << " clients didn't connect";
       for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
         session.Tick();
@@ -398,8 +399,8 @@ TEST(NetLoadBench, DISABLED_HallByClientCount) {
   }
 }
 
-// Everybody in one hall, ghosts on, the budget K swept: what one more simulated player costs a client against one
-// more ghost (docs/network-scaling-plan.md, 5b).
+// Everybody in one hall of the `test` station, ghosts on, the budget K swept: what one more simulated player costs a
+// client against one more ghost (docs/network-scaling-plan.md, 5b).
 TEST(NetLoadBench, DISABLED_HallByBudget) {
   constexpr int kClients = 32;
   constexpr std::array kBudgets = {2, 4, 8, 12, 16, 24, 32};
@@ -413,7 +414,7 @@ TEST(NetLoadBench, DISABLED_HallByBudget) {
       settings.net->ghost_radius_m = kWholeStationM;
       settings.net->simulated_radius_m = kWholeStationM;
       settings.net->simulated_players_max = static_cast<uint64_t>(budget);
-    });
+    }, z13::testing::kTestScene);
     ASSERT_TRUE(session.Connect(kConnectTicks)) << "K = " << budget << ": the clients didn't connect";
     for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
       session.Tick();
