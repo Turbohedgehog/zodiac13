@@ -40,8 +40,8 @@ struct SectorMember {
   bool operator==(const SectorMember&) const = default;
 };
 
-// Which sector each player and block is in, derived from where they are. A member is in one
-// sector: a player's by its position, a block's by its anchor cell.
+// Which sectors each player and block is in, derived from where they are: a player is in the one of its position, a
+// block in every one its cells touch.
 class SectorIndex {
  public:
   using Singleton = void;
@@ -49,13 +49,16 @@ class SectorIndex {
   explicit SectorIndex(int sector_cells = DefaultSectorCells());
 
   int SectorCells() const { return sector_cells_; }
-  // Adds the member, or moves it to `sector`.
+  // Adds the member, or moves it to `sectors`.
   void Place(SectorMember member, const SectorKey& sector);
+  void Place(SectorMember member, std::span<const SectorKey> sectors);
   void Remove(SectorMember member);
 
   // In no particular order.
   std::span<const SectorMember> MembersIn(const SectorKey& sector) const;
+  // The first of the member's sectors: a player's only one.
   std::optional<SectorKey> Locate(SectorMember member) const;
+  std::span<const SectorKey> SectorsOf(SectorMember member) const;
   std::vector<uint64_t> IdsOf(MemberKind kind) const;
   // The players placed in another sector, or removed, since the last call; in no particular order.
   std::vector<uint64_t> TakeMovedPlayers();
@@ -69,7 +72,7 @@ class SectorIndex {
 
   int sector_cells_ {};
   std::unordered_set<uint64_t> moved_players_;
-  std::array<std::unordered_map<uint64_t, SectorKey>, kMemberKindCount> where_;
+  std::array<std::unordered_map<uint64_t, std::vector<SectorKey>>, kMemberKindCount> where_;
   std::unordered_map<SectorKey, std::vector<SectorMember>, SectorHash> members_;
 };
 

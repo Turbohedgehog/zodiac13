@@ -24,12 +24,11 @@
 
 #include <Eigen/Core>
 
-#include <primitives/placement.h>
 #include <sectors/sector_index.h>
 #include <z13/components/player.h>
-#include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
+#include "chunk_reach.h"
 #include "interest_events.h"
 #include "player_positions.h"
 #include "simulated_set.h"
@@ -126,8 +125,6 @@ std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client)
 
 z13::flecs_tools::WorldSnapshot FilterSnapshot(
     flecs::world world, const z13::flecs_tools::WorldSnapshot& snapshot, const InterestView& view) {
-  const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
-  const int sector_cells = world.get<z13::NetTuning>().sector_size_cells;
   z13::flecs_tools::WorldSnapshot filtered;
   for (const z13::flecs_tools::EntitySnapshot& entity : snapshot.entities) {
     const flecs::entity found = world.lookup(entity.name.c_str());
@@ -136,12 +133,9 @@ z13::flecs_tools::WorldSnapshot FilterSnapshot(
       filtered.entities.push_back(entity);
     }
   }
-  for (const auto& group : snapshot.groups) {
-    const auto chunk = z13::building::primitives::UnpackChunk(group->id);
-    if (view.sectors.contains(sectors::SectorOf(chunk * chunk_cells, sector_cells))) {
-      filtered.groups.push_back(group);
-    }
-  }
+  const ChunkReach reach = ChunkReach::Of(world);
+  std::ranges::copy_if(snapshot.groups, std::back_inserter(filtered.groups),
+                       [&](const auto& group) { return reach.TouchesAny(group->id, view.sectors); });
   return filtered;
 }
 

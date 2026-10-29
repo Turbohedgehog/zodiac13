@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 #include <z13/components/gameplay.h>
 #include <z13/components/input_events.h>
@@ -41,12 +42,17 @@ constexpr int kLookJitterY = 3;
 
 }  // namespace
 
-LoadSession::LoadSession(size_t clients, Steering steering, const std::function<void(z13::Settings&)>& tune)
+LoadSession::LoadSession(size_t clients, Steering steering, const std::function<void(z13::Settings&)>& tune,
+                         std::optional<std::string_view> station_scene)
     : steering_(steering) {
   z13::Settings settings = TestSettings();
   tune(settings);
   walking_.assign(clients, false);
-  server_ = std::make_unique<Z13TestWorld>(std::vector {std::string(kServerArg)}, network_, settings);
+  std::vector server_args {std::string(kServerArg)};
+  if (station_scene) {
+    server_args.insert(server_args.end(), {std::string(kStationSceneArg), std::string(*station_scene)});
+  }
+  server_ = std::make_unique<Z13TestWorld>(std::move(server_args), network_, settings);
   for (size_t i = 0; i < clients; ++i) {
     clients_.push_back(std::make_unique<Z13TestWorld>(
         std::vector {std::string(kConnectArg), std::string(kTestServerEndpoint)}, network_, settings));

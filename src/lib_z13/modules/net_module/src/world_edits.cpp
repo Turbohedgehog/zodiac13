@@ -20,14 +20,17 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/state_markers.h>
 #include <lib_core/time/simulation_clock.h>
 
+#include <primitives/placement.h>
 #include <sectors/sector.h>
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/state_changes.h>
 #include <z13/components/wall.h>
 #include <z13_settings/net_tuning.h>
@@ -63,13 +66,19 @@ void AddNodeCells(const NodeCells& nodes, std::initializer_list<WallId> ids, std
   }
 }
 
-// The cells an entity stands in: its block's, a wall's nodes'. None for state that has no place, which every
-// client that could see the player gets.
-std::vector<Eigen::Vector3i> CellsOf(flecs::world world, flecs::entity entity, const NodeCells& nodes) {
-  std::vector<Eigen::Vector3i> cells;
+std::vector<sectors::SectorKey> SectorsOfBlock(const z13::station::Block& block, int sector_cells) {
+  return sectors::SectorsTouched(z13::building::primitives::OccupiedCells(block), sector_cells);
+}
+
+// The sectors an entity stands in: every one a block touches, those of a wall's nodes. None for state that has no
+// place, which every client that could see the player gets.
+std::vector<sectors::SectorKey> SectorsOf(
+    flecs::world world, flecs::entity entity, const NodeCells& nodes, int sector_cells) {
   if (const auto* block = entity.try_get<z13::station::Block>()) {
-    cells.push_back(block->cell);
-  } else if (const auto* node = entity.try_get<z13::station::WallNode>()) {
+    return SectorsOfBlock(*block, sector_cells);
+  }
+  std::vector<Eigen::Vector3i> cells;
+  if (const auto* node = entity.try_get<z13::station::WallNode>()) {
     cells.push_back(node->cell);
   } else if (const auto* segment = entity.try_get<z13::station::WallSegment>()) {
     AddNodeCells(nodes, {segment->node_a, segment->node_b}, cells);
@@ -80,23 +89,40 @@ std::vector<Eigen::Vector3i> CellsOf(flecs::world world, flecs::entity entity, c
       }
     });
   }
-  return cells;
+  std::vector<sectors::SectorKey> touched;
+  std::ranges::transform(cells, std::back_inserter(touched),
+                         [sector_cells](const Eigen::Vector3i& cell) { return sectors::SectorOf(cell, sector_cells); });
+  return touched;
+}
+
+// A removed entity is gone by now; a block's whole box is still in the tick's BlockChange.
+std::unordered_map<flecs::entity_t, z13::station::Block> RemovedBlocks(flecs::world world) {
+  std::unordered_map<flecs::entity_t, z13::station::Block> removed;
+  world.query<const z13::station::BlockChange>().each([&removed](const z13::station::BlockChange& change) {
+    if (change.kind == z13::station::BlockChangeKind::kRemoved) {
+      removed.insert_or_assign(change.entity, change.block);
+    }
+  });
+  return removed;
 }
 
 struct Edit {
   StateChange change;
-  std::vector<Eigen::Vector3i> cells;
+  std::vector<sectors::SectorKey> sectors;
   std::optional<ft::EntitySnapshot> state;  // a set entity's, at the end of the tick
 };
 
-std::vector<Edit> EditsOfTick(flecs::world world) {
+std::vector<Edit> EditsOfTick(flecs::world world, int sector_cells) {
   std::vector<Edit> edits;
   const NodeCells nodes = CellsOfNodes(world);
+  const auto removed_blocks = RemovedBlocks(world);
   world.query<const StateChange>().each([&](const StateChange& change) {
     Edit edit {.change = change};
     if (change.kind == StateChangeKind::kRemoved) {
-      if (change.cell) {
-        edit.cells.push_back(*change.cell);
+      if (const auto block = removed_blocks.find(change.entity); block != removed_blocks.end()) {
+        edit.sectors = SectorsOfBlock(block->second, sector_cells);
+      } else if (change.cell) {
+        edit.sectors.push_back(sectors::SectorOf(*change.cell, sector_cells));
       }
     } else {
       const flecs::entity entity = world.entity(change.entity);
@@ -104,7 +130,7 @@ std::vector<Edit> EditsOfTick(flecs::world world) {
         return;  // set and then removed within the tick
       }
       edit.change.name = entity.name().c_str();
-      edit.cells = CellsOf(world, entity, nodes);
+      edit.sectors = SectorsOf(world, entity, nodes, sector_cells);
       if (const auto state = ft::CaptureEntityState(world, entity)) {
         // A block comes in a group of its chunk.
         if (const auto all = ft::AllEntities(*state); !all.empty()) {
@@ -118,22 +144,21 @@ std::vector<Edit> EditsOfTick(flecs::world world) {
   return edits;
 }
 
-bool Concerns(const Edit& edit, const ClientKnowledge& known, int sector_cells) {
-  return edit.cells.empty() || std::ranges::any_of(edit.cells, [&](const Eigen::Vector3i& cell) {
-    return known.sectors.contains(sectors::SectorOf(cell, sector_cells));
-  });
+bool Concerns(const Edit& edit, const ClientKnowledge& known) {
+  return edit.sectors.empty() || std::ranges::any_of(edit.sectors, [&known](const sectors::SectorKey& sector) {
+           return known.sectors.contains(sector);
+         });
 }
 
 }  // namespace
 
 void SendWorldEdits(flecs::world world) {
-  const std::vector<Edit> edits = EditsOfTick(world);
+  const std::vector<Edit> edits = EditsOfTick(world, world.get<NetTuning>().sector_size_cells);
   if (edits.empty()) {
     return;
   }
   auto& session = world.get_mut<NetSession>();
   const auto& knowledge = world.get<InterestKnowledge>();
-  const int sector_cells = world.get<NetTuning>().sector_size_cells;
   const uint64_t tick = world.get<ft::SimulationClock>().tick;
   auto& history = world.get_mut<ScheduledSessionDeltas>().history;
   for (const auto& [connection, client] : session.PlayerConnections()) {
@@ -147,7 +172,7 @@ void SendWorldEdits(flecs::world world) {
     for (const Edit& edit : edits) {
       const uint32_t actor = edit.change.actor;
       if (actor == client || PlayersAt(known->second, tick).contains(actor) ||
-          !Concerns(edit, known->second, sector_cells)) {
+          !Concerns(edit, known->second)) {
         continue;
       }
       if (edit.change.kind == StateChangeKind::kRemoved) {

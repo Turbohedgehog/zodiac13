@@ -459,7 +459,7 @@ def main():
                                        doors=deck_doors, area=area, air=f"{deck_air:,}"))
     lines += ["", STATS_TOTAL.format(berths=berths, rooms=rooms, doors=doors), STATS_AIR.format(air=f"{air_cells:,}")]
     blocks = station_blocks(decks)
-    write_blueprint(BLUEPRINT_FILE, blocks)
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks)
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii")
     (OUT / SECTION_FILE).write_text(render_section(decks), encoding="ascii")

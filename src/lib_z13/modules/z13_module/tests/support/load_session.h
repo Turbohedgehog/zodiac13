@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include <net_module/in_memory_transport.h>
@@ -42,9 +44,11 @@ struct Steering {
 // for the measurements of docs/network-scaling-plan.md.
 class LoadSession {
  public:
-  // `tune` changes the settings of every world before it is built.
+  // `tune` changes the settings of every world before it is built. Without `station_scene` the server hosts the ship
+  // scene, where the walkers soon step off into the void and fall.
   explicit LoadSession(
-      size_t clients, Steering steering = {}, const std::function<void(z13::Settings&)>& tune = [](z13::Settings&) {});
+      size_t clients, Steering steering = {}, const std::function<void(z13::Settings&)>& tune = [](z13::Settings&) {},
+      std::optional<std::string_view> station_scene = std::nullopt);
 
   bool Connect(uint64_t max_ticks);
   // One frame of every world, the server first; only the server's frame is timed.

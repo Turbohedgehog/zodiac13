@@ -50,7 +50,7 @@ struct BuildView {
   std::span<const z13::building::primitives::CellBox> spawn_clearances;
 };
 
-// A known primitive within its size limits, on free cells (or, for a kCutIn build, cells it
+// A known primitive within its size limits and max_block_cells, on free cells (or, for a kCutIn build, cells it
 // cuts out first), clear of every player and of the space above spawn points; a new spawn
 // point needs that space free.
 Status ValidateBuild(

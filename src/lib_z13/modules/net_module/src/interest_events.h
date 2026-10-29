@@ -26,6 +26,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/state/world_serializer.h>
+
 #include <sectors/interest_map.h>
 #include <sectors/sector.h>
 
@@ -47,6 +49,8 @@ struct ClientKnowledge {
   // The players the client had from each tick on, for the digests of those ticks (under net.ghosts a player
   // can enter or leave the client's sectors at any time).
   std::map<uint64_t, std::unordered_set<uint32_t>> players_from;
+  // What each EntityEntered carried, by the tick it was captured in and the player (ResendChangedEntries).
+  std::map<uint64_t, std::unordered_map<uint32_t, std::vector<z13::flecs_tools::EntitySnapshot>>> entries;
 };
 
 // What InterestMap::Update reported for each client this tick.

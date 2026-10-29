@@ -167,13 +167,14 @@ table EntityLeft {
   player_id: uint;
 }
 
-// The sector's blocks replace the client's own.
+// `blocks` replace the client's blocks in `chunks` and those touching the sector.
 table SectorEntered {
   apply_tick: ulong;
   sector_x: int;
   sector_y: int;
   sector_z: int;
   blocks: z13.fbs.state.WorldSnapshot;
+  chunks: [ulong];  // the snapshot group ids of `blocks`
 }
 
 // What a player's command changed, for a client that doesn't simulate the player: the entities it set and the
@@ -189,6 +190,8 @@ table SectorLeft {
   sector_x: int;
   sector_y: int;
   sector_z: int;
+  // The chunks (snapshot group ids) whose blocks the client drops: those touching no sector it still holds.
+  chunks: [ulong];
 }
 
 // One player's run in a SequencedCommands: the next `count` of its `commands`.

@@ -330,7 +330,7 @@ def write_decor(path, props, replaces):
 def main():
     station = Octant(json.loads(MAP_FILE.read_text(encoding="utf-8")))
     blocks = station.blocks()
-    write_blueprint(BLUEPRINT_FILE, blocks)
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks)
     props = decor_props(station)
     write_decor(DECOR_FILE, props, [LAMP_PRIMITIVE])
     lines = [f"Octant: {len(blocks)} blocks ({block_kinds(blocks)})", f"origin of the map in cells: {station.origin}", f"props: {len(props)} ({', '.join(f'{k} {v}' for k, v in Counter(p['model'] for p in props).items())})",

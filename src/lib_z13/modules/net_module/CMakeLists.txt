@@ -40,6 +40,7 @@ z13_add_plugin(
   src/lan_discovery_system.cpp
   src/net_action_sender.cpp
   src/interest_deltas.cpp
+  src/chunk_reach.cpp
   src/interest_events.cpp
   src/interest_system.cpp
   src/interest_view.cpp

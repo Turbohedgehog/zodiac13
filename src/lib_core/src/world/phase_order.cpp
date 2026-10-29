@@ -21,8 +21,11 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <iterator>
 #include <map>
+#include <ranges>
 #include <set>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +35,25 @@ namespace z13 {
 namespace {
 
 using PhaseEdges = std::set<std::pair<flecs::entity_t, flecs::entity_t>>;  // {before, after}
+
+// `from` and every phase that depends on one of them, directly or not.
+std::set<flecs::entity_t> Following(std::span<const flecs::entity_t> from, const PhaseEdges& declared) {
+  std::set<flecs::entity_t> following;
+  std::vector<flecs::entity_t> pending(from.begin(), from.end());
+  while (!pending.empty()) {
+    const flecs::entity_t id = pending.back();
+    pending.pop_back();
+    if (!following.insert(id).second) {
+      continue;
+    }
+    for (const auto& [before, after] : declared) {
+      if (before == id) {
+        pending.push_back(after);
+      }
+    }
+  }
+  return following;
+}
 
 PhaseEdges CollectEdges(flecs::world& world, const std::map<flecs::entity_t, std::string>& paths) {
   // flecs hangs these off separate hidden anchors, not off each other.
@@ -44,17 +66,34 @@ PhaseEdges CollectEdges(flecs::world& world, const std::map<flecs::entity_t, std
   }
   // A simulation phase (untagged) ends before PreStore: WorldSnapshotHistory captures the tick's
   // state in PostFrame, and a phase sorted past it by name would leave the snapshot a tick behind.
+  const auto is_simulation = [&](flecs::entity_t id) {
+    return !std::ranges::contains(builtin_order, id) && !world.entity(id).has<flecs_tools::PresentationPhase>();
+  };
   for (const auto& [id, path] : paths) {
-    if (!std::ranges::contains(builtin_order, id) && !world.entity(id).has<flecs_tools::PresentationPhase>()) {
+    if (is_simulation(id)) {
       edges.emplace(id, flecs::PreStore);
     }
   }
+  PhaseEdges declared;
   for (const auto& [id, path] : paths) {
-    world.entity(id).each(flecs::DependsOn, [&edges, &paths, id](flecs::entity target) {
+    world.entity(id).each(flecs::DependsOn, [&declared, &paths, id](flecs::entity target) {
       if (paths.contains(target.id())) {
-        edges.emplace(target.id(), id);
+        declared.emplace(target.id(), id);
       }
     });
+  }
+  edges.insert(declared.begin(), declared.end());
+  std::vector<flecs::entity_t> final_phases;
+  std::ranges::copy_if(std::views::keys(paths), std::back_inserter(final_phases), [&world](flecs::entity_t id) {
+    return world.entity(id).has<flecs_tools::FinalStatePhase>();
+  });
+  const std::set<flecs::entity_t> following = Following(final_phases, declared);
+  for (const auto& [id, path] : paths) {
+    if (is_simulation(id) && !following.contains(id)) {
+      for (const flecs::entity_t final_phase : final_phases) {
+        edges.emplace(id, final_phase);
+      }
+    }
   }
   return edges;
 }

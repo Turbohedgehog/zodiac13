@@ -76,6 +76,24 @@ TEST(SectorIndexTest, PlacingAMemberWhereItIsChangesNothing) {
   EXPECT_EQ(MembersOf(index, {0, 0, 0}), std::vector {kPlayer});
 }
 
+TEST(SectorIndexTest, ABlockIsInEverySectorItTouchesUntilRemoved) {
+  SectorIndex index(kSectorCells);
+  const std::vector<SectorKey> touched = {{0, 0, 0}, {1, 0, 0}};
+
+  index.Place(kBlock, touched);
+
+  EXPECT_TRUE(std::ranges::equal(index.SectorsOf(kBlock), touched));
+  EXPECT_EQ(MembersOf(index, {0, 0, 0}), std::vector {kBlock});
+  EXPECT_EQ(MembersOf(index, {1, 0, 0}), std::vector {kBlock});
+
+  index.Place(kBlock, std::vector<SectorKey> {{1, 0, 0}});
+  EXPECT_TRUE(index.MembersIn({0, 0, 0}).empty());
+
+  index.Remove(kBlock);
+  EXPECT_TRUE(index.MembersIn({1, 0, 0}).empty());
+  EXPECT_EQ(index.Occupied().size(), 0u);
+}
+
 TEST(SectorIndexTest, RemovingAMemberLeavesTheOthersInTheSector) {
   SectorIndex index(kSectorCells);
   const SectorMember other {MemberKind::kPlayer, 8};

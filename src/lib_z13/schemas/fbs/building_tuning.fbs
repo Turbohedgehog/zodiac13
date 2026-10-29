@@ -27,6 +27,9 @@ table BuildingTuning {
   use_reach_distance: float = 2 (min: "0.01", cli);
   // Edge of the chunks the station's block index files blocks by.
   index_chunk_cells: int32 = 16 (min: 1, max: 1024, cli);
+  // The longest a block or wall panel may be along any axis, in cells: interest sends a block to the clients of
+  // every sector it touches (docs/network-scaling-plan.md, f/sector-span).
+  max_block_cells: int32 = 64 (min: 1, max: 1024, cli);
   // Edge of the chunks rooms cut the free space by: an edit rebuilds only its chunks.
   room_chunk_cells: int32 = 32 (min: 4, max: 1024, cli);
   // The widest a hole in a thin wall or floor may be, along either side, to split rooms as a

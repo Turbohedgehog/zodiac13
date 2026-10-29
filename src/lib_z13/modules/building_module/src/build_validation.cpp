@@ -70,6 +70,9 @@ Status ValidateBuild(
   }
 
   const CellBox cells = z13::building::primitives::OccupiedCells(block);
+  if (cells.extent.maxCoeff() > view.tuning.get().max_block_cells) {
+    return std::unexpected(std::format("longer than {} cells", view.tuning.get().max_block_cells));
+  }
   if (kind != z13::station::BrushPreview::Kind::kCutIn &&
       index.Overlaps(z13::building::primitives::ShapeOfBlock(block, view.palette), ignored)) {
     return std::unexpected(std::string {"cells are taken"});
