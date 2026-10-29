@@ -89,6 +89,19 @@ uint64_t ChannelBytes(const SentTraffic& sent, Channel channel) {
   return bytes;
 }
 
+uint64_t MessageBytes(const SentTraffic& sent, fbs::net::MessageBody message) {
+  const auto found = sent.by_message.find(message);
+  return found == sent.by_message.end() ? uint64_t {} : found->second.bytes;
+}
+
+uint64_t ResyncsOfClients(LoadSession& session) {
+  uint64_t resyncs = 0;
+  for (size_t i = 0; i < session.ClientCount(); ++i) {
+    resyncs += session.Client(i).World().get<StateDigests>().resyncs;
+  }
+  return resyncs;
+}
+
 std::string TopMessages(
     const SentTraffic& before, const SentTraffic& after, double seconds, size_t count = kTopMessages) {
   std::vector<std::pair<uint64_t, fbs::net::MessageBody>> grown;
@@ -367,14 +380,7 @@ TEST(NetLoadBench, DISABLED_HallByClientCount) {
       const Snapshot after = Take(session);
 
       const double seconds = static_cast<double>(kMeasuredTicks) / kTicksPerSecond;
-      const auto message_bytes = [](const SentTraffic& sent, fbs::net::MessageBody message) {
-        const auto found = sent.by_message.find(message);
-        return found == sent.by_message.end() ? uint64_t {} : found->second.bytes;
-      };
-      uint64_t resyncs = 0;
-      for (size_t i = 0; i < session.ClientCount(); ++i) {
-        resyncs += session.Client(i).World().get<StateDigests>().resyncs;
-      }
+      const uint64_t resyncs = ResyncsOfClients(session);
       const double per_client = seconds * clients;
       const uint64_t poses_after = ChannelBytes(after.server, Channel::kPoses);
       const double pose_bytes = static_cast<double>(poses_after - ChannelBytes(before.server, Channel::kPoses));
@@ -382,8 +388,8 @@ TEST(NetLoadBench, DISABLED_HallByClientCount) {
           "{:7} | {:6} | {:14.2f} | {:21.0f} | {:21.0f} | {:9.0f} | {:7} | {} ({})\n", clients, ghosts ? "on" : "off",
           std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
           static_cast<double>(after.server.Total().bytes - before.server.Total().bytes) / per_client,
-          static_cast<double>(message_bytes(after.server, fbs::net::MessageBody::SequencedCommands) -
-                              message_bytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
+          static_cast<double>(MessageBytes(after.server, fbs::net::MessageBody::SequencedCommands) -
+                              MessageBytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
           pose_bytes / per_client,
           resyncs, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
           after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
@@ -418,20 +424,13 @@ TEST(NetLoadBench, DISABLED_HallByBudget) {
     const Snapshot after = Take(session);
 
     const double per_client = static_cast<double>(kMeasuredTicks) / kTicksPerSecond * kClients;
-    const auto message_bytes = [](const SentTraffic& sent, fbs::net::MessageBody message) {
-      const auto found = sent.by_message.find(message);
-      return found == sent.by_message.end() ? uint64_t {} : found->second.bytes;
-    };
-    uint64_t resyncs = 0;
-    for (size_t i = 0; i < session.ClientCount(); ++i) {
-      resyncs += session.Client(i).World().get<StateDigests>().resyncs;
-    }
+    const uint64_t resyncs = ResyncsOfClients(session);
     std::cout << std::format(
         "{:2} | {:14.2f} | {:21.0f} | {:21.0f} | {:9.0f} | {:7} | {} ({})\n", budget,
         std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
         static_cast<double>(after.server.Total().bytes - before.server.Total().bytes) / per_client,
-        static_cast<double>(message_bytes(after.server, fbs::net::MessageBody::SequencedCommands) -
-                            message_bytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
+        static_cast<double>(MessageBytes(after.server, fbs::net::MessageBody::SequencedCommands) -
+                            MessageBytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
         static_cast<double>(ChannelBytes(after.server, Channel::kPoses) - ChannelBytes(before.server, Channel::kPoses)) /
             per_client,
         resyncs, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
