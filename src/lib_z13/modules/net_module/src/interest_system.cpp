@@ -23,6 +23,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_state.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
@@ -48,7 +49,8 @@ using sectors::InterestMap;
 using sectors::MemberKind;
 
 void RegisterPipeline(flecs::world world) {
-  world.component<InterestPhase>().add(flecs::Phase).depends_on<SectorPhase>();
+  // Final: an EntityEntered carries the player as the tick leaves it (gravity, interactions included).
+  world.component<InterestPhase>().add(flecs::Phase).add<z13::flecs_tools::FinalStatePhase>().depends_on<SectorPhase>();
   // The edits are read from the changes of the tick, before they are cleared.
   world.component<z13::station::ClearBlockChangesPhase>().add(flecs::Phase).depends_on<InterestPhase>();
 }

@@ -38,6 +38,10 @@ struct SimulationTickPhase {};
 // Keeps running while the simulation is frozen; untagged phases are simulation.
 struct PresentationPhase {};
 
+// A simulation phase that reads the tick's final state: it runs after every other simulation phase but those that
+// depend on it (LinearizePhases).
+struct FinalStatePhase {};
+
 // While set, TickWorld disables all simulation phases (single-player pause only).
 struct SimulationFrozen {
   using Singleton = void;

@@ -46,6 +46,7 @@ void RegisterSimulationClock(flecs::world& world) {
   world.set<SimulationClock>({});
   world.set<DroppedTicks>({});
   world.component<PresentationPhase>();
+  world.component<FinalStatePhase>();
 
   world.component<SimulationTickPhase>().add(flecs::Phase);
   world.get_alive(flecs::PreFrame).add(flecs::Phase).add<PresentationPhase>().depends_on<SimulationTickPhase>();

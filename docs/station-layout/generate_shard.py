@@ -263,7 +263,7 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    write_blueprint(BLUEPRINT_FILE, blocks)
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks)
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii")

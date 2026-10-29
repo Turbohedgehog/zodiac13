@@ -28,19 +28,19 @@
 
 #include <Eigen/Core>
 
+#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 
-#include <primitives/placement.h>
 #include <sectors/sector_index.h>
 #include <z13/components/inventory.h>
 #include <z13_module/gameplay/gameplay_entities.h>
-#include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
 #include "catch_up.h"
+#include "chunk_reach.h"
 #include "player_positions.h"
 #include "simulated_set.h"
 #include "wire_records.h"
@@ -54,10 +54,10 @@ namespace fbn = fbs::net;
 using sectors::MemberKind;
 using sectors::SectorKey;
 
-// The blocks of the latest snapshot by sector, built once for every sector entered this tick.
+// The block groups of the latest snapshot by id, built once for every sector entered this tick.
 struct SectorBlocks {
   uint64_t tick {};
-  std::unordered_map<SectorKey, std::vector<std::shared_ptr<const ft::GroupSnapshot>>, sectors::SectorHash> by_sector;
+  std::unordered_map<ft::SnapshotGroupId, std::shared_ptr<const ft::GroupSnapshot>> groups;
 };
 
 // An event applies at the next tick; a player's state in it is this tick's, after its systems.
@@ -67,6 +67,7 @@ struct EventSender {
   ConnectionId connection {};
   uint64_t apply_tick {};
   std::reference_wrapper<std::optional<SectorBlocks>> blocks;
+  std::reference_wrapper<std::optional<ChunkReach>> reach;
 
   template <typename Body>
   void Send(Body body) const {
@@ -94,15 +95,19 @@ struct EventSender {
           .tick = world.get<ft::SimulationClock>().tick, .snapshot = std::move(*snapshot)};
     }
     const ft::TimestampedSnapshot& source = captured ? *captured : history.Entries().back();
-    const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
-    const int sector_cells = world.get<z13::NetTuning>().sector_size_cells;
     built.emplace().tick = source.tick;
     for (const auto& group : source.snapshot.groups) {
-      const SectorKey sector =
-          sectors::SectorOf(z13::building::primitives::UnpackChunk(group->id) * chunk_cells, sector_cells);
-      built->by_sector[sector].push_back(group);
+      built->groups.emplace(group->id, group);
     }
     return &*built;
+  }
+
+  const ChunkReach& Reach() const {
+    std::optional<ChunkReach>& built = reach.get();
+    if (!built) {
+      built = ChunkReach::Of(world);
+    }
+    return *built;
   }
 };
 
@@ -111,11 +116,14 @@ bool SendSectorEntered(const EventSender& sender, const SectorKey& sector) {
   if (!source) {
     return false;
   }
-  ft::WorldSnapshot blocks;
-  if (const auto held = source->by_sector.find(sector); held != source->by_sector.end()) {
-    blocks.groups = held->second;
-  }
   fbn::SectorEnteredT entered;
+  ft::WorldSnapshot blocks;
+  for (const uint64_t chunk : sender.Reach().ChunksIn(sector)) {
+    if (const auto group = source->groups.find(chunk); group != source->groups.end()) {
+      blocks.groups.push_back(group->second);
+      entered.chunks.push_back(chunk);
+    }
+  }
   entered.apply_tick = source->tick + 1;
   entered.sector_x = sector.x();
   entered.sector_y = sector.y();
@@ -125,12 +133,16 @@ bool SendSectorEntered(const EventSender& sender, const SectorKey& sector) {
   return true;
 }
 
-void SendSectorLeft(const EventSender& sender, const SectorKey& sector) {
+// `held` are the client's sectors without this one.
+void SendSectorLeft(const EventSender& sender, const SectorKey& sector, const SectorSet& held) {
   fbn::SectorLeftT left;
   left.apply_tick = sender.apply_tick;
   left.sector_x = sector.x();
   left.sector_y = sector.y();
   left.sector_z = sector.z();
+  const ChunkReach& reach = sender.Reach();
+  std::ranges::copy_if(reach.ChunksIn(sector), std::back_inserter(left.chunks),
+                       [&](uint64_t chunk) { return !reach.TouchesAny(chunk, held); });
   sender.Send(std::move(left));
 }
 
@@ -159,25 +171,47 @@ std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithItems(
   return state;
 }
 
-bool SendEntityEntered(const EventSender& sender, uint32_t player_id) {
-  const flecs::entity player = sender.world.lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+std::optional<ft::WorldSnapshot> CaptureEntry(flecs::world world, uint32_t player_id) {
+  const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
   if (!player) {
-    return false;
+    return std::nullopt;
   }
-  const auto state = CapturePlayerWithItems(sender.world, player, player_id);
+  auto state = CapturePlayerWithItems(world, player, player_id);
   if (!state) {
     log_error("NetSession(server): can't capture player {} for an interest event: {}", player_id, state.error());
-    return false;
+    return std::nullopt;
   }
+  return std::move(*state);
+}
+
+void SendEntityEntered(const EventSender& sender, uint32_t player_id, const ft::WorldSnapshot& state) {
   fbn::EntityEnteredT entered;
   entered.apply_tick = sender.apply_tick;
-  entered.entity_state = ToWire(*state);
+  entered.entity_state = ToWire(state);
   const PlayerInput input = InputOf(sender.world, player_id, sender.apply_tick - 1);
   entered.held_values = ToWire(input.held_values);
   entered.pending = ToWire(input.pending);
   entered.input_through = ToWire(input.confirmed.by_player);
   sender.Send(std::move(entered));
-  return true;
+}
+
+// A replay of the tick an entry was captured in can change the player (a command that came late), and the client,
+// which had no player before the entry, can't redo that tick: it gets the entry again, applied after the first.
+void ResendChangedEntries(const EventSender& sender, ClientKnowledge& known) {
+  const auto entries = known.entries.find(sender.apply_tick - 1);
+  if (entries == known.entries.end()) {
+    return;
+  }
+  for (auto& [player_id, sent] : entries->second) {
+    if (!known.players.contains(player_id)) {
+      continue;
+    }
+    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender.world, player_id);
+    if (state && state->entities != sent) {
+      SendEntityEntered(sender, player_id, *state);
+      sent = std::move(state->entities);
+    }
+  }
 }
 
 void SendEntityLeft(const EventSender& sender, uint32_t player_id) {
@@ -243,6 +277,7 @@ void RecordPlayers(ClientKnowledge& known, uint64_t from_tick, uint64_t horizon_
     --in_force;
   }
   known.players_from.erase(known.players_from.begin(), in_force);
+  known.entries.erase(known.entries.begin(), known.entries.lower_bound(horizon));
 }
 
 // Sends the player's entry or exit if the client's knowledge of it is out of date.
@@ -256,7 +291,13 @@ void SyncPlayer(const EventSender& sender, const sectors::SectorIndex& index, se
       known.players.erase(player_id);
       RecordPlayers(known, sender.apply_tick, horizon_ticks);
     }
-  } else if (present && SendEntityEntered(sender, player_id)) {
+  } else if (present) {
+    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender.world, player_id);
+    if (!state) {
+      return;
+    }
+    SendEntityEntered(sender, player_id, *state);
+    known.entries[sender.apply_tick - 1][player_id] = std::move(state->entities);
     known.players.insert(player_id);
     RecordPlayers(known, sender.apply_tick, horizon_ticks);
   }
@@ -307,13 +348,13 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
       std::ranges::copy_if(known.sectors, std::back_inserter(outside),
                            [&wanted](const SectorKey& sector) { return !wanted.contains(sector); });
       for (const SectorKey& sector : outside) {
-        SendSectorLeft(sender, sector);
         known.sectors.erase(sector);
+        SendSectorLeft(sender, sector, known.sectors);
       }
     }
     for (const SectorKey& sector : change.left) {
       if (known.sectors.erase(sector) > 0) {
-        SendSectorLeft(sender, sector);
+        SendSectorLeft(sender, sector, known.sectors);
       }
     }
     for (const SectorKey& sector : change.entered) {
@@ -396,6 +437,7 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
   auto& knowledge = world.get_mut<InterestKnowledge>();
   NetSession& session = world.get_mut<NetSession>();
   std::optional<SectorBlocks> blocks;
+  std::optional<ChunkReach> reach;
   const uint64_t tick = world.get<ft::SimulationClock>().tick;
   const uint64_t apply_tick = tick + 1;
   const auto& tuning = world.get<z13::NetTuning>();
@@ -408,7 +450,7 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
     }
     const auto [at, first] = knowledge.by_client.try_emplace(player);
     const auto change = changes.find(player);
-    const EventSender sender {world, std::ref(session), connection, apply_tick, std::ref(blocks)};
+    const EventSender sender {world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach)};
     const bool reselect = tuning.ghosts &&
         (first || tick % tuning.simulated_reselect_ticks == 0 ||
          std::ranges::any_of(moved_players, [&](uint64_t id) {
@@ -416,6 +458,9 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
            return !at->second.simulated.contains(moved) &&
                IsPresent(world.get<sectors::SectorIndex>(), at->second, player, moved, false);
          }));
+    if (world.has<ft::ReplayInProgress>()) {
+      ResendChangedEntries(sender, at->second);
+    }
     const std::vector<uint32_t> reselected =
         reselect ? ReselectSimulated(world, player, at->second) : std::vector<uint32_t> {};
     SyncClient(sender, player, at->second, first,

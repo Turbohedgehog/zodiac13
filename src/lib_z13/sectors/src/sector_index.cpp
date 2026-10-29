@@ -26,17 +26,25 @@ SectorIndex::SectorIndex(int sector_cells) : sector_cells_(sector_cells) {
 }
 
 void SectorIndex::Place(SectorMember member, const SectorKey& sector) {
+  Place(member, std::span<const SectorKey>(&sector, 1));
+}
+
+void SectorIndex::Place(SectorMember member, std::span<const SectorKey> sectors) {
   auto& where = where_[static_cast<size_t>(member.kind)];
-  const auto [placed, inserted] = where.try_emplace(member.id, sector);
+  const auto [placed, inserted] = where.try_emplace(member.id);
   if (!inserted) {
-    if (placed->second == sector) {
+    if (std::ranges::equal(placed->second, sectors)) {
       return;
     }
-    Detach(member, placed->second);
-    placed->second = sector;
+    for (const SectorKey& sector : placed->second) {
+      Detach(member, sector);
+    }
   }
+  placed->second.assign(sectors.begin(), sectors.end());
   NoteMoved(member);
-  members_[sector].push_back(member);
+  for (const SectorKey& sector : sectors) {
+    members_[sector].push_back(member);
+  }
 }
 
 void SectorIndex::Remove(SectorMember member) {
@@ -45,7 +53,9 @@ void SectorIndex::Remove(SectorMember member) {
   if (placed == where.end()) {
     return;
   }
-  Detach(member, placed->second);
+  for (const SectorKey& sector : placed->second) {
+    Detach(member, sector);
+  }
   where.erase(placed);
   NoteMoved(member);
 }
@@ -87,9 +97,14 @@ std::vector<SectorKey> SectorIndex::Occupied() const {
 }
 
 std::optional<SectorKey> SectorIndex::Locate(SectorMember member) const {
+  const std::span<const SectorKey> sectors = SectorsOf(member);
+  return sectors.empty() ? std::nullopt : std::optional<SectorKey> {sectors.front()};
+}
+
+std::span<const SectorKey> SectorIndex::SectorsOf(SectorMember member) const {
   const auto& where = where_[static_cast<size_t>(member.kind)];
   const auto placed = where.find(member.id);
-  return placed == where.end() ? std::nullopt : std::optional<SectorKey> {placed->second};
+  return placed == where.end() ? std::span<const SectorKey> {} : std::span<const SectorKey> {placed->second};
 }
 
 std::vector<uint64_t> SectorIndex::IdsOf(MemberKind kind) const {

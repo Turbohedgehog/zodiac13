@@ -562,18 +562,24 @@ def axis_vector(name):
     return vector
 
 
+def world_axes(entry):
+    """The world axis each of the block's own x, y and z turns into."""
+    orientation = entry.get("orientation")
+    if not orientation:
+        return [0, 1, 2]
+    face, up = orientation[len("Face"):].split("Up")
+    x, z = axis_vector(face), axis_vector(up)
+    y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]]
+    return [next(row for row in range(3) if column[row]) for column in (x, y, z)]
+
+
 def occupied_box(entry):
     """The cells [min, max) a blueprint block occupies (primitives/placement.h)."""
-    size = [entry["size"][axis] for axis in "xyz"]
-    extent = list(size)
-    orientation = entry.get("orientation")
-    if orientation:
-        face, up = orientation[len("Face"):].split("Up")
-        x, z = axis_vector(face), axis_vector(up)
-        y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]]
-        extent = [sum(abs(column[row]) * size[i] for i, column in enumerate((x, y, z))) for row in range(3)]
     low = [entry["cell"][axis] for axis in "xyz"]
-    return low, [low[i] + extent[i] for i in range(3)]
+    high = list(low)
+    for axis, world in zip("xyz", world_axes(entry)):
+        high[world] += entry["size"][axis]
+    return low, high
 
 
 def overlaps(box, low, high):
@@ -656,8 +662,29 @@ def wall_segment(node_a, node_b, thickness, stick_length, stick_axis=2):
             "length_a": stick_length, "axis_b": axis, "length_b": stick_length, "thickness": thickness}
 
 
+# building_tuning.fbs, max_block_cells: a longer block would reach past the sector next to its own.
+MAX_BLOCK_CELLS = 64
+
+
+def split_long(entry):
+    """The block cut along each of its axes into pieces no longer than MAX_BLOCK_CELLS. Its box starts at its cell
+    whatever the orientation (occupied_box), so a piece moves along the world axis its own axis turns into."""
+    pieces = [entry]
+    for axis, world in zip("xyz", world_axes(entry)):
+        length = entry["size"][axis]
+        cut = []
+        for piece in pieces:
+            for start in range(0, length, MAX_BLOCK_CELLS):
+                cell = {**piece["cell"], "xyz"[world]: piece["cell"]["xyz"[world]] + start}
+                cut.append({**piece, "cell": cell, "size": {**piece["size"], axis: min(MAX_BLOCK_CELLS, length - start)}})
+        pieces = cut
+    return pieces
+
+
 def write_blueprint(path, blocks, walls=()):
-    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments."""
+    """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
+    returns the blocks written, the long ones cut."""
+    blocks = [piece for entry in blocks for piece in split_long(entry)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
     text = "{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]"
     if walls:
@@ -665,6 +692,7 @@ def write_blueprint(path, blocks, walls=()):
         text += ",\n  \"walls\": [\n    " + ",\n    ".join(wall_lines) + "\n  ]"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text + "\n}\n", encoding="ascii", newline="\n")
+    return blocks
 
 
 def block_kinds(blocks):

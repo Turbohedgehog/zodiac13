@@ -156,6 +156,24 @@ TEST(PhaseOrderTest, EverySimulationPhaseEndsBeforeTheStateCapture) {
   EXPECT_TRUE(late.empty()) << "after PreStore: " << ::testing::PrintToString(late);
 }
 
+// InterestPhase ran before GravityPhase by name, so an EntityEntered carried a player without its gravity.
+TEST(PhaseOrderTest, AFinalStatePhaseFollowsEverySimulationPhaseButThoseAfterIt) {
+  Z13TestWorld test_world({std::string(kServerArg)});
+  flecs::world& world = test_world.World();
+  const flecs::entity interest = world.lookup("z13::net::InterestPhase");
+  ASSERT_TRUE(interest);
+  ASSERT_TRUE(interest.has<z13::flecs_tools::FinalStatePhase>());
+  std::vector<std::string> later;
+  world.query_builder().with(flecs::Phase).build().each([&](flecs::entity phase) {
+    const std::string path = phase.path().c_str();
+    if (!path.starts_with("::flecs::") && !phase.has<z13::flecs_tools::PresentationPhase>() &&
+        PhaseDepth(phase) > PhaseDepth(interest)) {
+      later.push_back(path);
+    }
+  });
+  EXPECT_EQ(later, std::vector<std::string> {"::z13::station::ClearBlockChangesPhase"});
+}
+
 TEST(PhaseOrderTest, EverySystemHasAtMostOnePhase) {
   Z13TestWorld local;
   EXPECT_EQ(SystemsWithSeveralPhases(local.World()), std::vector<std::string> {});

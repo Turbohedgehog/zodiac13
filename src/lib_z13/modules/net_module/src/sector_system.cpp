@@ -28,6 +28,8 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
+#include <primitives/placement.h>
+#include <sectors/sector.h>
 #include <sectors/sector_index.h>
 #include <z13/components/block.h>
 #include <z13/components/block_change_reader.h>
@@ -59,12 +61,17 @@ SectorMember BlockMember(flecs::entity_t entity) {
   return {.kind = MemberKind::kBlock, .id = entity};
 }
 
+void PlaceBlock(SectorIndex& index, flecs::entity_t entity, const z13::station::Block& block, int sector_cells) {
+  index.Place(
+      BlockMember(entity), sectors::SectorsTouched(z13::building::primitives::OccupiedCells(block), sector_cells));
+}
+
 void RebuildBlocks(const z13::station::BlockChangeReader& reader, SectorIndex& index, int sector_cells) {
   for (const uint64_t id : index.IdsOf(MemberKind::kBlock)) {
     index.Remove(BlockMember(id));
   }
   reader.Blocks().each([&index, sector_cells](flecs::entity block, const z13::station::Block& data) {
-    index.Place(BlockMember(block.id()), sectors::SectorOf(data.cell, sector_cells));
+    PlaceBlock(index, block.id(), data, sector_cells);
   });
 }
 
@@ -79,7 +86,7 @@ void SyncBlocks(z13::station::BlockChangeReader& reader, uint64_t restores, uint
     if (change.kind == BlockChangeKind::kRemoved) {
       index.Remove(BlockMember(change.entity));
     } else {
-      index.Place(BlockMember(change.entity), sectors::SectorOf(change.block.cell, sector_cells));
+      PlaceBlock(index, change.entity, change.block, sector_cells);
     }
   }
 }

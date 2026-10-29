@@ -36,6 +36,8 @@ namespace z13::flecs_tools {
 struct ComponentValue {
   std::string type;            // component full path, e.g. "z13::Position"
   std::vector<uint8_t> value;  // EncodeValue bytes (component_codec.h)
+
+  bool operator==(const ComponentValue&) const = default;
 };
 
 // A flecs (relation, target) pair. `relation` is "ChildOf" for the parent
@@ -43,6 +45,8 @@ struct ComponentValue {
 struct Relationship {
   std::string relation;
   std::string target;  // target entity full path
+
+  bool operator==(const Relationship&) const = default;
 };
 
 struct EntitySnapshot {
@@ -50,6 +54,8 @@ struct EntitySnapshot {
   std::vector<std::string> tags;            // zero-size components, sorted
   std::vector<ComponentValue> components;   // data components with meta, sorted by type
   std::vector<Relationship> relationships;  // sorted by (relation, target)
+
+  bool operator==(const EntitySnapshot&) const = default;
 };
 
 using SnapshotGroupId = uint64_t;

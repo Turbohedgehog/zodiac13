@@ -40,6 +40,7 @@
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 #include <z13_settings/settings.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../../../building_module/tests/support/station_builders.h"
 #include "../../../station_module/tests/support/room_blocks.h"
@@ -67,6 +68,8 @@ using z13::testing::Z13TestWorld;
 constexpr int kNearbySector = 1;
 constexpr int kFarSector = 40;
 constexpr int kStrayRow = 5;
+// Past an index chunk from row 1, within the same sector.
+constexpr int kOtherChunkRow = 40;
 constexpr uint32_t kEntityPlayer = 40;
 constexpr float kBuilderHeightMeters = 1.5f;
 
@@ -80,27 +83,48 @@ flecs::entity AddBlockInSector(Z13TestWorld& world, int sector_x, int row = 1) {
       world, {.spec = z13::station::CubeSpec(), .cell = Eigen::Vector3i(sector_x * sector_cells + 1, row, 1)});
 }
 
-std::unique_ptr<fbs::state::WorldSnapshotT> BlocksOfSector(Z13TestWorld& world, int sector_x) {
+// A floor of the longest length a block may have, anchored in `sector` and reaching into the next one along x.
+flecs::entity AddFloorIntoNextSector(Z13TestWorld& world, const sectors::SectorKey& sector) {
+  flecs::world w = world.World();
+  const int sector_cells = w.get<z13::NetTuning>().sector_size_cells;
+  const int length = w.get<z13::BuildingTuning>().max_block_cells;
+  const Eigen::Vector3i cell = sector * sector_cells + Eigen::Vector3i(sector_cells - length / 2, 1, 1);
+  return z13::station::testing::AddBlock(
+      world, {.spec = {.type_id = z13::station::testing::IdOf(z13::station::testing::kFloor), .size = {length, 1, 1}},
+              .cell = cell});
+}
+
+uint64_t ChunkIdOf(Z13TestWorld& world, const flecs::entity block) {
+  const int chunk_cells = world.World().get<z13::BuildingTuning>().index_chunk_cells;
+  return z13::building::primitives::PackChunk(z13::building::primitives::ChunkOf(block.get<Block>().cell, chunk_cells));
+}
+
+// Entering `sector_x` with the groups of the chunks anchored in it.
+fbs::net::SectorEnteredT EnteredSector(Z13TestWorld& world, int sector_x) {
   flecs::world w = world.World();
   const auto snapshot = ft::CaptureState(w);
   EXPECT_TRUE(snapshot.has_value());
   const int chunk_cells = w.get<z13::BuildingTuning>().index_chunk_cells;
   const int sector_cells = w.get<z13::NetTuning>().sector_size_cells;
+  fbs::net::SectorEnteredT entered;
+  entered.sector_x = sector_x;
   ft::WorldSnapshot blocks;
-  std::ranges::copy_if(snapshot->groups, std::back_inserter(blocks.groups), [&](const auto& group) {
-    return sectors::SectorOf(z13::building::primitives::UnpackChunk(group->id) * chunk_cells, sector_cells).x() ==
-           sector_x;
-  });
-  return ToWire(blocks);
+  for (const auto& group : snapshot->groups) {
+    if (sectors::SectorOf(z13::building::primitives::UnpackChunk(group->id) * chunk_cells, sector_cells).x() ==
+        sector_x) {
+      blocks.groups.push_back(group);
+      entered.chunks.push_back(group->id);
+    }
+  }
+  entered.blocks = ToWire(blocks);
+  return entered;
 }
 
 TEST(InterestDeltasTest, ASectorEnteredReplacesTheBlocksOfThatSectorOnly) {
   Z13TestWorld world = StationWorld();
   world.Tick();
   const std::string brought = AddBlockInSector(world, kNearbySector).name().c_str();
-  fbs::net::SectorEnteredT entered;
-  entered.sector_x = kNearbySector;
-  entered.blocks = BlocksOfSector(world, kNearbySector);
+  const fbs::net::SectorEnteredT entered = EnteredSector(world, kNearbySector);
   const std::string stray = AddBlockInSector(world, kNearbySector, kStrayRow).name().c_str();
   const flecs::entity gone = world.World().lookup(brought.c_str());
   z13::station::DestroyBlock(gone, gone.get<Block>());
@@ -114,18 +138,38 @@ TEST(InterestDeltasTest, ASectorEnteredReplacesTheBlocksOfThatSectorOnly) {
   EXPECT_TRUE(HasBlock(world, elsewhere));
 }
 
-TEST(InterestDeltasTest, ASectorLeftRemovesTheBlocksOfThatSectorOnly) {
+// One the server removed while the client didn't hold the sector, which the event therefore doesn't bring.
+TEST(InterestDeltasTest, ASectorEnteredRemovesABlockOfAnotherSectorReachingIntoIt) {
   Z13TestWorld world = StationWorld();
   world.Tick();
-  const std::string here = AddBlockInSector(world, kNearbySector).name().c_str();
+  const std::string reaching = AddFloorIntoNextSector(world, {kNearbySector - 1, 0, 0}).name().c_str();
+  const std::string elsewhere = AddBlockInSector(world, kFarSector).name().c_str();
+  world.Tick();
+  fbs::net::SectorEnteredT entered;
+  entered.sector_x = kNearbySector;
+
+  ApplySectorEntered(world.World(), entered);
+
+  EXPECT_FALSE(HasBlock(world, reaching));
+  EXPECT_TRUE(HasBlock(world, elsewhere));
+}
+
+TEST(InterestDeltasTest, ASectorLeftRemovesTheBlocksOfTheChunksItNames) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const flecs::entity here = AddBlockInSector(world, kNearbySector);
+  const std::string here_name = here.name().c_str();
+  const std::string kept = AddBlockInSector(world, kNearbySector, kOtherChunkRow).name().c_str();
   const std::string elsewhere = AddBlockInSector(world, kFarSector).name().c_str();
   world.Tick();
   fbs::net::SectorLeftT left;
   left.sector_x = kNearbySector;
+  left.chunks = {ChunkIdOf(world, world.World().lookup(here_name.c_str()))};
 
   ApplySectorLeft(world.World(), left);
 
-  EXPECT_FALSE(HasBlock(world, here));
+  EXPECT_FALSE(HasBlock(world, here_name));
+  EXPECT_TRUE(HasBlock(world, kept));
   EXPECT_TRUE(HasBlock(world, elsewhere));
 }
 
@@ -353,6 +397,42 @@ TEST_F(InterestStillTest, AFilteredSnapshotKeepsTheBlocksOfTheViewOnly) {
   };
   EXPECT_TRUE(has(near_block));
   EXPECT_FALSE(has(far_block));
+}
+
+TEST_F(InterestStillTest, AFilteredSnapshotKeepsABlockReachingIntoTheViewFromOutside) {
+  flecs::world server = session_.Server().World();
+  const auto view = ViewOf(server, PlayerOf(session_.Client(0)));
+  ASSERT_TRUE(view.has_value());
+  const auto westmost =
+      std::ranges::min(view->sectors, {}, [](const sectors::SectorKey& sector) { return sector.x(); });
+  const flecs::entity reaching = AddFloorIntoNextSector(session_.Server(), westmost - sectors::SectorKey::UnitX());
+  const std::string name = reaching.name().c_str();
+  Run(kSettleTicks);
+  const auto snapshot = ft::CaptureState(server);
+  ASSERT_TRUE(snapshot.has_value());
+
+  const ft::WorldSnapshot filtered = FilterSnapshot(server, *snapshot, *ViewOf(server, PlayerOf(session_.Client(0))));
+
+  EXPECT_TRUE(std::ranges::any_of(
+      ft::AllEntities(filtered), [&name](const ft::EntitySnapshot& e) { return e.name == name; }));
+}
+
+// The station's floors and walls run across sectors: a client holds every block that reaches into its sectors.
+TEST(InterestStationTest, WalkersOnAStationStayInSyncWithoutAResync) {
+  constexpr size_t kWalkers = 2;
+  constexpr uint64_t kWalkTicks = 300;
+  z13::testing::LoadSession session(
+      kWalkers, {}, [](z13::Settings& settings) { settings.net->interest_events = true; }, z13::testing::kTestScene);
+  ASSERT_TRUE(session.Connect(kConnectTicks));
+  for (uint64_t tick = 0; tick < kWalkTicks; ++tick) {
+    session.Tick();
+  }
+
+  for (size_t index = 0; index < session.ClientCount(); ++index) {
+    const auto& digests = session.Client(index).World().get<StateDigests>();
+    EXPECT_GT(digests.checked, 0u) << "client " << index;
+    EXPECT_EQ(digests.resyncs, 0u) << "client " << index;
+  }
 }
 
 TEST(InterestDeltasTest, MergingAPlayersInputTwiceAddsItOnce) {
