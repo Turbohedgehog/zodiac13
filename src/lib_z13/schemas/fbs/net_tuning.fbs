@@ -73,7 +73,7 @@ table NetTuning {
   ghost_far_every: uint64 = 4 (min: 1, cli);
   // With ghosts, a client simulates only the nearest simulated_players_max players (ChooseSimulated), chosen again
   // every simulated_reselect_ticks; the others near it are ghosts.
-  simulated_players_max: uint64 = 24 (min: 1, cli);
+  simulated_players_max: uint64 = 12 (min: 1, cli);
   simulated_players_slack: uint64 = 4 (min: 0, cli);
   simulated_radius_m: double = 48 (min: 1, cli);
   simulated_hysteresis_m: double = 6 (min: 0, cli);
