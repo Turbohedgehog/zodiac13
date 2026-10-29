@@ -106,10 +106,11 @@ std::vector<z13::gameplay::PlayerActionRecord> Filtered(
 
 PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick) {
   PlayerInput input;
-  std::ranges::copy_if(HeldValues(world, snapshot_tick), std::back_inserter(input.held_values),
-                       [player_id](const auto& record) { return record.player_id == player_id; });
-  std::ranges::copy_if(world.get<z13::gameplay::ScheduledCommands>().records, std::back_inserter(input.pending),
-                       [player_id](const auto& record) { return record.player_id == player_id; });
+  const auto own = [player_id](const auto& record) { return record.player_id == player_id; };
+  std::ranges::copy_if(HeldValues(world, snapshot_tick), std::back_inserter(input.held_values), own);
+  // In a replay the commands after `snapshot_tick` are in the log already, not in the queue.
+  std::ranges::copy_if(ActionsSince(world, snapshot_tick), std::back_inserter(input.pending), own);
+  std::ranges::copy_if(world.get<z13::gameplay::ScheduledCommands>().records, std::back_inserter(input.pending), own);
   const auto& confirmed = world.get<z13::gameplay::ConfirmedInputTicks>().by_player;
   if (const auto through = confirmed.find(player_id); through != confirmed.end()) {
     input.confirmed.by_player.emplace(*through);
@@ -125,6 +126,8 @@ void MergePlayerInput(flecs::world world, PlayerInput input) {
   if (!missing.empty()) {
     std::ranges::sort(missing, RecordLess);
     log.log.MergeSorted(std::move(missing), RecordLess);
+    // They lie behind the tick the remote values were advanced to, which only a rebuild from the log sees.
+    world.get_mut<z13::gameplay::RemoteActionState>().synced_tick.reset();
   }
   auto& queue = world.get_mut<z13::gameplay::ScheduledCommands>();
   for (const z13::gameplay::PlayerActionRecord& record : input.pending) {

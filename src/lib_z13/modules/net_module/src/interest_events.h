@@ -85,4 +85,8 @@ void RememberResync(flecs::world world, sectors::ClientId client, const std::opt
 // call, to apply at the next tick. `moved_players` are those the sector index placed anew meanwhile.
 void SendInterestEvents(flecs::world world, const InterestChanges& changes, std::span<const uint64_t> moved_players);
 
+// For a replayed tick: sends again each entry captured in it whose player the replay changed (a command that came
+// late), since the client, which had no player before, can't redo that tick.
+void ResendChangedEntries(flecs::world world);
+
 }  // namespace z13::net

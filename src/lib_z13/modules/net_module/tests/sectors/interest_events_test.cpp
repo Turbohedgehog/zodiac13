@@ -452,5 +452,45 @@ TEST(InterestDeltasTest, MergingAPlayersInputTwiceAddsItOnce) {
   EXPECT_EQ(queued(), 1u);
 }
 
+// An entry made in a replay found the commands after its tick in the log, not in the queue, and left them out.
+TEST(InterestDeltasTest, APlayersInputBringsTheLoggedCommandsAfterTheSnapshot) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  constexpr uint64_t kSnapshotTick = 8;
+  const z13::gameplay::PlayerActionRecord before {.tick = 5, .player_id = kEntityPlayer, .action_id = 1, .value = 1.f};
+  const z13::gameplay::PlayerActionRecord after {.tick = 10, .player_id = kEntityPlayer, .action_id = 2, .value = 1.f};
+  MergePlayerInput(world.World(), {.held_values = {before, after}});
+
+  const PlayerInput input = InputOf(world.World(), kEntityPlayer, kSnapshotTick);
+
+  ASSERT_EQ(input.pending.size(), 1u);
+  EXPECT_EQ(input.pending.front().tick, after.tick);
+  EXPECT_TRUE(std::ranges::all_of(input.held_values, [](const auto& record) { return record.tick == kSnapshotTick; }));
+}
+
+// Ghosts swap with simulated players all the time when K is small; an entry or exit decided in a replay landed in the
+// client's past and its digests disagreed.
+TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
+  constexpr size_t kWalkers = 6;
+  constexpr uint64_t kWalkTicks = 300;
+  constexpr double kWholeStationM = 5000.;
+  z13::testing::LoadSession session(kWalkers, {}, [](z13::Settings& settings) {
+    settings.net->interest_events = true;
+    settings.net->ghosts = true;
+    settings.net->ghost_radius_m = kWholeStationM;
+    settings.net->simulated_radius_m = kWholeStationM;
+    settings.net->simulated_players_max = 2;
+    settings.net->simulated_players_slack = 0;
+  }, z13::testing::kTestScene);
+  ASSERT_TRUE(session.Connect(kConnectTicks));
+  for (uint64_t tick = 0; tick < kWalkTicks; ++tick) {
+    session.Tick();
+  }
+
+  for (size_t index = 0; index < session.ClientCount(); ++index) {
+    EXPECT_EQ(session.Client(index).World().get<StateDigests>().resyncs, 0u) << "client " << index;
+  }
+}
+
 }  // namespace
 }  // namespace z13::net

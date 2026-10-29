@@ -28,7 +28,6 @@
 
 #include <Eigen/Core>
 
-#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
@@ -195,9 +194,7 @@ void SendEntityEntered(const EventSender& sender, uint32_t player_id, const ft::
   sender.Send(std::move(entered));
 }
 
-// A replay of the tick an entry was captured in can change the player (a command that came late), and the client,
-// which had no player before the entry, can't redo that tick: it gets the entry again, applied after the first.
-void ResendChangedEntries(const EventSender& sender, ClientKnowledge& known) {
+void ResendChangedEntriesOf(const EventSender& sender, ClientKnowledge& known) {
   const auto entries = known.entries.find(sender.apply_tick - 1);
   if (entries == known.entries.end()) {
     return;
@@ -430,6 +427,23 @@ void RememberResync(flecs::world world, sectors::ClientId client, const std::opt
   known.players_from = {{0, known.players}};
 }
 
+void ResendChangedEntries(flecs::world world) {
+  if (!world.get<z13::NetTuning>().interest_events) {
+    return;
+  }
+  auto& knowledge = world.get_mut<InterestKnowledge>();
+  NetSession& session = world.get_mut<NetSession>();
+  std::optional<SectorBlocks> blocks;
+  std::optional<ChunkReach> reach;
+  const uint64_t apply_tick = world.get<ft::SimulationClock>().tick + 1;
+  for (const auto& [connection, player] : session.PlayerConnections()) {
+    if (const auto known = knowledge.by_client.find(player); known != knowledge.by_client.end()) {
+      ResendChangedEntriesOf(
+          {world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach)}, known->second);
+    }
+  }
+}
+
 void SendInterestEvents(flecs::world world, const InterestChanges& changes, std::span<const uint64_t> moved_players) {
   if (!world.get<z13::NetTuning>().interest_events) {
     return;
@@ -458,9 +472,6 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
            return !at->second.simulated.contains(moved) &&
                IsPresent(world.get<sectors::SectorIndex>(), at->second, player, moved, false);
          }));
-    if (world.has<ft::ReplayInProgress>()) {
-      ResendChangedEntries(sender, at->second);
-    }
     const std::vector<uint32_t> reselected =
         reselect ? ReselectSimulated(world, player, at->second) : std::vector<uint32_t> {};
     SyncClient(sender, player, at->second, first,

@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/world/lifecycle.h>
@@ -89,8 +90,12 @@ void RegisterSystems(flecs::world world) {
       .with<z13::net::ServerRole>()
       .each([](flecs::iter& it, size_t, const NetSession& session, InterestMap& map, sectors::SectorIndex& index,
                const z13::NetTuning& tuning) {
-        const InterestChanges changes = UpdateInterest(session, map, index, tuning);
-        SendInterestEvents(it.world(), changes, index.TakeMovedPlayers());
+        // A replay revisits ticks the clients were told about; what it decided anew would land in their past.
+        if (it.world().has<z13::flecs_tools::ReplayInProgress>()) {
+          ResendChangedEntries(it.world());
+        } else {
+          SendInterestEvents(it.world(), UpdateInterest(session, map, index, tuning), index.TakeMovedPlayers());
+        }
         SendWorldEdits(it.world());
       });
 }
