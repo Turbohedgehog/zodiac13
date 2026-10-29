@@ -58,8 +58,12 @@ struct InterestKnowledge {
   std::unordered_map<sectors::ClientId, ClientKnowledge> by_client;
 };
 
-// Sends `envelope`, about `player_id`, to the clients that have the player, and to the player's own;
-// to every connection when interest events are off. A client with no entry yet has the whole world.
+// The connections that have `player_id` (and the player's own); every connection when interest events are off.
+// A client with no entry yet has the whole world.
+std::vector<ConnectionId> KnowingConnections(
+    flecs::world world, const NetSession& session, uint32_t player_id, std::optional<ConnectionId> except);
+
+// Sends `envelope`, about `player_id`, to the KnowingConnections.
 void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
                    std::optional<ConnectionId> except = std::nullopt);
 

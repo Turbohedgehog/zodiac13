@@ -16,10 +16,13 @@
 
 #include "action_hints.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <lib_core/state/rollback.h>
@@ -37,6 +40,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include "hint_classes.h"
+#include "interest_events.h"
 #include "player_positions.h"
 
 namespace z13::net {
@@ -178,7 +182,13 @@ void RelayActionHints(
       by_class.try_emplace(*hint_class, empty).first->second.hints.push_back(hint);
     }
   }
-  const auto recipients = session.PlayerConnections();
+  // A client that doesn't simulate the player has no use for its hints: a ghost's view comes with its pose.
+  std::vector<ConnectionId> knowing = KnowingConnections(world, session, packet.player_id, except);
+  std::ranges::sort(knowing);
+  std::vector<std::pair<ConnectionId, uint32_t>> recipients;
+  std::ranges::copy_if(session.PlayerConnections(), std::back_inserter(recipients), [&](const auto& entry) {
+    return entry.second != packet.player_id && std::ranges::binary_search(knowing, entry.first);
+  });
   for (const auto& [name, part] : by_class) {
     const auto hint_class = FindHintClass(tuning, name);
     if (!hint_class) {
@@ -186,8 +196,7 @@ void RelayActionHints(
     }
     const std::vector<uint8_t> bytes = EncodeRelayedHints(part);
     for (const auto& [connection, player_id] : recipients) {
-      if (connection != except && player_id != packet.player_id &&
-          Reaches(*hint_class, world, packet.player_id, player_id, packet.tick)) {
+      if (Reaches(*hint_class, world, packet.player_id, player_id, packet.tick)) {
         session.SendBytes(connection, Channel::kHints, bytes);
       }
     }

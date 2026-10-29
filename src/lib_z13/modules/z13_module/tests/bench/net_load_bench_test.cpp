@@ -350,7 +350,8 @@ TEST(NetLoadBench, DISABLED_InterestByClientCount) {
   }
 }
 
-// Everybody in one hall: what ghosts save when a client simulates only the K nearest players.
+// Everybody in one hall: what ghosts save when a client simulates only the K nearest players. On the ship scene the
+// walkers fall off into the void, so the sector events here are of the fall (the station waits for f/sector-span).
 TEST(NetLoadBench, DISABLED_HallByClientCount) {
   constexpr std::array kHallClientCounts = {8, 16, 32};
   constexpr size_t kSimulatedPlayers = 8;
@@ -435,6 +436,14 @@ TEST(NetLoadBench, DISABLED_HallByBudget) {
             per_client,
         resyncs, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
         after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
+    const auto channel_rate = [&](Channel channel) {
+      return static_cast<double>(ChannelBytes(after.server, channel) - ChannelBytes(before.server, channel)) /
+          per_client;
+    };
+    std::cout << std::format(
+        "   reliable / unreliable / hints / poses B/s per client: {:.0f} / {:.0f} / {:.0f} / {:.0f}\n   by message:{}\n",
+        channel_rate(Channel::kReliable), channel_rate(Channel::kUnreliable), channel_rate(Channel::kHints),
+        channel_rate(Channel::kPoses), TopMessages(before.server, after.server, per_client, kAllMessages));
   }
 }
 

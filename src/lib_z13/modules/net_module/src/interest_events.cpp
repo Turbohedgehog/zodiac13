@@ -337,6 +337,8 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
   }
 }
 
+}  // namespace
+
 std::vector<ConnectionId> KnowingConnections(
     flecs::world world, const NetSession& session, uint32_t player_id, std::optional<ConnectionId> except) {
   std::vector<ConnectionId> recipients;
@@ -355,8 +357,6 @@ std::vector<ConnectionId> KnowingConnections(
   }
   return recipients;
 }
-
-}  // namespace
 
 void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
                    std::optional<ConnectionId> except) {

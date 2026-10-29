@@ -27,6 +27,7 @@
 
 #include <lib_core/state/state_markers.h>
 #include <net_module/state_digest.h>
+#include <z13/components/action_hints.h>
 #include <z13/components/ghost.h>
 #include <z13/components/player.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -141,6 +142,32 @@ TEST_F(GhostPosesTest, ABudgetKeepsTheSimulatedPlayersToTheNearestAndTheRestAreG
     EXPECT_EQ(Client(i).get<StateDigests>().resyncs, 0u) << "client " << i;
     EXPECT_GT(Client(i).get<StateDigests>().checked, 0u) << "client " << i << " checked nothing";
   }
+}
+
+TEST_F(GhostPosesTest, AClientGetsTheHintsOfOnlyThePlayersItSimulates) {
+  constexpr size_t kCrowd = 4;
+  constexpr uint64_t kHintTicks = 120;
+  // Standing still, so the nearest stay the nearest.
+  Run(true, kCrowd, kBudgetTicks, {.walk = false, .look = true},
+      [](z13::Settings& settings) { settings.net->simulated_players_max = 1; });
+  for (size_t i = 0; i < kCrowd; ++i) {
+    Client(i).get_mut<z13::gameplay::ActionHints>() = {};
+  }
+  for (uint64_t tick = 0; tick < kHintTicks; ++tick) {
+    session_->Tick();
+  }
+
+  size_t hinted = 0;
+  for (size_t i = 0; i < kCrowd; ++i) {
+    const auto& hints = Client(i).get<z13::gameplay::ActionHints>().by_action;
+    hinted += hints.size();
+    for (const auto& [key, kept] : hints) {
+      EXPECT_TRUE(Client(i).lookup(z13::gameplay::PlayerEntityName(key.first).c_str()))
+          << "client " << i << " got hints of player " << key.first << ", a ghost; " << Describe(i);
+    }
+  }
+  // The host doesn't look around, so a client whose nearest is the host gets none.
+  EXPECT_GT(hinted, 0u);
 }
 
 TEST_F(GhostPosesTest, WithGhostsOffNoPoseIsSent) {
