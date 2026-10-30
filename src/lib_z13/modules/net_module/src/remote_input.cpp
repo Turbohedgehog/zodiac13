@@ -99,7 +99,8 @@ std::optional<uint64_t> OldestSnapshotTick(flecs::world world) {
   if (entries.empty()) {
     return std::nullopt;
   }
-  return std::ranges::min(entries, {}, &ft::TimestampedSnapshot::tick).tick;
+  // By tick: a projected min returns the element, which would copy a whole snapshot.
+  return std::ranges::min(entries | std::views::transform(&ft::TimestampedSnapshot::tick));
 }
 
 std::vector<z13::gameplay::PlayerActionRecord> ReleasesAfter(flecs::world world, uint32_t player_id,

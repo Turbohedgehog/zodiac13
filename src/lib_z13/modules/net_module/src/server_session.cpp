@@ -28,7 +28,6 @@
 #include <vector>
 
 #include <lib_core/settings/config.h>
-#include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
@@ -70,11 +69,9 @@ namespace zgi = z13::gameplay::input;
 // Inside the late window, past a snapshot a rollback can start from (scanned: a join pushes its
 // snapshot out of tick order), and no further ahead than the schedule window.
 ScheduleWindow MakeScheduleWindow(flecs::world world, uint64_t now, const NetTuning& tuning) {
-  const auto& entries = world.get<ft::WorldSnapshotHistory>().history.Entries();
   const uint64_t late_start = now > tuning.max_late_ticks ? now - tuning.max_late_ticks : 0;
-  const uint64_t earliest = entries.empty()
-      ? now
-      : std::min(now, std::max(late_start, std::ranges::min(entries, {}, &ft::TimestampedSnapshot::tick).tick + 1));
+  const std::optional<uint64_t> oldest = OldestSnapshotTick(world);
+  const uint64_t earliest = oldest ? std::min(now, std::max(late_start, *oldest + 1)) : now;
   return {.earliest = earliest, .latest = now + tuning.max_schedule_ahead_ticks};
 }
 
