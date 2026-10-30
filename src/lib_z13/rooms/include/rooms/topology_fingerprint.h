@@ -18,6 +18,7 @@
 
 #include <cstdint>
 
+#include <primitives/placement.h>
 #include <z13/components/block.h>
 
 namespace z13::station::rooms {
@@ -26,5 +27,7 @@ namespace z13::station::rooms {
 // blocks that shape the rooms gives a fingerprint that doesn't depend on their order or on
 // entity ids, which differ between peers.
 uint64_t BlockFingerprint(const Block& block);
+// The same for a wall of the cut (CutWalls), which no block hashes to.
+uint64_t CutWallFingerprint(const z13::building::primitives::CellBox& wall);
 
 }  // namespace z13::station::rooms

@@ -34,8 +34,10 @@
 #include <net_module/state_digest.h>
 #include <z13/components/action_id.h>
 
+#include "held_sector_history.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
+#include "station_bounds_log.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -176,12 +178,26 @@ std::expected<std::unique_ptr<fbs::net::CatchUpT>, std::string> MakeCatchUp(
     boost::container::erase_if(confirmed, [&view](const auto& entry) { return !view->players.contains(entry.first); });
   }
   catch_up->input_through = ToWire(confirmed);
+  if (view) {
+    catch_up->partial = true;
+    std::ranges::transform(view->sectors, std::back_inserter(catch_up->sectors), [](const sectors::SectorKey& sector) {
+      return fbs::net::Vector3iWire(sector.x(), sector.y(), sector.z());
+    });
+    catch_up->station_bounds = BoundsSince(world, catch_up->snapshot_tick);
+  }
   return catch_up;
 }
 
 std::expected<CatchUpPayload, std::string> DecodeCatchUp(const std::unique_ptr<fbs::net::CatchUpT>& catch_up) {
   if (!catch_up || !catch_up->snapshot) {
     return std::unexpected(std::string {"no snapshot"});
+  }
+  std::optional<SectorSet> sectors;
+  if (catch_up->partial) {
+    sectors.emplace();
+    for (const fbs::net::Vector3iWire& sector : catch_up->sectors) {
+      sectors->insert({sector.x(), sector.y(), sector.z()});
+    }
   }
   return CatchUpPayload {
       .server_tick = catch_up->server_tick,
@@ -191,6 +207,8 @@ std::expected<CatchUpPayload, std::string> DecodeCatchUp(const std::unique_ptr<f
       .held_values = FromWire(catch_up->held_values),
       .pending = FromWire(catch_up->pending),
       .confirmed = FromWire(catch_up->input_through),
+      .sectors = std::move(sectors),
+      .station_bounds = BoundsFromWire(catch_up->station_bounds),
   };
 }
 
@@ -221,6 +239,9 @@ void AdoptCatchUp(flecs::world world, CatchUpPayload payload, uint64_t target_ti
 
   world.get_mut<z13::gameplay::ScheduledCommands>().records = std::move(payload.pending);
   world.get_mut<z13::gameplay::ConfirmedInputTicks>() = std::move(payload.confirmed);
+
+  StartHeldSectors(world, std::move(payload.sectors));
+  world.set(StationBoundsLog {.by_tick = std::move(payload.station_bounds)});
 
   auto& history = world.get_mut<ft::WorldSnapshotHistory>().history;
   history.RemoveIf([](const auto&) { return true; });

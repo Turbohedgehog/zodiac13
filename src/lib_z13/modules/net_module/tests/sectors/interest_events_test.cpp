@@ -492,5 +492,24 @@ TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
   }
 }
 
+// Octant's rooms reach past what a client holds: uncut, they read as vacuum there and a player in them stood still.
+TEST(InterestStationTest, PlayersSpreadOverABigStationStayInSyncWithoutAResync) {
+  constexpr size_t kFullClients = 4;
+  constexpr size_t kLightClients = 60;
+  constexpr uint64_t kWalkTicks = 240;
+  z13::testing::LoadSession session(
+      kFullClients, {.look = false, .fan_out = true},
+      [](z13::Settings& settings) { settings.net->interest_events = true; }, z13::testing::kOctantScene);
+  session.AddLightClients(kLightClients);
+  ASSERT_TRUE(session.Connect(kConnectTicks));
+  for (uint64_t tick = 0; tick < kWalkTicks; ++tick) {
+    session.Tick();
+  }
+
+  for (size_t index = 0; index < session.ClientCount(); ++index) {
+    EXPECT_EQ(session.Client(index).World().get<StateDigests>().resyncs, 0u) << "client " << index;
+  }
+}
+
 }  // namespace
 }  // namespace z13::net

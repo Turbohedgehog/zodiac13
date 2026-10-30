@@ -34,6 +34,7 @@ z13_add_plugin(
   src/enet_transport.cpp
   src/ghost_players.cpp
   src/ghost_poses.cpp
+  src/held_sector_history.cpp
   src/hint_classes.cpp
   src/hint_packet.cpp
   src/in_memory_transport.cpp
@@ -66,6 +67,7 @@ z13_add_plugin(
   src/session_settings.cpp
   src/simulated_set.cpp
   src/state_digest.cpp
+  src/station_bounds_log.cpp
   src/wire_records.cpp
   src/world_edits.cpp
   PUBLIC

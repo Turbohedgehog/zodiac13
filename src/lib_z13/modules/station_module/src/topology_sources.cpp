@@ -18,6 +18,7 @@
 
 #include <lib_profile/profile.h>
 #include <primitives/placement.h>
+#include <rooms/cut_walls.h>
 #include <rooms/room_sources.h>
 #include <rooms/topology_fingerprint.h>
 
@@ -50,6 +51,18 @@ TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building:
     }
   }
   return edits;
+}
+
+RoomCut CutOf(const HeldSectors& held) {
+  RoomCut cut {.held = held};
+  if (held.sectors && held.station) {
+    const z13::building::primitives::CellBox station {.min = held.station->min, .extent = held.station->extent};
+    cut.walls = rooms::CutWalls(*held.sectors, held.sector_cells, station);
+  }
+  for (const z13::building::primitives::CellBox& wall : cut.walls) {
+    cut.fingerprint += rooms::CutWallFingerprint(wall);
+  }
+  return cut;
 }
 
 rooms::RoomSettings RoomSettingsOf(const z13::BuildingTuning& tuning) {

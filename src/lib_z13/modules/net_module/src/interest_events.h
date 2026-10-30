@@ -41,10 +41,9 @@ namespace z13::net {
 // it has (docs/interest-design.md). Starts as the whole world, which is what a Welcome or Resync gives.
 struct ClientKnowledge {
   SectorSet sectors;
-  sectors::SectorBox presence;  // the subscribed sectors and the ring around them, where a player's reach can touch
   std::unordered_set<uint32_t> players;
   std::vector<sectors::SectorKey> unsent;  // entered, but the event could not be made yet
-  // With net.ghosts, the players chosen to be simulated (ChooseSimulated); the others in the presence box are ghosts.
+  // With net.ghosts, the players chosen to be simulated (ChooseSimulated); the others in its sectors are ghosts.
   std::unordered_set<uint32_t> simulated;
   // The players the client had from each tick on, for the digests of those ticks (under net.ghosts a player
   // can enter or leave the client's sectors at any time).

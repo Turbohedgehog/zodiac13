@@ -17,13 +17,18 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
+#include <vector>
 
+#include <Eigen/Dense>
 #include <flecs.h>
 
 #include <z13/components/block_changes.h>
 #include <z13/components/block.h>
+#include <z13/components/held_sectors.h>
 #include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <rooms/room_builder.h>
 #include <z13_settings/building_tuning.h>
 
@@ -43,6 +48,15 @@ TopologySources GatherSources(
     const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette);
 
 TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building::primitives::BlockPalette& palette);
+
+// The walls at the edge of the held sectors (rooms::CutWalls) the rooms are built with, and their fingerprint.
+struct RoomCut {
+  HeldSectors held;
+  std::vector<z13::building::primitives::CellBox> walls;
+  uint64_t fingerprint {};
+};
+
+RoomCut CutOf(const HeldSectors& held);
 
 z13::station::rooms::RoomSettings RoomSettingsOf(const z13::BuildingTuning& tuning);
 

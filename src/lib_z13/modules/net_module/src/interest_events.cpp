@@ -226,7 +226,7 @@ bool IsPresent(const sectors::SectorIndex& index, const ClientKnowledge& known, 
     return false;
   }
   const auto sector = index.Locate({.kind = MemberKind::kPlayer, .id = player_id});
-  return sector && known.presence.Contains(*sector);
+  return sector && known.sectors.contains(*sector);
 }
 
 // How many max_late_ticks of players' history to keep: a digest is sent that long after its tick, and a bit more.
@@ -336,7 +336,6 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
   const auto& map = sender.world.get<sectors::InterestMap>();
   const bool sectors_changed = first || !change.entered.empty() || !change.left.empty();
   if (sectors_changed) {
-    known.presence = PresenceOf(*map.BoundsOf(client));
     if (first) {
       const std::vector<SectorKey> subscribed = map.SectorsOf(client);
       const SectorSet wanted {subscribed.begin(), subscribed.end()};
@@ -420,7 +419,6 @@ void RememberResync(flecs::world world, sectors::ClientId client, const std::opt
   }
   ClientKnowledge& known = by_client[client];
   known.sectors = view->sectors;
-  known.presence = view->presence;
   known.players = view->players;
   known.players.erase(client);
   known.simulated = known.players;

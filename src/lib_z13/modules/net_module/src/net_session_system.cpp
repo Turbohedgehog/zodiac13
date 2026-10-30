@@ -44,6 +44,7 @@
 #include <net_module/state_digest.h>
 
 #include "client_session.h"
+#include "held_sector_history.h"
 #include "net_session.h"
 #include "server_session.h"
 #include "session_control.h"
@@ -51,6 +52,7 @@
 #include "sector_hash.h"
 #include "session_settings.h"
 #include "state_digest_system.h"
+#include "station_bounds_log.h"
 #include "transport_factories.h"
 
 namespace z13::net {
@@ -183,6 +185,7 @@ void ServiceNetSession(flecs::world world) {
   const z13::ImmediateScope immediate(world);
 
   ApplyDueSessionDeltas(world);
+  UpdateHeldSectors(world);
 
   if (!world.has<NetSession>()) {
     if (world.has<ServerRole>()) {
@@ -214,7 +217,8 @@ void ServiceNetSession(flecs::world world) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      NetSession, ScheduledSessionDeltas, ClockSync, CommandRateLimits, LastCommandTicks, ReceivedInputTicks, PlayerIdAllocator,
+      NetSession, ScheduledSessionDeltas, HeldSectorHistory, StationBoundsLog, ClockSync, CommandRateLimits,
+      LastCommandTicks, ReceivedInputTicks, PlayerIdAllocator,
       StateDigests, DigestSplits,
       NetTuning, z13::ConnectTimeout, z13::SessionTimeout, AdoptedSettings>(world);
 }
@@ -222,6 +226,8 @@ void RegisterComponents(flecs::world world) {
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set<ScheduledSessionDeltas>({});
+  world.set<HeldSectorHistory>({});
+  world.set<StationBoundsLog>({});
   world.set<ClockSync>({});
   world.set<CommandRateLimits>({});
   world.set<LastCommandTicks>({});

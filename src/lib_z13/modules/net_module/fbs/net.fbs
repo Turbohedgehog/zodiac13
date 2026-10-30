@@ -58,6 +58,12 @@ struct SectorHashWire {
   hash: ulong;
 }
 
+struct Vector3iWire {
+  x: int;
+  y: int;
+  z: int;
+}
+
 // 16 bytes (padded).
 struct PlayerTickWire {
   player_id: uint;
@@ -118,6 +124,10 @@ table CatchUp {
   pending: [ActionRecordWire];  // already-scheduled commands with apply_tick > server_tick
   // ConfirmedInputTicks at server_tick: past it a player's input reads as released, as on the server.
   input_through: [PlayerTickWire];
+  // Under interest the client holds the blocks of `sectors` only, and its rooms end at their edge.
+  partial: bool;
+  sectors: [Vector3iWire];
+  station_bounds: [StationBounds];  // from snapshot_tick on, under interest
 }
 
 table Welcome {
@@ -194,6 +204,15 @@ table SectorLeft {
   chunks: [ulong];
 }
 
+// The cells the server's sealed blocks span from apply_tick on (none without `present`), sent to every client under
+// interest when they change; one for a tick a replay revisits replaces those after it (docs/interest-design.md).
+table StationBounds {
+  apply_tick: ulong;
+  present: bool;
+  min: Vector3iWire;
+  extent: Vector3iWire;
+}
+
 // One player's run in a SequencedCommands: the next `count` of its `commands`.
 struct CommandRunWire {
   base_tick: ulong;  // already apply_tick
@@ -233,7 +252,7 @@ table StateDigest {
 union MessageBody {
   ClientHello, CommandBatch, ResyncRequest, Ping, Pong,
   Welcome, Rejected, Resync, PlayerJoined, PlayerLeft, SequencedCommands, StateDigest, CommandsRetimed,
-  EntityEntered, EntityLeft, SectorEntered, SectorLeft, WorldEdit,
+  EntityEntered, EntityLeft, SectorEntered, SectorLeft, WorldEdit, StationBounds,
 }
 
 table MessageEnvelope {

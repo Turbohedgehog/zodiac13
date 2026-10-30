@@ -17,6 +17,7 @@
 #include <rooms/topology_fingerprint.h>
 
 #include <array>
+#include <span>
 
 namespace z13::station::rooms {
 
@@ -32,6 +33,17 @@ uint64_t Mix(uint64_t value) {
   return value ^ (value >> 31);
 }
 
+uint64_t HashFields(std::span<const uint64_t> fields) {
+  uint64_t hash {};
+  for (const uint64_t field : fields) {
+    hash = Mix(hash ^ field);
+  }
+  return hash;
+}
+
+// Stands in a block's type id; no palette entry has it.
+constexpr uint64_t kCutWallType = ~uint64_t {};
+
 }  // namespace
 
 uint64_t BlockFingerprint(const Block& block) {
@@ -45,11 +57,20 @@ uint64_t BlockFingerprint(const Block& block) {
       static_cast<uint64_t>(block.cell.y()),
       static_cast<uint64_t>(block.cell.z()),
   });
-  uint64_t hash {};
-  for (const uint64_t field : fields) {
-    hash = Mix(hash ^ field);
-  }
-  return hash;
+  return HashFields(fields);
+}
+
+uint64_t CutWallFingerprint(const z13::building::primitives::CellBox& wall) {
+  const auto fields = std::to_array<uint64_t>({
+      kCutWallType,
+      static_cast<uint64_t>(wall.min.x()),
+      static_cast<uint64_t>(wall.min.y()),
+      static_cast<uint64_t>(wall.min.z()),
+      static_cast<uint64_t>(wall.extent.x()),
+      static_cast<uint64_t>(wall.extent.y()),
+      static_cast<uint64_t>(wall.extent.z()),
+  });
+  return HashFields(fields);
 }
 
 }  // namespace z13::station::rooms

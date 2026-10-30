@@ -11,6 +11,7 @@ z13_add_library(
   src/box_tree.cpp
   src/cell_boxes.cpp
   src/corridor_walk.cpp
+  src/cut_walls.cpp
   src/free_space.cpp
   src/local_leaves.cpp
   src/numbered_leaves.cpp
