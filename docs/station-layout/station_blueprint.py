@@ -6,6 +6,7 @@ line through its characters' first cells: x m on the plan is cell 4x.
 
 import itertools
 import json
+import math
 
 CELLS_PER_M = 4
 DECK_PITCH_M = 4  # floor slab + 3.5 m room + ceiling slab
@@ -691,10 +692,58 @@ def split_long(entry):
     return pieces
 
 
+def split_wall(wall):
+    """The wall cut into segments that fit MAX_BLOCK_CELLS as panels, end to end along its line (sharing nodes,
+    never inside an opening) and side by side across its thickness; a wall that fits comes back whole."""
+    node_a = [wall["node_a"][name] for name in "xyz"]
+    node_b = [wall["node_b"][name] for name in "xyz"]
+    stick_axis = "XYZ".index(wall["axis_a"])
+    thickness, openings = wall["thickness"], wall.get("openings", [])
+    span = [b - a for a, b in zip(node_a, node_b)]
+    span[stick_axis] = 0
+    major, minor = plan_axes(stick_axis, span)
+    steps = math.gcd(abs(span[major]), abs(span[minor]))
+    step = [c // steps for c in span]
+    half = MAX_BLOCK_CELLS // 2  # a piece, its rise and its seams, and a strip each get half the room
+    longest = max(1, min(half // abs(step[major]), half // abs(step[minor]) if step[minor] else steps))
+    strips = -(-abs(thickness) // half)
+    if steps <= longest and strips == 1 and abs(span[major]) <= half:
+        return [wall]
+    cuts = [0]
+    while cuts[-1] < steps:
+        cut = cuts[-1] + longest
+        for opening in openings:
+            if opening["offset"] - 1 < cut < opening["offset"] + opening["width"] + 1:
+                cut = opening["offset"] - 1
+        if cut >= steps:
+            cut = steps
+        assert cut > cuts[-1], "an opening is too close to the start of a piece"
+        cuts.append(cut)
+    sign = 1 if thickness > 0 else -1
+    parts = [abs(thickness) // strips + (k < abs(thickness) % strips) for k in range(strips)]
+    pieces = []
+    for first, last in zip(cuts, cuts[1:]):
+        inside = [{**o, "offset": o["offset"] - first} for o in openings
+                  if first <= o["offset"] and o["offset"] + o["width"] <= last]
+        shift = 0
+        for part in parts:
+            a, b = (list(node_a[i] + step[i] * k for i in range(3)) for k in (first, last))
+            a[minor] += sign * shift
+            b[minor] += sign * shift
+            piece = {**wall, "node_a": dict(zip("xyz", a)), "node_b": dict(zip("xyz", b)), "thickness": sign * part}
+            piece.pop("openings", None)
+            if inside:
+                piece["openings"] = inside
+            pieces.append(piece)
+            shift += part
+    return pieces
+
+
 def write_blueprint(path, blocks, walls=()):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
     returns the blocks written, the long ones cut."""
     blocks = [piece for entry in blocks for piece in split_long(entry)]
+    walls = [piece for wall in walls for piece in split_wall(wall)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
     text = "{\n  \"blocks\": [\n    " + ",\n    ".join(lines) + "\n  ]"
     if walls:

@@ -630,6 +630,79 @@ def spine_b_walls():
     return walls
 
 
+# ----- The freight hangar --------------------------------------------------------------------
+
+# A hall of three decks at the spine's end, 12 degrees off it: near and far walls on the grid, side walls along the
+# lattice step (6, 1), floor and ceiling one strip each. The corridor leaves through a door on deck 1.
+FREIGHT_DECKS = 3
+FREIGHT_STEP = (6, 1)
+FREIGHT_STEPS = 22
+FREIGHT_WIDTH_CELLS = 108  # between the side walls' inner lines
+FREIGHT_WALL_CELLS = 2  # the least that holds air back at (6, 1)
+FREIGHT_DOOR_OFFSET_STEPS = 6  # along the spine's end wall, whose steps are one cell
+FREIGHT_DOOR_STEPS = 8
+FREIGHT_LAMP_STEPS = (5, 11, 17)  # along the middle line
+FREIGHT_LAMP_ROWS = (-30, 0, 30)  # across it, in cells of y
+
+
+class FreightGeometry(NamedTuple):
+    north: tuple  # the north side's inner line: start and end
+    south: tuple
+    height: int  # of the walls, three decks
+    near: tuple  # the near wall's blocks beside the spine's rooms, as (first y, length)
+    far: tuple  # the far wall's blocks, as (first y, length)
+
+
+@functools.cache
+def freight():
+    """The side walls start a cell beyond the spine's end, so the near wall's blocks take the whole column x of
+    the end: a wall panel's end cuts the cells beside it at a slant, which a block can't share."""
+    g = spine_b()
+    x = g.cap[0]
+    middle = (g.cap[1] + g.cap[2]) // 2
+    wall = FREIGHT_WALL_CELLS
+    north = (x + 1, middle - FREIGHT_WIDTH_CELLS // 2)
+    south = (x + 1, north[1] + FREIGHT_WIDTH_CELLS)
+    north_end, south_end = (_along(start, FREIGHT_STEPS, FREIGHT_STEP) for start in (north, south))
+    rooms = spine_b_rooms()
+    first = north[1] - wall
+    last = south[1] + wall
+    near = ((first, rooms.north[-1][0] + 1 - first), (rooms.south[-1][0], last - rooms.south[-1][0]))
+    far = (north_end[1] - wall, south_end[1] + wall - (north_end[1] - wall))
+    return FreightGeometry((north, north_end), (south, south_end), FREIGHT_DECKS * DECK_PITCH_CELLS - SLAB_CELLS, near, far)
+
+
+def freight_walls():
+    h = freight()
+    z = deck_floor_z(1)
+    wall = FREIGHT_WALL_CELLS
+    walls = [wall_segment((*h.north[0], z), (*h.north[1], z), -wall, h.height),
+             wall_segment((*h.south[0], z), (*h.south[1], z), wall, h.height)]
+    x, y0, y1 = spine_b().cap
+    door = wall_opening(FREIGHT_DOOR_OFFSET_STEPS, FREIGHT_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+    walls.append(wall_segment((x, y0, z), (x, y1, z), 1, wall_height(1), openings=[door]))
+    start, end = h.north
+    for layer in (0, FREIGHT_DECKS):
+        walls.append(wall_segment((start[0], start[1] - wall, layer * DECK_PITCH_CELLS),
+                                  (end[0], end[1] - wall, layer * DECK_PITCH_CELLS),
+                                  FREIGHT_WIDTH_CELLS + 2 * wall, SLAB_CELLS))
+    return walls
+
+
+def freight_blocks():
+    h = freight()
+    z = deck_floor_z(1)
+    near_x, far_x = spine_b().cap[0], h.north[1][0]
+    blocks = [entry for first, length in h.near for entry in line_blocks(WALL_BLOCK, 1, first, near_x, z, length, h.height)]
+    blocks += line_blocks(WALL_BLOCK, 1, h.far[0], far_x, z, h.far[1], h.height)
+    lamp_z = z + h.height - 1
+    for steps in FREIGHT_LAMP_STEPS:
+        centre = _along((h.north[0][0], (h.north[0][1] + h.south[0][1]) // 2), steps, FREIGHT_STEP)
+        blocks += [block(LAMP, (centre[0] - 1, centre[1] + row - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
+                   for row in FREIGHT_LAMP_ROWS]
+    return blocks
+
+
 # ----- Drawing ------------------------------------------------------------------------------
 
 class HubDeck(Deck):
@@ -868,10 +941,11 @@ def station_blocks(decks):
         z = deck_floor_z(deck.number)
         height = wall_height(deck.number)
         deck.blocks = wall_blocks(deck.grid, z, wall_height=height)
-        if deck.number <= SPINE_B_DECKS:
+        if deck.number <= SPINE_B_DECKS and deck.number != 1:  # deck 1's end is the hangar's door wall
             deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
+    blocks += freight_blocks()
     ceilings = ring_ceiling_blocks()
     for deck in decks:
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
@@ -903,7 +977,7 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, ring_walls() + spine_b_walls())
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, ring_walls() + spine_b_walls() + freight_walls())
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
