@@ -23,6 +23,7 @@
 #include <limits>
 #include <set>
 
+#include <lib_core/utils/math.h>
 #include <primitives/placement.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_seam.h>
@@ -34,15 +35,12 @@ namespace {
 using z13::station::Block;
 using z13::station::BlockSpec;
 using z13::station::WallAxis;
+using z13::math::Sign;
 
 using Points = std::set<std::array<int, 3>>;
 
 std::array<int, 3> AsArray(const Eigen::Vector3i& point) {
   return {point.x(), point.y(), point.z()};
-}
-
-int Sign(int value) {
-  return (value > 0) - (value < 0);
 }
 
 // The prism's eight corners in its own frame: the section (0, 0), (run, rise), (run, rise +

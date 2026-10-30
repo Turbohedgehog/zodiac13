@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include <flecs.h>
 
@@ -34,11 +35,16 @@ inline constexpr uint8_t kSpawnActiveCell = 1;
 // Where cell selection applies, for every player, before the frame's actions read the hand.
 struct InventoryPhase {};
 
-enum class ItemKind : uint8_t { kBuildTool };
+enum class ItemKind : uint8_t { kBuildTool, kConduitTool };
 
 struct Item {
   using State = void;
   ItemKind kind {};
+};
+
+// What the hotbar shows on an item, set every frame by the module that owns the item; never state.
+struct ItemCaption {
+  std::string text;
 };
 
 // The carrier by player id, which every participant shares, unlike entity ids.

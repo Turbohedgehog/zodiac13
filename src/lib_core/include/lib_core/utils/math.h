@@ -40,6 +40,12 @@ constexpr T ToDegrees(T rad_angle) {
   return rad_angle * static_cast<T>(180.0) / static_cast<T>(kPi);
 }
 
+// -1, 0 or 1; the standard library has only std::signbit, which doesn't tell zero apart.
+template <typename T>
+constexpr int Sign(T value) {
+  return (T {} < value) - (value < T {});
+}
+
 template <typename T>
 bool IsNear(const Vector3<T>& v1, const Vector3<T>& v2, T epsilon = static_cast<T>(kEpsilon)) {
   return (v1 - v2).squaredNorm() <= epsilon;

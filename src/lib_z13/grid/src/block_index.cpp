@@ -17,7 +17,8 @@
 #include <grid/block_index.h>
 
 #include <algorithm>
-#include <limits>
+
+#include <grid/cell_walk.h>
 
 #include <building_tuning_generated.h>
 
@@ -125,7 +126,6 @@ std::vector<BlockId> BlockIndex::Overlapping(const z13::building::primitives::Ce
   return found;
 }
 
-// Steps cell by cell along the segment (Amanatides & Woo).
 std::optional<BlockId> BlockIndex::Raycast(const Eigen::Vector3f& from, const Eigen::Vector3f& to) const {
   const auto hit = RaycastHit(from, to);
   return hit ? std::optional(hit->block) : std::nullopt;
@@ -138,35 +138,14 @@ std::optional<BlockIndex::RayHit> BlockIndex::RaycastHit(const Eigen::Vector3f& 
     return block ? std::optional(RayHit {.block = *block, .point = from}) : std::nullopt;
   }
 
-  Eigen::Vector3i cell = from.array().floor().cast<int>();
-  Eigen::Vector3i step = Eigen::Vector3i::Zero();
-  Eigen::Vector3f next_crossing = Eigen::Vector3f::Constant(std::numeric_limits<float>::infinity());
-  Eigen::Vector3f crossing_interval = next_crossing;
-  for (int axis = 0; axis < 3; ++axis) {
-    if (direction[axis] == 0.f) {
-      continue;
+  std::optional<RayHit> hit;
+  WalkCells(from, to, [&](const CellStep& at) {
+    if (const auto block = At(at.cell)) {
+      hit = RayHit {.block = *block, .normal = at.normal, .point = from + direction * at.travelled};
     }
-    step[axis] = direction[axis] > 0.f ? 1 : -1;
-    const float boundary = static_cast<float>(cell[axis] + (step[axis] > 0 ? 1 : 0));
-    next_crossing[axis] = (boundary - from[axis]) / direction[axis];
-    crossing_interval[axis] = static_cast<float>(step[axis]) / direction[axis];
-  }
-
-  float travelled = 0.f;
-  Eigen::Vector3i normal = Eigen::Vector3i::Zero();
-  while (travelled <= 1.f) {
-    if (const auto block = At(cell)) {
-      return RayHit {.block = *block, .normal = normal, .point = from + direction * travelled};
-    }
-    int axis = 0;
-    next_crossing.minCoeff(&axis);
-    travelled = next_crossing[axis];
-    cell[axis] += step[axis];
-    normal = Eigen::Vector3i::Zero();
-    normal[axis] = -step[axis];
-    next_crossing[axis] += crossing_interval[axis];
-  }
-  return std::nullopt;
+    return hit.has_value();
+  });
+  return hit;
 }
 
 }  // namespace z13::building::grid

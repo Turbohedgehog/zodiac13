@@ -130,7 +130,7 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
     })) << "digests stopped arriving";
 
     const std::set<uint32_t> players = PlayerIds(*server_);
-    ExpectOneToolPerPlayer(*server_, players);
+    ExpectOneKitPerPlayer(*server_, players);
     for (const auto& client : clients_) {
       if (!InGame(*client) || stalled_.contains(client.get())) {
         continue;
@@ -179,14 +179,16 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
   }
 
   // A player who left takes nothing along and leaves nothing behind.
-  static void ExpectOneToolPerPlayer(Z13TestWorld& world, const std::set<uint32_t>& players) {
-    std::map<uint32_t, int> carried;
-    world.World().each([&carried](const z13::inventory::Item&, const z13::inventory::CarriedBy& by) {
-      ++carried[by.player_id];
+  static void ExpectOneKitPerPlayer(Z13TestWorld& world, const std::set<uint32_t>& players) {
+    std::map<uint32_t, std::multiset<z13::inventory::ItemKind>> carried;
+    world.World().each([&carried](const z13::inventory::Item& item, const z13::inventory::CarriedBy& by) {
+      carried[by.player_id].insert(item.kind);
     });
-    std::map<uint32_t, int> expected;
+    // Station scenes also hand out conduit_module's tool.
+    const std::multiset kit {z13::inventory::ItemKind::kBuildTool, z13::inventory::ItemKind::kConduitTool};
+    std::map<uint32_t, std::multiset<z13::inventory::ItemKind>> expected;
     for (const uint32_t id : players) {
-      expected[id] = 1;
+      expected[id] = kit;
     }
     EXPECT_EQ(carried, expected);
   }
