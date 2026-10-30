@@ -29,7 +29,6 @@
 #include "../../../z13_module/tests/support/test_network.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
 #include "../../src/interest_system.h"
-#include "../../src/net_session.h"
 
 namespace z13::net {
 namespace {
@@ -44,8 +43,6 @@ using z13::testing::kServerArg;
 using z13::testing::kTestServerEndpoint;
 using z13::testing::RunNetworkUntil;
 using z13::testing::Z13TestWorld;
-
-constexpr int kNowhereNearSectors = 1000;
 
 bool IsConnected(Z13TestWorld& world) {
   return world.World().has<Gameplay>() &&
@@ -92,32 +89,6 @@ TEST_F(InterestSystemTest, EveryConnectedPlayerIsSubscribedAroundItsSector) {
     EXPECT_TRUE(map.Covers(player, *sector));
     EXPECT_TRUE(map.IsInner(player, *sector));
   }
-}
-
-TEST_F(InterestSystemTest, ARelayIsNeededByAClientWhoseInterestReachesTheSender) {
-  const uint32_t sender = PlayerOf(*first_);
-  const auto& session = server_->World().get<NetSession>();
-
-  CountRelay(server_->World(), session, sender);
-
-  const InterestMetrics& metrics = server_->World().get<InterestMetrics>();
-  EXPECT_EQ(metrics.relays, 1u);
-  EXPECT_EQ(metrics.recipients, 1u);
-  EXPECT_EQ(metrics.needed, 1u);
-}
-
-TEST_F(InterestSystemTest, ARelayIsNotNeededByAClientFarFromTheSender) {
-  const uint32_t sender = PlayerOf(*first_);
-  const uint32_t far = PlayerOf(*second_);
-  server_->World().get_mut<InterestMap>().Update(
-      far, sectors::SectorKey::Constant(kNowhereNearSectors), {.radius = 0, .margin = 0});
-  const auto& session = server_->World().get<NetSession>();
-
-  CountRelay(server_->World(), session, sender);
-
-  const InterestMetrics& metrics = server_->World().get<InterestMetrics>();
-  EXPECT_EQ(metrics.recipients, 1u);
-  EXPECT_EQ(metrics.needed, 0u);
 }
 
 }  // namespace

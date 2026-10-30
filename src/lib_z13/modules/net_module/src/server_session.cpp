@@ -50,7 +50,6 @@
 #include <z13/components/block.h>
 
 #include "interest_events.h"
-#include "interest_system.h"
 #include "interest_view.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
@@ -320,7 +319,6 @@ void HandleCommandBatch(
     log_error("NetSession(server): can't relay commands from connection {}: {}", connection, run.error());
     return;
   }
-  CountRelay(world, session, *player_id);
   RelayCommands(world, session, *player_id, through_tick, *run, connection);
 }
 

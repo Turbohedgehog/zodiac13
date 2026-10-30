@@ -85,7 +85,7 @@ Eigen::Vector3i CellOf(const Eigen::Vector3f& meters) {
   return (meters / z13::station::kCellSize).array().floor().cast<int>();
 }
 
-// The share of (sender, other client) pairs a command of the sender reaches, as CountRelay counts them.
+// The share of (sender, other client) pairs whose interest touches the sectors within the sender's reach.
 double NeededShare(const Layout& layout, const InterestShape& shape) {
   const z13::NetTuning tuning;
   const z13::BuildingTuning building;
