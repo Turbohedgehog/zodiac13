@@ -77,5 +77,7 @@ table NetTuning {
   simulated_players_slack: uint64 = 4 (min: 0, cli);
   simulated_radius_m: double = 48 (min: 1, cli);
   simulated_hysteresis_m: double = 6 (min: 0, cli);
+  // How much nearer a player must be to take a simulated one's place: in a crowd many stand equally far.
+  simulated_rank_hysteresis_m: double = 1.5 (min: 0, cli);
   simulated_reselect_ticks: uint64 = 30 (min: 1, cli);
 }

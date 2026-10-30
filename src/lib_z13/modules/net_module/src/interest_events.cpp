@@ -252,13 +252,6 @@ bool IsPresent(const sectors::SectorIndex& index, const ClientKnowledge& known, 
 // How many max_late_ticks of players' history to keep: a digest is sent that long after its tick, and a bit more.
 constexpr uint64_t kHistoryHorizons = 2;
 
-SimulatedBudget BudgetOf(const z13::NetTuning& tuning) {
-  return {.max_players = tuning.simulated_players_max,
-          .slack = tuning.simulated_players_slack,
-          .radius_m = tuning.simulated_radius_m,
-          .hysteresis_m = tuning.simulated_hysteresis_m};
-}
-
 // Chooses again which of the players near the client it simulates; returns those whose place changed.
 std::vector<uint32_t> ReselectSimulated(flecs::world world, sectors::ClientId client, ClientKnowledge& known) {
   const auto& positions = CurrentPlayerPositions(world).by_player;
@@ -276,7 +269,7 @@ std::vector<uint32_t> ReselectSimulated(flecs::world world, sectors::ClientId cl
     }
   }
   std::unordered_set<uint32_t> chosen =
-      ChooseSimulated(candidates, known.simulated, BudgetOf(world.get<z13::NetTuning>()));
+      ChooseSimulated(candidates, known.simulated, SimulatedBudgetOf(world.get<z13::NetTuning>()));
   std::vector<uint32_t> changed;
   std::ranges::copy_if(chosen, std::back_inserter(changed), [&](uint32_t id) { return !known.simulated.contains(id); });
   std::ranges::copy_if(known.simulated, std::back_inserter(changed), [&](uint32_t id) { return !chosen.contains(id); });

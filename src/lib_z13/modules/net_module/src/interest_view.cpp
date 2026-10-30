@@ -54,12 +54,7 @@ std::unordered_set<uint32_t> Simulated(
     }
   }
   const auto& tuning = world.get<z13::NetTuning>();
-  return ChooseSimulated(
-      candidates, {},
-      {.max_players = tuning.simulated_players_max,
-       .slack = tuning.simulated_players_slack,
-       .radius_m = tuning.simulated_radius_m,
-       .hysteresis_m = tuning.simulated_hysteresis_m});
+  return ChooseSimulated(candidates, {}, SimulatedBudgetOf(tuning));
 }
 
 // `current` is what the client simulates now, when the server knows; `from` is where it stands or will.

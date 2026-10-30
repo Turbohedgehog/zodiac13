@@ -21,6 +21,8 @@
 #include <span>
 #include <unordered_set>
 
+#include <z13_settings/net_tuning.h>
+
 namespace z13::net {
 
 struct SimulatedCandidate {
@@ -33,12 +35,15 @@ struct SimulatedBudget {
   size_t slack {};
   double radius_m {};
   double hysteresis_m {};
+  double rank_hysteresis_m {};
 };
+
+SimulatedBudget SimulatedBudgetOf(const z13::NetTuning& tuning);
 
 // The players a client simulates (docs/network-scaling-plan.md, stage 5b): the nearest ones within the radius.
 // A player not simulated yet joins when it ranks within `max_players`; a simulated one stays while it ranks
 // within `max_players + slack` and is within the radius plus the hysteresis, so that players trading places
-// at the edge don't enter and leave every pass.
+// at the edge don't enter and leave every pass. A simulated one ranks as if `rank_hysteresis_m` nearer.
 std::unordered_set<uint32_t> ChooseSimulated(
     std::span<const SimulatedCandidate> candidates, const std::unordered_set<uint32_t>& current,
     const SimulatedBudget& budget);
