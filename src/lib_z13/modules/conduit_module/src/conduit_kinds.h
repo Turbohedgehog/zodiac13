@@ -31,7 +31,7 @@ inline constexpr std::string_view kConduitKindsFileName = "conduits.json";
 // assets/station/conduits.json, relative to assets/.
 std::filesystem::path ConduitKindsFile();
 
-// The kinds in `json`; refuses none, a repeated id or name, a kind without a network and a colour that isn't RGBA.
+// The kinds in `json`; refuses none, a repeated id or name, a kind without a network or a colour.
 std::expected<ConduitKinds, std::string> ParseConduitKinds(std::string_view json);
 
 }  // namespace z13::conduit

@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
-#include <tuple>
 #include <unordered_set>
 
 #include <flatbuffers/idl.h>
@@ -28,6 +27,7 @@
 
 #include <conduit_generated.h>
 
+#include <primitives/palette.h>
 #include <primitives/station_assets.h>
 
 namespace z13::conduit {
@@ -35,8 +35,6 @@ namespace z13::conduit {
 namespace {
 
 namespace fbs = z13::fbs::conduit;
-
-constexpr size_t kColorChannels = std::tuple_size_v<z13::Rgba>;
 
 std::unexpected<std::string> Error(std::string message) {
   return std::unexpected(std::format("conduits: {}", message));
@@ -68,15 +66,17 @@ std::expected<ConduitKinds, std::string> ParseConduitKinds(std::string_view json
     if (entry->network.empty()) {
       return Error(std::format("kind {} has no network", entry->id));
     }
-    if (entry->color.size() != kColorChannels) {
-      return Error(std::format("kind {} needs {} colour channels", entry->id, kColorChannels));
+    if (!entry->color) {
+      return Error(std::format("kind {} has no colour", entry->id));
     }
     if (!ids.insert(entry->id).second || !names.insert(entry->name).second) {
       return Error(std::format("kind {} '{}' repeats an id or a name", entry->id, entry->name));
     }
-    ConduitKind& kind = kinds.kinds.emplace_back(ConduitKind {
-        .id = entry->id, .name = entry->name, .network = entry->network, .thickness_cells = entry->thickness_cells});
-    std::ranges::copy(entry->color, kind.color.begin());
+    kinds.kinds.push_back({.id = entry->id,
+                           .name = entry->name,
+                           .network = entry->network,
+                           .thickness_cells = entry->thickness_cells,
+                           .color = z13::building::primitives::ToRgba(*entry->color)});
   }
   return kinds;
 }

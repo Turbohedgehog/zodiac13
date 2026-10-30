@@ -15,6 +15,7 @@
  */
 
 include "common.fbs";
+include "primitives.fbs";
 
 namespace z13.fbs.conduit;
 
@@ -24,8 +25,7 @@ table ConduitKind {
   name: string;
   network: string;
   thickness_cells: float = 0.25;
-  // Red, green, blue, alpha; 0..255 each.
-  color: [ubyte];
+  color: z13.fbs.station.Rgba;
 }
 
 table ConduitKinds {

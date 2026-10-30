@@ -17,6 +17,9 @@
 
 #include <gtest/gtest.h>
 
+#include <format>
+#include <string_view>
+
 #include <Eigen/Dense>
 
 #include <z13_tests/shipped_station.h>
@@ -79,9 +82,23 @@ TEST(ConduitKindsTest, TheShippedKindsParse) {
 
 TEST(ConduitKindsTest, ARepeatedIdOrAKindWithoutANetworkIsRefused) {
   EXPECT_FALSE(ParseConduitKinds(R"({"kinds": [
-      {"id": 1, "name": "A", "network": "power", "color": [1, 2, 3, 4]},
-      {"id": 1, "name": "B", "network": "gas", "color": [1, 2, 3, 4]}]})").has_value());
-  EXPECT_FALSE(ParseConduitKinds(R"({"kinds": [{"id": 1, "name": "A", "color": [1, 2, 3, 4]}]})").has_value());
+      {"id": 1, "name": "A", "network": "power", "color": {"r": 1, "g": 2, "b": 3, "a": 4}},
+      {"id": 1, "name": "B", "network": "gas", "color": {"r": 1, "g": 2, "b": 3, "a": 4}}]})").has_value());
+  EXPECT_FALSE(
+      ParseConduitKinds(R"({"kinds": [{"id": 1, "name": "A", "color": {"r": 1, "g": 2, "b": 3, "a": 4}}]})")
+          .has_value());
+}
+
+TEST(ConduitKindsTest, AColourTakesAllFourChannels) {
+  const auto parse = [](std::string_view color) {
+    return ParseConduitKinds(
+        std::format(R"({{"kinds": [{{"id": 1, "name": "A", "network": "power", "color": {}}}]}})", color));
+  };
+
+  EXPECT_TRUE(parse(R"({"r": 1, "g": 2, "b": 3, "a": 4})").has_value());
+  EXPECT_FALSE(parse(R"({"r": 1, "g": 2, "b": 3})").has_value());
+  EXPECT_FALSE(parse("[1, 2, 3, 4]").has_value());
+  EXPECT_FALSE(ParseConduitKinds(R"({"kinds": [{"id": 1, "name": "A", "network": "power"}]})").has_value());
 }
 
 }  // namespace

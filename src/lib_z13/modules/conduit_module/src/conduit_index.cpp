@@ -18,44 +18,12 @@
 #include "conduit_index.h"
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
+
+#include <grid/cell_walk.h>
 
 #include "conduit_run.h"
 
 namespace z13::conduit {
-
-namespace {
-
-// The cells a segment passes, in order (Amanatides and Woo); `visit` returns true to stop.
-template <class Visit>
-void WalkCells(const Eigen::Vector3f& from, const Eigen::Vector3f& to, Visit visit) {
-  const Eigen::Vector3f direction = to - from;
-  Eigen::Vector3i cell = from.array().floor().cast<int>();
-  const Eigen::Vector3i last = to.array().floor().cast<int>();
-  Eigen::Vector3i step = Eigen::Vector3i::Zero();
-  Eigen::Vector3f next_t = Eigen::Vector3f::Constant(std::numeric_limits<float>::infinity());
-  Eigen::Vector3f delta_t = next_t;
-  for (Eigen::Index axis = 0; axis < 3; ++axis) {
-    if (direction[axis] == 0.f) {
-      continue;
-    }
-    step[axis] = direction[axis] > 0.f ? 1 : -1;
-    const float boundary = static_cast<float>(cell[axis] + (step[axis] > 0 ? 1 : 0));
-    next_t[axis] = (boundary - from[axis]) / direction[axis];
-    delta_t[axis] = 1.f / std::abs(direction[axis]);
-  }
-  while (!visit(cell) && cell != last) {
-    Eigen::Index axis = 0;
-    if (next_t.minCoeff(&axis) > 1.f) {
-      return;
-    }
-    cell[axis] += step[axis];
-    next_t[axis] += delta_t[axis];
-  }
-}
-
-}  // namespace
 
 void ConduitIndex::Insert(ConduitId id, std::string_view network, const Conduit& conduit) {
   for (const Eigen::Vector3i& cell : CellsOf(conduit)) {
@@ -90,8 +58,8 @@ std::span<const ConduitInCell> ConduitIndex::At(const Eigen::Vector3i& cell) con
 std::optional<ConduitId> ConduitIndex::Raycast(
     const Eigen::Vector3f& from, const Eigen::Vector3f& to, std::string_view network) const {
   std::optional<ConduitId> hit;
-  WalkCells(from, to, [&](const Eigen::Vector3i& cell) {
-    const std::span<const ConduitInCell> here = At(cell);
+  z13::building::grid::WalkCells(from, to, [&](const z13::building::grid::CellStep& at) {
+    const std::span<const ConduitInCell> here = At(at.cell);
     if (here.empty()) {
       return false;
     }
