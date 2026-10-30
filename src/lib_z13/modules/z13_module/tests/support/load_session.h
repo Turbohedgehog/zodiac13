@@ -28,6 +28,7 @@
 
 #include <z13_settings/settings_fwd.h>
 
+#include "../../../net_module/src/light_client.h"
 #include "z13_test_world.h"
 
 namespace z13::testing {
@@ -50,11 +51,16 @@ class LoadSession {
       size_t clients, Steering steering = {}, const std::function<void(z13::Settings&)>& tune = [](z13::Settings&) {},
       std::optional<std::string_view> station_scene = std::nullopt);
 
+  // Clients without a world (z13::net::LightClient), steered like the others; before Connect.
+  void AddLightClients(size_t count);
+
   bool Connect(uint64_t max_ticks);
   // One frame of every world, the server first; only the server's frame is timed.
   void Tick();
 
   size_t ClientCount() const { return clients_.size(); }
+  size_t LightClientCount() const { return light_clients_.size(); }
+  z13::net::LightClient& LightClient(size_t index) { return light_clients_[index]; }
   Z13TestWorld& Server() { return *server_; }
   Z13TestWorld& Client(size_t index) { return *clients_[index]; }
   z13::net::InMemoryNetwork& Network() { return *network_; }
@@ -63,12 +69,15 @@ class LoadSession {
  private:
   bool AllConnected() const;
   void Steer(size_t index);
+  z13::net::LightInput SteerLight(size_t index);
 
   std::shared_ptr<z13::net::InMemoryNetwork> network_ = std::make_shared<z13::net::InMemoryNetwork>();
   std::unique_ptr<Z13TestWorld> server_;
   std::vector<std::unique_ptr<Z13TestWorld>> clients_;
   Steering steering_;
   std::vector<bool> walking_;
+  std::vector<z13::net::LightClient> light_clients_;
+  std::vector<z13::net::LightInput> light_inputs_;
   uint64_t tick_ {};
   std::chrono::nanoseconds server_time_ {};
 };

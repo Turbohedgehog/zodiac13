@@ -17,10 +17,16 @@
 #include "load_session.h"
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <utility>
 
+#include <gtest/gtest.h>
+
+#include <lib_core/settings/config.h>
+
 #include <z13/components/gameplay.h>
+#include <z13/components/input_config.h>
 #include <z13/components/input_events.h>
 #include <z13/components/net.h>
 #include <z13_settings/settings.h>
@@ -39,6 +45,13 @@ constexpr int kFanOutStepX = 137;
 constexpr int kLookStepX = 3;
 constexpr int kLookJitterX = 5;
 constexpr int kLookJitterY = 3;
+constexpr float kFullTurnDeg = 360.f;
+constexpr float kMaxPitchDeg = 80.f;
+
+// A light client turns as far a tick as a full client's mouse move of the same pixels.
+float DegreesPerPixel() {
+  return kNetTestDeltaTime * z13::input::InputConfig {}.mouse_sensitivity;
+}
 
 }  // namespace
 
@@ -59,11 +72,25 @@ LoadSession::LoadSession(size_t clients, Steering steering, const std::function<
   }
 }
 
+void LoadSession::AddLightClients(size_t count) {
+  const auto setup = z13::net::MakeLightClientSetup(server_->World());
+  if (!setup) {
+    ADD_FAILURE() << "no light client setup: " << setup.error();
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    const size_t index = clients_.size() + light_clients_.size();
+    light_clients_.emplace_back(z13::net::CreateInMemoryClientTransport(*network_, z13::kDefaultServerPort), *setup);
+    const float heading_px = steering_.fan_out ? static_cast<float>(index * kFanOutStepX) : 0.f;
+    light_inputs_.push_back({.yaw_deg = std::remainder(-heading_px * DegreesPerPixel(), kFullTurnDeg)});
+  }
+}
+
 bool LoadSession::AllConnected() const {
   return std::ranges::all_of(clients_, [](const std::unique_ptr<Z13TestWorld>& client) {
     return client->World().has<z13::gameplay::Gameplay>() &&
         client->World().get<z13::net::ConnectionStatus>().state == z13::net::ConnectionState::kConnected;
-  });
+  }) && std::ranges::all_of(light_clients_, &z13::net::LightClient::Joined);
 }
 
 bool LoadSession::Connect(uint64_t max_ticks) {
@@ -94,6 +121,19 @@ void LoadSession::Steer(size_t index) {
   client.EmitInput(look);
 }
 
+z13::net::LightInput LoadSession::SteerLight(size_t index) {
+  z13::net::LightInput& input = light_inputs_[index];
+  input.forward = steering_.walk ? 1.f : 0.f;
+  if (steering_.look) {
+    const uint64_t phase = tick_ + clients_.size() + index;
+    const auto yaw_px = static_cast<float>(kLookStepX + static_cast<int>(phase % kLookJitterX));
+    const auto pitch_px = static_cast<float>(static_cast<int>(phase % kLookJitterY) - 1);
+    input.yaw_deg = std::remainder(input.yaw_deg - yaw_px * DegreesPerPixel(), kFullTurnDeg);
+    input.pitch_deg = std::clamp(input.pitch_deg - pitch_px * DegreesPerPixel(), -kMaxPitchDeg, kMaxPitchDeg);
+  }
+  return input;
+}
+
 void LoadSession::Tick() {
   const auto start = std::chrono::steady_clock::now();
   z13::flecs_tools::TickWorld(server_->World(), kNetTestDeltaTime);
@@ -103,6 +143,9 @@ void LoadSession::Tick() {
       Steer(i);
     }
     z13::flecs_tools::TickWorld(clients_[i]->World(), kNetTestDeltaTime);
+  }
+  for (size_t i = 0; i < light_clients_.size(); ++i) {
+    light_clients_[i].Tick(SteerLight(i));
   }
   network_->Tick();
   ++tick_;
