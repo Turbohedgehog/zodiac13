@@ -457,6 +457,13 @@ void DrawRoomOverlay(const flecs::world& world) {
     AddBoxEdges(box.min.cast<float>() * z13::station::kCellSize,
                 (box.min + box.extent).cast<float>() * z13::station::kCellSize);
   }
+  for (const z13::station::OverlaySegment& segment : overlay->segments) {
+    rlColor4ub(segment.color[0], segment.color[1], segment.color[2], segment.color[3]);
+    const Eigen::Vector3f from = segment.a * z13::station::kCellSize;
+    const Eigen::Vector3f to = segment.b * z13::station::kCellSize;
+    rlVertex3f(from.x(), from.y(), from.z());
+    rlVertex3f(to.x(), to.y(), to.z());
+  }
   rlEnd();
   rlDrawRenderBatchActive();
   rlEnableDepthTest();

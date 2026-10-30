@@ -34,9 +34,12 @@
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/station_mode.h>
+#include <grid/block_index.h>
+#include <primitives/palette.h>
 #include <rooms/room_cache.h>
 
 #include "room_box_cache.h"
+#include "room_outline.h"
 
 namespace z13::station {
 
@@ -46,7 +49,19 @@ using z13::station::rooms::RoomCache;
 using z13::station::rooms::RoomGraph;
 using z13::station::rooms::RoomId;
 
+using z13::building::grid::BlockId;
+using z13::building::grid::BlockIndex;
+using z13::building::primitives::BlockPalette;
+
 using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
+
+std::optional<Block> BlockOf(const flecs::world& world, BlockId id) {
+  if (!world.is_alive(id)) {
+    return std::nullopt;
+  }
+  const Block* block = world.entity(id).try_get<Block>();
+  return block != nullptr ? std::optional(*block) : std::nullopt;
+}
 
 constexpr int kProbeCellsAbove = 4;
 
@@ -108,18 +123,33 @@ void AddSeenPortals(const RoomGraph& graph, const std::vector<uint32_t>& seen, s
   }
 }
 
-std::vector<OverlayBox> Boxes(const RoomCache& cache, const RoomOverlayShown& shown, RoomBoxCache& box_cache) {
+struct OverlayLines {
+  std::vector<OverlayBox> boxes;
+  std::vector<OverlaySegment> segments;
+  std::vector<uint32_t> outlined_rooms;
+};
+
+OverlayLines Boxes(const RoomCache& cache, const RoomOverlayShown& shown, RoomBoxCache& box_cache,
+                   const WallSource& source) {
   Z13_PROFILE_ZONE("RoomOverlay::Boxes");
   const RoomGraph& graph = cache.Current()->get();
-  std::vector<OverlayBox> boxes;
+  OverlayLines lines;
+  std::vector<OverlayBox>& boxes = lines.boxes;
   const Rgba room_color = shown.mode == RoomOverlayMode::kSeen ? kSeenRoomOverlayColor : kRoomOverlayColor;
   const auto add_room = [&](RoomId room) {
     if (room != rooms::kVacuumRoom && graph.rooms.contains(room)) {
-      std::ranges::transform(box_cache.BoxesOf(cache, room), std::back_inserter(boxes),
-                             [&room_color](OverlayBox box) {
-                               box.color = room_color;
-                               return box;
-                             });
+      const RoomOverlayShape& shape = box_cache.ShapeOf(cache, room, source);
+      if (!shape.segments.empty()) {
+        lines.outlined_rooms.push_back(room);
+      }
+      std::ranges::transform(shape.boxes, std::back_inserter(boxes), [&room_color](OverlayBox box) {
+        box.color = room_color;
+        return box;
+      });
+      std::ranges::transform(shape.segments, std::back_inserter(lines.segments), [&room_color](OverlaySegment segment) {
+        segment.color = room_color;
+        return segment;
+      });
     }
   };
   if (shown.mode == RoomOverlayMode::kSeen && shown.seen_rooms) {
@@ -129,7 +159,7 @@ std::vector<OverlayBox> Boxes(const RoomCache& cache, const RoomOverlayShown& sh
     std::ranges::for_each(graph.ByAnchor(), add_room);
     std::ranges::transform(graph.portals, std::back_inserter(boxes), PortalBoxByKind);
   }
-  return boxes;
+  return lines;
 }
 
 // Rooms drawn against an older graph are numbered differently, so they wait for the renderer.
@@ -141,7 +171,7 @@ std::optional<std::vector<uint32_t>> DrawnRooms(const RoomOverlay& overlay, uint
 }
 
 void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
-                   const z13::gameplay::LocalPlayer& local, const PlayerQuery& players) {
+                   const z13::gameplay::LocalPlayer& local, const PlayerQuery& players, const WallSource& source) {
   const auto fingerprint = cache.CurrentFingerprint();
   if (overlay.mode == RoomOverlayMode::kOff || !cache.Current() || !fingerprint) {
     overlay = {.mode = overlay.mode, .drawn = std::move(overlay.drawn)};
@@ -159,7 +189,10 @@ void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCach
   if (overlay.shown == wanted) {
     return;
   }
-  overlay.boxes = Boxes(cache, wanted, box_cache);
+  OverlayLines lines = Boxes(cache, wanted, box_cache, source);
+  overlay.boxes = std::move(lines.boxes);
+  overlay.segments = std::move(lines.segments);
+  overlay.outlined_rooms = std::move(lines.outlined_rooms);
   overlay.label = Label(graph, cell, room);
   overlay.shown = std::move(wanted);
 }
@@ -173,12 +206,18 @@ void RegisterSystems(flecs::world world) {
   world.set(RoomBoxCache {});
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
-  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer>("RoomOverlaySystem::Update")
+  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer, const BlockIndex,
+               const BlockPalette>("RoomOverlaySystem::Update")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
-      .each([players](flecs::iter&, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
-                      const z13::gameplay::LocalPlayer& local) {
-        UpdateOverlay(overlay, box_cache, cache, local, players);
+      .read<Block>()
+      .each([players](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
+                      const z13::gameplay::LocalPlayer& local, const BlockIndex& index, const BlockPalette& palette) {
+        const flecs::world world = it.world();
+        const WallSource source {.index = index, .palette = palette.palette, .block_of = [world](BlockId id) {
+                                   return BlockOf(world, id);
+                                 }};
+        UpdateOverlay(overlay, box_cache, cache, local, players, source);
       });
 }
 

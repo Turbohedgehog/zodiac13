@@ -77,20 +77,24 @@ std::vector<OverlayBox> RoomBoxes(const RoomGraph& graph, RoomId room) {
 
 }  // namespace
 
-const std::vector<OverlayBox>& RoomBoxCache::BoxesOf(const rooms::RoomCache& cache, RoomId room) {
+const RoomOverlayShape& RoomBoxCache::ShapeOf(const rooms::RoomCache& cache, RoomId room, const WallSource& source) {
   if (switches_ != cache.Switches()) {
     const auto changes = switches_ ? cache.ChangesSince(*switches_) : std::nullopt;
     if (changes) {
-      std::ranges::for_each(changes->removed, [this](RoomId gone) { boxes_.erase(gone); });
-      std::ranges::for_each(changes->changed, [this](RoomId changed) { boxes_.erase(changed); });
+      std::ranges::for_each(changes->removed, [this](RoomId gone) { shapes_.erase(gone); });
+      std::ranges::for_each(changes->changed, [this](RoomId changed) { shapes_.erase(changed); });
     } else {
-      boxes_ = {};
+      shapes_ = {};
     }
     switches_ = cache.Switches();
   }
-  auto found = boxes_.find(room);
-  if (found == boxes_.end()) {
-    found = boxes_.emplace(room, RoomBoxes(cache.Current()->get(), room)).first;
+  auto found = shapes_.find(room);
+  if (found == shapes_.end()) {
+    const rooms::RoomGraph& graph = cache.Current()->get();
+    auto outline = WallOutline(graph, room, source, kRoomOverlayColor);
+    found = shapes_.emplace(room, outline ? RoomOverlayShape {.segments = std::move(*outline)}
+                                          : RoomOverlayShape {.boxes = RoomBoxes(graph, room)})
+                .first;
   }
   return found->second;
 }

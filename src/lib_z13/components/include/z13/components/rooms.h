@@ -55,6 +55,15 @@ struct OverlayBox {
   bool operator==(const OverlayBox&) const = default;
 };
 
+// A line of the overlay, ends in cells: where a room is bounded by a wall that is not on the grid.
+struct OverlaySegment {
+  Eigen::Vector3f a = Eigen::Vector3f::Zero();
+  Eigen::Vector3f b = Eigen::Vector3f::Zero();
+  Rgba color {};
+
+  bool operator==(const OverlaySegment&) const = default;
+};
+
 // What the room overlay draws: the rooms the renderer drew, in one colour, or every room
 // and portal; F4 steps through them in this order.
 enum class RoomOverlayMode : uint8_t { kOff, kSeen, kAll };
@@ -82,6 +91,9 @@ struct RoomOverlay {
   // Set by the renderer each frame in kSeen; nothing while rooms don't cull.
   std::optional<RoomsDrawn> drawn;
   std::vector<OverlayBox> boxes;
+  std::vector<OverlaySegment> segments;
+  // The rooms drawn by `segments` rather than `boxes`.
+  std::vector<uint32_t> outlined_rooms;
   std::string label;
   std::optional<RoomOverlayShown> shown;
 };
