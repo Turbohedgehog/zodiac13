@@ -440,6 +440,11 @@ SPINE_B_STEPS = 14  # of the north-east wall; the south-west one ends at the sam
 SPINE_B_WALL_CELLS = 2  # the least that holds air back at 45 degrees and at (5, 2)
 SPINE_B_LAMP_X = 250  # the stub's lamp
 SPINE_B_LAMP_STEPS = (4, 10)  # the second segment's lamps, in steps from its start
+SPINE_B_ROOMS_PER_SIDE = 2
+SPINE_B_ROOM_STEPS = 7  # a room's length in the second segment's steps, 9.4 m
+SPINE_B_ROOM_DEPTH_CELLS = 15  # from the corridor wall's outer face to the room's outer wall's
+SPINE_B_ROOM_DOOR_STEPS = 2
+SPINE_B_ROOM_DOOR_OFFSET_STEPS = 3  # from the room's first partition
 
 
 class SpineGeometry(NamedTuple):
@@ -510,6 +515,66 @@ def spine_b():
         (ne_start[0] - ne_start[1] + sw_start[0] - sw_start[1]) // 2)
 
 
+class SpineRooms(NamedTuple):
+    xs: tuple  # the partitions' x: the bend's, the middle's and the end's
+    north: tuple  # y of the outer wall's line at each x, the partitions' first and last cell
+    south: tuple
+    centres: tuple  # a cell in the middle of each of the four rooms
+
+
+@functools.cache
+def spine_b_rooms():
+    """Two rooms on each side of the second segment, as long as `SPINE_B_ROOM_STEPS` of its steps: partitions on
+    the grid between the corridor's walls and an outer wall parallel to them (all wall segments, which overlap
+    their neighbours; the last partition stops at the end wall's blocks)."""
+    g = spine_b()
+    wall, depth = SPINE_B_WALL_CELLS, SPINE_B_ROOM_DEPTH_CELLS
+    step_x, step_y = SPINE_B_STEP
+    x0 = g.ne[1][0]
+    xs = tuple(x0 + SPINE_B_ROOM_STEPS * step_x * k for k in range(SPINE_B_ROOMS_PER_SIDE + 1))
+    assert xs[-1] == g.ne[2][0]
+
+    def line_y(nodes, x):
+        return nodes[1][1] + (x - nodes[1][0]) * step_y // step_x
+
+    north, south = [], []
+    for x in xs:
+        last = x == xs[-1]
+        outer = line_y(g.ne, x) - wall - depth
+        # The outer wall's line, the partition's first and last cell: from the middle of one wall's body to the
+        # middle of the other's (the last one stops short of the end wall's blocks).
+        north.append((outer, outer + wall // 2, line_y(g.ne, x) - (wall + 1 if last else 1)))
+        outer = line_y(g.sw, x) + wall + depth
+        south.append((outer, g.cap[2] if last else line_y(g.sw, x) + wall // 2, outer - 1))
+    middles = [(xs[k] + xs[k + 1]) // 2 for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    centres = (tuple((x, line_y(g.ne, x) - (wall + depth) // 2) for x in middles)
+               + tuple((x, line_y(g.sw, x) + (wall + depth) // 2) for x in middles))
+    return SpineRooms(xs, tuple(north), tuple(south), centres)
+
+
+def spine_b_doors():
+    """The corridor walls' openings: one door into each room, in the middle of its side."""
+    ne = [wall_opening(SPINE_B_ROOM_STEPS * k + SPINE_B_ROOM_DOOR_OFFSET_STEPS, SPINE_B_ROOM_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+          for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    sw_first = (spine_b_rooms().xs[0] - spine_b().sw[1][0]) // SPINE_B_STEP[0]
+    sw = [wall_opening(sw_first + SPINE_B_ROOM_STEPS * k + SPINE_B_ROOM_DOOR_OFFSET_STEPS, SPINE_B_ROOM_DOOR_STEPS,
+                       DOOR_HEIGHT_CELLS) for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    return ne, sw
+
+
+def spine_b_room_walls_of_deck(number):
+    z, height = deck_floor_z(number), wall_height(number)
+    rooms, wall = spine_b_rooms(), SPINE_B_WALL_CELLS
+    first, last = rooms.xs[0], rooms.xs[-1]
+    walls = []
+    for side, lines, sign in (("N", rooms.north, wall), ("S", rooms.south, -wall)):
+        outer_first, outer_last = lines[0][0], lines[-1][0]
+        walls.append(wall_segment((first, outer_first, z), (last, outer_last, z), sign, height))
+        for x, (_, start, end) in zip(rooms.xs, lines):
+            walls.append(wall_segment((x, start, z), (x, end + 1, z), 1, height))
+    return walls
+
+
 def spine_b_walls_of_deck(number):
     """The atrium's side with its door and the spine's walls on deck `number`; the end wall is blocks."""
     g = spine_b()
@@ -518,9 +583,11 @@ def spine_b_walls_of_deck(number):
     wall = SPINE_B_WALL_CELLS
     door = wall_opening(SPINE_B_OPENING_OFFSET_STEPS, SPINE_B_OPENING_STEPS, DOOR_HEIGHT_CELLS)
     walls = [wall_segment((*a, z), (*b, z), thickness, height, openings=[door])]
-    for nodes, sign in ((g.ne, -wall), (g.sw, wall)):
-        walls += [wall_segment((*nodes[i], z), (*nodes[i + 1], z), sign, height) for i in range(2)]
-    return walls
+    ne_doors, sw_doors = spine_b_doors()
+    for nodes, sign, doors in ((g.ne, -wall, ne_doors), (g.sw, wall, sw_doors)):
+        walls += [wall_segment((*nodes[i], z), (*nodes[i + 1], z), sign, height, openings=doors if i else ())
+                  for i in range(2)]
+    return walls + spine_b_room_walls_of_deck(number)
 
 
 def spine_b_end_wall(number):
@@ -534,8 +601,15 @@ def spine_b_slabs(layer):
     g = spine_b()
     z = layer * DECK_PITCH_CELLS
     start, bend, end = g.floor
+    rooms = spine_b_rooms()
+    (north_y, *_), (south_y, *_) = rooms.north[0], rooms.south[0]
     return [wall_segment((*start, z), (*bend, z), g.thicknesses[0], SLAB_CELLS),
-            wall_segment((*bend, z), (*end, z), g.thicknesses[1], SLAB_CELLS)]
+            wall_segment((*bend, z), (*end, z), g.thicknesses[1], SLAB_CELLS)] + [
+        wall_segment((rooms.xs[0], north_y, z), (rooms.xs[-1], rooms.north[-1][0], z), SPINE_B_ROOM_DEPTH_CELLS,
+                     SLAB_CELLS),
+        wall_segment((rooms.xs[0], south_y - SPINE_B_ROOM_DEPTH_CELLS, z),
+                     (rooms.xs[-1], rooms.south[-1][0] - SPINE_B_ROOM_DEPTH_CELLS, z), SPINE_B_ROOM_DEPTH_CELLS,
+                     SLAB_CELLS)]
 
 
 def spine_b_lamps(number):
@@ -543,6 +617,7 @@ def spine_b_lamps(number):
     z = deck_floor_z(number) + wall_height(number) - 1
     spots = [(SPINE_B_LAMP_X, SPINE_B_LAMP_X - g.lamp_diff)]
     spots += [_along(g.middle, steps, SPINE_B_STEP) for steps in SPINE_B_LAMP_STEPS]
+    spots += spine_b_rooms().centres
     return [block(LAMP, (x - 1, y - 1, z), (LAMP_CELLS, LAMP_CELLS, 1)) for x, y in spots]
 
 

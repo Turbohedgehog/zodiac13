@@ -1,12 +1,12 @@
 Hub pilot estimate (written by generate_hub.py).
 
-Deck 1 (Agora): rooms 11, doors 11, blocks 128
-Deck 2 (Atrium level 2): rooms 11, doors 9, blocks 134
-Deck 3 (Atrium level 3): rooms 10, doors 9, blocks 109
-Deck 4 (Atrium level 4): rooms 7, doors 7, blocks 86
+Deck 1 (Agora): rooms 11, doors 11, blocks 132
+Deck 2 (Atrium level 2): rooms 11, doors 9, blocks 138
+Deck 3 (Atrium level 3): rooms 10, doors 9, blocks 113
+Deck 4 (Atrium level 4): rooms 7, doors 7, blocks 90
 Deck 5 (Atrium level 5): rooms 1, doors 0, blocks 20
 Deck 6 (Atrium level 6): rooms 4, doors 2, blocks 49
 Deck 7 (Atrium level 7): rooms 4, doors 2, blocks 51
 Deck 8 (Atrium top and bridge): rooms 2, doors 0, blocks 51
 
-Blueprint blocks (hub.json): 759 - Floor 91, Slope 10, Panel 10, Wall 330, Window 5, Door 40, SpawnPoint 4, Lamp 269.
+Blueprint blocks (hub.json): 775 - Floor 91, Slope 10, Panel 10, Wall 330, Window 5, Door 40, SpawnPoint 4, Lamp 285.
