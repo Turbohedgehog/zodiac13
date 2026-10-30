@@ -68,5 +68,18 @@ TEST(SimulatedSetTest, ASimulatedPlayerKeepsItsPlaceJustBeyondTheRadius) {
   EXPECT_EQ(ChooseSimulated(candidates, {1, 3}, kBudget), (Players {1}));
 }
 
+TEST(SimulatedSetTest, ANewcomerTakesASimulatedPlayersPlaceOnlyWhenNearerByTheRankHysteresis) {
+  constexpr SimulatedBudget kCrowd {.max_players = 2, .radius_m = 10., .rank_hysteresis_m = 1.5};
+  const Players current {7, 9};
+  const auto with_newcomer_at = [](double distance_m) {
+    return std::vector<SimulatedCandidate> {
+        {.player_id = 7, .distance_m = 4.}, {.player_id = 9, .distance_m = 4.1},
+        {.player_id = 5, .distance_m = distance_m}};
+  };
+
+  EXPECT_EQ(ChooseSimulated(with_newcomer_at(3.), current, kCrowd), current);
+  EXPECT_EQ(ChooseSimulated(with_newcomer_at(2.), current, kCrowd), (Players {5, 7}));
+}
+
 }  // namespace
 }  // namespace z13::net

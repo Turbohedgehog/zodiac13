@@ -31,9 +31,12 @@ std::unordered_set<uint32_t> ChooseSimulated(
     const double reach = budget.radius_m + (current.contains(candidate.player_id) ? budget.hysteresis_m : 0.);
     return candidate.distance_m <= reach;
   });
+  const auto rank_distance = [&](const SimulatedCandidate& candidate) {
+    return candidate.distance_m - (current.contains(candidate.player_id) ? budget.rank_hysteresis_m : 0.);
+  };
   // Ties by id, so that every pass ranks equal distances the same way.
-  std::ranges::sort(eligible, [](const SimulatedCandidate& a, const SimulatedCandidate& b) {
-    return std::tie(a.distance_m, a.player_id) < std::tie(b.distance_m, b.player_id);
+  std::ranges::sort(eligible, [&](const SimulatedCandidate& a, const SimulatedCandidate& b) {
+    return std::tuple(rank_distance(a), a.player_id) < std::tuple(rank_distance(b), b.player_id);
   });
   std::unordered_set<uint32_t> chosen;
   for (size_t rank = 0; rank < eligible.size(); ++rank) {
@@ -43,6 +46,14 @@ std::unordered_set<uint32_t> ChooseSimulated(
     }
   }
   return chosen;
+}
+
+SimulatedBudget SimulatedBudgetOf(const z13::NetTuning& tuning) {
+  return {.max_players = tuning.simulated_players_max,
+          .slack = tuning.simulated_players_slack,
+          .radius_m = tuning.simulated_radius_m,
+          .hysteresis_m = tuning.simulated_hysteresis_m,
+          .rank_hysteresis_m = tuning.simulated_rank_hysteresis_m};
 }
 
 }  // namespace z13::net
