@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -70,6 +71,8 @@ class NetSession {
   // Server-side, once a ClientHello is accepted.
   void BindPlayer(ConnectionId connection, uint32_t player_id);
   std::optional<uint32_t> PlayerIdFor(ConnectionId connection) const;
+  std::optional<ConnectionId> ConnectionOf(uint32_t player_id) const;
+  size_t PlayerCount() const;
   std::vector<std::pair<ConnectionId, uint32_t>> PlayerConnections() const;
 
   // Client-side, from the first kConnected event.
