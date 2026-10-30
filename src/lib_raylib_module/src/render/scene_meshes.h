@@ -44,7 +44,7 @@ class SceneMeshes {
  public:
   using Singleton = void;
 
-  SceneMeshes() = default;
+  SceneMeshes();
 
   // Uploads the meshes whose revision changed and drops the entities not listed; `lighting_shader` is borrowed by
   // every material, id 0 keeps raylib's default.
@@ -57,7 +57,7 @@ class SceneMeshes {
  private:
   class State;
 
-  std::shared_ptr<State> state_ = std::make_shared<State>();
+  std::shared_ptr<State> state_;
 };
 
 }  // namespace z13::raylib
