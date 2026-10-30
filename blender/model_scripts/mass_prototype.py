@@ -165,7 +165,7 @@ DISTRICT_CORE_ORIGIN = (3, 0)
 # Pitch of a district about its hinge, degrees: positive raises the far end. Neighbours on LINKS alternate;
 # the command wing and the bridge stay level.
 TILT_DEG = {
-    "hangar": -1, "medical": 1, "mining_dock": 1, "habitat": 1, "science": -1, "arrivals": -1,
+    "hangar": -1, "medical": -1, "mining_dock": 1, "habitat": 1, "science": -1, "arrivals": -1,
     "security": 1, "departure": -1, "greenhouse": -1, "old_wing": 1,
 }
 # Docking ports ride with the district they hang on.
