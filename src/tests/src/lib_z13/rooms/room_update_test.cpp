@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <map>
 #include <numeric>
 #include <optional>
@@ -26,6 +27,7 @@
 #include <tuple>
 #include <vector>
 
+#include <rooms/cut_walls.h>
 #include <rooms/room_builder.h>
 #include <rooms/room_update.h>
 
@@ -400,6 +402,45 @@ TEST(RoomUpdateTest, TheAreaFollowsTheBoundsBackAfterAFarBlockGoes) {
   EXPECT_EQ(back.space.AllChunks().size(), before.space.AllChunks().size());
   EXPECT_EQ(back.leaf_rooms.size(), back.space.AllChunks().size());
   EXPECT_NE(IdAt(back, {5, 5, 3}), kVacuumRoom);
+}
+
+// A client's held sectors change as its player walks: the walls of the cut (CutWalls) come and go with them.
+TEST(RoomUpdateTest, MovingCutWallsEndWhereAFullBuildDoes) {
+  // Wider than a chunk, as in the game: a sector given up drops chunks that held rooms.
+  constexpr int kSectorCells = 2 * kChunkCells;
+  constexpr int kSectorsAcross = 3;
+  constexpr int kCutSteps = 60;
+  for (const uint32_t seed : kSeeds) {
+    std::mt19937 random(seed);
+    std::vector<Eigen::Vector3i> held;
+    for (int x = 0; x < kSectorsAcross - 1; ++x) {
+      for (int y = 0; y < kSectorsAcross - 1; ++y) {
+        held.emplace_back(x, y, 0);
+      }
+    }
+    // Ends inside the low x sectors, so their walls are cut short or dropped.
+    const CellBox station {.min = {-kSectorCells / 2, -2 * kSectorCells, -2 * kSectorCells},
+                           .extent = Eigen::Vector3i::Constant((kSectorsAcross + 4) * kSectorCells)};
+    const auto sources = [&held, &station] {
+      RoomSources built {.sealed = Shell()};
+      std::ranges::copy(CutWalls(held, kSectorCells, station), std::back_inserter(built.sealed));
+      return built;
+    };
+    RoomGraph graph = Full(sources());
+    for (int step = 0; step < kCutSteps; ++step) {
+      const Eigen::Vector3i sector(Between(random, -1, kSectorsAcross), Between(random, -1, kSectorsAcross),
+                                   Between(random, -1, 1));
+      if (const auto found = std::ranges::find(held, sector); found != held.end()) {
+        held.erase(found);
+      } else {
+        held.push_back(sector);
+      }
+      graph = Update(graph, sources());
+      const RoomGraph full = Full(sources());
+      const CellBox region {.min = full.space.Area().min, .extent = full.space.Area().extent};
+      ASSERT_EQ(CanonicalOf(graph, region), CanonicalOf(full, region)) << "seed " << seed << ", step " << step;
+    }
+  }
 }
 
 TEST(RoomUpdateTest, AnEditSharesTheChunksItDoesNotTouch) {

@@ -27,7 +27,7 @@
 
 namespace z13::net {
 
-constexpr uint32_t kProtocolVersion = 25;
+constexpr uint32_t kProtocolVersion = 26;
 
 // MessageEnvelopeT's `body` is already a tagged union over every wire message
 // (MessageBodyUnion::type/Set<T>()/AsXxx(), net_generated.h) -- no variant needed.
@@ -83,7 +83,7 @@ auto VisitBody(const fbs::net::MessageBodyUnion& body, Visitor&& visitor) {
       fbn::ClientHelloT, fbn::CommandBatchT, fbn::ResyncRequestT, fbn::PingT, fbn::PongT, fbn::WelcomeT,
       fbn::RejectedT, fbn::ResyncT, fbn::PlayerJoinedT, fbn::PlayerLeftT, fbn::SequencedCommandsT,
       fbn::StateDigestT, fbn::CommandsRetimedT, fbn::EntityEnteredT, fbn::EntityLeftT, fbn::SectorEnteredT,
-      fbn::SectorLeftT, fbn::WorldEditT>(body, visitor);
+      fbn::SectorLeftT, fbn::WorldEditT, fbn::StationBoundsT>(body, visitor);
 }
 
 }  // namespace z13::net

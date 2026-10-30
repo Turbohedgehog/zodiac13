@@ -127,6 +127,7 @@ set(
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/session/light_client_test.cpp
   ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/station_bounds_log_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_loss_bench_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp

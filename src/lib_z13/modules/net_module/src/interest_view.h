@@ -31,16 +31,12 @@ namespace z13::net {
 
 using SectorSet = std::unordered_set<sectors::SectorKey, sectors::SectorHash>;
 
-// What one client has of the world (docs/interest-design.md): the sectors it is subscribed to, the
-// box around them where a player's reach can touch, and the players in it, itself included.
+// What one client has of the world (docs/interest-design.md): the sectors it is subscribed to and the players in
+// them, itself included.
 struct InterestView {
   SectorSet sectors;
-  sectors::SectorBox presence;
   std::unordered_set<uint32_t> players;
 };
-
-// Where another player's reach can touch what a client with these subscribed sectors has.
-sectors::SectorBox PresenceOf(const sectors::SectorBox& subscribed);
 
 // What a client joining at `center` will have: the view before its player is in the sector index. Under a
 // net.ghosts budget the players it simulates are the nearest to `spawn`.

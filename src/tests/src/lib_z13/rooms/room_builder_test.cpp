@@ -17,8 +17,11 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <iterator>
 #include <vector>
 
+#include <rooms/cut_walls.h>
 #include <rooms/room_builder.h>
 #include <rooms/room_overlap.h>
 
@@ -43,6 +46,11 @@ std::vector<CellBox> Shell() {
       {.min = {1, 0, 1}, .extent = {kSide, 1, kHeight}},
       {.min = {1, outer - 1, 1}, .extent = {kSide, 1, kHeight}},
   };
+}
+
+// The cells Shell() spans.
+CellBox ShellBounds() {
+  return {.min = Eigen::Vector3i::Zero(), .extent = {kSide + 2, kSide + 2, kHeight + 2}};
 }
 
 RoomGraph Build(const RoomSources& sources) {
@@ -100,6 +108,54 @@ TEST(RoomBuilderTest, ARoomWithoutARoofIsOpenToSpace) {
   sources.sealed.erase(sources.sealed.begin() + 1);
 
   EXPECT_EQ(Build(sources).RoomAt({5, 5, 3}), kVacuumRoom);
+}
+
+TEST(RoomBuilderTest, ARoomCutByTheEdgeOfTheHeldSectorsIsClosedThere) {
+  constexpr int kSectorCells = 8;
+  RoomSources sources {.sealed = Shell()};
+  // A client holding only the sectors below lacks the far wall.
+  sources.sealed.erase(sources.sealed.begin() + 3);
+  const RoomSettings narrow_openings {.max_opening_cells = 1};
+  ASSERT_EQ(BuildRooms(sources, kVacuumRoom + 1, narrow_openings).value().RoomAt({5, 5, 3}), kVacuumRoom);
+
+  const std::array held {Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(0, 1, 0)};
+  std::ranges::copy(CutWalls(held, kSectorCells, ShellBounds()), std::back_inserter(sources.sealed));
+  const RoomGraph graph = BuildRooms(sources, kVacuumRoom + 1, narrow_openings).value();
+
+  EXPECT_NE(graph.RoomAt({5, 5, 3}), kVacuumRoom);
+  EXPECT_EQ(graph.RoomAt({kSectorCells, 5, 3}), std::nullopt);
+}
+
+TEST(RoomBuilderTest, AFloorWhoseHeldSectorsReachPastTheStationStaysOpenToSpace) {
+  constexpr int kSectorCells = 4;
+  const CellBox floor {.min = {-kSide, -kSide, -1}, .extent = {2 * kSide, 2 * kSide, 1}};
+  RoomSources sources {.sealed = {floor}};
+  std::vector<Eigen::Vector3i> held;
+  for (int x = -1; x <= 0; ++x) {
+    for (int y = -1; y <= 0; ++y) {
+      held.emplace_back(x, y, 0);
+    }
+  }
+  std::ranges::copy(CutWalls(held, kSectorCells, floor), std::back_inserter(sources.sealed));
+
+  EXPECT_EQ(Build(sources).RoomAt({0, 0, 1}), kVacuumRoom);
+}
+
+TEST(RoomBuilderTest, CutWallsCoverOnlyTheFacesNoOtherHeldSectorShares) {
+  constexpr int kSectorCells = 4;
+  const std::array one {Eigen::Vector3i(0, 0, 0)};
+  const std::array two {Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(1, 0, 0)};
+
+  const Eigen::Vector3i shared_face(kSectorCells, 1, 1);
+  const CellBox anywhere {.min = Eigen::Vector3i::Constant(-kSectorCells), .extent = Eigen::Vector3i::Constant(4 * kSectorCells)};
+  const std::vector<CellBox> walls = CutWalls(two, kSectorCells, anywhere);
+
+  EXPECT_EQ(CutWalls(one, kSectorCells, anywhere).size(), 6U);
+  EXPECT_TRUE(CutWalls(one, kSectorCells, {.min = Eigen::Vector3i::Constant(1), .extent = {2, 2, 2}}).empty());
+  EXPECT_EQ(walls.size(), 10U);
+  EXPECT_TRUE(std::ranges::none_of(walls, [&shared_face](const CellBox& wall) {
+    return wall.Contains(shared_face) || wall.Contains(shared_face - Eigen::Vector3i::UnitX());
+  }));
 }
 
 TEST(RoomBuilderTest, RoomsStackedOnTwoLevelsAreSeparate) {

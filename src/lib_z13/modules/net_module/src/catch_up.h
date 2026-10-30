@@ -31,6 +31,7 @@
 #include <net_module/protocol.h>
 
 #include "interest_view.h"
+#include "station_bounds_log.h"
 
 namespace z13::net {
 
@@ -42,6 +43,9 @@ struct CatchUpPayload {
   std::vector<z13::gameplay::PlayerActionRecord> held_values;
   std::vector<z13::gameplay::PlayerActionRecord> pending;
   z13::gameplay::ConfirmedInputTicks confirmed;
+  // Under interest, the sectors whose blocks the snapshot holds; otherwise the whole world.
+  std::optional<SectorSet> sectors;
+  BoundsByTick station_bounds;
 };
 
 // With a view, only what the view holds: its players and sectors, and their input.

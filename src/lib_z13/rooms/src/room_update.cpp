@@ -334,7 +334,9 @@ std::expected<RoomGraph, std::string> UpdateSorted(const RoomGraph& previous, Ro
   });
   for (const RoomId room : old_rooms) {
     for (const LeafRef& ref : previous.space.LeavesIn(previous.rooms.at(room).bounds)) {
-      if (!rebuilt.contains(ref.chunk) && previous.RoomOf(ref) == room) {
+      // A chunk the area no longer spans is gone with its leaves.
+      if (!rebuilt.contains(ref.chunk) && graph.space.AllChunks().contains(ref.chunk) &&
+          previous.RoomOf(ref) == room) {
         local.Add(ref);
       }
     }

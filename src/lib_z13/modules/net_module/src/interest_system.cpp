@@ -39,6 +39,7 @@
 #include "interest_events.h"
 #include "player_positions.h"
 #include "sector_system.h"
+#include "station_bounds_log.h"
 #include "world_edits.h"
 
 namespace z13::net {
@@ -97,6 +98,7 @@ void RegisterSystems(flecs::world world) {
           SendInterestEvents(it.world(), UpdateInterest(session, map, index, tuning), index.TakeMovedPlayers());
         }
         SendWorldEdits(it.world());
+        SendStationBounds(it.world());
       });
 }
 

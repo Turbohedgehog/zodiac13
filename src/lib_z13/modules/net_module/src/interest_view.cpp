@@ -37,9 +37,6 @@ namespace z13::net {
 
 namespace {
 
-// A player's reach is within one sector (enforced by net.interest_radius_sectors' rule).
-constexpr int kPresenceRing = 1;
-
 // The players of a view under a budget: those already simulated, or for a joiner the nearest to where it spawns.
 std::unordered_set<uint32_t> Simulated(
     flecs::world world, const std::vector<uint32_t>& present, const std::unordered_set<uint32_t>* current,
@@ -67,14 +64,13 @@ std::unordered_set<uint32_t> Simulated(
 
 // `current` is what the client simulates now, when the server knows; `from` is where it stands or will.
 InterestView ViewOfSectors(
-    flecs::world world, sectors::ClientId client, SectorSet subscribed, const sectors::SectorBox& bounds,
-    const std::unordered_set<uint32_t>* current, const Eigen::Vector3f& from) {
+    flecs::world world, sectors::ClientId client, SectorSet subscribed, const std::unordered_set<uint32_t>* current,
+    const Eigen::Vector3f& from) {
   InterestView view;
   view.sectors = std::move(subscribed);
-  view.presence = PresenceOf(bounds);
   const auto& index = world.get<sectors::SectorIndex>();
   std::vector<uint32_t> present;
-  for (const sectors::SectorKey& sector : view.presence.Sectors()) {
+  for (const sectors::SectorKey& sector : view.sectors) {
     for (const sectors::SectorMember& member : index.MembersIn(sector)) {
       if (member.kind == sectors::MemberKind::kPlayer) {
         present.push_back(static_cast<uint32_t>(member.id));
@@ -92,10 +88,6 @@ InterestView ViewOfSectors(
 
 }  // namespace
 
-sectors::SectorBox PresenceOf(const sectors::SectorBox& subscribed) {
-  return subscribed.Grown(kPresenceRing);
-}
-
 InterestView ViewAround(
     flecs::world world, sectors::ClientId client, const sectors::SectorKey& center, const Eigen::Vector3f& spawn) {
   const auto& tuning = world.get<z13::NetTuning>();
@@ -103,13 +95,12 @@ InterestView ViewAround(
   const sectors::SectorBox bounds {
       .min = center - sectors::SectorKey::Constant(reach), .max = center + sectors::SectorKey::Constant(reach)};
   const std::vector<sectors::SectorKey> subscribed = bounds.Sectors();
-  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()}, bounds, nullptr, spawn);
+  return ViewOfSectors(world, client, SectorSet {subscribed.begin(), subscribed.end()}, nullptr, spawn);
 }
 
 std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client) {
   const auto& map = world.get<sectors::InterestMap>();
-  const std::optional<sectors::SectorBox> bounds = map.BoundsOf(client);
-  if (!bounds) {
+  if (!map.BoundsOf(client)) {
     return std::nullopt;
   }
   const std::vector<sectors::SectorKey> subscribed = map.SectorsOf(client);
@@ -118,7 +109,7 @@ std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client)
   const auto& positions = CurrentPlayerPositions(world).by_player;
   const auto own = positions.find(client);
   return ViewOfSectors(
-      world, client, SectorSet {subscribed.begin(), subscribed.end()}, *bounds,
+      world, client, SectorSet {subscribed.begin(), subscribed.end()},
       known == knowledge.end() ? nullptr : &known->second.simulated,
       own == positions.end() ? Eigen::Vector3f::Zero().eval() : own->second);
 }

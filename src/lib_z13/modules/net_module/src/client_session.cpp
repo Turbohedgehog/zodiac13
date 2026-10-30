@@ -48,12 +48,14 @@
 #include "action_hints.h"
 #include "catch_up.h"
 #include "ghost_players.h"
+#include "held_sector_history.h"
 #include "remote_input.h"
 #include "scheduled_commands.h"
 #include "session_control.h"
 #include "session_deltas.h"
 #include "session_settings.h"
 #include "state_digest_system.h"
+#include "station_bounds_log.h"
 #include "wire_records.h"
 
 namespace z13::net {
@@ -254,9 +256,27 @@ void HandleClientReceived(flecs::world world, const TransportEvent& event) {
       [&](const fbn::PlayerLeftT& left) { queue_session_delta(left); },
       [&](const fbn::EntityEnteredT& entered) { queue_session_delta(entered); },
       [&](const fbn::EntityLeftT& left) { queue_session_delta(left); },
-      [&](const fbn::SectorEnteredT& entered) { queue_session_delta(entered); },
-      [&](const fbn::SectorLeftT& left) { queue_session_delta(left); },
+      [&](const fbn::SectorEnteredT& entered) {
+        if (welcomed) {
+          RecordSectorChange(world, entered.apply_tick,
+                             {.sector = {entered.sector_x, entered.sector_y, entered.sector_z}, .entered = true});
+        }
+        queue_session_delta(entered);
+      },
+      [&](const fbn::SectorLeftT& left) {
+        if (welcomed) {
+          RecordSectorChange(world, left.apply_tick, {.sector = {left.sector_x, left.sector_y, left.sector_z}});
+        }
+        queue_session_delta(left);
+      },
       [&](const fbn::WorldEditT& edit) { queue_session_delta(edit); },
+      // Applies nothing: queued for the rollback to its tick.
+      [&](const fbn::StationBoundsT& bounds) {
+        if (welcomed) {
+          ReceiveStationBounds(world, bounds);
+        }
+        queue_session_delta(bounds);
+      },
       [world, welcomed](const fbn::ResyncT& resync) {
         if (welcomed) {
           HandleResync(world, resync);
