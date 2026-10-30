@@ -43,6 +43,7 @@ z13_add_library(
   src/state/component_codec/value_encoder.cpp
   src/state/component_meta.cpp
   src/state/group_bucket.cpp
+  src/state/player_bound.cpp
   src/state/rollback.cpp
   src/state/snapshot_grouping.cpp
   src/state/snapshot_hash.cpp

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <concepts>
+#include <cstdint>
 #include <type_traits>
 
 namespace z13::flecs_tools {
@@ -40,5 +42,12 @@ concept SingletonComponentType = requires { requires std::is_void_v<typename T::
 
 template <class T>
 concept SessionScopedComponentType = requires { requires std::is_void_v<typename T::SessionScoped>; };
+
+// Its entities go with the player its `player_id` names wherever that player's entity goes (an interest entry).
+template <class T>
+concept PlayerBoundComponentType = requires(const T& value) {
+  requires std::is_void_v<typename T::PlayerBound>;
+  { value.player_id } -> std::convertible_to<uint32_t>;
+};
 
 }  // namespace z13::flecs_tools

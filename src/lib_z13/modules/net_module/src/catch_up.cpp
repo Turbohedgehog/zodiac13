@@ -106,18 +106,32 @@ std::vector<z13::gameplay::PlayerActionRecord> Filtered(
 
 }  // namespace
 
-PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick) {
-  PlayerInput input;
-  const auto own = [player_id](const auto& record) { return record.player_id == player_id; };
-  std::ranges::copy_if(HeldValues(world, snapshot_tick), std::back_inserter(input.held_values), own);
+InputAtTick InputAt(flecs::world world, uint64_t snapshot_tick) {
+  InputAtTick input {.held_values = HeldValues(world, snapshot_tick)};
   // In a replay the commands after `snapshot_tick` are in the log already, not in the queue.
-  std::ranges::copy_if(ActionsSince(world, snapshot_tick), std::back_inserter(input.pending), own);
-  std::ranges::copy_if(world.get<z13::gameplay::ScheduledCommands>().records, std::back_inserter(input.pending), own);
+  input.pending = ActionsSince(world, snapshot_tick);
+  std::ranges::copy(world.get<z13::gameplay::ScheduledCommands>().records, std::back_inserter(input.pending));
+  // Stable: a player's records keep their order, the log's before the queue's.
+  std::ranges::stable_sort(input.pending, {}, &z13::gameplay::PlayerActionRecord::player_id);
+  return input;
+}
+
+PlayerInput InputOf(flecs::world world, const InputAtTick& everyone, uint32_t player_id) {
+  PlayerInput input;
+  const auto own = [player_id](const std::vector<z13::gameplay::PlayerActionRecord>& records) {
+    return std::ranges::equal_range(records, player_id, {}, &z13::gameplay::PlayerActionRecord::player_id);
+  };
+  std::ranges::copy(own(everyone.held_values), std::back_inserter(input.held_values));
+  std::ranges::copy(own(everyone.pending), std::back_inserter(input.pending));
   const auto& confirmed = world.get<z13::gameplay::ConfirmedInputTicks>().by_player;
   if (const auto through = confirmed.find(player_id); through != confirmed.end()) {
     input.confirmed.by_player.emplace(*through);
   }
   return input;
+}
+
+PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick) {
+  return InputOf(world, InputAt(world, snapshot_tick), player_id);
 }
 
 void MergePlayerInput(flecs::world world, PlayerInput input) {

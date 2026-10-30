@@ -1,15 +1,19 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <Eigen/Dense>
 #include <flecs.h>
 
 #include <lib_core/state/component_meta.h>
+#include <lib_core/state/player_bound.h>
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
@@ -390,6 +394,28 @@ TEST_F(WorldStateTest, JsonLoadRejectsBadInputWithoutTouchingTheWorld) {
                    .has_value());
 
   EXPECT_EQ(target_.lookup("hero").get<Position>().x, 1.f);
+}
+
+struct HeldBy {
+  using State = void;
+  using PlayerBound = void;
+  uint32_t player_id {};
+};
+
+TEST(PlayerBoundTest, EveryEntityOfAPlayerBoundComponentIsVisitedOnceWithItsPlayer) {
+  flecs::world world;
+  ft::RegisterStateMeta(world);
+  ft::RegisterComponents<HeldBy, HeldBy>(world);
+  world.entity("first").set(HeldBy {.player_id = 3});
+  world.entity("second").set(HeldBy {.player_id = 5});
+
+  std::vector<std::pair<std::string, uint32_t>> visited;
+  ft::EachPlayerBound(world, [&visited](flecs::entity entity, uint32_t player_id) {
+    visited.emplace_back(entity.name().c_str(), player_id);
+  });
+  std::ranges::sort(visited);
+
+  EXPECT_EQ(visited, (std::vector<std::pair<std::string, uint32_t>> {{"first", 3}, {"second", 5}}));
 }
 
 }  // namespace

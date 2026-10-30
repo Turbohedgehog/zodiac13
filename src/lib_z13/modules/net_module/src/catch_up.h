@@ -60,6 +60,14 @@ struct PlayerInput {
   z13::gameplay::ConfirmedInputTicks confirmed;
 };
 
+// Everyone's input at one snapshot tick, by player, to take several players' out of.
+struct InputAtTick {
+  std::vector<z13::gameplay::PlayerActionRecord> held_values;
+  std::vector<z13::gameplay::PlayerActionRecord> pending;
+};
+
+InputAtTick InputAt(flecs::world world, uint64_t snapshot_tick);
+PlayerInput InputOf(flecs::world world, const InputAtTick& everyone, uint32_t player_id);
 PlayerInput InputOf(flecs::world world, uint32_t player_id, uint64_t snapshot_tick);
 // Adds what the log and the queue lack, so applying it again on a replay changes nothing.
 void MergePlayerInput(flecs::world world, PlayerInput input);

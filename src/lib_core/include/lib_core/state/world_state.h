@@ -21,6 +21,7 @@
 #include <flecs.h>
 
 #include <lib_core/state/component_meta.h>
+#include <lib_core/state/player_bound.h>
 #include <lib_core/state/state_markers.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/status.h>
@@ -28,9 +29,9 @@
 namespace z13::flecs_tools {
 
 // Registers T and applies its properties: State builds reflect-cpp meta and adds the
-// StateComponent trait, Singleton the flecs Singleton trait. Only state components need
-// to be reflectable aggregates; others are registered as plain runtime data. Set a
-// singleton's value after registration, not in the same event.
+// StateComponent trait, Singleton the flecs Singleton trait, PlayerBound enrols it in
+// PlayerBoundComponents. Only state components need to be reflectable aggregates; others are
+// registered as plain runtime data. Set a singleton's value after registration, not in the same event.
 template <class T>
 flecs::untyped_component RegisterComponent(flecs::world& world) {
   const ImmediateScope immediate(world);
@@ -45,6 +46,13 @@ flecs::untyped_component RegisterComponent(flecs::world& world) {
   if constexpr (SessionScopedComponentType<T>) {
     static_assert(SingletonComponentType<T>, "only singletons can be session-scoped");
     component.template add<SessionScopedComponent>();
+  }
+  if constexpr (PlayerBoundComponentType<T>) {
+    static_assert(StateComponentType<T>, "only state goes with a player");
+    world.get_mut<PlayerBoundComponents>().each.insert_or_assign(
+        component.id(), [](flecs::world each_world, const PlayerBoundVisitor& visit) {
+          each_world.each([&visit](flecs::entity entity, const T& value) { visit(entity, value.player_id); });
+        });
   }
   return component;
 }

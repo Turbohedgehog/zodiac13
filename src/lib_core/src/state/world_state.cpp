@@ -78,6 +78,7 @@ void RegisterStateMeta(flecs::world& world) {
   RegisterSimulationClock(world);
   RegisterWorldSnapshotHistory(world);
   RegisterSnapshotGrouping(world);
+  RegisterPlayerBound(world);
   RegisterRollback(world);
 }
 
