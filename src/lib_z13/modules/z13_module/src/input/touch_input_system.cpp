@@ -147,7 +147,7 @@ void RegisterSystems(flecs::world world) {
 
 void TouchInputSystem::Register(flecs::world& world) {
   OnRegisterComponents(world, [](flecs::world& w) {
-    z13::flecs_tools::RegisterComponents<TouchControls, z13::TouchLayout>(w);
+    z13::flecs_tools::RegisterComponents<TouchControls, z13::input::ItemTouchLayer, z13::TouchLayout>(w);
   });
   OnInitSystems(world, RegisterSystems);
 }

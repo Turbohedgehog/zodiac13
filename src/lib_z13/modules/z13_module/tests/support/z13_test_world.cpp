@@ -32,6 +32,7 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/net_module_factory.h>
 #include <station_module/station_module_factory.h>
+#include <conduit_module/conduit_module_factory.h>
 #include <z13_module/z13_module_factory.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
@@ -67,6 +68,7 @@ z13::WorldRef CreateWorld(
   core.RegisterModuleFactory(std::make_shared<z13::building::BuildingModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
+  core.RegisterModuleFactory(std::make_shared<z13::conduit::ConduitModuleFactory>());
 
   auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
   net_factory->SetTransportFactories(
