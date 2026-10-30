@@ -97,7 +97,10 @@ TEST(ConduitKindsTest, AColourTakesAllFourChannels) {
 
   EXPECT_TRUE(parse(R"({"r": 1, "g": 2, "b": 3, "a": 4})").has_value());
   EXPECT_FALSE(parse(R"({"r": 1, "g": 2, "b": 3})").has_value());
-  EXPECT_FALSE(parse("[1, 2, 3, 4]").has_value());
+  // FlatBuffers also reads a struct as the array of its fields, of exactly their count.
+  EXPECT_TRUE(parse("[1, 2, 3, 4]").has_value());
+  EXPECT_FALSE(parse("[1, 2, 3]").has_value());
+  EXPECT_FALSE(parse("[1, 2, 3, 4, 5]").has_value());
   EXPECT_FALSE(ParseConduitKinds(R"({"kinds": [{"id": 1, "name": "A", "network": "power"}]})").has_value());
 }
 
