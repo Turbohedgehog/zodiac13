@@ -26,9 +26,13 @@
 #include <numeric>
 #include <utility>
 
+#include <lib_core/utils/math.h>
+
 namespace z13::building::primitives {
 
 namespace {
+
+using z13::math::Sign;
 
 // Beyond the seam a wall keeps at least this much of its run.
 constexpr int kMinRemainingCells = 1;
@@ -52,10 +56,6 @@ int64_t CrossOf(const Eigen::Vector2i& p, const Eigen::Vector2i& q) {
   Eigen::Matrix2<int64_t> columns;
   columns << p.cast<int64_t>(), q.cast<int64_t>();
   return columns.determinant();
-}
-
-int Sign(int64_t value) {
-  return (value > 0) - (value < 0);
 }
 
 PlanPoint WithPositiveWeight(const Homogeneous& point) {

@@ -24,20 +24,28 @@
 #include <z13/components/rooms.h>
 #include <rooms/room_cache.h>
 
+#include "room_outline.h"
+
 namespace z13::station {
 
-// Each room's merged overlay boxes, made once per room and dropped when it changes.
-// Derived, never state.
+// What the overlay draws for a room: its merged boxes, or the edges of its walls where oblique walls bound it.
+struct RoomOverlayShape {
+  std::vector<OverlayBox> boxes;
+  std::vector<OverlaySegment> segments;
+};
+
+// Each room's overlay shape, made once per room and dropped when it changes. Derived, never state.
 class RoomBoxCache {
  public:
   using Singleton = void;
 
-  const std::vector<OverlayBox>& BoxesOf(const z13::station::rooms::RoomCache& cache, z13::station::rooms::RoomId room);
+  const RoomOverlayShape& ShapeOf(
+      const z13::station::rooms::RoomCache& cache, z13::station::rooms::RoomId room, const WallSource& source);
 
  private:
   // RoomCache::Switches() when the boxes were last brought up to date.
   std::optional<uint64_t> switches_;
-  std::unordered_map<z13::station::rooms::RoomId, std::vector<OverlayBox>> boxes_;
+  std::unordered_map<z13::station::rooms::RoomId, RoomOverlayShape> shapes_;
 };
 
 }  // namespace z13::station

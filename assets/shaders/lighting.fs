@@ -122,6 +122,10 @@ const float kSeamNudge = 0.005;
 // A slope's face lies inside its block's opaque box: its light is sought this many cells along
 // the normal, and taken unchecked for walls if none is free there (a flight of slopes).
 const int kSurfaceSteps = kNodeCells;
+// How far, in cells, a face in an opaque cell looks sideways for a free one to take its light from.
+const int kBorrowReach = 3;
+// What a free cell the lamps' light never reached adds to its distance, so a lit one a bit farther wins.
+const int kUnlitPenalty = 100;
 
 // shadow_maps_state.cpp: kCubeFaceViews, the way each face looks and its up.
 const vec3 kFaceForward[CUBE_FACES] = vec3[](vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 1, 0), vec3(0, -1, 0),
@@ -231,22 +235,31 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
     if (ownPiece >= uint(kPieces))
     {
         // A floor beside an oblique wall lies in cells the wall's centre test makes opaque, up the whole
-        // wall: borrow the cell of a free neighbour, the ones beside it first, then those above.
+        // wall: borrow the cell of the nearest free neighbour, beside it first, then above.
         point = surface;
         ivec3 own = ivec3(floor(point)) - cellOrigin;
-        for (int dz = 0; dz <= 1 && ownPiece >= uint(kPieces); dz++)
+        int nearestDistance = 0;
+        for (int dz = 0; dz <= 1; dz++)
         {
-            for (int dy = -1; dy <= 1 && ownPiece >= uint(kPieces); dy++)
+            for (int dy = -kBorrowReach; dy <= kBorrowReach; dy++)
             {
-                for (int dx = -1; dx <= 1 && ownPiece >= uint(kPieces); dx++)
+                for (int dx = -kBorrowReach; dx <= kBorrowReach; dx++)
                 {
-                    ivec3 neighbour = own + ivec3(dx, dy, dz);
+                    ivec3 shift = ivec3(dx, dy, dz);
+                    ivec3 neighbour = own + shift;
                     if (any(lessThan(neighbour, ivec3(0))) || any(greaterThanEqual(neighbour, cellCubes*kNodeCells))) continue;
                     uint label = texelFetch(cellLabels, neighbour, 0).r;
-                    if (label < uint(kPieces))
+                    if (label >= uint(kPieces)) continue;
+                    ivec3 nodeCube = neighbour/kNodeCells;
+                    vec3 nodeLight = texelFetch(cellLight, ivec3(nodeCube.xy, nodeCube.z + int(label)*cellCubes.z), 0).rgb;
+                    int distance = shift.x*shift.x + shift.y*shift.y + shift.z*shift.z
+                                   + (nodeLight.r + nodeLight.g + nodeLight.b > 0.0 ? 0 : kUnlitPenalty);
+                    if (ownPiece >= uint(kPieces) || distance < nearestDistance)
                     {
                         ownPiece = label;
                         cell = neighbour;
+                        nearestDistance = distance;
+                        point = vec3(cellOrigin + neighbour) + 0.5;
                     }
                 }
             }

@@ -167,7 +167,8 @@ void DropItemsOfLeftPlayers(flecs::iter& it) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<Item, CarriedBy, Hotbar, StarterKitGiven, ActiveItem, InventoryActionIds>(world);
+  z13::flecs_tools::RegisterComponents<
+      Item, ItemCaption, CarriedBy, Hotbar, StarterKitGiven, ActiveItem, InventoryActionIds>(world);
 }
 
 void RegisterPhases(flecs::world world) {

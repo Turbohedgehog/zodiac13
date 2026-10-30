@@ -9,13 +9,18 @@ z13_add_plugin(
   SOURCES
   src/gravity_system.cpp
   src/interaction_system.cpp
+  src/outline_edges.cpp
+  src/room_boundary.cpp
   src/room_box_cache.cpp
+  src/room_outline.cpp
   src/room_overlay_system.cpp
   src/room_system.cpp
+  src/span_vertices.cpp
   src/station_module.cpp
   src/station_module_factory.cpp
   src/switch_system.cpp
   src/topology_sources.cpp
+  src/wall_faces.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE

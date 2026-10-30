@@ -34,6 +34,7 @@
 namespace z13::fbs::station {
 enum class PrimitiveFlags : uint32_t;
 enum class InteractionMethods : uint8_t;
+struct Rgba;
 }  // namespace z13::fbs::station
 
 namespace z13::building::primitives {
@@ -125,5 +126,7 @@ struct BlockPalette {
 // be built at those sizes, lights without color, reach or intensity, and interactions without a
 // method or with a sensor that only presence has.
 std::expected<Palette, std::string> ParsePalette(std::string_view json);
+
+Rgba ToRgba(const fbs::station::Rgba& color);
 
 }  // namespace z13::building::primitives

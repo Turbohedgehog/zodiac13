@@ -80,8 +80,11 @@ std::optional<flecs::entity> FindLocalPlayer(flecs::world world) {
   return found;
 }
 
-// The tool's own mode, or the one a held cut key puts it in (its tags on the player).
+// The item's caption, else a build tool's own mode, or the one a held cut key puts it in (its tags on the player).
 std::string_view ItemLabel(flecs::entity item, flecs::entity player, bool active) {
+  if (const auto* caption = item.try_get<z13::inventory::ItemCaption>()) {
+    return caption->text;
+  }
   const auto* tool = item.try_get<z13::building::BuildTool>();
   if (tool == nullptr) {
     return "Item";

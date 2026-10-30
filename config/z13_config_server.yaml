@@ -7,5 +7,6 @@ modules:
   - modules/building_module/building_module
   - modules/bullet_module/bullet_module
   - modules/station_module/station_module
+  - modules/conduit_module/conduit_module
   - modules/net_module/net_module
   - modules/test_dll/test_dll_module

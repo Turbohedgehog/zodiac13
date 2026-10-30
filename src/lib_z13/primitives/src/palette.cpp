@@ -53,10 +53,6 @@ Eigen::Vector3i ToCells(const fbs_station::Cells& cells) {
   return {cells.x(), cells.y(), cells.z()};
 }
 
-Rgba ToRgba(const fbs_station::Rgba& color) {
-  return {color.r(), color.g(), color.b(), color.a()};
-}
-
 std::expected<Shape, std::string> ToShape(const fbs_station::ShapeUnion& shape) {
   // The JSON parser accepts a shape_type without its shape object.
   if (shape.value == nullptr) {
@@ -255,6 +251,10 @@ std::expected<Palette, std::string> ParsePalette(std::string_view json) {
   // Only once every entry is valid: packing a shape_type without its shape crashes.
   palette.hash = HashContent(source);
   return palette;
+}
+
+Rgba ToRgba(const fbs::station::Rgba& color) {
+  return {color.r(), color.g(), color.b(), color.a()};
 }
 
 }  // namespace z13::building::primitives

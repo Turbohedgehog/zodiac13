@@ -113,6 +113,8 @@ set(
   ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
+  ${MODULES_DIR}/conduit_module/tests/conduit_index_test.cpp
+  ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
@@ -239,6 +241,7 @@ target_link_libraries(
   zodiac13::building_module
   zodiac13::bullet_module
   zodiac13::station_module
+  zodiac13::conduit_module
   zodiac13::net_module
   zodiac13::z13_launcher
   zodiac13::settings
@@ -265,6 +268,7 @@ if(WIN32)
       $<TARGET_FILE:zodiac13::building_module>
       $<TARGET_FILE:zodiac13::bullet_module>
       $<TARGET_FILE:zodiac13::station_module>
+      $<TARGET_FILE:zodiac13::conduit_module>
       $<TARGET_FILE:zodiac13::net_module>
       $<TARGET_FILE_DIR:${PROJECT_NAME}>
   )
@@ -304,5 +308,7 @@ if(WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:zodiac13::core> $<TARGET_FILE_DIR:z13_plugin_smoke>
   )
 endif()
-add_dependencies(z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module test_dll_module)
+add_dependencies(
+    z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module conduit_module
+    test_dll_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)

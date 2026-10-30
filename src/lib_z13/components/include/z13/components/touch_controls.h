@@ -36,6 +36,11 @@ enum class TouchControl {
 // Which of the tool's buttons show and answer (touch/touch_mapping.h): the build tool's mode picks it.
 enum class TouchLayer { kWalk, kBlock, kWall, kMerge, kBridge, kOpening };
 
+// On an item other than the build tool: the layer it works with while in the hand, set every frame by its module.
+struct ItemTouchLayer {
+  TouchLayer layer {};
+};
+
 struct TouchFinger {
   uint64_t finger {};
   TouchControl control {};
