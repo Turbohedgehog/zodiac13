@@ -21,6 +21,7 @@
 #include "gui/gui_system.h"
 #include "raylib_system.h"
 #include "render/environment_render_system.h"
+#include "render/scene_mesh_system.h"
 #include "tools/input_publisher.h"
 
 namespace z13::raylib {
@@ -29,6 +30,8 @@ RaylibRender::RaylibRender(flecs::world& world) {
   // RaylibSystem first: its InitWorldData observer brings up the SDL window / GL
   // context / rlgl, which the other systems need before they touch the GPU.
   RaylibSystem::Register(world);
+  // Its sync runs before EnvironmentRenderSystem::Draw, which comes after it in the Render phase.
+  SceneMeshSystem::Register(world);
   EnvironmentRenderSystem::Register(world);
   InputPublisher::Register(world);
   GuiSystem::Register(world);

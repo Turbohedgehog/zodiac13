@@ -57,6 +57,8 @@ struct Conduit {
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
   ConduitAxis axis {};
   int length = 1;
+
+  bool operator==(const Conduit&) const = default;
 };
 
 // Where the tool lays: into the cell of the aimed block (a wall, a floor panel), or in front of it.
