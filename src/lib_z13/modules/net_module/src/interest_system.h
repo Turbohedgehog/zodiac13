@@ -16,35 +16,17 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include <flecs.h>
-
-#include "net_session.h"
 
 namespace z13::net {
 
 // Runs after the sector index is up to date.
 struct InterestPhase {};
 
-// What filtering the relayed commands by interest would have let through, over the relays so far.
-struct InterestMetrics {
-  using Singleton = void;
-  using SessionScoped = void;
-  uint64_t relays {};
-  // Clients the commands went to, and those whose interest reached the sender.
-  uint64_t recipients {};
-  uint64_t needed {};
-};
-
 // Server only: gives every connected player an InterestMap entry around the sector it is in.
 class InterestSystem {
  public:
   static void Register(flecs::world& world);
 };
-
-// Counts one relay of `sender`'s commands to the other clients. A command acts within the
-// player's reach, so it is needed by the clients whose interest touches the sectors around the player.
-void CountRelay(flecs::world world, const NetSession& session, uint32_t sender);
 
 }  // namespace z13::net

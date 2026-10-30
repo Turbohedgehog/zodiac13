@@ -16,11 +16,7 @@
 
 #include "interest_system.h"
 
-#include <algorithm>
-#include <cmath>
 #include <unordered_set>
-
-#include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/state/world_state.h>
@@ -30,14 +26,12 @@
 
 #include <sectors/interest_map.h>
 #include <sectors/sector_index.h>
-#include <z13/components/block.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/net.h>
-#include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
 #include "interest_events.h"
-#include "player_positions.h"
+#include "net_session.h"
 #include "sector_system.h"
 #include "station_bounds_log.h"
 #include "world_edits.h"
@@ -58,7 +52,7 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<InterestMap, InterestMetrics, InterestKnowledge>(world);
+  z13::flecs_tools::RegisterComponents<InterestMap, InterestKnowledge>(world);
 }
 
 InterestChanges UpdateInterest(
@@ -83,7 +77,6 @@ InterestChanges UpdateInterest(
 
 void RegisterSystems(flecs::world world) {
   world.set(InterestMap {});
-  world.set(InterestMetrics {});
   world.set(InterestKnowledge {});
   world.system<const NetSession, InterestMap, sectors::SectorIndex, const z13::NetTuning>(
           "InterestSystem::Update")
@@ -108,35 +101,6 @@ void InterestSystem::Register(flecs::world& world) {
   z13::OnRegisterComponents(world, RegisterComponents);
   z13::OnInitPhases(world, RegisterPipeline);
   z13::OnInitSystems(world, RegisterSystems);
-}
-
-void CountRelay(flecs::world world, const NetSession& session, uint32_t sender) {
-  const auto& positions = CurrentPlayerPositions(world).by_player;
-  const auto at = positions.find(sender);
-  if (at == positions.end()) {
-    return;
-  }
-  const auto& building = world.get<z13::BuildingTuning>();
-  const int reach_cells = static_cast<int>(
-      std::ceil(std::max(building.destroy_reach_distance / z13::station::kCellSize, building.wall_pick_reach_cells)));
-  const Eigen::Vector3i cell = (at->second / z13::station::kCellSize).array().floor().cast<int>();
-  const int span = (2 * reach_cells) + 1;
-  const auto touched = sectors::SectorsTouched(
-      {.min = cell - Eigen::Vector3i::Constant(reach_cells), .extent = Eigen::Vector3i::Constant(span)},
-      static_cast<int>(world.get<z13::NetTuning>().sector_size_cells));
-
-  const auto& map = world.get<InterestMap>();
-  auto& metrics = world.get_mut<InterestMetrics>();
-  ++metrics.relays;
-  for (const auto& [connection, player] : session.PlayerConnections()) {
-    if (player == sender) {
-      continue;
-    }
-    ++metrics.recipients;
-    metrics.needed += std::ranges::any_of(touched, [&](const sectors::SectorKey& sector) {
-      return map.Covers(player, sector);
-    });
-  }
 }
 
 }  // namespace z13::net
