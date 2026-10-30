@@ -330,6 +330,7 @@ void HandleServerDisconnect(NetSession& session, flecs::world world, ConnectionI
     return;  // never completed the handshake
   }
   log_info("NetSession(server): player {} left (connection {})", *player_id, connection);
+  ForgetClient(world.get_mut<InterestKnowledge>(), *player_id);
   std::erase_if(world.get_mut<LastCommandTicks>().by_action, [&](const auto& entry) {
     return entry.first.player_id == *player_id;
   });

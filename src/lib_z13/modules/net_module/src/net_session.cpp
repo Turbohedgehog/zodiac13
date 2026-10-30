@@ -27,6 +27,7 @@ class NetSession::State {
   std::unique_ptr<Transport> transport;
   std::unordered_set<ConnectionId> connections;
   std::unordered_map<ConnectionId, uint32_t> connection_to_player;
+  std::unordered_map<uint32_t, ConnectionId> player_to_connection;
   std::optional<ConnectionId> server_connection;
   SentTraffic sent;
   std::unordered_map<ConnectionId, fbs::net::SequencedCommandsT> pending_runs;
@@ -150,7 +151,10 @@ void NetSession::RemoveConnection(ConnectionId connection) {
   State& state = *state_;
   state.connections.erase(connection);
   state.pending_runs.erase(connection);
-  state.connection_to_player.erase(connection);
+  if (const auto player = state.connection_to_player.find(connection); player != state.connection_to_player.end()) {
+    state.player_to_connection.erase(player->second);
+    state.connection_to_player.erase(player);
+  }
   if (state.server_connection == connection) {
     state.server_connection.reset();
   }
@@ -158,12 +162,23 @@ void NetSession::RemoveConnection(ConnectionId connection) {
 
 void NetSession::BindPlayer(ConnectionId connection, uint32_t player_id) {
   state_->connection_to_player[connection] = player_id;
+  state_->player_to_connection[player_id] = connection;
 }
 
 std::optional<uint32_t> NetSession::PlayerIdFor(ConnectionId connection) const {
   const auto& by_connection = state_->connection_to_player;
   const auto player = by_connection.find(connection);
   return player != by_connection.end() ? std::optional(player->second) : std::nullopt;
+}
+
+std::optional<ConnectionId> NetSession::ConnectionOf(uint32_t player_id) const {
+  const auto& by_player = state_->player_to_connection;
+  const auto connection = by_player.find(player_id);
+  return connection != by_player.end() ? std::optional(connection->second) : std::nullopt;
+}
+
+size_t NetSession::PlayerCount() const {
+  return state_->connection_to_player.size();
 }
 
 std::vector<std::pair<ConnectionId, uint32_t>> NetSession::PlayerConnections() const {
