@@ -163,6 +163,55 @@ TEST(RoomSystemTest, TheOverlayShowsASeenBoxShapedRoomAsOneBox) {
   EXPECT_EQ(boxes.front().extent, Eigen::Vector3i(kSide, kSide, kHeight));
 }
 
+TEST(RoomSystemTest, ARoomWithASlopeIsOutlinedByTheSlopesEdgesNotByBoxes) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  AddBlock(world, At("Slope", {4, 4, 4}, {}, {1, 1, 1}));
+  world.Tick();
+  const auto inside = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(kSide, kSide, kHeight));
+  ASSERT_TRUE(inside.has_value());
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*inside});
+
+  const RoomOverlay& overlay = world.World().get<RoomOverlay>();
+  EXPECT_EQ(overlay.outlined_rooms, std::vector<uint32_t> {*inside});
+  EXPECT_TRUE(overlay.boxes.empty());
+  const auto slanted = [](const OverlaySegment& segment) {
+    const Eigen::Vector3f along = (segment.b - segment.a).cwiseAbs();
+    return (along.array() > 0.01f).count() >= 2;
+  };
+  EXPECT_TRUE(std::ranges::any_of(overlay.segments, slanted));
+}
+
+TEST(RoomSystemTest, TheFloorAlongASlantedWallEndsAtItsPlaneWithoutStairs) {
+  constexpr int kPanelRun = 8;
+  constexpr int kPanelThickness = 3;
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddBlocks(world, SealedBox());
+  Block panel = At("Panel", {kPanelRun, kPanelThickness, kHeight}, Orientation::kFacePosXUpPosY, {1, 1, 1});
+  panel.spec.slant = kPanelRun;
+  AddBlock(world, panel);
+  world.Tick();
+  const auto inside = Graph(world).RoomAt(kRoomCorner + Eigen::Vector3i(kSide, 1, 3));
+  ASSERT_TRUE(inside.has_value());
+
+  ShowRooms(world, RoomOverlayMode::kSeen, std::vector {*inside});
+
+  const float floor_level = static_cast<float>(kRoomCorner.z() + 1);
+  const auto stair = [&](const OverlaySegment& segment) {
+    const Eigen::Vector3f low = segment.a.cwiseMin(segment.b) - kRoomCorner.cast<float>();
+    const Eigen::Vector3f high = segment.a.cwiseMax(segment.b) - kRoomCorner.cast<float>();
+    const bool on_floor = segment.a.z() == floor_level && segment.b.z() == floor_level;
+    const bool along_axis = low.x() == high.x() || low.y() == high.y();
+    const bool beside_the_walls = low.x() >= 2.0f && high.x() <= kPanelRun && low.y() >= 2.0f && high.y() <= kSide;
+    return on_floor && along_axis && beside_the_walls;
+  };
+  const RoomOverlay& overlay = world.World().get<RoomOverlay>();
+  EXPECT_FALSE(std::ranges::any_of(overlay.segments, stair));
+}
+
 TEST(RoomSystemTest, TheOverlayShowsOnlyTheSeenRooms) {
   Z13TestWorld world = StationWorld();
   world.Tick();
@@ -375,6 +424,9 @@ TEST_P(ShippedRoomsTest, TheOverlayBoxesOfTheRoomCoverExactlyItsCells) {
     GTEST_SKIP() << "no rooms";
   }
   ShowRooms(world, RoomOverlayMode::kSeen, std::vector<uint32_t> {1});
+  if (!world.World().get<RoomOverlay>().outlined_rooms.empty()) {
+    GTEST_SKIP() << "room 1 is drawn by its walls' edges";
+  }
 
   const RoomGraph& graph = Graph(world);
   int64_t covered = 0;
@@ -404,7 +456,12 @@ TEST_P(ShippedRoomsTest, TheOverlayOfAllRoomsHoldsTheirWholeVolume) {
 
   ShowRooms(world, RoomOverlayMode::kAll);
 
-  EXPECT_EQ(RoomBoxesVolume(world), RoomsVolume(world));
+  const RoomGraph& graph = Graph(world);
+  const auto& outlined = world.World().get<RoomOverlay>().outlined_rooms;
+  const int64_t outlined_volume = std::accumulate(
+      outlined.begin(), outlined.end(), int64_t {},
+      [&graph](int64_t sum, rooms::RoomId room) { return sum + graph.rooms.at(room).volume_cells; });
+  EXPECT_EQ(RoomBoxesVolume(world) + outlined_volume, RoomsVolume(world));
 }
 
 INSTANTIATE_TEST_SUITE_P(
