@@ -41,6 +41,7 @@ namespace z13::net {
 // it has (docs/interest-design.md). Starts as the whole world, which is what a Welcome or Resync gives.
 struct ClientKnowledge {
   SectorSet sectors;
+  // Changed only through LearnPlayer/ForgetPlayer, which keep InterestKnowledge::knowers.
   std::unordered_set<uint32_t> players;
   std::vector<sectors::SectorKey> unsent;  // entered, but the event could not be made yet
   // With net.ghosts, the players chosen to be simulated (ChooseSimulated); the others in its sectors are ghosts.
@@ -59,7 +60,14 @@ struct InterestKnowledge {
   using Singleton = void;
   using SessionScoped = void;
   std::unordered_map<sectors::ClientId, ClientKnowledge> by_client;
+  // The clients that have each player, so a relay doesn't ask every client.
+  std::unordered_map<uint32_t, std::unordered_set<sectors::ClientId>> knowers;
 };
+
+void LearnPlayer(InterestKnowledge& knowledge, sectors::ClientId client, uint32_t player_id);
+void ForgetPlayer(InterestKnowledge& knowledge, sectors::ClientId client, uint32_t player_id);
+// Drops the client's entry: it has the whole world again, as before its first interest event.
+void ForgetClient(InterestKnowledge& knowledge, sectors::ClientId client);
 
 // The connections that have `player_id` (and the player's own); every connection when interest events are off.
 // A client with no entry yet has the whole world.

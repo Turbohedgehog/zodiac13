@@ -22,6 +22,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -470,6 +472,33 @@ TEST(InterestDeltasTest, APlayersInputBringsTheLoggedCommandsAfterTheSnapshot) {
 
 // Ghosts swap with simulated players all the time when K is small; an entry or exit decided in a replay landed in the
 // client's past and its digests disagreed.
+// The knowers index as it should be: rebuilt from what each client has.
+std::unordered_map<uint32_t, std::unordered_set<sectors::ClientId>> KnowersOf(const InterestKnowledge& knowledge) {
+  std::unordered_map<uint32_t, std::unordered_set<sectors::ClientId>> knowers;
+  for (const auto& [client, known] : knowledge.by_client) {
+    for (const uint32_t player : known.players) {
+      knowers[player].insert(client);
+    }
+  }
+  return knowers;
+}
+
+TEST(InterestKnowledgeTest, AForgottenClientKnowsNobodyAndNobodyIsKnownToIt) {
+  constexpr sectors::ClientId kClient = 1;
+  constexpr sectors::ClientId kOther = 2;
+  constexpr uint32_t kPlayer = 7;
+  InterestKnowledge knowledge;
+  LearnPlayer(knowledge, kClient, kPlayer);
+  LearnPlayer(knowledge, kOther, kPlayer);
+  LearnPlayer(knowledge, kClient, kOther);
+
+  ForgetClient(knowledge, kClient);
+
+  EXPECT_FALSE(knowledge.by_client.contains(kClient));
+  EXPECT_EQ(knowledge.knowers, KnowersOf(knowledge));
+  EXPECT_EQ(knowledge.knowers.at(kPlayer), std::unordered_set {kOther});
+}
+
 TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
   constexpr size_t kWalkers = 6;
   constexpr uint64_t kWalkTicks = 300;
@@ -490,6 +519,8 @@ TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
   for (size_t index = 0; index < session.ClientCount(); ++index) {
     EXPECT_EQ(session.Client(index).World().get<StateDigests>().resyncs, 0u) << "client " << index;
   }
+  const auto& knowledge = session.Server().World().get<InterestKnowledge>();
+  EXPECT_EQ(knowledge.knowers, KnowersOf(knowledge));
 }
 
 // Octant's rooms reach past what a client holds: uncut, they read as vacuum there and a player in them stood still.

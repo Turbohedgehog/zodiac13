@@ -295,10 +295,11 @@ void SyncPlayer(const EventSender& sender, const sectors::SectorIndex& index, se
                 ClientKnowledge& known, uint32_t player_id) {
   const bool present = IsPresent(index, known, client, player_id, sender.world.get<z13::NetTuning>().ghosts);
   const uint64_t horizon_ticks = sender.world.get<z13::NetTuning>().max_late_ticks * kHistoryHorizons;
+  auto& knowledge = sender.world.get_mut<InterestKnowledge>();
   if (known.players.contains(player_id)) {
     if (!present) {
       SendEntityLeft(sender, player_id);
-      known.players.erase(player_id);
+      ForgetPlayer(knowledge, client, player_id);
       RecordPlayers(known, sender.apply_tick, horizon_ticks);
     }
   } else if (present) {
@@ -308,21 +309,22 @@ void SyncPlayer(const EventSender& sender, const sectors::SectorIndex& index, se
     }
     SendEntityEntered(sender, player_id, *state);
     known.entries[sender.apply_tick - 1][player_id] = std::move(state->entities);
-    known.players.insert(player_id);
+    LearnPlayer(knowledge, client, player_id);
     RecordPlayers(known, sender.apply_tick, horizon_ticks);
   }
 }
 
 // What the client has been told, from nothing: the whole world, as a Welcome or Resync leaves it.
 void StartKnowledge(const sectors::SectorIndex& index, sectors::ClientId client, const SectorSet& wanted,
-                    ClientKnowledge& known) {
+                    InterestKnowledge& knowledge, ClientKnowledge& known) {
   const std::vector<SectorKey> occupied = index.Occupied();
   known.sectors = {occupied.begin(), occupied.end()};
   known.sectors.insert(wanted.begin(), wanted.end());
   for (const uint64_t id : index.IdsOf(MemberKind::kPlayer)) {
-    known.players.insert(static_cast<uint32_t>(id));
+    if (id != client) {
+      LearnPlayer(knowledge, client, static_cast<uint32_t>(id));
+    }
   }
-  known.players.erase(client);
 }
 
 // Sends the sectors the client has entered and has no event for yet; one that fails is tried again next tick.
@@ -352,7 +354,7 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
     if (first) {
       const std::vector<SectorKey> subscribed = map.SectorsOf(client);
       const SectorSet wanted {subscribed.begin(), subscribed.end()};
-      StartKnowledge(index, client, wanted, known);
+      StartKnowledge(index, client, wanted, sender.world.get_mut<InterestKnowledge>(), known);
       std::vector<SectorKey> outside;
       std::ranges::copy_if(known.sectors, std::back_inserter(outside),
                            [&wanted](const SectorKey& sector) { return !wanted.contains(sector); });
@@ -387,6 +389,16 @@ void SyncClient(const EventSender& sender, sectors::ClientId client, ClientKnowl
   }
 }
 
+void ForgetPlayers(InterestKnowledge& knowledge, sectors::ClientId client) {
+  const auto known = knowledge.by_client.find(client);
+  if (known == knowledge.by_client.end()) {
+    return;
+  }
+  for (const uint32_t id : std::vector(known->second.players.begin(), known->second.players.end())) {
+    ForgetPlayer(knowledge, client, id);
+  }
+}
+
 }  // namespace
 
 std::vector<ConnectionId> KnowingConnections(
@@ -398,14 +410,50 @@ std::vector<ConnectionId> KnowingConnections(
     return recipients;
   }
   const auto& knowledge = world.get<InterestKnowledge>();
-  for (const auto& [connection, client] : session.PlayerConnections()) {
-    const auto known = knowledge.by_client.find(client);
-    if (connection != except &&
-        (client == player_id || known == knowledge.by_client.end() || known->second.players.contains(player_id))) {
-      recipients.push_back(connection);
+  // A client without an entry has the whole world; that is rare (joining, a Resync without interest), so then
+  // every client is asked.
+  if (knowledge.by_client.size() < session.PlayerCount()) {
+    for (const auto& [connection, client] : session.PlayerConnections()) {
+      const auto known = knowledge.by_client.find(client);
+      if (connection != except &&
+          (client == player_id || known == knowledge.by_client.end() || known->second.players.contains(player_id))) {
+        recipients.push_back(connection);
+      }
     }
+    return recipients;
+  }
+  const auto add = [&](sectors::ClientId client) {
+    if (const auto connection = session.ConnectionOf(client); connection && connection != except) {
+      recipients.push_back(*connection);
+    }
+  };
+  add(player_id);
+  if (const auto knowers = knowledge.knowers.find(player_id); knowers != knowledge.knowers.end()) {
+    std::ranges::for_each(knowers->second, add);
   }
   return recipients;
+}
+
+void LearnPlayer(InterestKnowledge& knowledge, sectors::ClientId client, uint32_t player_id) {
+  knowledge.by_client[client].players.insert(player_id);
+  knowledge.knowers[player_id].insert(client);
+}
+
+void ForgetPlayer(InterestKnowledge& knowledge, sectors::ClientId client, uint32_t player_id) {
+  if (const auto known = knowledge.by_client.find(client); known != knowledge.by_client.end()) {
+    known->second.players.erase(player_id);
+  }
+  if (const auto knowers = knowledge.knowers.find(player_id); knowers != knowledge.knowers.end()) {
+    knowers->second.erase(client);
+    if (knowers->second.empty()) {
+      knowledge.knowers.erase(knowers);
+    }
+  }
+}
+
+void ForgetClient(InterestKnowledge& knowledge, sectors::ClientId client) {
+  ForgetPlayers(knowledge, client);
+  knowledge.by_client.erase(client);
 }
 
 void SendToKnowing(flecs::world world, NetSession& session, uint32_t player_id, const Envelope& envelope,
@@ -425,15 +473,19 @@ const std::unordered_set<uint32_t>& PlayersAt(const ClientKnowledge& known, uint
 }
 
 void RememberResync(flecs::world world, sectors::ClientId client, const std::optional<InterestView>& view) {
-  auto& by_client = world.get_mut<InterestKnowledge>().by_client;
+  auto& knowledge = world.get_mut<InterestKnowledge>();
   if (!view) {
-    by_client.erase(client);
+    ForgetClient(knowledge, client);
     return;
   }
-  ClientKnowledge& known = by_client[client];
+  ClientKnowledge& known = knowledge.by_client[client];
   known.sectors = view->sectors;
-  known.players = view->players;
-  known.players.erase(client);
+  ForgetPlayers(knowledge, client);
+  for (const uint32_t id : view->players) {
+    if (id != client) {
+      LearnPlayer(knowledge, client, id);
+    }
+  }
   known.simulated = known.players;
   known.players_from = {{0, known.players}};
 }
@@ -471,9 +523,7 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
   const uint64_t tick = world.get<ft::SimulationClock>().tick;
   const uint64_t apply_tick = tick + 1;
   const auto& tuning = world.get<z13::NetTuning>();
-  std::unordered_set<sectors::ClientId> connected;
   for (const auto& [connection, player] : session.PlayerConnections()) {
-    connected.insert(player);
     // Until its player is in the index the client has no interest, and "no interest" would clear its world.
     if (world.get<sectors::InterestMap>().SectorCount(player) == 0) {
       continue;
@@ -498,7 +548,6 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
       SyncPlayer(sender, world.get<sectors::SectorIndex>(), player, at->second, id);
     }
   }
-  std::erase_if(knowledge.by_client, [&](const auto& entry) { return !connected.contains(entry.first); });
 }
 
 }  // namespace z13::net
