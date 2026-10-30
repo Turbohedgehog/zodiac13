@@ -80,6 +80,7 @@
 #include "block_chunks.h"
 #include "block_meshes.h"
 #include "cell_lighting.h"
+#include "scene_meshes.h"
 #include "frame_profile.h"
 #include "lights.h"
 #include "render_components.h"
@@ -886,6 +887,9 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
       StopChecker(lighting);
       props->Draw(view.culling);
     }
+    if (const auto* scene_meshes = world.try_get<SceneMeshes>()) {
+      scene_meshes->Draw(view.culling, lighting);
+    }
     rlDrawRenderBatchActive();
   });
 
@@ -957,6 +961,7 @@ void RegisterSystems(flecs::world world) {
         }
         world.set<ShadowMaps>(ShadowMaps(shadow_shader));
         world.set<CellLighting>({});
+        world.set<SceneMeshes>({});
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox(assets.source));
         const auto config = z13::GetCoreConfig(world);
