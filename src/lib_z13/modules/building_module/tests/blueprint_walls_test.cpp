@@ -16,10 +16,15 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <format>
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include <primitives/blueprint.h>
+#include <primitives/geometry.h>
+#include <primitives/placement.h>
 #include <primitives/wall_panel.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_settings/building_tuning.h>
@@ -77,6 +82,30 @@ TEST(BlueprintWallsTest, WallsMeetingAtANodeAreStitchedAndPlaceable) {
   EXPECT_TRUE(ValidateBlueprint({}, palette, BuildingTuning {}, *panels).has_value());
 }
 
+TEST(BlueprintWallsTest, AnOpeningCutsItsWallIntoPieces) {
+  const std::string json = R"({"blocks": [], "walls": [
+      {"node_a": {"x": 0, "y": 0, "z": 0}, "node_b": {"x": 20, "y": 0, "z": 0}, "length_a": 12, "length_b": 12,
+       "thickness": 2, "openings": [{"kind": "Door", "offset": 8, "width": 4, "height": 8}]},
+      {"node_a": {"x": 0, "y": 10, "z": 0}, "node_b": {"x": 20, "y": 10, "z": 0}, "length_a": 12, "length_b": 12,
+       "thickness": 2}]})";
+  const auto walls = z13::building::primitives::ParseBlueprintWalls(json);
+  const auto openings = z13::building::primitives::ParseBlueprintOpenings(json);
+  ASSERT_TRUE(walls.has_value()) << walls.error();
+  ASSERT_TRUE(openings.has_value()) << openings.error();
+  ASSERT_EQ(openings->size(), walls->size());
+  ASSERT_EQ((*openings)[0].size(), 1u);
+  EXPECT_EQ((*openings)[0][0].kind, z13::station::OpeningKind::kDoor);
+  EXPECT_EQ((*openings)[0][0].offset, 8);
+  EXPECT_EQ((*openings)[0][0].width, 4);
+  EXPECT_TRUE((*openings)[1].empty());
+
+  const auto palette = z13::testing::ShippedPalette().value();
+  const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {}, *openings);
+  ASSERT_TRUE(panels.has_value()) << panels.error();
+  constexpr size_t kPiecesAroundADoor = 4;  // beside it twice, over it, and the door's own panel
+  EXPECT_EQ(panels->size(), kPiecesAroundADoor + 1);
+}
+
 TEST(BlueprintWallsTest, APanelOnABlockIsRefused) {
   const auto palette = z13::testing::ShippedPalette().value();
   const auto panels = BlueprintPanels(kBands, palette, BuildingTuning {});
@@ -97,6 +126,38 @@ TEST(BlueprintWallsTest, TheWallsOfEveryShippedBlueprintAreStitchedWithoutRefusa
     ASSERT_TRUE(walls.has_value()) << scene << ": " << walls.error();
     EXPECT_TRUE(BlueprintJointRefusals(*walls, BuildingTuning {}).empty()) << scene;
   }
+}
+
+
+// Writes the wall panels of the shipped hub, seams and openings as the scene derives them, to $Z13_DUMP_PANELS for
+// blender/model_scripts/hub_blueprint.py (draw_dump); skipped without it.
+TEST(BlueprintWallsTest, DumpPanels) {
+  const char* path = std::getenv("Z13_DUMP_PANELS");
+  if (path == nullptr) {
+    GTEST_SKIP();
+  }
+  const auto palette = z13::testing::ShippedPalette().value();
+  const auto walls = z13::testing::ShippedBlueprintWalls("hub").value();
+  const auto openings = z13::testing::ShippedBlueprintOpenings("hub").value();
+  const auto panels = BlueprintPanels(walls, palette, BuildingTuning {}, openings).value();
+  std::ofstream out(path);
+  out << "[";
+  bool first_solid = true;
+  for (const z13::station::Block& panel : panels) {
+    const auto pose = z13::building::primitives::PoseOf(panel);
+    const auto solids = z13::building::primitives::BlockSolids(
+        palette, z13::building::primitives::ShapeKeyOf(panel.spec));
+    for (const auto& solid : solids) {
+      out << (first_solid ? "" : ",") << "[";
+      first_solid = false;
+      for (size_t i = 0; i < solid.vertices.size(); ++i) {
+        const Eigen::Vector3f v = pose.origin.cast<float>() + pose.rotation.cast<float>() * solid.vertices[i];
+        out << (i ? "," : "") << std::format("[{},{},{}]", v.x(), v.y(), v.z());
+      }
+      out << "]";
+    }
+  }
+  out << "]";
 }
 
 }  // namespace

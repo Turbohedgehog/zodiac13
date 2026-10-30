@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import NamedTuple
 
 from station_blueprint import (
-    CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, FLOOR, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
-    block_kinds, door_boxes, lamp_blocks, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
-    wall_segment, write_blueprint)
+    CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
+    block_kinds, door_boxes, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
+    wall_opening, wall_segment, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
 
@@ -63,7 +63,7 @@ HANGAR_LENGTH_M = 30
 # Room ahead of the atrium (smaller y) for the security wing, which faces the bridge across the agora, and the
 # departure hangar behind it.
 NORTH_M = 4 + SECURITY_LENGTH_M + HANGAR_LENGTH_M
-WIDTH, DEPTH = 66, 70 + NORTH_M
+WIDTH, DEPTH = 90, 70 + NORTH_M  # the east spine reaches 86 m
 DECK_PITCH_M = 3
 DECK_PITCH_CELLS = DECK_PITCH_M * CELLS_PER_M
 WALL_HEIGHT_CELLS = DECK_PITCH_CELLS - SLAB_CELLS
@@ -201,9 +201,12 @@ def oblique_sides():
     return sides
 
 
-def atrium_panels(z, height):
-    """The oblique panels of one deck, on its floor."""
-    return [wall_panel_block((*a, z), (*b, z), thickness, height) for a, b, _, thickness in oblique_sides()]
+def atrium_wall_segments(number, skipped=()):
+    """The oblique sides of the hall on deck `number` as wall segments, stitched along seams at their shared
+    nodes (a Panel block would be cut square by the grid there), but for the sides (indices) drawn elsewhere."""
+    z, height = deck_floor_z(number), wall_height(number)
+    return [wall_segment((*a, z), (*b, z), thickness, height)
+            for i, (a, b, _, thickness) in enumerate(oblique_sides()) if i not in skipped]
 
 
 def strictly_overlap(polygon, x, y):
@@ -333,12 +336,19 @@ def run_axis(side):
     return 1 if side in "EW" else 0
 
 
+def slab_z(index):
+    """The z of slab layer `index`: under deck index + 1, and over the top deck for the last."""
+    if index < DECKS:
+        return index * DECK_PITCH_CELLS
+    return (DECKS - 1) * DECK_PITCH_CELLS + SLAB_CELLS + TOP_DECK_WALL_HEIGHT_CELLS
+
+
 def ring_segments(index):
     """The segments of the floor ring of slab layer `index` (under deck index + 1): node a, node b, thickness. A
     flat with a flight is cut in three: the middle one is only the ledge between the opening and the wall."""
     sides = ring_sides()
     outer, _ = ring_polygons()
-    z = index * DECK_PITCH_CELLS
+    z = slab_z(index)
     segments = []
     for i, side in enumerate(sides):
         a, b = outer[i], outer[(i + 1) % len(sides)]
@@ -385,13 +395,312 @@ def ring_rails(index):
     return [((*a, z), (*b, z), thickness) for a, b, thickness in segments]
 
 
+# Under the agora and over the top deck the ring is closed by boxes over the middle, wall segments too: they lie
+# inside the hall's outline and run under the ring's inner edge, so the oblique edge has no steps and no gaps, and
+# segments are not checked against each other. (half x, half y) of each, round the hall's middle; together they
+# cover the disc the ring leaves open.
+MIDDLE_BOXES = ((64, 28), (28, 64), (50, 50), (56, 40), (40, 56))
+
+
+def middle_boxes(index):
+    cx, cy = (c // 2 for c in atrium_centre2())
+    z = slab_z(index)
+    return [wall_segment((cx - hx, cy - hy, z), (cx + hx, cy - hy, z), 2 * hy, SLAB_CELLS) for hx, hy in MIDDLE_BOXES]
+
+
 def ring_walls():
-    """Every wall segment of the blueprint: the floor ring of each gallery layer and its railings."""
+    """Every wall segment of the hall: its oblique sides on each deck, the floor ring of each gallery layer and its
+    railings."""
     walls = []
-    for index in range(1, DECKS):
+    for number in range(1, DECKS + 1):
+        walls += atrium_wall_segments(number, (STUB_SIDE,) if number <= SPINE_B_DECKS else ())
+    for index in range(DECKS + 1):
         walls += [wall_segment(a, b, thickness, SLAB_CELLS) for a, b, thickness in ring_segments(index)]
-        walls += [wall_segment(a, b, thickness, COUNTER_HEIGHT_CELLS) for a, b, thickness in ring_rails(index)]
+        if index in (0, DECKS):
+            walls += middle_boxes(index)
+        else:
+            walls += [wall_segment(a, b, thickness, COUNTER_HEIGHT_CELLS) for a, b, thickness in ring_rails(index)]
     return walls
+
+
+# ----- The east spine ------------------------------------------------------------------------
+
+# The east spine leaves the atrium through the south-east 45-degree side (a steep side has one wall step and takes
+# no opening), runs out as a stub at 45 degrees, and bends to the lattice step (5, 2), 21.8 degrees. Its walls,
+# floor and ceiling are wall segments; the floor strips meet at the bend and are stitched there, and the end is
+# a wall on the grid at the x where the strips and the side walls are cut, so nothing is left to step.
+STUB_SIDE = 1
+SPINE_B_DECKS = SPINE_DECKS
+SPINE_B_OPENING_OFFSET_STEPS = 4  # wall steps from the atrium side's first node
+SPINE_B_OPENING_STEPS = 11
+STUB_LENGTH_CELLS = 32  # along x and y each
+STUB_STEP = (1, 1)
+SPINE_B_STEP = (5, 2)
+SPINE_B_STEPS = 14  # of the north-east wall; the south-west one ends at the same x
+SPINE_B_WALL_CELLS = 2  # the least that holds air back at 45 degrees and at (5, 2)
+SPINE_B_LAMP_X = 250  # the stub's lamp
+SPINE_B_LAMP_STEPS = (4, 10)  # the second segment's lamps, in steps from its start
+SPINE_B_ROOMS_PER_SIDE = 2
+SPINE_B_ROOM_STEPS = 7  # a room's length in the second segment's steps, 9.4 m
+SPINE_B_ROOM_DEPTH_CELLS = 15  # from the corridor wall's outer face to the room's outer wall's
+SPINE_B_ROOM_DOOR_STEPS = 2
+SPINE_B_ROOM_DOOR_OFFSET_STEPS = 3  # from the room's first partition
+
+
+class SpineGeometry(NamedTuple):
+    side: tuple  # node a, node b, minor axis, thickness of the atrium's side
+    ne: tuple  # the north-east wall's nodes: start, bend, end
+    sw: tuple
+    floor: tuple  # the north-east outer line's nodes: where the floor strip starts, bends and ends
+    thicknesses: tuple  # the two strips' thicknesses along y
+    cap: tuple  # the end wall's x and the y of its two faces
+    middle: tuple  # a point on the second segment's centre line
+    lamp_diff: int  # x - y of the stub's centre line
+
+
+def _along(point, steps, step):
+    return point[0] + steps * step[0], point[1] + steps * step[1]
+
+
+def _shifted(point, by):
+    return point[0] + by[0], point[1] + by[1]
+
+
+@functools.cache
+def spine_b():
+    a, b, minor, thickness = oblique_sides()[STUB_SIDE]
+    steps = math.gcd(abs(b[0] - a[0]), abs(b[1] - a[1]))
+    step = ((b[0] - a[0]) // steps, (b[1] - a[1]) // steps)
+    assert step == (-1, 1) and minor == 1 and thickness > 0, "the spine is drawn for the south-east 45-degree side"
+    ne_edge = _along(a, SPINE_B_OPENING_OFFSET_STEPS, step)
+    sw_edge = _along(ne_edge, SPINE_B_OPENING_STEPS, step)
+    face = ((a[0], a[1] + thickness), step)
+    ne_start, sw_start = (meet(face, (edge, STUB_STEP)) for edge in (ne_edge, sw_edge))
+    ne_stub_end, sw_stub_end = (_along(start, STUB_LENGTH_CELLS, STUB_STEP) for start in (ne_start, sw_start))
+    # The second segment's centre line goes through the middle of the stub's end; its walls stand half the
+    # corridor's width (the distance of the stub's inner faces) to either side.
+    wall = SPINE_B_WALL_CELLS
+    inner_gap = (sw_start[1] - sw_start[0]) - (ne_start[1] - ne_start[0])
+    half = inner_gap / 2 / math.sqrt(2)
+    norm = math.hypot(*SPINE_B_STEP)
+    side = (SPINE_B_STEP[1] * half / norm, -SPINE_B_STEP[0] * half / norm)  # towards the north-east
+    mid = ((ne_stub_end[0] + sw_stub_end[0]) / 2, (ne_stub_end[1] + sw_stub_end[1]) / 2)
+    ne_bend = meet((ne_start, STUB_STEP), ((mid[0] + side[0], mid[1] + side[1]), SPINE_B_STEP))
+    sw_bend = meet((sw_start, STUB_STEP), ((mid[0] - side[0], mid[1] - side[1]), SPINE_B_STEP))
+    # Both second walls end at one x, so the end is a wall on the grid and the cut ends of the strips meet it:
+    # the south-west bend moves along its stub wall to an x a whole number of steps from the north-east one.
+    shift = (ne_bend[0] - sw_bend[0]) % SPINE_B_STEP[0]
+    if shift > SPINE_B_STEP[0] // 2:
+        shift -= SPINE_B_STEP[0]
+    sw_bend = (sw_bend[0] + shift, sw_bend[1] + shift)
+    ne_end = _along(ne_bend, SPINE_B_STEPS, SPINE_B_STEP)
+    sw_end = _along(sw_bend, (ne_end[0] - sw_bend[0]) // SPINE_B_STEP[0], SPINE_B_STEP)
+    assert sw_end[0] == ne_end[0]
+
+    # The floor strips hang from the north-east wall's outer line and reach across to the south-west wall's.
+    up, down = (0, -wall), (0, wall)
+    ne_out = meet((_shifted(ne_start, up), STUB_STEP), (_shifted(ne_bend, up), SPINE_B_STEP))
+    floor_start_x = (face[0][0] + face[0][1] + (sw_start[0] - sw_start[1] - wall)) // 2
+    first_diff = ne_start[0] - ne_start[1] + wall
+    floor_end = _shifted(ne_out, ((ne_end[0] - ne_out[0]), (ne_end[0] - ne_out[0]) * SPINE_B_STEP[1] // SPINE_B_STEP[0]))
+    assert (ne_end[0] - ne_out[0]) % SPINE_B_STEP[0] == 0
+    slope = Fraction(SPINE_B_STEP[1], SPINE_B_STEP[0])
+    second_thickness = math.ceil((sw_bend[1] + wall - slope * sw_bend[0]) - (ne_bend[1] - wall - slope * ne_bend[0]))
+    return SpineGeometry(
+        (a, b, minor, thickness), (ne_start, ne_bend, ne_end), (sw_start, sw_bend, sw_end),
+        ((floor_start_x, floor_start_x - first_diff), ne_out, floor_end),
+        (first_diff - (sw_start[0] - sw_start[1] - wall), second_thickness),
+        (ne_end[0], ne_end[1] - wall, sw_end[1] + wall),
+        ((ne_bend[0] + sw_bend[0]) // 2, (ne_bend[1] + sw_bend[1]) // 2),
+        (ne_start[0] - ne_start[1] + sw_start[0] - sw_start[1]) // 2)
+
+
+class SpineRooms(NamedTuple):
+    xs: tuple  # the partitions' x: the bend's, the middle's and the end's
+    north: tuple  # y of the outer wall's line at each x, the partitions' first and last cell
+    south: tuple
+    centres: tuple  # a cell in the middle of each of the four rooms
+
+
+@functools.cache
+def spine_b_rooms():
+    """Two rooms on each side of the second segment, as long as `SPINE_B_ROOM_STEPS` of its steps: partitions on
+    the grid between the corridor's walls and an outer wall parallel to them (all wall segments, which overlap
+    their neighbours; the last partition stops at the end wall's blocks)."""
+    g = spine_b()
+    wall, depth = SPINE_B_WALL_CELLS, SPINE_B_ROOM_DEPTH_CELLS
+    step_x, step_y = SPINE_B_STEP
+    x0 = g.ne[1][0]
+    xs = tuple(x0 + SPINE_B_ROOM_STEPS * step_x * k for k in range(SPINE_B_ROOMS_PER_SIDE + 1))
+    assert xs[-1] == g.ne[2][0]
+
+    def line_y(nodes, x):
+        return nodes[1][1] + (x - nodes[1][0]) * step_y // step_x
+
+    north, south = [], []
+    for x in xs:
+        last = x == xs[-1]
+        outer = line_y(g.ne, x) - wall - depth
+        # The outer wall's line, the partition's first and last cell: from the middle of one wall's body to the
+        # middle of the other's (the last one stops short of the end wall's blocks).
+        north.append((outer, outer + wall // 2, line_y(g.ne, x) - (wall + 1 if last else 1)))
+        outer = line_y(g.sw, x) + wall + depth
+        south.append((outer, g.cap[2] if last else line_y(g.sw, x) + wall // 2, outer - 1))
+    middles = [(xs[k] + xs[k + 1]) // 2 for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    centres = (tuple((x, line_y(g.ne, x) - (wall + depth) // 2) for x in middles)
+               + tuple((x, line_y(g.sw, x) + (wall + depth) // 2) for x in middles))
+    return SpineRooms(xs, tuple(north), tuple(south), centres)
+
+
+def spine_b_doors():
+    """The corridor walls' openings: one door into each room, in the middle of its side."""
+    ne = [wall_opening(SPINE_B_ROOM_STEPS * k + SPINE_B_ROOM_DOOR_OFFSET_STEPS, SPINE_B_ROOM_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+          for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    sw_first = (spine_b_rooms().xs[0] - spine_b().sw[1][0]) // SPINE_B_STEP[0]
+    sw = [wall_opening(sw_first + SPINE_B_ROOM_STEPS * k + SPINE_B_ROOM_DOOR_OFFSET_STEPS, SPINE_B_ROOM_DOOR_STEPS,
+                       DOOR_HEIGHT_CELLS) for k in range(SPINE_B_ROOMS_PER_SIDE)]
+    return ne, sw
+
+
+def spine_b_room_walls_of_deck(number):
+    z, height = deck_floor_z(number), wall_height(number)
+    rooms, wall = spine_b_rooms(), SPINE_B_WALL_CELLS
+    first, last = rooms.xs[0], rooms.xs[-1]
+    walls = []
+    for side, lines, sign in (("N", rooms.north, wall), ("S", rooms.south, -wall)):
+        outer_first, outer_last = lines[0][0], lines[-1][0]
+        walls.append(wall_segment((first, outer_first, z), (last, outer_last, z), sign, height))
+        for x, (_, start, end) in zip(rooms.xs, lines):
+            walls.append(wall_segment((x, start, z), (x, end + 1, z), 1, height))
+    return walls
+
+
+def spine_b_walls_of_deck(number):
+    """The atrium's side with its door and the spine's walls on deck `number`; the end wall is blocks."""
+    g = spine_b()
+    z, height = deck_floor_z(number), wall_height(number)
+    a, b, _, thickness = g.side
+    wall = SPINE_B_WALL_CELLS
+    door = wall_opening(SPINE_B_OPENING_OFFSET_STEPS, SPINE_B_OPENING_STEPS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((*a, z), (*b, z), thickness, height, openings=[door])]
+    ne_doors, sw_doors = spine_b_doors()
+    for nodes, sign, doors in ((g.ne, -wall, ne_doors), (g.sw, wall, sw_doors)):
+        walls += [wall_segment((*nodes[i], z), (*nodes[i + 1], z), sign, height, openings=doors if i else ())
+                  for i in range(2)]
+    return walls + spine_b_room_walls_of_deck(number)
+
+
+def spine_b_end_wall(number):
+    x, y0, y1 = spine_b().cap
+    return line_blocks(WALL_BLOCK, 1, y0, x, deck_floor_z(number), y1 - y0, wall_height(number))
+
+
+def spine_b_slabs(layer):
+    """The spine's floor (the ceiling of the deck below) under slab layer `layer`: a strip along the stub and one
+    along the second segment, stitched where they meet."""
+    g = spine_b()
+    z = layer * DECK_PITCH_CELLS
+    start, bend, end = g.floor
+    rooms = spine_b_rooms()
+    (north_y, *_), (south_y, *_) = rooms.north[0], rooms.south[0]
+    return [wall_segment((*start, z), (*bend, z), g.thicknesses[0], SLAB_CELLS),
+            wall_segment((*bend, z), (*end, z), g.thicknesses[1], SLAB_CELLS)] + [
+        wall_segment((rooms.xs[0], north_y, z), (rooms.xs[-1], rooms.north[-1][0], z), SPINE_B_ROOM_DEPTH_CELLS,
+                     SLAB_CELLS),
+        wall_segment((rooms.xs[0], south_y - SPINE_B_ROOM_DEPTH_CELLS, z),
+                     (rooms.xs[-1], rooms.south[-1][0] - SPINE_B_ROOM_DEPTH_CELLS, z), SPINE_B_ROOM_DEPTH_CELLS,
+                     SLAB_CELLS)]
+
+
+def spine_b_lamps(number):
+    g = spine_b()
+    z = deck_floor_z(number) + wall_height(number) - 1
+    spots = [(SPINE_B_LAMP_X, SPINE_B_LAMP_X - g.lamp_diff)]
+    spots += [_along(g.middle, steps, SPINE_B_STEP) for steps in SPINE_B_LAMP_STEPS]
+    spots += spine_b_rooms().centres
+    return [block(LAMP, (x - 1, y - 1, z), (LAMP_CELLS, LAMP_CELLS, 1)) for x, y in spots]
+
+
+def spine_b_walls():
+    walls = []
+    for number in range(1, SPINE_B_DECKS + 1):
+        walls += spine_b_walls_of_deck(number)
+    for layer in range(SPINE_B_DECKS + 1):
+        walls += spine_b_slabs(layer)
+    return walls
+
+
+# ----- The freight hangar --------------------------------------------------------------------
+
+# A hall of three decks at the spine's end, 12 degrees off it: near and far walls on the grid, side walls along the
+# lattice step (6, 1), floor and ceiling one strip each. The corridor leaves through a door on deck 1.
+FREIGHT_DECKS = 3
+FREIGHT_STEP = (6, 1)
+FREIGHT_STEPS = 22
+FREIGHT_WIDTH_CELLS = 108  # between the side walls' inner lines
+FREIGHT_WALL_CELLS = 2  # the least that holds air back at (6, 1)
+FREIGHT_DOOR_OFFSET_STEPS = 6  # along the spine's end wall, whose steps are one cell
+FREIGHT_DOOR_STEPS = 8
+FREIGHT_LAMP_STEPS = (5, 11, 17)  # along the middle line
+FREIGHT_LAMP_ROWS = (-30, 0, 30)  # across it, in cells of y
+
+
+class FreightGeometry(NamedTuple):
+    north: tuple  # the north side's inner line: start and end
+    south: tuple
+    height: int  # of the walls, three decks
+    near: tuple  # the near wall's blocks beside the spine's rooms, as (first y, length)
+    far: tuple  # the far wall's blocks, as (first y, length)
+
+
+@functools.cache
+def freight():
+    """The side walls start a cell beyond the spine's end, so the near wall's blocks take the whole column x of
+    the end: a wall panel's end cuts the cells beside it at a slant, which a block can't share."""
+    g = spine_b()
+    x = g.cap[0]
+    middle = (g.cap[1] + g.cap[2]) // 2
+    wall = FREIGHT_WALL_CELLS
+    north = (x + 1, middle - FREIGHT_WIDTH_CELLS // 2)
+    south = (x + 1, north[1] + FREIGHT_WIDTH_CELLS)
+    north_end, south_end = (_along(start, FREIGHT_STEPS, FREIGHT_STEP) for start in (north, south))
+    rooms = spine_b_rooms()
+    first = north[1] - wall
+    last = south[1] + wall
+    near = ((first, rooms.north[-1][0] + 1 - first), (rooms.south[-1][0], last - rooms.south[-1][0]))
+    far = (north_end[1] - wall, south_end[1] + wall - (north_end[1] - wall))
+    return FreightGeometry((north, north_end), (south, south_end), FREIGHT_DECKS * DECK_PITCH_CELLS - SLAB_CELLS, near, far)
+
+
+def freight_walls():
+    h = freight()
+    z = deck_floor_z(1)
+    wall = FREIGHT_WALL_CELLS
+    walls = [wall_segment((*h.north[0], z), (*h.north[1], z), -wall, h.height),
+             wall_segment((*h.south[0], z), (*h.south[1], z), wall, h.height)]
+    x, y0, y1 = spine_b().cap
+    door = wall_opening(FREIGHT_DOOR_OFFSET_STEPS, FREIGHT_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+    walls.append(wall_segment((x, y0, z), (x, y1, z), 1, wall_height(1), openings=[door]))
+    start, end = h.north
+    for layer in (0, FREIGHT_DECKS):
+        walls.append(wall_segment((start[0], start[1] - wall, layer * DECK_PITCH_CELLS),
+                                  (end[0], end[1] - wall, layer * DECK_PITCH_CELLS),
+                                  FREIGHT_WIDTH_CELLS + 2 * wall, SLAB_CELLS))
+    return walls
+
+
+def freight_blocks():
+    h = freight()
+    z = deck_floor_z(1)
+    near_x, far_x = spine_b().cap[0], h.north[1][0]
+    blocks = [entry for first, length in h.near for entry in line_blocks(WALL_BLOCK, 1, first, near_x, z, length, h.height)]
+    blocks += line_blocks(WALL_BLOCK, 1, h.far[0], far_x, z, h.far[1], h.height)
+    lamp_z = z + h.height - 1
+    for steps in FREIGHT_LAMP_STEPS:
+        centre = _along((h.north[0][0], (h.north[0][1] + h.south[0][1]) // 2), steps, FREIGHT_STEP)
+        blocks += [block(LAMP, (centre[0] - 1, centre[1] + row - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
+                   for row in FREIGHT_LAMP_ROWS]
+    return blocks
 
 
 # ----- Drawing ------------------------------------------------------------------------------
@@ -574,10 +883,6 @@ def slab_mask(index):
             for x in range(box[0], box[2]):
                 mask[y][x] = True
 
-    if index == 0 or index == DECKS:
-        for y in range(y0, y1):
-            for x in range(x0, x1):
-                mask[y][x] = touches_atrium(x, y)
     if index <= SPINE_DECKS:
         fill(outer_box(SPINE))
     if index in (HANGAR_DECKS.start - 1, HANGAR_DECKS.stop - 1):  # no slab inside the hall
@@ -596,26 +901,31 @@ def slab_mask(index):
         fill(outer_box(vestibule_box("N")))
     if index == BRIDGE_DECK - 1:
         fill(outer_box(FORECOURT))
-    if 1 <= index < DECKS:
-        for x, y in ring_cells():
-            mask[y][x] = False
+    for x, y in ring_cells():
+        mask[y][x] = False
     return mask
 
 
 def slab_blocks():
     blocks = []
     for index in range(DECKS + 1):
-        blocks += mask_blocks(slab_mask(index), index * DECK_PITCH_CELLS if index < DECKS else
-                              (DECKS - 1) * DECK_PITCH_CELLS + SLAB_CELLS + TOP_DECK_WALL_HEIGHT_CELLS, FLOOR)
+        blocks += mask_blocks(slab_mask(index), slab_z(index), FLOOR)
     return blocks
 
 
 def ring_ceiling_blocks():
-    """Boxes where the ring's floor is, for the lamps to hang from; they are not written to the blueprint."""
+    """Boxes where the ring's floor and the roof are, for the lamps to hang from; they are not written to the
+    blueprint."""
     mask = [[False] * (WIDTH * CELLS_PER_M) for _ in range(DEPTH * CELLS_PER_M)]
     for x, y in ring_cells():
         mask[y][x] = True
-    return [b for index in range(1, DECKS) for b in mask_blocks(mask, index * DECK_PITCH_CELLS, FLOOR)]
+    roof = [[False] * (WIDTH * CELLS_PER_M) for _ in range(DEPTH * CELLS_PER_M)]
+    x0, y0, x1, y1 = outer_box(ATRIUM)
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            roof[y][x] = touches_atrium(x, y)
+    return ([b for index in range(1, DECKS) for b in mask_blocks(mask, index * DECK_PITCH_CELLS, FLOOR)]
+            + mask_blocks(roof, slab_z(DECKS), FLOOR))
 
 
 def podium_blocks():
@@ -630,14 +940,21 @@ def station_blocks(decks):
     for deck in decks:
         z = deck_floor_z(deck.number)
         height = wall_height(deck.number)
-        deck.blocks = wall_blocks(deck.grid, z, wall_height=height) + atrium_panels(z, height)
+        deck.blocks = wall_blocks(deck.grid, z, wall_height=height)
+        if deck.number <= SPINE_B_DECKS and deck.number != 1:  # deck 1's end is the hangar's door wall
+            deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
+    blocks += freight_blocks()
     ceilings = ring_ceiling_blocks()
     for deck in decks:
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
         deck.blocks += lamps
         blocks += lamps
+        if deck.number <= SPINE_B_DECKS:
+            lamps = spine_b_lamps(deck.number)
+            deck.blocks += lamps
+            blocks += lamps
     return blocks
 
 
@@ -660,7 +977,7 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, ring_walls())
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, ring_walls() + spine_b_walls() + freight_walls())
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")

@@ -469,5 +469,24 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::ValuesIn(z13::testing::ShippedScenes()),
     [](const ::testing::TestParamInfo<std::string>& info) { return info.param; });
 
+constexpr std::string_view kHubScene = "hub";
+const Eigen::Vector3i kSpineEndCell {338, 413, 6};
+const Eigen::Vector3i kFreightHangarCell {409, 425, 12};
+
+TEST(HubFreightHangarTest, TheHangarIsASealedRoomJoinedToTheSpineByADoor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto spine = graph.RoomAt(kSpineEndCell);
+  const auto hangar = graph.RoomAt(kFreightHangarCell);
+  ASSERT_TRUE(spine.has_value() && *spine != rooms::kVacuumRoom);
+  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom);
+  EXPECT_NE(spine, hangar);
+  EXPECT_TRUE(std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
+    return (portal.a == spine && portal.b == hangar) || (portal.a == hangar && portal.b == spine);
+  }));
+}
+
 }  // namespace
 }  // namespace z13::station
