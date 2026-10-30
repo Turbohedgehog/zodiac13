@@ -463,11 +463,13 @@ void MeasureLight(LoadSession& session, const std::string& label) {
   for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
     session.Tick();
   }
+  ecs_measure_system_time(session.Server().World(), true);
   const Snapshot before = Take(session);
   for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
     session.Tick();
   }
   const Snapshot after = Take(session);
+  ecs_measure_system_time(session.Server().World(), false);
   const double per_client = static_cast<double>(kMeasuredTicks) / kTicksPerSecond *
       static_cast<double>(session.ClientCount() + session.LightClientCount());
   const auto channel_rate = [&](Channel channel) {
@@ -484,6 +486,7 @@ void MeasureLight(LoadSession& session, const std::string& label) {
       after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
   std::cout << std::format(
       "        by message:{}\n", TopMessages(before.server, after.server, per_client, kAllMessages));
+  std::cout << std::format("        ms/tick by system:{}\n", TopSystems(before.systems, after.systems));
 }
 
 // Everybody in one hall of the `test` station, ghosts on with the default budget: the worst case of 200 players.

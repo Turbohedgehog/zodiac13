@@ -24,17 +24,18 @@
 #include <span>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <Eigen/Core>
 
+#include <lib_core/state/player_bound.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 
 #include <sectors/sector_index.h>
-#include <z13/components/inventory.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>
 
@@ -59,6 +60,8 @@ struct SectorBlocks {
   std::unordered_map<ft::SnapshotGroupId, std::shared_ptr<const ft::GroupSnapshot>> groups;
 };
 
+using PlayerBoundEntities = std::unordered_map<uint32_t, std::vector<flecs::entity>>;
+
 // An event applies at the next tick; a player's state in it is this tick's, after its systems.
 struct EventSender {
   flecs::world world;
@@ -67,6 +70,8 @@ struct EventSender {
   uint64_t apply_tick {};
   std::reference_wrapper<std::optional<SectorBlocks>> blocks;
   std::reference_wrapper<std::optional<ChunkReach>> reach;
+  std::reference_wrapper<std::optional<InputAtTick>> input;
+  std::reference_wrapper<std::optional<PlayerBoundEntities>> bound;
 
   template <typename Body>
   void Send(Body body) const {
@@ -108,6 +113,27 @@ struct EventSender {
     }
     return *built;
   }
+
+  // Every player's: a crowd's entries would each walk the whole log for theirs.
+  const InputAtTick& Input() const {
+    std::optional<InputAtTick>& built = input.get();
+    if (!built) {
+      built = InputAt(world, apply_tick - 1);
+    }
+    return *built;
+  }
+
+  // The entities that go with each player's own (the items it carries, ...).
+  const PlayerBoundEntities& Bound() const {
+    std::optional<PlayerBoundEntities>& built = bound.get();
+    if (!built) {
+      built.emplace();
+      ft::EachPlayerBound(world, [&built](flecs::entity entity, uint32_t player_id) {
+        (*built)[player_id].push_back(entity);
+      });
+    }
+    return *built;
+  }
 };
 
 bool SendSectorEntered(const EventSender& sender, const SectorKey& sector) {
@@ -145,22 +171,16 @@ void SendSectorLeft(const EventSender& sender, const SectorKey& sector, const Se
   sender.Send(std::move(left));
 }
 
-// The player's entity and the items it carries, which are entities of their own.
-std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithItems(
-    const flecs::world& world, flecs::entity player, uint32_t player_id) {
-  auto state = ft::CaptureEntityState(world, player);
+std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithBound(
+    const EventSender& sender, flecs::entity player, uint32_t player_id) {
+  auto state = ft::CaptureEntityState(sender.world, player);
   if (!state) {
     return state;
   }
-  std::vector<flecs::entity> items;
-  world.query<const z13::inventory::Item, const z13::inventory::CarriedBy>().each(
-      [&](flecs::entity item, const z13::inventory::Item&, const z13::inventory::CarriedBy& carried) {
-        if (carried.player_id == player_id) {
-          items.push_back(item);
-        }
-      });
-  for (const flecs::entity item : items) {
-    auto captured = ft::CaptureEntityState(world, item);
+  const auto bound = sender.Bound().find(player_id);
+  for (const flecs::entity entity :
+       bound == sender.Bound().end() ? std::span<const flecs::entity> {} : std::span(bound->second)) {
+    auto captured = ft::CaptureEntityState(sender.world, entity);
     if (!captured) {
       return captured;
     }
@@ -170,12 +190,12 @@ std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithItems(
   return state;
 }
 
-std::optional<ft::WorldSnapshot> CaptureEntry(flecs::world world, uint32_t player_id) {
-  const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
+std::optional<ft::WorldSnapshot> CaptureEntry(const EventSender& sender, uint32_t player_id) {
+  const flecs::entity player = sender.world.lookup(z13::gameplay::PlayerEntityName(player_id).c_str());
   if (!player) {
     return std::nullopt;
   }
-  auto state = CapturePlayerWithItems(world, player, player_id);
+  auto state = CapturePlayerWithBound(sender, player, player_id);
   if (!state) {
     log_error("NetSession(server): can't capture player {} for an interest event: {}", player_id, state.error());
     return std::nullopt;
@@ -187,7 +207,7 @@ void SendEntityEntered(const EventSender& sender, uint32_t player_id, const ft::
   fbn::EntityEnteredT entered;
   entered.apply_tick = sender.apply_tick;
   entered.entity_state = ToWire(state);
-  const PlayerInput input = InputOf(sender.world, player_id, sender.apply_tick - 1);
+  const PlayerInput input = InputOf(sender.world, sender.Input(), player_id);
   entered.held_values = ToWire(input.held_values);
   entered.pending = ToWire(input.pending);
   entered.input_through = ToWire(input.confirmed.by_player);
@@ -203,7 +223,7 @@ void ResendChangedEntriesOf(const EventSender& sender, ClientKnowledge& known) {
     if (!known.players.contains(player_id)) {
       continue;
     }
-    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender.world, player_id);
+    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender, player_id);
     if (state && state->entities != sent) {
       SendEntityEntered(sender, player_id, *state);
       sent = std::move(state->entities);
@@ -289,7 +309,7 @@ void SyncPlayer(const EventSender& sender, const sectors::SectorIndex& index, se
       RecordPlayers(known, sender.apply_tick, horizon_ticks);
     }
   } else if (present) {
-    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender.world, player_id);
+    std::optional<ft::WorldSnapshot> state = CaptureEntry(sender, player_id);
     if (!state) {
       return;
     }
@@ -433,11 +453,14 @@ void ResendChangedEntries(flecs::world world) {
   NetSession& session = world.get_mut<NetSession>();
   std::optional<SectorBlocks> blocks;
   std::optional<ChunkReach> reach;
+  std::optional<InputAtTick> input;
+  std::optional<PlayerBoundEntities> bound;
   const uint64_t apply_tick = world.get<ft::SimulationClock>().tick + 1;
   for (const auto& [connection, player] : session.PlayerConnections()) {
     if (const auto known = knowledge.by_client.find(player); known != knowledge.by_client.end()) {
-      ResendChangedEntriesOf(
-          {world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach)}, known->second);
+      ResendChangedEntriesOf({world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach),
+                              std::ref(input), std::ref(bound)},
+                             known->second);
     }
   }
 }
@@ -450,6 +473,8 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
   NetSession& session = world.get_mut<NetSession>();
   std::optional<SectorBlocks> blocks;
   std::optional<ChunkReach> reach;
+  std::optional<InputAtTick> input;
+  std::optional<PlayerBoundEntities> bound;
   const uint64_t tick = world.get<ft::SimulationClock>().tick;
   const uint64_t apply_tick = tick + 1;
   const auto& tuning = world.get<z13::NetTuning>();
@@ -462,7 +487,9 @@ void SendInterestEvents(flecs::world world, const InterestChanges& changes, std:
     }
     const auto [at, first] = knowledge.by_client.try_emplace(player);
     const auto change = changes.find(player);
-    const EventSender sender {world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach)};
+    const EventSender sender {
+        world, std::ref(session), connection, apply_tick, std::ref(blocks), std::ref(reach), std::ref(input),
+        std::ref(bound)};
     const bool reselect = tuning.ghosts &&
         (first || tick % tuning.simulated_reselect_ticks == 0 ||
          std::ranges::any_of(moved_players, [&](uint64_t id) {

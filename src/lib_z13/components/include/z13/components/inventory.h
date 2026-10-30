@@ -44,6 +44,7 @@ struct Item {
 // The carrier by player id, which every participant shares, unlike entity ids.
 struct CarriedBy {
   using State = void;
+  using PlayerBound = void;
   uint32_t player_id {};
   uint8_t cell {};
 };
