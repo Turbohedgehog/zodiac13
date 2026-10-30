@@ -20,6 +20,9 @@
 
 namespace z13::raylib {
 
+SceneMeshes::SceneMeshes() : state_(std::make_shared<State>()) {
+}
+
 void SceneMeshes::Sync(std::span<const SceneMeshEntry> entries, ::Shader lighting_shader) {
   state_->Sync(entries, lighting_shader);
 }
