@@ -217,7 +217,8 @@ void ServiceNetSession(flecs::world world) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      NetSession, ScheduledSessionDeltas, HeldSectorHistory, StationBoundsLog, ClockSync, CommandRateLimits, LastCommandTicks, ReceivedInputTicks, PlayerIdAllocator,
+      NetSession, ScheduledSessionDeltas, HeldSectorHistory, StationBoundsLog, ClockSync, CommandRateLimits,
+      LastCommandTicks, ReceivedInputTicks, PlayerIdAllocator,
       StateDigests, DigestSplits,
       NetTuning, z13::ConnectTimeout, z13::SessionTimeout, AdoptedSettings>(world);
 }

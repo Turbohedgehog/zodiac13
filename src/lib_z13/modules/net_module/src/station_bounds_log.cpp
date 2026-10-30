@@ -35,8 +35,8 @@ fbs::net::Vector3iWire ToWire(const Eigen::Vector3i& value) {
   return {value.x(), value.y(), value.z()};
 }
 
-Eigen::Vector3i FromWire(const fbs::net::Vector3iWire* value) {
-  return value ? Eigen::Vector3i(value->x(), value->y(), value->z()) : Eigen::Vector3i::Zero();
+Eigen::Vector3i FromWire(const fbs::net::Vector3iWire& value) {
+  return {value.x(), value.y(), value.z()};
 }
 
 std::unique_ptr<fbs::net::StationBoundsT> ToWire(uint64_t tick, const std::optional<SealedBounds>& bounds) {
@@ -51,10 +51,10 @@ std::unique_ptr<fbs::net::StationBoundsT> ToWire(uint64_t tick, const std::optio
 }
 
 std::optional<SealedBounds> FromWire(const fbs::net::StationBoundsT& message) {
-  if (!message.present) {
+  if (!message.present || !message.min || !message.extent) {
     return std::nullopt;
   }
-  return SealedBounds {.min = FromWire(message.min.get()), .extent = FromWire(message.extent.get())};
+  return SealedBounds {.min = FromWire(*message.min), .extent = FromWire(*message.extent)};
 }
 
 // The entry that holds at `tick`, or end().

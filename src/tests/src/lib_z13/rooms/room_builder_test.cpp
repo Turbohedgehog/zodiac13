@@ -48,7 +48,6 @@ std::vector<CellBox> Shell() {
   };
 }
 
-// The cells Shell() spans.
 CellBox ShellBounds() {
   return {.min = Eigen::Vector3i::Zero(), .extent = {kSide + 2, kSide + 2, kHeight + 2}};
 }
@@ -147,7 +146,8 @@ TEST(RoomBuilderTest, CutWallsCoverOnlyTheFacesNoOtherHeldSectorShares) {
   const std::array two {Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(1, 0, 0)};
 
   const Eigen::Vector3i shared_face(kSectorCells, 1, 1);
-  const CellBox anywhere {.min = Eigen::Vector3i::Constant(-kSectorCells), .extent = Eigen::Vector3i::Constant(4 * kSectorCells)};
+  const CellBox anywhere {.min = Eigen::Vector3i::Constant(-kSectorCells),
+                          .extent = Eigen::Vector3i::Constant(4 * kSectorCells)};
   const std::vector<CellBox> walls = CutWalls(two, kSectorCells, anywhere);
 
   EXPECT_EQ(CutWalls(one, kSectorCells, anywhere).size(), 6U);
