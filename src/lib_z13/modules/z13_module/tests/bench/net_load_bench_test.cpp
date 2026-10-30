@@ -448,5 +448,89 @@ TEST(NetLoadBench, DISABLED_HallByBudget) {
   }
 }
 
+// Light clients (z13::net::LightClient) next to a few full ones, whose resyncs say whether real clients keep up.
+constexpr size_t kFullClients = 4;
+constexpr std::array kLightTotals = {32, 64, 128, 200};
+
+void PrintLightHeader() {
+  std::cout << "clients | server ms/tick | server B/s per client | SequencedCommands B/s | hints B/s | poses B/s"
+               " | full client resyncs | rollbacks (replayed ticks)\n";
+}
+
+// Every client, light or full, counts in the per-client rates.
+void MeasureLight(LoadSession& session, const std::string& label) {
+  ASSERT_TRUE(session.Connect(kConnectTicks)) << label << ": the clients didn't connect";
+  for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+    session.Tick();
+  }
+  const Snapshot before = Take(session);
+  for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+    session.Tick();
+  }
+  const Snapshot after = Take(session);
+  const double per_client = static_cast<double>(kMeasuredTicks) / kTicksPerSecond *
+      static_cast<double>(session.ClientCount() + session.LightClientCount());
+  const auto channel_rate = [&](Channel channel) {
+    return static_cast<double>(ChannelBytes(after.server, channel) - ChannelBytes(before.server, channel)) / per_client;
+  };
+  std::cout << std::format(
+      "{:>7} | {:14.2f} | {:21.0f} | {:21.0f} | {:9.0f} | {:9.0f} | {:19} | {} ({})\n", label,
+      std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks,
+      static_cast<double>(after.server.Total().bytes - before.server.Total().bytes) / per_client,
+      static_cast<double>(MessageBytes(after.server, fbs::net::MessageBody::SequencedCommands) -
+                          MessageBytes(before.server, fbs::net::MessageBody::SequencedCommands)) / per_client,
+      channel_rate(Channel::kHints), channel_rate(Channel::kPoses), ResyncsOfClients(session),
+      after.rollbacks.rollbacks - before.rollbacks.rollbacks,
+      after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks);
+  std::cout << std::format(
+      "        by message:{}\n", TopMessages(before.server, after.server, per_client, kAllMessages));
+}
+
+// Everybody in one hall of the `test` station, ghosts on with the default budget: the worst case of 200 players.
+TEST(NetLoadBench, DISABLED_LightHallByClientCount) {
+  constexpr double kWholeStationM = 5000.;
+  PrintLightHeader();
+  for (const int total : kLightTotals) {
+    LoadSession session(kFullClients, {}, [](z13::Settings& settings) {
+      settings.net->interest_events = true;
+      settings.net->ghost_radius_m = kWholeStationM;
+      settings.net->simulated_radius_m = kWholeStationM;
+    }, z13::testing::kTestScene);
+    session.AddLightClients(static_cast<size_t>(total) - kFullClients);
+    MeasureLight(session, std::to_string(total));
+  }
+}
+
+// Players spread over the spawn points of `octant` and walking off in their own directions, default radii: the
+// realistic case.
+TEST(NetLoadBench, DISABLED_LightSpreadByClientCount) {
+  PrintLightHeader();
+  for (const int total : kLightTotals) {
+    LoadSession session(
+        kFullClients, {.look = false, .fan_out = true},
+        [](z13::Settings& settings) { settings.net->interest_events = true; }, z13::testing::kOctantScene);
+    session.AddLightClients(static_cast<size_t>(total) - kFullClients);
+    MeasureLight(session, std::to_string(total));
+  }
+}
+
+// 200 players in one hall of the `test` station, the budget K swept.
+TEST(NetLoadBench, DISABLED_LightHallByBudget) {
+  constexpr size_t kClients = 200;
+  constexpr std::array kBudgets = {4, 8, 12, 16};
+  constexpr double kWholeStationM = 5000.;
+  PrintLightHeader();
+  for (const int budget : kBudgets) {
+    LoadSession session(kFullClients, {}, [budget](z13::Settings& settings) {
+      settings.net->interest_events = true;
+      settings.net->ghost_radius_m = kWholeStationM;
+      settings.net->simulated_radius_m = kWholeStationM;
+      settings.net->simulated_players_max = static_cast<uint64_t>(budget);
+    }, z13::testing::kTestScene);
+    session.AddLightClients(kClients - kFullClients);
+    MeasureLight(session, std::format("K={}", budget));
+  }
+}
+
 }  // namespace
 }  // namespace z13::net

@@ -125,6 +125,7 @@ set(
   ${MODULES_DIR}/net_module/tests/sectors/sector_system_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/simulated_set_test.cpp
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/light_client_test.cpp
   ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_loss_bench_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
