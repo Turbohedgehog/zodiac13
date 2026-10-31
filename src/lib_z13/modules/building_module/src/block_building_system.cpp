@@ -780,7 +780,6 @@ void BlockBuildingSystem::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);
 
   OnInitWorldData(world, CreateMainGrid);
-  OnInitWorldData(world, CreateMainGrid);
 }
 
 }  // namespace z13::building
