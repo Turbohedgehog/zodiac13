@@ -153,6 +153,10 @@ Status HandleClientHello(
     SendRejected(session, connection, "block palette mismatch");
     return {};
   }
+  if (const auto mismatch = UtilityModulesMismatch(UtilityModulesOf(world), hello.modules)) {
+    SendRejected(session, connection, *mismatch);
+    return {};
+  }
   if (session.PlayerIdFor(connection)) {
     // Honouring a second hello would spawn another player and orphan the first.
     log_warn("NetSession(server): ignoring a repeated ClientHello on connection {}", connection);

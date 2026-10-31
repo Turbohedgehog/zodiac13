@@ -16,8 +16,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <flecs.h>
 
@@ -25,7 +28,9 @@
 // "Модули и коммуникации"): a network module writes UtilitySupply, doors, lights and the rest only read it.
 namespace z13::utility {
 
-// Where a network module works out each consumer's supply, after the rooms are built.
+// Where the networks are rebuilt from the conduit runs and ports (conduit_module), after the rooms are built.
+struct UtilityNetworksPhase {};
+// Where a network module works out each consumer's supply, from those networks.
 struct UtilitySimulationPhase {};
 // Where consumers read it.
 struct UtilityConsumersPhase {};
@@ -48,6 +53,37 @@ struct UtilitySupply {
 struct UtilityProvider {
   std::string network;
 };
+
+// A module that runs a network, as the peers compare it in ClientHello.
+struct UtilityModule {
+  std::string name;
+  // Grows with any change that makes the simulation differ.
+  uint32_t version {};
+  // Its primitives are in assets/station/palette/<name>.json.
+  bool palette_fragment {};
+
+  bool operator==(const UtilityModule&) const = default;
+};
+
+// The modules that run networks in this world. Each adds itself in the init-phases stage with DeclareUtilityModule,
+// once building_module has registered the component and before it reads the list to load the palette.
+struct UtilityModules {
+  using Singleton = void;
+  std::vector<UtilityModule> modules;
+
+  // By name, so peers list them alike whatever order they loaded in.
+  std::vector<UtilityModule> Sorted() const;
+};
+
+inline std::vector<UtilityModule> UtilityModules::Sorted() const {
+  std::vector<UtilityModule> sorted = modules;
+  std::ranges::sort(sorted, {}, &UtilityModule::name);
+  return sorted;
+}
+
+inline void DeclareUtilityModule(flecs::world& world, UtilityModule module) {
+  world.get_mut<UtilityModules>().modules.push_back(std::move(module));
+}
 
 inline bool IsSupplied(flecs::entity consumer) {
   const auto* supply = consumer.try_get<UtilitySupply>();

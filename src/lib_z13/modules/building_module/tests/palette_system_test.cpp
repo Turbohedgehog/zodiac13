@@ -18,6 +18,7 @@
 
 
 #include <primitives/palette.h>
+#include <z13/components/utilities.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -35,6 +36,15 @@ TEST(PaletteSystemTest, WorldGetsTheShippedPalette) {
 
   ASSERT_TRUE(test_world.World().has<BlockPalette>());
   EXPECT_EQ(test_world.World().get<BlockPalette>().palette.hash, expected->hash);
+}
+
+TEST(PaletteSystemTest, TheWorldListsTheUtilityModulesLoaded) {
+  z13::testing::Z13TestWorld test_world;
+
+  const auto modules = test_world.World().get<z13::utility::UtilityModules>().Sorted();
+
+  ASSERT_FALSE(modules.empty());
+  EXPECT_EQ(modules.front().name, "conduit");
 }
 
 }  // namespace

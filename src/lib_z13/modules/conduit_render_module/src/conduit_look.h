@@ -21,9 +21,18 @@
 
 namespace z13::conduit_render {
 
+// Which ends of a run go on to meet a run turning another way.
+struct RunCorners {
+  bool low {};
+  bool high {};
+
+  bool operator==(const RunCorners&) const = default;
+};
+
 // What a conduit's SceneMesh was built from; derived, never state.
 struct ConduitLook {
   z13::conduit::Conduit conduit;
+  RunCorners corners;
   z13::Rgba color {};
   float thickness_cells {};
 

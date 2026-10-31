@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iterator>
+#include <memory>
 #include <string_view>
 #include <format>
 #include <span>
@@ -31,6 +32,7 @@
 #include <primitives_generated.h>
 
 #include <lib_core/utils/fnv_hash.h>
+#include <lib_core/utils/status.h>
 #include <primitives/geometry.h>
 
 namespace z13::building::primitives {
@@ -102,6 +104,24 @@ std::expected<std::optional<Interaction>, std::string> ToInteraction(const fbs_s
   return interaction;
 }
 
+std::expected<std::vector<PortSpec>, std::string> ToPorts(
+    const std::vector<std::unique_ptr<fbs_station::PortT>>& source) {
+  std::vector<PortSpec> ports;
+  for (const auto& port : source) {
+    if (port->network.empty() || port->role.empty()) {
+      return Error("a port needs a network and a role");
+    }
+    if (std::ranges::contains(ports, port->network, &PortSpec::network)) {
+      return Error(std::format("two ports on network '{}'", port->network));
+    }
+    ports.push_back({.network = port->network,
+                     .role = port->role,
+                     .demand = port->demand,
+                     .priority = port->priority});
+  }
+  return ports;
+}
+
 // The capitals of a CamelCase name ("CornerSlope" -> "CS"), or a one-word name's first letters.
 std::string ShortNameOf(std::string_view name) {
   constexpr size_t kOneWordLetters = 2;
@@ -135,6 +155,11 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
     return Error(interaction.error());
   }
 
+  auto ports = ToPorts(source.ports);
+  if (!ports) {
+    return Error(ports.error());
+  }
+
   Primitive primitive {
       .id = source.id,
       .name = source.name,
@@ -152,6 +177,7 @@ std::expected<Primitive, std::string> ToPrimitive(const fbs_station::PrimitiveT&
       .light = *light,
       .light_transmission = source.light_transmission,
       .interaction = *interaction,
+      .ports = std::move(*ports),
   };
   if (primitive.light_transmission < 0.f || primitive.light_transmission > 1.f) {
     return Error("light_transmission is within 0..1");
@@ -218,38 +244,68 @@ std::optional<std::reference_wrapper<const Primitive>> Palette::Find(std::string
   return std::cref(*it);
 }
 
-std::expected<Palette, std::string> ParsePalette(std::string_view json) {
+namespace {
+
+std::expected<fbs_station::PaletteT, std::string> ParseSource(std::string_view json) {
   flatbuffers::Parser parser;
   if (!parser.Deserialize(reflection::GetSchema(fbs_station::PaletteBinarySchema::data()))) {
-    return Error("palette: failed to deserialize the binary schema");
+    return Error("failed to deserialize the binary schema");
   }
   if (!parser.Parse(std::string(json).c_str())) {
-    return Error(std::format("palette: {}", parser.error_));
+    return Error(parser.error_);
   }
   fbs_station::PaletteT source;
   fbs_station::GetPalette(parser.builder_.GetBufferPointer())->UnPackTo(&source);
   if (source.primitives.empty()) {
-    return Error("palette: no primitives");
+    return Error("no primitives");
   }
+  return source;
+}
 
-  Palette palette {.max_size_cells = source.max_size_cells};
-  std::unordered_set<uint32_t> ids;
-  std::unordered_set<std::string> names;
+// Adds `source`'s primitives to `palette`, which holds the ids and names already taken.
+Status AddPrimitives(const fbs_station::PaletteT& source, Palette& palette, std::unordered_set<uint32_t>& ids,
+                     std::unordered_set<std::string>& names) {
   for (const auto& entry : source.primitives) {
     auto primitive = ToPrimitive(*entry, palette.max_size_cells);
     if (!primitive) {
-      return Error(std::format("palette: primitive {} '{}': {}", entry->id, entry->name, primitive.error()));
+      return Error(std::format("primitive {} '{}': {}", entry->id, entry->name, primitive.error()));
     }
     if (!ids.insert(primitive->id).second) {
-      return Error(std::format("palette: duplicate id {}", primitive->id));
+      return Error(std::format("duplicate id {}", primitive->id));
     }
     if (!names.insert(primitive->name).second) {
-      return Error(std::format("palette: duplicate name '{}'", primitive->name));
+      return Error(std::format("duplicate name '{}'", primitive->name));
     }
     palette.primitives.push_back(std::move(*primitive));
   }
+  return {};
+}
+
+}  // namespace
+
+std::expected<Palette, std::string> ParsePalette(std::string_view json, std::span<const PaletteFragment> fragments) {
+  auto merged = ParseSource(json);
+  if (!merged) {
+    return Error(std::format("palette: {}", merged.error()));
+  }
+  Palette palette {.max_size_cells = merged->max_size_cells};
+  std::unordered_set<uint32_t> ids;
+  std::unordered_set<std::string> names;
+  if (auto added = AddPrimitives(*merged, palette, ids, names); !added) {
+    return Error(std::format("palette: {}", added.error()));
+  }
+  for (const PaletteFragment& fragment : fragments) {
+    auto source = ParseSource(fragment.json);
+    if (!source) {
+      return Error(std::format("palette fragment {}: {}", fragment.file, source.error()));
+    }
+    if (auto added = AddPrimitives(*source, palette, ids, names); !added) {
+      return Error(std::format("palette fragment {}: {}", fragment.file, added.error()));
+    }
+    std::ranges::move(source->primitives, std::back_inserter(merged->primitives));
+  }
   // Only once every entry is valid: packing a shape_type without its shape crashes.
-  palette.hash = HashContent(source);
+  palette.hash = HashContent(*merged);
   return palette;
 }
 

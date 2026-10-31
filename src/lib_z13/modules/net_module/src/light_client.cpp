@@ -64,7 +64,8 @@ std::optional<fbn::MessageBody> PeekBody(std::span<const uint8_t> bytes) {
 
 std::expected<LightClientSetup, std::string> MakeLightClientSetup(flecs::world world) {
   LightClientSetup setup {.actions = zgi::DescribeActions(world.get<z13::input::ActionMap>()),
-                          .palette_hash = PaletteHash(world)};
+                          .palette_hash = PaletteHash(world),
+                          .modules = UtilityModulesOf(world)};
   const auto forward = IndexOf(setup.actions, z13::fbs::actions::Action::MOVE_FORWARD);
   const auto yaw = IndexOf(setup.actions, z13::fbs::actions::Action::HORIZONTAL_LOOK);
   const auto pitch = IndexOf(setup.actions, z13::fbs::actions::Action::VERTICAL_LOOK);
@@ -109,6 +110,7 @@ void LightClient::Receive(const TransportEvent& event) {
       if (setup_.palette_hash) {
         hello.palette_hash = *setup_.palette_hash;
       }
+      hello.modules = ToWire(setup_.modules);
       for (const zgi::ActionDescriptor& action : setup_.actions) {
         auto described = std::make_unique<fbn::ActionDescT>();
         described->enum_name = action.enum_name;

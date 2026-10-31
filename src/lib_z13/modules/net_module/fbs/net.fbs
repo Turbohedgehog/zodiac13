@@ -86,10 +86,17 @@ table ActionDesc {
   enum_value: long;
 }
 
+// A module that runs a utility network (power, gas, ...); peers must run the same ones.
+table ModuleDesc {
+  name: string;
+  version: uint;
+}
+
 table ClientHello {
   version: uint;
   actions: [ActionDesc];  // every action the client has, in its own order
   palette_hash: ulong = null;  // the station block palette's, if loaded
+  modules: [ModuleDesc];  // the utility modules loaded, by name
 }
 
 table CommandBatch {

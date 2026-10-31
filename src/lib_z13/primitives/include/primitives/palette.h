@@ -21,6 +21,7 @@
 #include <expected>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -88,6 +89,16 @@ struct Interaction {
   bool operator==(const Interaction&) const = default;
 };
 
+// primitives.fbs's Port.
+struct PortSpec {
+  std::string network;
+  std::string role;
+  uint32_t demand {};
+  std::string priority;
+
+  bool operator==(const PortSpec&) const = default;
+};
+
 // One palette entry, as plain data so a flecs component can hold it.
 struct Primitive {
   uint32_t id {};
@@ -101,6 +112,7 @@ struct Primitive {
   std::optional<LightSource> light;
   float light_transmission = 1.f;
   std::optional<Interaction> interaction;
+  std::vector<PortSpec> ports;
 
   bool Has(PrimitiveFlags flag) const;
 };
@@ -121,11 +133,19 @@ struct BlockPalette {
   Palette palette;
 };
 
+// A module's primitives in palette JSON; `file` names it in errors.
+struct PaletteFragment {
+  std::string file;
+  std::string json;
+};
+
 // Parses palette JSON (primitives.fbs) and rejects duplicate ids or names, size limits
 // outside 1..max_size_cells or min above max, stretchable door frames, shapes that can't
-// be built at those sizes, lights without color, reach or intensity, and interactions without a
-// method or with a sensor that only presence has.
-std::expected<Palette, std::string> ParsePalette(std::string_view json);
+// be built at those sizes, lights without color, reach or intensity, interactions without a
+// method or with a sensor that only presence has, and ports without a network or role, or two
+// of one network. The fragments' primitives follow the base's, in the given order (callers sort
+// them, so peers build one palette); only the base's max_size_cells counts.
+std::expected<Palette, std::string> ParsePalette(std::string_view json, std::span<const PaletteFragment> fragments = {});
 
 Rgba ToRgba(const fbs::station::Rgba& color);
 

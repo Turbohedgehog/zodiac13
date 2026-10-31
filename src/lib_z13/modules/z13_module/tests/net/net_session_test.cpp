@@ -45,6 +45,8 @@
 #include <z13/components/net.h>
 #include <z13/components/player_action.h>
 #include <z13/components/block.h>
+#include <z13/components/utilities.h>
+#include <z13_tests/shipped_station.h>
 #include <z13/components/spawn_point.h>
 #include <primitives/palette.h>
 #include <z13_module/gameplay/gameplay_entities.h>
@@ -136,11 +138,22 @@ std::unique_ptr<Transport> ConnectRawClient(InMemoryNetwork& network, Z13TestWor
   return raw;
 }
 
-// With the server's palette hash, which a real client sends from its own palette.
+std::vector<std::unique_ptr<fbs::net::ModuleDescT>> ModulesOf(flecs::world world) {
+  std::vector<std::unique_ptr<fbs::net::ModuleDescT>> modules;
+  for (const z13::utility::UtilityModule& module : world.get<z13::utility::UtilityModules>().Sorted()) {
+    modules.push_back(std::make_unique<fbs::net::ModuleDescT>());
+    modules.back()->name = module.name;
+    modules.back()->version = module.version;
+  }
+  return modules;
+}
+
+// With the server's palette hash and modules, which a real client sends from its own.
 fbs::net::ClientHelloT HelloWithoutActions(flecs::world server) {
   fbs::net::ClientHelloT hello;
   hello.version = kProtocolVersion;
   hello.palette_hash = server.get<z13::building::primitives::BlockPalette>().palette.hash;
+  hello.modules = ModulesOf(server);
   return hello;
 }
 
@@ -444,6 +457,20 @@ TEST(NetSessionTest, RejectedOnBlockPaletteMismatch) {
   hello.palette_hash = 0;
 
   EXPECT_EQ(RejectionFor(hello), "block palette mismatch");
+}
+
+TEST(NetSessionTest, RejectedOnUtilityModuleMismatch) {
+  const auto palette = z13::testing::ShippedPalette();
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+  fbs::net::ClientHelloT hello;
+  hello.version = kProtocolVersion;
+  hello.palette_hash = palette->hash;
+
+  const auto reason = RejectionFor(hello);
+
+  ASSERT_TRUE(reason.has_value());
+  EXPECT_NE(reason->find("utility modules differ"), std::string::npos) << *reason;
+  EXPECT_NE(reason->find("conduit"), std::string::npos) << *reason;
 }
 
 TEST(NetSessionTest, WelcomeWithoutASnapshotFailsTheClientWithoutCreatingAScene) {

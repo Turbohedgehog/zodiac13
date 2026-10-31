@@ -16,7 +16,12 @@
 
 #include "session_settings.h"
 
+#include <algorithm>
 #include <format>
+#include <memory>
+#include <ranges>
+#include <string>
+#include <vector>
 #include <utility>
 
 #include <lib_core/utils/flecs_utils.h>
@@ -73,6 +78,47 @@ std::optional<uint64_t> PaletteHash(flecs::world world) {
     return palette->palette.hash;
   }
   return std::nullopt;
+}
+
+std::vector<z13::utility::UtilityModule> UtilityModulesOf(flecs::world world) {
+  const auto* modules = world.try_get<z13::utility::UtilityModules>();
+  return modules ? modules->Sorted() : std::vector<z13::utility::UtilityModule> {};
+}
+
+std::vector<std::unique_ptr<fbs::net::ModuleDescT>> ToWire(std::span<const z13::utility::UtilityModule> modules) {
+  std::vector<std::unique_ptr<fbs::net::ModuleDescT>> wire;
+  for (const z13::utility::UtilityModule& module : modules) {
+    auto described = std::make_unique<fbs::net::ModuleDescT>();
+    described->name = module.name;
+    described->version = module.version;
+    wire.push_back(std::move(described));
+  }
+  return wire;
+}
+
+std::optional<std::string> UtilityModulesMismatch(
+    std::span<const z13::utility::UtilityModule> server,
+    const std::vector<std::unique_ptr<fbs::net::ModuleDescT>>& client) {
+  std::vector<std::string> problems;
+  for (const z13::utility::UtilityModule& module : server) {
+    const auto found = std::ranges::find_if(client, [&](const auto& c) { return c && c->name == module.name; });
+    if (found == client.end()) {
+      problems.push_back(std::format("the client lacks '{}'", module.name));
+    } else if ((*found)->version != module.version) {
+      problems.push_back(std::format("'{}' is version {} on the client and {} on the server", module.name,
+                                     (*found)->version, module.version));
+    }
+  }
+  for (const auto& module : client) {
+    if (module && !std::ranges::contains(server, module->name, &z13::utility::UtilityModule::name)) {
+      problems.push_back(std::format("the server lacks '{}'", module->name));
+    }
+  }
+  if (problems.empty()) {
+    return std::nullopt;
+  }
+  return std::format("utility modules differ: {}", problems | std::views::join_with(std::string_view {"; "}) |
+                                                       std::ranges::to<std::string>());
 }
 
 }  // namespace z13::net

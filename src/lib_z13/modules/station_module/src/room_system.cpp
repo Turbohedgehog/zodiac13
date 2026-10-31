@@ -57,6 +57,7 @@ namespace {
 using z13::building::primitives::BlockPalette;
 using z13::station::rooms::RoomCache;
 using z13::utility::UtilityConsumersPhase;
+using z13::utility::UtilityNetworksPhase;
 using z13::utility::UtilitySimulationPhase;
 
 using BlockQuery = flecs::query<const Block>;
@@ -67,7 +68,8 @@ void RegisterComponents(flecs::world world) {
 
 void RegisterPipeline(flecs::world world) {
   world.component<StationTopologyPhase>().add(flecs::Phase).depends_on<z13::gameplay::PostUpdatePhase>();
-  world.component<UtilitySimulationPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
+  world.component<UtilityNetworksPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
+  world.component<UtilitySimulationPhase>().add(flecs::Phase).depends_on<UtilityNetworksPhase>();
   world.component<UtilityConsumersPhase>().add(flecs::Phase).depends_on<UtilitySimulationPhase>();
   // After the utilities, so their systems may read the block changes too.
   world.component<ClearBlockChangesPhase>().add(flecs::Phase).depends_on<UtilityConsumersPhase>();

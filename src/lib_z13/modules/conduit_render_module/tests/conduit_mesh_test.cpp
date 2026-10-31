@@ -26,6 +26,7 @@
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "../src/conduit_cells.h"
 #include "../src/conduit_mesh.h"
 
 namespace z13::conduit_render {
@@ -39,6 +40,7 @@ using z13::render::SceneMesh;
 constexpr float kCell = z13::station::kCellSize;
 constexpr uint32_t kCable = 1;
 constexpr int kBoxVertices = 36;
+constexpr float kShippedCableThickness = 0.3f;
 
 ConduitKind CableKind() {
   return {.id = kCable, .name = "Cable", .network = "power", .thickness_cells = 0.4f, .color = {200, 60, 40, 255}};
@@ -86,6 +88,42 @@ TEST(ConduitMeshTest, EveryFaceTurnsOutwardOnEveryAxis) {
   }
 }
 
+TEST(ConduitMeshTest, AnEndAtACornerReachesTheFarSideOfTheRunThere) {
+  const Conduit run {.kind = kCable, .cell = {2, 3, 4}, .axis = ConduitAxis::kX, .length = 3};
+  const float reach = kCell / 2.f + 0.4f * kCell / 2.f;
+
+  const SceneMesh bare = BuildConduitMesh(run, CableKind());
+  const SceneMesh cornered = BuildConduitMesh(run, CableKind(), {.low = false, .high = true});
+
+  EXPECT_NEAR(BoundsOf(cornered).max().x(), BoundsOf(bare).max().x() + reach, 1e-5f);
+  EXPECT_NEAR(BoundsOf(cornered).min().x(), BoundsOf(bare).min().x(), 1e-5f);
+  EXPECT_TRUE(FacesOutward(cornered));
+}
+
+TEST(ConduitCellsTest, ARunTurnsInTheCellsOfARunAlongAnotherAxisOfTheSameNetwork) {
+  const z13::conduit::ConduitKinds kinds {.kinds = {CableKind(),
+                                                    {.id = 2, .name = "Wire", .network = "data", .thickness_cells = 0.2f}}};
+  ConduitCells cells;
+  EXPECT_TRUE(cells.Rebuild({{.kind = kCable, .cell = {0, 0, 0}, .axis = ConduitAxis::kY, .length = 2},
+                             {.kind = 2, .cell = {5, 0, 0}, .axis = ConduitAxis::kY, .length = 2}},
+                            kinds));
+
+  EXPECT_TRUE(cells.Turns("power", {0, 1, 0}, ConduitAxis::kX));
+  EXPECT_FALSE(cells.Turns("power", {0, 1, 0}, ConduitAxis::kY));  // a continuation, not a corner
+  EXPECT_FALSE(cells.Turns("power", {0, 2, 0}, ConduitAxis::kX));  // beyond the run
+  EXPECT_FALSE(cells.Turns("data", {0, 1, 0}, ConduitAxis::kX));   // another network
+  EXPECT_TRUE(cells.Turns("data", {5, 0, 0}, ConduitAxis::kZ));
+}
+
+TEST(ConduitCellsTest, RebuildingWithTheSameRunsChangesNothing) {
+  const z13::conduit::ConduitKinds kinds {.kinds = {CableKind()}};
+  const std::vector runs = {Conduit {.kind = kCable, .cell = {0, 0, 0}, .axis = ConduitAxis::kY, .length = 2}};
+  ConduitCells cells;
+  cells.Rebuild(runs, kinds);
+
+  EXPECT_FALSE(cells.Rebuild(runs, kinds));
+}
+
 class ConduitMeshSystemTest : public ::testing::Test {
  protected:
   flecs::entity Lay(const Conduit& conduit) {
@@ -109,6 +147,17 @@ TEST_F(ConduitMeshSystemTest, ALaidConduitGetsItsMeshAndAChangedOneANewRevision)
   world_.Tick();
   EXPECT_GT(entity.get<SceneMesh>().revision, first);
   EXPECT_NEAR(BoundsOf(entity.get<SceneMesh>()).max().x(), 5.f * kCell, 1e-5f);
+}
+
+TEST_F(ConduitMeshSystemTest, ARunEndingAtABendReachesIntoTheCornerCell) {
+  const flecs::entity along_x = Lay({.kind = kCable, .cell = {0, 0, 0}, .axis = ConduitAxis::kX, .length = 2});
+  const flecs::entity along_y = Lay({.kind = kCable, .cell = {2, 0, 0}, .axis = ConduitAxis::kY, .length = 2});
+  world_.Tick();
+
+  // The world's cable kind is the shipped one.
+  const float reach = kCell / 2.f + kShippedCableThickness * kCell / 2.f;
+  EXPECT_NEAR(BoundsOf(along_x.get<SceneMesh>()).max().x(), 2.f * kCell + reach, 1e-5f);
+  EXPECT_NEAR(BoundsOf(along_y.get<SceneMesh>()).min().y(), 0.f, 1e-5f);
 }
 
 TEST_F(ConduitMeshSystemTest, AConduitOfAnUnknownKindHasNoMesh) {

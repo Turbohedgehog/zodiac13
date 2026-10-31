@@ -50,15 +50,17 @@ void AddFace(z13::render::SceneMesh& mesh, const Eigen::Vector3f& low, const Eig
 
 }  // namespace
 
-z13::render::SceneMesh BuildConduitMesh(const z13::conduit::Conduit& conduit, const z13::conduit::ConduitKind& kind) {
+z13::render::SceneMesh BuildConduitMesh(
+    const z13::conduit::Conduit& conduit, const z13::conduit::ConduitKind& kind, const RunCorners& corners) {
   const float cell = z13::station::kCellSize;
   const float half_thickness = kind.thickness_cells * cell / 2.f;
   const Eigen::Vector3f centre = (conduit.cell.cast<float>() + Eigen::Vector3f::Constant(0.5f)) * cell;
   Eigen::Vector3f low = centre - Eigen::Vector3f::Constant(half_thickness);
   Eigen::Vector3f high = centre + Eigen::Vector3f::Constant(half_thickness);
   const auto axis = static_cast<int>(conduit.axis);
-  low[axis] = static_cast<float>(conduit.cell[axis]) * cell;
-  high[axis] = static_cast<float>(conduit.cell[axis] + conduit.length) * cell;
+  const float corner_reach = cell / 2.f + half_thickness;
+  low[axis] = static_cast<float>(conduit.cell[axis]) * cell - (corners.low ? corner_reach : 0.f);
+  high[axis] = static_cast<float>(conduit.cell[axis] + conduit.length) * cell + (corners.high ? corner_reach : 0.f);
 
   z13::render::SceneMesh mesh {.color = kind.color};
   for (int face_axis = 0; face_axis < kAxes; ++face_axis) {
