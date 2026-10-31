@@ -68,6 +68,7 @@ uint64_t HashOf(flecs::entity e) {
   const flecs::string_view name = e.name();
   uint64_t hash = MixHash(z13::flecs_tools::HashName(std::string_view(name.c_str(), name.length())));
   hash = Combine(hash, block.spec.type_id);
+  hash = Combine(hash, block.grid);
   hash = Combine(hash, std::to_underlying(block.spec.orientation));
   hash = CombineAll(hash, std::span<const int>(block.spec.size.data(), block.spec.size.size()));
   hash = CombineAll(hash, std::span<const int>(block.cell.data(), block.cell.size()));

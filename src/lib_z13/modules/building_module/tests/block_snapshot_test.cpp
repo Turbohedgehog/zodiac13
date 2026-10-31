@@ -32,6 +32,7 @@
 #include <lib_core/state/state_markers.h>
 
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/spawn_point.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>
@@ -45,6 +46,7 @@ namespace {
 
 namespace ft = z13::flecs_tools;
 using z13::station::Block;
+using z13::station::Grid;
 using z13::station::SpawnPoint;
 using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
@@ -167,6 +169,8 @@ TEST(BlockSnapshotTest, ACachedChunkNeverGoesStale) {
 
   moving.set(Block {.spec = z13::station::CubeSpec(), .cell = kNextToFirst});
   EXPECT_TRUE(matches_ungrouped());
+  moving.set(Block {.spec = z13::station::CubeSpec(), .cell = kNextToFirst, .grid = 1});
+  EXPECT_TRUE(matches_ungrouped());
   moving.set(SpawnPoint {});
   EXPECT_TRUE(matches_ungrouped());
   moving.set(SpawnPoint {.transform = Eigen::Matrix4f::Constant(1.f)});
@@ -196,6 +200,35 @@ TEST(BlockSnapshotTest, RestoreTouchesOnlyTheChunksThatChanged) {
   EXPECT_EQ(sets["TestBlock_1"], 1);
   EXPECT_EQ(sets["TestBlock_2"], 0);
   EXPECT_EQ(moving.get<Block>().cell, kSecondChunkCell);
+}
+
+TEST(GridModelTest, TheMainGridStandsWhereTheStationIs) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+
+  const flecs::entity main_grid = world.lookup(std::string(z13::station::kMainGridName).c_str());
+
+  ASSERT_TRUE(main_grid.is_valid());
+  EXPECT_TRUE(main_grid.has<ft::StateEntity>());
+  EXPECT_EQ(main_grid.get<Grid>(), Grid {});
+  EXPECT_EQ(PlaceBlock(world, "TestBlock_0", kFirstChunkCell).get<Block>().grid, z13::station::kMainGrid);
+}
+
+TEST(GridModelTest, TheGridOfABlockAndThePoseOfAGridSurviveARestore) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const Grid pose {.id = 1, .origin = {40, -8, 12}, .yaw_degrees = 50.f};
+  const flecs::entity second = world.entity("SecondGrid").add<ft::StateEntity>().set(pose);
+  const flecs::entity block = PlaceBlock(world, "TestBlock_0", kFirstChunkCell);
+  block.set(Block {.spec = z13::station::CubeSpec(), .cell = kFirstChunkCell, .grid = pose.id});
+  const ft::WorldSnapshot snapshot = ft::CaptureState(world).value();
+  block.set(Block {.spec = z13::station::CubeSpec(), .cell = kFirstChunkCell});
+  second.set(Grid {});
+
+  ASSERT_TRUE(ft::RestoreWorld(world, snapshot).has_value());
+
+  EXPECT_EQ(block.get<Block>().grid, pose.id);
+  EXPECT_EQ(world.lookup("SecondGrid").get<Grid>(), pose);
 }
 
 }  // namespace

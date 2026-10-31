@@ -37,11 +37,14 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
+#include <lib_core/state/state_markers.h>
+
 #include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/gameplay_phases.h>
+#include <z13/components/grid.h>
 #include <z13/components/player.h>
 #include <z13/components/player_parts.h>
 #include <z13/components/block.h>
@@ -114,7 +117,14 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<BlockIndex, BuildingTuning, BrushDrag, BuildPermission, BrushPreview>(world);
+  z13::flecs_tools::RegisterComponents<BlockIndex, BuildingTuning, BrushDrag, BuildPermission, BrushPreview,
+                                       z13::station::Grid>(world);
+}
+
+void CreateMainGrid(flecs::world world) {
+  world.entity(std::string(z13::station::kMainGridName).c_str())
+      .add<z13::flecs_tools::StateEntity>()
+      .set(z13::station::Grid {});
 }
 
 void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning, const Palette& palette) {
@@ -768,6 +778,8 @@ void BlockBuildingSystem::Register(flecs::world& world) {
   OnInitPhases(world, RegisterPipeline);
 
   OnInitSystems(world, RegisterSystems);
+
+  OnInitWorldData(world, CreateMainGrid);
 }
 
 }  // namespace z13::building
