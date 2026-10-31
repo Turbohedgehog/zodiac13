@@ -262,5 +262,82 @@ TEST(PaletteTest, RejectsMalformedPalettes) {
   EXPECT_FALSE(ParsePalette(R"({"primitives": [], "unknown_field": 1})").has_value());
 }
 
+std::string WithPorts(uint32_t id, std::string_view name, std::string_view ports) {
+  std::string entry = Entry(id, name);
+  entry.insert(entry.rfind('}'), std::format(R"(, "ports": {})", ports));
+  return entry;
+}
+
+constexpr std::string_view kPowerPort = R"([{"network": "power", "role": "consumer", "demand": 50, "priority": "doors"}])";
+
+TEST(PaletteTest, ParsesAPrimitivesPorts) {
+  const auto palette = ParsePalette(Palette(WithPorts(1, "Lamp", kPowerPort)));
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  EXPECT_EQ(palette->primitives.front().ports,
+            (std::vector<PortSpec> {{.network = "power", .role = "consumer", .demand = 50, .priority = "doors"}}));
+  EXPECT_TRUE(ParsePalette(Palette(Entry(1, "Wall")))->primitives.front().ports.empty());
+}
+
+TEST(PaletteTest, RejectsAPortWithoutANetworkOrRoleAndTwoPortsOnOneNetwork) {
+  EXPECT_FALSE(ParsePalette(Palette(WithPorts(1, "A", R"([{"role": "consumer"}])"))).has_value());
+  EXPECT_FALSE(ParsePalette(Palette(WithPorts(1, "A", R"([{"network": "power"}])"))).has_value());
+  EXPECT_FALSE(ParsePalette(Palette(WithPorts(1, "A", R"([{"network": "power", "role": "consumer"},
+                                                         {"network": "power", "role": "producer"}])")))
+                   .has_value());
+}
+
+const std::string kBase = Palette(Entry(1, "Wall"));
+
+PaletteFragment Fragment(std::string_view file, std::string_view entries) {
+  return {.file = std::string(file), .json = Palette(entries)};
+}
+
+TEST(PaletteTest, FragmentsFollowTheBasesPrimitives) {
+  const std::vector fragments = {Fragment("power.json", WithPorts(10, "Battery", kPowerPort)),
+                                 Fragment("gas.json", Entry(20, "Vent"))};
+  const auto palette = ParsePalette(kBase, fragments);
+  ASSERT_TRUE(palette.has_value()) << palette.error();
+
+  ASSERT_EQ(palette->primitives.size(), 3u);
+  EXPECT_EQ(palette->primitives[0].name, "Wall");
+  EXPECT_EQ(palette->primitives[1].name, "Battery");
+  EXPECT_EQ(palette->primitives[2].name, "Vent");
+  EXPECT_EQ(palette->Find(10)->get().ports.size(), 1u);
+}
+
+TEST(PaletteTest, TheHashCoversTheFragments) {
+  const std::vector power = {Fragment("power.json", Entry(10, "Battery"))};
+  const std::vector gas = {Fragment("gas.json", Entry(20, "Vent"))};
+  const auto bare = ParsePalette(kBase);
+  ASSERT_TRUE(bare.has_value()) << bare.error();
+
+  EXPECT_NE(ParsePalette(kBase, power)->hash, bare->hash);
+  EXPECT_NE(ParsePalette(kBase, power)->hash, ParsePalette(kBase, gas)->hash);
+  EXPECT_EQ(ParsePalette(kBase, power)->hash, ParsePalette(kBase, power)->hash);
+}
+
+TEST(PaletteTest, AFragmentsDuplicateIdOrNameIsRefusedAndNamed) {
+  const std::vector same_id = {Fragment("power.json", Entry(1, "Battery"))};
+  const auto by_id = ParsePalette(kBase, same_id);
+  ASSERT_FALSE(by_id.has_value());
+  EXPECT_NE(by_id.error().find("power.json"), std::string::npos) << by_id.error();
+
+  const std::vector same_name = {Fragment("gas.json", Entry(2, "Wall"))};
+  EXPECT_FALSE(ParsePalette(kBase, same_name).has_value());
+
+  const std::vector clash = {Fragment("a.json", Entry(10, "A")), Fragment("b.json", Entry(10, "B"))};
+  const auto between = ParsePalette(kBase, clash);
+  ASSERT_FALSE(between.has_value());
+  EXPECT_NE(between.error().find("b.json"), std::string::npos) << between.error();
+}
+
+TEST(PaletteTest, AnUnparsableFragmentIsRefusedAndNamed) {
+  const std::vector broken = {PaletteFragment {.file = "power.json", .json = "{"}};
+  const auto palette = ParsePalette(kBase, broken);
+  ASSERT_FALSE(palette.has_value());
+  EXPECT_NE(palette.error().find("power.json"), std::string::npos) << palette.error();
+}
+
 }  // namespace
 }  // namespace z13::building::primitives

@@ -19,10 +19,14 @@
 #include <z13/components/conduit.h>
 #include <z13/components/scene_mesh.h>
 
+#include "conduit_look.h"
+
 namespace z13::conduit_render {
 
 // The box a run fills: its whole cells along its axis, `kind.thickness_cells` square across, centred in the cells.
-// The revision is left for the caller.
-z13::render::SceneMesh BuildConduitMesh(const z13::conduit::Conduit& conduit, const z13::conduit::ConduitKind& kind);
+// An end at a corner reaches across the next cell to the far side of the run there, so the two boxes meet in a square
+// corner. The revision is left for the caller.
+z13::render::SceneMesh BuildConduitMesh(
+    const z13::conduit::Conduit& conduit, const z13::conduit::ConduitKind& kind, const RunCorners& corners = {});
 
 }  // namespace z13::conduit_render

@@ -16,7 +16,9 @@
 
 #include "conduit_mesh_system.h"
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 #include <flecs.h>
 
@@ -27,6 +29,7 @@
 #include <z13/components/conduit.h>
 #include <z13/components/scene_mesh.h>
 
+#include "conduit_cells.h"
 #include "conduit_look.h"
 #include "conduit_mesh.h"
 
@@ -35,12 +38,13 @@ namespace z13::conduit_render {
 namespace {
 
 using z13::conduit::Conduit;
+using z13::conduit::ConduitKind;
 using z13::conduit::ConduitKinds;
 using z13::render::SceneMesh;
 using z13::render::SceneMeshPhase;
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<ConduitLook, SceneMesh>(world);
+  z13::flecs_tools::RegisterComponents<ConduitLook, SceneMesh, ConduitCells>(world);
 }
 
 void RegisterPhases(flecs::world world) {
@@ -48,20 +52,32 @@ void RegisterPhases(flecs::world world) {
   world.component<SceneMeshPhase>().add(flecs::Phase).add<z13::flecs_tools::PresentationPhase>();
 }
 
+// Whether the cell past an end of the run holds a run turning another way.
+RunCorners CornersOf(const Conduit& conduit, const ConduitKind& kind, const ConduitCells& cells) {
+  const auto axis = static_cast<int>(conduit.axis);
+  Eigen::Vector3i before = conduit.cell;
+  before[axis] -= 1;
+  Eigen::Vector3i after = conduit.cell;
+  after[axis] += conduit.length;
+  return {.low = cells.Turns(kind.network, before, conduit.axis), .high = cells.Turns(kind.network, after, conduit.axis)};
+}
+
 // A conduit whose kind the file lacks has no mesh.
-void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds& kinds) {
+void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds& kinds, const ConduitCells& cells) {
   const auto kind = kinds.Find(conduit.kind);
   if (!kind) {
     entity.remove<SceneMesh>();
     entity.remove<ConduitLook>();
     return;
   }
-  const ConduitLook look {.conduit = conduit, .color = kind->color, .thickness_cells = kind->thickness_cells};
+  const ConduitLook look {.conduit = conduit,
+                          .corners = CornersOf(conduit, *kind, cells),
+                          .color = kind->color, .thickness_cells = kind->thickness_cells};
   const auto* built = entity.try_get<ConduitLook>();
   if (built != nullptr && *built == look) {
     return;
   }
-  SceneMesh mesh = BuildConduitMesh(conduit, *kind);
+  SceneMesh mesh = BuildConduitMesh(conduit, *kind, look.corners);
   const auto* old = entity.try_get<SceneMesh>();
   mesh.revision = old != nullptr ? old->revision + 1 : 1;
   entity.set(look);
@@ -69,7 +85,15 @@ void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds
 }
 
 void RegisterSystems(flecs::world world) {
-  world.system<const Conduit, const ConduitKinds>("ConduitMeshSystem::DeriveMesh")
+  // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
+  world.set(ConduitCells {});
+  const auto conduits = world.query<const Conduit>();
+  world.system<ConduitCells, const ConduitKinds>("ConduitMeshSystem::UpdateCells")
+      .kind<SceneMeshPhase>()
+      .read<Conduit>()
+      .each([conduits](ConduitCells& cells, const ConduitKinds& kinds) { cells.Rebuild(SortedConduits(conduits), kinds); });
+
+  world.system<const Conduit, const ConduitKinds, const ConduitCells>("ConduitMeshSystem::DeriveMesh")
       .kind<SceneMeshPhase>()
       .write<SceneMesh>()
       .write<ConduitLook>()

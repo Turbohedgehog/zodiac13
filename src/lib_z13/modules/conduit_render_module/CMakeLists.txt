@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/conduit_render_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/conduit_cells.cpp
   src/conduit_mesh.cpp
   src/conduit_mesh_system.cpp
   src/conduit_render_module.cpp
@@ -16,5 +17,6 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::primitives
   Boost::dll
 )

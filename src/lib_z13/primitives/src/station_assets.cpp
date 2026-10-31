@@ -25,6 +25,10 @@ std::filesystem::path PaletteFile() {
   return std::filesystem::path(kStationDir) / kPaletteFileName;
 }
 
+std::filesystem::path PaletteFragmentFile(std::string_view module) {
+  return std::filesystem::path(kStationDir) / kPaletteFragmentsDir / std::format("{}{}", module, kBlueprintExtension);
+}
+
 std::filesystem::path BlueprintsDir() {
   return std::filesystem::path(kStationDir) / kBlueprintsDir;
 }

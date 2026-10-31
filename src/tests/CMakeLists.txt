@@ -116,6 +116,7 @@ set(
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_index_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
+  ${MODULES_DIR}/conduit_module/tests/network_system_test.cpp
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
@@ -131,6 +132,7 @@ set(
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/session/light_client_test.cpp
   ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/utility_modules_test.cpp
   ${MODULES_DIR}/net_module/tests/session/station_bounds_log_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_loss_bench_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
