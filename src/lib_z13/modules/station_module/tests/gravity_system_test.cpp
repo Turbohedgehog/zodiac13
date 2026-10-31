@@ -24,6 +24,7 @@
 #include <z13/components/player_parts.h>
 #include <z13/components/gravity.h>
 #include <z13/components/block.h>
+#include <z13/components/door.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_settings/physics_tuning.h>
 
@@ -136,9 +137,32 @@ TEST_F(GravitySystemTest, AnyBodyGetsTheGravityOfItsRoom) {
   EXPECT_FALSE(outside.get<Gravity>().Pulls());
 }
 
-// The door's leaf has no collision until f/doors.
-TEST_F(GravitySystemTest, APlayerWalksThroughAClosedDoorKeepingGravity) {
+flecs::entity DoorOf(flecs::world world) {
+  flecs::entity door;
+  world.query<const Block>().each([&](flecs::entity block, const Block& placed) {
+    if (placed.spec.type_id == testing::IdOf(testing::kDoor)) {
+      door = block;
+    }
+  });
+  return door;
+}
+
+TEST_F(GravitySystemTest, AClosedDoorStopsThePlayer) {
   testing::AddBlocks(world_, testing::DoorPartition());
+  world_.Tick(kTick);
+  const flecs::entity player = StandAt({3.f, 4.f});
+  const float door_x = (static_cast<float>(testing::kRoomCorner.x()) + 5.f) * kCellSize;
+
+  Walk(z13::fbs::input::Keycode::KEY_W, kWalkTicks);
+
+  EXPECT_LT(PositionOf(player).x(), door_x);
+}
+
+TEST_F(GravitySystemTest, APlayerWalksThroughAnOpenDoorKeepingGravity) {
+  testing::AddBlocks(world_, testing::DoorPartition());
+  world_.Tick(kTick);
+  // Open, and unpowered doors stay as they are left.
+  DoorOf(world_.World()).set(DoorState {.position = kDoorOpen, .open_wanted = true, .leaf_blocks = false});
   world_.Tick(kTick);
   // In front of the middle of the door's opening, y cells 2..5 of the partition at x = 5.
   const flecs::entity player = StandAt({3.f, 4.f});

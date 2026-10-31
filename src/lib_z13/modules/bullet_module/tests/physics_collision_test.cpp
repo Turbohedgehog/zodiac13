@@ -30,6 +30,7 @@
 #include <z13/components/player.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/block.h>
+#include <z13/components/door.h>
 #include <input_config_generated.h>
 
 #include <lib_core/state/world_serializer.h>
@@ -351,8 +352,8 @@ TEST(StationCollisionTest, AWallStopsThePlayer) {
   EXPECT_NEAR(moved.y(), kAcrossCell.y() * z13::station::kCellSize - kPlayerRadius, kSweepTolerance);
 }
 
-// Until f/doors; the frame still stops the player.
-TEST(StationCollisionTest, AClosedDoorLetsThePlayerThrough) {
+// Without a DoorState (no doors in the world) a leaf lets bodies through; the frame still stops the player.
+TEST(StationCollisionTest, ADoorWithoutAStateLetsThePlayerThrough) {
   z13::testing::Z13TestWorld test_world;
   PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);
 
@@ -362,7 +363,7 @@ TEST(StationCollisionTest, AClosedDoorLetsThePlayerThrough) {
 }
 
 // A wall's door leaf has no solid part, yet keeps a body: BlockChangeReader counts one per block.
-TEST(StationCollisionTest, AClosedDoorLeafInAWallLetsThePlayerThrough) {
+TEST(StationCollisionTest, AWallDoorLeafWithoutAStateLetsThePlayerThrough) {
   z13::testing::Z13TestWorld test_world;
   PlaceBlock(test_world, kWallDoorId, kWallDoorSize, kAcrossCell);
 
@@ -370,6 +371,33 @@ TEST(StationCollisionTest, AClosedDoorLeafInAWallLetsThePlayerThrough) {
 
   EXPECT_NEAR(moved.y(), kBeyondY, kSweepTolerance);
   EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 1u);
+}
+
+// The leaf blocks while DoorState::leaf_blocks says the door is shut enough.
+TEST(StationCollisionTest, AShutDoorsLeafStopsThePlayerAndAnOpenOnesDoesNot) {
+  z13::testing::Z13TestWorld test_world;
+  const flecs::entity door = PlaceBlock(test_world, kDoorId, kDoorSize, kAcrossCell);
+  door.set(z13::station::DoorState {.leaf_blocks = true});
+  test_world.Tick(kTestDeltaTime);
+
+  const Eigen::Vector3f stopped = WalkAcross(test_world, kOpeningCentreX);
+  EXPECT_LT(stopped.y(), kAcrossCell.y() * z13::station::kCellSize);
+
+  door.set(z13::station::DoorState {.position = z13::station::kDoorOpen, .leaf_blocks = false});
+  test_world.Tick(kTestDeltaTime);
+  const Eigen::Vector3f through = WalkAcross(test_world, kOpeningCentreX);
+  EXPECT_NEAR(through.y(), kBeyondY, kSweepTolerance);
+}
+
+TEST(StationCollisionTest, AShutWallDoorLeafStopsThePlayerToo) {
+  z13::testing::Z13TestWorld test_world;
+  const flecs::entity door = PlaceBlock(test_world, kWallDoorId, kWallDoorSize, kAcrossCell);
+  door.set(z13::station::DoorState {.leaf_blocks = true});
+  test_world.Tick(kTestDeltaTime);
+
+  const Eigen::Vector3f stopped = WalkAcross(test_world, kOpeningCentreX);
+
+  EXPECT_LT(stopped.y(), kAcrossCell.y() * z13::station::kCellSize);
 }
 
 TEST(StationCollisionTest, ADoorFrameStopsThePlayer) {

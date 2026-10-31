@@ -197,7 +197,8 @@ void RegisterSystems(flecs::world world) {
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
-               z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*, const z13::net::ConnectionStatus*,
+               z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*,
+               const z13::net::ConnectionStatus*,
                gui::PendingTransition*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()

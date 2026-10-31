@@ -23,6 +23,7 @@ include "net_tuning.fbs";
 include "physics_tuning.fbs";
 include "building_tuning.fbs";
 include "power_tuning.fbs";
+include "door_tuning.fbs";
 include "world_snapshot.fbs";
 
 namespace z13.fbs.net;
@@ -148,6 +149,7 @@ table Welcome {
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;
   power: z13.fbs.power.PowerTuning;
+  door: z13.fbs.door.DoorTuning;
 }
 
 table Rejected {

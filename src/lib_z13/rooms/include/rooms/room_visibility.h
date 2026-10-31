@@ -16,10 +16,12 @@
 
 #pragma once
 
+#include <span>
 #include <unordered_map>
 
 #include <Eigen/Dense>
 
+#include <primitives/placement.h>
 #include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
@@ -37,6 +39,8 @@ struct RoomView {
   Eigen::AlignedBox2f screen;
   // A portal seen narrower than this on either axis shows nothing worth drawing.
   Eigen::Vector2f min_extent = Eigen::Vector2f::Zero();
+  // Openings of doors that are open: a portal meeting one is seen through like a window.
+  std::span<const z13::building::primitives::CellBox> opened;
 };
 
 // Walks the visible portals from the eye room, narrowing the screen to each opening. A

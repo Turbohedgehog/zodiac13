@@ -44,7 +44,8 @@ PowerModule::PowerModule(flecs::world& world) {
   PowerOverlaySystem::Register(world);
   // In the phases stage, once building_module has made the list (see UtilityModules).
   z13::OnInitPhases(world, [](flecs::world& w) {
-    z13::utility::DeclareUtilityModule(w, {.name = std::string(kModuleName), .version = kModuleVersion, .palette_fragment = true});
+    z13::utility::DeclareUtilityModule(
+        w, {.name = std::string(kModuleName), .version = kModuleVersion, .palette_fragment = true});
   });
 }
 

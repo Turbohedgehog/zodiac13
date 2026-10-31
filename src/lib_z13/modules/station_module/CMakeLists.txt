@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/station_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/door_system.cpp
   src/gravity_system.cpp
   src/interaction_system.cpp
   src/outline_edges.cpp

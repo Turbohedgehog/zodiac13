@@ -32,18 +32,20 @@ namespace z13::net {
 
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(
     flecs::world world, const fbs::net::WelcomeT& welcome) {
-  if (!welcome.tuning || !welcome.physics || !welcome.building || !welcome.power) {
+  if (!welcome.tuning || !welcome.physics || !welcome.building || !welcome.power || !welcome.door) {
     return std::unexpected("server sent no settings");
   }
   const z13::SessionSettings session {
       .fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics, .building = *welcome.building,
-      .power = *welcome.power};
+      .power = *welcome.power,
+      .door = *welcome.door};
   z13::Settings own = z13::MakeSettings();
   *own.core = world.get<z13::ActiveCoreSettings>();
   *own.net = world.get<NetTuning>();
   *own.physics = world.get<z13::PhysicsTuning>();
   *own.building = world.get<z13::BuildingTuning>();
   *own.power = world.get<z13::PowerTuning>();
+  *own.door = world.get<z13::DoorTuning>();
   if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
     return std::unexpected(std::format("unusable server settings ({})", valid.error()));
   }
@@ -57,6 +59,7 @@ void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& sessio
         .own_physics = world.get<z13::PhysicsTuning>(),
         .own_building = world.get<z13::BuildingTuning>(),
         .own_power = world.get<z13::PowerTuning>(),
+        .own_door = world.get<z13::DoorTuning>(),
     });
   }
   z13::OverrideCoreFps(world, session.fps);
@@ -64,6 +67,7 @@ void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& sessio
   world.set(z13::PhysicsTuning(session.physics));
   world.set(z13::BuildingTuning(session.building));
   world.set(z13::PowerTuning(session.power));
+  world.set(z13::DoorTuning(session.door));
 }
 
 void RestoreOwnSettings(flecs::world world) {
@@ -76,6 +80,7 @@ void RestoreOwnSettings(flecs::world world) {
   world.set(own.own_physics);
   world.set(own.own_building);
   world.set(own.own_power);
+  world.set(own.own_door);
   z13::OverrideCoreFps(world, std::nullopt);
 }
 

@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <iterator>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 namespace z13::building::primitives {
 
@@ -41,6 +43,12 @@ void AppendPlaced(const Mesh& shape, const CellPose& pose, Mesh& target) {
                          [&](const Eigen::Vector3f& p) -> Eigen::Vector3f { return rotation * p + origin; });
   std::ranges::transform(shape.normals, std::back_inserter(target.normals),
                          [&](const Eigen::Vector3f& n) -> Eigen::Vector3f { return rotation * n; });
+}
+
+// The solids of one role, or of every other.
+std::vector<ConvexSolid> SolidsOfRole(std::vector<ConvexSolid> solids, PartRole role, bool keep) {
+  std::erase_if(solids, [role, keep](const ConvexSolid& solid) { return (solid.role == role) != keep; });
+  return solids;
 }
 
 }  // namespace
@@ -66,7 +74,7 @@ Checker MaterialOf(OptionalPalette palette, uint32_t type_id) {
   return primitive ? primitive->get().material : kUnknownMaterial;
 }
 
-ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPalette palette) {
+ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPalette palette, DoorLeaves leaves) {
   ChunkMesh chunk;
   if (blocks.empty()) {
     return chunk;
@@ -78,7 +86,14 @@ ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPa
     const BlockShapeKey key = ShapeKeyOf(block.spec);
     auto shape = shapes.find(key);
     if (shape == shapes.end()) {
-      shape = shapes.emplace(key, BuildMesh(BlockSolids(palette, key))).first;
+      std::vector<ConvexSolid> solids = BlockSolids(palette, key);
+      if (leaves == DoorLeaves::kApart) {
+        solids = SolidsOfRole(std::move(solids), PartRole::kDoorLeaf, false);
+      }
+      shape = shapes.emplace(key, BuildMesh(solids)).first;
+    }
+    if (shape->second.positions.empty()) {
+      continue;
     }
     const Checker material = MaterialOf(palette, block.spec.type_id);
     auto part = std::ranges::find(chunk.parts, material, &MaterialMesh::material);
@@ -88,6 +103,13 @@ ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPa
     AppendPlaced(shape->second, PoseOf(block), part->mesh);
   }
   return chunk;
+}
+
+Mesh DoorLeafMesh(const z13::station::Block& block, OptionalPalette palette) {
+  Mesh leaf;
+  AppendPlaced(BuildMesh(SolidsOfRole(BlockSolids(palette, ShapeKeyOf(block.spec)), PartRole::kDoorLeaf, true)),
+               PoseOf(block), leaf);
+  return leaf;
 }
 
 }  // namespace z13::building::primitives

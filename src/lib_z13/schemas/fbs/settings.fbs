@@ -16,6 +16,7 @@
 
 include "building_tuning.fbs";
 include "core_settings.fbs";
+include "door_tuning.fbs";
 include "net_tuning.fbs";
 include "physics_tuning.fbs";
 include "power_tuning.fbs";
@@ -143,6 +144,7 @@ table Settings {
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;
   power: z13.fbs.power.PowerTuning;
+  door: z13.fbs.door.DoorTuning;
   visual_smoothing: VisualSmoothing;
   render: RenderTuning;
   touch: TouchLayout;

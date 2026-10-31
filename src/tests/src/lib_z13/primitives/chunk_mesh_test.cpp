@@ -113,5 +113,34 @@ TEST(ChunkMeshTest, ChunksOfAShippedStationHoldEveryBlock) {
   }
 }
 
+// The shipped door frame (6x1x10) holds a leaf in its opening; a wall holds none.
+TEST(ChunkMeshTest, DoorLeavesAreLeftOutOfAChunkWhenApart) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const std::vector<Block> door {Block {.spec = {.type_id = kDoorId, .size = {6, 1, 10}}}};
+
+  const size_t whole = VertexCount(BuildChunkMesh(door, palette));
+  const size_t apart = VertexCount(BuildChunkMesh(door, palette, DoorLeaves::kApart));
+
+  EXPECT_LT(apart, whole);
+  EXPECT_GT(apart, 0u) << "the frame stays";
+  EXPECT_EQ(DoorLeafMesh(door.front(), palette).positions.size(), whole - apart);
+}
+
+TEST(ChunkMeshTest, ABlockWithoutALeafHasNoLeafMeshAndIsKeptApart) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const std::vector<Block> wall {At(kWallId, {0, 0, 0})};
+
+  EXPECT_TRUE(DoorLeafMesh(wall.front(), palette).positions.empty());
+  EXPECT_EQ(VertexCount(BuildChunkMesh(wall, palette, DoorLeaves::kApart)), VertexCount(BuildChunkMesh(wall, palette)));
+}
+
+TEST(ChunkMeshTest, AWallDoorPanelIsAllLeaf) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const std::vector<Block> panel {Block {.spec = {.type_id = z13::station::kDoorPanelPrimitiveId, .size = {4, 1, 8}}}};
+
+  EXPECT_EQ(VertexCount(BuildChunkMesh(panel, palette, DoorLeaves::kApart)), 0u);
+  EXPECT_FALSE(DoorLeafMesh(panel.front(), palette).positions.empty());
+}
+
 }  // namespace
 }  // namespace z13::building::primitives

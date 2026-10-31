@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -53,6 +54,14 @@ struct ChunkMesh {
   CellBox bounds;
 };
 
-ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPalette palette);
+// Whether a chunk's mesh holds the leaves of doors, or leaves them to whoever draws them where they stand
+// (DoorLeafMesh).
+enum class DoorLeaves : uint8_t { kIncluded, kApart };
+
+ChunkMesh BuildChunkMesh(std::span<const z13::station::Block> blocks, OptionalPalette palette,
+                         DoorLeaves leaves = DoorLeaves::kIncluded);
+
+// The leaf of a door block alone, in cells, already placed; empty for any other block.
+Mesh DoorLeafMesh(const z13::station::Block& block, OptionalPalette palette);
 
 }  // namespace z13::building::primitives

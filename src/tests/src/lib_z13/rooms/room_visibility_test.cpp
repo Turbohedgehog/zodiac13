@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <span>
 #include <vector>
 
 #include <lib_core/utils/frustum.h>
@@ -216,6 +217,25 @@ TEST(RoomVisibilityTest, AWindowSeenFromBehindShowsNothing) {
   EXPECT_TRUE(away.contains(kVacuumRoom));
   EXPECT_FALSE(Seen(facing_away, away, cell_in_d));
   EXPECT_TRUE(Seen(facing_the_eye, SeenFrom(facing_the_eye, kEyeInA, -Eigen::Vector3f::UnitX()), cell_in_d));
+}
+
+// A door's portal is not visible while it is shut; opened, it shows what is behind it like a window.
+TEST(RoomVisibilityTest, AnOpenedDoorShowsTheRoomBehindItAndAShutOneDoesNot) {
+  const PortalSource door = Window(kFirstWall, kInLine, {1, 1, 1}, false);
+  const RoomGraph graph = Build({door});
+  const auto room = graph.RoomAt(kEyeInA.array().floor().cast<int>());
+  ASSERT_TRUE(room.has_value());
+  const std::vector<CellBox> opened = {door.opening};
+  const auto view = [&](std::span<const CellBox> open) {
+    return VisibleRooms(graph, {.eye_room = *room,
+                                .eye = kEyeInA,
+                                .view_projection = ViewProjection(kEyeInA, Eigen::Vector3f::UnitX()),
+                                .screen = z13::math::Frustum::FullScreen(),
+                                .opened = open});
+  };
+
+  EXPECT_FALSE(Seen(graph, view({}), kCellInB));
+  EXPECT_TRUE(Seen(graph, view(opened), kCellInB));
 }
 
 }  // namespace

@@ -36,7 +36,7 @@ inline constexpr std::string_view kStorageRole = "storage";
 // Conducts only: a breaker.
 inline constexpr std::string_view kConductorRole = "conductor";
 
-// Watts a producer gives; watts a consumer asks for; what a storage holds in watt-ticks and the watts it takes or gives.
+// Watts a producer gives; watts a consumer asks for; what a storage holds (watt-ticks) and the watts it moves.
 inline constexpr std::string_view kOutputValue = "output";
 inline constexpr std::string_view kDemandValue = "demand";
 inline constexpr std::string_view kCapacityValue = "capacity";

@@ -106,6 +106,7 @@ Status SendWelcome(
   welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
   welcome.building = std::make_unique<fbs::building::BuildingTuningT>(world.get<z13::BuildingTuning>());
   welcome.power = std::make_unique<fbs::power::PowerTuningT>(world.get<z13::PowerTuning>());
+  welcome.door = std::make_unique<fbs::door::DoorTuningT>(world.get<z13::DoorTuning>());
 
   Envelope envelope;
   envelope.body.Set(std::move(welcome));

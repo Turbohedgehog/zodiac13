@@ -34,6 +34,7 @@
 #include <station_module/station_module_factory.h>
 #include <conduit_module/conduit_module_factory.h>
 #include <conduit_render_module/conduit_render_module_factory.h>
+#include <door_render_module/door_render_module_factory.h>
 #include <power_module/power_module_factory.h>
 #include <z13_module/z13_module_factory.h>
 #include <z13_settings/settings.h>
@@ -73,6 +74,7 @@ z13::WorldRef CreateWorld(
   core.RegisterModuleFactory(std::make_shared<z13::conduit::ConduitModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::power_module::PowerModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::conduit_render::ConduitRenderModuleFactory>());
+  core.RegisterModuleFactory(std::make_shared<z13::door_render::DoorRenderModuleFactory>());
 
   auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
   net_factory->SetTransportFactories(

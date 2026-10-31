@@ -83,8 +83,8 @@ std::string LabelOf(const PowerStatus& status) {
     total.served += entry.status.served;
     total.stored += entry.status.stored;
   }
-  return std::format("Power: {} networks, {} W produced, {} of {} W served, {} watt-ticks stored", status.networks.size(),
-                     total.produced, total.served, total.demanded, total.stored);
+  return std::format("Power: {} networks, {} W produced, {} of {} W served, {} watt-ticks stored",
+                     status.networks.size(), total.produced, total.served, total.demanded, total.stored);
 }
 
 void Fill(z13::station::OverlayLayer& layer, const flecs::world& world, const StationNetworks& stations,
@@ -116,7 +116,8 @@ void Fill(z13::station::OverlayLayer& layer, const flecs::world& world, const St
 
 void RegisterSystems(flecs::world world) {
   world.get_mut<OverlayLayers>().layers.push_back({.name = std::string(kLayerName)});
-  world.system<OverlayLayers, const StationNetworks, const PowerStatus, const BlockPalette>("PowerOverlaySystem::Update")
+  world.system<OverlayLayers, const StationNetworks, const PowerStatus, const BlockPalette>(
+           "PowerOverlaySystem::Update")
       .kind<z13::utility::UtilityConsumersPhase>()
       .with<z13::station::StationMode>()
       .read<z13::station::Block>()
