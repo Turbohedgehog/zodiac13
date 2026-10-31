@@ -120,6 +120,7 @@ set(
   ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
   ${MODULES_DIR}/conduit_module/tests/network_system_test.cpp
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
+  ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/power_module/tests/power_system_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp

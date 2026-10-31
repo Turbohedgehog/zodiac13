@@ -28,6 +28,7 @@
 #include <z13/components/block.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
+#include <primitives/chunk_mesh.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
 #include <z13_tests/shipped_station.h>
@@ -411,8 +412,13 @@ TEST(WallPanelSystemTest, AWallWithADoorSurvivesSaveAndLoad) {
   loaded.Tick();
 
   EXPECT_EQ(loaded.World().count<z13::station::WallOpening>(), 1);
-  EXPECT_EQ(Panels(loaded.World()), Panels(test_world.World()));
-  EXPECT_EQ(Panels(loaded.World()).size(), 4u);
+  // The door's panel carries a DoorState, so the worlds list the panels in different orders.
+  std::vector<Block> restored = Panels(loaded.World());
+  std::vector<Block> original = Panels(test_world.World());
+  z13::building::primitives::SortBlocks(restored);
+  z13::building::primitives::SortBlocks(original);
+  EXPECT_EQ(restored, original);
+  EXPECT_EQ(restored.size(), 4u);
 }
 
 }  // namespace
