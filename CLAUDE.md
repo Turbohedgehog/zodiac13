@@ -123,4 +123,5 @@ Procedures live in `.claude/skills/`, loaded when the task needs them:
 - `finish-branch` — code review (with comment trimming), commit, push, conflicts after a squash merge, updating main after a merge.
 - `perf-measure` — benchmarks, trustworthy measurements on the dev box, prototyping in a benchmark, header width.
 - `plan-and-debt` — where plans and debts are, what's next, recording a finished stage or resolved debt.
+- `station-geometry` — drawing walls, floors and ceilings in station blueprints (generate_hub.py): joints, panel limits, the wall-joint checker, what to do about chamfers, burrs and teeth.
 - `github-pr` — reading PR state and review comments through the GitHub API.

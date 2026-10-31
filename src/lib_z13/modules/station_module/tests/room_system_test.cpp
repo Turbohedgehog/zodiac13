@@ -488,5 +488,23 @@ TEST(HubFreightHangarTest, TheHangarIsASealedRoomJoinedToTheSpineByADoor) {
   }));
 }
 
+const Eigen::Vector3i kAtriumDoorCell {231, 254, 6};
+const Eigen::Vector3i kArrivalsHallCell {304, 170, 12};
+
+TEST(HubArrivalsHangarTest, TheHallIsASealedRoomJoinedToTheAtriumByADoor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto atrium = graph.RoomAt(kAtriumDoorCell);
+  const auto hall = graph.RoomAt(kArrivalsHallCell);
+  ASSERT_TRUE(atrium.has_value() && *atrium != rooms::kVacuumRoom);
+  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom);
+  EXPECT_NE(atrium, hall);
+  EXPECT_TRUE(std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
+    return (portal.a == atrium && portal.b == hall) || (portal.a == hall && portal.b == atrium);
+  }));
+}
+
 }  // namespace
 }  // namespace z13::station
