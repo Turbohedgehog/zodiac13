@@ -94,8 +94,9 @@ void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interact
   const int full = static_cast<int>(by_hand ? tuning.manual_open_ticks : tuning.open_ticks);
   const int step = std::max(kDoorOpen / std::max(full, 1), 1);
   const int target = state.open_wanted ? kDoorOpen : 0;
-  state.position = target > state.position ? std::min(state.position + step, target)
-                                           : std::max(state.position - step, target);
+  const int position = state.position;
+  state.position = static_cast<DoorPosition>(target > position ? std::min(position + step, target)
+                                                               : std::max(position - step, target));
   state.leaf_blocks = state.position < static_cast<int>(tuning.passable_position);
 }
 
