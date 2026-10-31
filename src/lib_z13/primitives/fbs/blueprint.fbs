@@ -114,6 +114,7 @@ table BlueprintWall {
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
+  doors_open: bool;
 }
 
 root_type Blueprint;

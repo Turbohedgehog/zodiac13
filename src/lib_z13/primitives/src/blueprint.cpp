@@ -132,4 +132,12 @@ std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> 
   return openings;
 }
 
+std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  return parsed->doors_open;
+}
+
 }  // namespace z13::building::primitives

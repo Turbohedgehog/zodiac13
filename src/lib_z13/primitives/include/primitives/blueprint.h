@@ -42,4 +42,6 @@ std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::s
 std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
     std::string_view json);
 
+std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
+
 }  // namespace z13::building::primitives

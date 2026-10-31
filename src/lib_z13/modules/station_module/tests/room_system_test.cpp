@@ -31,6 +31,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/enum_cycle.h>
 
+#include <z13/components/door.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/spawn_point.h>
@@ -471,21 +472,30 @@ INSTANTIATE_TEST_SUITE_P(
 
 constexpr std::string_view kHubScene = "hub";
 const Eigen::Vector3i kSpineEndCell {338, 413, 6};
-const Eigen::Vector3i kFreightHangarCell {409, 425, 12};
+const Eigen::Vector3i kFreightLobbyCell {348, 414, 6};
+const Eigen::Vector3i kFreightHangarCell {420, 425, 12};
 
-TEST(HubFreightHangarTest, TheHangarIsASealedRoomJoinedToTheSpineByADoor) {
+bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optional<rooms::RoomId> b) {
+  return std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
+    return (portal.a == a && portal.b == b) || (portal.a == b && portal.b == a);
+  });
+}
+
+TEST(HubFreightHangarTest, TheHangarIsASealedRoomBehindALobbyJoinedToTheSpineByDoors) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
 
   const RoomGraph& graph = Graph(world);
   const auto spine = graph.RoomAt(kSpineEndCell);
+  const auto lobby = graph.RoomAt(kFreightLobbyCell);
   const auto hangar = graph.RoomAt(kFreightHangarCell);
-  ASSERT_TRUE(spine.has_value() && *spine != rooms::kVacuumRoom);
-  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom);
-  EXPECT_NE(spine, hangar);
-  EXPECT_TRUE(std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
-    return (portal.a == spine && portal.b == hangar) || (portal.a == hangar && portal.b == spine);
-  }));
+  ASSERT_TRUE(spine.has_value() && *spine != rooms::kVacuumRoom) << "spine";
+  ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
+  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
+  EXPECT_NE(spine, lobby);
+  EXPECT_NE(lobby, hangar);
+  EXPECT_TRUE(Joined(graph, spine, lobby));
+  EXPECT_TRUE(Joined(graph, lobby, hangar));
 }
 
 const Eigen::Vector3i kAtriumDoorCell {231, 254, 6};
@@ -504,6 +514,40 @@ TEST(HubArrivalsHangarTest, TheHallIsASealedRoomJoinedToTheAtriumByADoor) {
   EXPECT_TRUE(std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
     return (portal.a == atrium && portal.b == hall) || (portal.a == hall && portal.b == atrium);
   }));
+}
+
+const Eigen::Vector3i kWestCorridorCell {8, 304, 6};
+const Eigen::Vector3i kOldTunnelCell {-30, 297, 6};
+const Eigen::Vector3i kOldHallCell {-135, 280, 12};
+
+TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomJoinedToTheCorridorByADoor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto corridor = graph.RoomAt(kWestCorridorCell);
+  const auto tunnel = graph.RoomAt(kOldTunnelCell);
+  const auto hall = graph.RoomAt(kOldHallCell);
+  ASSERT_TRUE(corridor.has_value() && *corridor != rooms::kVacuumRoom) << "corridor";
+  ASSERT_TRUE(tunnel.has_value() && *tunnel != rooms::kVacuumRoom) << "tunnel";
+  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << "hall";
+  EXPECT_NE(corridor, tunnel);
+  EXPECT_EQ(tunnel, hall);
+  EXPECT_TRUE(Joined(graph, corridor, hall));
+}
+
+TEST(HubDoorsTest, EveryDoorStandsOpenAtTheStart) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  int doors = 0;
+  int shut = 0;
+  world.World().each([&](const DoorState& state) {
+    ++doors;
+    shut += state.position != kDoorOpen || state.leaf_blocks;
+  });
+  EXPECT_GT(doors, 0);
+  EXPECT_EQ(shut, 0);
 }
 
 }  // namespace

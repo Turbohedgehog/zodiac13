@@ -101,11 +101,13 @@ void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interact
 
 // The doors of the blocks that came this tick, or of all of them after a restore.
 void AddStates(BlockChangeReader& reader, uint64_t restores, uint64_t tick, const BlockPalette& palette,
-               const flecs::world& world) {
+               const DoorsStartOpen& start, const flecs::world& world) {
   const BlockChangeBatch batch = reader.Read(restores, tick);
+  const DoorState first = start.open ? DoorState {.position = kDoorOpen, .open_wanted = true, .leaf_blocks = false}
+                                     : DoorState {};
   const auto add = [&](flecs::entity block, const Block& placed) {
     if (!block.has<DoorState>() && IsDoorBlock(placed, palette)) {
-      block.set(DoorState {});
+      block.set(first);
     }
   };
   if (batch.resync) {
@@ -141,7 +143,7 @@ void UpdatePortals(const flecs::query<const DoorState, const Block>& doors, cons
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<DoorState, DoorPortals>(world);
+  z13::flecs_tools::RegisterComponents<DoorState, DoorPortals, DoorsStartOpen>(world);
 }
 
 void RegisterPipeline(flecs::world world) {
@@ -151,18 +153,19 @@ void RegisterPipeline(flecs::world world) {
 
 void RegisterSystems(flecs::world world) {
   world.set(DoorPortals {});
+  world.set(DoorsStartOpen {});
 
   const auto reader = std::make_shared<BlockChangeReader>(world);
-  world.system<const BlockPalette, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
-           "DoorSystem::AddStates")
+  world.system<const BlockPalette, const DoorsStartOpen, const z13::flecs_tools::WorldRestores,
+               const z13::flecs_tools::SimulationClock>("DoorSystem::AddStates")
       .kind<z13::utility::UtilityConsumersPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<BlockChange>()
       .write<DoorState>()
-      .each([reader](flecs::iter& it, size_t, const BlockPalette& palette,
+      .each([reader](flecs::iter& it, size_t, const BlockPalette& palette, const DoorsStartOpen& start,
                      const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock) {
-        AddStates(*reader, restores.count, clock.tick, palette, it.world());
+        AddStates(*reader, restores.count, clock.tick, palette, start, it.world());
       });
 
   world.system<DoorState, const Interactions, const z13::DoorTuning>("DoorSystem::Move")

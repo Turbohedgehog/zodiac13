@@ -27,6 +27,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/door.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/station_mode.h>
 #include <primitives/blueprint.h>
@@ -90,6 +91,9 @@ void PopulateStationScene(
   }
   z13::gameplay::SpawnNamer namer(StampNow(world, z13::gameplay::kSceneSpawner));
   SpawnBlueprintWalls(world, namer, *walls, *openings);
+  if (json.and_then(z13::building::primitives::ParseBlueprintDoorsOpen).value_or(false)) {
+    world.set(z13::station::DoorsStartOpen {.open = true});
+  }
 }
 
 void RegisterSystems(flecs::world world) {
