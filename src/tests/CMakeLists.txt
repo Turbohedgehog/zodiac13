@@ -67,6 +67,7 @@ set(
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/primitives/station_viewpoints_test.cpp
+  src/lib_z13/networks/networks_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/box_tree_test.cpp
   src/lib_z13/rooms/corridor_walk_test.cpp
@@ -141,6 +142,7 @@ set(
   ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
+  ${MODULES_DIR}/station_module/tests/utility_phases_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
@@ -252,6 +254,7 @@ target_link_libraries(
   zodiac13::sectors
   zodiac13::cell_light
   zodiac13::rooms
+  zodiac13::networks
   zodiac13::touch
   GTest::gtest
   GTest::gmock
