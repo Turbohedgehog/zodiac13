@@ -755,13 +755,14 @@ def arrivals():
     edge2 = _along(edge1, ARRIVALS_OPENING_STEPS, side_step)
     start1, start2 = (meet(face, (edge, step)) for edge in (edge1, edge2))
     end1 = _along(start1, ARRIVALS_NECK_STEPS, step)
-    # The near wall's outer face runs through the first neck wall's end, so its line is `wall` cells further along y.
-    corner = (end1[0], end1[1] - wall)
-    end2 = meet((start2, step), (end1, across))
-    inner2 = (end2[0], end2[1] - wall)
-    left_near = _along(corner, -ARRIVALS_HALL_MARGIN_STEPS, across)
+    # The neck's walls run on to the near wall's hall face and share its nodes, so the game stitches the jambs.
+    hall_face = (end1[0], end1[1] - wall)
+    node1 = meet((start1, step), (hall_face, across))
+    left_near = _along(node1, -ARRIVALS_HALL_MARGIN_STEPS, across)
     right_near = _along(left_near, ARRIVALS_HALL_ACROSS_STEPS, across)
+    node2 = meet((start2, step), (left_near, across))
     left_far, right_far = (_along(point, ARRIVALS_HALL_STEPS, step) for point in (left_near, right_near))
+    corner = hall_face
 
     west, east, north, south = (-wall, 0), (wall, 0), (0, -wall), (0, wall)
     neck_polygon = [meet(((_shifted(start1, west)), step), (_shifted(face[0], (0, ARRIVALS_ENTRY_SHIFT_CELLS)), side_step)),
@@ -772,8 +773,8 @@ def arrivals():
                     meet((_shifted(right_near, east), step), (_shifted(corner, south), across)),
                     meet((_shifted(right_near, east), step), (_shifted(left_far, north), across)),
                     meet((_shifted(left_near, west), step), (_shifted(left_far, north), across))]
-    return ArrivalsGeometry((a, b, minor, thickness), ((start1, end1), (start2, end2)),
-                            ((left_near, corner), (inner2, right_near)), (left_near, left_far),
+    return ArrivalsGeometry((a, b, minor, thickness), ((start1, node1), (start2, node2)),
+                            ((left_near, node1), (node2, right_near)), (left_near, left_far),
                             (right_near, right_far), (left_far, right_far), (neck_polygon, hall_polygon))
 
 
