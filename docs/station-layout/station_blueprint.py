@@ -739,9 +739,9 @@ def split_wall(wall):
     return pieces
 
 
-def write_blueprint(path, blocks, walls=()):
+def write_blueprint(path, blocks, walls=(), doors_open=False):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
-    returns the blocks written, the long ones cut."""
+    returns the blocks written, the long ones cut. `doors_open`: the scene's doors stand open at the start."""
     blocks = [piece for entry in blocks for piece in split_long(entry)]
     walls = [piece for wall in walls for piece in split_wall(wall)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
@@ -749,6 +749,8 @@ def write_blueprint(path, blocks, walls=()):
     if walls:
         wall_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in walls]
         text += ",\n  \"walls\": [\n    " + ",\n    ".join(wall_lines) + "\n  ]"
+    if doors_open:
+        text += ',\n  "doors_open": true'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text + "\n}\n", encoding="ascii", newline="\n")
     return blocks

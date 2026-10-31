@@ -54,6 +54,15 @@ struct DoorState {
   bool operator==(const DoorState&) const = default;
 };
 
+// Whether the doors that appear start open: set by a scene whose blueprint says so, until its doors are powered.
+struct DoorsStartOpen {
+  using State = void;
+  using Singleton = void;
+  bool open {};
+
+  bool operator==(const DoorsStartOpen&) const = default;
+};
+
 // The cells of an opening a door has opened at least a little, for the renderer to see through; derived, never state.
 struct DoorOpening {
   Eigen::Vector3i min = Eigen::Vector3i::Zero();
