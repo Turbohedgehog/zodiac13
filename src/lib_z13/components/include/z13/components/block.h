@@ -21,6 +21,8 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/grid.h>
+
 namespace z13::station {
 
 // Edge of a grid cell in meters: the only place cells become world positions.
@@ -104,6 +106,8 @@ struct Block {
   using State = void;
   BlockSpec spec;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+  // The grid whose axes `cell` is in.
+  GridId grid = kMainGrid;
 
   bool operator==(const Block&) const = default;
 };
