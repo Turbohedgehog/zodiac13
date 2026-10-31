@@ -41,7 +41,8 @@ using z13::station::kDoorOpen;
 
 constexpr uint32_t kDoorId = 3;
 constexpr float kCell = z13::station::kCellSize;
-constexpr float kTolerance = 1e-5f;
+// Half of an odd position range is a unit short: a position of kDoorOpen / 2 is 1 / 65535 under half.
+constexpr float kTolerance = 1e-4f;
 
 const Block kDoor {.spec = {.type_id = kDoorId, .size = {6, 1, 10}}, .cell = {10, 10, 10}};
 
@@ -91,7 +92,7 @@ TEST(DoorLeafSystemTest, ADoorGetsItsLeafMeshAndItShrinksAsTheDoorOpens) {
   world.Tick();
 
   ASSERT_TRUE(door.has<SceneMesh>());
-  EXPECT_NEAR(HeightOf(door.get<SceneMesh>()), HeightOf(shut) / 2.f, kTolerance * 10.f);
+  EXPECT_NEAR(HeightOf(door.get<SceneMesh>()), HeightOf(shut) / 2.f, kTolerance);
   EXPECT_GT(door.get<SceneMesh>().revision, shut.revision);
 
   door.set(DoorState {.position = kDoorOpen, .open_wanted = true, .leaf_blocks = false});

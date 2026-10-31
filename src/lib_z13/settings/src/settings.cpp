@@ -147,9 +147,18 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
   return settings;
 }
 
+namespace {
+
+bool HasAllNestedTables(const Settings& settings) {
+  return settings.core && settings.connect_timeout && settings.session_timeout && settings.net && settings.physics &&
+         settings.building && settings.power && settings.door && settings.visual_smoothing && settings.render &&
+         settings.touch && settings.lan_discovery;
+}
+
+}  // namespace
+
 Status ValidateSettings(const Settings& settings) {
-  if (!settings.core || !settings.connect_timeout || !settings.session_timeout || !settings.net || !settings.physics || !settings.building ||
-      !settings.power || !settings.door || !settings.visual_smoothing || !settings.render || !settings.touch || !settings.lan_discovery) {
+  if (!HasAllNestedTables(settings)) {
     return Invalid("nested tables", "must be set");
   }
 
