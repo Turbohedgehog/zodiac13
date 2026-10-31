@@ -262,7 +262,6 @@ TEST(PaletteTest, RejectsMalformedPalettes) {
   EXPECT_FALSE(ParsePalette(R"({"primitives": [], "unknown_field": 1})").has_value());
 }
 
-// An entry with `ports`, a Port array in JSON.
 std::string WithPorts(uint32_t id, std::string_view name, std::string_view ports) {
   std::string entry = Entry(id, name);
   entry.insert(entry.rfind('}'), std::format(R"(, "ports": {})", ports));

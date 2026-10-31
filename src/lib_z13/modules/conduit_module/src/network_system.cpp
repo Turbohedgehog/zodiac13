@@ -44,7 +44,7 @@ using z13::station::Block;
 using z13::station::BlockChangeReader;
 using z13::utility::networks::StationNetworks;
 
-// The runs and ports a build used, to tell when the next tick needs another.
+// The conduits the last build used, to tell when the next tick needs another.
 struct BuildInputs {
   std::vector<Conduit> conduits;
   bool built {};

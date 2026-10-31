@@ -52,7 +52,6 @@ std::optional<uint64_t> PaletteHash(flecs::world world);
 
 // The utility modules this world runs, by name; none if no module declared any.
 std::vector<z13::utility::UtilityModule> UtilityModulesOf(flecs::world world);
-// The hello's list of them.
 std::vector<std::unique_ptr<fbs::net::ModuleDescT>> ToWire(std::span<const z13::utility::UtilityModule> modules);
 // Why a client with `client` can't join a server with `server` (both by name); nothing if the sets are the same.
 std::optional<std::string> UtilityModulesMismatch(
