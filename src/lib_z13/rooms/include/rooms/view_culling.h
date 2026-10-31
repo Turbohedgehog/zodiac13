@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -42,6 +43,8 @@ struct CameraView {
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
   // A portal narrower than this on screen, in normalized device coordinates, hides its room.
   Eigen::Vector2f min_portal_extent = Eigen::Vector2f::Zero();
+  // Openings of doors that are open, seen through (RoomView::opened); the span must outlive the ViewCulling's build.
+  std::span<const z13::building::primitives::CellBox> opened;
 };
 
 // What the camera can see: its frustum and, in the station, the rooms seen through

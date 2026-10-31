@@ -46,6 +46,10 @@ std::optional<int64_t> PortSpec::Value(std::string_view name) const {
   return found != values.end() ? std::optional(found->value) : std::nullopt;
 }
 
+bool Primitive::IsDoor() const {
+  return shape.kind == ShapeKind::kDoorFrame || Has(PrimitiveFlags::Door);
+}
+
 bool Primitive::Has(PrimitiveFlags flag) const {
   return (flags & flag) == flag;
 }

@@ -10,6 +10,7 @@ set(
     ${FBS_DIR}/actions.fbs
     ${FBS_DIR}/building_tuning.fbs
     ${FBS_DIR}/common.fbs
+    ${FBS_DIR}/door_tuning.fbs
     ${FBS_DIR}/geometry.fbs
     ${FBS_DIR}/input_config.fbs
     ${FBS_DIR}/net_tuning.fbs

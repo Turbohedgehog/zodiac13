@@ -142,6 +142,7 @@ set(
   ${MODULES_DIR}/net_module/tests/transport/in_memory_transport_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/lossy_udp_proxy.cpp
   ${MODULES_DIR}/station_module/tests/block_change_test.cpp
+  ${MODULES_DIR}/station_module/tests/door_system_test.cpp
   ${MODULES_DIR}/station_module/tests/gravity_system_test.cpp
   ${MODULES_DIR}/station_module/tests/interaction_system_test.cpp
   ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
@@ -251,6 +252,7 @@ target_link_libraries(
   zodiac13::station_module
   zodiac13::conduit_module
   zodiac13::conduit_render_module
+  zodiac13::door_render_module
   zodiac13::power_module
   zodiac13::net_module
   zodiac13::z13_launcher
@@ -282,6 +284,7 @@ if(WIN32)
       $<TARGET_FILE:zodiac13::station_module>
       $<TARGET_FILE:zodiac13::conduit_module>
       $<TARGET_FILE:zodiac13::conduit_render_module>
+      $<TARGET_FILE:zodiac13::door_render_module>
       $<TARGET_FILE:zodiac13::power_module>
       $<TARGET_FILE:zodiac13::net_module>
       $<TARGET_FILE_DIR:${PROJECT_NAME}>
@@ -324,5 +327,5 @@ if(WIN32)
 endif()
 add_dependencies(
     z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module conduit_module
-    conduit_render_module power_module test_dll_module)
+    conduit_render_module door_render_module power_module test_dll_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)

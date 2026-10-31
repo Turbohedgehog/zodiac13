@@ -52,6 +52,7 @@ Settings ServerSettings() {
   settings.building->destroy_reach_distance = 3.f;
   settings.building->spawn_clearance_cells = 12;
   settings.power->step_ticks = 4;
+  settings.door->open_ticks = 20;
   return settings;
 }
 
@@ -85,6 +86,7 @@ TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndTuning) {
   EXPECT_EQ(client.World().get<PhysicsTuning>(), *server_settings.physics);
   EXPECT_EQ(client.World().get<BuildingTuning>(), *server_settings.building);
   EXPECT_EQ(client.World().get<PowerTuning>(), *server_settings.power);
+  EXPECT_EQ(client.World().get<DoorTuning>(), *server_settings.door);
   EXPECT_EQ(client.Config().GetCoreSettings().fps, CoreSettings {}.fps) << "the configured rate stays as it was";
   EXPECT_EQ(server.World().get<NetTuning>(), *server_settings.net) << "the server keeps its own";
 }

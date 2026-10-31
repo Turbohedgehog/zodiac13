@@ -124,6 +124,8 @@ struct Primitive {
   std::vector<PortSpec> ports;
 
   bool Has(PrimitiveFlags flag) const;
+  // A door frame or a door's leaf: what a door's state belongs on.
+  bool IsDoor() const;
 };
 
 struct Palette {

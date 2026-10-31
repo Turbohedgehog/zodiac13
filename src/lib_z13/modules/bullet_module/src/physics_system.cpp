@@ -49,6 +49,7 @@
 #include <z13/components/gravity.h>
 #include <z13/components/input_phases.h>
 #include <z13/components/block.h>
+#include <z13/components/door.h>
 #include <z13/components/station_mode.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
@@ -94,13 +95,17 @@ btTransform BlockTransform(const z13::station::Block& block) {
 
 void SyncBlockBody(
     flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world, OptionalPalette palette) {
-  const BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(block.spec);
+  BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(block.spec);
+  // A door without a state yet, or in a world without doors, lets players through.
+  const auto* door = e.try_get<z13::station::DoorState>();
+  shape.door_leaf = door != nullptr && door->leaf_blocks;
   physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
     std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
-    // Until f/doors opens doors, a closed one lets players through.
-    std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
-      return solid.role == z13::building::primitives::PartRole::kDoorLeaf;
-    });
+    if (!shape.door_leaf) {
+      std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
+        return solid.role == z13::building::primitives::PartRole::kDoorLeaf;
+      });
+    }
     return z13::building::primitives::Scaled(std::move(solids), z13::station::kCellSize);
   });
   if (!e.has<RigidBody>()) {
@@ -312,6 +317,22 @@ void RegisterSystems(flecs::world world) {
                      const BlockPalette* palette) {
         SyncBlockBodies(it.world(), physics_world, *reader, restores.count, clock.tick,
                         palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
+      });
+
+  // A door's leaf blocks while the door is shut enough (DoorState::leaf_blocks); SyncBody leaves a body alone that
+  // still matches.
+  const auto doors = world.query<const z13::station::DoorState, const z13::station::Block>();
+  world.system<PhysicsWorld, const BlockPalette*>("PhysicsSystem::SyncDoorLeaves")
+      .kind<z13::gameplay::PostUpdatePhase>()
+      .read<z13::station::DoorState>()
+      .read<z13::station::Block>()
+      .write<RigidBody>()
+      .each([doors](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
+        const OptionalPalette optional_palette =
+            palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt;
+        doors.each([&](flecs::entity e, const z13::station::DoorState&, const z13::station::Block& block) {
+          SyncBlockBody(e, block, physics_world, optional_palette);
+        });
       });
 
   // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.

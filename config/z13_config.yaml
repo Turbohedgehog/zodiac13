@@ -11,4 +11,5 @@ modules:
   - modules/net_module/net_module
   - modules/raylib/raylib_module
   - modules/conduit_render_module/conduit_render_module
+  - modules/door_render_module/door_render_module
   - modules/test_dll/test_dll_module

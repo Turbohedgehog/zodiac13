@@ -56,7 +56,8 @@ ScreenRegions RegionsInView(const CameraView& view, const RoomGraph& graph, Room
                                                    .eye = EyeInCells(view),
                                                    .view_projection = cells_to_clip,
                                                    .screen = z13::math::Frustum::FullScreen(),
-                                                   .min_extent = min_extent});
+                                                   .min_extent = min_extent,
+                                                   .opened = view.opened});
 }
 
 // Whether two boxes share a point. Raw floats, not Eigen: its Debug temporaries make this loop

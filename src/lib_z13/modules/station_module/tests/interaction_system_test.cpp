@@ -61,7 +61,6 @@ constexpr std::string_view kSwitch = "Switch";
 const Eigen::Vector3i kSwitchSize {1, 1, 2};
 // Long enough to fall to the box's floor.
 constexpr int kFallTicks = 120;
-constexpr int kHeldTicks = 3;
 constexpr int kSwitchCellsAhead = 4;
 const Eigen::Vector2f kBeforeTheSwitch {3.f, 5.5f};
 const Eigen::Vector2f kBeforeTheDoor {3.f, 3.5f};
@@ -160,20 +159,18 @@ TEST_F(InteractionSystemTest, WhileBuildingTheUseKeyPicksAPrimitiveInstead) {
   EXPECT_FALSE(IsOn(switch_block));
 }
 
-// Holding use is how a door without power is cranked open (docs/station-systems-plan.md, "Двери").
-TEST_F(InteractionSystemTest, HoldingUseOnADoorInteractsEveryTickItIsHeld) {
+// Using a door by hand is how one without power is cranked open (docs/station-systems-plan.md, "Двери").
+TEST_F(InteractionSystemTest, UsingADoorInteractsOnce) {
   AddDoorPartition();
   StandAt(kBeforeTheDoor);
 
   world_.EmitInput(z13::testing::KeyDown(kUseKey));
-  for (int tick = 0; tick < kHeldTicks; ++tick) {
-    world_.Tick();
-    EXPECT_EQ(Found(world_, Methods::Hold).size(), 1u) << "tick " << tick;
-    EXPECT_TRUE(Found(world_, Methods::Use).empty()) << "a door takes no single use";
-  }
+  world_.Tick();
+  EXPECT_EQ(Found(world_, Methods::Use).size(), 1u);
+  EXPECT_TRUE(Found(world_, Methods::Hold).empty()) << "a door takes no hold";
   world_.EmitInput(z13::testing::KeyUp(kUseKey));
   world_.Tick();
-  EXPECT_TRUE(Found(world_, Methods::Hold).empty());
+  EXPECT_TRUE(Found(world_, Methods::Use).empty());
 }
 
 TEST_F(InteractionSystemTest, PresenceLastsWhileThePlayerIsInTheDoorsSensor) {

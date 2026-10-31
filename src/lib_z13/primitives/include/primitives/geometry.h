@@ -64,6 +64,8 @@ struct BlockShapeKey {
   int slant {};
   z13::station::PanelCorners corners {};
   z13::station::PanelFaceCuts face_cuts {};
+  // Physics only: the shape keeps a door's leaf, which blocks bodies.
+  bool door_leaf {};
 
   bool operator==(const BlockShapeKey&) const = default;
 };

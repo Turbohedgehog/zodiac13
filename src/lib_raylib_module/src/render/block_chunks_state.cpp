@@ -162,7 +162,8 @@ Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
 }
 
 ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) {
-  z13::building::primitives::ChunkMesh mesh = z13::building::primitives::BuildChunkMesh(blocks, palette);
+  z13::building::primitives::ChunkMesh mesh = z13::building::primitives::BuildChunkMesh(
+      blocks, palette, z13::building::primitives::DoorLeaves::kApart);
   ChunkModels chunk {.blocks = std::move(blocks), .bounds = InMeters(mesh.bounds)};
   std::ranges::transform(mesh.parts, std::back_inserter(chunk.parts), [this](const auto& part) {
     return ChunkPart {.material = part.material,

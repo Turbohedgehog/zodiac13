@@ -61,6 +61,7 @@
 #include <z13/components/player_parts.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/player_color.h>
+#include <z13/components/door.h>
 #include <z13/components/overlay_layers.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
@@ -1143,10 +1144,17 @@ void RegisterSystems(flecs::world world) {
 
         const ::Vector3& eye = raylib_camera.camera.position;
         const auto culling_start = std::chrono::steady_clock::now();
+        std::vector<z13::building::primitives::CellBox> opened;
+        if (const auto* doors = world.try_get<z13::station::DoorPortals>()) {
+          std::ranges::transform(doors->open, std::back_inserter(opened), [](const z13::station::DoorOpening& door) {
+            return z13::building::primitives::CellBox {.min = door.min, .extent = door.extent};
+          });
+        }
         const CameraView camera {
             .view_projection = CurrentViewProjection(),
             .eye = Eigen::Vector3f(eye.x, eye.y, eye.z),
             .min_portal_extent = PixelsInNdc(tuning.min_portal_pixels, size.size),
+            .opened = opened,
         };
         const SceneView view {
             .eye = eye,

@@ -225,8 +225,9 @@ size_t BlockShapeKeyHash::operator()(const BlockShapeKey& key) const {
   const size_t cornered =
       std::accumulate(key.corners.begin(), key.corners.end(), slanted,
                       [](size_t hash, int corner) { return hash * kMultiplier + std::hash<int> {}(corner); });
-  return std::accumulate(key.face_cuts.begin(), key.face_cuts.end(), cornered,
-                         [](size_t hash, int cut) { return hash * kMultiplier + std::hash<int> {}(cut); });
+  const size_t cut = std::accumulate(key.face_cuts.begin(), key.face_cuts.end(), cornered,
+                                     [](size_t hash, int cut) { return hash * kMultiplier + std::hash<int> {}(cut); });
+  return cut * kMultiplier + std::hash<bool> {}(key.door_leaf);
 }
 
 BlockShapeKey ShapeKeyOf(const z13::station::BlockSpec& spec) {

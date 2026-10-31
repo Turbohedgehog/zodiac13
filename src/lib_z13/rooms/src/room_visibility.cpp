@@ -138,6 +138,11 @@ std::optional<Eigen::AlignedBox2f> Through(
 
 // Whether the eye, looking from `from`, sees the opening's face toward `from` rather than
 // its back: it is not past the opening's far face.
+// A door that is open shows what is behind it, which a closed one's leaf hides.
+bool IsOpened(const Portal& portal, std::span<const CellBox> opened) {
+  return std::ranges::any_of(opened, [&portal](const CellBox& door) { return door.Overlaps(portal.opening); });
+}
+
 bool FacesEye(const Portal& portal, RoomId from, const Eigen::Vector3f& eye) {
   const auto axis = static_cast<Eigen::Index>(portal.axis);
   const float along = eye[axis];
@@ -192,7 +197,8 @@ ScreenRegions VisibleRooms(const RoomGraph& graph, const RoomView& view) {
     const Eigen::AlignedBox2f room_region = seen.at(room);
     for (const size_t index : graph.PortalsOf(room)) {
       const Portal& portal = graph.portals[index];
-      if (!portal.visible || portal.a == portal.b || !FacesEye(portal, room, view.eye)) {
+      if (!(portal.visible || IsOpened(portal, view.opened)) || portal.a == portal.b ||
+          !FacesEye(portal, room, view.eye)) {
         continue;
       }
       if (!sides.IntersectsSides(CornerOf(portal.opening, false), CornerOf(portal.opening, true))) {
