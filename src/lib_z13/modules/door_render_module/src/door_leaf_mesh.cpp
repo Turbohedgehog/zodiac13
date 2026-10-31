@@ -42,7 +42,8 @@ std::optional<z13::render::SceneMesh> BuildLeafMesh(
     position *= z13::station::kCellSize;
   });
   const z13::Rgba color = z13::building::primitives::MaterialOf(palette, block.spec.type_id).first;
-  return z13::render::SceneMesh {.positions = std::move(leaf.positions), .normals = std::move(leaf.normals), .color = color};
+  return z13::render::SceneMesh {
+      .positions = std::move(leaf.positions), .normals = std::move(leaf.normals), .color = color};
 }
 
 }  // namespace z13::door_render

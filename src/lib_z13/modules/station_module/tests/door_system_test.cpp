@@ -49,7 +49,7 @@ constexpr Keycode kUseKey = Keycode::KEY_E;
 const Eigen::Vector2f kBeforeTheDoor {3.f, 3.5f};
 // Long enough to fall to the box's floor.
 constexpr int kFallTicks = 120;
-// Short enough that tests stay short; the tuning is the test's own.
+// Short, to keep the tests short.
 constexpr uint32_t kOpenTicks = 10;
 constexpr uint32_t kManualTicks = 100;
 constexpr uint32_t kDelayTicks = 20;
@@ -133,7 +133,8 @@ TEST_F(DoorSystemTest, UsingADoorWithoutPowerCranksItOpenSlowlyAndItStaysOpen) {
   z13::testing::Tap(world_, kUseKey, TickOnly(world_));
   Advance(world_, kOpenTicks);
   EXPECT_GT(StateOf(door_).position, 0);
-  EXPECT_LT(StateOf(door_).position, kDoorOpen / 2) << "by hand it takes " << kManualTicks << " ticks, not " << kOpenTicks;
+  EXPECT_LT(StateOf(door_).position, kDoorOpen / 2)
+      << "by hand it takes " << kManualTicks << " ticks, not " << kOpenTicks;
   EXPECT_TRUE(StateOf(door_).leaf_blocks);
 
   Advance(world_, kManualTicks);
