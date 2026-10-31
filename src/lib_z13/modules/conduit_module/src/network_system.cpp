@@ -124,7 +124,8 @@ void RegisterSystems(flecs::world world) {
       .read<Conduit>()
       .read<z13::station::SwitchState>()
       .read<z13::station::BlockChange>()
-      .each([reader, inputs, conduits, switches](flecs::iter&, size_t, StationNetworks& stations, const ConduitKinds& kinds,
+      .each([reader, inputs, conduits, switches](flecs::iter&, size_t, StationNetworks& stations,
+                                                 const ConduitKinds& kinds,
                                        const z13::building::primitives::BlockPalette& palette,
                                        const z13::flecs_tools::WorldRestores& restores,
                                        const z13::flecs_tools::SimulationClock& clock) {

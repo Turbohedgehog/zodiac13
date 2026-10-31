@@ -57,7 +57,10 @@ void GiveFloorsAPowerPort(Z13TestWorld& world) {
   auto& palette = world.World().get_mut<z13::building::primitives::BlockPalette>().palette;
   const auto floor = std::ranges::find(palette.primitives, z13::testing::kFloorId, &z13::building::primitives::Primitive::id);
   ASSERT_NE(floor, palette.primitives.end());
-  floor->ports.push_back({.network = "power", .role = "consumer", .priority = "doors", .values = {{.name = "demand", .value = 10}}});
+  floor->ports.push_back({.network = "power",
+                          .role = "consumer",
+                          .priority = "doors",
+                          .values = {{.name = "demand", .value = 10}}});
 }
 
 flecs::entity AddFloor(Z13TestWorld& world, int x) {

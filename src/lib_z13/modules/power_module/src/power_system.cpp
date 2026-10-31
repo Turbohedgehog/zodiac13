@@ -114,7 +114,9 @@ void Apply(const NetworkParts& parts, const power::Balance& balance) {
     const flecs::entity consumer = parts.consumers[i];
     const power::Consumer& asked = parts.grid.consumers[i];
     const UtilityDemand demand {
-        .network = std::string(power::kNetworkKey), .amount = static_cast<int>(asked.watts), .priority = asked.priority};
+        .network = std::string(power::kNetworkKey),
+        .amount = static_cast<int>(asked.watts),
+        .priority = asked.priority};
     const UtilitySupply supply {.satisfied = balance.supplies[i].satisfied};
     if (const auto* held = consumer.try_get<UtilityDemand>(); held == nullptr || !(*held == demand)) {
       consumer.set(demand);
@@ -132,11 +134,13 @@ void Apply(const NetworkParts& parts, const power::Balance& balance) {
   }
 }
 
-void Update(flecs::iter& it, Balanced& balanced, z13::utility::PowerStatus& status, const StationNetworks& stations, const BlockPalette& palette,
+void Update(flecs::iter& it, Balanced& balanced, z13::utility::PowerStatus& status, const StationNetworks& stations,
+            const BlockPalette& palette,
             const z13::PowerTuning& tuning, const z13::flecs_tools::SimulationClock& clock,
             const z13::flecs_tools::WorldRestores& restores) {
   const bool step = clock.tick % tuning.step_ticks == 0;
-  const bool changed = !balanced.seen || balanced.generation != stations.generation || balanced.restores != restores.count;
+  const bool changed =
+      !balanced.seen || balanced.generation != stations.generation || balanced.restores != restores.count;
   if (!step && !changed) {
     return;
   }
