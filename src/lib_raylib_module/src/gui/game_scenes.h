@@ -38,7 +38,7 @@ struct GameScene {
   std::optional<z13::station::StationSceneChoice> station;
 };
 
-// The featured station (kFeaturedScene) first, then the spaceship, the other station blueprints
+// The default station (kDefaultScene) first, then the spaceship, the other station blueprints
 // under assets/station/blueprints/ and a new, empty station.
 std::vector<GameScene> GameScenes(const AssetSource& assets);
 

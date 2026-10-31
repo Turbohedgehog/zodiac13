@@ -36,8 +36,10 @@ inline constexpr std::string_view kTexturesDir = "textures/station";
 inline constexpr std::string_view kTextureExtension = ".png";
 inline constexpr std::string_view kPropModelsDir = "models/props";
 inline constexpr std::string_view kPropModelExtension = ".glb";
-// The largest shipped station, offered first.
+// The largest shipped station.
 inline constexpr std::string_view kFeaturedScene = "spire";
+// The station the menu offers first.
+inline constexpr std::string_view kDefaultScene = "hub";
 // The station most of the render measuring is done in.
 inline constexpr std::string_view kOctantScene = "octant";
 

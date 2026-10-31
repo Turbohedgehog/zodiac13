@@ -9,4 +9,4 @@ Deck 6 (Atrium level 6): rooms 4, doors 2, blocks 49
 Deck 7 (Atrium level 7): rooms 4, doors 2, blocks 51
 Deck 8 (Atrium top and bridge): rooms 2, doors 0, blocks 51
 
-Blueprint blocks (hub.json): 787 - Floor 91, Slope 10, Panel 10, Wall 333, Window 5, Door 40, SpawnPoint 4, Lamp 294.
+Blueprint blocks (hub.json): 1324 - Floor 617, Slope 10, Panel 10, Wall 333, Window 5, Door 40, SpawnPoint 4, Lamp 305.
