@@ -39,9 +39,9 @@ std::vector<GameScene> GameScenes(const AssetSource& assets) {
   std::ranges::transform(blueprints, std::back_inserter(scenes), [](const std::string& blueprint) {
     return GameScene {.label = blueprint, .station = z13::station::StationSceneChoice {.scene = blueprint}};
   });
-  const auto featured = std::ranges::find(scenes, z13::building::primitives::kFeaturedScene, &GameScene::label);
-  if (featured != scenes.end()) {
-    std::rotate(scenes.begin(), featured, std::next(featured));
+  const auto first = std::ranges::find(scenes, z13::building::primitives::kDefaultScene, &GameScene::label);
+  if (first != scenes.end()) {
+    std::rotate(scenes.begin(), first, std::next(first));
   }
   scenes.push_back({.label = std::string(kNewStationLabel), .station = z13::station::StationSceneChoice {}});
   return scenes;
