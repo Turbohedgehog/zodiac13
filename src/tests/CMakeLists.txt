@@ -46,6 +46,7 @@ set(
   src/lib_core/tick_log_test.cpp
   src/lib_core/tick_pacer_test.cpp
   src/lib_z13/cell_light/cell_light_test.cpp
+  src/lib_z13/components/overlay_layers_test.cpp
   src/lib_z13/grid/block_index_test.cpp
   src/lib_z13/sectors/interest_bench_test.cpp
   src/lib_z13/sectors/presence_bench_test.cpp
@@ -67,6 +68,8 @@ set(
   src/lib_z13/primitives/palette_test.cpp
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/primitives/station_viewpoints_test.cpp
+  src/lib_z13/networks/networks_test.cpp
+  src/lib_z13/power/balance_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/box_tree_test.cpp
   src/lib_z13/rooms/corridor_walk_test.cpp
@@ -115,6 +118,9 @@ set(
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_index_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
+  ${MODULES_DIR}/conduit_module/tests/network_system_test.cpp
+  ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
+  ${MODULES_DIR}/power_module/tests/power_system_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/discovery_socket_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/lan_discovery_test.cpp
   ${MODULES_DIR}/net_module/tests/discovery/network_interfaces_test.cpp
@@ -129,6 +135,7 @@ set(
   ${MODULES_DIR}/net_module/tests/session/confirm_input_test.cpp
   ${MODULES_DIR}/net_module/tests/session/light_client_test.cpp
   ${MODULES_DIR}/net_module/tests/session/relay_packing_test.cpp
+  ${MODULES_DIR}/net_module/tests/session/utility_modules_test.cpp
   ${MODULES_DIR}/net_module/tests/session/station_bounds_log_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_loss_bench_test.cpp
   ${MODULES_DIR}/net_module/tests/transport/enet_transport_test.cpp
@@ -140,6 +147,7 @@ set(
   ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
+  ${MODULES_DIR}/station_module/tests/utility_phases_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
@@ -242,6 +250,8 @@ target_link_libraries(
   zodiac13::bullet_module
   zodiac13::station_module
   zodiac13::conduit_module
+  zodiac13::conduit_render_module
+  zodiac13::power_module
   zodiac13::net_module
   zodiac13::z13_launcher
   zodiac13::settings
@@ -250,6 +260,8 @@ target_link_libraries(
   zodiac13::sectors
   zodiac13::cell_light
   zodiac13::rooms
+  zodiac13::networks
+  zodiac13::power
   zodiac13::touch
   GTest::gtest
   GTest::gmock
@@ -269,6 +281,8 @@ if(WIN32)
       $<TARGET_FILE:zodiac13::bullet_module>
       $<TARGET_FILE:zodiac13::station_module>
       $<TARGET_FILE:zodiac13::conduit_module>
+      $<TARGET_FILE:zodiac13::conduit_render_module>
+      $<TARGET_FILE:zodiac13::power_module>
       $<TARGET_FILE:zodiac13::net_module>
       $<TARGET_FILE_DIR:${PROJECT_NAME}>
   )
@@ -310,5 +324,5 @@ if(WIN32)
 endif()
 add_dependencies(
     z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module conduit_module
-    test_dll_module)
+    conduit_render_module power_module test_dll_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)

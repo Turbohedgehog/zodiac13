@@ -21,6 +21,7 @@ z13_add_plugin(
   src/conduit_module_factory.cpp
   src/conduit_run.cpp
   src/conduit_tool_system.cpp
+  src/network_system.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE
@@ -30,6 +31,7 @@ z13_add_plugin(
   zodiac13::settings
   zodiac13::primitives
   zodiac13::grid
+  zodiac13::networks
   flatbuffers::flatbuffers
   Boost::dll
 )

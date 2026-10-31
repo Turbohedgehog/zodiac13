@@ -18,11 +18,15 @@
 
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <vector>
 
 #include <flecs.h>
 
+#include <z13/components/utilities.h>
 #include <z13_settings/settings.h>
 
 #include <net_module/protocol.h>
@@ -35,6 +39,7 @@ struct AdoptedSettings {
   NetTuning own_net;
   z13::PhysicsTuning own_physics;
   z13::BuildingTuning own_building;
+  z13::PowerTuning own_power;
 };
 
 // Validated with this client's own retention, which the server's windows must fit.
@@ -45,5 +50,12 @@ void RestoreOwnSettings(flecs::world world);
 
 // Peers must place blocks from the same palette; neither having one also agrees.
 std::optional<uint64_t> PaletteHash(flecs::world world);
+
+// The utility modules this world runs, by name; none if no module declared any.
+std::vector<z13::utility::UtilityModule> UtilityModulesOf(flecs::world world);
+std::vector<std::unique_ptr<fbs::net::ModuleDescT>> ToWire(std::span<const z13::utility::UtilityModule> modules);
+// Why a client with `client` can't join a server with `server` (both by name); nothing if the sets are the same.
+std::optional<std::string> UtilityModulesMismatch(
+    std::span<const z13::utility::UtilityModule> server, const std::vector<std::unique_ptr<fbs::net::ModuleDescT>>& client);
 
 }  // namespace z13::net

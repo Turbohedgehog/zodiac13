@@ -28,6 +28,7 @@ namespace z13::building::primitives {
 // binaries, and check_duplicated_state.py allows only these.
 inline constexpr std::string_view kStationDir = "station";
 inline constexpr std::string_view kPaletteFileName = "palette.json";
+inline constexpr std::string_view kPaletteFragmentsDir = "palette";
 inline constexpr std::string_view kBlueprintsDir = "blueprints";
 inline constexpr std::string_view kBlueprintExtension = ".json";
 inline constexpr std::string_view kDecorDir = "decor";
@@ -42,6 +43,9 @@ inline constexpr std::string_view kOctantScene = "octant";
 
 // Station asset files, relative to assets/.
 std::filesystem::path PaletteFile();
+// A utility module's primitives, named by the module.
+std::filesystem::path PaletteFragmentsDir();
+std::filesystem::path PaletteFragmentFile(std::string_view module);
 std::filesystem::path BlueprintsDir();
 std::filesystem::path BlueprintFile(std::string_view scene);
 // The props of `scene`, and the model file of a prop.

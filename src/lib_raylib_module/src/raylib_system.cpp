@@ -34,6 +34,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <raylib_module/raylib_components.h>
+#include <z13/components/scene_mesh.h>
 
 #include "gui/gui_system.h"
 #include "platform/sdl_platform.h"
@@ -77,7 +78,7 @@ void ThrottleRender(flecs::world& world, z13::flecs_tools::FrameKind kind) {
     throttle.skipped_frames = draw ? 0 : throttle.skipped_frames + 1;
   }
   if (world.entity<PreRender>().enabled() != draw) {
-    SetPhasesEnabled<PreRender, Render, PostRender, FinalizeRender>(world, draw);
+    SetPhasesEnabled<z13::render::SceneMeshPhase, PreRender, Render, PostRender, FinalizeRender>(world, draw);
   }
 }
 

@@ -14,6 +14,7 @@ set(
     ${FBS_DIR}/input_config.fbs
     ${FBS_DIR}/net_tuning.fbs
     ${FBS_DIR}/physics_tuning.fbs
+    ${FBS_DIR}/power_tuning.fbs
     ${FBS_DIR}/primitives.fbs
     ${FBS_DIR}/settings.fbs
 )

@@ -20,9 +20,11 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <Eigen/Dense>
+#include <flecs.h>
 
 #include <z13/components/color.h>
 
@@ -57,6 +59,8 @@ struct Conduit {
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
   ConduitAxis axis {};
   int length = 1;
+
+  bool operator==(const Conduit&) const = default;
 };
 
 // Where the tool lays: into the cell of the aimed block (a wall, a floor panel), or in front of it.
@@ -74,6 +78,21 @@ struct ConduitDrag {
   using State = void;
   Eigen::Vector3i anchor = Eigen::Vector3i::Zero();
 };
+
+// A fixed order of runs by content, so peers and rebuilds see them alike whatever their entity ids.
+inline bool ConduitOrder(const Conduit& a, const Conduit& b) {
+  const auto key = [](const Conduit& c) {
+    return std::make_tuple(c.kind, c.cell.x(), c.cell.y(), c.cell.z(), c.axis, c.length);
+  };
+  return key(a) < key(b);
+}
+
+inline std::vector<Conduit> SortedConduits(const flecs::query<const Conduit>& query) {
+  std::vector<Conduit> conduits;
+  query.each([&conduits](const Conduit& conduit) { conduits.push_back(conduit); });
+  std::ranges::sort(conduits, ConduitOrder);
+  return conduits;
+}
 
 inline std::optional<ConduitKind> ConduitKinds::Find(uint32_t id) const {
   const auto found = std::ranges::find(kinds, id, &ConduitKind::id);

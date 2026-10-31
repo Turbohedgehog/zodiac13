@@ -45,6 +45,7 @@
 #include <z13/components/gameplay.h>
 #include <z13/components/input_events.h>
 #include <z13/components/net.h>
+#include <z13/components/overlay_layers.h>
 #include <z13/components/rooms.h>
 
 #include <raylib_module/raylib_components.h>
@@ -196,12 +197,13 @@ void RegisterSystems(flecs::world world) {
   // PostRender: build the window stack on top of the 3D scene, then render the
   // ImGui draw data. Render must be called every frame to match NewFrame.
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
-               z13::input::TouchControls*, const z13::TouchLayout*, const z13::net::ConnectionStatus*,
+               z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*, const z13::net::ConnectionStatus*,
                gui::PendingTransition*>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
-               const RenderStats* render, z13::station::RoomOverlay* rooms, z13::input::TouchControls* touch,
+               const RenderStats* render, z13::station::RoomOverlay* rooms, z13::station::OverlayLayers* layers,
+               z13::input::TouchControls* touch,
                const z13::TouchLayout* touch_layout, const z13::net::ConnectionStatus* connection,
                gui::PendingTransition* pending) {
         flecs::world world = it.world();
@@ -266,7 +268,15 @@ void RegisterSystems(flecs::world world) {
             rooms->mode = z13::NextEnumerator(rooms->mode);
           }
           if (rooms->mode != z13::station::RoomOverlayMode::kOff) {
-            gui::DrawRoomLabel(rooms->label, overlay_top);
+            overlay_top = gui::DrawRoomLabel(rooms->label, overlay_top);
+          }
+        }
+        if (layers != nullptr) {
+          if (ImGui::IsKeyPressed(gui::kLayerOverlayKey, false) && !ImGui::GetIO().WantTextInput) {
+            layers->Step();
+          }
+          if (const auto* layer = layers->shown ? layers->Find(*layers->shown) : nullptr) {
+            gui::DrawLayerLabel(layer->label, overlay_top);
           }
         }
         if (pending != nullptr) {

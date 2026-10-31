@@ -324,6 +324,7 @@ void SendClientHello(flecs::world world, NetSession& session, ConnectionId serve
   if (const auto palette_hash = PaletteHash(world)) {
     hello.palette_hash = *palette_hash;
   }
+  hello.modules = ToWire(UtilityModulesOf(world));
   for (const zgi::ActionDescriptor& action : zgi::DescribeActions(world.get<z13::input::ActionMap>())) {
     auto described = std::make_unique<fbn::ActionDescT>();
     described->enum_name = action.enum_name;

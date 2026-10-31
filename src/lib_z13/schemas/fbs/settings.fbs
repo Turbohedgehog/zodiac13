@@ -18,6 +18,7 @@ include "building_tuning.fbs";
 include "core_settings.fbs";
 include "net_tuning.fbs";
 include "physics_tuning.fbs";
+include "power_tuning.fbs";
 
 // The game's settings.json, next to the input config.
 
@@ -141,6 +142,7 @@ table Settings {
   net: z13.fbs.net.NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;
+  power: z13.fbs.power.PowerTuning;
   visual_smoothing: VisualSmoothing;
   render: RenderTuning;
   touch: TouchLayout;

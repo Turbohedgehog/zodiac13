@@ -17,14 +17,34 @@
 
 #include "conduit_module.h"
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+
 #include <flecs.h>
 
+#include <lib_core/world/lifecycle.h>
+#include <z13/components/utilities.h>
+
 #include "conduit_tool_system.h"
+#include "network_system.h"
 
 namespace z13::conduit {
 
+namespace {
+
+constexpr std::string_view kModuleName = "conduit";
+constexpr uint32_t kModuleVersion = 1;
+
+}  // namespace
+
 ConduitModule::ConduitModule(flecs::world& world) {
   ConduitToolSystem::Register(world);
+  NetworkSystem::Register(world);
+  // In the phases stage, once building_module has made the list (see UtilityModules).
+  z13::OnInitPhases(world, [](flecs::world& w) {
+    z13::utility::DeclareUtilityModule(w, {.name = std::string(kModuleName), .version = kModuleVersion});
+  });
 }
 
 }  // namespace z13::conduit

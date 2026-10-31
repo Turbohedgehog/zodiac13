@@ -56,6 +56,9 @@ z13_add_plugin(
   src/render/lights.cpp
   src/render/render_resources.cpp
   src/render/render_tour.cpp
+  src/render/scene_mesh_system.cpp
+  src/render/scene_meshes.cpp
+  src/render/scene_meshes_state.cpp
   src/render/shadow_maps.cpp
   src/render/shadow_maps_state.cpp
   src/render/skybox.cpp

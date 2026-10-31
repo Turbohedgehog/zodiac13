@@ -22,6 +22,7 @@
 include "net_tuning.fbs";
 include "physics_tuning.fbs";
 include "building_tuning.fbs";
+include "power_tuning.fbs";
 include "world_snapshot.fbs";
 
 namespace z13.fbs.net;
@@ -86,10 +87,17 @@ table ActionDesc {
   enum_value: long;
 }
 
+// A module that runs a utility network (power, gas, ...); peers must run the same ones.
+table ModuleDesc {
+  name: string;
+  version: uint;
+}
+
 table ClientHello {
   version: uint;
   actions: [ActionDesc];  // every action the client has, in its own order
   palette_hash: ulong = null;  // the station block palette's, if loaded
+  modules: [ModuleDesc];  // the utility modules loaded, by name
 }
 
 table CommandBatch {
@@ -139,6 +147,7 @@ table Welcome {
   tuning: NetTuning;
   physics: z13.fbs.physics.PhysicsTuning;
   building: z13.fbs.building.BuildingTuning;
+  power: z13.fbs.power.PowerTuning;
 }
 
 table Rejected {

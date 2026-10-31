@@ -61,6 +61,7 @@
 #include <z13/components/player_parts.h>
 #include <z13/components/action_listener.h>
 #include <z13/components/player_color.h>
+#include <z13/components/overlay_layers.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/block_brush.h>
@@ -80,6 +81,7 @@
 #include "block_chunks.h"
 #include "block_meshes.h"
 #include "cell_lighting.h"
+#include "scene_meshes.h"
 #include "frame_profile.h"
 #include "lights.h"
 #include "render_components.h"
@@ -442,22 +444,19 @@ void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
 // The debug overlay's boxes as wireframes, when it is on: on the default shader and texture
 // (the block shader would light the lines by view angle) and past the depth test, as the
 // edges lie on the walls' own faces.
-void DrawRoomOverlay(const flecs::world& world) {
-  const auto* overlay = world.try_get<z13::station::RoomOverlay>();
-  if (overlay == nullptr || overlay->mode == z13::station::RoomOverlayMode::kOff) {
-    return;
-  }
+void DrawOverlayLines(std::span<const z13::station::OverlayBox> boxes,
+                      std::span<const z13::station::OverlaySegment> segments) {
   rlDrawRenderBatchActive();
   rlSetShader(rlGetShaderIdDefault(), rlGetShaderLocsDefault());
   rlSetTexture(rlGetTextureIdDefault());
   rlDisableDepthTest();
   rlBegin(RL_LINES);
-  for (const z13::station::OverlayBox& box : overlay->boxes) {
+  for (const z13::station::OverlayBox& box : boxes) {
     rlColor4ub(box.color[0], box.color[1], box.color[2], box.color[3]);
     AddBoxEdges(box.min.cast<float>() * z13::station::kCellSize,
                 (box.min + box.extent).cast<float>() * z13::station::kCellSize);
   }
-  for (const z13::station::OverlaySegment& segment : overlay->segments) {
+  for (const z13::station::OverlaySegment& segment : segments) {
     rlColor4ub(segment.color[0], segment.color[1], segment.color[2], segment.color[3]);
     const Eigen::Vector3f from = segment.a * z13::station::kCellSize;
     const Eigen::Vector3f to = segment.b * z13::station::kCellSize;
@@ -467,6 +466,23 @@ void DrawRoomOverlay(const flecs::world& world) {
   rlEnd();
   rlDrawRenderBatchActive();
   rlEnableDepthTest();
+}
+
+void DrawRoomOverlay(const flecs::world& world) {
+  const auto* overlay = world.try_get<z13::station::RoomOverlay>();
+  if (overlay == nullptr || overlay->mode == z13::station::RoomOverlayMode::kOff) {
+    return;
+  }
+  DrawOverlayLines(overlay->boxes, overlay->segments);
+}
+
+// The layer a module publishes (z13/components/overlay_layers.h), if one is shown.
+void DrawLayerOverlay(const flecs::world& world) {
+  const auto* layers = world.try_get<z13::station::OverlayLayers>();
+  const z13::station::OverlayLayer* layer = layers != nullptr && layers->shown ? layers->Find(*layers->shown) : nullptr;
+  if (layer != nullptr) {
+    DrawOverlayLines(layer->boxes, {});
+  }
 }
 
 // The lines the brushes' previews carry (a wall's stick and the arrow along its axis), on the
@@ -886,6 +902,9 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
       StopChecker(lighting);
       props->Draw(view.culling);
     }
+    if (const auto* scene_meshes = world.try_get<SceneMeshes>()) {
+      scene_meshes->Draw(view.culling, lighting);
+    }
     rlDrawRenderBatchActive();
   });
 
@@ -903,6 +922,7 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   stats.times.overlay_ms = MsOf([&] {
     StopChecker(lighting);
     DrawRoomOverlay(world);
+    DrawLayerOverlay(world);
     DrawBrushLines(brushes);
   });
   stats.times.release_ms = MsOf([&] { drawing.meshes.get().ReleaseUnused(); });
@@ -957,6 +977,7 @@ void RegisterSystems(flecs::world world) {
         }
         world.set<ShadowMaps>(ShadowMaps(shadow_shader));
         world.set<CellLighting>({});
+        world.set<SceneMeshes>({});
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox(assets.source));
         const auto config = z13::GetCoreConfig(world);

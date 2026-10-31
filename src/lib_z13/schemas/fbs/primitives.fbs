@@ -101,6 +101,21 @@ table LightSource {
   intensity: float = 1;
 }
 
+// How a block of the primitive joins a utility network (docs/station-systems-plan.md, "Модули и коммуникации").
+// The core keeps the strings and numbers; the module of the network checks `role`, `priority` and the value names.
+table PortValue {
+  name: string;
+  value: long;
+}
+
+table Port {
+  network: string;
+  role: string;
+  priority: string;
+  // Numbers only the network's module reads: power takes `demand` and `capacity`.
+  values: [PortValue];
+}
+
 table Primitive {
   // Stable: block state stores it, so reordering the palette keeps saves valid.
   id: uint;
@@ -117,6 +132,7 @@ table Primitive {
   // The share of a lamp's light a Transparent primitive lets through (cell_light); others block it.
   light_transmission: float = 1;
   interaction: Interaction;
+  ports: [Port];
 }
 
 table Palette {

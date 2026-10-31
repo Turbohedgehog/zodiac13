@@ -28,6 +28,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <z13/components/player_action.h>
+#include <z13/components/utilities.h>
 #include <z13_module/input/action_negotiation.h>
 #include <z13_settings/net_tuning.h>
 
@@ -51,6 +52,7 @@ struct LightClientSetup {
   std::vector<z13::gameplay::input::ActionDescriptor> actions;
   LightActions sent;
   std::optional<uint64_t> palette_hash;
+  std::vector<z13::utility::UtilityModule> modules;
 };
 
 std::expected<LightClientSetup, std::string> MakeLightClientSetup(flecs::world world);
