@@ -105,6 +105,7 @@ Status SendWelcome(
   welcome.tuning = std::make_unique<fbs::net::NetTuningT>(TuningForClients(world.get<NetTuning>(), dedicated));
   welcome.physics = std::make_unique<fbs::physics::PhysicsTuningT>(world.get<z13::PhysicsTuning>());
   welcome.building = std::make_unique<fbs::building::BuildingTuningT>(world.get<z13::BuildingTuning>());
+  welcome.power = std::make_unique<fbs::power::PowerTuningT>(world.get<z13::PowerTuning>());
 
   Envelope envelope;
   envelope.body.Set(std::move(welcome));

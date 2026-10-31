@@ -41,6 +41,11 @@ bool Interaction::Accepts(InteractionMethods method) const {
   return (methods & method) == method;
 }
 
+std::optional<int64_t> PortSpec::Value(std::string_view name) const {
+  const auto found = std::ranges::find(values, name, &PortValue::name);
+  return found != values.end() ? std::optional(found->value) : std::nullopt;
+}
+
 bool Primitive::Has(PrimitiveFlags flag) const {
   return (flags & flag) == flag;
 }
@@ -114,10 +119,14 @@ std::expected<std::vector<PortSpec>, std::string> ToPorts(
     if (std::ranges::contains(ports, port->network, &PortSpec::network)) {
       return Error(std::format("two ports on network '{}'", port->network));
     }
-    ports.push_back({.network = port->network,
-                     .role = port->role,
-                     .demand = port->demand,
-                     .priority = port->priority});
+    PortSpec spec {.network = port->network, .role = port->role, .priority = port->priority};
+    for (const auto& value : port->values) {
+      if (value->name.empty() || value->value < 0 || spec.Value(value->name)) {
+        return Error(std::format("port '{}' has a nameless, repeated or negative value", port->network));
+      }
+      spec.values.push_back({.name = value->name, .value = value->value});
+    }
+    ports.push_back(std::move(spec));
   }
   return ports;
 }

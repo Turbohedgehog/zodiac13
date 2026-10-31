@@ -39,6 +39,7 @@ struct AdoptedSettings {
   NetTuning own_net;
   z13::PhysicsTuning own_physics;
   z13::BuildingTuning own_building;
+  z13::PowerTuning own_power;
 };
 
 // Validated with this client's own retention, which the server's windows must fit.

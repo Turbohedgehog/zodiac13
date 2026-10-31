@@ -34,6 +34,8 @@ inline constexpr ImGuiKey kStatsOverlayKey = ImGuiKey_F3;
 inline constexpr ImGuiKey kRoomOverlayKey = ImGuiKey_F4;
 // Copies the frame report of the last seconds to the clipboard and saves it.
 inline constexpr ImGuiKey kProfileCaptureKey = ImGuiKey_F5;
+// Steps through the layers modules publish (z13/components/overlay_layers.h): off, each in turn, off.
+inline constexpr ImGuiKey kLayerOverlayKey = ImGuiKey_F6;
 inline constexpr ImGuiKey kDebugViewPreviousKey = ImGuiKey_F11;
 inline constexpr ImGuiKey kDebugViewNextKey = ImGuiKey_F12;
 

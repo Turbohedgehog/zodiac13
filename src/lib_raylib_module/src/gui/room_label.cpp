@@ -22,12 +22,26 @@
 
 namespace z13::raylib::gui {
 
-void DrawRoomLabel(const std::string& label, float top) {
+float DrawRoomLabel(const std::string& label, float top) {
   PlaceOverlay(top);
+  float next_top = top;
   if (ImGui::Begin("##room_label", nullptr, kOverlayFlags)) {
     ImGui::TextUnformatted(label.empty() ? "No room" : label.c_str());
+    next_top = OverlayTopBelow();
   }
   ImGui::End();
+  return next_top;
+}
+
+float DrawLayerLabel(const std::string& label, float top) {
+  PlaceOverlay(top);
+  float next_top = top;
+  if (ImGui::Begin("##layer_label", nullptr, kOverlayFlags)) {
+    ImGui::TextUnformatted(label.c_str());
+    next_top = OverlayTopBelow();
+  }
+  ImGui::End();
+  return next_top;
 }
 
 }  // namespace z13::raylib::gui

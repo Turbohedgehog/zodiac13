@@ -41,12 +41,16 @@ struct UtilityDemand {
   int amount {};
   // Lower is served first when the network falls short.
   uint8_t priority {};
+
+  bool operator==(const UtilityDemand&) const = default;
 };
 
 // What the network module gave a consumer; derived, never state. A consumer without one has no network module
 // behind it, and counts as supplied.
 struct UtilitySupply {
   bool satisfied {};
+
+  bool operator==(const UtilitySupply&) const = default;
 };
 
 // On the entity of a module that runs a network.

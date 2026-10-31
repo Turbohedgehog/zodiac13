@@ -44,6 +44,7 @@ inline constexpr std::string_view kOctantScene = "octant";
 // Station asset files, relative to assets/.
 std::filesystem::path PaletteFile();
 // A utility module's primitives, named by the module.
+std::filesystem::path PaletteFragmentsDir();
 std::filesystem::path PaletteFragmentFile(std::string_view module);
 std::filesystem::path BlueprintsDir();
 std::filesystem::path BlueprintFile(std::string_view scene);

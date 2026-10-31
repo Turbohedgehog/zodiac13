@@ -7,6 +7,7 @@ modules:
   - modules/bullet_module/bullet_module
   - modules/station_module/station_module
   - modules/conduit_module/conduit_module
+  - modules/power_module/power_module
   - modules/net_module/net_module
   - modules/raylib/raylib_module
   - modules/conduit_render_module/conduit_render_module

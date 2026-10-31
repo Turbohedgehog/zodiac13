@@ -102,12 +102,18 @@ table LightSource {
 }
 
 // How a block of the primitive joins a utility network (docs/station-systems-plan.md, "Модули и коммуникации").
-// The core keeps the strings; the module of the network checks `role` and `priority`.
+// The core keeps the strings and numbers; the module of the network checks `role`, `priority` and the value names.
+table PortValue {
+  name: string;
+  value: long;
+}
+
 table Port {
   network: string;
   role: string;
-  demand: uint;
   priority: string;
+  // Numbers only the network's module reads: power takes `demand` and `capacity`.
+  values: [PortValue];
 }
 
 table Primitive {

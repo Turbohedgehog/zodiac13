@@ -1,0 +1,179 @@
+{
+  "primitives": [
+    {
+      "id": 40,
+      "name": "Reactor",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "max_size": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "material": {
+        "first": {
+          "r": 230,
+          "g": 140,
+          "b": 40,
+          "a": 255
+        },
+        "second": {
+          "r": 205,
+          "g": 115,
+          "b": 15,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "producer",
+          "values": [
+            {
+              "name": "output",
+              "value": 5000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "Battery",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 2,
+        "y": 2,
+        "z": 2
+      },
+      "max_size": {
+        "x": 2,
+        "y": 2,
+        "z": 2
+      },
+      "material": {
+        "first": {
+          "r": 90,
+          "g": 150,
+          "b": 90,
+          "a": 255
+        },
+        "second": {
+          "r": 65,
+          "g": 125,
+          "b": 65,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "storage",
+          "values": [
+            {
+              "name": "capacity",
+              "value": 216000000
+            },
+            {
+              "name": "rate",
+              "value": 2000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "Breaker",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 1,
+        "y": 1,
+        "z": 2
+      },
+      "max_size": {
+        "x": 1,
+        "y": 1,
+        "z": 2
+      },
+      "material": {
+        "first": {
+          "r": 200,
+          "g": 200,
+          "b": 60,
+          "a": 255
+        },
+        "second": {
+          "r": 175,
+          "g": 175,
+          "b": 35,
+          "a": 255
+        }
+      },
+      "flags": "Solid Switch",
+      "ports": [
+        {
+          "network": "power",
+          "role": "conductor",
+          "values": []
+        }
+      ],
+      "interaction": {
+        "methods": "Use"
+      }
+    },
+    {
+      "id": 43,
+      "name": "Terminal",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 2,
+        "y": 1,
+        "z": 2
+      },
+      "max_size": {
+        "x": 2,
+        "y": 1,
+        "z": 2
+      },
+      "material": {
+        "first": {
+          "r": 70,
+          "g": 110,
+          "b": 170,
+          "a": 255
+        },
+        "second": {
+          "r": 45,
+          "g": 85,
+          "b": 145,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "consumer",
+          "priority": "other",
+          "values": [
+            {
+              "name": "demand",
+              "value": 200
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
