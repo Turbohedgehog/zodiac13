@@ -30,9 +30,17 @@
 
 namespace z13::net {
 
+namespace {
+
+bool HasSessionTables(const fbs::net::WelcomeT& welcome) {
+  return welcome.tuning && welcome.physics && welcome.building && welcome.power && welcome.door;
+}
+
+}  // namespace
+
 std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(
     flecs::world world, const fbs::net::WelcomeT& welcome) {
-  if (!welcome.tuning || !welcome.physics || !welcome.building || !welcome.power || !welcome.door) {
+  if (!HasSessionTables(welcome)) {
     return std::unexpected("server sent no settings");
   }
   const z13::SessionSettings session {
