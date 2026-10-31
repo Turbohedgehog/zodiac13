@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -37,14 +38,16 @@ enum class DoorMode : uint8_t {
   kWelded,
 };
 
-// A door's leaf at rest is closed (0) and fully open at this, in thousandths.
-inline constexpr int kDoorOpen = 1000;
+// How far open a door's leaf is, from shut (0) to fully open (kDoorOpen): the whole range of the type, whole numbers
+// all through so peers agree.
+using DoorPosition = uint16_t;
+inline constexpr int kDoorOpen = std::numeric_limits<DoorPosition>::max();
 
 // On the block of a door primitive, added when the block appears; a door is shut and automatic at first.
 struct DoorState {
   using State = void;
   DoorMode mode {};
-  int position {};
+  DoorPosition position {};
   bool open_wanted {};
   // Ticks an automatic door keeps open after the last body left its sensor.
   int hold_ticks {};

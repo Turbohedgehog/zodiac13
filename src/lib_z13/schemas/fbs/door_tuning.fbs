@@ -27,6 +27,7 @@ table DoorTuning {
   manual_open_ticks: uint32 = 180 (min: 1, max: 6000, cli);
   // Ticks an automatic door stays open after the last body left its sensor.
   close_delay_ticks: uint32 = 120 (min: 0, max: 6000, cli);
-  // How far open a door must be, in thousandths, for its leaf to stop blocking bodies.
-  passable_position: int32 = 700 (min: 0, max: 1000, cli);
+  // How far open a door must be, as DoorState::position (0 shut, 65535 open), for its leaf to stop blocking bodies:
+  // the default is 70 %.
+  passable_position: uint32 = 45875 (min: 0, max: 65535, cli);
 }
