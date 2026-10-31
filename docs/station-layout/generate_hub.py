@@ -413,7 +413,8 @@ def ring_walls():
     railings."""
     walls = []
     for number in range(1, DECKS + 1):
-        walls += atrium_wall_segments(number, (STUB_SIDE,) if number <= SPINE_B_DECKS else ())
+        skipped = (STUB_SIDE,) if number <= SPINE_B_DECKS else ()
+        walls += atrium_wall_segments(number, skipped + (ARRIVALS_SIDE,) * (number == 1))
     for index in range(DECKS + 1):
         walls += [wall_segment(a, b, thickness, SLAB_CELLS) for a, b, thickness in ring_segments(index)]
         if index in (0, DECKS):
@@ -703,6 +704,126 @@ def freight_blocks():
     return blocks
 
 
+# ----- The arrivals hangar -------------------------------------------------------------------
+
+# A hall of two decks off the atrium's north-east 45-degree side, the mirror of the east spine's: a door on deck 1,
+# a neck at the lattice step (5, -6), 50 degrees, and the hall, a lattice rectangle across it. The walls are two
+# decks high, the floor and ceiling masks of cells (the neck and the hall meet at an angle no strip fits).
+ARRIVALS_SIDE = 10
+ARRIVALS_STEP = (5, -6)
+ARRIVALS_ACROSS = (6, 5)
+ARRIVALS_OPENING_OFFSET_STEPS = 3  # wall steps from the atrium side's first node
+ARRIVALS_OPENING_STEPS = 13
+ARRIVALS_NECK_STEPS = 7
+ARRIVALS_HALL_STEPS = 13  # along the neck
+ARRIVALS_HALL_ACROSS_STEPS = 11
+ARRIVALS_HALL_MARGIN_STEPS = 4  # from the neck's first wall to the hall's
+ARRIVALS_WALL_CELLS = 2  # the least that holds air back at 40 degrees from an axis
+ARRIVALS_DECKS = 2
+ARRIVALS_HEIGHT_CELLS = ARRIVALS_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+ARRIVALS_FLOOR_LAYERS = (0, ARRIVALS_DECKS)
+ARRIVALS_NECK_LAMP_STEPS = (2, 5)
+ARRIVALS_HALL_LAMP_STEPS = (3, 7, 11)
+ARRIVALS_HALL_LAMP_ROWS = (-3, 0, 3)  # across the hall, in steps of ARRIVALS_ACROSS from its middle
+ARRIVALS_ENTRY_SHIFT_CELLS = 6  # how far the floor mask reaches into the ring, which keeps its own cells
+
+
+class ArrivalsGeometry(NamedTuple):
+    side: tuple  # node a, node b, minor axis, thickness of the atrium's side
+    neck: tuple  # the two neck walls' nodes: start, end
+    near: tuple  # the hall's near wall's two pieces' nodes: (hall corner, neck wall end) and (neck wall end, corner)
+    left: tuple  # the hall's side walls' nodes
+    right: tuple
+    far: tuple
+    floor: tuple  # the convex polygons the floor covers: the neck and the hall, outer lines
+
+
+def _scaled(step, times):
+    return step[0] * times, step[1] * times
+
+
+@functools.cache
+def arrivals():
+    a, b, minor, thickness = oblique_sides()[ARRIVALS_SIDE]
+    side_step = (1, 1)
+    assert (b[0] - a[0], b[1] - a[1]) == _scaled(side_step, ARRIVALS_OPENING_OFFSET_STEPS + ARRIVALS_OPENING_STEPS + 3)
+    assert minor == 1 and thickness < 0, "the hall is drawn for the north-east 45-degree side"
+    wall = ARRIVALS_WALL_CELLS
+    step, across = ARRIVALS_STEP, ARRIVALS_ACROSS
+    face = ((a[0], a[1] + thickness), side_step)
+    edge1 = _along(a, ARRIVALS_OPENING_OFFSET_STEPS, side_step)
+    edge2 = _along(edge1, ARRIVALS_OPENING_STEPS, side_step)
+    start1, start2 = (meet(face, (edge, step)) for edge in (edge1, edge2))
+    end1 = _along(start1, ARRIVALS_NECK_STEPS, step)
+    # The near wall's outer face runs through the first neck wall's end, so its line is `wall` cells further along y.
+    corner = (end1[0], end1[1] - wall)
+    end2 = meet((start2, step), (end1, across))
+    inner2 = (end2[0], end2[1] - wall)
+    left_near = _along(corner, -ARRIVALS_HALL_MARGIN_STEPS, across)
+    right_near = _along(left_near, ARRIVALS_HALL_ACROSS_STEPS, across)
+    left_far, right_far = (_along(point, ARRIVALS_HALL_STEPS, step) for point in (left_near, right_near))
+
+    west, east, north, south = (-wall, 0), (wall, 0), (0, -wall), (0, wall)
+    neck_polygon = [meet(((_shifted(start1, west)), step), (_shifted(face[0], (0, ARRIVALS_ENTRY_SHIFT_CELLS)), side_step)),
+                    meet(((_shifted(start2, east)), step), (_shifted(face[0], (0, ARRIVALS_ENTRY_SHIFT_CELLS)), side_step)),
+                    meet((_shifted(start2, east), step), (corner, across)),
+                    meet((_shifted(start1, west), step), (corner, across))]
+    hall_polygon = [meet((_shifted(left_near, west), step), (_shifted(corner, south), across)),
+                    meet((_shifted(right_near, east), step), (_shifted(corner, south), across)),
+                    meet((_shifted(right_near, east), step), (_shifted(left_far, north), across)),
+                    meet((_shifted(left_near, west), step), (_shifted(left_far, north), across))]
+    return ArrivalsGeometry((a, b, minor, thickness), ((start1, end1), (start2, end2)),
+                            ((left_near, corner), (inner2, right_near)), (left_near, left_far),
+                            (right_near, right_far), (left_far, right_far), (neck_polygon, hall_polygon))
+
+
+def arrivals_atrium_wall(number):
+    """The atrium's side on deck `number`, with the hall's door on deck 1."""
+    a, b, _, thickness = arrivals().side
+    door = wall_opening(ARRIVALS_OPENING_OFFSET_STEPS, ARRIVALS_OPENING_STEPS, DOOR_HEIGHT_CELLS)
+    return wall_segment((*a, deck_floor_z(number)), (*b, deck_floor_z(number)), thickness, wall_height(number),
+                        openings=[door] if number == 1 else ())
+
+
+def arrivals_walls():
+    g = arrivals()
+    z, wall, height = deck_floor_z(1), ARRIVALS_WALL_CELLS, ARRIVALS_HEIGHT_CELLS
+
+    def line(nodes, thickness):
+        return wall_segment((*nodes[0], z), (*nodes[1], z), thickness, height)
+
+    walls = [line(g.neck[0], -wall), line(g.neck[1], wall), line(g.left, -wall), line(g.right, wall),
+             line(g.far, -wall)]
+    walls += [line(piece, wall) for piece in g.near]
+    return walls
+
+
+def arrivals_floor_mask():
+    """The cells under the neck and the hall that the gallery ring doesn't hold."""
+    polygons = arrivals().floor
+    xs, ys = [p[0] for polygon in polygons for p in polygon], [p[1] for polygon in polygons for p in polygon]
+    mask = [[False] * (max(xs) + 2) for _ in range(max(ys) + 2)]
+    ring = ring_cells()
+    for y in range(min(ys) - 1, max(ys) + 1):
+        for x in range(min(xs) - 1, max(xs) + 1):
+            if (x, y) not in ring and any(strictly_overlap(polygon, x, y) for polygon in polygons):
+                mask[y][x] = True
+    return mask
+
+
+def arrivals_blocks():
+    g = arrivals()
+    mask = arrivals_floor_mask()
+    blocks = [entry for layer in ARRIVALS_FLOOR_LAYERS for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
+    lamp_z = deck_floor_z(1) + ARRIVALS_HEIGHT_CELLS - 1
+    neck_start = ((g.neck[0][0][0] + g.neck[1][0][0]) // 2, (g.neck[0][0][1] + g.neck[1][0][1]) // 2)
+    spots = [_along(neck_start, steps, ARRIVALS_STEP) for steps in ARRIVALS_NECK_LAMP_STEPS]
+    middle = _along(g.left[0], ARRIVALS_HALL_ACROSS_STEPS // 2, ARRIVALS_ACROSS)
+    for steps in ARRIVALS_HALL_LAMP_STEPS:
+        spots += [_along(_along(middle, steps, ARRIVALS_STEP), row, ARRIVALS_ACROSS) for row in ARRIVALS_HALL_LAMP_ROWS]
+    return blocks + [block(LAMP, (x - 1, y - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1)) for x, y in spots]
+
+
 # ----- Drawing ------------------------------------------------------------------------------
 
 class HubDeck(Deck):
@@ -945,7 +1066,7 @@ def station_blocks(decks):
             deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
-    blocks += freight_blocks()
+    blocks += freight_blocks() + arrivals_blocks()
     ceilings = ring_ceiling_blocks()
     for deck in decks:
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
@@ -977,7 +1098,8 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, ring_walls() + spine_b_walls() + freight_walls())
+    walls = ring_walls() + spine_b_walls() + freight_walls() + arrivals_walls() + [arrivals_atrium_wall(1)]
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls)
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
