@@ -30,6 +30,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
+#include <z13/components/overlay_layers.h>
 #include <z13/components/player.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
@@ -198,12 +199,13 @@ void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCach
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RoomOverlay, RoomBoxCache>(world);
+  z13::flecs_tools::RegisterComponents<RoomOverlay, RoomBoxCache, OverlayLayers>(world);
 }
 
 void RegisterSystems(flecs::world world) {
   world.set(RoomOverlay {});
   world.set(RoomBoxCache {});
+  world.set(OverlayLayers {});
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
   world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer, const BlockIndex,

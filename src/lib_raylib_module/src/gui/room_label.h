@@ -20,6 +20,8 @@
 
 namespace z13::raylib::gui {
 
-void DrawRoomLabel(const std::string& label, float top);
+// Both return where the next overlay starts.
+float DrawRoomLabel(const std::string& label, float top);
+float DrawLayerLabel(const std::string& label, float top);
 
 }  // namespace z13::raylib::gui

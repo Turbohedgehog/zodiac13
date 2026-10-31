@@ -51,6 +51,7 @@ Settings ServerSettings() {
   settings.physics->max_sweep_iterations = 5;
   settings.building->destroy_reach_distance = 3.f;
   settings.building->spawn_clearance_cells = 12;
+  settings.power->step_ticks = 4;
   return settings;
 }
 
@@ -83,6 +84,7 @@ TEST(SessionSettingsTest, ClientRunsOnTheServersFpsAndTuning) {
   EXPECT_EQ(client.World().get<NetTuning>(), expected) << "a dedicated server hands out its own clock lead";
   EXPECT_EQ(client.World().get<PhysicsTuning>(), *server_settings.physics);
   EXPECT_EQ(client.World().get<BuildingTuning>(), *server_settings.building);
+  EXPECT_EQ(client.World().get<PowerTuning>(), *server_settings.power);
   EXPECT_EQ(client.Config().GetCoreSettings().fps, CoreSettings {}.fps) << "the configured rate stays as it was";
   EXPECT_EQ(server.World().get<NetTuning>(), *server_settings.net) << "the server keeps its own";
 }

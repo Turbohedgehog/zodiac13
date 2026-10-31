@@ -268,14 +268,20 @@ std::string WithPorts(uint32_t id, std::string_view name, std::string_view ports
   return entry;
 }
 
-constexpr std::string_view kPowerPort = R"([{"network": "power", "role": "consumer", "demand": 50, "priority": "doors"}])";
+constexpr std::string_view kPowerPort = R"([{"network": "power", "role": "consumer", "priority": "doors",
+                                            "values": [{"name": "demand", "value": 50}]}])";
 
 TEST(PaletteTest, ParsesAPrimitivesPorts) {
   const auto palette = ParsePalette(Palette(WithPorts(1, "Lamp", kPowerPort)));
   ASSERT_TRUE(palette.has_value()) << palette.error();
 
   EXPECT_EQ(palette->primitives.front().ports,
-            (std::vector<PortSpec> {{.network = "power", .role = "consumer", .demand = 50, .priority = "doors"}}));
+            (std::vector<PortSpec> {{.network = "power",
+                                .role = "consumer",
+                                .priority = "doors",
+                                .values = {{.name = "demand", .value = 50}}}}));
+  EXPECT_EQ(palette->primitives.front().ports.front().Value("demand"), std::optional<int64_t> {50});
+  EXPECT_EQ(palette->primitives.front().ports.front().Value("capacity"), std::nullopt);
   EXPECT_TRUE(ParsePalette(Palette(Entry(1, "Wall")))->primitives.front().ports.empty());
 }
 
@@ -285,6 +291,18 @@ TEST(PaletteTest, RejectsAPortWithoutANetworkOrRoleAndTwoPortsOnOneNetwork) {
   EXPECT_FALSE(ParsePalette(Palette(WithPorts(1, "A", R"([{"network": "power", "role": "consumer"},
                                                          {"network": "power", "role": "producer"}])")))
                    .has_value());
+}
+
+TEST(PaletteTest, RejectsAPortValueWithoutANameOrRepeatedOrNegative) {
+  const auto with = [](std::string_view values) {
+    return ParsePalette(Palette(WithPorts(
+        1, "A", std::format(R"([{{"network": "power", "role": "consumer", "values": {}}}])", values))));
+  };
+
+  EXPECT_TRUE(with(R"([{"name": "demand", "value": 5}])").has_value());
+  EXPECT_FALSE(with(R"([{"value": 5}])").has_value());
+  EXPECT_FALSE(with(R"([{"name": "demand", "value": 5}, {"name": "demand", "value": 6}])").has_value());
+  EXPECT_FALSE(with(R"([{"name": "demand", "value": -1}])").has_value());
 }
 
 const std::string kBase = Palette(Entry(1, "Wall"));

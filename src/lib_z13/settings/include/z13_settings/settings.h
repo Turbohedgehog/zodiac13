@@ -30,6 +30,7 @@
 #include "building_tuning.h"
 #include "net_tuning.h"
 #include "physics_tuning.h"
+#include "power_tuning.h"
 #include "settings_fwd.h"
 
 namespace z13 {
@@ -98,6 +99,7 @@ struct SessionSettings {
   fbs::net::NetTuningT net;
   fbs::physics::PhysicsTuningT physics;
   fbs::building::BuildingTuningT building;
+  fbs::power::PowerTuningT power;
 
   bool operator==(const SessionSettings&) const = default;
 };
@@ -134,7 +136,7 @@ Status AddSettingsOptions(Config& config);
 
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
-// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
+// Sets the world's NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
 // RenderTuning, TouchLayout and LanDiscoverySettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 

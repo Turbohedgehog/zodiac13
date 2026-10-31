@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <lib_core/utils/asset_source.h>
@@ -54,9 +55,20 @@ inline std::vector<std::string> ShippedScenes() {
       SourceAssets().ListAssets(z13::building::primitives::BlueprintsDir()));
 }
 
+// The palette and the fragments of every utility module, as a world with all of them loads it.
 inline std::expected<z13::building::primitives::Palette, std::string> ShippedPalette() {
-  return SourceAssets().ReadAsset(z13::building::primitives::PaletteFile())
-      .and_then([](const std::string& json) { return z13::building::primitives::ParsePalette(json); });
+  const z13::AssetSource assets = SourceAssets();
+  std::vector<z13::building::primitives::PaletteFragment> fragments;
+  for (const std::string& file : assets.ListAssets(z13::building::primitives::PaletteFragmentsDir())) {
+    auto json = assets.ReadAsset(z13::building::primitives::PaletteFragmentsDir() / file);
+    if (!json) {
+      return std::unexpected(json.error());
+    }
+    fragments.push_back({.file = file, .json = std::move(*json)});
+  }
+  return assets.ReadAsset(z13::building::primitives::PaletteFile()).and_then([&fragments](const std::string& json) {
+    return z13::building::primitives::ParsePalette(json, fragments);
+  });
 }
 
 inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBlueprint(

@@ -29,11 +29,13 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <networks/station_networks.h>
+#include <primitives_generated.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13/components/block_change_reader.h>
 #include <z13/components/conduit.h>
 #include <z13/components/station_mode.h>
+#include <z13/components/switch.h>
 #include <z13/components/utilities.h>
 
 namespace z13::conduit {
@@ -44,15 +46,37 @@ using z13::station::Block;
 using z13::station::BlockChangeReader;
 using z13::utility::networks::StationNetworks;
 
-// The conduits the last build used, to tell when the next tick needs another.
+// What the last build used, to tell when the next tick needs another.
 struct BuildInputs {
   std::vector<Conduit> conduits;
+  // The switches that were on.
+  std::vector<flecs::entity_t> closed;
   bool built {};
 };
 
 bool HasPort(const z13::building::primitives::BlockPalette& palette, const Block& block) {
   const auto primitive = palette.palette.Find(block.spec.type_id);
   return primitive && !primitive->get().ports.empty();
+}
+
+// A switch block lets the network through only while it is on.
+bool Conducts(flecs::entity block, const z13::building::primitives::Primitive& primitive) {
+  if (!primitive.Has(z13::building::primitives::PrimitiveFlags::Switch)) {
+    return true;
+  }
+  const auto* state = block.try_get<z13::station::SwitchState>();
+  return state != nullptr && state->on;
+}
+
+std::vector<flecs::entity_t> ClosedSwitches(const flecs::query<const z13::station::SwitchState>& switches) {
+  std::vector<flecs::entity_t> closed;
+  switches.each([&closed](flecs::entity entity, const z13::station::SwitchState& state) {
+    if (state.on) {
+      closed.push_back(entity.id());
+    }
+  });
+  std::ranges::sort(closed);
+  return closed;
 }
 
 z13::utility::networks::Networks Build(const flecs::query<const Conduit>& conduits,
@@ -67,7 +91,7 @@ z13::utility::networks::Networks Build(const flecs::query<const Conduit>& condui
   std::vector<z13::utility::networks::Port> ports;
   blocks.each([&](flecs::entity entity, const Block& block) {
     const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (!primitive) {
+    if (!primitive || !Conducts(entity, *primitive)) {
       return;
     }
     for (const auto& port : primitive->get().ports) {
@@ -90,6 +114,7 @@ void RegisterSystems(flecs::world world) {
   const auto reader = std::make_shared<BlockChangeReader>(world);
   const auto inputs = std::make_shared<BuildInputs>();
   const auto conduits = world.query<const Conduit>();
+  const auto switches = world.query<const z13::station::SwitchState>();
   world.system<StationNetworks, const ConduitKinds, const z13::building::primitives::BlockPalette,
                const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
            "NetworkSystem::Update")
@@ -97,8 +122,9 @@ void RegisterSystems(flecs::world world) {
       .with<z13::station::StationMode>()
       .read<Block>()
       .read<Conduit>()
+      .read<z13::station::SwitchState>()
       .read<z13::station::BlockChange>()
-      .each([reader, inputs, conduits](flecs::iter&, size_t, StationNetworks& stations, const ConduitKinds& kinds,
+      .each([reader, inputs, conduits, switches](flecs::iter&, size_t, StationNetworks& stations, const ConduitKinds& kinds,
                                        const z13::building::primitives::BlockPalette& palette,
                                        const z13::flecs_tools::WorldRestores& restores,
                                        const z13::flecs_tools::SimulationClock& clock) {
@@ -108,10 +134,11 @@ void RegisterSystems(flecs::world world) {
               return HasPort(palette, change.block);
             });
         std::vector<Conduit> sorted = SortedConduits(conduits);
-        if (inputs->built && !port_changed && sorted == inputs->conduits) {
+        std::vector<flecs::entity_t> closed = ClosedSwitches(switches);
+        if (inputs->built && !port_changed && sorted == inputs->conduits && closed == inputs->closed) {
           return;
         }
-        *inputs = {.conduits = std::move(sorted), .built = true};
+        *inputs = {.conduits = std::move(sorted), .closed = std::move(closed), .built = true};
         stations.networks = Build(conduits, reader->Blocks(), kinds, palette);
         ++stations.generation;
       });

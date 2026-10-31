@@ -37,6 +37,7 @@
 #include <z13_module/state/replay.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/physics_tuning.h>
+#include <z13_settings/power_tuning.h>
 
 #include <flecs.h>
 
@@ -63,7 +64,7 @@ void RegisterComponents(flecs::world world) {
       gameplay::Gameplay, gameplay::IdCounters, gameplay::Player, gameplay::LocalPlayer, gameplay::Camera,
       gameplay::PlayerCollider, gameplay::PlayerMotion, gameplay::Flashlight, gravity::Gravity, gameplay::LookAngles, building::BuildingTool, building::BuildTool,
       gameplay::Pause, gameplay::FreeCursor, input::ActionMap, input::InputConfig, input::InputConfigPersistenceSettings,
-      PhysicsTuning, BuildingTuning>(world);
+      PhysicsTuning, BuildingTuning, PowerTuning>(world);
   world.component<input::SystemInputEventType>();
   world.component<PlayerInfoComponent>()
     .member<uint32_t>("id")
@@ -84,6 +85,7 @@ void OnCreateDefaults(flecs::world world) {
   // SpawnPlayer reads it; InstallSettings replaces the default with settings.json's.
   world.add<PhysicsTuning>();
   world.add<BuildingTuning>();
+  world.add<PowerTuning>();
   world.add<z13::status::OnStartupGameEvent>();
 }
 

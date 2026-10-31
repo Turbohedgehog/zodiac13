@@ -27,6 +27,7 @@
 #include <primitives/palette.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/conduit.h>
+#include <z13/components/switch.h>
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -56,7 +57,7 @@ void GiveFloorsAPowerPort(Z13TestWorld& world) {
   auto& palette = world.World().get_mut<z13::building::primitives::BlockPalette>().palette;
   const auto floor = std::ranges::find(palette.primitives, z13::testing::kFloorId, &z13::building::primitives::Primitive::id);
   ASSERT_NE(floor, palette.primitives.end());
-  floor->ports.push_back({.network = "power", .role = "consumer", .demand = 10, .priority = "doors"});
+  floor->ports.push_back({.network = "power", .role = "consumer", .priority = "doors", .values = {{.name = "demand", .value = 10}}});
 }
 
 flecs::entity AddFloor(Z13TestWorld& world, int x) {
@@ -118,6 +119,29 @@ TEST_F(NetworkSystemTest, RemovingTheCableSplitsTheNetwork) {
   world_.Tick();
 
   EXPECT_NE(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(second_.id()));
+}
+
+TEST_F(NetworkSystemTest, ABreakerJoinsTheCablesOnItsSidesOnlyWhileItIsOn) {
+  // first_, a cable, the breaker, a cable, and a floor further along instead of second_.
+  z13::station::DestroyBlock(second_, second_.get<z13::station::Block>());
+  const flecs::entity far_floor = AddFloor(world_, 107);
+  AddRun(world_, kCableKind, 102, 2);
+  const auto& palette = world_.World().get<z13::building::primitives::BlockPalette>().palette;
+  const auto& breaker_primitive = palette.Find("Breaker")->get();
+  const flecs::entity breaker = z13::station::SpawnBlock(
+      world_.World().entity().add<z13::flecs_tools::StateEntity>(),
+      {.spec = {.type_id = breaker_primitive.id, .size = breaker_primitive.min_size}, .cell = {104, kRow, kRow}});
+  AddRun(world_, kCableKind, 105, 2);
+  world_.Tick();
+  EXPECT_NE(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(far_floor.id()));
+
+  breaker.set(z13::station::SwitchState {.on = true});
+  world_.Tick();
+  EXPECT_EQ(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(far_floor.id()));
+
+  breaker.set(z13::station::SwitchState {.on = false});
+  world_.Tick();
+  EXPECT_NE(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(far_floor.id()));
 }
 
 TEST_F(NetworkSystemTest, DestroyingAPortBlockDropsItFromTheNetworks) {

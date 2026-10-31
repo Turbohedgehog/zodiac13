@@ -90,12 +90,21 @@ struct Interaction {
 };
 
 // primitives.fbs's Port.
+struct PortValue {
+  std::string name;
+  int64_t value {};
+
+  bool operator==(const PortValue&) const = default;
+};
+
 struct PortSpec {
   std::string network;
   std::string role;
-  uint32_t demand {};
   std::string priority;
+  std::vector<PortValue> values;
 
+  // The value named `name`, if the port has one.
+  std::optional<int64_t> Value(std::string_view name) const;
   bool operator==(const PortSpec&) const = default;
 };
 
@@ -142,9 +151,10 @@ struct PaletteFragment {
 // Parses palette JSON (primitives.fbs) and rejects duplicate ids or names, size limits
 // outside 1..max_size_cells or min above max, stretchable door frames, shapes that can't
 // be built at those sizes, lights without color, reach or intensity, interactions without a
-// method or with a sensor that only presence has, and ports without a network or role, or two
-// of one network. The fragments' primitives follow the base's, in the given order (callers sort
-// them, so peers build one palette); only the base's max_size_cells counts.
+// method or with a sensor that only presence has, and ports without a network or role, with
+// a nameless, repeated or negative value, or two of one network. The fragments' primitives follow
+// the base's, in the given order (callers sort them, so peers build one palette); only the base's
+// max_size_cells counts.
 std::expected<Palette, std::string> ParsePalette(std::string_view json, std::span<const PaletteFragment> fragments = {});
 
 Rgba ToRgba(const fbs::station::Rgba& color);
