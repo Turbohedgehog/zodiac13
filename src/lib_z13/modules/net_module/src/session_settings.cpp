@@ -19,7 +19,8 @@
 #include <algorithm>
 #include <format>
 #include <memory>
-#include <ranges>
+#include <iterator>
+#include <numeric>
 #include <string>
 #include <vector>
 #include <utility>
@@ -117,8 +118,12 @@ std::optional<std::string> UtilityModulesMismatch(
   if (problems.empty()) {
     return std::nullopt;
   }
-  return std::format("utility modules differ: {}", problems | std::views::join_with(std::string_view {"; "}) |
-                                                       std::ranges::to<std::string>());
+  // Not views::join_with: the Android NDK's libc++ lacks it.
+  const std::string joined = std::accumulate(std::next(problems.begin()), problems.end(), problems.front(),
+                                             [](const std::string& all, const std::string& problem) {
+                                               return std::format("{}; {}", all, problem);
+                                             });
+  return std::format("utility modules differ: {}", joined);
 }
 
 }  // namespace z13::net
