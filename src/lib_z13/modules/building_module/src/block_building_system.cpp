@@ -140,7 +140,7 @@ std::unordered_map<z13::station::GridId, flecs::entity> GridEntities(const GridQ
 }
 
 // Every block into the index of its own grid, which is set whole once: the system defers sets. A block of a grid that
-// does not exist is left out.
+// does not exist is left out, and the reader's block count then never adds up: it resyncs every tick.
 void RebuildIndexes(const BlockQuery& blocks, const GridQuery& grids, const BuildingTuning& tuning,
                     const Palette& palette) {
   Z13_PROFILE_ZONE("RebuildIndex");
