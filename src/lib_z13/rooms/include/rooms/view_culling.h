@@ -58,6 +58,8 @@ class ViewCulling {
   ViewCulling(const CameraView& view, OptionalGraph graph);
 
   bool Visible(const Eigen::AlignedBox3f& box) const;
+  // Whether `box` is in the view frustum, whatever rooms are seen: for what stands outside the main grid's rooms.
+  bool InFrustum(const Eigen::AlignedBox3f& box) const;
   // Whether every box inside `box` is Visible: it lies wholly in the frustum and, in the station,
   // in one seen room's bounds and narrowed frustum.
   bool AllVisible(const Eigen::AlignedBox3f& box) const;

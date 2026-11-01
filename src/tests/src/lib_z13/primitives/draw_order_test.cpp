@@ -82,5 +82,18 @@ TEST(DrawOrderTest, EquallyFarChunksGoByKeyWhateverTheirOrder) {
   EXPECT_EQ(SortedXs({ChunkAt(10), ChunkAt(30)}, between), std::vector<int>({10, 30}));
 }
 
+// Two grids can file chunks under the same key.
+TEST(DrawOrderTest, EquallyFarChunksOfDifferentGridsGoByGridWhateverTheirOrder) {
+  ChunkBounds main_chunk = ChunkAt(10);
+  ChunkBounds district_chunk = ChunkAt(10);
+  district_chunk.grid = 1;
+  const auto grids = [](std::vector<ChunkBounds> chunks) {
+    SortFarthestFirst(chunks, Eigen::Vector3f::Zero());
+    return std::vector<z13::station::GridId>({chunks[0].grid, chunks[1].grid});
+  };
+
+  EXPECT_EQ(grids({district_chunk, main_chunk}), grids({main_chunk, district_chunk}));
+}
+
 }  // namespace
 }  // namespace z13::building::primitives

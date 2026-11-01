@@ -28,8 +28,13 @@ bool BlockChunks::SyncedWith(int chunk_cells, OptionalPalette palette) const {
   return state_->SyncedWith(chunk_cells, palette);
 }
 
-void BlockChunks::Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) {
-  state_->Sync(blocks, palette, chunk_cells);
+bool BlockChunks::PosedBy(const z13::station::GridPoses& poses) const {
+  return state_->PosedBy(poses);
+}
+
+void BlockChunks::Sync(std::span<const z13::station::Block> blocks, const z13::station::GridPoses& poses,
+                       OptionalPalette palette, int chunk_cells) {
+  state_->Sync(blocks, poses, palette, chunk_cells);
 }
 
 uint64_t BlockChunks::Version() const {

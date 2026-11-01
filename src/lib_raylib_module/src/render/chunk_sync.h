@@ -35,10 +35,13 @@ BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world);
 
 std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query);
 
+// The baked light is the main grid's; the other grids get the lamps' own light only.
+std::vector<z13::station::Block> CollectMainGridBlocks(const BlockQuery& query);
+
 // Rebuilds the chunks only when blocks, the chunk size, the palette or the replaced primitives
 // changed; `synced_replaced` is what the last rebuild left out.
-void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::RenderTuning& tuning,
-                     BlockMeshes::OptionalPalette palette, const std::vector<std::string>& replaced,
-                     std::vector<std::string>& synced_replaced);
+void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::station::GridPoses& poses,
+                     const z13::RenderTuning& tuning, BlockMeshes::OptionalPalette palette,
+                     const std::vector<std::string>& replaced, std::vector<std::string>& synced_replaced);
 
 }  // namespace z13::raylib
