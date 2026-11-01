@@ -34,6 +34,7 @@
 
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
+#include <z13/components/gameplay.h>
 #include <z13/components/grid.h>
 #include <z13/components/spawn_point.h>
 #include <grid/block_index.h>
@@ -235,6 +236,22 @@ TEST(GridModelTest, TheGridOfABlockAndThePoseOfAGridSurviveARestore) {
   EXPECT_EQ(world.lookup("SecondGrid").get<Grid>(), pose);
 }
 
+
+TEST(GridModelTest, TheMainGridIsMadeAgainWithEverySceneNotOnlyTheFirst) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  test_world.Tick();
+  ASSERT_TRUE(z13::station::MainGridEntity(world).is_valid());
+
+  world.remove<z13::gameplay::Gameplay>();
+  EXPECT_FALSE(z13::station::MainGridEntity(world).is_valid()) << "leaving the station destroys its state";
+  world.add<z13::gameplay::Gameplay>();
+
+  const flecs::entity again = z13::station::MainGridEntity(world);
+  ASSERT_TRUE(again.is_valid());
+  EXPECT_TRUE(again.has<ft::StateEntity>());
+  EXPECT_TRUE(again.has<BlockIndex>());
+}
 
 // What is derived from a grid's blocks is a component of its entity.
 class GridIndexTest : public ::testing::Test {

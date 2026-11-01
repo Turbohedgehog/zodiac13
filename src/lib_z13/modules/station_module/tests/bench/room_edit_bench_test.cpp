@@ -37,6 +37,7 @@
 
 #include <z13/components/block.h>
 #include <primitives/station_assets.h>
+#include <z13/components/grid.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 
@@ -67,7 +68,7 @@ double Ms(F&& work) {
 }
 
 const RoomGraph& Graph(Z13TestWorld& world) {
-  return world.World().get<RoomCache>().Current()->get();
+  return z13::station::MainGridEntity(world.World()).get<RoomCache>().Current()->get();
 }
 
 // The anchor of the largest or the smallest room: a block there changes the topology

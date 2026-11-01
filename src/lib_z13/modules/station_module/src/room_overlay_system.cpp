@@ -209,19 +209,22 @@ void RegisterSystems(flecs::world world) {
   world.set(OverlayLayers {});
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
-  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer, const BlockPalette>(
+  world.system<RoomOverlay, RoomBoxCache, const z13::gameplay::LocalPlayer, const BlockPalette>(
            "RoomOverlaySystem::Update")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<BlockIndex>()
-      .each([players](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
+      .read<RoomCache>()
+      .each([players](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache,
                       const z13::gameplay::LocalPlayer& local, const BlockPalette& palette) {
         const flecs::world world = it.world();
         const auto main_index = MainGridData<BlockIndex>(world);
-        if (!main_index) {
+        const auto main_cache = MainGridData<RoomCache>(world);
+        if (!main_index || !main_cache) {
           return;
         }
+        const RoomCache& cache = main_cache->get();
         const WallSource source {.index = *main_index, .palette = palette.palette, .block_of = [world](BlockId id) {
                                    return BlockOf(world, id);
                                  }};

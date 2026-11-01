@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/grid.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 
@@ -44,7 +45,7 @@ class OctantRoomsTest : public ::testing::Test {
     world_.Tick();
   }
 
-  const rooms::RoomGraph& Graph() { return world_.World().get<rooms::RoomCache>().Current()->get(); }
+  const rooms::RoomGraph& Graph() { return z13::station::MainGridEntity(world_.World()).get<rooms::RoomCache>().Current()->get(); }
 
   std::optional<rooms::RoomId> RoomAt(const Eigen::Vector3i& cell) { return Graph().RoomAt(cell); }
 

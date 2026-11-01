@@ -35,7 +35,6 @@ struct StationTopologyPhase {};
 // the original run did.
 struct TopologyVersion {
   using State = void;
-  using Singleton = void;
   uint64_t version {};
   uint64_t fingerprint {};
 };
