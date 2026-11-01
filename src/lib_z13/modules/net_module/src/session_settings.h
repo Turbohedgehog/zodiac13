@@ -41,6 +41,7 @@ struct AdoptedSettings {
   z13::BuildingTuning own_building;
   z13::PowerTuning own_power;
   z13::DoorTuning own_door;
+  z13::AtmosTuning own_atmos;
 };
 
 // Validated with this client's own retention, which the server's windows must fit.

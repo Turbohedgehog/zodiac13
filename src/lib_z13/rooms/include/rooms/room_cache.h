@@ -53,6 +53,8 @@ class RoomCache {
 
   OptionalRoomGraph Current() const;
   std::optional<uint64_t> CurrentFingerprint() const;
+  // The graph cached for `fingerprint`, if it is still among the last few.
+  OptionalRoomGraph Cached(uint64_t fingerprint) const;
 
   // How many times the current graph has changed, failed builds included.
   uint64_t Switches() const { return switches_; }

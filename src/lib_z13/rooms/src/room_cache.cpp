@@ -59,6 +59,14 @@ OptionalRoomGraph RoomCache::Current() const {
   return std::cref(entries_.back().graph);
 }
 
+OptionalRoomGraph RoomCache::Cached(uint64_t fingerprint) const {
+  const auto cached = std::ranges::find(entries_, fingerprint, &RoomCacheEntry::fingerprint);
+  if (cached == entries_.end()) {
+    return std::nullopt;
+  }
+  return std::cref(cached->graph);
+}
+
 std::optional<uint64_t> RoomCache::CurrentFingerprint() const {
   return current_;
 }
