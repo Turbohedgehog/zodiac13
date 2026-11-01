@@ -33,4 +33,7 @@ table PhysicsTuning {
   eye_height: float = 1.5 (min: "0.1", max: "10", cli);
   // A floor this far below the feet is stepped down onto rather than fallen to.
   step_height: float = 0.3 (min: "0", max: "2", cli);
+  // How fast a player's up turns to a room's new gravity: the share of the turn left that is made up per second
+  // (6 closes most of a few degrees in half a second).
+  up_follow_rate: float = 6 (min: "0.1", max: "100", cli);
 }

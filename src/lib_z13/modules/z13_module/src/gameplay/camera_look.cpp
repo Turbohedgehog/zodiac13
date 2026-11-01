@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 #include <lib_core/utils/math.h>
 
@@ -26,6 +27,8 @@ namespace z13::gameplay {
 namespace {
 
 constexpr float kHalfTurnDeg = 180.f;
+// Within this of exactly opposite, two unit vectors are taken for opposite (their sum or the cosine's distance).
+constexpr float kOppositeMargin = 1e-6f;
 constexpr float kFullTurnDeg = 360.f;
 
 // Wraps yaw rather than clamping it, so turning past +-180 deg works; an in-range angle is
@@ -50,8 +53,25 @@ LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg)
   return Normalized(look);
 }
 
-LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform) {
-  const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
+Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up) {
+  const float cosine = up.z();
+  if (cosine < -1.f + kOppositeMargin) {
+    return Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX()).toRotationMatrix();
+  }
+  const Eigen::Vector3f axis = Eigen::Vector3f::UnitZ().cross(up);
+  Eigen::Matrix3f cross;
+  cross << 0.f, -axis.z(), axis.y(), axis.z(), 0.f, -axis.x(), -axis.y(), axis.x(), 0.f;
+  return Eigen::Matrix3f::Identity() + cross + (cross * cross) / (1.f + cosine);
+}
+
+Eigen::Vector3f FollowUp(const Eigen::Vector3f& up, const Eigen::Vector3f& target, float follow) {
+  const Eigen::Vector3f mixed = up + ((target - up) * std::clamp(follow, 0.f, 1.f));
+  // Opposite vectors cancel: there is no way to turn that is nearer, so it goes straight to the target.
+  return mixed.squaredNorm() > kOppositeMargin ? Eigen::Vector3f(mixed.normalized()) : target;
+}
+
+LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform, const Eigen::Vector3f& upright) {
+  const Eigen::Vector3f forward = UpFrame(upright).transpose() * transform.block<3, 3>(0, 0).col(0);
   return {
       .yaw_deg = z13::math::ToDegrees(std::atan2(forward.y(), forward.x())),
       .pitch_deg = z13::math::ToDegrees(-std::asin(std::clamp(forward.z(), -1.f, 1.f))),
@@ -63,6 +83,7 @@ namespace {
 Eigen::Matrix3f Turn(const CameraMoveAxes& axes, LookAngles& look, Eigen::Matrix4f& transform) {
   look = Normalized(axes.absolute_look);
   const Eigen::Matrix3f rotation =
+      UpFrame(axes.upright) *
       (Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
        Eigen::AngleAxisf(z13::math::ToRadians(look.pitch_deg), Eigen::Vector3f::UnitY()))
           .toRotationMatrix();
@@ -97,7 +118,7 @@ void ApplyWalkMove(
     Eigen::Matrix4f& transform) {
   const Eigen::Matrix3f rotation = Turn(axes, look, transform);
   const Eigen::Vector3f down = step.gravity.normalized();
-  // The camera stays upright along Z; its heading is laid onto the floor across the gravity.
+  // The camera stays upright along its up; its heading is laid onto the floor across the gravity.
   const Eigen::Vector3f facing = rotation.col(0) - (rotation.col(0).dot(down) * down);
   const Eigen::Vector3f forward = facing.isZero() ? Eigen::Vector3f::Zero() : facing.normalized();
   const Eigen::Vector3f left = forward.cross(down);

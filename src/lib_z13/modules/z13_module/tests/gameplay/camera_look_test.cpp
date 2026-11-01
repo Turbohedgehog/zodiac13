@@ -16,8 +16,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 #include <Eigen/Dense>
 
+#include <lib_core/utils/math.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13/components/player_parts.h>
 
@@ -249,6 +252,112 @@ TEST(WalkMove, FallsAlongTheGravity) {
   const float speed = kWalk.gravity.norm() * kWalk.delta_time;
   EXPECT_FLOAT_EQ(motion.fall_speed, speed);
   EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, 0.f, -speed * kWalk.delta_time)));
+}
+
+// A room tilted by 4 degrees about X: its floor leans, and up with it.
+constexpr float kTiltDeg = 4.f;
+
+Eigen::Vector3f TiltedUp() {
+  return Eigen::AngleAxisf(z13::math::ToRadians(kTiltDeg), Eigen::Vector3f::UnitX()) * Eigen::Vector3f::UnitZ();
+}
+
+TEST(UpFrame, TakesPlusZToTheUpAndIsARotation) {
+  const Eigen::Vector3f up = TiltedUp();
+
+  const Eigen::Matrix3f frame = UpFrame(up);
+
+  EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(up, 1e-5f));
+  EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), 1e-5f));
+  EXPECT_NEAR(frame.determinant(), 1.f, 1e-5f);
+}
+
+TEST(UpFrame, IsTheIdentityForPlusZAndAHalfTurnForMinusZ) {
+  EXPECT_TRUE(UpFrame(Eigen::Vector3f::UnitZ()).isApprox(Eigen::Matrix3f::Identity()));
+
+  const Eigen::Matrix3f upside_down = UpFrame(-Eigen::Vector3f::UnitZ());
+  EXPECT_TRUE((upside_down * Eigen::Vector3f::UnitZ()).isApprox(-Eigen::Vector3f::UnitZ(), 1e-5f));
+  EXPECT_NEAR(upside_down.determinant(), 1.f, 1e-5f);
+}
+
+TEST(FollowUp, MovesPartWayAndStaysAUnitVector) {
+  const Eigen::Vector3f target = TiltedUp();
+
+  const Eigen::Vector3f once = FollowUp(Eigen::Vector3f::UnitZ(), target, 0.5f);
+
+  EXPECT_NEAR(once.norm(), 1.f, 1e-5f);
+  EXPECT_GT(once.dot(target), Eigen::Vector3f::UnitZ().dot(target));
+  EXPECT_LT(once.dot(target), 1.f);
+}
+
+TEST(FollowUp, ReachesTheTargetByRepeatedSteps) {
+  const Eigen::Vector3f target = TiltedUp();
+  Eigen::Vector3f up = Eigen::Vector3f::UnitZ();
+
+  for (int step = 0; step < 200; ++step) {
+    up = FollowUp(up, target, 0.1f);
+  }
+
+  EXPECT_TRUE(up.isApprox(target, 1e-4f));
+  EXPECT_TRUE(FollowUp(up, target, 0.f).isApprox(up));
+  EXPECT_TRUE(FollowUp(up, Eigen::Vector3f::UnitZ(), 1.f).isApprox(Eigen::Vector3f::UnitZ()));
+}
+
+TEST(FollowUp, GoesStraightToATargetOppositeTheUp) {
+  const Eigen::Vector3f up = FollowUp(Eigen::Vector3f::UnitZ(), -Eigen::Vector3f::UnitZ(), 0.5f);
+
+  EXPECT_NEAR(up.norm(), 1.f, 1e-5f);
+  EXPECT_TRUE(up.isApprox(-Eigen::Vector3f::UnitZ()));
+}
+
+TEST(CameraLook, ATiltedUprightTurnsTheWholeCameraWithoutChangingWhatYawAndPitchMean) {
+  LookAngles look;
+  Eigen::Matrix4f straight = Eigen::Matrix4f::Identity();
+  Eigen::Matrix4f tilted = Eigen::Matrix4f::Identity();
+  CameraMoveAxes axes;
+  axes.absolute_look = {.yaw_deg = 30.f, .pitch_deg = 10.f};
+  CameraMoveAxes tilted_axes = axes;
+  tilted_axes.upright = TiltedUp();
+
+  ApplyCameraMove(axes, kDeltaTime, look, straight);
+  ApplyCameraMove(tilted_axes, kDeltaTime, look, tilted);
+
+  const Eigen::Matrix3f frame = UpFrame(TiltedUp());
+  EXPECT_TRUE(tilted.block<3, 3>(0, 0).isApprox(frame * straight.block<3, 3>(0, 0), 1e-5f));
+  EXPECT_NEAR(tilted.block<3, 3>(0, 0).col(2).dot(TiltedUp()), std::cos(z13::math::ToRadians(10.f)), 1e-4f);
+}
+
+TEST(CameraLook, ThePitchOfALevelLookIsZeroInTheFrameOfTheUpright) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  CameraMoveAxes axes;
+  axes.upright = TiltedUp();
+  axes.absolute_look = {.yaw_deg = 70.f, .pitch_deg = 0.f};
+
+  ApplyCameraMove(axes, kDeltaTime, look, transform);
+
+  const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
+  EXPECT_NEAR(forward.dot(TiltedUp()), 0.f, 1e-5f) << "level looks stay across the up";
+  const LookAngles again = LookAnglesFromTransform(transform, TiltedUp());
+  EXPECT_NEAR(again.yaw_deg, 70.f, 1e-3f);
+  EXPECT_NEAR(again.pitch_deg, 0.f, 1e-3f);
+}
+
+TEST(WalkMove, OnATiltedFloorTheStepStaysAcrossTheGravity) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion {.grounded = true};
+  CameraMoveAxes axes;
+  axes.forward = 1.f;
+  axes.upright = TiltedUp();
+  WalkStep step = kWalk;
+  step.gravity = -TiltedUp() * kWalk.gravity.norm();
+
+  ApplyWalkMove(axes, step, look, motion, transform);
+
+  const Eigen::Vector3f moved = Position(transform);
+  const Eigen::Vector3f down = step.gravity.normalized();
+  const Eigen::Vector3f along_floor = moved - (moved.dot(down) * down);
+  EXPECT_NEAR(along_floor.norm(), step.walk_speed * step.delta_time, 1e-4f);
 }
 
 }  // namespace

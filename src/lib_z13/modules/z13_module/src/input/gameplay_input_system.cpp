@@ -99,8 +99,14 @@ void ApplyMoveActionListener(
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
 
+  // The up follows the gravity a little each tick; where nothing pulls it stays as it was.
+  auto& player_up = e.ensure<z13::gravity::PlayerUp>();
+  if (gravity != nullptr && gravity->Pulls()) {
+    player_up.up = z13::gameplay::FollowUp(
+        player_up.up, (-gravity->acceleration).normalized(), tuning.up_follow_rate * delta_time);
+  }
   if (!e.has<LookAngles>()) {
-    e.set(z13::gameplay::LookAnglesFromTransform(transform));
+    e.set(z13::gameplay::LookAnglesFromTransform(transform, player_up.up));
   }
   auto& look = e.ensure<LookAngles>();
 
@@ -120,6 +126,7 @@ void ApplyMoveActionListener(
           .yaw_deg = value_of(move_action_ids.horizontal_look_id),
           .pitch_deg = value_of(move_action_ids.vertical_look_id),
       },
+      .upright = player_up.up,
   };
 
   if (motion != nullptr && gravity != nullptr && gravity->Pulls()) {
@@ -422,8 +429,11 @@ void CalculateLookValues(
   }
 
   const LookAngles* current = e.try_get<LookAngles>();
+  const auto* player_up = e.try_get<z13::gravity::PlayerUp>();
+  const Eigen::Vector3f upright = player_up != nullptr ? player_up->up : Eigen::Vector3f::UnitZ();
   const LookAngles target = z13::gameplay::TurnLook(
-      current ? *current : z13::gameplay::LookAnglesFromTransform(transform), yaw_delta_deg, pitch_delta_deg);
+      current ? *current : z13::gameplay::LookAnglesFromTransform(transform, upright), yaw_delta_deg,
+      pitch_delta_deg);
   action_listener.action_values[move_action_ids.horizontal_look_id].current_value =
       z13::gameplay::CanonicalActionValue(target.yaw_deg);
   action_listener.action_values[move_action_ids.vertical_look_id].current_value =
