@@ -61,18 +61,19 @@ bool UsesNode(flecs::world world, WallId node_id, WallId except_segment) {
   return used;
 }
 
-flecs::entity MakeNode(flecs::world world, WallId id, const Eigen::Vector3i& cell) {
+flecs::entity MakeNode(flecs::world world, WallId id, const Eigen::Vector3i& cell, z13::station::GridId grid) {
   const flecs::entity node = world.entity(NodeName(id).c_str())
                                  .add<z13::flecs_tools::StateEntity>()
-                                 .set(WallNode {.id = id, .cell = cell});
+                                 .set(WallNode {.id = id, .grid = grid, .cell = cell});
   z13::gameplay::RecordStateChange(node, z13::gameplay::StateChangeKind::kSet);
   return node;
 }
 
 }  // namespace
 
-flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell) {
-  return MakeNode(world, namer.NextId(), cell);
+flecs::entity SpawnWallNode(
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell, z13::station::GridId grid) {
+  return MakeNode(world, namer.NextId(), cell, grid);
 }
 
 flecs::entity SpawnWallSegment(flecs::world world, z13::gameplay::SpawnNamer& namer, const WallSegment& segment) {
@@ -84,10 +85,11 @@ flecs::entity SpawnWallSegment(flecs::world world, z13::gameplay::SpawnNamer& na
   return entity;
 }
 
-WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell) {
+WallId WallNodeAt(
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell, z13::station::GridId grid) {
   std::optional<WallId> found;
   world.query<const WallNode>().each([&](const WallNode& node) {
-    if (!found && node.cell == cell) {
+    if (!found && node.grid == grid && node.cell == cell) {
       found = node.id;
     }
   });
@@ -95,14 +97,15 @@ WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Ei
     return *found;
   }
   const WallId id = namer.NextId();
-  MakeNode(world, id, cell);
+  MakeNode(world, id, cell, grid);
   return id;
 }
 
 flecs::entity SpawnWall(
-    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall) {
-  const WallId node_a = WallNodeAt(world, namer, wall.node_a);
-  const WallId node_b = WallNodeAt(world, namer, wall.node_b);
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall,
+    z13::station::GridId grid) {
+  const WallId node_a = WallNodeAt(world, namer, wall.node_a, grid);
+  const WallId node_b = WallNodeAt(world, namer, wall.node_b, grid);
   return SpawnWallSegment(world, namer,
                           WallSegment {.node_a = node_a, .node_b = node_b, .stick_a = wall.stick_a,
                                        .stick_b = wall.stick_b, .thickness = wall.thickness,

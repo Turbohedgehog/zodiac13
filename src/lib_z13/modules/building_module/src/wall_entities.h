@@ -31,21 +31,24 @@
 
 namespace z13::building {
 
-flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell);
+flecs::entity SpawnWallNode(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell,
+                            z13::station::GridId grid = z13::station::kMainGrid);
 
 // A segment between two nodes (by id); its panel block follows in WallPanelSystem.
 flecs::entity SpawnWallSegment(
     flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::station::WallSegment& segment);
 
-// A segment for `wall` between nodes at its two ends, existing ones where nodes already stand.
+// A segment for `wall` (in the cells of `grid`) between nodes at its two ends, existing ones where nodes already stand.
 flecs::entity SpawnWall(
-    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall);
+    flecs::world world, z13::gameplay::SpawnNamer& namer, const z13::building::primitives::WallGeometry& wall,
+    z13::station::GridId grid = z13::station::kMainGrid);
 
 // Where a segment stands: the cell of its first node.
 std::optional<Eigen::Vector3i> WallSegmentCell(flecs::world world, z13::station::WallId segment_id);
 
-// The id of the node at `cell`, spawning one when there is none.
-z13::station::WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell);
+// The id of the node at `cell` of `grid`, spawning one when there is none.
+z13::station::WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell,
+                                z13::station::GridId grid = z13::station::kMainGrid);
 
 std::optional<flecs::entity> FindWallNode(flecs::world world, z13::station::WallId id);
 std::optional<flecs::entity> FindWallSegment(flecs::world world, z13::station::WallId id);

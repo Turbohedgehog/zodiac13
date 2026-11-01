@@ -20,6 +20,7 @@
 #include <format>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <primitives/blueprint.h>
@@ -61,6 +62,34 @@ TEST(BlueprintWallsTest, WallsAreReadFromTheJson) {
   EXPECT_EQ((*walls)[0].stick_a.axis, WallAxis::kZ);
   EXPECT_EQ((*walls)[0].stick_b.length, 5);
   EXPECT_EQ((*walls)[0].thickness, 2);
+}
+
+constexpr std::string_view kDistrictJson = R"({"blocks": [], "grids": [{"id": 3,
+    "origin": {"x": -40, "y": 8, "z": 0}, "yaw_degrees": 30.0, "pitch_degrees": 4.0,
+    "blocks": [{"primitive": "Panel", "cell": {"x": 1, "y": 2, "z": 3}, "size": {"x": 4, "y": 1, "z": 5}}],
+    "walls": [{"node_a": {"x": 1, "y": 2, "z": 3}, "node_b": {"x": 11, "y": 2, "z": 3}, "length_a": 5, "length_b": 5,
+               "thickness": 2}]}]})";
+
+TEST(BlueprintWallsTest, AGridIsReadWithItsPoseBlocksAndWalls) {
+  const auto grids = z13::building::primitives::ParseBlueprintGrids(kDistrictJson, z13::testing::ShippedPalette().value());
+  ASSERT_TRUE(grids.has_value()) << grids.error();
+  ASSERT_EQ(grids->size(), 1u);
+  const z13::building::primitives::BlueprintGridPart& district = (*grids)[0];
+  EXPECT_EQ(district.grid.id, 3u);
+  EXPECT_EQ(district.grid.origin, Eigen::Vector3i(-40, 8, 0));
+  EXPECT_FLOAT_EQ(district.grid.yaw_degrees, 30.f);
+  EXPECT_FLOAT_EQ(district.grid.pitch_degrees, 4.f);
+  ASSERT_EQ(district.blocks.size(), 1u);
+  EXPECT_EQ(district.blocks[0].grid, 3u);
+  EXPECT_EQ(district.walls.size(), 1u);
+  EXPECT_EQ(district.openings.size(), 1u);
+}
+
+TEST(BlueprintWallsTest, AGridWithTheMainGridsIdOrARepeatedOneIsRefused) {
+  const auto palette = z13::testing::ShippedPalette().value();
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintGrids(R"({"grids": [{"id": 0}]})", palette).has_value());
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintGrids(R"({"grids": [{"id": 2}, {"id": 2}]})", palette)
+                   .has_value());
 }
 
 TEST(BlueprintWallsTest, ABlueprintWithoutWallsHasNone) {

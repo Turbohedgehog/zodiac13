@@ -20,6 +20,8 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/station/grid.h>
+
 // Walls of any direction (docs/oblique-walls-plan.md, stage 5): nodes on the grid, segments
 // between them, and the panel block a system derives from each segment.
 namespace z13::station {
@@ -30,10 +32,12 @@ using WallId = uint64_t;
 // The axis a segment's "stick" runs along: a wall's height, or a floor's or ramp's width.
 enum class WallAxis : uint8_t { kX, kY, kZ };
 
-// A point on the grid; nodes are shared by id, which every participant has, unlike entity ids.
+// A point on a grid; nodes are shared by id, which every participant has, unlike entity ids. The panels of a segment
+// are in the grid of its first node.
 struct WallNode {
   using State = void;
   WallId id {};
+  GridId grid = kMainGrid;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
 };
 

@@ -83,9 +83,9 @@ std::vector<std::string> BlueprintJointRefusals(std::span<const WallGeometry> wa
 
 void SpawnBlueprintWalls(
     flecs::world world, z13::gameplay::SpawnNamer& namer, std::span<const WallGeometry> walls,
-    std::span<const std::vector<z13::station::WallOpening>> openings) {
+    std::span<const std::vector<z13::station::WallOpening>> openings, z13::station::GridId grid) {
   for (size_t i = 0; i < walls.size(); ++i) {
-    const z13::station::WallId segment_id = SpawnWall(world, namer, walls[i]).get<z13::station::WallSegment>().id;
+    const z13::station::WallId segment_id = SpawnWall(world, namer, walls[i], grid).get<z13::station::WallSegment>().id;
     if (openings.empty()) {
       continue;
     }

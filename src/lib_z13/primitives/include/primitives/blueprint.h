@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
 #include <z13/components/station/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
@@ -41,6 +42,20 @@ std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::s
 // Their ids and segment ids are left for the scene to give.
 std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
     std::string_view json);
+
+// A grid of a blueprint beside the main one: its pose, and its blocks and walls in its own cells (the blocks name it in
+// `Block::grid`).
+struct BlueprintGridPart {
+  z13::station::Grid grid;
+  std::vector<z13::station::Block> blocks;
+  std::vector<WallGeometry> walls;
+  std::vector<std::vector<z13::station::WallOpening>> openings;
+};
+
+// The grids of a blueprint in the order it lists them, naming the first whose id is the main grid's or repeats, or
+// whose block lacks a palette primitive.
+std::expected<std::vector<BlueprintGridPart>, std::string> ParseBlueprintGrids(
+    std::string_view json, const Palette& palette);
 
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
 

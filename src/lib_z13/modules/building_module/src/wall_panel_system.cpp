@@ -85,7 +85,11 @@ std::map<PanelKey, Block> ExpectedPanels(
     const flecs::query<const z13::station::WallOpening>& openings, const z13::building::primitives::Palette& palette,
     int joint_reach) {
   std::unordered_map<WallId, Eigen::Vector3i> cells;
-  nodes.each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
+  std::unordered_map<WallId, z13::station::GridId> grids;
+  nodes.each([&cells, &grids](const WallNode& node) {
+    cells.emplace(node.id, node.cell);
+    grids.emplace(node.id, node.grid);
+  });
   std::unordered_map<WallId, std::vector<z13::station::WallOpening>> cut;
   openings.each([&cut](const z13::station::WallOpening& opening) { cut[opening.segment_id].push_back(opening); });
   std::vector<JointWall> walls;
@@ -105,7 +109,9 @@ std::map<PanelKey, Block> ExpectedPanels(
       continue;
     }
     for (uint32_t part = 0; part < blocks->size(); ++part) {
-      expected.emplace(PanelKey {.segment_id = wall.id, .part = part}, (*blocks)[part]);
+      Block panel = (*blocks)[part];
+      panel.grid = grids.at(wall.node_a);
+      expected.emplace(PanelKey {.segment_id = wall.id, .part = part}, panel);
     }
   }
   return expected;

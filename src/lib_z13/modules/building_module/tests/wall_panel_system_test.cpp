@@ -94,6 +94,27 @@ Block ExpectedPanel(const Eigen::Vector3i& from, const Eigen::Vector3i& to) {
 const Eigen::Vector3i kFrom {8, -4, 0};
 const Eigen::Vector3i kTo {8, 4, 0};
 
+// The same cells in a grid of its own keep their own nodes, and the panel stands in that grid.
+TEST(WallPanelSystemTest, AWallOfAGridGetsItsPanelInThatGrid) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  auto& namer = z13::testing::TestNamer(world);
+  constexpr z13::station::GridId kDistrict = 1;
+  const z13::building::primitives::WallGeometry wall {
+      .node_a = kFrom, .node_b = kTo, .stick_a = {WallAxis::kZ, kStickLength},
+      .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness};
+
+  SpawnWall(world, namer, wall);
+  SpawnWall(world, namer, wall, kDistrict);
+  test_world.Tick();
+
+  EXPECT_EQ(world.count<WallNode>(), 4);
+  const std::vector<Block> panels = Panels(world);
+  ASSERT_EQ(panels.size(), 2u);
+  EXPECT_NE(panels[0].grid, panels[1].grid);
+  EXPECT_EQ(panels[0].cell, panels[1].cell);
+}
+
 TEST(WallPanelSystemTest, ASegmentGetsOnePanelBlock) {
   Z13TestWorld test_world = StationWorld();
   AddWall(test_world, kFrom, kTo);
