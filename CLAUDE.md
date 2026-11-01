@@ -110,7 +110,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 ## Branch size
 
 - A branch's total diff should average no more than 1000 lines of code. Exceeding this is acceptable only in exceptional cases.
-- If a branch exceeds this limit, flag it immediately during code review. Branches of the station plans (`docs/station-primitives-plan.md`, `docs/station-systems-plan.md`) may exceed it when a stage can't be split meaningfully (user decision 2026-10-05): mention the size, don't treat it as a defect.
+- If a branch exceeds this limit, flag it immediately during code review. Branches of the station plans (`docs/station-primitives-plan.md`, `docs/station-systems-plan.md`) may exceed it when a stage can't be split meaningfully (user decision 2026-10-05): mention the size, don't treat it as a defect. The hub's grid chain (`docs/multi-grid-plan.md`, "Наклонный модуль": filter, body, mesh, blueprint, docking) is one branch by the same kind of decision (user, 2026-11-01).
 
 ## Code review
 

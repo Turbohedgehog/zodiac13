@@ -53,6 +53,23 @@
 
 Срез 1 нужен первым: без него любой блок второй сетки попадёт в помещения и индекс главной.
 
+### Состояние ветки `f/hub-grids` (2026-11-01, передано на машину с видеокартой)
+
+Весь ряд срезов — одной веткой (решение пользователя 2026-11-01, `CLAUDE.md` «Branch size»); решения: гравитация в районе входит в срез тел, наклон вокруг локальной Y после поворота (положительный поднимает конец по +X), рендер районов пишется без проверки на PRoot и смотрится на машине с видеокартой.
+
+Написано, но ни разу не собрано и не прогнано (сборка остановлена на 92 из 306 шагов, ошибок не было):
+- `z13/components/grid_pose.h`: `Grid::pitch_degrees`, `GridToWorld(Grid)` (перенос в ячейках × `kCellSize`, поворот Z, наклон вокруг Y со знаком минус), `GridPoses`, `PosesOf`, `PoseOfGrid`; тест `grid_pose_test.cpp`.
+- Фильтры главной сетки: `network_system` (порты и сборка), `DoorPortals` (только двери главной сетки); тесты в `network_system_test.cpp` и `door_system_test.cpp`.
+- `bullet_module`: `BlockTransform` умножается на позу сетки блока (`SyncBlockBodies`, `SyncBlockTables`, `SyncDoorLeaves`); тест `ABlockOfAPosedGridStopsThePlayerWhereThePoseSetsIt` в `physics_collision_test.cpp`.
+- `station_module/gravity_system.cpp`: тело вне помещений главной сетки ищет комнату в сетках районов (`DistrictsOf`, `FeelDistricts`: позиция в оси сетки по обратной позе, `RoomAt`), ускорение — «низ» сетки (`GridToWorld(...).linear() * -Z`) × `physics.gravity`; тесты `DistrictGravityTest`.
+
+Осталось по ряду (в этом порядке):
+1. Собрать и прогнать тесты, поправить ошибки.
+2. `f/grid-mesh` (raylib, `lib_raylib_module/src/render`): `ChunkKey {GridId, chunk}` вместо `Vector3i` в `ChunkMap`, `GroupByChunk` по сеткам, `model->transform = EigenToRaylibMatrix(GridToWorld)`, границы чанка — мировая коробка преобразованных углов, `BlockChunks::Sync(..., poses)`; `primitives::ChunkBounds` получает поле `grid` (с учётом в `SortFarthestFirst`); лампы `cell_light` и `CollectShownBlocks` оставляют блоки главной сетки для запечённого света; свет района — только лампы.
+3. `f/grid-blueprint`: `BlueprintGrid` в `blueprint.fbs` (id, origin, yaw, pitch, blocks), `ParseBlueprintGrids`, `PopulateStationScene` создаёт сущности `Grid` и блоки с `grid`, `ValidateBlueprint` по сеткам, `write_blueprint(grids=)` в `station_blueprint.py`, `District(...)` в `generate_hub.py`; пилот — грузовой ангар.
+4. `f/grid-docking`: пара «проём в стене основной сетки — дверь района» с допуском разности углов около 10°.
+5. Не решено: сектора и чанки сети считают ячейки блоков без позы (`sector_system`, `interest_deltas`, `world_edits`, `chunk_reach`) — блоки района по сети попадут не в те сектора; интерес и инструмент строительства работают только с главной сеткой.
+
 ## Открытые вопросы
 
 - **Ориентация новой сетки**: по поверхности под курсором (нормаль астероида), по взгляду игрока или по осям ближайшей сетки с поворотом по желанию. Решить на этапе 3 вместе с геймплеем.

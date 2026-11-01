@@ -125,9 +125,10 @@ void AddStates(BlockChangeReader& reader, uint64_t restores, uint64_t tick, cons
 void UpdatePortals(const flecs::query<const DoorState, const Block>& doors, const BlockPalette& palette,
                    DoorPortals& portals) {
   std::vector<DoorOpening> open;
+  // The openings are in the main grid's cells, which the renderer matches against its portals.
   doors.each([&](const DoorState& state, const Block& block) {
     const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (state.position == 0 || !primitive) {
+    if (state.position == 0 || block.grid != kMainGrid || !primitive) {
       return;
     }
     for (const rooms::PortalSource& source : rooms::PortalsOf(block, primitive->get(), palette.palette)) {

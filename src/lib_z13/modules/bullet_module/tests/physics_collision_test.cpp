@@ -33,7 +33,9 @@
 #include <z13/components/door.h>
 #include <input_config_generated.h>
 
+#include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_serializer.h>
+#include <z13/components/grid.h>
 #include <lib_core/utils/math.h>
 #include <z13_module/gameplay/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
@@ -321,6 +323,8 @@ constexpr uint32_t kWallDoorId = 31;
 const Eigen::Vector3i kWallDoorSize {4, 1, 8};
 // Both stand across y = 2 m, from x = 0 and the floor up.
 const Eigen::Vector3i kAcrossCell {0, 8, 0};
+// How far before the cube's face the player starts and how far past the face he is pushed to.
+constexpr float kStopDistance = 2.f;
 constexpr float kBeforeY = 1.f;
 constexpr float kBeyondY = 3.f;
 // The middle of the door's opening, where its leaf hangs.
@@ -371,6 +375,28 @@ TEST(StationCollisionTest, AWallDoorLeafWithoutAStateLetsThePlayerThrough) {
 
   EXPECT_NEAR(moved.y(), kBeyondY, kSweepTolerance);
   EXPECT_EQ(test_world.World().get<PhysicsWorld>().BodyCount(), 1u);
+}
+
+// A grid's blocks stand in its pose: the cube is 1 m on a side at the grid's origin, the grid yawed a quarter turn.
+TEST(StationCollisionTest, ABlockOfAPosedGridStopsThePlayerWhereThePoseSetsIt) {
+  constexpr int kCubeCells = 4;
+  const z13::station::Grid district {.id = 1, .origin = {100, 0, 0}, .yaw_degrees = 90.f};
+  z13::testing::Z13TestWorld test_world;
+  test_world.World().entity("District").add<z13::flecs_tools::StateEntity>().set(district);
+  z13::station::SpawnBlock(test_world.World().entity(),
+                           {.spec = {.type_id = z13::station::kCubePrimitiveId, .size = {kCubeCells, kCubeCells, kCubeCells}}, .grid = 1});
+  test_world.Tick(kTestDeltaTime);
+  // The cube's cells 0..1 m along the grid's X and Y stand along the world's Y and -X from the origin at 25 m.
+  const float face_x = district.origin.x() * z13::station::kCellSize - 1.f;
+  const float before = face_x - kStopDistance;
+  constexpr float kMiddleOfTheCube = 0.5f;
+  test_world.Player().set(TranslatedIdentity(before, kMiddleOfTheCube, kMiddleOfTheCube));
+  test_world.Tick(kTestDeltaTime);
+
+  const Eigen::Vector3f moved = MovePlayerWithinFrame(
+      test_world, Eigen::Vector3f(face_x + kStopDistance, kMiddleOfTheCube, kMiddleOfTheCube));
+
+  EXPECT_NEAR(moved.x(), face_x - kPlayerRadius, kSweepTolerance);
 }
 
 // The leaf blocks while DoorState::leaf_blocks says the door is shut enough.

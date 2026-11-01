@@ -24,6 +24,7 @@
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/conduit.h>
+#include <z13/components/grid.h>
 #include <z13/components/door.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
@@ -230,6 +231,17 @@ TEST_F(PoweredDoorTest, ABodyInTheSensorOpensItFastAndItClosesAfterTheDelay) {
   Advance(world_, static_cast<int>(kDelayTicks + kOpenTicks) + 5);
   EXPECT_EQ(StateOf(door_).position, 0);
   EXPECT_TRUE(StateOf(door_).leaf_blocks);
+}
+
+TEST_F(PoweredDoorTest, AnOpenDoorOfAnotherGridIsNotAnOpeningOfTheMainGrid) {
+  world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(Grid {.id = 1});
+  const flecs::entity apart = testing::AddBlock(
+      world_, {.spec = {.type_id = testing::IdOf("Door"), .size = {6, 1, 10}}, .cell = {kRow, kRow + 40, kRow}, .grid = 1});
+  Advance(world_, 2);
+  apart.set(DoorState {.position = kDoorOpen, .open_wanted = true, .leaf_blocks = false});
+  Advance(world_, 2);
+
+  EXPECT_TRUE(world_.World().get<DoorPortals>().open.empty());
 }
 
 TEST_F(PoweredDoorTest, ALockedDoorStaysShutForABodyInItsSensor) {

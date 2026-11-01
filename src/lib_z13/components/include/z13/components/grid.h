@@ -38,9 +38,11 @@ inline constexpr std::string_view kMainGridName = "MainGrid";
 struct Grid {
   using State = void;
   GridId id = kMainGrid;
-  // Where the grid's cell (0, 0, 0) stands in the world's cells, and its turn about the world's Z.
+  // Where the grid's cell (0, 0, 0) stands in the world's cells, its turn about the world's Z, and then its tilt about
+  // its own Y (GridToWorld): a positive pitch raises the end along +X.
   Eigen::Vector3i origin = Eigen::Vector3i::Zero();
   float yaw_degrees {};
+  float pitch_degrees {};
 
   bool operator==(const Grid&) const = default;
 };

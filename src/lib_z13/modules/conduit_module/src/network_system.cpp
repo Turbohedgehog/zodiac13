@@ -54,7 +54,11 @@ struct BuildInputs {
   bool built {};
 };
 
+// Only the main grid's blocks have ports for now: those of another grid are not wired to the conduits of the station.
 bool HasPort(const z13::building::primitives::BlockPalette& palette, const Block& block) {
+  if (block.grid != z13::station::kMainGrid) {
+    return false;
+  }
   const auto primitive = palette.palette.Find(block.spec.type_id);
   return primitive && !primitive->get().ports.empty();
 }
@@ -91,7 +95,7 @@ z13::utility::networks::Networks Build(const flecs::query<const Conduit>& condui
   std::vector<z13::utility::networks::Port> ports;
   blocks.each([&](flecs::entity entity, const Block& block) {
     const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (!primitive || !Conducts(entity, *primitive)) {
+    if (block.grid != z13::station::kMainGrid || !primitive || !Conducts(entity, *primitive)) {
       return;
     }
     for (const auto& port : primitive->get().ports) {
