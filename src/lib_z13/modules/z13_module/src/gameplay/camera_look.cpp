@@ -27,9 +27,9 @@ namespace z13::gameplay {
 namespace {
 
 constexpr float kHalfTurnDeg = 180.f;
-// UpFrame turns by the shortest arc, which there is none of for an up opposite +Z: one whose cosine with +Z is within
-// this of -1 gets the half turn about X instead, so the division by 1 + cosine never meets zero.
-constexpr float kOppositeCosineMargin = 1e-6f;
+// An up whose sine with +Z (the length of their cross product) is below this is taken for on the Z axis: there is no
+// axis to turn about, so UpFrame gives the identity above and the half turn about X below.
+constexpr float kParallelSine = 1e-6f;
 // A mix of two unit vectors whose squared length is this short is taken for their cancelling out.
 constexpr float kCancelledSquaredLength = 1e-6f;
 constexpr float kFullTurnDeg = 360.f;
@@ -57,14 +57,14 @@ LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg)
 }
 
 Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up) {
-  const float cosine = up.z();
-  if (cosine <= -1.f + kOppositeCosineMargin) {
-    return Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX()).toRotationMatrix();
-  }
   const Eigen::Vector3f axis = Eigen::Vector3f::UnitZ().cross(up);
-  Eigen::Matrix3f cross;
-  cross << 0.f, -axis.z(), axis.y(), axis.z(), 0.f, -axis.x(), -axis.y(), axis.x(), 0.f;
-  return Eigen::Matrix3f::Identity() + cross + (cross * cross) / (1.f + cosine);
+  const float sine = axis.norm();
+  if (sine < kParallelSine) {
+    return up.z() > 0.f ? Eigen::Matrix3f::Identity()
+                        : Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX()).toRotationMatrix();
+  }
+  // The angle from the sine and the cosine, so it stays exact where the up is nearly opposite +Z.
+  return Eigen::AngleAxisf(std::atan2(sine, up.z()), axis / sine).toRotationMatrix();
 }
 
 Eigen::Vector3f FollowUp(const Eigen::Vector3f& up, const Eigen::Vector3f& target, float follow) {

@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
 
 #include <Eigen/Dense>
@@ -288,19 +289,23 @@ TEST(UpFrame, IsTheIdentityForPlusZAndAHalfTurnForMinusZ) {
   EXPECT_NEAR(upside_down.determinant(), 1.f, kRounding);
 }
 
-TEST(UpFrame, StaysARotationWhereTheUpIsAlmostOppositeAndAtTheEdgeOfTheMargin) {
-  constexpr float kOffAxis = 0.03f;
-  // Off the axis by this, 1 + cosine is about 5e-9: below the margin UpFrame keeps.
-  constexpr float kWithinTheMargin = 1e-4f;
-  const Eigen::Vector3f nearly_opposite = Eigen::Vector3f(0.f, kOffAxis, -1.f).normalized();
+TEST(UpFrame, StaysARotationWhereTheUpIsAlmostOppositeAndWhereItHasNoAxis) {
+  // How far off the -Z axis the ups are: the cosine is within a few parts in a thousand, then a million, of -1.
+  constexpr std::array kOffAxis = {0.03f, 1e-3f};
+  // So near the axis that the sine is below the 1e-6 under which UpFrame finds no axis.
+  constexpr float kNoAxis = 1e-7f;
+  for (const float off_axis : kOffAxis) {
+    const Eigen::Vector3f nearly_opposite = Eigen::Vector3f(0.f, off_axis, -1.f).normalized();
 
-  const Eigen::Matrix3f frame = UpFrame(nearly_opposite);
+    const Eigen::Matrix3f frame = UpFrame(nearly_opposite);
 
-  EXPECT_TRUE(frame.allFinite());
-  EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(nearly_opposite, kTolerance));
-  EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), kTolerance));
-  // Within the margin it is the half turn, which is finite too.
-  EXPECT_TRUE(UpFrame(Eigen::Vector3f(0.f, kWithinTheMargin, -1.f).normalized()).allFinite());
+    EXPECT_TRUE(frame.allFinite()) << off_axis;
+    EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(nearly_opposite, kRounding)) << off_axis;
+    EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), kRounding)) << off_axis;
+  }
+  const Eigen::Matrix3f without_axis = UpFrame(Eigen::Vector3f(0.f, kNoAxis, -1.f).normalized());
+  EXPECT_TRUE(without_axis.allFinite());
+  EXPECT_NEAR(without_axis.determinant(), 1.f, kRounding);
 }
 
 TEST(FollowUp, MovesPartWayAndStaysAUnitVector) {
