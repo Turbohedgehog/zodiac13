@@ -35,6 +35,7 @@
 #include <z13/components/action_listener.h>
 #include <z13/components/action_map.h>
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/input_events.h>
 #include <z13/components/interaction.h>
 #include <z13/components/player.h>
@@ -149,8 +150,13 @@ void AddPresence(flecs::entity player, const Eigen::Matrix4f& transform, const B
 }
 
 void FindInteractions(flecs::entity player, const z13::gameplay::Player&, const ActionListener& listener,
-                      const Eigen::Matrix4f& transform, Interactions& interactions, const BlockIndex& index,
-                      const BlockPalette& palette, const z13::BuildingTuning& tuning, const UseActionId& id) {
+                      const Eigen::Matrix4f& transform, Interactions& interactions, const BlockPalette& palette,
+                      const z13::BuildingTuning& tuning, const UseActionId& id) {
+  const auto main_index = MainGridData<BlockIndex>(player.world());
+  if (!main_index) {
+    return;
+  }
+  const BlockIndex& index = *main_index;
   if (const Methods requested = RequestedMethods(listener, id); requested != Methods::NONE) {
     AddUses(player, transform, requested, index, palette, tuning.use_reach_distance, interactions.list);
   }
@@ -178,9 +184,9 @@ void RegisterSystems(flecs::world world) {
       .kind<InteractionPhase>()
       .each([](Interactions& interactions) { interactions = {}; });
   world.system<const z13::gameplay::Player, const ActionListener, const Eigen::Matrix4f, Interactions,
-               const BlockIndex, const BlockPalette, const z13::BuildingTuning, const UseActionId>(
-           "InteractionSystem::Find")
+               const BlockPalette, const z13::BuildingTuning, const UseActionId>("InteractionSystem::Find")
       .kind<InteractionPhase>()
+      .read<BlockIndex>()
       .with<StationMode>()
       .read<Block>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)

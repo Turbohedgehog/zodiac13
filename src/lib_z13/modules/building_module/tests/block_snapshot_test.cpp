@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <format>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -32,8 +33,10 @@
 #include <lib_core/state/state_markers.h>
 
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
 #include <z13/components/grid.h>
 #include <z13/components/spawn_point.h>
+#include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>
 
@@ -45,6 +48,7 @@ namespace z13::building {
 namespace {
 
 namespace ft = z13::flecs_tools;
+using z13::building::grid::BlockIndex;
 using z13::station::Block;
 using z13::station::Grid;
 using z13::station::SpawnPoint;
@@ -229,6 +233,70 @@ TEST(GridModelTest, TheGridOfABlockAndThePoseOfAGridSurviveARestore) {
 
   EXPECT_EQ(block.get<Block>().grid, pose.id);
   EXPECT_EQ(world.lookup("SecondGrid").get<Grid>(), pose);
+}
+
+
+// What is derived from a grid's blocks is a component of its entity.
+class GridIndexTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    world_.Tick();
+    second_ = world_.World().entity("SecondGrid").add<ft::StateEntity>().set(Grid {.id = kSecondGrid});
+    world_.Tick();
+  }
+
+  flecs::entity PlaceInSecondGrid() {
+    const flecs::entity block = z13::station::SpawnBlock(
+        world_.World().entity("SecondGridBlock"), Block {.spec = z13::station::CubeSpec(), .cell = kFirstChunkCell, .grid = kSecondGrid});
+    world_.Tick();
+    return block;
+  }
+
+  size_t MainIndexSize() {
+    return z13::station::MainGridEntity(world_.World()).get<BlockIndex>().Size();
+  }
+
+  static constexpr z13::station::GridId kSecondGrid = 1;
+  Z13TestWorld world_ = StationWorld();
+  flecs::entity second_;
+};
+
+TEST_F(GridIndexTest, ABlockOfAnotherGridIsIndexedThereAndNotInTheMainGrid) {
+  const size_t main_before = MainIndexSize();
+
+  const flecs::entity block = PlaceInSecondGrid();
+
+  EXPECT_EQ(MainIndexSize(), main_before);
+  EXPECT_FALSE(z13::station::MainGridEntity(world_.World()).get<BlockIndex>().At(kFirstChunkCell).has_value());
+  ASSERT_TRUE(second_.has<BlockIndex>());
+  EXPECT_EQ(second_.get<BlockIndex>().Size(), 1u);
+  EXPECT_EQ(second_.get<BlockIndex>().At(kFirstChunkCell), std::optional<z13::building::grid::BlockId>(block.id()));
+}
+
+TEST_F(GridIndexTest, DestroyingItEmptiesOnlyItsGridsIndex) {
+  const size_t main_before = MainIndexSize();
+  const flecs::entity block = PlaceInSecondGrid();
+
+  z13::station::DestroyBlock(block, block.get<Block>());
+  world_.Tick();
+
+  EXPECT_EQ(second_.get<BlockIndex>().Size(), 0u);
+  EXPECT_EQ(MainIndexSize(), main_before);
+}
+
+TEST_F(GridIndexTest, ARestoreIndexesEveryGridAgain) {
+  PlaceInSecondGrid();
+  const size_t main_size = MainIndexSize();
+  const ft::WorldSnapshot snapshot = ft::CaptureState(world_.World()).value();
+  z13::station::SpawnBlock(world_.World().entity("Extra"), Block {.spec = z13::station::CubeSpec(), .cell = kSecondChunkCell});
+  world_.Tick();
+
+  ASSERT_TRUE(ft::RestoreWorld(world_.World(), snapshot).has_value());
+  world_.Tick();
+
+  EXPECT_EQ(MainIndexSize(), main_size);
+  ASSERT_TRUE(world_.World().lookup("SecondGrid").has<BlockIndex>());
+  EXPECT_EQ(world_.World().lookup("SecondGrid").get<BlockIndex>().Size(), 1u);
 }
 
 }  // namespace

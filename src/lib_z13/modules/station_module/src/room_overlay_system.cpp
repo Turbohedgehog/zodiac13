@@ -34,6 +34,7 @@
 #include <z13/components/player.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/station_mode.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
@@ -208,15 +209,20 @@ void RegisterSystems(flecs::world world) {
   world.set(OverlayLayers {});
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
-  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer, const BlockIndex,
-               const BlockPalette>("RoomOverlaySystem::Update")
+  world.system<RoomOverlay, RoomBoxCache, const RoomCache, const z13::gameplay::LocalPlayer, const BlockPalette>(
+           "RoomOverlaySystem::Update")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
+      .read<BlockIndex>()
       .each([players](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
-                      const z13::gameplay::LocalPlayer& local, const BlockIndex& index, const BlockPalette& palette) {
+                      const z13::gameplay::LocalPlayer& local, const BlockPalette& palette) {
         const flecs::world world = it.world();
-        const WallSource source {.index = index, .palette = palette.palette, .block_of = [world](BlockId id) {
+        const auto main_index = MainGridData<BlockIndex>(world);
+        if (!main_index) {
+          return;
+        }
+        const WallSource source {.index = *main_index, .palette = palette.palette, .block_of = [world](BlockId id) {
                                    return BlockOf(world, id);
                                  }};
         UpdateOverlay(overlay, box_cache, cache, local, players, source);

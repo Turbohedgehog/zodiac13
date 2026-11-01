@@ -49,8 +49,6 @@ class BlockIndex {
     Eigen::Vector3f point = Eigen::Vector3f::Zero();
   };
 
-  using Singleton = void;
-
   explicit BlockIndex(int chunk_cells = DefaultIndexChunkCells());
 
   int ChunkCells() const { return chunk_cells_; }

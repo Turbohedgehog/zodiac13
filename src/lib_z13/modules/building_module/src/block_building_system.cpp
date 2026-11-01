@@ -20,6 +20,7 @@
 #include <format>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -122,28 +123,64 @@ void RegisterComponents(flecs::world world) {
 }
 
 void CreateMainGrid(flecs::world world) {
-  world.entity(std::string(z13::station::kMainGridName).c_str())
+  // An empty index from the start, as the singleton had; the first sync fills it.
+  world.entity(z13::station::kMainGridName.data())
       .add<z13::flecs_tools::StateEntity>()
-      .set(z13::station::Grid {});
+      .set(z13::station::Grid {})
+      .set(BlockIndex {});
 }
 
-void RebuildIndex(const BlockQuery& blocks, BlockIndex& index, const BuildingTuning& tuning, const Palette& palette) {
+using GridQuery = flecs::query<const z13::station::Grid>;
+
+// The entity of each grid, by the grid's id.
+std::unordered_map<z13::station::GridId, flecs::entity> GridEntities(const GridQuery& grids) {
+  std::unordered_map<z13::station::GridId, flecs::entity> entities;
+  grids.each([&entities](flecs::entity entity, const z13::station::Grid& grid) { entities.emplace(grid.id, entity); });
+  return entities;
+}
+
+// Every block into the index of its own grid, which is set whole once: the system defers sets. A block of a grid that
+// does not exist is left out.
+void RebuildIndexes(const BlockQuery& blocks, const GridQuery& grids, const BuildingTuning& tuning,
+                    const Palette& palette) {
   Z13_PROFILE_ZONE("RebuildIndex");
-  index = BlockIndex(tuning.index_chunk_cells);
-  blocks.each([&index, &palette](flecs::entity e, const Block& block) {
-    index.Insert(e.id(), ShapeOfBlock(block, palette));
+  const auto entities = GridEntities(grids);
+  std::unordered_map<z13::station::GridId, BlockIndex> indexes;
+  for (const auto& [id, grid] : entities) {
+    indexes.emplace(id, BlockIndex(tuning.index_chunk_cells));
+  }
+  blocks.each([&](flecs::entity e, const Block& block) {
+    if (const auto index = indexes.find(block.grid); index != indexes.end()) {
+      index->second.Insert(e.id(), ShapeOfBlock(block, palette));
+    }
   });
+  for (auto& [id, index] : indexes) {
+    entities.at(id).set(std::move(index));
+  }
 }
 
 // Build and destroy requests also update the index themselves, for later requests in the tick.
-void SyncBlockIndex(z13::station::BlockChangeReader& reader, uint64_t restores, uint64_t tick, BlockIndex& index,
-                    const BuildingTuning& tuning, const Palette& palette) {
-  const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, index.Size());
-  if (batch.resync || index.ChunkCells() != tuning.index_chunk_cells) {
-    RebuildIndex(reader.Blocks(), index, tuning, palette);
+void SyncBlockIndexes(z13::station::BlockChangeReader& reader, uint64_t restores, uint64_t tick,
+                      const GridQuery& grids, const BuildingTuning& tuning, const Palette& palette) {
+  const auto entities = GridEntities(grids);
+  size_t indexed {};
+  bool rebuild {};
+  for (const auto& [id, grid] : entities) {
+    const auto* index = grid.try_get<BlockIndex>();
+    indexed += index != nullptr ? index->Size() : 0;
+    rebuild = rebuild || index == nullptr || index->ChunkCells() != tuning.index_chunk_cells;
+  }
+  const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, indexed);
+  if (batch.resync || rebuild) {
+    RebuildIndexes(reader.Blocks(), grids, tuning, palette);
     return;
   }
   for (const z13::station::BlockChange& change : batch.changes) {
+    const auto grid = entities.find(change.block.grid);
+    if (grid == entities.end()) {
+      continue;
+    }
+    BlockIndex& index = grid->second.get_mut<BlockIndex>();
     if (change.kind == z13::station::BlockChangeKind::kRemoved) {
       index.Erase(change.entity);
     } else {
@@ -458,18 +495,22 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
 // request keeps its clearance free for the requests after it in the same tick.
 void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
   std::optional<BuildRun> run;
+  const auto index = z13::station::MutableMainGridData<BlockIndex>(it.world());
   while (it.next()) {
+    if (!index) {
+      continue;
+    }
     if (!run) {
-      const auto& tuning = it.field<const BuildingTuning>(4)[0];
+      const auto& tuning = it.field<const BuildingTuning>(3)[0];
       run = BuildRun {
-          .index = it.field<BlockIndex>(2)[0],
-          .palette = it.field<const BlockPalette>(3)[0].palette,
+          .index = *index,
+          .palette = it.field<const BlockPalette>(2)[0].palette,
           .tuning = tuning,
           .players = PlayerSpheres(players),
           .spawn_clearances = SpawnClearances(spawn_blocks, tuning),
           .spawn_points = it.world().count<SpawnPoint>()};
     }
-    auto& actor = it.field<z13::gameplay::EditActor>(5)[0];
+    auto& actor = it.field<z13::gameplay::EditActor>(4)[0];
     for (const size_t i : it) {
       const flecs::entity player = it.entity(i);
       const z13::gameplay::ActorScope scope(actor, player.get<z13::gameplay::Player>().id);
@@ -499,12 +540,16 @@ bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
 // players can't each remove one of the last two in the same tick.
 void ProcessDestroyRequests(flecs::iter& it) {
   int spawn_points = it.world().count<SpawnPoint>();
+  const auto main_index = z13::station::MutableMainGridData<BlockIndex>(it.world());
   while (it.next()) {
+    if (!main_index) {
+      continue;
+    }
+    BlockIndex& index = *main_index;
     const auto transforms = it.field<const Eigen::Matrix4f>(2);
-    auto& index = it.field<BlockIndex>(3)[0];
-    const auto& palette = it.field<const BlockPalette>(4)[0];
-    const auto& tuning = it.field<const BuildingTuning>(5)[0];
-    auto& actor = it.field<z13::gameplay::EditActor>(6)[0];
+    const auto& palette = it.field<const BlockPalette>(3)[0];
+    const auto& tuning = it.field<const BuildingTuning>(4)[0];
+    auto& actor = it.field<z13::gameplay::EditActor>(5)[0];
     for (const size_t i : it) {
       flecs::entity player = it.entity(i);
       const z13::gameplay::ActorScope scope(actor, player.get<z13::gameplay::Player>().id);
@@ -664,31 +709,34 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
   brush.set(BrushPreview {.block = block, .valid = valid, .kind = kind});
 }
 
-void InstallIndex(flecs::world world) {
-  world.set(BlockIndex {});
-}
-
 void RegisterSystems(flecs::world world) {
-  InstallIndex(world);
-
+  // Every request and aim below reads the main grid's index until the grid under the cursor picks it (f/grid-pose).
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
-  world.system<BlockIndex, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock,
-               const BuildingTuning, const BlockPalette>("BlockBuildingSystem::SyncBlockIndex")
+  const GridQuery grids = world.query<const z13::station::Grid>();
+  world.system<const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock, const BuildingTuning,
+               const BlockPalette>("BlockBuildingSystem::SyncBlockIndex")
       .kind<StationBuildPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<z13::station::BlockChange>()
-      .each([reader](flecs::iter&, size_t, BlockIndex& index, const z13::flecs_tools::WorldRestores& restores,
-                     const z13::flecs_tools::SimulationClock& clock, const BuildingTuning& tuning,
-                     const BlockPalette& palette) {
-        SyncBlockIndex(*reader, restores.count, clock.tick, index, tuning, palette.palette);
+      .read<z13::station::Grid>()
+      .write<BlockIndex>()
+      .each([reader, grids](flecs::iter&, size_t, const z13::flecs_tools::WorldRestores& restores,
+                            const z13::flecs_tools::SimulationClock& clock, const BuildingTuning& tuning,
+                            const BlockPalette& palette) {
+        SyncBlockIndexes(*reader, restores.count, clock.tick, grids, tuning, palette.palette);
       });
 
-  world.system<RequestBrushDrag, const BlockIndex>("BlockBuildingSystem::StartBrushDrag")
+  world.system<RequestBrushDrag>("BlockBuildingSystem::StartBrushDrag")
       .kind<StationBuildPhase>()
       .with<StationMode>()
+      .read<BlockIndex>()
       .write<BrushDrag>()
-      .each(StartBrushDrag);
+      .each([](flecs::entity player, RequestBrushDrag request) {
+        if (const auto index = z13::station::MainGridData<BlockIndex>(player.world())) {
+          StartBrushDrag(player, request, *index);
+        }
+      });
 
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>("BlockBuildingSystem::Players")
@@ -698,12 +746,10 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const Block>("BlockBuildingSystem::SpawnBlocks").with<SpawnPoint>().build();
 
   // Same-tick requests compete, so they go in player id order (see CompareByPlayerId).
-  world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, BlockIndex,
-               const BlockPalette, const BuildingTuning, z13::gameplay::EditActor>(
-      "BlockBuildingSystem::ProcessBuildRequests")
+  world.system<z13::building::RequestBuildBlock, const z13::gameplay::Player, const BlockPalette, const BuildingTuning,
+               z13::gameplay::EditActor>("BlockBuildingSystem::ProcessBuildRequests")
       .kind<StationBuildPhase>()
-      .term_at(2).inout()
-      .term_at(5).inout()
+      .term_at(4).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<z13::inventory::ActiveItem>()
@@ -711,6 +757,7 @@ void RegisterSystems(flecs::world world) {
       .read<BuildPermission>()
       .read<z13::building::CutModifier>()
       .read<z13::building::CutInModifier>()
+      .write<BlockIndex>()
       .write<BrushDrag>()
       .write<Block>()
       .write<z13::station::BlockChange>()
@@ -723,17 +770,17 @@ void RegisterSystems(flecs::world world) {
       .write<z13::station::WallOpening>()
       .run([players, spawn_blocks](flecs::iter& it) { ProcessBuildRequests(it, players, spawn_blocks); });
 
-  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f, BlockIndex,
+  world.system<z13::building::RequestDestroyBlock, const z13::gameplay::Player, const Eigen::Matrix4f,
                const BlockPalette, const BuildingTuning, z13::gameplay::EditActor>(
       "BlockBuildingSystem::ProcessDestroyRequests")
       .kind<StationBuildPhase>()
-      .term_at(3).inout()
-      .term_at(6).inout()
+      .term_at(5).inout()
       .with<StationMode>()
       .order_by<z13::gameplay::Player>(z13::gameplay::CompareByPlayerId)
       .read<BuildPermission>()
       .read<SpawnPoint>()
       .read<WallPanelOf>()
+      .write<BlockIndex>()
       .write<Block>()
       .write<z13::station::BlockChange>()
       .write<z13::station::WallSegment>()
@@ -742,7 +789,7 @@ void RegisterSystems(flecs::world world) {
       .run(ProcessDestroyRequests);
 
   // Last, so the preview shows this frame's blocks; the render draws it in OnStore.
-  world.system<const Eigen::Matrix4f, const BlockIndex, const BlockPalette, const BuildingTuning>(
+  world.system<const Eigen::Matrix4f, const BlockPalette, const BuildingTuning>(
            "BlockBuildingSystem::UpdateBrushPreview")
       .kind<StationBuildPhase>()
       .with<z13::building::Brush>()
@@ -752,6 +799,7 @@ void RegisterSystems(flecs::world world) {
       .read<Block>()
       .read<z13::building::CutModifier>()
       .read<z13::building::CutInModifier>()
+      .read<BlockIndex>()
       .read<BrushDrag>()
       .read<BuildPermission>()
       .read<WallDraft>()
@@ -761,8 +809,13 @@ void RegisterSystems(flecs::world world) {
       .read<WallSegment>()
       .read<z13::station::WallOpening>()
       .write<BrushPreview>()
-      .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockIndex& index,
-                                    const BlockPalette& palette, const BuildingTuning& tuning) {
+      .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockPalette& palette,
+                                    const BuildingTuning& tuning) {
+        const auto main_index = z13::station::MainGridData<BlockIndex>(brush.world());
+        if (!main_index) {
+          return;
+        }
+        const BlockIndex& index = *main_index;
         const std::vector<PlayerSphere> spheres = PlayerSpheres(players);
         const std::vector<CellBox> clearances = SpawnClearances(spawn_blocks, tuning);
         UpdateBrushPreview(brush, {.palette = palette.palette, .index = index, .tuning = tuning,
