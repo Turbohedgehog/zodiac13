@@ -214,7 +214,8 @@ void UpdateRooms(RoomMemory& memory, const GridQuery& grids, const BlockQuery& b
     // A grid new to the rooms gets its components at once, and its rooms are built whole from its blocks.
     const bool fresh = !grid.has<RoomCache>() || !grid.has<TopologyVersion>();
     if (fresh) {
-      const z13::ImmediateScope immediate(grid.world());
+      flecs::world world = grid.world();
+      const z13::ImmediateScope immediate(world);
       if (!grid.has<RoomCache>()) {
         grid.set(RoomCache {});
       }
@@ -246,6 +247,8 @@ void RegisterSystems(flecs::world world) {
                const z13::flecs_tools::SimulationClock, const BlockPalette, const z13::BuildingTuning,
                const z13::ThreadPool>("RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
+      // Immediate, so a grid new to the rooms can get its components at once (ImmediateScope).
+      .immediate()
       .with<StationMode>()
       .read<Block>()
       .read<BlockChange>()
