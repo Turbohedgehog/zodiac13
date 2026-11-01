@@ -29,6 +29,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/thread_pool.h>
 #include <lib_core/world/lifecycle.h>
@@ -40,6 +41,7 @@
 #include <z13/components/utilities.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/station_mode.h>
 #include <z13_settings/building_tuning.h>
 #include <primitives/palette.h>
@@ -76,8 +78,6 @@ void RegisterPipeline(flecs::world world) {
 }
 
 void InstallSingletons(flecs::world world) {
-  world.set(TopologyVersion {});
-  world.set(RoomCache {});
   world.set(HeldSectors {});
   world.set(StationBounds {});
 }
@@ -91,18 +91,19 @@ rooms::RoomCache::Build FromSources(rooms::RoomSources sources, const rooms::Roo
   };
 }
 
-rooms::RoomSources SourcesWithCut(const BlockQuery& blocks, const BlockPalette& palette, const RoomCut& cut) {
-  rooms::RoomSources sources = GatherSources(blocks, palette).sources;
+rooms::RoomSources SourcesWithCut(const BlockQuery& blocks, const BlockPalette& palette, const RoomCut& cut,
+                                  GridId grid) {
+  rooms::RoomSources sources = GatherSources(blocks, palette, grid).sources;
   std::ranges::copy(cut.walls, std::back_inserter(sources.sealed));
   return sources;
 }
 
 // `edits_apply`: the current graph is that of the blocks before the edits. Otherwise, or
 // when the edits fail, the rooms come from every block and `cut`.
-rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks,
+rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const BlockQuery& blocks, GridId grid,
                                   const BlockPalette& palette, RoomCut cut, const rooms::RoomSettings& settings,
                                   rooms::ParallelFor parallel) {
-  return [edits = std::move(edits), edits_apply, &blocks, &palette, cut = std::move(cut), settings,
+  return [edits = std::move(edits), edits_apply, &blocks, grid, &palette, cut = std::move(cut), settings,
           parallel = std::move(parallel)](
              rooms::RoomId first_id,
              rooms::OptionalRoomGraph current) -> std::expected<rooms::RoomGraph, std::string> {
@@ -111,7 +112,7 @@ rooms::RoomCache::Build FromEdits(TopologyEdits edits, bool edits_apply, const B
         return updated;
       }
     }
-    return FromSources(SourcesWithCut(blocks, palette, cut), settings, parallel)(first_id, current);
+    return FromSources(SourcesWithCut(blocks, palette, cut, grid), settings, parallel)(first_id, current);
   };
 }
 
@@ -129,29 +130,41 @@ StationBounds BoundsOf(const RoomCache& cache) {
   return {.sealed = SealedBounds {.min = sealed.min, .extent = sealed.extent}};
 }
 
-void UpdateRooms(BlockChangeReader& reader, RoomCut& applied_cut, const HeldSectors& held, uint64_t restores,
-                 uint64_t tick, TopologyVersion& topology, RoomCache& cache, StationBounds& bounds,
-                 const BlockPalette& palette, const z13::BuildingTuning& tuning, const z13::ThreadPool& pool) {
-  const BlockChangeBatch batch = reader.Read(restores, tick);
-  const bool cut_changed = held != applied_cut.held;
-  if (!batch.resync && batch.changes.empty() && !cut_changed) {
-    return;
+using GridQuery = flecs::query<const Grid>;
+
+// What every grid's update has in common this tick.
+struct RoomInputs {
+  const BlockChangeBatch& batch;
+  const BlockQuery& blocks;
+  const BlockPalette& palette;
+  const rooms::RoomSettings& settings;
+  const z13::ThreadPool& pool;
+};
+
+// What changes a grid's rooms: the changes of its blocks, and for the main grid the cut at the edge of the held sectors.
+// False if there was nothing to do.
+bool UpdateGridRooms(const RoomInputs& in, GridId grid, bool resync, const RoomCut& applied_cut, const RoomCut& cut,
+                     bool cut_changed, TopologyVersion& topology, RoomCache& cache) {
+  std::vector<BlockChange> changes;
+  std::ranges::copy_if(in.batch.changes, std::back_inserter(changes),
+                       [grid](const BlockChange& change) { return change.block.grid == grid; });
+  if (!resync && changes.empty() && !cut_changed) {
+    return false;
   }
   Z13_PROFILE_ZONE("RoomSystem::UpdateRooms");
-  const rooms::RoomSettings settings = RoomSettingsOf(tuning);
+  const z13::ThreadPool& pool = in.pool;
   rooms::ParallelFor parallel = [pool](size_t count, const std::function<void(size_t)>& body) {
     pool.ForEachIndex(count, body);
   };
   uint64_t fingerprint {};
   rooms::RoomCache::Build build;
-  RoomCut cut = cut_changed ? CutOf(held) : applied_cut;
-  if (batch.resync) {
-    TopologySources gathered = GatherSources(reader.Blocks(), palette);
+  if (resync) {
+    TopologySources gathered = GatherSources(in.blocks, in.palette, grid);
     std::ranges::copy(cut.walls, std::back_inserter(gathered.sources.sealed));
     fingerprint = gathered.fingerprint + cut.fingerprint;
-    build = FromSources(std::move(gathered.sources), settings, std::move(parallel));
+    build = FromSources(std::move(gathered.sources), in.settings, std::move(parallel));
   } else {
-    TopologyEdits edits = EditsOf(batch.changes, palette);
+    TopologyEdits edits = EditsOf(changes, in.palette);
     if (cut_changed) {
       std::ranges::copy(applied_cut.walls, std::back_inserter(edits.edits.removed.sealed));
       std::ranges::copy(cut.walls, std::back_inserter(edits.edits.added.sealed));
@@ -159,41 +172,91 @@ void UpdateRooms(BlockChangeReader& reader, RoomCut& applied_cut, const HeldSect
     }
     fingerprint = topology.fingerprint + edits.fingerprint_change;
     const bool edits_apply = cache.CurrentFingerprint() == topology.fingerprint;
-    build = FromEdits(std::move(edits), edits_apply, reader.Blocks(), palette, cut, settings, std::move(parallel));
+    build = FromEdits(std::move(edits), edits_apply, in.blocks, grid, in.palette, cut, in.settings, std::move(parallel));
   }
-  applied_cut = std::move(cut);
   if (topology.fingerprint != fingerprint) {
     topology.fingerprint = fingerprint;
     ++topology.version;
   }
   const auto graph = cache.Select(fingerprint, build);
   if (!graph) {
-    log_error("station: no rooms: {}", graph.error());
+    log_error("station: no rooms in grid {}: {}", grid, graph.error());
   }
-  // A cut world's walls would read as blocks.
-  bounds = held.sectors ? StationBounds {} : BoundsOf(cache);
+  return true;
+}
+
+// The grids in id order, so every peer updates them alike.
+std::vector<flecs::entity> GridsInOrder(const GridQuery& grids) {
+  std::vector<flecs::entity> entities;
+  grids.each([&entities](flecs::entity entity, const Grid&) { entities.push_back(entity); });
+  std::ranges::sort(entities, {}, [](const flecs::entity& entity) { return entity.get<Grid>().id; });
+  return entities;
+}
+
+// What the rooms system keeps between ticks.
+struct RoomMemory {
+  BlockChangeReader reader;
+  // The cut the main grid's rooms were last built with.
+  RoomCut applied_cut;
+};
+
+void UpdateRooms(RoomMemory& memory, const GridQuery& grids, const BlockQuery& blocks, const HeldSectors& held,
+                 uint64_t restores, uint64_t tick, StationBounds& bounds, const BlockPalette& palette,
+                 const z13::BuildingTuning& tuning, const z13::ThreadPool& pool) {
+  const BlockChangeBatch batch = memory.reader.Read(restores, tick);
+  const rooms::RoomSettings settings = RoomSettingsOf(tuning);
+  const RoomInputs inputs {.batch = batch, .blocks = blocks, .palette = palette, .settings = settings, .pool = pool};
+  const bool cut_changed = held != memory.applied_cut.held;
+  const RoomCut main_cut = cut_changed ? CutOf(held) : memory.applied_cut;
+  const RoomCut no_cut;
+  for (flecs::entity grid : GridsInOrder(grids)) {
+    const GridId id = grid.get<Grid>().id;
+    // A grid new to the rooms gets its components at once, and its rooms are built whole from its blocks.
+    const bool fresh = !grid.has<RoomCache>() || !grid.has<TopologyVersion>();
+    if (fresh) {
+      const z13::ImmediateScope immediate(grid.world());
+      if (!grid.has<RoomCache>()) {
+        grid.set(RoomCache {});
+      }
+      if (!grid.has<TopologyVersion>()) {
+        grid.set(TopologyVersion {});
+      }
+    }
+    const bool is_main = id == kMainGrid;
+    const bool resync = batch.resync || fresh;
+    RoomCache& cache = grid.get_mut<RoomCache>();
+    const bool updated =
+        UpdateGridRooms(inputs, id, resync, is_main ? memory.applied_cut : no_cut, is_main ? main_cut : no_cut,
+                        is_main && cut_changed, grid.get_mut<TopologyVersion>(), cache);
+    if (is_main && updated) {
+      memory.applied_cut = main_cut;
+      // A cut world's walls would read as blocks.
+      bounds = held.sectors ? StationBounds {} : BoundsOf(cache);
+    }
+  }
 }
 
 void RegisterSystems(flecs::world world) {
   InstallSingletons(world);
 
-  const auto reader = std::make_shared<BlockChangeReader>(world);
-  const auto applied_cut = std::make_shared<RoomCut>();
-  world.system<TopologyVersion, RoomCache, StationBounds, const HeldSectors, const z13::flecs_tools::WorldRestores,
+  const auto memory = std::make_shared<RoomMemory>(RoomMemory {.reader = BlockChangeReader(world)});
+  const GridQuery grids = world.query<const Grid>();
+  const BlockQuery blocks = world.query<const Block>();
+  world.system<StationBounds, const HeldSectors, const z13::flecs_tools::WorldRestores,
                const z13::flecs_tools::SimulationClock, const BlockPalette, const z13::BuildingTuning,
-               const z13::ThreadPool>(
-      "RoomSystem::UpdateRooms")
+               const z13::ThreadPool>("RoomSystem::UpdateRooms")
       .kind<StationTopologyPhase>()
       .with<StationMode>()
       .read<Block>()
       .read<BlockChange>()
-      .each([reader, applied_cut](
-                flecs::iter&, size_t, TopologyVersion& topology, RoomCache& cache, StationBounds& bounds,
-                const HeldSectors& held,
-                const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
-                const BlockPalette& palette, const z13::BuildingTuning& tuning, const z13::ThreadPool& pool) {
-        UpdateRooms(
-            *reader, *applied_cut, held, restores.count, clock.tick, topology, cache, bounds, palette, tuning, pool);
+      .read<Grid>()
+      .write<RoomCache>()
+      .write<TopologyVersion>()
+      .each([memory, grids, blocks](flecs::iter&, size_t, StationBounds& bounds, const HeldSectors& held,
+                                    const z13::flecs_tools::WorldRestores& restores,
+                                    const z13::flecs_tools::SimulationClock& clock, const BlockPalette& palette,
+                                    const z13::BuildingTuning& tuning, const z13::ThreadPool& pool) {
+        UpdateRooms(*memory, grids, blocks, held, restores.count, clock.tick, bounds, palette, tuning, pool);
       });
 }
 

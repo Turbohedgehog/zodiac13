@@ -31,6 +31,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/enum_cycle.h>
 
+#include <z13/components/grid.h>
 #include <z13/components/door.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
@@ -71,11 +72,11 @@ using testing::kWindow;
 using testing::SealedBox;
 
 const RoomGraph& Graph(Z13TestWorld& world) {
-  return world.World().get<RoomCache>().Current()->get();
+  return MainGridEntity(world.World()).get<RoomCache>().Current()->get();
 }
 
 uint64_t Version(Z13TestWorld& world) {
-  return world.World().get<TopologyVersion>().version;
+  return MainGridEntity(world.World()).get<TopologyVersion>().version;
 }
 
 TEST(RoomSystemTest, ABoxOfBlocksIsOneRoom) {
@@ -120,7 +121,7 @@ void ShowRooms(Z13TestWorld& world, RoomOverlayMode mode, std::optional<std::vec
                uint64_t fingerprint_offset = 0) {
   std::optional<RoomsDrawn> drawn;
   if (seen) {
-    const uint64_t fingerprint = world.World().get<RoomCache>().CurrentFingerprint().value_or(0) + fingerprint_offset;
+    const uint64_t fingerprint = MainGridEntity(world.World()).get<RoomCache>().CurrentFingerprint().value_or(0) + fingerprint_offset;
     drawn = RoomsDrawn {.fingerprint = fingerprint, .rooms = std::move(*seen)};
   }
   world.World().set(RoomOverlay {.mode = mode, .drawn = std::move(drawn)});
@@ -392,7 +393,7 @@ TEST_P(ShippedRoomsTest, TheStationHasRoomsAndEveryPortalJoinsTwoOfThem) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), GetParam()});
   world.Tick();
 
-  const auto current = world.World().get<RoomCache>().Current();
+  const auto current = MainGridEntity(world.World()).get<RoomCache>().Current();
   ASSERT_TRUE(current.has_value());
   const RoomGraph& graph = current->get();
   EXPECT_GT(Version(world), 0U);
@@ -548,6 +549,71 @@ TEST(HubDoorsTest, EveryDoorStandsOpenAtTheStart) {
   });
   EXPECT_GT(doors, 0);
   EXPECT_EQ(shut, 0);
+}
+
+// What is derived from a grid's blocks is a component of its entity, and each grid has its own.
+class GridRoomsTest : public ::testing::Test {
+ protected:
+  static constexpr GridId kSecondGrid = 1;
+  // The second grid gets its rooms on the first tick that sees it; a few more to read them.
+  static constexpr int kSettleTicks = 3;
+  // Clear of the main grid's box, so the blocks' names differ.
+  static inline const Eigen::Vector3i kShift {200, 0, 0};
+
+  void SetUp() override {
+    world_.Tick();
+    AddBlocks(world_, SealedBox());
+    second_ = world_.World().entity("SecondGrid").add<z13::flecs_tools::StateEntity>().set(Grid {.id = kSecondGrid});
+    Advance(kSettleTicks);
+  }
+
+  void Advance(int ticks) {
+    for (int i = 0; i < ticks; ++i) {
+      world_.Tick();
+    }
+  }
+
+  // The sealed box again, in the second grid.
+  void BuildSecondBox() {
+    for (Block block : SealedBox()) {
+      block.cell += kShift;
+      block.grid = kSecondGrid;
+      AddBlock(world_, block);
+    }
+    Advance(kSettleTicks);
+  }
+
+  const RoomGraph& SecondGraph() { return second_.get<RoomCache>().Current()->get(); }
+
+  Z13TestWorld world_ = StationWorld();
+  flecs::entity second_;
+};
+
+TEST_F(GridRoomsTest, ABoxInAnotherGridMakesRoomsThereAndLeavesTheMainGridsAlone) {
+  const uint64_t version = Version(world_);
+  const uint64_t fingerprint = MainGridEntity(world_.World()).get<TopologyVersion>().fingerprint;
+  const size_t main_rooms = Graph(world_).rooms.size();
+
+  BuildSecondBox();
+
+  const auto inside = SecondGraph().RoomAt(kRoomCorner + kShift + Eigen::Vector3i(1, 1, 1));
+  ASSERT_TRUE(inside.has_value());
+  EXPECT_EQ(SecondGraph().rooms.at(*inside).volume_cells, kSide * kSide * kHeight);
+  EXPECT_EQ(Version(world_), version);
+  EXPECT_EQ(MainGridEntity(world_.World()).get<TopologyVersion>().fingerprint, fingerprint);
+  EXPECT_EQ(Graph(world_).rooms.size(), main_rooms);
+}
+
+TEST_F(GridRoomsTest, EditingTheMainGridLeavesTheOtherGridsTopologyAlone) {
+  BuildSecondBox();
+  const uint64_t second_version = second_.get<TopologyVersion>().version;
+  const uint64_t main_version = Version(world_);
+
+  AddBlocks(world_, DoorPartition());
+  world_.Tick();
+
+  EXPECT_GT(Version(world_), main_version);
+  EXPECT_EQ(second_.get<TopologyVersion>().version, second_version);
 }
 
 }  // namespace

@@ -27,6 +27,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gravity.h>
+#include <z13/components/grid.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/station_mode.h>
@@ -55,12 +56,14 @@ Eigen::Vector3f RoomPull(rooms::RoomId room, float gravity) {
 }
 
 // Without rooms (a failed rebuild) RoomGravity is empty and nothing pulls.
-void UpdateRoomGravity(RoomGravity& gravity, const RoomCache& cache, const z13::PhysicsTuning& tuning) {
-  const auto graph = cache.Current();
+void UpdateRoomGravity(flecs::iter& it, size_t, RoomGravity& gravity, const z13::PhysicsTuning& tuning) {
+  const auto main_cache = MainGridData<RoomCache>(it.world());
+  const auto graph = main_cache ? main_cache->get().Current() : std::nullopt;
   if (!graph) {
     gravity = {};
     return;
   }
+  const RoomCache& cache = main_cache->get();
   const RoomGravitySource source {.switches = cache.Switches(), .gravity = tuning.gravity};
   if (gravity.source == source) {
     return;
@@ -92,11 +95,12 @@ void SetAcceleration(Gravity& gravity, const Eigen::Vector3f& acceleration) {
 // A body inside a block (a door frame, a wall it's pushed out of) keeps what it had, so
 // passing a door doesn't drop gravity for a few ticks.
 void ApplyRoomGravity(flecs::iter& it) {
+  const auto main_cache = MainGridData<RoomCache>(it.world());
+  const auto graph = main_cache ? main_cache->get().Current() : std::nullopt;
   while (it.next()) {
     const auto transforms = it.field<const Eigen::Matrix4f>(0);
     const auto bodies = it.field<Gravity>(1);
     const RoomGravity& rooms_gravity = it.field<const RoomGravity>(2)[0];
-    const auto graph = it.field<const RoomCache>(3)[0].Current();
     for (const size_t i : it) {
       if (!graph || !rooms_gravity.source) {
         SetAcceleration(bodies[i], Eigen::Vector3f::Zero());
@@ -115,15 +119,16 @@ void ApplyRoomGravity(flecs::iter& it) {
 void RegisterSystems(flecs::world world) {
   world.set(RoomGravity {});
 
-  world.system<RoomGravity, const RoomCache, const z13::PhysicsTuning>("GravitySystem::UpdateRoomGravity")
+  world.system<RoomGravity, const z13::PhysicsTuning>("GravitySystem::UpdateRoomGravity")
       .kind<GravityPhase>()
       .with<StationMode>()
+      .read<RoomCache>()
       .each(UpdateRoomGravity);
 
-  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity, const RoomCache>(
-           "GravitySystem::ApplyRoomGravity")
+  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity>("GravitySystem::ApplyRoomGravity")
       .kind<GravityPhase>()
       .with<StationMode>()
+      .read<RoomCache>()
       .run(ApplyRoomGravity);
 }
 
