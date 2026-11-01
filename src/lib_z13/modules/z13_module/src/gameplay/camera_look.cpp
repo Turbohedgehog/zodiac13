@@ -27,8 +27,11 @@ namespace z13::gameplay {
 namespace {
 
 constexpr float kHalfTurnDeg = 180.f;
-// Two unit vectors this close to opposite are taken for opposite: no shortest way round between them.
-constexpr float kOppositeMargin = 1e-6f;
+// UpFrame turns by the shortest arc, which there is none of for an up opposite +Z: one whose cosine with +Z is within
+// this of -1 gets the half turn about X instead, so the division by 1 + cosine never meets zero.
+constexpr float kOppositeCosineMargin = 1e-6f;
+// A mix of two unit vectors whose squared length is this short is taken for their cancelling out.
+constexpr float kCancelledSquaredLength = 1e-6f;
 constexpr float kFullTurnDeg = 360.f;
 
 // Wraps yaw rather than clamping it, so turning past +-180 deg works; an in-range angle is
@@ -55,7 +58,7 @@ LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg)
 
 Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up) {
   const float cosine = up.z();
-  if (cosine < -1.f + kOppositeMargin) {
+  if (cosine <= -1.f + kOppositeCosineMargin) {
     return Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX()).toRotationMatrix();
   }
   const Eigen::Vector3f axis = Eigen::Vector3f::UnitZ().cross(up);
@@ -67,7 +70,7 @@ Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up) {
 Eigen::Vector3f FollowUp(const Eigen::Vector3f& up, const Eigen::Vector3f& target, float follow) {
   const Eigen::Vector3f mixed = up + ((target - up) * std::clamp(follow, 0.f, 1.f));
   // Opposite vectors cancel: there is no way to turn that is nearer, so it goes straight to the target.
-  return mixed.squaredNorm() > kOppositeMargin ? Eigen::Vector3f(mixed.normalized()) : target;
+  return mixed.squaredNorm() > kCancelledSquaredLength ? Eigen::Vector3f(mixed.normalized()) : target;
 }
 
 LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform, const Eigen::Vector3f& upright) {

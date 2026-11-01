@@ -15,7 +15,7 @@ Findings that came up in this repo's reviews, beyond CLAUDE.md's rules themselve
 - Constants, keys and helpers defined twice (a struct built from settings in two places: give it one function).
 - A long `if` condition (a chain of `||`/`&&` over many operands that runs past a line or two): give it a name as a function (`HasAllNestedTables`, `HasSessionTables`) and call that.
 - A comparison or equality written by hand where `operator== = default` would do.
-- Tuning numbers as constants instead of settings; magic numbers.
+- Tuning numbers as constants instead of settings; magic numbers; an epsilon or tolerance written as a literal (`1e-5f`) in code or in a test's `EXPECT_NEAR`/`isApprox`: name it or use `z13::math::kEpsilon`.
 - The same element indexed two or three times in a row (`nodes_[i].a`, `nodes_[i].b`, `dirty_[i]` read and then written): one reference, or build the value and insert it whole.
 - New headers: include what the file uses, and no more — a wide header pulled in for one type (measure with perf-measure's `header_width.py`).
 - New `.cpp`/`.fbs` listed in its `CMakeLists.txt`.

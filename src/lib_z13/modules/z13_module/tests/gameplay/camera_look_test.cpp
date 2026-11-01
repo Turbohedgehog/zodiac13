@@ -29,6 +29,15 @@
 namespace z13::gameplay {
 namespace {
 
+// z13::math::kEpsilon: what float arithmetic leaves of a position or a length of a few meters.
+constexpr float kTolerance = static_cast<float>(z13::math::kEpsilon);
+// Float rounding in a few products of rotation matrices.
+constexpr float kRounding = 1e-5f;
+// Positions of tens of meters summed over steps.
+constexpr float kSumTolerance = 1e-3f;
+// Degrees through an atan2 or an asin.
+constexpr float kAngleToleranceDeg = 1e-3f;
+
 constexpr float kDeltaTime = 1.f;  // keeps expected displacement == axis * kCameraVelocity
 
 Eigen::Vector3f Position(const Eigen::Matrix4f& transform) {
@@ -43,7 +52,7 @@ TEST(CameraLook, ForwardMoveTranslatesAlongForwardAxis) {
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity, 0.f, 0.f), 1e-4f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity, 0.f, 0.f), kTolerance));
 }
 
 TEST(CameraLook, OpposingMoveAxesCancelOut) {
@@ -59,7 +68,7 @@ TEST(CameraLook, OpposingMoveAxesCancelOut) {
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isZero(1e-4f));
+  EXPECT_TRUE(Position(transform).isZero(kTolerance));
 }
 
 TEST(CameraLook, StrafeAndVerticalMoveAlongSideAndUpAxes) {
@@ -71,7 +80,7 @@ TEST(CameraLook, StrafeAndVerticalMoveAlongSideAndUpAxes) {
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, kCameraVelocity, kCameraVelocity), 1e-4f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, kCameraVelocity, kCameraVelocity), kTolerance));
 }
 
 TEST(CameraLook, BackwardRightDownMoveOppositeTheirPairedAxis) {
@@ -85,7 +94,7 @@ TEST(CameraLook, BackwardRightDownMoveOppositeTheirPairedAxis) {
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
   EXPECT_TRUE(Position(transform).isApprox(
-      Eigen::Vector3f(-kCameraVelocity, -kCameraVelocity, -kCameraVelocity), 1e-4f));
+      Eigen::Vector3f(-kCameraVelocity, -kCameraVelocity, -kCameraVelocity), kTolerance));
 }
 
 TEST(CameraLook, DiagonalMoveCombinesAxesAsVectorSum) {
@@ -97,7 +106,7 @@ TEST(CameraLook, DiagonalMoveCombinesAxesAsVectorSum) {
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity, -kCameraVelocity, 0.f), 1e-4f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity, -kCameraVelocity, 0.f), kTolerance));
 }
 
 TEST(CameraLook, MoveDeltaScalesWithDeltaTime) {
@@ -109,7 +118,7 @@ TEST(CameraLook, MoveDeltaScalesWithDeltaTime) {
 
   ApplyCameraMove(axes, kHalfStep, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity * kHalfStep, 0.f, 0.f), 1e-4f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(kCameraVelocity * kHalfStep, 0.f, 0.f), kTolerance));
 }
 
 TEST(CameraLook, MoveAccumulatesAcrossFramesFromExistingPosition) {
@@ -122,7 +131,7 @@ TEST(CameraLook, MoveAccumulatesAcrossFramesFromExistingPosition) {
   ApplyCameraMove(axes, kDeltaTime, look, transform);
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(5.f + 2.f * kCameraVelocity, 0.f, 0.f), 1e-3f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(5.f + 2.f * kCameraVelocity, 0.f, 0.f), kSumTolerance));
 }
 
 TEST(CameraLook, NoMoveInputLeavesPositionUnchanged) {
@@ -133,7 +142,7 @@ TEST(CameraLook, NoMoveInputLeavesPositionUnchanged) {
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(1.f, 2.f, 3.f), 1e-4f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(1.f, 2.f, 3.f), kTolerance));
 }
 
 TEST(CameraLook, TurnLookAddsYawAndSubtractsPitch) {
@@ -145,7 +154,7 @@ TEST(CameraLook, TurnLookAddsYawAndSubtractsPitch) {
 
 TEST(CameraLook, YawWrapsIntoHalfTurnRangeInsteadOfClamping) {
   // 170 + 20 = 190, should wrap to -170, not clamp at 180.
-  EXPECT_NEAR(TurnLook({.yaw_deg = 170.f}, 20.f, 0.f).yaw_deg, -170.f, 1e-3f);
+  EXPECT_NEAR(TurnLook({.yaw_deg = 170.f}, 20.f, 0.f).yaw_deg, -170.f, kAngleToleranceDeg);
 }
 
 TEST(CameraLook, PitchClampsAtLookLimits) {
@@ -174,8 +183,8 @@ TEST(CameraLook, LookAnglesFromTransformRecoversTheAngles) {
 
   const LookAngles recovered = LookAnglesFromTransform(transform);
 
-  EXPECT_NEAR(recovered.yaw_deg, 60.f, 1e-3f);
-  EXPECT_NEAR(recovered.pitch_deg, -30.f, 1e-3f);
+  EXPECT_NEAR(recovered.yaw_deg, 60.f, kAngleToleranceDeg);
+  EXPECT_NEAR(recovered.pitch_deg, -30.f, kAngleToleranceDeg);
 }
 
 TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
@@ -192,7 +201,7 @@ TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
   ApplyCameraMove(move, kDeltaTime, look, transform);
 
   // Facing +90 deg yaw turns the forward axis from +X to +Y.
-  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, kCameraVelocity, 0.f), 1e-3f));
+  EXPECT_TRUE(Position(transform).isApprox(Eigen::Vector3f(0.f, kCameraVelocity, 0.f), kSumTolerance));
 }
 
 constexpr float kLookDownDeg = 60.f;
@@ -209,7 +218,7 @@ TEST(WalkMove, LookingDownStillWalksAlongTheFloor) {
 
   ApplyWalkMove(axes, kWalk, look, motion, transform);
 
-  EXPECT_NEAR(Position(transform).x(), kWalk.walk_speed * kWalk.delta_time, 1e-4f);
+  EXPECT_NEAR(Position(transform).x(), kWalk.walk_speed * kWalk.delta_time, kTolerance);
   EXPECT_FLOAT_EQ(look.pitch_deg, kLookDownDeg);
 }
 
@@ -223,7 +232,7 @@ TEST(WalkMove, DiagonalKeysDontWalkFaster) {
 
   ApplyWalkMove(axes, kWalk, look, motion, transform);
 
-  EXPECT_NEAR(Position(transform).head<2>().norm(), kWalk.walk_speed * kWalk.delta_time, 1e-4f);
+  EXPECT_NEAR(Position(transform).head<2>().norm(), kWalk.walk_speed * kWalk.delta_time, kTolerance);
 }
 
 TEST(WalkMove, JumpsOnlyFromTheGround) {
@@ -266,17 +275,32 @@ TEST(UpFrame, TakesPlusZToTheUpAndIsARotation) {
 
   const Eigen::Matrix3f frame = UpFrame(up);
 
-  EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(up, 1e-5f));
-  EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), 1e-5f));
-  EXPECT_NEAR(frame.determinant(), 1.f, 1e-5f);
+  EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(up, kRounding));
+  EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), kRounding));
+  EXPECT_NEAR(frame.determinant(), 1.f, kRounding);
 }
 
 TEST(UpFrame, IsTheIdentityForPlusZAndAHalfTurnForMinusZ) {
   EXPECT_TRUE(UpFrame(Eigen::Vector3f::UnitZ()).isApprox(Eigen::Matrix3f::Identity()));
 
   const Eigen::Matrix3f upside_down = UpFrame(-Eigen::Vector3f::UnitZ());
-  EXPECT_TRUE((upside_down * Eigen::Vector3f::UnitZ()).isApprox(-Eigen::Vector3f::UnitZ(), 1e-5f));
-  EXPECT_NEAR(upside_down.determinant(), 1.f, 1e-5f);
+  EXPECT_TRUE((upside_down * Eigen::Vector3f::UnitZ()).isApprox(-Eigen::Vector3f::UnitZ(), kRounding));
+  EXPECT_NEAR(upside_down.determinant(), 1.f, kRounding);
+}
+
+TEST(UpFrame, StaysARotationWhereTheUpIsAlmostOppositeAndAtTheEdgeOfTheMargin) {
+  constexpr float kOffAxis = 0.03f;
+  // Off the axis by this, 1 + cosine is about 5e-9: below the margin UpFrame keeps.
+  constexpr float kWithinTheMargin = 1e-4f;
+  const Eigen::Vector3f nearly_opposite = Eigen::Vector3f(0.f, kOffAxis, -1.f).normalized();
+
+  const Eigen::Matrix3f frame = UpFrame(nearly_opposite);
+
+  EXPECT_TRUE(frame.allFinite());
+  EXPECT_TRUE((frame * Eigen::Vector3f::UnitZ()).isApprox(nearly_opposite, kTolerance));
+  EXPECT_TRUE((frame * frame.transpose()).isApprox(Eigen::Matrix3f::Identity(), kTolerance));
+  // Within the margin it is the half turn, which is finite too.
+  EXPECT_TRUE(UpFrame(Eigen::Vector3f(0.f, kWithinTheMargin, -1.f).normalized()).allFinite());
 }
 
 TEST(FollowUp, MovesPartWayAndStaysAUnitVector) {
@@ -284,7 +308,7 @@ TEST(FollowUp, MovesPartWayAndStaysAUnitVector) {
 
   const Eigen::Vector3f once = FollowUp(Eigen::Vector3f::UnitZ(), target, 0.5f);
 
-  EXPECT_NEAR(once.norm(), 1.f, 1e-5f);
+  EXPECT_NEAR(once.norm(), 1.f, kRounding);
   EXPECT_GT(once.dot(target), Eigen::Vector3f::UnitZ().dot(target));
   EXPECT_LT(once.dot(target), 1.f);
 }
@@ -297,7 +321,7 @@ TEST(FollowUp, ReachesTheTargetByRepeatedSteps) {
     up = FollowUp(up, target, 0.1f);
   }
 
-  EXPECT_TRUE(up.isApprox(target, 1e-4f));
+  EXPECT_TRUE(up.isApprox(target, kTolerance));
   EXPECT_TRUE(FollowUp(up, target, 0.f).isApprox(up));
   EXPECT_TRUE(FollowUp(up, Eigen::Vector3f::UnitZ(), 1.f).isApprox(Eigen::Vector3f::UnitZ()));
 }
@@ -305,7 +329,7 @@ TEST(FollowUp, ReachesTheTargetByRepeatedSteps) {
 TEST(FollowUp, GoesStraightToATargetOppositeTheUp) {
   const Eigen::Vector3f up = FollowUp(Eigen::Vector3f::UnitZ(), -Eigen::Vector3f::UnitZ(), 0.5f);
 
-  EXPECT_NEAR(up.norm(), 1.f, 1e-5f);
+  EXPECT_NEAR(up.norm(), 1.f, kRounding);
   EXPECT_TRUE(up.isApprox(-Eigen::Vector3f::UnitZ()));
 }
 
@@ -324,8 +348,8 @@ TEST(CameraLook, ATiltedUprightTurnsTheWholeCameraWithoutChangingWhatYawAndPitch
   const Eigen::Matrix3f frame = UpFrame(TiltedUp());
   const Eigen::Matrix3f tilted_rotation = tilted.block<3, 3>(0, 0);
   const Eigen::Matrix3f straight_rotation = straight.block<3, 3>(0, 0);
-  EXPECT_TRUE(tilted_rotation.isApprox(frame * straight_rotation, 1e-5f));
-  EXPECT_NEAR(tilted_rotation.col(2).dot(TiltedUp()), std::cos(z13::math::ToRadians(10.f)), 1e-4f);
+  EXPECT_TRUE(tilted_rotation.isApprox(frame * straight_rotation, kRounding));
+  EXPECT_NEAR(tilted_rotation.col(2).dot(TiltedUp()), std::cos(z13::math::ToRadians(10.f)), kTolerance);
 }
 
 TEST(CameraLook, ThePitchOfALevelLookIsZeroInTheFrameOfTheUpright) {
@@ -338,10 +362,10 @@ TEST(CameraLook, ThePitchOfALevelLookIsZeroInTheFrameOfTheUpright) {
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
   const Eigen::Vector3f forward = transform.block<3, 3>(0, 0).col(0);
-  EXPECT_NEAR(forward.dot(TiltedUp()), 0.f, 1e-5f) << "level looks stay across the up";
+  EXPECT_NEAR(forward.dot(TiltedUp()), 0.f, kRounding) << "level looks stay across the up";
   const LookAngles again = LookAnglesFromTransform(transform, TiltedUp());
-  EXPECT_NEAR(again.yaw_deg, 70.f, 1e-3f);
-  EXPECT_NEAR(again.pitch_deg, 0.f, 1e-3f);
+  EXPECT_NEAR(again.yaw_deg, 70.f, kAngleToleranceDeg);
+  EXPECT_NEAR(again.pitch_deg, 0.f, kAngleToleranceDeg);
 }
 
 TEST(WalkMove, OnATiltedFloorTheStepStaysAcrossTheGravity) {
@@ -359,7 +383,7 @@ TEST(WalkMove, OnATiltedFloorTheStepStaysAcrossTheGravity) {
   const Eigen::Vector3f moved = Position(transform);
   const Eigen::Vector3f down = step.gravity.normalized();
   const Eigen::Vector3f along_floor = moved - (moved.dot(down) * down);
-  EXPECT_NEAR(along_floor.norm(), step.walk_speed * step.delta_time, 1e-4f);
+  EXPECT_NEAR(along_floor.norm(), step.walk_speed * step.delta_time, kTolerance);
 }
 
 }  // namespace

@@ -84,6 +84,7 @@ Each gameplay/render module (`building_module`, `bullet_module`, `station_module
 - Mark intentional `switch`/`case` fallthrough with `[[fallthrough]];`, also between stacked empty `case` labels.
 - Prefer `std::format` over `snprintf`/manual char buffers or string concatenation (`+`) for building strings.
 - Represent filesystem paths as named `std::filesystem::path` constants, not bare string literals passed inline.
+- Tolerances and epsilons (`1e-5f`, `1e-3f`) are named constants whose name or comment says why they have that size, or an existing one (`z13::math::kEpsilon`), in tests too: a literal in `EXPECT_NEAR` or `isApprox` is a magic number.
 - Avoid magic numbers, small ones included (a 2 for double buffering); give them a named `constexpr` constant whose name, or a short comment, says why it has that value. Numbers that tune behaviour (reach distances, clearances, chunk sizes) aren't constants: they go into a settings.json table (FlatBuffers schema with `min`/`max`/`cli`, cross-field rules in `ValidateSettings`), are sent to clients in `Welcome` like `PhysicsTuning`, and are read by systems as a singleton term.
 - Always use braces for `if`/loop bodies, even single-statement ones.
 

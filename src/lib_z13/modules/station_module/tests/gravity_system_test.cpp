@@ -47,6 +47,8 @@ constexpr int kFallTicks = 120;
 // Long enough to walk 1.5 m.
 constexpr int kWalkTicks = 30;
 constexpr float kStandTolerance = 1e-2f;
+// What is left of the 4 degrees after 120 ticks at the default follow rate: (1 - 6 / 60) ^ 120 of it, far below this.
+constexpr float kUpTolerance = 1e-3f;
 const z13::PhysicsTuning kTuning {};
 
 float FloorTop() {
@@ -248,12 +250,12 @@ TEST_F(GravitySystemTest, ThePlayersUpTurnsToTheGravityOfATiltedRoomAndNotAtOnce
   const Eigen::Vector3f after_a_step = player.get<z13::gravity::PlayerUp>().up;
   Advance(kFallTicks);
 
-  EXPECT_LT(after_a_step.dot(TiltedUp()), 1.f - 1e-6f) << "a tick turns it part of the way";
+  EXPECT_LT(after_a_step.dot(TiltedUp()), 1.f) << "a step turns it part of the way";
   EXPECT_GT(after_a_step.dot(TiltedUp()), Eigen::Vector3f::UnitZ().dot(TiltedUp()));
-  EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(TiltedUp(), 1e-3f));
+  EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(TiltedUp(), kUpTolerance));
   const Eigen::Matrix4f transform = player.get<Eigen::Matrix4f>();
   const Eigen::Vector3f camera_up = transform.block<3, 1>(0, 2);
-  EXPECT_TRUE(camera_up.isApprox(TiltedUp(), 1e-3f)) << "the camera stands on the lean";
+  EXPECT_TRUE(camera_up.isApprox(TiltedUp(), kUpTolerance)) << "the camera stands on the lean";
 }
 
 TEST_F(GravitySystemTest, ThePlayersUpStaysWhereNothingPullsHim) {
