@@ -27,7 +27,7 @@ namespace z13::gameplay {
 namespace {
 
 constexpr float kHalfTurnDeg = 180.f;
-// Within this of exactly opposite, two unit vectors are taken for opposite (their sum or the cosine's distance).
+// Two unit vectors this close to opposite are taken for opposite: no shortest way round between them.
 constexpr float kOppositeMargin = 1e-6f;
 constexpr float kFullTurnDeg = 360.f;
 

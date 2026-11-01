@@ -243,15 +243,17 @@ TEST_F(GravitySystemTest, ThePlayersUpTurnsToTheGravityOfATiltedRoomAndNotAtOnce
   ASSERT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(Eigen::Vector3f::UnitZ()));
 
   TiltTheRooms(world_.World());
-  world_.Tick(kTick);
-  const Eigen::Vector3f after_one = player.get<z13::gravity::PlayerUp>().up;
+  // The first tick gives the player the tilted gravity, the second turns his up a step.
+  Advance(2);
+  const Eigen::Vector3f after_a_step = player.get<z13::gravity::PlayerUp>().up;
   Advance(kFallTicks);
 
-  EXPECT_LT(after_one.dot(TiltedUp()), 1.f - 1e-6f) << "a tick turns it part of the way";
-  EXPECT_GT(after_one.dot(TiltedUp()), Eigen::Vector3f::UnitZ().dot(TiltedUp()));
+  EXPECT_LT(after_a_step.dot(TiltedUp()), 1.f - 1e-6f) << "a tick turns it part of the way";
+  EXPECT_GT(after_a_step.dot(TiltedUp()), Eigen::Vector3f::UnitZ().dot(TiltedUp()));
   EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(TiltedUp(), 1e-3f));
   const Eigen::Matrix4f transform = player.get<Eigen::Matrix4f>();
-  EXPECT_TRUE(transform.block<3, 1>(0, 2).isApprox(TiltedUp(), 1e-3f)) << "the camera stands on the lean";
+  const Eigen::Vector3f camera_up = transform.block<3, 1>(0, 2);
+  EXPECT_TRUE(camera_up.isApprox(TiltedUp(), 1e-3f)) << "the camera stands on the lean";
 }
 
 TEST_F(GravitySystemTest, ThePlayersUpStaysWhereNothingPullsHim) {

@@ -322,8 +322,10 @@ TEST(CameraLook, ATiltedUprightTurnsTheWholeCameraWithoutChangingWhatYawAndPitch
   ApplyCameraMove(tilted_axes, kDeltaTime, look, tilted);
 
   const Eigen::Matrix3f frame = UpFrame(TiltedUp());
-  EXPECT_TRUE(tilted.block<3, 3>(0, 0).isApprox(frame * straight.block<3, 3>(0, 0), 1e-5f));
-  EXPECT_NEAR(tilted.block<3, 3>(0, 0).col(2).dot(TiltedUp()), std::cos(z13::math::ToRadians(10.f)), 1e-4f);
+  const Eigen::Matrix3f tilted_rotation = tilted.block<3, 3>(0, 0);
+  const Eigen::Matrix3f straight_rotation = straight.block<3, 3>(0, 0);
+  EXPECT_TRUE(tilted_rotation.isApprox(frame * straight_rotation, 1e-5f));
+  EXPECT_NEAR(tilted_rotation.col(2).dot(TiltedUp()), std::cos(z13::math::ToRadians(10.f)), 1e-4f);
 }
 
 TEST(CameraLook, ThePitchOfALevelLookIsZeroInTheFrameOfTheUpright) {
