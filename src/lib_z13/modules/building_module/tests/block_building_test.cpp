@@ -31,6 +31,7 @@
 
 #include <net_module/in_memory_transport.h>
 
+#include <z13/components/grid.h>
 #include <z13/components/building.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/player.h>
@@ -154,7 +155,7 @@ TEST(BlockBuildingTest, ACutTakesAWallBuiltThisTick) {
   Request(test_world, {builder, cutter}, /*build=*/true);
 
   EXPECT_FALSE(std::ranges::contains(BlocksOfType(test_world.World(), kWallId), built[0]));
-  EXPECT_EQ(test_world.World().get<z13::building::grid::BlockIndex>().Size(),
+  EXPECT_EQ(z13::station::MainGridEntity(test_world.World()).get<z13::building::grid::BlockIndex>().Size(),
             static_cast<size_t>(test_world.World().count<Block>()));
 }
 

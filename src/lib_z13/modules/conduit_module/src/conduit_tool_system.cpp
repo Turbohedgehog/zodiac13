@@ -41,6 +41,7 @@
 #include <primitives/palette.h>
 #include <z13/components/action_map.h>
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/block_brush.h>
 #include <z13/components/building.h>
 #include <z13/components/conduit.h>
@@ -370,22 +371,25 @@ void RegisterSystems(flecs::world world) {
                            .order_by<Player>(z13::gameplay::CompareByPlayerId)
                            .build();
   // A system of singletons runs once a frame; the players go in id order, each seeing the edits of those before.
-  world.system<const ConduitKinds, const z13::building::grid::BlockIndex, const ConduitActionIds,
-               const z13::BuildingTuning, const z13::building::primitives::BlockPalette, z13::gameplay::EditActor>(
-           "ConduitToolSystem::UseTool")
+  world.system<const ConduitKinds, const ConduitActionIds, const z13::BuildingTuning,
+               const z13::building::primitives::BlockPalette, z13::gameplay::EditActor>("ConduitToolSystem::UseTool")
       .kind<z13::building::UpdateBuildingToolPhase>()
       .with<z13::station::StationMode>()
+      .read<z13::building::grid::BlockIndex>()
       .read<ActiveItem>()
       .read<z13::station::BuildPermission>()
       .write<ConduitTool>()
       .write<ConduitDrag>()
       .write<Conduit>()
-      .each([players](flecs::iter&, size_t, const ConduitKinds& kinds,
-                      const z13::building::grid::BlockIndex& blocks, const ConduitActionIds& ids,
+      .each([players](flecs::iter& it, size_t, const ConduitKinds& kinds, const ConduitActionIds& ids,
                       const z13::BuildingTuning& tuning, const z13::building::primitives::BlockPalette& palette,
                       z13::gameplay::EditActor& actor) {
+        const auto blocks = z13::station::MainGridData<z13::building::grid::BlockIndex>(it.world());
+        if (!blocks) {
+          return;
+        }
         const ToolContext context {.kinds = kinds,
-                                   .blocks = blocks,
+                                   .blocks = blocks->get(),
                                    .ids = ids,
                                    .max_length = palette.palette.max_size_cells,
                                    .reach_m = tuning.destroy_reach_distance};

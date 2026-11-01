@@ -17,9 +17,12 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string_view>
 
 #include <Eigen/Dense>
+#include <flecs.h>
 
 namespace z13::station {
 
@@ -41,5 +44,26 @@ struct Grid {
 
   bool operator==(const Grid&) const = default;
 };
+
+// The entity of the main grid; not valid while there is none (before the world data, after the station was left).
+// What is derived from a grid's blocks (the block index, the rooms) is a component of its entity; for now every reader
+// takes the main grid's, looked up each time since the entity is made anew with every station.
+inline flecs::entity MainGridEntity(flecs::world world) {
+  return world.lookup(kMainGridName.data());
+}
+
+// The main grid's component T, if it has one.
+template <typename T>
+std::optional<std::reference_wrapper<const T>> MainGridData(flecs::world world) {
+  const flecs::entity grid = MainGridEntity(world);
+  return grid.is_valid() && grid.has<T>() ? std::optional(std::cref(grid.get<T>())) : std::nullopt;
+}
+
+// The same, to change in place: for a system that declares it writes T.
+template <typename T>
+std::optional<std::reference_wrapper<T>> MutableMainGridData(flecs::world world) {
+  flecs::entity grid = MainGridEntity(world);
+  return grid.is_valid() && grid.has<T>() ? std::optional(std::ref(grid.get_mut<T>())) : std::nullopt;
+}
 
 }  // namespace z13::station
