@@ -29,4 +29,13 @@ struct Gravity {
   bool Pulls() const { return !acceleration.isZero(); }
 };
 
+// Which way is up for a player: the unit vector that follows the gravity a little each tick, so the camera turns
+// smoothly when the player passes into a room whose gravity differs. +Z until some gravity has pulled otherwise.
+struct PlayerUp {
+  using State = void;
+  Eigen::Vector3f up = Eigen::Vector3f::UnitZ();
+
+  bool operator==(const PlayerUp&) const = default;
+};
+
 }  // namespace z13::gravity

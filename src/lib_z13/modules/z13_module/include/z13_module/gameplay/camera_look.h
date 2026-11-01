@@ -35,6 +35,8 @@ struct CameraMoveAxes {
   float up {};
   float down {};
   LookAngles absolute_look;
+  // Which way the camera's up is, a unit vector: +Z, or the way a player's gravity has turned it.
+  Eigen::Vector3f upright = Eigen::Vector3f::UnitZ();
 };
 
 constexpr float kCameraVelocity = 30.f;
@@ -43,8 +45,15 @@ constexpr float kMaxPitchDeg = 89.f;
 // Turns `look` by a mouse-look delta: yaw wraps into (-180:180], pitch clamps.
 LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg);
 
-// The angles `transform` faces, for a player without LookAngles yet.
-LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform);
+// The rotation that takes +Z to `up` (a unit vector) by the shortest arc: the frame a player's yaw and pitch are in.
+Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up);
+
+// `up` moved towards `target` (both unit vectors) by the share `follow` of what is left, a unit vector again.
+Eigen::Vector3f FollowUp(const Eigen::Vector3f& up, const Eigen::Vector3f& target, float follow);
+
+// The angles `transform` faces in the frame of `upright`, for a player without LookAngles yet.
+LookAngles LookAnglesFromTransform(
+    const Eigen::Matrix4f& transform, const Eigen::Vector3f& upright = Eigen::Vector3f::UnitZ());
 
 // Sets `look` to `axes.absolute_look` and applies the move axes to `transform`, scaled by
 // `delta_time`. `transform`'s rotation block is fully overwritten from `look`.
@@ -61,7 +70,7 @@ struct WalkStep {
   float jump_speed {};
 };
 
-// Turns like ApplyCameraMove, but steps across the gravity whatever the pitch, jumps with
+// Turns like ApplyCameraMove (upright along `axes.upright`), but steps across the gravity whatever the pitch, jumps with
 // `axes.up` from the ground and falls by `motion.fall_speed`; `axes.down` does nothing.
 void ApplyWalkMove(
     const CameraMoveAxes& axes, const WalkStep& step, LookAngles& look, PlayerMotion& motion,

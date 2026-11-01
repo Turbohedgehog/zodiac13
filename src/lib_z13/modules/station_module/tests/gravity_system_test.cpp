@@ -31,6 +31,7 @@
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "../src/room_gravity.h"
 #include "support/room_blocks.h"
 
 namespace z13::station {
@@ -46,6 +47,8 @@ constexpr int kFallTicks = 120;
 // Long enough to walk 1.5 m.
 constexpr int kWalkTicks = 30;
 constexpr float kStandTolerance = 1e-2f;
+// What is left of the 4 degrees after 120 ticks at the default follow rate: (1 - 6 / 60) ^ 120 of it, far below this.
+constexpr float kUpTolerance = 1e-3f;
 const z13::PhysicsTuning kTuning {};
 
 float FloorTop() {
@@ -221,6 +224,51 @@ TEST_F(GravitySystemTest, RoomGravityFollowsTheGravitySetting) {
   world_.Tick(kTick);
 
   EXPECT_TRUE(body.get<Gravity>().acceleration.isApprox(Eigen::Vector3f(0.f, 0.f, -kLowGravity)));
+}
+
+// A room whose floor leans by 4 degrees about X, as a tilted district's will: its gravity leans with it.
+Eigen::Vector3f TiltedUp() {
+  constexpr float kTiltDeg = 4.f;
+  return Eigen::AngleAxisf(z13::math::ToRadians(kTiltDeg), Eigen::Vector3f::UnitX()) * Eigen::Vector3f::UnitZ();
+}
+
+void TiltTheRooms(flecs::world world) {
+  for (auto& [room, pull] : world.get_mut<RoomGravity>().by_room) {
+    if (!pull.isZero()) {
+      pull = -TiltedUp() * pull.norm();
+    }
+  }
+}
+
+TEST_F(GravitySystemTest, ThePlayersUpTurnsToTheGravityOfATiltedRoomAndNotAtOnce) {
+  const flecs::entity player = StandAt({3.f, 4.f});
+  ASSERT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(Eigen::Vector3f::UnitZ()));
+
+  TiltTheRooms(world_.World());
+  // The first tick gives the player the tilted gravity, the second turns his up a step.
+  Advance(2);
+  const Eigen::Vector3f after_a_step = player.get<z13::gravity::PlayerUp>().up;
+  Advance(kFallTicks);
+
+  EXPECT_LT(after_a_step.dot(TiltedUp()), 1.f) << "a step turns it part of the way";
+  EXPECT_GT(after_a_step.dot(TiltedUp()), Eigen::Vector3f::UnitZ().dot(TiltedUp()));
+  EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(TiltedUp(), kUpTolerance));
+  const Eigen::Matrix4f transform = player.get<Eigen::Matrix4f>();
+  const Eigen::Vector3f camera_up = transform.block<3, 1>(0, 2);
+  EXPECT_TRUE(camera_up.isApprox(TiltedUp(), kUpTolerance)) << "the camera stands on the lean";
+}
+
+TEST_F(GravitySystemTest, ThePlayersUpStaysWhereNothingPullsHim) {
+  const flecs::entity player = StandAt({3.f, 4.f});
+  TiltTheRooms(world_.World());
+  Advance(kFallTicks);
+  const Eigen::Vector3f tilted = player.get<z13::gravity::PlayerUp>().up;
+
+  player.set(At(InBox(10.f)));
+  Advance(kWalkTicks);
+
+  EXPECT_FALSE(player.get<Gravity>().Pulls());
+  EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(tilted));
 }
 
 }  // namespace
