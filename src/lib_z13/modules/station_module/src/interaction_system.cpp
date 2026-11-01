@@ -156,7 +156,7 @@ void FindInteractions(flecs::entity player, const z13::gameplay::Player&, const 
   if (!main_index) {
     return;
   }
-  const BlockIndex& index = *main_index;
+  const BlockIndex& index = main_index->get();
   if (const Methods requested = RequestedMethods(listener, id); requested != Methods::NONE) {
     AddUses(player, transform, requested, index, palette, tuning.use_reach_distance, interactions.list);
   }

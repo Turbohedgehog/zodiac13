@@ -545,7 +545,7 @@ void ProcessDestroyRequests(flecs::iter& it) {
     if (!main_index) {
       continue;
     }
-    BlockIndex& index = *main_index;
+    BlockIndex& index = main_index->get();
     const auto transforms = it.field<const Eigen::Matrix4f>(2);
     const auto& palette = it.field<const BlockPalette>(3)[0];
     const auto& tuning = it.field<const BuildingTuning>(4)[0];
@@ -734,7 +734,7 @@ void RegisterSystems(flecs::world world) {
       .write<BrushDrag>()
       .each([](flecs::entity player, RequestBrushDrag request) {
         if (const auto index = z13::station::MainGridData<BlockIndex>(player.world())) {
-          StartBrushDrag(player, request, *index);
+          StartBrushDrag(player, request, index->get());
         }
       });
 
@@ -815,7 +815,7 @@ void RegisterSystems(flecs::world world) {
         if (!main_index) {
           return;
         }
-        const BlockIndex& index = *main_index;
+        const BlockIndex& index = main_index->get();
         const std::vector<PlayerSphere> spheres = PlayerSpheres(players);
         const std::vector<CellBox> clearances = SpawnClearances(spawn_blocks, tuning);
         UpdateBrushPreview(brush, {.palette = palette.palette, .index = index, .tuning = tuning,

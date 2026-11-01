@@ -389,7 +389,7 @@ void RegisterSystems(flecs::world world) {
           return;
         }
         const ToolContext context {.kinds = kinds,
-                                   .blocks = *blocks,
+                                   .blocks = blocks->get(),
                                    .ids = ids,
                                    .max_length = palette.palette.max_size_cells,
                                    .reach_m = tuning.destroy_reach_distance};
