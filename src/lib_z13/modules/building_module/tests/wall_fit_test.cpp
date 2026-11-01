@@ -21,6 +21,7 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/grid.h>
 #include <z13/components/gameplay.h>
 #include <z13/components/wall.h>
 #include <primitives/wall_panel.h>
@@ -66,7 +67,7 @@ void Lay(Z13TestWorld& test_world, const WallGeometry& wall) {
 
 BuildView ViewOf(flecs::world world) {
   return {.palette = world.get<z13::building::primitives::BlockPalette>().palette,
-          .index = world.get<z13::building::grid::BlockIndex>(),
+          .index = z13::station::MainGridEntity(world).get<z13::building::grid::BlockIndex>(),
           .tuning = world.get<BuildingTuning>(),
           .players = {},
           .spawn_clearances = {}};

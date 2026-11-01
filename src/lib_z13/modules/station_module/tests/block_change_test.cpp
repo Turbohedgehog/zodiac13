@@ -29,6 +29,7 @@
 
 #include <lib_core/state/world_serializer.h>
 
+#include <z13/components/grid.h>
 #include <z13/components/block_change_reader.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/rooms.h>
@@ -81,7 +82,7 @@ std::vector<rooms::Room> RoomsByAnchor(const RoomGraph& graph) {
 // every block; empty when nowhere.
 std::string Mismatch(Z13TestWorld& world) {
   const flecs::world w = world.World();
-  const BlockIndex& index = w.get<BlockIndex>();
+  const BlockIndex& index = MainGridEntity(w).get<BlockIndex>();
   std::string found;
   int blocks {};
   AllBlocks(world).each([&](flecs::entity e, const Block& block) {
@@ -173,7 +174,7 @@ TEST_P(BlockChangeTest, DerivedStateFollowsRandomEditsAndRestores) {
       switch (NextOp(random)) {
         case Op::kBuild: {
           const Block block = RandomBlock(random);
-          if (!world.World().get<BlockIndex>().Overlaps(OccupiedCells(block))) {
+          if (!MainGridEntity(world.World()).get<BlockIndex>().Overlaps(OccupiedCells(block))) {
             ours.push_back(testing::AddBlock(world, block));
           }
           break;
