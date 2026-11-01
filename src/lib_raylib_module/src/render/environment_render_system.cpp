@@ -62,6 +62,7 @@
 #include <z13/components/action_listener.h>
 #include <z13/components/player_color.h>
 #include <z13/components/door.h>
+#include <z13/components/grid.h>
 #include <z13/components/overlay_layers.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
@@ -1105,18 +1106,20 @@ void RegisterSystems(flecs::world world) {
       });
 
   // After SyncRaylibCamera, so the tour's camera wins.
-  world.system<RaylibCamera, RenderTour, const RenderStats, const z13::station::rooms::RoomCache*,
-               const z13::RenderTuning>("EnvironmentRenderSystem::StepRenderTour")
+  world.system<RaylibCamera, RenderTour, const RenderStats, const z13::RenderTuning>(
+           "EnvironmentRenderSystem::StepRenderTour")
       .kind<Render>()
       .tick_source<RenderGate>()
+      .read<z13::station::rooms::RoomCache>()
       .with<z13::input::CurrentActionListenerTag>()
       .write<RaylibWindowClosed>()
       .each([](flecs::iter& it, size_t, RaylibCamera& camera, RenderTour& tour, const RenderStats& stats,
-               const z13::station::rooms::RoomCache* rooms, const z13::RenderTuning& tuning) {
+               const z13::RenderTuning& tuning) {
         flecs::world world = it.world();
+        const auto main_rooms = z13::station::MainGridData<z13::station::rooms::RoomCache>(world);
         const TourFrame frame {
             .stats = stats,
-            .rooms = CurrentRooms(rooms),
+            .rooms = CurrentRooms(main_rooms ? &main_rooms->get() : nullptr),
             .chunk_cells = tuning.chunk_cells,
             .sample_systems = [world] { return z13::SystemTimes(world); },
         };
@@ -1126,18 +1129,20 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize, RenderStats, FrameProfile, const z13::station::rooms::RoomCache*,
-               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const CellLighting*,
-               ShadowMaps*>("EnvironmentRenderSystem::Draw")
+  world.system<const RaylibCamera, const WindowSize, RenderStats, FrameProfile, z13::station::RoomOverlay*,
+               const RenderTour*, const z13::RenderTuning, const CellLighting*, ShadowMaps*>(
+           "EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
+      .read<z13::station::rooms::RoomCache>()
       .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
-                FrameProfile& profile, const z13::station::rooms::RoomCache* rooms, z13::station::RoomOverlay* overlay,
-                const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
-                ShadowMaps* shadows) {
+                FrameProfile& profile, z13::station::RoomOverlay* overlay, const RenderTour* tour,
+                const z13::RenderTuning& tuning, const CellLighting* cell_lighting, ShadowMaps* shadows) {
         flecs::world world = it.world();
+        const auto main_rooms = z13::station::MainGridData<z13::station::rooms::RoomCache>(world);
+        const z13::station::rooms::RoomCache* rooms = main_rooms ? &main_rooms->get() : nullptr;
         profile.timeline.MarkDrawStart(FrameProfile::Clock::now());
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
         BeginScene3D(raylib_camera.camera, size.size);

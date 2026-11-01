@@ -26,6 +26,7 @@
 
 #include <z13/components/block_changes.h>
 #include <z13/components/block.h>
+#include <z13/components/grid.h>
 #include <z13/components/held_sectors.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
@@ -44,8 +45,9 @@ struct TopologyEdits {
   uint64_t fingerprint_change {};
 };
 
-TopologySources GatherSources(
-    const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette);
+// The sources of the blocks of one grid.
+TopologySources GatherSources(const flecs::query<const Block>& blocks,
+                              const z13::building::primitives::BlockPalette& palette, GridId grid);
 
 TopologyEdits EditsOf(std::span<const BlockChange> changes, const z13::building::primitives::BlockPalette& palette);
 

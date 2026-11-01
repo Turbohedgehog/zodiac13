@@ -32,6 +32,7 @@
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
 #include <rooms/view_culling.h>
+#include <z13/components/grid.h>
 #include <z13/components/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/slow_spot.h>
@@ -193,9 +194,9 @@ TEST(FrameWalkBench, DISABLED_OctantWalk) {
   for (int tick = 0; tick < kWarmUpTicks; ++tick) {
     world.Tick();
   }
-  const auto* cache = w.try_get<rooms::RoomCache>();
-  ASSERT_NE(cache, nullptr);
-  const rooms::OptionalRoomGraph current = cache->Current();
+  const auto cache = z13::station::MainGridData<rooms::RoomCache>(w);
+  ASSERT_TRUE(cache.has_value());
+  const rooms::OptionalRoomGraph current = cache->get().Current();
   ASSERT_TRUE(current.has_value());
   const rooms::RoomGraph& graph = current->get();
 

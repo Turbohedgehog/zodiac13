@@ -31,6 +31,7 @@
 
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/flecs_utils.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/utils/math.h>
@@ -122,12 +123,22 @@ void RegisterComponents(flecs::world world) {
                                        z13::station::Grid>(world);
 }
 
+// The main grid is a state entity, so leaving the station destroys it: every new scene makes it again.
 void CreateMainGrid(flecs::world world) {
+  const z13::ImmediateScope immediate(world);
+  flecs::entity grid = world.entity(z13::station::kMainGridName.data());
+  grid.add<z13::flecs_tools::StateEntity>().set(z13::station::Grid {});
   // An empty index from the start, as the singleton had; the first sync fills it.
-  world.entity(z13::station::kMainGridName.data())
-      .add<z13::flecs_tools::StateEntity>()
-      .set(z13::station::Grid {})
-      .set(BlockIndex {});
+  if (!grid.has<BlockIndex>()) {
+    grid.set(BlockIndex {});
+  }
+}
+
+void RegisterGridObserver(flecs::world world) {
+  world.observer<const z13::gameplay::Gameplay>("BlockBuildingSystem::CreateMainGrid")
+      .event(flecs::OnAdd)
+      .yield_existing()
+      .each([](flecs::iter& it, size_t, const z13::gameplay::Gameplay&) { CreateMainGrid(it.world()); });
 }
 
 using GridQuery = flecs::query<const z13::station::Grid>;
@@ -833,6 +844,8 @@ void BlockBuildingSystem::Register(flecs::world& world) {
   OnInitSystems(world, RegisterSystems);
 
   OnInitWorldData(world, CreateMainGrid);
+
+  OnInitSystems(world, RegisterGridObserver);
 }
 
 }  // namespace z13::building

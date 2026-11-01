@@ -99,12 +99,12 @@ std::string Mismatch(Z13TestWorld& world) {
   }
 
   const TopologySources gathered =
-      GatherSources(AllBlocks(world), w.get<z13::building::primitives::BlockPalette>());
-  if (w.get<TopologyVersion>().fingerprint != gathered.fingerprint) {
+      GatherSources(AllBlocks(world), w.get<z13::building::primitives::BlockPalette>(), kMainGrid);
+  if (MainGridEntity(w).get<TopologyVersion>().fingerprint != gathered.fingerprint) {
     found += "topology fingerprint; ";
   }
   const auto full = rooms::BuildRooms(gathered.sources, rooms::RoomId {1}, RoomSettingsOf(w.get<z13::BuildingTuning>()));
-  const RoomGraph& kept = w.get<RoomCache>().Current()->get();
+  const RoomGraph& kept = MainGridEntity(w).get<RoomCache>().Current()->get();
   if (!full || kept.sources.sealed != full->sources.sealed ||
       kept.sources.portals != full->sources.portals) {
     found += "room sources; ";

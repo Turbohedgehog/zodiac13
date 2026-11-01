@@ -24,12 +24,12 @@
 
 namespace z13::station {
 
-TopologySources GatherSources(
-    const flecs::query<const Block>& blocks, const z13::building::primitives::BlockPalette& palette) {
+TopologySources GatherSources(const flecs::query<const Block>& blocks,
+                              const z13::building::primitives::BlockPalette& palette, GridId grid) {
   Z13_PROFILE_ZONE("GatherSources");
   TopologySources gathered;
   blocks.each([&](const Block& block) {
-    if (rooms::AddBlockSources(block, palette.palette, gathered.sources)) {
+    if (block.grid == grid && rooms::AddBlockSources(block, palette.palette, gathered.sources)) {
       gathered.fingerprint += rooms::BlockFingerprint(block);
     }
   });
