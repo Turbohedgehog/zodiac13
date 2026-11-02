@@ -21,7 +21,7 @@
 #include <limits>
 #include <vector>
 
-#include "../../src/pose_packet.h"
+#include "../../src/protocol/pose_packet.h"
 
 namespace z13::net {
 namespace {

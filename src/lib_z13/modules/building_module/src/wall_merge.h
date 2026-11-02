@@ -24,8 +24,8 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <z13/components/building.h>
-#include <z13/components/spawn_stamp.h>
+#include <z13/components/station/building.h>
+#include <z13/components/station/spawn_stamp.h>
 #include <primitives/palette.h>
 
 #include "brush_aim.h"

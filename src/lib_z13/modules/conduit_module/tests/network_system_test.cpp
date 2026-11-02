@@ -25,10 +25,10 @@
 #include <lib_core/state/state_markers.h>
 #include <networks/station_networks.h>
 #include <primitives/palette.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/conduit.h>
-#include <z13/components/grid.h>
-#include <z13/components/switch.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/switch.h>
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/z13_test_world.h"

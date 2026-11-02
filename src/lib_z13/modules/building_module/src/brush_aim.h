@@ -18,7 +18,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <grid/block_index.h>
 
 namespace z13::building {
@@ -44,6 +44,7 @@ Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen
 // or centred on the free point and then drawn back along the ray until it clears others.
 // With `may_overlap` (a cut takes the cells first) it stays where aimed.
 z13::station::Block BlockAt(
-    const Aim& aim, const z13::station::BlockSpec& spec, const grid::BlockIndex& index, bool may_overlap = false);
+    const Aim& aim, const z13::station::BlockSpec& spec, const grid::BlockIndex& index, int max_slide_cells,
+    bool may_overlap = false);
 
 }  // namespace z13::building

@@ -25,7 +25,7 @@
 
 #include <primitives/chunk_mesh.h>
 #include <z13_tests/shipped_station.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 namespace z13::building::primitives {
 namespace {

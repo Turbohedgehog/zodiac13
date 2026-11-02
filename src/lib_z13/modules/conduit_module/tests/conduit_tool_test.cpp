@@ -28,11 +28,11 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 #include <primitives/placement.h>
-#include <z13/components/conduit.h>
-#include <z13/components/inventory.h>
-#include <z13/components/net.h>
-#include <z13/components/state_changes.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/state_changes.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
 #include "../../building_module/tests/support/station_builders.h"

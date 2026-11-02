@@ -35,9 +35,9 @@
 
 #include <lib_core/utils/system_times.h>
 
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <primitives/station_assets.h>
-#include <z13/components/grid.h>
+#include <z13/components/station/grid.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 

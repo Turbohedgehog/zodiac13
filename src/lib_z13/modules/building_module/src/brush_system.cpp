@@ -28,17 +28,17 @@
 
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/building.h>
-#include <z13/components/player.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/inventory.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/station/station_mode.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <player/gameplay_entities.h>
 
 #include "build_action_ids.h"
 #include "held_tool.h"

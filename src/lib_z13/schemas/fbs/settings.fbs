@@ -85,6 +85,23 @@ table RenderTuning {
   flashlight_range_m: float = 20 (min: "1", max: "100", cli: "--render-flashlight-range");
   flashlight_half_angle_deg: float = 35 (min: "5", max: "80", cli: "--render-flashlight-angle");
   flashlight_intensity: float = 1.5 (min: "0", max: "10", cli: "--render-flashlight-intensity");
+  // The sun's shadow camera stands this many radii of the station's bounds (plus the margin, in meters) back from its
+  // centre.
+  sun_shadow_distance_radii: float = 2 (min: "1.1", max: "10", cli: "--render-sun-shadow-distance");
+  sun_shadow_margin_m: float = 1 (min: "0", max: "100", cli: "--render-sun-shadow-margin");
+  // The sun's direction in the Z-up world, towards where it shines (it need not be a unit vector).
+  sun_direction_x: float = -60 (min: "-1000", max: "1000", cli: "--render-sun-x");
+  sun_direction_y: float = -40 (min: "-1000", max: "1000", cli: "--render-sun-y");
+  sun_direction_z: float = -80 (min: "-1000", max: "1000", cli: "--render-sun-z");
+  // The radius of a player's avatar (the octahedron), in meters.
+  avatar_radius_m: float = 0.5 (min: "0.05", max: "10", cli: "--render-avatar-radius");
+  // The spaceship model of the ordinary scene: its scale, its place in meters and its turn about world X and then Y.
+  ship_scale: float = 0.1 (min: "0.001", max: "100", cli: "--render-ship-scale");
+  ship_x: float = 30 (min: "-10000", max: "10000", cli: "--render-ship-x");
+  ship_y: float = 0 (min: "-10000", max: "10000", cli: "--render-ship-y");
+  ship_z: float = 0 (min: "-10000", max: "10000", cli: "--render-ship-z");
+  ship_pitch_deg: float = 90 (min: "-360", max: "360", cli: "--render-ship-pitch");
+  ship_yaw_deg: float = -90 (min: "-360", max: "360", cli: "--render-ship-yaw");
 }
 
 // The touch controls' layout (client only, never sent; docs/android-plan.md). Sizes are fractions

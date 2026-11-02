@@ -18,8 +18,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/spawn_stamp.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/spawn_stamp.h>
+#include <z13/components/station/wall.h>
 
 namespace z13::testing {
 

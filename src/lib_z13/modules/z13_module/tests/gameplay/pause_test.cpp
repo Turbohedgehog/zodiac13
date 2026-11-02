@@ -24,9 +24,9 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/input_events.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/input_events.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"

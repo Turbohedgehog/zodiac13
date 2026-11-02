@@ -29,11 +29,11 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/station/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
 #include <primitives/wall_seam.h>

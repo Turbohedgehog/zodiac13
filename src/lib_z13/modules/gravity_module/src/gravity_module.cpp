@@ -22,9 +22,10 @@
 #include <flecs.h>
 
 #include <lib_core/world/lifecycle.h>
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 
 #include "generator_system.h"
+#include "gravity_system.h"
 
 namespace z13::gravity_module {
 
@@ -37,6 +38,7 @@ constexpr uint32_t kModuleVersion = 1;
 
 GravityModule::GravityModule(flecs::world& world) {
   GeneratorSystem::Register(world);
+  GravitySystem::Register(world);
   // In the phases stage, once building_module has made the list (see UtilityModules).
   z13::OnInitPhases(world, [](flecs::world& w) {
     z13::utility::DeclareUtilityModule(

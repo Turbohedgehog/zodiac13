@@ -30,12 +30,12 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
-#include <z13/components/overlay_layers.h>
-#include <z13/components/player.h>
-#include <z13/components/rooms.h>
-#include <z13/components/block.h>
-#include <z13/components/grid.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/overlay_layers.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/rooms.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/station_mode.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <rooms/room_cache.h>

@@ -20,7 +20,7 @@
 #include <algorithm>
 #include <utility>
 
-#include <z13/components/door.h>
+#include <z13/components/station/door.h>
 #include <primitives/chunk_mesh.h>
 
 namespace z13::door_render {

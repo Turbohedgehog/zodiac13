@@ -20,7 +20,7 @@
 
 namespace z13::conduit_render {
 
-// Gives every Conduit the SceneMesh raylib_module draws it by (z13/components/scene_mesh.h).
+// Gives every Conduit the SceneMesh raylib_module draws it by (z13/components/gameplay/scene_mesh.h).
 class ConduitMeshSystem {
  public:
   static void Register(flecs::world& world);

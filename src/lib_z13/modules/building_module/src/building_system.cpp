@@ -26,16 +26,16 @@
 #include <Eigen/Dense>
 
 
-#include <z13/components/block_changes.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/spawn_stamp.h>
-#include <z13/components/state_changes.h>
-#include <z13/components/gameplay_phases.h>
-#include <z13/components/player.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/block.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/spawn_stamp.h>
+#include <z13/components/station/state_changes.h>
+#include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/station_mode.h>
 #include <primitives/placement.h>
 
 #include <lib_core/utils/flecs_utils.h>

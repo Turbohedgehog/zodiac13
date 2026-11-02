@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include <z13/components/block.h>
-#include <z13/components/door.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/door.h>
 
 namespace z13::door_render {
 

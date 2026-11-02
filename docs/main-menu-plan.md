@@ -194,7 +194,7 @@ if (world.has<gameplay::Pause>() && stack.windows.empty()) {
   `--skip-main-menu` и `--quick-save-path`, методы `SkipMainMenu()`/`GetQuickSavePath()`.
 - `src/lib_core/include/lib_core/flecs_utils.h`, `src/lib_core/src/flecs_utils.cpp` —
   `GetCoreConfig(world)`.
-- `src/lib_z13/components/include/z13/components/bootstrap.h` — событие
+- `src/lib_z13/components/include/z13/components/gameplay/bootstrap.h` — событие
   `SelectInitialStateEvent`.
 - `src/lib_z13/modules/z13_module/src/bootstrap/bootstrap_system.cpp` — починить
   `RegisterComponents` (подключить к `RegisterComponentsEvent`), реализовать

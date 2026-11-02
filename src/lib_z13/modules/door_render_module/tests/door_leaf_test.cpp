@@ -21,10 +21,10 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/door.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/door.h>
+#include <z13/components/gameplay/scene_mesh.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../building_module/tests/support/station_builders.h"

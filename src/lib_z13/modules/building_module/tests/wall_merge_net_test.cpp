@@ -26,11 +26,11 @@
 #include <lib_core/state/world_json_store.h>
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/wall.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/test_network.h"

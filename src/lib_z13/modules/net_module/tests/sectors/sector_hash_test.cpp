@@ -29,14 +29,14 @@
 
 #include <net_module/state_digest.h>
 #include <sectors/sector_index.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 
 #include "../../../building_module/tests/support/station_builders.h"
 #include "../../../station_module/tests/support/room_blocks.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
-#include "../../src/sector_hash.h"
+#include "../../src/sectors/sector_hash.h"
 
 namespace z13::net {
 namespace {

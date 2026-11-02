@@ -23,8 +23,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/spawn_stamp.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/spawn_stamp.h>
+#include <z13/components/station/wall.h>
 #include <primitives/wall_panel.h>
 
 #include "wall_joints.h"

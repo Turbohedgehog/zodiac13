@@ -26,10 +26,10 @@
 #include <raylib.h>
 
 #include <cell_light/lamp.h>
-#include <z13/components/lamps.h>
+#include <z13/components/utility/lamps.h>
 #include <lib_core/utils/status.h>
 #include <primitives/geometry.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 #include "lights.h"
 

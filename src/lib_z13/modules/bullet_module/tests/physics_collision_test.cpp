@@ -25,19 +25,19 @@
 
 #include "../src/physics_world.h"
 
-#include <z13/components/block_changes.h>
-#include <z13/components/building.h>
-#include <z13/components/player.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/block.h>
-#include <z13/components/door.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/door.h>
 #include <input_config_generated.h>
 
 #include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_serializer.h>
-#include <z13/components/grid.h>
+#include <z13/components/station/grid.h>
 #include <lib_core/utils/math.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/physics_tuning.h>
 #include <z13_tests/shipped_station.h>
 #include <z13_tests/test_time.h>

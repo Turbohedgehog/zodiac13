@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <net_module/state_digest.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"

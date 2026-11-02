@@ -31,16 +31,16 @@
 #include <atmos/port_names.h>
 #include <primitives/palette.h>
 #include <rooms/room_cache.h>
-#include <z13/components/atmosphere.h>
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/conduit.h>
-#include <z13/components/door.h>
-#include <z13/components/grid.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/overlay_layers.h>
-#include <z13/components/utilities.h>
-#include <z13_module/gameplay/camera_look.h>
+#include <z13/components/utility/atmosphere.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/station/door.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/overlay_layers.h>
+#include <z13/components/utility/utilities.h>
+#include <player/camera_look.h>
 #include <z13_settings/atmos_tuning.h>
 #include <z13_settings/door_tuning.h>
 #include <z13_settings/physics_tuning.h>
@@ -66,8 +66,8 @@ using z13::station::rooms::RoomCache;
 using z13::testing::StationWorld;
 using z13::testing::Z13TestWorld;
 using z13::utility::AirlockDoors;
-using z13::utility::DoorInterlock;
-using z13::utility::InterlockReason;
+using z13::station::DoorInterlock;
+using z13::station::InterlockReason;
 using z13::utility::RoomAirEntry;
 using z13::utility::atmos::Air;
 namespace atmos = z13::utility::atmos;

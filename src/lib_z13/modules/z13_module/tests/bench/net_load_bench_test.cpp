@@ -40,11 +40,11 @@
 #include <lib_core/utils/system_times.h>
 
 #include <net_module/state_digest.h>
-#include <z13/components/player.h>
+#include <z13/components/gameplay/player.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
 
-#include "../../../net_module/src/net_session.h"
+#include "../../../net_module/src/session/net_session.h"
 #include "../support/load_session.h"
 
 namespace z13::net {

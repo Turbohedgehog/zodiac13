@@ -22,11 +22,11 @@
 #include <string>
 
 #include <net_module/state_digest.h>
-#include <z13/components/block.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/block.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
-#include "../../../net_module/src/net_session.h"
+#include "../../../net_module/src/session/net_session.h"
 #include "../support/building_test_helpers.h"
 #include "../support/load_session.h"
 

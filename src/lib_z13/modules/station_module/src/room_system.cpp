@@ -35,14 +35,14 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_profile/profile.h>
 
-#include <z13/components/block_change_reader.h>
-#include <z13/components/gameplay_phases.h>
-#include <z13/components/held_sectors.h>
-#include <z13/components/utilities.h>
-#include <z13/components/rooms.h>
-#include <z13/components/block.h>
-#include <z13/components/grid.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/station/held_sectors.h>
+#include <z13/components/utility/utilities.h>
+#include <z13/components/station/rooms.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/station_mode.h>
 #include <z13_settings/building_tuning.h>
 #include <primitives/palette.h>
 #include <rooms/parallel_for.h>

@@ -19,8 +19,8 @@
 
 #include <optional>
 
-#include <z13/components/block.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/scene_mesh.h>
 #include <primitives/geometry.h>
 
 namespace z13::door_render {

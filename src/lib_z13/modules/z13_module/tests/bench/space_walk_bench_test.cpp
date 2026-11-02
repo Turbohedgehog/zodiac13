@@ -40,7 +40,7 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/system_stats.h>
 #include <lib_core/utils/system_times.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <primitives/placement.h>
 #include <rooms/space_walk.h>
 #include <z13_tests/slow_spot.h>

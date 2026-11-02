@@ -43,4 +43,9 @@ table PhysicsTuning {
   generator_radius_cells: uint32 = 96 (min: 1, max: 4096, cli);
   // Ticks a generator takes to rise from nothing to its full pull, and to fall back.
   generator_ramp_ticks: uint32 = 180 (min: 1, max: 36000, cli);
+  // The spawn offset along X between one player id and the next, used when the scene has no SpawnPoint, so two
+  // players' bodies never overlap.
+  spawn_spacing: float = 3 (min: "0.1", max: "100", cli);
+  // A player closer than this to a spawn point, in meters, occupies it.
+  spawn_clearance: float = 1 (min: "0.1", max: "100", cli);
 }

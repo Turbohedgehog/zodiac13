@@ -28,7 +28,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/color.h>
+#include <z13/components/gameplay/color.h>
 
 // primitives.fbs's flag sets, declared here so this header stays clear of primitives_generated.h:
 // code naming a flag or combining them includes that.

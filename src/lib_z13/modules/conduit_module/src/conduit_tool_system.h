@@ -22,8 +22,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/action_listener.h>
-#include <z13/components/inventory.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/gameplay/inventory.h>
 
 namespace z13::conduit {
 

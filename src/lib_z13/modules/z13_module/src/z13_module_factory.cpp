@@ -25,8 +25,8 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input_config.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_config.h>
 #include <z13_settings/environment.h>
 
 #include "z13_module.h"

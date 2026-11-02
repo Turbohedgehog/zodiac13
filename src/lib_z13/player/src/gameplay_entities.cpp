@@ -1,0 +1,145 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <player/gameplay_entities.h>
+
+#include <algorithm>
+#include <format>
+#include <optional>
+#include <span>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include <Eigen/Dense>
+
+#include <lib_core/state/state_markers.h>
+#include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/math.h>
+
+#include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/player_parts.h>
+#include <z13/components/utility/gravity.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/input_state.h>
+#include <z13/components/station/spawn_point.h>
+#include <z13_settings/physics_tuning.h>
+
+namespace z13::gameplay {
+
+namespace {
+
+// Same order on every peer and after any restore, unlike entity ids. Height (z) first, so
+// joiners fill one deck before the next rather than stacking above a taken point.
+bool PositionLess(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
+  return std::tie(a.z(), a.x(), a.y()) < std::tie(b.z(), b.x(), b.y());
+}
+
+// The first spawn point, in position order, with no player on it; if all are taken, the
+// player's id picks one. Nullopt without spawn points.
+std::optional<Eigen::Matrix4f> ChooseSpawnPoint(
+    flecs::world world, uint32_t id, std::span<const Eigen::Vector3f> reserved) {
+  std::vector<Eigen::Matrix4f> points;
+  world.query_builder<const z13::station::SpawnPoint>().build().each(
+      [&points](const z13::station::SpawnPoint& point) { points.push_back(point.transform); });
+  if (points.empty()) {
+    return std::nullopt;
+  }
+  std::ranges::sort(points, PositionLess, [](const Eigen::Matrix4f& transform) {
+    return Eigen::Vector3f(z13::math::ExtractTranslation<float>(transform));
+  });
+
+  std::vector<Eigen::Vector3f> players(reserved.begin(), reserved.end());
+  world.query_builder<const Player, const Eigen::Matrix4f>().build().each(
+      [&players](const Player&, const Eigen::Matrix4f& transform) {
+        players.push_back(z13::math::ExtractTranslation<float>(transform));
+      });
+  const float clearance = world.get<PhysicsTuning>().spawn_clearance;
+  for (const Eigen::Matrix4f& transform : points) {
+    const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transform);
+    const bool occupied = std::ranges::any_of(players, [&position, clearance](const Eigen::Vector3f& player) {
+      return (player - position).norm() < clearance;
+    });
+    if (!occupied) {
+      return transform;
+    }
+  }
+  return points[id % points.size()];
+}
+
+}  // namespace
+
+std::string PlayerEntityName(uint32_t id) {
+  return std::format("Player_{}", id);
+}
+
+flecs::entity SpawnPlayer(flecs::world world, uint32_t id, std::span<const Eigen::Vector3f> reserved) {
+  Camera camera {
+    .fov = 90,
+    .name = std::format("PlayerCamera_{}", id),
+  };
+
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  transform(0, 3) = static_cast<float>(id) * world.get<PhysicsTuning>().spawn_spacing;
+  if (const auto spawn_point = ChooseSpawnPoint(world, id, reserved)) {
+    transform = *spawn_point;
+  }
+
+  // Not ActionListener: it isn't state, so a client-reconstructed player wouldn't have
+  // one either way. gameplay_input_system.cpp's EnsurePlayerActionListener backfills it
+  // for every Player uniformly instead.
+  return world.entity(PlayerEntityName(id).c_str())
+      .add<z13::flecs_tools::StateEntity>()
+      .set(std::move(camera))
+      .set(transform)
+      .set(Player{.id = id})
+      .set(PlayerCollider{.radius = world.get<PhysicsTuning>().player_collider_radius})
+      .set(PlayerMotion {})
+      .set(Flashlight {})
+      .set(z13::gravity::Gravity {})
+      .set(z13::inventory::Hotbar {});
+}
+
+std::optional<flecs::entity> FindPlayer(flecs::world world, uint32_t id) {
+  std::optional<flecs::entity> found;
+  world.each([&found, id](flecs::entity player, const Player& candidate) {
+    if (candidate.id == id) {
+      found = player;
+    }
+  });
+  return found;
+}
+
+void EnsureLocalPlayerReady(flecs::world world) {
+  const std::optional<uint32_t> local_id = world.get<LocalPlayer>().id;
+  if (!local_id) {
+    return;
+  }
+  const flecs::entity player = world.lookup(PlayerEntityName(*local_id).c_str());
+  if (!player) {
+    return;
+  }
+
+  if (!player.has<z13::input::ActionListener>()) {
+    player.set(z13::input::ActionListener{.action_group_priority = {std::string(z13::input::kControlActionGroup)}});
+  }
+  player.add<z13::input::InputListener>();
+  player.add<z13::input::CurrentActionListenerTag>();
+}
+
+}  // namespace z13::gameplay

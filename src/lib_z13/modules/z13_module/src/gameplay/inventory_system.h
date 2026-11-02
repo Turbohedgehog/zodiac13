@@ -21,8 +21,8 @@
 
 #include <lib_core/world/core_types.h>
 
-#include <z13/components/action_id.h>
-#include <z13/components/inventory.h>
+#include <z13/components/input/action_id.h>
+#include <z13/components/gameplay/inventory.h>
 
 namespace z13::inventory {
 

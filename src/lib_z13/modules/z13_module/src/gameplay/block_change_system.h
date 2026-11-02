@@ -21,7 +21,7 @@
 
 namespace z13::gameplay {
 
-// Clears the block changes (z13/components/block_changes.h) in ClearBlockChangesPhase.
+// Clears the block changes (z13/components/station/block_changes.h) in ClearBlockChangesPhase.
 class BlockChangeSystem {
  public:
   static void Register(flecs::world& world);

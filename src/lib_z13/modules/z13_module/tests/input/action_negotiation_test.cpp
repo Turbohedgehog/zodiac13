@@ -24,10 +24,10 @@
 #include <string_view>
 #include <vector>
 
-#include <z13/components/action_map.h>
-#include <z13/components/input_config.h>
-#include <z13_module/input/action_negotiation.h>
-#include <z13_module/input/input_config_loader.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/input_config.h>
+#include <input/action_negotiation.h>
+#include <input/input_config_loader.h>
 
 #include "../support/z13_test_world.h"
 

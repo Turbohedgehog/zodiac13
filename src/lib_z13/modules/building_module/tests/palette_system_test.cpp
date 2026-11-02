@@ -20,7 +20,7 @@
 
 
 #include <primitives/palette.h>
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"

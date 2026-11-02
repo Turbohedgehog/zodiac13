@@ -26,7 +26,7 @@
 
 #include <lib_core/state/state_markers.h>
 
-#include <z13/components/state_changes.h>
+#include <z13/components/station/state_changes.h>
 
 namespace z13::building {
 

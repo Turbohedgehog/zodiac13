@@ -43,12 +43,12 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/net.h>
-#include <z13/components/input_events.h>
-#include <z13_module/gameplay/camera_look.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/input/input_events.h>
+#include <player/camera_look.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"

@@ -24,9 +24,9 @@
 #include <flatbuffers/reflection.h>
 
 #include <input_config_generated.h>
-#include <z13/components/action_map.h>
-#include <z13/components/input_config.h>
-#include <z13/components/input_events.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/input_config.h>
+#include <z13/components/input/input_events.h>
 
 namespace z13::raylib::gui {
 

@@ -23,9 +23,9 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/block.h>
-#include <z13/components/interaction.h>
-#include <z13/components/switch.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/interaction.h>
+#include <z13/components/station/switch.h>
 #include <primitives/palette.h>
 
 namespace z13::station {

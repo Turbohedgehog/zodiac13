@@ -24,8 +24,8 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/world_serializer.h>
-#include <z13/components/state_changes.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/state_changes.h>
+#include <z13/components/station/wall.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/wall_entities.h"

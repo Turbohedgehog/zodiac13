@@ -20,10 +20,10 @@
 
 #include <flecs.h>
 
-#include <z13/components/building.h>
-#include <z13/components/input_events.h>
-#include <z13/components/inventory.h>
-#include <z13/components/player.h>
+#include <z13/components/station/building.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/player.h>
 #include <z13_tests/test_time.h>
 
 #include "z13_test_world.h"

@@ -26,11 +26,11 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <primitives/palette.h>
-#include <z13/components/block.h>
-#include <z13/components/lamps.h>
-#include <z13/components/power.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/utility/lamps.h>
+#include <z13/components/utility/power.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/utility/utilities.h>
 
 namespace z13::power_module {
 

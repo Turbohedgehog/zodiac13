@@ -22,7 +22,7 @@ namespace z13::station {
 
 struct SwitchPhase {};
 
-// Turns a Switch block on or off when a player uses it (z13/components/switch.h).
+// Turns a Switch block on or off when a player uses it (z13/components/station/switch.h).
 class SwitchSystem {
  public:
   static void Register(flecs::world& world);

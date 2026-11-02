@@ -20,9 +20,9 @@
 #include <memory>
 #include <vector>
 
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 
-#include "../../src/session_settings.h"
+#include "../../src/session/session_settings.h"
 
 namespace z13::net {
 namespace {

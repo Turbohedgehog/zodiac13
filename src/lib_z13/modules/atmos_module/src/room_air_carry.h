@@ -20,7 +20,7 @@
 
 #include <atmos/air.h>
 #include <rooms/room_graph.h>
-#include <z13/components/atmosphere.h>
+#include <z13/components/utility/atmosphere.h>
 
 namespace z13::atmos_module {
 

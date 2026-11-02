@@ -22,16 +22,16 @@
 
 #include <Eigen/Core>
 
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
 #include <touch/touch_mapping.h>
-#include <z13/components/building.h>
-#include <z13/components/input_events.h>
-#include <z13/components/inventory.h>
-#include <z13/components/player.h>
-#include <z13/components/tool_mode_info.h>
-#include <z13/components/touch_controls.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/building.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/tool_mode_info.h>
+#include <z13/components/input/touch_controls.h>
+#include <z13/components/station/wall.h>
 #include <primitives/placement.h>
 #include <z13_settings/settings.h>
 

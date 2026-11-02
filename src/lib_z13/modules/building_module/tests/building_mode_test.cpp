@@ -19,10 +19,10 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/building.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/block.h>
-#include <z13/components/player.h>
+#include <z13/components/station/building.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/player.h>
 #include <input_config_generated.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"

@@ -46,15 +46,15 @@
 #include <primitives/placement.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_cache.h>
-#include <z13/components/atmosphere.h>
-#include <z13/components/block.h>
-#include <z13/components/block_change_reader.h>
-#include <z13/components/door.h>
-#include <z13/components/grid.h>
-#include <z13/components/interaction.h>
-#include <z13/components/player.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/utilities.h>
+#include <z13/components/utility/atmosphere.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/door.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/interaction.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_settings/atmos_tuning.h>
 #include <z13_settings/door_tuning.h>
 
@@ -83,7 +83,7 @@ using z13::station::rooms::RoomGraph;
 using z13::station::rooms::RoomId;
 using z13::utility::AirlockCycle;
 using z13::utility::AirlockDoors;
-using z13::utility::DoorInterlock;
+using z13::station::DoorInterlock;
 using z13::utility::RoomAirBasis;
 using z13::utility::RoomAirEntry;
 using z13::utility::networks::StationNetworks;
@@ -223,7 +223,7 @@ void LockDoors(std::span<const DoorAt> doors, const std::unordered_set<flecs::en
     }
     const bool locked = DifferenceAt(door, graph, index, chambers) > tuning.interlock_pascals;
     if (locked && !door.entity.has<DoorInterlock>()) {
-      door.entity.set(DoorInterlock {.reason = z13::utility::InterlockReason::kPressure});
+      door.entity.set(DoorInterlock {.reason = z13::station::InterlockReason::kPressure});
     } else if (!locked && door.entity.has<DoorInterlock>()) {
       door.entity.remove<DoorInterlock>();
     }

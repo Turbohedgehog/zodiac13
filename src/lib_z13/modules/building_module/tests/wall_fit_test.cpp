@@ -21,9 +21,9 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/grid.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/wall.h>
 #include <primitives/wall_panel.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_tests/shipped_station.h>

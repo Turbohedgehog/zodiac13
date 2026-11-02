@@ -20,8 +20,8 @@
 
 #include <flecs.h>
 
-#include <z13/components/block.h>
-#include <z13/components/spawn_stamp.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/spawn_stamp.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>

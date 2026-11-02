@@ -18,15 +18,15 @@
 
 #include <flecs.h>
 
-#include "action_hints.h"
-#include "ghost_players.h"
-#include "ghost_poses.h"
-#include "interest_system.h"
-#include "lan_discovery_system.h"
-#include "net_action_sender.h"
-#include "net_session_system.h"
-#include "remote_input.h"
-#include "sector_system.h"
+#include "session/action_hints.h"
+#include "sectors/ghost_players.h"
+#include "sectors/ghost_poses.h"
+#include "sectors/interest_system.h"
+#include "discovery/lan_discovery_system.h"
+#include "session/net_action_sender.h"
+#include "session/net_session_system.h"
+#include "session/remote_input.h"
+#include "sectors/sector_system.h"
 
 namespace z13::net {
 

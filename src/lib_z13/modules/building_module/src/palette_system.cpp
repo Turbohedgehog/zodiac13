@@ -29,7 +29,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>

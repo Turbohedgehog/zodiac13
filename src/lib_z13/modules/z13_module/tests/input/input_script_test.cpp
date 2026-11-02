@@ -19,7 +19,7 @@
 #include <Eigen/Core>
 
 #include <lib_core/utils/camera_pose.h>
-#include <z13/components/player_parts.h>
+#include <z13/components/gameplay/player_parts.h>
 
 #include "../../src/input/input_script.h"
 #include "../../src/input/scripted_input_system.h"

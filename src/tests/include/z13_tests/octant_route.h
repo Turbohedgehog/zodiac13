@@ -28,7 +28,7 @@
 #include <rooms/room_graph.h>
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_tests/slow_spot.h>
 #include <z13_tests/virtual_render.h>
 

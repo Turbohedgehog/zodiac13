@@ -19,7 +19,7 @@
 #include <optional>
 #include <string_view>
 
-#include <z13/components/touch_controls.h>
+#include <z13/components/input/touch_controls.h>
 #include <z13_settings/settings.h>
 
 namespace z13::raylib::gui {

@@ -27,9 +27,9 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <primitives/palette.h>
-#include <z13/components/block.h>
-#include <z13/components/door.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/door.h>
+#include <z13/components/gameplay/scene_mesh.h>
 
 #include "door_leaf_look.h"
 #include "door_leaf_mesh.h"

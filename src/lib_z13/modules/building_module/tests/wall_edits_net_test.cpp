@@ -27,11 +27,11 @@
 
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
-#include <z13/components/block.h>
-#include <z13/components/net.h>
-#include <z13/components/state_changes.h>
-#include <z13/components/wall.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/state_changes.h>
+#include <z13/components/station/wall.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
 #include "../../z13_module/tests/support/test_network.h"

@@ -23,7 +23,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/grid.h>
+#include <z13/components/station/grid.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
 

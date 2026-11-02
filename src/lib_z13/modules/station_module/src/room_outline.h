@@ -23,8 +23,8 @@
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <rooms/room_graph.h>
-#include <z13/components/block.h>
-#include <z13/components/rooms.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/rooms.h>
 
 namespace z13::station {
 

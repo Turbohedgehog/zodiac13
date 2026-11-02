@@ -20,7 +20,7 @@
 
 #include <primitives/occupancy.h>
 #include <rooms/portal_source.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::station::rooms {

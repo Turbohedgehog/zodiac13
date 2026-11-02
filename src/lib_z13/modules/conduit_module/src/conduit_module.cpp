@@ -24,7 +24,7 @@
 #include <flecs.h>
 
 #include <lib_core/world/lifecycle.h>
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 
 #include "conduit_tool_system.h"
 #include "network_system.h"

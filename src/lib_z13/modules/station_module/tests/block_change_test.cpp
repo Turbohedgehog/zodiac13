@@ -29,11 +29,11 @@
 
 #include <lib_core/state/world_serializer.h>
 
-#include <z13/components/grid.h>
-#include <z13/components/block_change_reader.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/rooms.h>
-#include <z13/components/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/rooms.h>
+#include <z13/components/station/block.h>
 #include <grid/block_index.h>
 #include <primitives/placement.h>
 #include <rooms/room_builder.h>

@@ -26,8 +26,9 @@
 
 #include <atmos/exchange.h>
 #include <rooms/room_graph.h>
-#include <z13/components/atmosphere.h>
-#include <z13/components/interaction.h>
+#include <z13/components/utility/atmosphere.h>
+#include <z13/components/station/door.h>
+#include <z13/components/station/interaction.h>
 #include <z13_settings/atmos_tuning.h>
 #include <z13_settings/door_tuning.h>
 
@@ -39,7 +40,7 @@
 namespace z13::atmos_module {
 
 using AirlockQuery = flecs::query<const z13::utility::AirlockCycle, const z13::station::Block>;
-using InterlockQuery = flecs::query<const z13::utility::DoorInterlock>;
+using InterlockQuery = flecs::query<const z13::station::DoorInterlock>;
 
 // The geometry of one airlock in the room graph at hand: the chamber and, for each door, the chamber on its far side.
 struct AirlockSide {

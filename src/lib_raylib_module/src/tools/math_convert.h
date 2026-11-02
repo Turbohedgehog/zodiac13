@@ -19,7 +19,7 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
-#include <z13/components/color.h>
+#include <z13/components/gameplay/color.h>
 
 namespace z13::raylib {
 

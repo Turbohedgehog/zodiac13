@@ -22,8 +22,8 @@
 #include <set>
 #include <vector>
 
-#include <z13/components/state_changes.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/state_changes.h>
+#include <z13/components/station/wall.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>
 

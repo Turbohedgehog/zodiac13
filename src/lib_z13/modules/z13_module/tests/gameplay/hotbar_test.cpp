@@ -26,12 +26,12 @@
 #include <lib_core/state/world_json_store.h>
 #include <net_module/in_memory_transport.h>
 #include <touch/touch_mapping.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/inventory.h>
-#include <z13/components/player.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/player.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
 #include "../support/building_test_helpers.h"

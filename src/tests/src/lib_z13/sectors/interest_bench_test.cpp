@@ -28,7 +28,7 @@
 #include <Eigen/Dense>
 
 #include <sectors/interest_map.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 

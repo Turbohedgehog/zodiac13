@@ -24,7 +24,7 @@
 #include <vector>
 
 #include <lib_core/utils/asset_source.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <primitives/blueprint.h>
 #include <primitives/occupancy.h>
 #include <primitives/palette.h>

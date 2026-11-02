@@ -56,12 +56,12 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/net.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/net.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <primitives/station_assets.h>
