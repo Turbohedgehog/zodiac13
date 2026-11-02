@@ -21,6 +21,7 @@
 #include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
+#include <z13/components/atmosphere.h>
 #include <z13/components/block.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/conduit.h>
@@ -260,6 +261,18 @@ TEST_F(PoweredDoorTest, ADoorSetToManualIgnoresTheSensor) {
   Advance(world_, static_cast<int>(kOpenTicks) + 2);
 
   EXPECT_EQ(StateOf(door_).position, 0);
+}
+
+TEST_F(PoweredDoorTest, ADoorUnderInterlockIgnoresABodyInItsSensorUntilItIsLifted) {
+  door_.set(z13::utility::DoorInterlock {});
+  Stand(kPlayerCellY);
+
+  Advance(world_, static_cast<int>(kOpenTicks) + 2);
+  EXPECT_EQ(StateOf(door_).position, 0);
+
+  door_.remove<z13::utility::DoorInterlock>();
+  Advance(world_, static_cast<int>(kOpenTicks) + 2);
+  EXPECT_EQ(StateOf(door_).position, kDoorOpen);
 }
 
 }  // namespace

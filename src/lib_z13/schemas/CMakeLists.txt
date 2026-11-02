@@ -8,6 +8,7 @@ set(Z13_SHARED_SCHEMA_DIR ${FBS_DIR} PARENT_SCOPE)
 set(
     FBS_SCHEMAS
     ${FBS_DIR}/actions.fbs
+    ${FBS_DIR}/atmos_tuning.fbs
     ${FBS_DIR}/building_tuning.fbs
     ${FBS_DIR}/common.fbs
     ${FBS_DIR}/door_tuning.fbs

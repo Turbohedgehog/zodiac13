@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+include "atmos_tuning.fbs";
 include "building_tuning.fbs";
 include "core_settings.fbs";
 include "door_tuning.fbs";
@@ -145,6 +146,7 @@ table Settings {
   building: z13.fbs.building.BuildingTuning;
   power: z13.fbs.power.PowerTuning;
   door: z13.fbs.door.DoorTuning;
+  atmos: z13.fbs.atmos.AtmosTuning;
   visual_smoothing: VisualSmoothing;
   render: RenderTuning;
   touch: TouchLayout;

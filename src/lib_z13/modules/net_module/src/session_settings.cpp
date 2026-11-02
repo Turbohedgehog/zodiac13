@@ -33,7 +33,7 @@ namespace z13::net {
 namespace {
 
 bool HasSessionTables(const fbs::net::WelcomeT& welcome) {
-  return welcome.tuning && welcome.physics && welcome.building && welcome.power && welcome.door;
+  return welcome.tuning && welcome.physics && welcome.building && welcome.power && welcome.door && welcome.atmos;
 }
 
 }  // namespace
@@ -46,7 +46,8 @@ std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(
   const z13::SessionSettings session {
       .fps = welcome.fps, .net = *welcome.tuning, .physics = *welcome.physics, .building = *welcome.building,
       .power = *welcome.power,
-      .door = *welcome.door};
+      .door = *welcome.door,
+      .atmos = *welcome.atmos};
   z13::Settings own = z13::MakeSettings();
   *own.core = world.get<z13::ActiveCoreSettings>();
   *own.net = world.get<NetTuning>();
@@ -54,6 +55,7 @@ std::expected<z13::SessionSettings, std::string> DecodeSessionSettings(
   *own.building = world.get<z13::BuildingTuning>();
   *own.power = world.get<z13::PowerTuning>();
   *own.door = world.get<z13::DoorTuning>();
+  *own.atmos = world.get<z13::AtmosTuning>();
   if (const auto valid = z13::ValidateSettings(z13::WithSession(std::move(own), session)); !valid) {
     return std::unexpected(std::format("unusable server settings ({})", valid.error()));
   }
@@ -68,6 +70,7 @@ void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& sessio
         .own_building = world.get<z13::BuildingTuning>(),
         .own_power = world.get<z13::PowerTuning>(),
         .own_door = world.get<z13::DoorTuning>(),
+        .own_atmos = world.get<z13::AtmosTuning>(),
     });
   }
   z13::OverrideCoreFps(world, session.fps);
@@ -76,6 +79,7 @@ void AdoptSessionSettings(flecs::world world, const z13::SessionSettings& sessio
   world.set(z13::BuildingTuning(session.building));
   world.set(z13::PowerTuning(session.power));
   world.set(z13::DoorTuning(session.door));
+  world.set(z13::AtmosTuning(session.atmos));
 }
 
 void RestoreOwnSettings(flecs::world world) {
@@ -89,6 +93,7 @@ void RestoreOwnSettings(flecs::world world) {
   world.set(own.own_building);
   world.set(own.own_power);
   world.set(own.own_door);
+  world.set(own.own_atmos);
   z13::OverrideCoreFps(world, std::nullopt);
 }
 

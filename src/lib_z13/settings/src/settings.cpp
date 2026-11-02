@@ -111,6 +111,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.door) {
     settings.door = NewDefaults<fbs::door::DoorTuningT>();
   }
+  if (!settings.atmos) {
+    settings.atmos = NewDefaults<fbs::atmos::AtmosTuningT>();
+  }
   if (!settings.visual_smoothing) {
     settings.visual_smoothing = NewDefaults<fbs::settings::VisualSmoothingT>();
   }
@@ -133,6 +136,7 @@ SessionSettings SessionOf(const Settings& settings) {
       .building = settings.building ? *settings.building : fbs::building::BuildingTuningT {},
       .power = settings.power ? *settings.power : fbs::power::PowerTuningT {},
       .door = settings.door ? *settings.door : fbs::door::DoorTuningT {},
+      .atmos = settings.atmos ? *settings.atmos : fbs::atmos::AtmosTuningT {},
   };
 }
 
@@ -144,6 +148,7 @@ Settings WithSession(Settings settings, const SessionSettings& session) {
   settings.building = std::make_unique<fbs::building::BuildingTuningT>(session.building);
   settings.power = std::make_unique<fbs::power::PowerTuningT>(session.power);
   settings.door = std::make_unique<fbs::door::DoorTuningT>(session.door);
+  settings.atmos = std::make_unique<fbs::atmos::AtmosTuningT>(session.atmos);
   return settings;
 }
 
@@ -151,7 +156,7 @@ namespace {
 
 bool HasAllNestedTables(const Settings& settings) {
   return settings.core && settings.connect_timeout && settings.session_timeout && settings.net && settings.physics &&
-         settings.building && settings.power && settings.door && settings.visual_smoothing && settings.render &&
+         settings.building && settings.power && settings.door && settings.atmos && settings.visual_smoothing && settings.render &&
          settings.touch && settings.lan_discovery;
 }
 
@@ -269,7 +274,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 }
 
 void InstallSettings(flecs::world world, const Settings& settings) {
-  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
+  flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
                                   RenderTuning, TouchLayout, LanDiscoverySettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
@@ -285,6 +290,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.door) {
     world.set(DoorTuning(*settings.door));
+  }
+  if (settings.atmos) {
+    world.set(AtmosTuning(*settings.atmos));
   }
   if (settings.connect_timeout) {
     world.set(ConnectTimeout(*settings.connect_timeout));
