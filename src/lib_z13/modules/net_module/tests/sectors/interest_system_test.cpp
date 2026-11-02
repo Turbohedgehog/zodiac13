@@ -22,13 +22,13 @@
 #include <net_module/in_memory_transport.h>
 #include <sectors/interest_map.h>
 #include <sectors/sector_index.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
-#include <z13/components/player.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/gameplay/player.h>
 
 #include "../../../z13_module/tests/support/test_network.h"
 #include "../../../z13_module/tests/support/z13_test_world.h"
-#include "../../src/interest_system.h"
+#include "../../src/sectors/interest_system.h"
 
 namespace z13::net {
 namespace {

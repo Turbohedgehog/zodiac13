@@ -25,11 +25,11 @@
 #include <lib_core/utils/math.h>
 
 #include <primitives/palette.h>
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/conduit.h>
-#include <z13/components/gravity.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/utility/gravity.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_settings/physics_tuning.h>
 
 #include "../../building_module/tests/support/station_builders.h"

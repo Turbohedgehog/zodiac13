@@ -21,7 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <z13/components/rooms.h>
+#include <z13/components/station/rooms.h>
 #include <rooms/room_cache.h>
 
 #include "room_outline.h"

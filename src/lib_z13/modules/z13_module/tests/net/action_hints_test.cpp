@@ -32,19 +32,19 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
-#include <z13/components/action_hints.h>
-#include <z13/components/action_map.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/net.h>
-#include <z13/components/player.h>
-#include <z13_module/gameplay/camera_look.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/input/action_hints.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/gameplay/player.h>
+#include <player/camera_look.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
-#include "../../../net_module/src/action_hints.h"
-#include "../../../net_module/src/hint_packet.h"
-#include "../../../net_module/src/player_positions.h"
+#include "../../../net_module/src/session/action_hints.h"
+#include "../../../net_module/src/protocol/hint_packet.h"
+#include "../../../net_module/src/sectors/player_positions.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"
 
@@ -70,7 +70,7 @@ constexpr double kMinSavedLagTicks = 1.0;
 constexpr int kLagSkipTicks = 40;
 constexpr int kLagWindow = 40;
 constexpr float kStillEpsilon = 1e-4f;
-// A player spawns kSpawnSpacing (3 m) from the next, and the radius setting is at least 1 m.
+// A player spawns physics.spawn_spacing (3 m) from the next, and the radius setting is at least 1 m.
 constexpr double kNearbyRadiusM = 30.;
 constexpr double kFarRadiusM = 1.;
 constexpr float kMovedM = 5.f;

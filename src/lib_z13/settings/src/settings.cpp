@@ -28,7 +28,7 @@
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/status.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 namespace z13 {
 
@@ -191,6 +191,13 @@ Status ValidateSettings(const Settings& settings) {
   }
   if (settings.render->light_cluster_far_m <= settings.render->light_cluster_near_m) {
     return Invalid("render.light_cluster_far_m", "must be above render.light_cluster_near_m");
+  }
+  if (settings.atmos->overlay_empty_percent > settings.atmos->overlay_thin_percent) {
+    return Invalid("atmos.overlay_empty_percent", "must not exceed atmos.overlay_thin_percent");
+  }
+  if (settings.render->sun_direction_x == 0.f && settings.render->sun_direction_y == 0.f &&
+      settings.render->sun_direction_z == 0.f) {
+    return Invalid("render.sun_direction_x", "the sun's direction must not be the zero vector");
   }
   if (settings.connect_timeout->max_timeout_ms < settings.connect_timeout->min_timeout_ms) {
     return Invalid("connect_timeout.max_timeout_ms", "must not be below connect_timeout.min_timeout_ms");

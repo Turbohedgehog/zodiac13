@@ -22,7 +22,7 @@
 
 #include <imgui.h>
 
-#include <z13/components/station_mode.h>
+#include <z13/components/station/station_mode.h>
 
 #include "gui_widgets.h"
 #include "profile_teleport.h"

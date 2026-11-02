@@ -36,11 +36,11 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/player.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/net.h>
-#include <z13/components/player_action.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/input/player_action.h>
 
 namespace z13::state {
 

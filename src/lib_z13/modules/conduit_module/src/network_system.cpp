@@ -32,11 +32,11 @@
 #include <primitives_generated.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
-#include <z13/components/block_change_reader.h>
-#include <z13/components/conduit.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/switch.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/station/switch.h>
+#include <z13/components/utility/utilities.h>
 
 namespace z13::conduit {
 

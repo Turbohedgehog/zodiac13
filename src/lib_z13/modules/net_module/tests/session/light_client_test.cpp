@@ -22,7 +22,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/rollback.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/net_tuning.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
@@ -30,8 +30,8 @@
 #include <net_module/state_digest.h>
 
 #include "../../../z13_module/tests/support/load_session.h"
-#include "../../src/light_client.h"
-#include "../../src/net_session.h"
+#include "../../src/session/light_client.h"
+#include "../../src/session/net_session.h"
 
 namespace z13::net {
 namespace {

@@ -48,10 +48,7 @@ constexpr int kCubeFaces = 6;
 constexpr uint8_t kAllFaces = (1 << kCubeFaces) - 1;
 constexpr float kCubeFovDeg = 90.f;
 constexpr float kCubeNear = 0.05f;
-// A directional map's eye stands this many of the station's radii back from its centre; its
-// depth range spans the station with a radius to spare on both sides.
-constexpr float kDirectionalDistanceRadii = 2.f;
-constexpr float kDirectionalMarginM = 1.f;
+// A directional map's depth range spans the station with a radius to spare on both sides.
 constexpr float kNearlyVertical = 0.99f;
 // A cleared tile is as far as the light reaches, the shader's normalized distance 1.
 constexpr unsigned char kFarthest = 255;
@@ -456,13 +453,14 @@ std::optional<Eigen::Matrix4f> ShadowMaps::State::UpdateDirectional(
     return shadow.view_projection;
   }
 
-  const float radius = (bounds.diagonal().norm() / 2.f) + kDirectionalMarginM;
+  const float radius = (bounds.diagonal().norm() / 2.f) + tuning.sun_shadow_margin_m;
+  const float distance_radii = tuning.sun_shadow_distance_radii;
   const Eigen::Vector3f centre = bounds.center();
-  const Eigen::Vector3f eye = centre - (direction * (kDirectionalDistanceRadii * radius));
+  const Eigen::Vector3f eye = centre - (direction * (distance_radii * radius));
   const Eigen::Vector3f up =
       std::abs(direction.z()) > kNearlyVertical ? Eigen::Vector3f::UnitY() : Eigen::Vector3f::UnitZ();
-  const ::Matrix projection = MatrixOrtho(-radius, radius, -radius, radius, (kDirectionalDistanceRadii - 1.f) * radius,
-                                          (kDirectionalDistanceRadii + 1.f) * radius);
+  const ::Matrix projection = MatrixOrtho(-radius, radius, -radius, radius, (distance_radii - 1.f) * radius,
+                                          (distance_radii + 1.f) * radius);
   const ::Matrix look = MatrixLookAt(EigenToRaylibVector(eye), EigenToRaylibVector(centre), EigenToRaylibVector(up));
   shadow.view_projection = RaylibToEigenMatrix(projection) * RaylibToEigenMatrix(look);
   DrawDirectional(shadow, casters, [](const Eigen::AlignedBox3f&) { return true; }, std::nullopt);

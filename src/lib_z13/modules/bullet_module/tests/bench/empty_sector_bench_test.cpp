@@ -36,7 +36,7 @@
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/physics_tuning.h>
 #include <z13_tests/shipped_station.h>
 

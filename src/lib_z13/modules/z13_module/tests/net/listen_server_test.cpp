@@ -30,10 +30,10 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/net.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/net.h>
+#include <player/gameplay_entities.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"

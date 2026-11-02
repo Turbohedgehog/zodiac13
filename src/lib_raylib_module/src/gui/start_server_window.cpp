@@ -26,7 +26,7 @@
 #include <lib_core/settings/config.h>
 #include <lib_core/utils/endpoint.h>
 
-#include <z13/components/net.h>
+#include <z13/components/gameplay/net.h>
 
 #include "gui_widgets.h"
 #include "pending_transition.h"

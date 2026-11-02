@@ -25,10 +25,10 @@
 
 #include <lib_core/settings/config.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input_config.h>
-#include <z13/components/input_events.h>
-#include <z13/components/net.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_config.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/net.h>
 #include <z13_settings/settings.h>
 
 #include "building_test_helpers.h"

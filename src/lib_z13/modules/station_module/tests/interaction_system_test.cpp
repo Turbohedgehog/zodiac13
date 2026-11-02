@@ -30,12 +30,12 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/block.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/interaction.h>
-#include <z13/components/player.h>
-#include <z13/components/switch.h>
-#include <z13_module/gameplay/camera_look.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/interaction.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/switch.h>
+#include <player/camera_look.h>
 #include <primitives/placement.h>
 #include <z13_settings/physics_tuning.h>
 

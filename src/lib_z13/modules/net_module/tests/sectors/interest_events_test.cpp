@@ -32,13 +32,13 @@
 #include <lib_core/state/world_serializer.h>
 #include <sectors/sector.h>
 #include <sectors/sector_index.h>
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/inventory.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/inventory.h>
 #include <primitives/placement.h>
-#include <z13/components/net.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/gameplay/net.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/building_tuning.h>
 #include <z13_settings/net_tuning.h>
 #include <z13_settings/settings.h>
@@ -51,13 +51,13 @@
 #include "../../../z13_module/tests/support/z13_test_world.h"
 #include <net_module/state_digest.h>
 
-#include "../../src/catch_up.h"
-#include "../../src/interest_view.h"
-#include "../../src/interest_deltas.h"
-#include "../../src/interest_events.h"
-#include "../../src/net_session.h"
-#include "../../src/session_deltas.h"
-#include "../../src/wire_records.h"
+#include "../../src/session/catch_up.h"
+#include "../../src/sectors/interest_view.h"
+#include "../../src/sectors/interest_deltas.h"
+#include "../../src/sectors/interest_events.h"
+#include "../../src/session/net_session.h"
+#include "../../src/session/session_deltas.h"
+#include "../../src/protocol/wire_records.h"
 
 namespace z13::net {
 namespace {

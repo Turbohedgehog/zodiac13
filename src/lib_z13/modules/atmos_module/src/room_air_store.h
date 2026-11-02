@@ -20,7 +20,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/atmosphere.h>
+#include <z13/components/utility/atmosphere.h>
 
 namespace z13::atmos_module {
 

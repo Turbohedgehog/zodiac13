@@ -20,9 +20,9 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
-#include <z13/components/conduit.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/gameplay/scene_mesh.h>
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../z13_module/tests/support/z13_test_world.h"

@@ -32,7 +32,7 @@
 #include <lib_core/utils/math.h>
 #include <primitives/placement.h>
 #include <rooms/view_culling.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 // What the renderer picks to draw, without drawing it (docs/frame-time-plan.md): the station's
 // chunks, glass and props as the renderer keeps them, and a count of what a view of them draws.

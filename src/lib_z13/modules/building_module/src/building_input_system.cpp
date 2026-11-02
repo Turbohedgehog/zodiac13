@@ -30,21 +30,21 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/action_map.h>
-#include <z13/components/input_events.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/building.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/wall.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/station/building.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/wall.h>
 #include <z13_settings/building_tuning.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/inventory.h>
-#include <z13/components/tool_mode_info.h>
-#include <z13/components/touch_controls.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/station/tool_mode_info.h>
+#include <z13/components/input/touch_controls.h>
 #include <lib_core/utils/enum_cycle.h>
-#include <z13_module/input/input_config_loader.h>
+#include <input/input_config_loader.h>
 #include <lib_core/state/rollback.h>
 
 #include "build_action_ids.h"

@@ -55,6 +55,13 @@ z13_add_plugin(
   src/render/gl_volumes.cpp
   src/render/lights.cpp
   src/render/render_resources.cpp
+  src/render/scene_overlay.cpp
+  src/render/scene_models.cpp
+  src/render/scene_camera.cpp
+  src/render/render_tour_step.cpp
+  src/render/remote_players.cpp
+  src/render/frame_lighting.cpp
+  src/render/chunk_sync.cpp
   src/render/render_tour.cpp
   src/render/scene_mesh_system.cpp
   src/render/scene_meshes.cpp

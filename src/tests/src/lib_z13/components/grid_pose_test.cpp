@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/grid_pose.h>
+#include <z13/components/station/grid_pose.h>
 
 namespace z13::station {
 namespace {

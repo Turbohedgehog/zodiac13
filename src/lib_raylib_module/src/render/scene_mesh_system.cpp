@@ -25,7 +25,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <raylib_module/raylib_components.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/gameplay/scene_mesh.h>
 
 #include "render_components.h"
 #include "scene_meshes.h"

@@ -30,10 +30,10 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/building.h>
-#include <z13/components/player_action.h>
-#include <z13/components/input_events.h>
-#include <z13/components/player.h>
+#include <z13/components/station/building.h>
+#include <z13/components/input/player_action.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/player.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/world_json_test_helpers.h"

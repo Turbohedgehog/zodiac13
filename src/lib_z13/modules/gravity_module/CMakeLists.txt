@@ -8,6 +8,7 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/generator_system.cpp
+  src/gravity_system.cpp
   src/gravity_module.cpp
   src/gravity_module_factory.cpp
   PUBLIC
@@ -15,8 +16,8 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_module
   zodiac13::settings
   zodiac13::primitives
+  zodiac13::rooms
   Boost::dll
 )

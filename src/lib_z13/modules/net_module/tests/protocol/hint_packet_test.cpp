@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "../../src/hint_packet.h"
+#include "../../src/protocol/hint_packet.h"
 
 namespace z13::net {
 namespace {

@@ -19,7 +19,7 @@
 #include <flecs.h>
 
 #include <lib_core/utils/status.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/wall.h>
 #include <primitives/wall_panel.h>
 
 #include "build_validation.h"

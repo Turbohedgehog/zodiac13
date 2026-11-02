@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <z13/components/conduit.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/gameplay/scene_mesh.h>
 
 #include "conduit_look.h"
 

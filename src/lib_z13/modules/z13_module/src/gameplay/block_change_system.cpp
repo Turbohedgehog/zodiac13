@@ -22,9 +22,9 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/gameplay_phases.h>
-#include <z13/components/state_changes.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/station/state_changes.h>
 
 namespace z13::gameplay {
 

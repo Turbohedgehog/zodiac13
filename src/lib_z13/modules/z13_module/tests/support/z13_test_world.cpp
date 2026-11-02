@@ -32,6 +32,7 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/net_module_factory.h>
 #include <station_module/station_module_factory.h>
+#include <door_module/door_module_factory.h>
 #include <conduit_module/conduit_module_factory.h>
 #include <conduit_render_module/conduit_render_module_factory.h>
 #include <door_render_module/door_render_module_factory.h>
@@ -73,6 +74,7 @@ z13::WorldRef CreateWorld(
   core.RegisterModuleFactory(std::make_shared<z13::building::BuildingModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::bullet_module::BulletModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
+  core.RegisterModuleFactory(std::make_shared<z13::door_module::DoorModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::conduit::ConduitModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::power_module::PowerModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::atmos_module::AtmosModuleFactory>());

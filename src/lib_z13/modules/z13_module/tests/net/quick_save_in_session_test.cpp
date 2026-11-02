@@ -28,8 +28,8 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"

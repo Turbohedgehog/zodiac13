@@ -33,7 +33,7 @@
 #include <rooms/room_visibility.h>
 #include <rooms/view_culling.h>
 #include <lib_core/utils/frustum.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/camera_view.h>
 #include <z13_tests/octant_route.h>

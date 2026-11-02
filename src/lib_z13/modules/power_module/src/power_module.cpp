@@ -25,7 +25,7 @@
 
 #include <lib_core/world/lifecycle.h>
 #include <power/port_names.h>
-#include <z13/components/utilities.h>
+#include <z13/components/utility/utilities.h>
 
 #include "lamp_system.h"
 #include "power_overlay_system.h"

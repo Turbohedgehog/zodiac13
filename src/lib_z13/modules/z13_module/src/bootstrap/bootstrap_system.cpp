@@ -25,15 +25,15 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/bootstrap.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/gameplay_phases.h>
-#include <z13/components/net.h>
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/spawn_point.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/bootstrap.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/spawn_point.h>
+#include <z13/components/station/station_mode.h>
 
 namespace z13::bootstrap {
 

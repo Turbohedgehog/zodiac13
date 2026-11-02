@@ -22,7 +22,7 @@
 
 #include <rooms/room_builder.h>
 #include <rooms/view_culling.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <z13_tests/camera_view.h>
 
 namespace z13::station::rooms {

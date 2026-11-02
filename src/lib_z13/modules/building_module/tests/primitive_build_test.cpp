@@ -31,11 +31,11 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
 #include <primitives/palette.h>
 #include <z13_tests/shipped_station.h>
 

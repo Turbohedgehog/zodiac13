@@ -20,7 +20,7 @@
 #include <cmath>
 #include <cstdint>
 
-#include <z13/components/player_color.h>
+#include <z13/components/gameplay/player_color.h>
 
 namespace z13::gameplay {
 namespace {

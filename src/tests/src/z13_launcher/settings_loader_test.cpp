@@ -113,6 +113,13 @@ TEST(SettingsLoaderTest, LightClustersEndingBeforeTheyStartAreRejected) {
   EXPECT_FALSE(ParseSettings(R"({"render": {"light_cluster_near_m": 5, "light_cluster_far_m": 5}})").has_value());
 }
 
+TEST(SettingsLoaderTest, PressureBandsOutOfOrderOrASunWithoutDirectionAreRejected) {
+  EXPECT_FALSE(ParseSettings(R"({"atmos": {"overlay_empty_percent": 90}})").has_value()) << "above the thin band's 80";
+  EXPECT_TRUE(ParseSettings(R"({"atmos": {"overlay_empty_percent": 80}})").has_value());
+  EXPECT_FALSE(
+      ParseSettings(R"({"render": {"sun_direction_x": 0, "sun_direction_y": 0, "sun_direction_z": 0}})").has_value());
+}
+
 TEST(SettingsLoaderTest, RetentionShorterThanTheLateWindowIsRejected) {
   // 96 late ticks at 60 fps plus a 1s interval need 2.6s of history.
   EXPECT_FALSE(ParseSettings(R"({"core": {"snapshot_retention_seconds": 2}})").has_value());

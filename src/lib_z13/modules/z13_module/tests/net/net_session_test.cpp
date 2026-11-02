@@ -35,22 +35,23 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/action_map.h>
-#include <z13/components/input_events.h>
-#include <z13/components/input_state.h>
-#include <z13/components/net.h>
-#include <z13/components/player_action.h>
-#include <z13/components/block.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/input/input_state.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/input/player_action.h>
+#include <z13/components/station/block.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_tests/shipped_station.h>
-#include <z13/components/spawn_point.h>
+#include <z13/components/station/spawn_point.h>
 #include <primitives/palette.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <player/gameplay_entities.h>
 
+#include <z13_settings/physics_tuning.h>
 #include <z13_settings/settings.h>
 
 #include <net_module/clock_sync.h>
@@ -856,7 +857,7 @@ TEST(NetSessionTest, LateCommandsAndJoinsStillConvergeUnderHighLatency) {
 
   const flecs::entity a_on_server = server.World().lookup(PlayerEntityName(1).c_str());
   ASSERT_TRUE(a_on_server);
-  ASSERT_GT(z13::math::ExtractTranslation<float>(a_on_server.get<Eigen::Matrix4f>()).x(), z13::gameplay::kSpawnSpacing)
+  ASSERT_GT(z13::math::ExtractTranslation<float>(a_on_server.get<Eigen::Matrix4f>()).x(), z13::PhysicsTuning {}.spawn_spacing)
       << "the late command never applied at all";
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_a));
   EXPECT_EQ(Checkpoint(server), Checkpoint(client_b));

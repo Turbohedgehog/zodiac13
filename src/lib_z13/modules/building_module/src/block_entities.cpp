@@ -24,9 +24,9 @@
 
 #include <primitives_generated.h>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/block.h>
-#include <z13/components/spawn_point.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/spawn_point.h>
 
 namespace z13::building {
 

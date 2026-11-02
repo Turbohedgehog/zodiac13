@@ -23,12 +23,12 @@
 
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input_config.h>
-#include <z13/components/input_events.h>
-#include <z13/components/input_state.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/touch_controls.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_config.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/input/input_state.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/input/touch_controls.h>
 #include <z13_settings/settings.h>
 #include <touch/touch_mapping.h>
 

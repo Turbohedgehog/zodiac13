@@ -21,9 +21,9 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
-#include <z13/components/color.h>
-#include <z13/components/lamps.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/color.h>
+#include <z13/components/utility/lamps.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
 
@@ -44,7 +44,7 @@ struct PointLight {
 // face (its own -Z), so the block doesn't shadow its own light.
 std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, OptionalPalette palette);
 
-// What a dimmed lamp shines (z13/components/lamps.h): the red of the emergency light.
+// What a dimmed lamp shines (z13/components/utility/lamps.h): the red of the emergency light.
 inline constexpr z13::Rgba kEmergencyColor {255, 40, 30, 255};
 inline constexpr int kPercent = 100;
 

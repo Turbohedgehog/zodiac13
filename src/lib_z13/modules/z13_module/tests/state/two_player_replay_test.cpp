@@ -32,13 +32,13 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/building.h>
-#include <z13/components/inventory.h>
-#include <z13/components/block.h>
-#include <z13/components/player.h>
-#include <z13/components/player_parts.h>
-#include <z13/components/player_action.h>
-#include <z13/components/action_listener.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/player_parts.h>
+#include <z13/components/input/player_action.h>
+#include <z13/components/input/action_listener.h>
 #include <input_config_generated.h>
 #include <z13_settings/physics_tuning.h>
 

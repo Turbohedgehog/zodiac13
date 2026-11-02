@@ -28,11 +28,11 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <primitives/palette.h>
-#include <z13/components/block.h>
-#include <z13/components/block_change_reader.h>
-#include <z13/components/gravity.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/utility/gravity.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_settings/physics_tuning.h>
 
 namespace z13::gravity_module {

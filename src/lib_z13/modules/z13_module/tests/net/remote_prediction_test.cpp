@@ -33,15 +33,15 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/action_map.h>
-#include <z13/components/net.h>
-#include <z13/components/player_action.h>
-#include <z13_module/gameplay/camera_look.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/input/player_action.h>
+#include <player/camera_look.h>
+#include <player/gameplay_entities.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/motion_metrics.h"

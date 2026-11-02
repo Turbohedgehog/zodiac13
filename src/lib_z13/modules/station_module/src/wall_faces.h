@@ -24,7 +24,7 @@
 
 #include <primitives/palette.h>
 #include <primitives/placement.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 namespace z13::station::outline {
 

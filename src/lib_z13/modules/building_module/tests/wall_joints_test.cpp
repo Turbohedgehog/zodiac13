@@ -20,8 +20,8 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/wall.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/wall.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
 #include "../src/wall_entities.h"

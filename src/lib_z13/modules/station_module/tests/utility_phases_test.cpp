@@ -19,9 +19,9 @@
 #include <string>
 #include <vector>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/rooms.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/rooms.h>
+#include <z13/components/utility/utilities.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
 

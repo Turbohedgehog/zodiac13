@@ -25,7 +25,7 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/protocol.h>
 
-#include "../../src/net_session.h"
+#include "../../src/session/net_session.h"
 
 // QueueRun holds the runs of a flush into one message, and keeps them in order with the other reliable messages.
 namespace z13::net {

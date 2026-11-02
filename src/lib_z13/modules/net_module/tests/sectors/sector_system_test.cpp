@@ -31,9 +31,9 @@
 #include <lib_core/utils/math.h>
 
 #include <sectors/sector_index.h>
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/player.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/player.h>
 #include <z13_settings/net_tuning.h>
 
 #include "../../../building_module/tests/support/station_builders.h"

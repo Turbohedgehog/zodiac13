@@ -22,11 +22,11 @@
 
 #include <lib_core/state/rollback.h>
 
-#include <z13/components/action_map.h>
-#include <z13/components/player_action.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/input/player_action.h>
 
 #include "../../../z13_module/tests/support/z13_test_world.h"
-#include "../../src/remote_input.h"
+#include "../../src/session/remote_input.h"
 
 // A confirmation turns a remote player's ticks from predicted (released) into read from the log.
 namespace z13::net {

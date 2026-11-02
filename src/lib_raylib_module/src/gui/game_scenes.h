@@ -25,7 +25,7 @@
 
 #include <lib_core/utils/asset_source.h>
 
-#include <z13/components/station_mode.h>
+#include <z13/components/station/station_mode.h>
 
 namespace z13::raylib::gui {
 

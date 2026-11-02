@@ -31,8 +31,8 @@
 #include <lib_core/utils/point_text.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/action_listener.h>
-#include <z13/components/player.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/gameplay/player.h>
 
 namespace z13::gameplay {
 

@@ -41,19 +41,19 @@
 
 #include <lib_core/state/state_markers.h>
 
-#include <z13/components/block_change_reader.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/gameplay_phases.h>
-#include <z13/components/grid.h>
-#include <z13/components/player.h>
-#include <z13/components/player_parts.h>
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/inventory.h>
-#include <z13/components/spawn_point.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/player_parts.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/station/spawn_point.h>
+#include <z13/components/station/station_mode.h>
 #include <grid/block_index.h>
 #include <primitives/occupancy.h>
 #include <primitives/palette.h>
@@ -228,7 +228,7 @@ Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, co
   const Eigen::Vector3i anchor_cell = drag ? (cutting ? drag->anchor_cell - drag->anchor_normal : drag->anchor_cell)
                                            : Eigen::Vector3i::Zero();
   if (!drag || anchor_cell == aim.Cell()) {
-    return BlockAt(aim, spec, view.index, cutting);
+    return BlockAt(aim, spec, view.index, view.tuning.get().max_slide_cells, cutting);
   }
   const auto primitive = view.palette.get().Find(spec.type_id);
   return z13::building::primitives::DraggedBlock(

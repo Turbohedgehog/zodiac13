@@ -23,8 +23,8 @@
 
 #include <primitives_generated.h>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/wall.h>
 #include <primitives/cut.h>
 #include <primitives/occupancy.h>
 

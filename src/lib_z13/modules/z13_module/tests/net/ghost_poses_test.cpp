@@ -27,14 +27,14 @@
 
 #include <lib_core/state/state_markers.h>
 #include <net_module/state_digest.h>
-#include <z13/components/action_hints.h>
-#include <z13/components/ghost.h>
-#include <z13/components/player.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/input/action_hints.h>
+#include <z13/components/gameplay/ghost.h>
+#include <z13/components/gameplay/player.h>
+#include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
-#include "../../../net_module/src/ghost_players.h"
-#include "../../../net_module/src/net_session.h"
+#include "../../../net_module/src/sectors/ghost_players.h"
+#include "../../../net_module/src/session/net_session.h"
 #include "../support/load_session.h"
 
 // A client is drawn the players it doesn't simulate as ghosts (docs/network-scaling-plan.md, stage 5b).

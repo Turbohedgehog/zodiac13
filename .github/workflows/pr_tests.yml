@@ -56,6 +56,10 @@ jobs:
         if: runner.os == 'Linux'
         run: .github/scripts/check_listed_sources.py
 
+      - name: Check that no plugin includes another plugin's headers
+        if: runner.os == 'Linux'
+        run: .github/scripts/check_plugin_includes.py
+
       - name: Install clang and libc++
         if: matrix.clang
         run: |

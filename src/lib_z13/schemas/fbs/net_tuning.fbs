@@ -80,4 +80,9 @@ table NetTuning {
   // How much nearer a player must be to take a simulated one's place: in a crowd many stand equally far.
   simulated_rank_hysteresis_m: double = 1.5 (min: 0, cli);
   simulated_reselect_ticks: uint64 = 30 (min: 1, cli);
+  // A ghost is dropped once no pose has arrived for this many of its pose intervals (ghost_pose_interval_ticks times
+  // ghost_far_every).
+  ghost_life_intervals: uint64 = 3 (min: 1, cli);
+  // A client's knowledge of a player is kept for this many multiples of max_late_ticks, for a late command to find it.
+  history_horizons: uint64 = 2 (min: 1, cli);
 }

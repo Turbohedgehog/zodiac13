@@ -22,54 +22,54 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>"
   SOURCES
-  src/action_hints.cpp
-  src/catch_up.cpp
-  src/client_session.cpp
-  src/clock_sync.cpp
-  src/discovery_messages.cpp
-  src/discovery_socket.cpp
-  src/divergence_dump.cpp
-  src/enet_datagram.cpp
-  src/enet_lifetime.cpp
-  src/enet_transport.cpp
-  src/ghost_players.cpp
-  src/ghost_poses.cpp
-  src/held_sector_history.cpp
-  src/hint_classes.cpp
-  src/hint_packet.cpp
-  src/in_memory_transport.cpp
-  src/lan_discovery_system.cpp
-  src/net_action_sender.cpp
-  src/interest_deltas.cpp
-  src/chunk_reach.cpp
-  src/interest_events.cpp
-  src/interest_system.cpp
-  src/interest_view.cpp
-  src/light_client.cpp
+  src/session/action_hints.cpp
+  src/session/catch_up.cpp
+  src/session/client_session.cpp
+  src/protocol/clock_sync.cpp
+  src/discovery/discovery_messages.cpp
+  src/discovery/discovery_socket.cpp
+  src/session/divergence_dump.cpp
+  src/transport/enet_datagram.cpp
+  src/transport/enet_lifetime.cpp
+  src/transport/enet_transport.cpp
+  src/sectors/ghost_players.cpp
+  src/sectors/ghost_poses.cpp
+  src/sectors/held_sector_history.cpp
+  src/protocol/hint_classes.cpp
+  src/protocol/hint_packet.cpp
+  src/transport/in_memory_transport.cpp
+  src/discovery/lan_discovery_system.cpp
+  src/session/net_action_sender.cpp
+  src/sectors/interest_deltas.cpp
+  src/sectors/chunk_reach.cpp
+  src/sectors/interest_events.cpp
+  src/sectors/interest_system.cpp
+  src/sectors/interest_view.cpp
+  src/session/light_client.cpp
   src/net_module.cpp
   src/net_module_factory.cpp
-  src/net_session.cpp
-  src/net_session_system.cpp
-  src/pose_packet.cpp
-  src/network_interfaces.cpp
-  src/player_positions.cpp
-  src/protocol.cpp
-  src/remote_input.cpp
-  src/reply_limiter.cpp
-  src/scheduled_commands.cpp
-  src/sector_hash.cpp
-  src/sector_system.cpp
-  src/sent_traffic.cpp
-  src/server_finder.cpp
-  src/server_session.cpp
-  src/session_control.cpp
-  src/session_deltas.cpp
-  src/session_settings.cpp
-  src/simulated_set.cpp
-  src/state_digest.cpp
-  src/station_bounds_log.cpp
-  src/wire_records.cpp
-  src/world_edits.cpp
+  src/session/net_session.cpp
+  src/session/net_session_system.cpp
+  src/protocol/pose_packet.cpp
+  src/discovery/network_interfaces.cpp
+  src/sectors/player_positions.cpp
+  src/protocol/protocol.cpp
+  src/session/remote_input.cpp
+  src/protocol/reply_limiter.cpp
+  src/session/scheduled_commands.cpp
+  src/sectors/sector_hash.cpp
+  src/sectors/sector_system.cpp
+  src/transport/sent_traffic.cpp
+  src/discovery/server_finder.cpp
+  src/session/server_session.cpp
+  src/session/session_control.cpp
+  src/session/session_deltas.cpp
+  src/session/session_settings.cpp
+  src/sectors/simulated_set.cpp
+  src/protocol/state_digest.cpp
+  src/session/station_bounds_log.cpp
+  src/protocol/wire_records.cpp
+  src/session/world_edits.cpp
   PUBLIC
   zodiac13::settings
   PRIVATE
@@ -77,7 +77,8 @@ z13_add_plugin(
   zodiac13::components
   zodiac13::primitives
   zodiac13::sectors
-  zodiac13::z13_module
+  zodiac13::input
+  zodiac13::player
   unofficial::enet::enet
   $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
   ${ENET_PLATFORM_LIBS}

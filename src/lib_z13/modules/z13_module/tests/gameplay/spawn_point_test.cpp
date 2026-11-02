@@ -23,8 +23,9 @@
 #include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
-#include <z13/components/spawn_point.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/station/spawn_point.h>
+#include <player/gameplay_entities.h>
+#include <z13_settings/physics_tuning.h>
 
 #include "../support/z13_test_world.h"
 
@@ -89,7 +90,7 @@ TEST(SpawnPointTest, WithoutSpawnPointsPlayersAreSpacedAlongX) {
   Z13TestWorld test_world;
   test_world.Tick();
 
-  EXPECT_FLOAT_EQ(PositionOf(SpawnPlayer(test_world.World(), 2)).x(), 2.f * kSpawnSpacing);
+  EXPECT_FLOAT_EQ(PositionOf(SpawnPlayer(test_world.World(), 2)).x(), 2.f * z13::PhysicsTuning {}.spawn_spacing);
 }
 
 }  // namespace
