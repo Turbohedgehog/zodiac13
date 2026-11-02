@@ -17,6 +17,8 @@
 #include "room_air_carry.h"
 
 #include <algorithm>
+#include <functional>
+#include <optional>
 #include <unordered_map>
 
 #include <rooms/room_overlap.h>
@@ -31,9 +33,13 @@ using z13::utility::RoomAirEntry;
 using z13::utility::atmos::Air;
 using z13::utility::atmos::Gas;
 
-const RoomAirEntry* EntryAt(const std::vector<RoomAirEntry>& air, const Eigen::Vector3i& anchor) {
+std::optional<std::reference_wrapper<const RoomAirEntry>> EntryAt(const std::vector<RoomAirEntry>& air,
+                                                                  const Eigen::Vector3i& anchor) {
   const auto found = std::ranges::find(air, anchor, &RoomAirEntry::anchor);
-  return found != air.end() ? &*found : nullptr;
+  if (found == air.end()) {
+    return std::nullopt;
+  }
+  return std::cref(*found);
 }
 
 }  // namespace
@@ -70,13 +76,13 @@ std::vector<RoomAirEntry> CarryAir(const std::vector<RoomAirEntry>& air, const R
   for (auto first = overlaps.begin(); first != overlaps.end();) {
     const auto last = std::find_if(first, overlaps.end(), [&](const auto& o) { return o.before != first->before; });
     const auto old_room = before.rooms.find(first->before);
-    const RoomAirEntry* held = old_room != before.rooms.end() && first->before != z13::station::rooms::kVacuumRoom
-                                   ? EntryAt(air, old_room->second.anchor)
-                                   : nullptr;
-    if (held != nullptr) {
+    const auto held = old_room != before.rooms.end() && first->before != z13::station::rooms::kVacuumRoom
+                          ? EntryAt(air, old_room->second.anchor)
+                          : std::nullopt;
+    if (held) {
       std::vector<int64_t> weights;
       std::transform(first, last, std::back_inserter(weights), [](const auto& o) { return o.cells; });
-      const std::vector<Air> shares = z13::utility::atmos::Divide(AirOf(*held), weights);
+      const std::vector<Air> shares = z13::utility::atmos::Divide(AirOf(held->get()), weights);
       for (size_t i = 0; i < shares.size(); ++i) {
         const RoomId target = (first + static_cast<std::ptrdiff_t>(i))->after;
         if (target != z13::station::rooms::kVacuumRoom) {
@@ -97,8 +103,8 @@ std::vector<RoomAirEntry> KeepAirByAnchor(const std::vector<RoomAirEntry>& air, 
   std::vector<RoomAirEntry> kept;
   for (const RoomId id : after.ByAnchor()) {
     const Eigen::Vector3i& anchor = after.rooms.at(id).anchor;
-    const RoomAirEntry* held = EntryAt(air, anchor);
-    kept.push_back(held != nullptr ? *held : EntryOf(anchor, Air {}));
+    const auto held = EntryAt(air, anchor);
+    kept.push_back(held ? held->get() : EntryOf(anchor, Air {}));
   }
   return kept;
 }

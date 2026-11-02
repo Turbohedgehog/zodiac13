@@ -30,13 +30,18 @@ namespace {
 // Rounding in the pressure and the temperature of an air built from them: the integer divisions on the way.
 constexpr int64_t kPascalsTolerance = 2;
 constexpr int64_t kKelvinTolerance = 1;
+// The flow and the regulation settle to within a percent of the standard pressure, and a unit within a couple of kelvin.
+constexpr int64_t kSettledPascals = kStandardPascals / 100;
+constexpr int64_t kSettledKelvin = 2;
 
 constexpr int64_t kRoomCells = 1200;
+constexpr double kTwiceTheVolume = 2.0;
 constexpr size_t kOxygen = static_cast<size_t>(Gas::kOxygen);
 constexpr size_t kNitrogen = static_cast<size_t>(Gas::kNitrogen);
 constexpr size_t kCarbonDioxide = static_cast<size_t>(Gas::kCarbonDioxide);
 // A door's opening, 4 by 8 cells.
 constexpr int64_t kDoorCells = 32;
+// The shipped tuning of atmos_tuning.fbs.
 constexpr ExchangeSettings kSettings {.coefficient = 10'000, .max_outflow_ppm = 500'000};
 
 Air Total(std::span<const Chamber> chambers) {
@@ -67,7 +72,7 @@ TEST(AirTest, NothingHasNoPressureOrTemperature) {
 TEST(AirTest, ThePressureOfTheSameAirHalvesInTwiceTheVolume) {
   const Air air = StandardAir(kRoomCells);
 
-  EXPECT_NEAR(static_cast<double>(PressurePascals(air, 2 * kRoomCells)), static_cast<double>(kStandardPascals) / 2.0,
+  EXPECT_NEAR(static_cast<double>(PressurePascals(air, 2 * kRoomCells)), static_cast<double>(kStandardPascals) / kTwiceTheVolume,
               static_cast<double>(kPascalsTolerance));
 }
 
@@ -122,7 +127,7 @@ TEST(ExchangeTest, TwoRoomsLevelWithoutTheirPressuresCrossing) {
 
   EXPECT_NEAR(static_cast<double>(PressurePascals(chambers[0].air, kRoomCells)),
               static_cast<double>(PressurePascals(chambers[1].air, 3 * kRoomCells)),
-              static_cast<double>(kStandardPascals) / 100.0);
+              static_cast<double>(kSettledPascals));
 }
 
 TEST(ExchangeTest, ARoomOpenToTheVacuumEmptiesAndWhatLeavesIsCounted) {
@@ -223,7 +228,7 @@ TEST(RegulateTest, FillsAnEmptyRoomToTheTargetPressureWithoutPassingIt) {
   }
 
   EXPECT_NEAR(static_cast<double>(PressurePascals(air, kRoomCells)), static_cast<double>(kStandardPascals),
-              static_cast<double>(kStandardPascals) / 100.0);
+              static_cast<double>(kSettledPascals));
   EXPECT_GT(air.millimoles[kOxygen], 0);
 }
 
@@ -237,8 +242,10 @@ TEST(RegulateTest, WarmsAColdRoomAndCoolsAHotOne) {
     Regulate(hot, kRoomCells, kHold);
   }
 
-  EXPECT_NEAR(static_cast<double>(Kelvin(cold)), static_cast<double>(kStandardKelvin), 2.0);
-  EXPECT_NEAR(static_cast<double>(Kelvin(hot)), static_cast<double>(kStandardKelvin), 2.0);
+  EXPECT_NEAR(static_cast<double>(Kelvin(cold)), static_cast<double>(kStandardKelvin),
+              static_cast<double>(kSettledKelvin));
+  EXPECT_NEAR(static_cast<double>(Kelvin(hot)), static_cast<double>(kStandardKelvin),
+              static_cast<double>(kSettledKelvin));
 }
 
 }  // namespace

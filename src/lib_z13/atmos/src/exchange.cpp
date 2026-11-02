@@ -25,17 +25,11 @@ namespace z13::utility::atmos {
 
 namespace {
 
-constexpr int64_t kPermille = 1000;
-
 struct Flow {
   size_t from {};
   size_t to {};
   int64_t ppm {};
 };
-
-int64_t PressureOf(std::span<const Chamber> chambers, size_t index) {
-  return index == kOutside ? 0 : PressurePascals(chambers[index].air, chambers[index].volume_cells);
-}
 
 // The share of `from` that goes through the opening, in millionths.
 Flow FlowThrough(std::span<const Chamber> chambers, const Link& link, const ExchangeSettings& settings) {
@@ -72,6 +66,14 @@ Air Share(const Air& air, int64_t ppm) {
 }
 
 }  // namespace
+
+int64_t PressureOf(std::span<const Chamber> chambers, size_t index) {
+  if (index == kOutside) {
+    return 0;
+  }
+  const Chamber& chamber = chambers[index];
+  return PressurePascals(chamber.air, chamber.volume_cells);
+}
 
 Air Exchange(std::span<Chamber> chambers, std::span<const Link> links, const ExchangeSettings& settings) {
   std::vector<Flow> flows;

@@ -24,7 +24,7 @@ namespace z13::utility::atmos {
 
 namespace {
 
-// 2/5 of the energy in joules over the volume in cubic meters, as a fraction of the energy in millijoules and the cells.
+// 2/5 of the energy in joules over the volume in cubic meters, as a fraction of millijoules and cells.
 constexpr int64_t kPressureNumerator = 16;
 constexpr int64_t kPressureDenominator = 625;
 

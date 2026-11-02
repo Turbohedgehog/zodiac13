@@ -50,6 +50,9 @@ struct ExchangeSettings {
 
 inline constexpr int64_t kPartsPerMillion = 1'000'000;
 
+// Pascals in the chamber at `index`; none outside.
+int64_t PressureOf(std::span<const Chamber> chambers, size_t index);
+
 // One step of air through the links, worked out from the air the chambers have at its start: from the higher pressure
 // to the lower, by the opening's area and the difference, never so far that the pressures cross, and never more than a
 // chamber has. What goes outside is returned; apart from it nothing is made or lost, to the last millimole and

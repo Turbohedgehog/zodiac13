@@ -60,8 +60,8 @@ int64_t Kelvin(const Air& air);
 Air AirAt(int64_t volume_cells, int64_t pascals, int64_t kelvin);
 Air StandardAir(int64_t volume_cells);
 
-// Splits `air` by `weights` (cells shared with each new room): each gets its share, and what rounding leaves goes to the
-// heaviest, so nothing is made or lost. All weights zero gives every share nothing.
+// Splits `air` by `weights` (cells shared with each new room): each gets its share, and what rounding leaves goes to
+// the heaviest, so nothing is made or lost. All weights zero gives every share nothing.
 std::vector<Air> Divide(const Air& air, std::span<const int64_t> weights);
 
 }  // namespace z13::utility::atmos
