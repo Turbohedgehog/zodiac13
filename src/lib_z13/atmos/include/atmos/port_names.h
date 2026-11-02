@@ -32,6 +32,8 @@ inline constexpr std::string_view kNetworkKey = "gas";
 // A unit holds the rooms of the vents on its network at the values it names; a vent is where it reaches a room.
 inline constexpr std::string_view kUnitRole = "unit";
 inline constexpr std::string_view kVentRole = "vent";
+// An airlock controller stands in the chamber between the two doors it runs; it joins no pipe.
+inline constexpr std::string_view kAirlockRole = "airlock";
 
 // The unit's target pressure (pascals) and temperature (kelvin), and the most it does in a step: carbon dioxide
 // scrubbed and air added (millimoles), heat moved (millijoules).

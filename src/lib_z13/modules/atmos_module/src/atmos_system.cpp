@@ -18,16 +18,18 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <cstdlib>
 #include <memory>
 #include <optional>
 #include <ranges>
 #include <span>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <flecs.h>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/flecs_utils.h>
@@ -46,91 +48,52 @@
 #include <rooms/room_cache.h>
 #include <z13/components/atmosphere.h>
 #include <z13/components/block.h>
+#include <z13/components/block_change_reader.h>
 #include <z13/components/door.h>
 #include <z13/components/grid.h>
+#include <z13/components/interaction.h>
 #include <z13/components/player.h>
 #include <z13/components/station_mode.h>
 #include <z13/components/utilities.h>
 #include <z13_settings/atmos_tuning.h>
+#include <z13_settings/door_tuning.h>
 
+#include "airlock.h"
+#include "atmos_queries.h"
+#include "door_at.h"
 #include "room_air_carry.h"
 #include "room_air_store.h"
+#include "room_index.h"
+#include "rooms_now.h"
 
 namespace z13::atmos_module {
 
 namespace {
 
 using z13::building::primitives::BlockPalette;
-using z13::building::primitives::CellBox;
 using z13::station::Block;
+using z13::station::BlockChangeBatch;
+using z13::station::BlockChangeReader;
 using z13::station::DoorState;
 using z13::station::Grid;
 using z13::station::kCellSize;
-using z13::station::kMainGrid;
 using z13::station::rooms::Portal;
 using z13::station::rooms::RoomCache;
 using z13::station::rooms::RoomGraph;
 using z13::station::rooms::RoomId;
+using z13::utility::AirlockCycle;
+using z13::utility::AirlockDoors;
 using z13::utility::DoorInterlock;
 using z13::utility::RoomAirBasis;
 using z13::utility::RoomAirEntry;
 using z13::utility::networks::StationNetworks;
 namespace atmos = z13::utility::atmos;
 
-using DoorQuery = flecs::query<const DoorState, const Block>;
-using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
-
-// The chambers are the rooms in anchor order.
-struct RoomIndex {
-  std::vector<RoomId> ids;
-  std::unordered_map<RoomId, size_t> chamber_of;
-};
-
-RoomIndex IndexOf(const RoomGraph& graph) {
-  RoomIndex index {.ids = graph.ByAnchor()};
-  for (size_t i = 0; i < index.ids.size(); ++i) {
-    index.chamber_of.emplace(index.ids[i], i);
-  }
-  return index;
-}
-
-size_t ChamberOf(const RoomIndex& index, RoomId room) {
-  const auto found = index.chamber_of.find(room);
-  return found != index.chamber_of.end() ? found->second : atmos::kOutside;
-}
-
-struct DoorAt {
-  flecs::entity entity;
-  std::vector<CellBox> openings;
-  z13::station::DoorPosition position {};
-};
-
-std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const BlockPalette& palette) {
-  std::vector<DoorAt> found;
-  doors.each([&](flecs::entity entity, const DoorState& state, const Block& block) {
-    const auto primitive = block.grid == kMainGrid ? palette.palette.Find(block.spec.type_id) : std::nullopt;
-    if (!primitive) {
-      return;
-    }
-    DoorAt door {.entity = entity, .position = state.position};
-    for (const auto& source : z13::station::rooms::PortalsOf(block, primitive->get(), palette.palette)) {
-      door.openings.push_back(source.opening);
-    }
-    found.push_back(std::move(door));
-  });
-  return found;
-}
-
-bool Overlaps(const DoorAt& door, const CellBox& opening) {
-  return std::ranges::any_of(door.openings, [&opening](const CellBox& at) { return at.Overlaps(opening); });
-}
-
 // A door lets through the share of the portal's area that it is open; a doorway without a door all of it; a window
 // or a wall nothing.
 int64_t OpenArea(const Portal& portal, std::span<const DoorAt> doors) {
-  const auto door = std::ranges::find_if(doors, [&portal](const DoorAt& at) { return Overlaps(at, portal.opening); });
-  if (door != doors.end()) {
-    return portal.area_cells * static_cast<int64_t>(door->position) / z13::station::kDoorOpen;
+  if (const auto door = DoorAtOpening(doors, portal.opening)) {
+    return portal.area_cells * static_cast<int64_t>(door->get().position) / z13::station::kDoorOpen;
   }
   return portal.passable ? portal.area_cells : 0;
 }
@@ -177,33 +140,6 @@ void BreatheRooms(std::vector<atmos::Chamber>& chambers, const RoomGraph& graph,
       atmos::Breathe(chambers[i].air, breath);
     }
   }
-}
-
-// A cell sharing a face with a block lies outside its box along exactly one axis.
-constexpr Eigen::Index kFaceNeighbour = 1;
-
-// The rooms touching the faces of a block, which fills cells of its own: a vent lets its network into them.
-std::vector<size_t> ChambersAround(const RoomGraph& graph, const RoomIndex& index, const CellBox& block) {
-  std::vector<size_t> chambers;
-  const CellBox around = block.Grown(Eigen::Vector3i::Ones());
-  for (int x = around.min.x(); x < around.End().x(); ++x) {
-    for (int y = around.min.y(); y < around.End().y(); ++y) {
-      for (int z = around.min.z(); z < around.End().z(); ++z) {
-        const Eigen::Vector3i cell(x, y, z);
-        const Eigen::Index outside =
-            ((cell.array() < block.min.array()) || (cell.array() >= block.End().array())).count();
-        if (outside != kFaceNeighbour) {
-          continue;
-        }
-        const auto room = graph.RoomAt(cell);
-        const size_t chamber = room ? ChamberOf(index, *room) : atmos::kOutside;
-        if (chamber != atmos::kOutside) {
-          chambers.push_back(chamber);
-        }
-      }
-    }
-  }
-  return chambers;
 }
 
 // A unit's capacity is shared among the rooms of the vents on its network.
@@ -278,9 +214,13 @@ int64_t DifferenceAt(const DoorAt& door, const RoomGraph& graph, const RoomIndex
 }
 
 // Locked while the difference is great: an automatic door does not open into a room that would empty through it.
-void LockDoors(std::span<const DoorAt> doors, const RoomGraph& graph, const RoomIndex& index,
-               const std::vector<atmos::Chamber>& chambers, const z13::AtmosTuning& tuning) {
+// The doors of airlocks are held by their controllers instead.
+void LockDoors(std::span<const DoorAt> doors, const std::unordered_set<flecs::entity_t>& held, const RoomGraph& graph,
+               const RoomIndex& index, const std::vector<atmos::Chamber>& chambers, const z13::AtmosTuning& tuning) {
   for (const DoorAt& door : doors) {
+    if (held.contains(door.entity.id())) {
+      continue;
+    }
     const bool locked = DifferenceAt(door, graph, index, chambers) > tuning.interlock_pascals;
     if (locked && !door.entity.has<DoorInterlock>()) {
       door.entity.set(DoorInterlock {.reason = z13::utility::InterlockReason::kPressure});
@@ -307,18 +247,19 @@ void FollowRooms(RoomAirBasis& basis, std::vector<RoomAirEntry>& rooms, const Ro
   basis.fingerprint = fingerprint;
 }
 
-void Step(std::vector<RoomAirEntry>& rooms, const RoomGraph& graph, const StationNetworks& stations,
-          const BlockPalette& palette, const z13::AtmosTuning& tuning, const flecs::world& world,
-          const DoorQuery& door_query, const PlayerQuery& players) {
-  const RoomIndex index = IndexOf(graph);
-  const std::vector<DoorAt> doors = DoorsOf(door_query, palette);
-  std::vector<atmos::Chamber> chambers = ChambersOf(rooms, graph, index);
+void Step(std::vector<RoomAirEntry>& rooms, const RoomsNow& now, const std::unordered_set<flecs::entity_t>& held,
+          const StationNetworks& stations, const BlockPalette& palette, const z13::AtmosTuning& tuning,
+          const z13::DoorTuning& door_tuning, const flecs::world& world, const PlayerQuery& players) {
+  const RoomGraph& graph = now.graph;
+  std::vector<atmos::Chamber> chambers = ChambersOf(rooms, graph, now.index);
 
-  const std::vector<atmos::Link> links = LinksOf(graph, index, doors);
+  std::vector<atmos::Link> links = LinksOf(graph, now.index, now.doors);
+  AddPumpLinks(links, now.airlocks, tuning);
   atmos::Exchange(chambers, links, {.coefficient = tuning.flow_coefficient, .max_outflow_ppm = tuning.max_outflow_ppm});
-  BreatheRooms(chambers, graph, index, players, tuning);
-  RegulateRooms(stations, world, palette, graph, index, chambers);
-  LockDoors(doors, graph, index, chambers, tuning);
+  BreatheRooms(chambers, graph, now.index, players, tuning);
+  RegulateRooms(stations, world, palette, graph, now.index, chambers);
+  FinishCycles(now.airlocks, chambers, tuning, door_tuning);
+  LockDoors(now.doors, held, graph, now.index, chambers, tuning);
 
   for (size_t i = 0; i < chambers.size(); ++i) {
     auto& room = rooms[i];
@@ -327,12 +268,12 @@ void Step(std::vector<RoomAirEntry>& rooms, const RoomGraph& graph, const Statio
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RoomAirBasis, RoomAirEntry, DoorInterlock>(world);
+  z13::flecs_tools::RegisterComponents<RoomAirBasis, RoomAirEntry, DoorInterlock, AirlockCycle, AirlockDoors>(world);
 }
 
-void Update(flecs::iter& it, const DoorQuery& doors, const PlayerQuery& players, const RoomAirQuery& stored,
-            const StationNetworks& stations, const BlockPalette& palette, const z13::AtmosTuning& tuning,
-            const z13::flecs_tools::SimulationClock& clock) {
+void Update(flecs::iter& it, const AtmosQueries& queries, const StationNetworks& stations, const BlockPalette& palette,
+            const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
+            const z13::station::Interactions& interactions, const z13::flecs_tools::SimulationClock& clock) {
   flecs::world world = it.world();
   const flecs::entity grid = z13::station::MainGridEntity(world);
   const auto cache = z13::station::MainGridData<RoomCache>(world);
@@ -346,19 +287,59 @@ void Update(flecs::iter& it, const DoorQuery& doors, const PlayerQuery& players,
   }
   RoomAirBasis& basis = grid.get_mut<RoomAirBasis>();
   const bool follows = basis.seeded && basis.fingerprint == cache->get().CurrentFingerprint() &&
-                       static_cast<size_t>(stored.count()) == graph->get().ByAnchor().size();
+                       static_cast<size_t>(queries.stored.count()) == graph->get().ByAnchor().size();
   const bool step = basis.seeded && clock.tick % tuning.step_ticks == 0;
+  RoomsNow now {.graph = graph->get()};
+  if (!follows || step) {
+    now.index = IndexOf(now.graph);
+    now.doors = DoorsOf(queries.doors, palette);
+    now.airlocks = FindAirlocks(queries.airlocks, world, now.graph, now.index, now.doors);
+  }
+  // Every tick, so that a use of an airlock's door is never missed between two steps of the air.
+  const std::unordered_set<flecs::entity_t> held =
+      TendAirlocks(queries.airlocks, queries.interlocks, interactions, world);
   if (follows && !step) {
     return;
   }
-  std::vector<RoomAirEntry> rooms = LoadRoomAir(stored);
+  std::vector<RoomAirEntry> rooms = LoadRoomAir(queries.stored);
   if (!follows) {
     FollowRooms(basis, rooms, cache->get(), graph->get());
   }
   if (basis.seeded && step) {
-    Step(rooms, graph->get(), stations, palette, tuning, world, doors, players);
+    Step(rooms, now, held, stations, palette, tuning, door_tuning, world, queries.players);
   }
-  StoreRoomAir(world, stored, rooms);
+  StoreRoomAir(world, queries.stored, rooms);
+}
+
+bool IsAirlockBlock(const Block& block, const BlockPalette& palette) {
+  const auto primitive = palette.palette.Find(block.spec.type_id);
+  const auto port = primitive ? atmos::GasPortOf(primitive->get()) : std::nullopt;
+  return port && port->get().role == atmos::kAirlockRole;
+}
+
+// The airlock controllers among the blocks that came this tick, or among all of them after a restore.
+void AddAirlocks(BlockChangeReader& reader, uint64_t restores, uint64_t tick, const BlockPalette& palette,
+                 const flecs::world& world) {
+  const BlockChangeBatch batch = reader.Read(restores, tick);
+  const auto add = [&palette](flecs::entity block, const Block& placed) {
+    if (!block.has<AirlockCycle>() && IsAirlockBlock(placed, palette)) {
+      block.set(AirlockCycle {});
+    }
+  };
+  if (batch.resync) {
+    reader.Blocks().each(add);
+    return;
+  }
+  for (const z13::station::BlockChange& change : batch.changes) {
+    if (change.kind == z13::station::BlockChangeKind::kAdded && world.is_alive(change.entity)) {
+      add(world.entity(change.entity), change.block);
+    }
+  }
+}
+
+void RegisterPipeline(flecs::world world) {
+  // The airlocks act on what the players did this tick.
+  world.component<z13::utility::UtilitySimulationPhase>().add(flecs::Phase).depends_on<z13::station::InteractionPhase>();
 }
 
 void RegisterSystems(flecs::world world) {
@@ -376,12 +357,27 @@ void RegisterSystems(flecs::world world) {
   }
   world.entity("GasNetwork").set(z13::utility::UtilityProvider {.network = std::string(atmos::kNetworkKey)});
 
-  const DoorQuery doors = world.query<const DoorState, const Block>();
-  const PlayerQuery players = world.query<const z13::gameplay::Player, const Eigen::Matrix4f>();
-  const RoomAirQuery stored = world.query<const RoomAirEntry>();
+  const AtmosQueries queries {.doors = world.query<const DoorState, const Block>(),
+                              .players = world.query<const z13::gameplay::Player, const Eigen::Matrix4f>(),
+                              .stored = world.query<const RoomAirEntry>(),
+                              .airlocks = world.query<const AirlockCycle, const Block>(),
+                              .interlocks = world.query<const DoorInterlock>()};
+  const auto reader = std::make_shared<BlockChangeReader>(world);
   world
-      .system<const StationNetworks, const BlockPalette, const z13::AtmosTuning,
-              const z13::flecs_tools::SimulationClock>("AtmosSystem::Update")
+      .system<const BlockPalette, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
+          "AtmosSystem::AddAirlocks")
+      .kind<z13::utility::UtilitySimulationPhase>()
+      .with<z13::station::StationMode>()
+      .read<Block>()
+      .read<z13::station::BlockChange>()
+      .write<AirlockCycle>()
+      .each([reader](flecs::iter& it, size_t, const BlockPalette& palette,
+                     const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock) {
+        AddAirlocks(*reader, restores.count, clock.tick, palette, it.world());
+      });
+  world
+      .system<const StationNetworks, const BlockPalette, const z13::AtmosTuning, const z13::DoorTuning,
+              const z13::station::Interactions, const z13::flecs_tools::SimulationClock>("AtmosSystem::Update")
       .kind<z13::utility::UtilitySimulationPhase>()
       .with<z13::station::StationMode>()
       // Immediate, so a grid new to the air gets its component at once (ImmediateScope).
@@ -393,10 +389,14 @@ void RegisterSystems(flecs::world world) {
       .write<RoomAirBasis>()
       .write<RoomAirEntry>()
       .write<DoorInterlock>()
-      .each([doors, players, stored](flecs::iter& it, size_t, const StationNetworks& stations,
-                                     const BlockPalette& palette, const z13::AtmosTuning& tuning,
-                                     const z13::flecs_tools::SimulationClock& clock) {
-        Update(it, doors, players, stored, stations, palette, tuning, clock);
+      .write<DoorState>()
+      .write<AirlockCycle>()
+      .write<AirlockDoors>()
+      .each([queries](flecs::iter& it, size_t, const StationNetworks& stations, const BlockPalette& palette,
+                      const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
+                      const z13::station::Interactions& interactions,
+                      const z13::flecs_tools::SimulationClock& clock) {
+        Update(it, queries, stations, palette, tuning, door_tuning, interactions, clock);
       });
 }
 
@@ -404,6 +404,7 @@ void RegisterSystems(flecs::world world) {
 
 void AtmosSystem::Register(flecs::world& world) {
   z13::OnRegisterComponents(world, RegisterComponents);
+  z13::OnInitPhases(world, RegisterPipeline);
   z13::OnInitSystems(world, RegisterSystems);
 }
 
