@@ -73,11 +73,24 @@ TEST(BrushAimTest, ABlockBesideAnotherNearTheFloorSlidesUpOutOfTheFloor) {
   EXPECT_EQ(OccupiedCells(block).End().x(), 8);
 }
 
+TEST(BrushAimTest, ABlockSlidesNoFurtherThanTheSettingAllows) {
+  BlockIndex index = Floor();
+  constexpr grid::BlockId kFirst = 2;
+  index.Insert(kFirst, {.min = {8, 0, 0}, .extent = {4, 4, 4}});
+  const Aim aim = AimAt(index, {0.5f, 2.5f, 0.5f}, {12.5f, 2.5f, 0.5f});
+  ASSERT_EQ(aim.normal, Eigen::Vector3i(-1, 0, 0));
+
+  const auto block = BlockAt(aim, kWedge, index, 0);
+
+  EXPECT_TRUE(index.Overlaps(OccupiedCells(block))) << "no slide: the block stays where it sinks";
+}
+
 TEST(BrushAimTest, AFreeBlockInOpenSpaceIsCentredOnTheReach) {
   const BlockIndex index = Floor();
   const Aim aim = AimAt(index, {0.5f, 0.5f, 20.f}, {10.5f, 0.5f, 20.f});
 
-  EXPECT_EQ(BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells).cell, z13::building::primitives::PlaceCentredOn(aim.point, kWedge).cell);
+  EXPECT_EQ(BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells).cell,
+            z13::building::primitives::PlaceCentredOn(aim.point, kWedge).cell);
 }
 
 }  // namespace
