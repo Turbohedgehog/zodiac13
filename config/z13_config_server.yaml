@@ -10,5 +10,6 @@ modules:
   - modules/conduit_module/conduit_module
   - modules/power_module/power_module
   - modules/atmos_module/atmos_module
+  - modules/gravity_module/gravity_module
   - modules/net_module/net_module
   - modules/test_dll/test_dll_module

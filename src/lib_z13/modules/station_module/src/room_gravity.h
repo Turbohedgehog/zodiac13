@@ -19,8 +19,11 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include <Eigen/Dense>
+
+#include <z13/components/gravity.h>
 
 #include <rooms/room_id.h>
 
@@ -30,12 +33,14 @@ struct RoomGravitySource {
   // RoomCache::Switches() when by_room was last brought up to date.
   uint64_t switches {};
   float gravity {};
+  uint32_t generator_radius_cells {};
+  std::vector<z13::gravity::GravitySource> sources;
 
   bool operator==(const RoomGravitySource&) const = default;
 };
 
-// Each room's gravity: for now physics.gravity down, zero in vacuum; gravity generators
-// (f/gravity) will set it per room or over an area. Derived, never state.
+// Each room's gravity: physics.gravity down, zero in vacuum, and where the station has gravity generators the share
+// of the strongest one within reach. Derived, never state.
 struct RoomGravity {
   using Singleton = void;
   std::optional<RoomGravitySource> source;

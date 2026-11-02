@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <cstdint>
+#include <limits>
+#include <vector>
+
 #include <Eigen/Dense>
 
 namespace z13::gravity {
@@ -36,6 +40,34 @@ struct PlayerUp {
   Eigen::Vector3f up = Eigen::Vector3f::UnitZ();
 
   bool operator==(const PlayerUp&) const = default;
+};
+
+// How far a generator's field has risen, from nothing to kGravityFull; whole numbers all through so peers agree.
+using GravityLevel = uint16_t;
+inline constexpr GravityLevel kGravityFull = std::numeric_limits<GravityLevel>::max();
+
+// On the block of a gravity generator, added when it appears.
+struct GravityCharge {
+  using State = void;
+  GravityLevel level {};
+
+  bool operator==(const GravityCharge&) const = default;
+};
+
+struct GravitySource {
+  Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+  GravityLevel level {};
+
+  bool operator==(const GravitySource&) const = default;
+};
+
+// Every generator of the main grid, by cell, set by gravity_module each tick; station_module turns them into the
+// gravity of the rooms. Derived, never state. Without generators every room pulls.
+struct GravitySources {
+  using Singleton = void;
+  std::vector<GravitySource> list;
+
+  bool operator==(const GravitySources&) const = default;
 };
 
 }  // namespace z13::gravity

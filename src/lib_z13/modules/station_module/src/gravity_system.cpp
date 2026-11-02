@@ -33,6 +33,7 @@
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/station_mode.h>
+#include <z13/components/utilities.h>
 #include <rooms/room_cache.h>
 #include <z13_settings/physics_tuning.h>
 
@@ -43,22 +44,51 @@ namespace z13::station {
 namespace {
 
 using z13::gravity::Gravity;
+using z13::gravity::GravitySources;
 using z13::station::rooms::RoomCache;
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RoomGravity>(world);
+  z13::flecs_tools::RegisterComponents<RoomGravity, GravitySources>(world);
 }
 
 void RegisterPipeline(flecs::world world) {
-  world.component<GravityPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
+  // The generators' charge is set by the consumers of the tick, so a rolled-back tick reads its own.
+  world.component<GravityPhase>()
+      .add(flecs::Phase)
+      .depends_on<StationTopologyPhase>()
+      .depends_on<z13::utility::UtilityConsumersPhase>();
 }
 
-Eigen::Vector3f RoomPull(rooms::RoomId room, float gravity) {
-  return room == rooms::kVacuumRoom ? Eigen::Vector3f::Zero() : Eigen::Vector3f(0.f, 0.f, -gravity);
+// The share of the pull a room feels: all of it where the station has no generator, otherwise that of the strongest
+// one whose block lies within `radius_cells` of the room's box.
+float ShareOf(const rooms::Room& room, const GravitySources& sources, uint32_t radius_cells) {
+  if (sources.list.empty()) {
+    return 1.f;
+  }
+  const auto radius = static_cast<int64_t>(radius_cells);
+  const Eigen::Vector3i last = room.bounds.End() - Eigen::Vector3i::Ones();
+  float share = 0.f;
+  for (const z13::gravity::GravitySource& source : sources.list) {
+    const Eigen::Vector3i nearest = source.cell.cwiseMax(room.bounds.min).cwiseMin(last);
+    if ((nearest - source.cell).cast<int64_t>().squaredNorm() <= radius * radius) {
+      share = std::max(share, static_cast<float>(source.level) / static_cast<float>(z13::gravity::kGravityFull));
+    }
+  }
+  return share;
+}
+
+Eigen::Vector3f RoomPull(const rooms::RoomGraph& graph, rooms::RoomId room, const GravitySources& sources,
+                         const z13::PhysicsTuning& tuning) {
+  const auto found = graph.rooms.find(room);
+  if (room == rooms::kVacuumRoom || found == graph.rooms.end()) {
+    return Eigen::Vector3f::Zero();
+  }
+  return {0.f, 0.f, -tuning.gravity * ShareOf(found->second, sources, tuning.generator_radius_cells)};
 }
 
 // Without rooms (a failed rebuild) RoomGravity is empty and nothing pulls.
-void UpdateRoomGravity(flecs::iter& it, size_t, RoomGravity& gravity, const z13::PhysicsTuning& tuning) {
+void UpdateRoomGravity(flecs::iter& it, size_t, RoomGravity& gravity, const z13::PhysicsTuning& tuning,
+                       const GravitySources& sources) {
   const auto main_cache = MainGridData<RoomCache>(it.world());
   const auto graph = main_cache ? main_cache->get().Current() : std::nullopt;
   if (!graph) {
@@ -66,24 +96,28 @@ void UpdateRoomGravity(flecs::iter& it, size_t, RoomGravity& gravity, const z13:
     return;
   }
   const RoomCache& cache = main_cache->get();
-  const RoomGravitySource source {.switches = cache.Switches(), .gravity = tuning.gravity};
+  const RoomGravitySource source {.switches = cache.Switches(),
+                                  .gravity = tuning.gravity,
+                                  .generator_radius_cells = tuning.generator_radius_cells,
+                                  .sources = sources.list};
   if (gravity.source == source) {
     return;
   }
-  const auto changes = gravity.source && gravity.source->gravity == tuning.gravity
-                           ? cache.ChangesSince(gravity.source->switches)
-                           : std::nullopt;
+  const bool same_pull = gravity.source && gravity.source->gravity == source.gravity &&
+                         gravity.source->generator_radius_cells == source.generator_radius_cells &&
+                         gravity.source->sources == source.sources;
+  const auto changes = same_pull ? cache.ChangesSince(gravity.source->switches) : std::nullopt;
   if (changes) {
     std::ranges::for_each(changes->removed, [&gravity](rooms::RoomId room) { gravity.by_room.erase(room); });
     for (const rooms::RoomId room : changes->added) {
-      gravity.by_room.emplace(room, RoomPull(room, tuning.gravity));
+      gravity.by_room.emplace(room, RoomPull(graph->get(), room, sources, tuning));
     }
     gravity.source = source;
     return;
   }
   RoomGravity updated {.source = source};
   for (const auto& [id, room] : graph->get().rooms) {
-    updated.by_room.emplace(id, RoomPull(id, tuning.gravity));
+    updated.by_room.emplace(id, RoomPull(graph->get(), id, sources, tuning));
   }
   gravity = std::move(updated);
 }
@@ -181,7 +215,9 @@ void ApplyRoomGravity(flecs::iter& it, const GridQuery& grids) {
 void RegisterSystems(flecs::world world) {
   world.set(RoomGravity {});
 
-  world.system<RoomGravity, const z13::PhysicsTuning>("GravitySystem::UpdateRoomGravity")
+  world.set(GravitySources {});
+
+  world.system<RoomGravity, const z13::PhysicsTuning, const GravitySources>("GravitySystem::UpdateRoomGravity")
       .kind<GravityPhase>()
       .with<StationMode>()
       .read<RoomCache>()
