@@ -21,10 +21,13 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
 #include <primitives/palette.h>
 #include <z13/components/block.h>
+#include <z13/components/block_changes.h>
+#include <z13/components/conduit.h>
 #include <z13/components/gravity.h>
 #include <z13/components/utilities.h>
 #include <z13_settings/physics_tuning.h>
@@ -51,14 +54,21 @@ constexpr uint32_t kRampTicks = 100;
 constexpr uint32_t kReachCells = 1;
 // Float rounding in a pull that a share of the field scales, in m/s2.
 constexpr float kAccelerationTolerance = 1e-3f;
-// Long enough to be built, to rise to the full field and to be felt.
-constexpr int kRiseTicks = static_cast<int>(kRampTicks) + 20;
+// Long enough for the power to settle, the field to rise to full and the rooms to feel it.
+constexpr int kRiseTicks = static_cast<int>(kRampTicks) + 60;
 constexpr int kHalfRampTicks = static_cast<int>(kRampTicks) / 2;
 constexpr size_t kGeneratorsBuilt = 2;
 
 const Eigen::Vector3i kLeftCell = testing::kRoomCorner + Eigen::Vector3i(3, 6, 3);
-const Eigen::Vector3i kRightCell = testing::kRoomCorner + Eigen::Vector3i(8, 6, 3);
-const Eigen::Vector3i kGeneratorCell = testing::kRoomCorner + Eigen::Vector3i(6, 4, 1);
+// Beside the generators, which fill x 6 to 9 of the right half.
+const Eigen::Vector3i kRightCell = testing::kRoomCorner + Eigen::Vector3i(10, 9, 3);
+// The generator, a reactor above it and the cable between them; and a second generator with no wire.
+const Eigen::Vector3i kGeneratorCell = testing::kRoomCorner + Eigen::Vector3i(6, 1, 1);
+const Eigen::Vector3i kCableCell = testing::kRoomCorner + Eigen::Vector3i(6, 1, 5);
+const Eigen::Vector3i kReactorCell = testing::kRoomCorner + Eigen::Vector3i(6, 1, 6);
+const Eigen::Vector3i kUnwiredCell = testing::kRoomCorner + Eigen::Vector3i(6, 6, 1);
+// The cable kind of assets/station/conduits.json.
+constexpr uint32_t kCableKind = 1;
 
 Eigen::Matrix4f AtCenterOf(const Eigen::Vector3i& cell) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
@@ -82,9 +92,17 @@ class GeneratorSystemTest : public ::testing::Test {
     z13::testing::Ticks(world_, 2);
   }
 
-  flecs::entity AddGenerator() {
+  flecs::entity AddGenerator(const Eigen::Vector3i& cell = kGeneratorCell) {
     return testing::AddBlock(world_, {.spec = {.type_id = testing::IdOf("GravityGenerator"), .size = {4, 4, 4}},
-                                      .cell = kGeneratorCell});
+                                      .cell = cell});
+  }
+
+  // A reactor wired to the generator at kGeneratorCell; destroying it takes the power away.
+  flecs::entity Power() {
+    world_.World().entity().add<z13::flecs_tools::StateEntity>().set(
+        z13::conduit::Conduit {.kind = kCableKind, .cell = kCableCell, .axis = z13::conduit::ConduitAxis::kZ, .length = 1});
+    return testing::AddBlock(world_, {.spec = {.type_id = testing::IdOf("Reactor"), .size = {4, 4, 4}},
+                                      .cell = kReactorCell});
   }
 
   void Advance(int ticks) { z13::testing::Ticks(world_, ticks); }
@@ -107,6 +125,7 @@ TEST_F(GeneratorSystemTest, WithoutGeneratorsEveryRoomPulls) {
 
 TEST_F(GeneratorSystemTest, APoweredGeneratorPullsTheRoomsWithinReachAndLeavesTheOthersFloating) {
   AddGenerator();
+  Power();
 
   Advance(kRiseTicks);
 
@@ -117,6 +136,7 @@ TEST_F(GeneratorSystemTest, APoweredGeneratorPullsTheRoomsWithinReachAndLeavesTh
 TEST_F(GeneratorSystemTest, AGeneratorReachesRoomsWithinItsRadius) {
   world_.World().get_mut<z13::PhysicsTuning>().generator_radius_cells = testing::kSide;
   AddGenerator();
+  Power();
 
   Advance(kRiseTicks);
 
@@ -125,7 +145,8 @@ TEST_F(GeneratorSystemTest, AGeneratorReachesRoomsWithinItsRadius) {
 }
 
 TEST_F(GeneratorSystemTest, TheFieldRisesOverTheRampAndFallsWithTheLossOfPower) {
-  const flecs::entity generator = AddGenerator();
+  AddGenerator();
+  const flecs::entity reactor = Power();
   Advance(kHalfRampTicks);
   EXPECT_GT(PullOf(right_), 0.f);
   EXPECT_LT(PullOf(right_), Full() - kAccelerationTolerance);
@@ -133,7 +154,7 @@ TEST_F(GeneratorSystemTest, TheFieldRisesOverTheRampAndFallsWithTheLossOfPower) 
   Advance(kRiseTicks);
   ASSERT_NEAR(PullOf(right_), Full(), kAccelerationTolerance);
 
-  generator.set(z13::utility::UtilitySupply {.satisfied = false});
+  z13::station::DestroyBlock(reactor, reactor.get<z13::station::Block>());
   Advance(kHalfRampTicks);
   EXPECT_GT(PullOf(right_), 0.f);
   EXPECT_LT(PullOf(right_), Full() - kAccelerationTolerance);
@@ -143,7 +164,7 @@ TEST_F(GeneratorSystemTest, TheFieldRisesOverTheRampAndFallsWithTheLossOfPower) 
 }
 
 TEST_F(GeneratorSystemTest, AnUnpoweredGeneratorPullsNothingAnywhere) {
-  AddGenerator().set(z13::utility::UtilitySupply {.satisfied = false});
+  AddGenerator();
 
   Advance(kRiseTicks);
 
@@ -152,9 +173,9 @@ TEST_F(GeneratorSystemTest, AnUnpoweredGeneratorPullsNothingAnywhere) {
 }
 
 TEST_F(GeneratorSystemTest, TheStrongestGeneratorInReachSetsTheRoomsPull) {
-  AddGenerator().set(z13::utility::UtilitySupply {.satisfied = false});
-  testing::AddBlock(world_, {.spec = {.type_id = testing::IdOf("GravityGenerator"), .size = {4, 4, 4}},
-                             .cell = kGeneratorCell + Eigen::Vector3i(0, 0, 4)});
+  AddGenerator();
+  Power();
+  AddGenerator(kUnwiredCell);
 
   Advance(kRiseTicks);
 
