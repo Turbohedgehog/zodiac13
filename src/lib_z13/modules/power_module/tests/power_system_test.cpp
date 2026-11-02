@@ -29,6 +29,7 @@
 #include <primitives/palette.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/conduit.h>
+#include <z13/components/lamps.h>
 #include <z13/components/overlay_layers.h>
 #include <z13/components/power.h>
 #include <z13/components/switch.h>
@@ -204,6 +205,67 @@ TEST_F(PowerSystemTest, ABatteryChargesFromTheSurplusAndCoversTheConsumerWithout
   Run();
   EXPECT_TRUE(Supplied(terminal_)) << "the battery covers it";
   EXPECT_LT(battery.get<BatteryCharge>().watt_ticks, charged);
+}
+
+// Lamps along the row: a wired one at 107 behind the reactor's cable, an unwired one far off.
+class LampSystemTest : public ::testing::Test {
+ protected:
+  static constexpr int kWiredLampX = 107;
+  static constexpr int kUnwiredLampX = 200;
+
+  void SetUp() override {
+    world_.Tick();
+    wired_ = AddBlock(world_, "Lamp", kWiredLampX);
+    unwired_ = AddBlock(world_, "Lamp", kUnwiredLampX);
+  }
+
+  void PowerTheWiredLamp() {
+    reactor_ = AddBlock(world_, "Reactor", 100);
+    AddCable(world_, 104, 3);
+  }
+
+  void Run() { z13::testing::Ticks(world_, kStepTicks); }
+
+  bool Dimmed(flecs::entity lamp) {
+    return z13::utility::IsDimmed(world_.World().get<z13::utility::DimmedLamps>().list,
+                                  {.cell = lamp.get<z13::station::Block>().cell});
+  }
+
+  Z13TestWorld world_ = StationWorld();
+  flecs::entity reactor_;
+  flecs::entity wired_;
+  flecs::entity unwired_;
+};
+
+TEST_F(LampSystemTest, AStationThatNeverHadPowerKeepsItsLampsLit) {
+  Run();
+
+  EXPECT_FALSE(Dimmed(wired_));
+  EXPECT_FALSE(Dimmed(unwired_));
+  EXPECT_FALSE(world_.World().get<z13::utility::LampsFollowPower>().on);
+}
+
+TEST_F(LampSystemTest, OnceThereIsPowerAnUnsuppliedLampGlowsRedAndASuppliedOneShines) {
+  PowerTheWiredLamp();
+
+  Run();
+
+  EXPECT_TRUE(world_.World().get<z13::utility::LampsFollowPower>().on);
+  EXPECT_FALSE(Dimmed(wired_));
+  EXPECT_TRUE(Dimmed(unwired_));
+}
+
+TEST_F(LampSystemTest, LosingTheReactorDimsEveryLampAndTheStationStaysDark) {
+  PowerTheWiredLamp();
+  Run();
+  ASSERT_FALSE(Dimmed(wired_));
+
+  z13::station::DestroyBlock(reactor_, reactor_.get<z13::station::Block>());
+  Run();
+
+  EXPECT_TRUE(Dimmed(wired_));
+  EXPECT_TRUE(Dimmed(unwired_));
+  EXPECT_TRUE(world_.World().get<z13::utility::LampsFollowPower>().on) << "the light does not come back";
 }
 
 }  // namespace

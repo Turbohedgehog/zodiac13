@@ -26,6 +26,7 @@
 #include <raylib.h>
 
 #include <cell_light/lamp.h>
+#include <z13/components/lamps.h>
 #include <lib_core/utils/status.h>
 #include <primitives/geometry.h>
 #include <z13/components/block.h>
@@ -33,6 +34,12 @@
 #include "lights.h"
 
 namespace z13::raylib {
+
+// The lamps that shine as emergency light and how brightly (PowerTuning::emergency_light_percent).
+struct EmergencyLamps {
+  std::span<const z13::utility::DimmedLamp> dimmed;
+  int percent {};
+};
 
 // The station's lamps baked into its free cells (cell_light/cell_light.h) and handed to the
 // lighting shader as two 3D textures, updated where blocks or lamps change. Singleton exempt
@@ -43,9 +50,10 @@ class CellLighting {
 
   CellLighting();
 
-  bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
+  bool SyncedWith(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
   // Needs the GL context. Fails once when the textures can't be made; the lamps then light nothing.
-  Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
+  Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette,
+              const EmergencyLamps& emergency);
   // Why the textures couldn't be made, for the pause menu's diagnostics.
   std::optional<std::string> Failure() const;
   // In cells, where each shines from (CellLight::ShiningLamps).

@@ -24,14 +24,15 @@ namespace z13::raylib {
 
 CellLighting::CellLighting() : state_(std::make_shared<State>()) {}
 
-bool CellLighting::SyncedWith(z13::building::primitives::OptionalPalette palette) const {
-  return state_->SyncedWith(palette);
+bool CellLighting::SyncedWith(z13::building::primitives::OptionalPalette palette,
+                              const EmergencyLamps& emergency) const {
+  return state_->SyncedWith(palette, emergency);
 }
 
 Status CellLighting::Sync(std::span<const z13::station::Block> blocks,
-                          z13::building::primitives::OptionalPalette palette) {
+                          z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) {
   Z13_PROFILE_ZONE("CellLighting::Sync");
-  return state_->Sync(blocks, palette);
+  return state_->Sync(blocks, palette, emergency);
 }
 
 std::optional<std::string> CellLighting::Failure() const {

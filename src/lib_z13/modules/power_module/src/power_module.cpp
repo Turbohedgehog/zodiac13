@@ -27,6 +27,7 @@
 #include <power/port_names.h>
 #include <z13/components/utilities.h>
 
+#include "lamp_system.h"
 #include "power_overlay_system.h"
 #include "power_system.h"
 
@@ -42,6 +43,7 @@ constexpr uint32_t kModuleVersion = 1;
 PowerModule::PowerModule(flecs::world& world) {
   PowerSystem::Register(world);
   PowerOverlaySystem::Register(world);
+  LampSystem::Register(world);
   // In the phases stage, once building_module has made the list (see UtilityModules).
   z13::OnInitPhases(world, [](flecs::world& w) {
     z13::utility::DeclareUtilityModule(
