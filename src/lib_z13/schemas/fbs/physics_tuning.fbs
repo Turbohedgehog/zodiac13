@@ -36,4 +36,8 @@ table PhysicsTuning {
   // How fast a player's up turns to a room's new gravity: the share of the turn left that is made up per second
   // (6 closes most of a few degrees in half a second).
   up_follow_rate: float = 6 (min: "0.1", max: "100", cli);
+  // A gravity generator pulls the rooms whose boxes lie within this many cells of its block.
+  generator_radius_cells: uint32 = 96 (min: 1, max: 4096, cli);
+  // Ticks a generator takes to rise from nothing to its full pull, and to fall back.
+  generator_ramp_ticks: uint32 = 180 (min: 1, max: 36000, cli);
 }

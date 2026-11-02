@@ -1,0 +1,52 @@
+{
+  "primitives": [
+    {
+      "id": 60,
+      "name": "GravityGenerator",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "max_size": {
+        "x": 4,
+        "y": 4,
+        "z": 4
+      },
+      "material": {
+        "first": {
+          "r": 120,
+          "g": 130,
+          "b": 175,
+          "a": 255
+        },
+        "second": {
+          "r": 95,
+          "g": 105,
+          "b": 150,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "consumer",
+          "priority": "gravity",
+          "values": [
+            {
+              "name": "demand",
+              "value": 500
+            }
+          ]
+        },
+        {
+          "network": "gravity",
+          "role": "generator"
+        }
+      ]
+    }
+  ]
+}
