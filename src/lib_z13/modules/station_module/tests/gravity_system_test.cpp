@@ -18,6 +18,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/state_markers.h>
 #include <lib_core/utils/math.h>
 
 #include <z13/components/player.h>
@@ -25,6 +26,7 @@
 #include <z13/components/gravity.h>
 #include <z13/components/block.h>
 #include <z13/components/door.h>
+#include <z13/components/grid_pose.h>
 #include <z13_module/gameplay/camera_look.h>
 #include <z13_settings/physics_tuning.h>
 
@@ -49,6 +51,8 @@ constexpr int kWalkTicks = 30;
 constexpr float kStandTolerance = 1e-2f;
 // What is left of the 4 degrees after 120 ticks at the default follow rate: (1 - 6 / 60) ^ 120 of it, far below this.
 constexpr float kUpTolerance = 1e-3f;
+// Float rounding in a vector turned by a pose, in m/s2.
+constexpr float kAccelerationTolerance = 1e-3f;
 const z13::PhysicsTuning kTuning {};
 
 float FloorTop() {
@@ -269,6 +273,54 @@ TEST_F(GravitySystemTest, ThePlayersUpStaysWhereNothingPullsHim) {
 
   EXPECT_FALSE(player.get<Gravity>().Pulls());
   EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(tilted));
+}
+
+// A second grid, tilted by 4 degrees and set apart, with the sealed box built in it.
+class DistrictGravityTest : public GravitySystemTest {
+ protected:
+  static constexpr GridId kDistrict = 1;
+  static constexpr int kSettleTicks = 4;
+
+  void SetUp() override {
+    GravitySystemTest::SetUp();
+    world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(pose_);
+    for (Block block : testing::SealedBox()) {
+      block.grid = kDistrict;
+      testing::AddBlock(world_, block);
+    }
+    Advance(kSettleTicks);
+  }
+
+  // The middle of the district's box, `height` above its floor, in the world's meters.
+  Eigen::Vector3f InDistrict(float height) const {
+    const Eigen::Vector3f local = (testing::kRoomCorner.cast<float>() +
+                                   Eigen::Vector3f(1.f + (testing::kSide / 2.f), 1.f + (testing::kSide / 2.f), 1.f)) *
+                                  kCellSize;
+    return GridToWorld(pose_) * (local + Eigen::Vector3f(0.f, 0.f, height));
+  }
+
+  const Grid pose_ {.id = kDistrict, .origin = {-400, 0, 0}, .yaw_degrees = 30.f, .pitch_degrees = 4.f};
+};
+
+TEST_F(DistrictGravityTest, ABodyInADistrictsRoomIsPulledAlongTheDistrictsDown) {
+  const flecs::entity body = world_.World().entity().set(At(InDistrict(1.f))).set(Gravity {});
+
+  Advance(2);
+
+  const Eigen::Vector3f expected = GridToWorld(pose_).linear() * Eigen::Vector3f(0.f, 0.f, -kTuning.gravity);
+  EXPECT_TRUE(body.get<Gravity>().acceleration.isApprox(expected, kAccelerationTolerance));
+  EXPECT_LT(body.get<Gravity>().acceleration.dot(Eigen::Vector3f::UnitZ()), -0.99f * kTuning.gravity);
+  EXPECT_GT(body.get<Gravity>().acceleration.head<2>().norm(), 0.f) << "it leans";
+}
+
+TEST_F(DistrictGravityTest, ABodyOutsideEveryRoomFloatsAndTheMainGridsRoomsKeepTheirPull) {
+  const flecs::entity outside = world_.World().entity().set(At(InDistrict(20.f))).set(Gravity {});
+  const flecs::entity main_room = world_.World().entity().set(At(InBox(1.f))).set(Gravity {});
+
+  Advance(2);
+
+  EXPECT_FALSE(outside.get<Gravity>().Pulls());
+  EXPECT_TRUE(main_room.get<Gravity>().acceleration.isApprox(Eigen::Vector3f(0.f, 0.f, -kTuning.gravity)));
 }
 
 }  // namespace

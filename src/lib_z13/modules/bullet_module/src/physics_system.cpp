@@ -50,6 +50,7 @@
 #include <z13/components/input_phases.h>
 #include <z13/components/block.h>
 #include <z13/components/door.h>
+#include <z13/components/grid_pose.h>
 #include <z13/components/station_mode.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
@@ -83,8 +84,12 @@ using BlockQuery = flecs::query<const z13::station::Block>;
 using z13::building::primitives::BlockPalette;
 using z13::building::primitives::OptionalPalette;
 
-btTransform BlockTransform(const z13::station::Block& block) {
+using GridQuery = flecs::query<const z13::station::Grid>;
+
+// The block in its grid's pose among the world's.
+btTransform BlockTransform(const z13::station::Block& block, const z13::station::GridPoses& poses) {
   const Eigen::Isometry3f pose =
+      z13::station::PoseOfGrid(poses, block.grid) *
       z13::building::primitives::WorldPose(z13::building::primitives::PoseOf(block), z13::station::kCellSize);
   const Eigen::Matrix3f& r = pose.linear();
   btTransform transform;
@@ -93,13 +98,13 @@ btTransform BlockTransform(const z13::station::Block& block) {
   return transform;
 }
 
-void SyncBlockBody(
-    flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world, OptionalPalette palette) {
+void SyncBlockBody(flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world,
+                   OptionalPalette palette, const z13::station::GridPoses& poses) {
   BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(block.spec);
   // A door without a state yet, or in a world without doors, lets players through.
   const auto* door = e.try_get<z13::station::DoorState>();
   shape.door_leaf = door != nullptr && door->leaf_blocks;
-  physics_world.SyncBody(e.id(), shape, BlockTransform(block), [&shape, palette]() {
+  physics_world.SyncBody(e.id(), shape, BlockTransform(block, poses), [&shape, palette]() {
     std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
     if (!shape.door_leaf) {
       std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
@@ -128,39 +133,41 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
   });
 }
 
-void SyncBlockTables(
-    const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world, OptionalPalette palette) {
+void SyncBlockTables(const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world,
+                     OptionalPalette palette, const z13::station::GridPoses& poses) {
   Z13_PROFILE_ZONE("SyncBlockTables");
   ReleaseOrphanBodies(world, physics_world);
-  blocks.run([&physics_world, palette](flecs::iter& it) {
+  blocks.run([&physics_world, palette, &poses](flecs::iter& it) {
     while (it.next()) {
       const auto blocks_field = it.field<const z13::station::Block>(0);
       for (const size_t i : it) {
-        SyncBlockBody(it.entity(i), blocks_field[i], physics_world, palette);
+        SyncBlockBody(it.entity(i), blocks_field[i], physics_world, palette, poses);
       }
     }
   });
 }
 
 void ApplyBlockChange(const flecs::world& world, const z13::station::BlockChange& change, PhysicsWorld& physics_world,
-                      OptionalPalette palette) {
+                      OptionalPalette palette, const z13::station::GridPoses& poses) {
   if (change.kind == z13::station::BlockChangeKind::kRemoved) {
     physics_world.RemoveBody(change.entity);
   } else if (world.is_alive(change.entity)) {
-    SyncBlockBody(world.entity(change.entity), change.block, physics_world, palette);
+    SyncBlockBody(world.entity(change.entity), change.block, physics_world, palette, poses);
   }
 }
 
 // A fresh PhysicsWorld has no bodies, so its count makes the reader resync.
 void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, z13::station::BlockChangeReader& reader,
-                     uint64_t restores, uint64_t tick, OptionalPalette palette) {
+                     uint64_t restores, uint64_t tick, OptionalPalette palette, const GridQuery& grids) {
   const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, physics_world.BodyCount());
+  // A grid's pose is set once, before its blocks: a body is not moved if the pose changes later.
+  const z13::station::GridPoses poses = z13::station::PosesOf(grids);
   if (batch.resync) {
-    SyncBlockTables(world, reader.Blocks(), physics_world, palette);
+    SyncBlockTables(world, reader.Blocks(), physics_world, palette, poses);
     return;
   }
   for (const z13::station::BlockChange& change : batch.changes) {
-    ApplyBlockChange(world, change, physics_world, palette);
+    ApplyBlockChange(world, change, physics_world, palette, poses);
   }
 }
 
@@ -303,6 +310,7 @@ void RegisterSystems(flecs::world world) {
       .run([](flecs::iter& it) { ReconcilePhysicsWorld(it.world()); });
 
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
+  const GridQuery grids = world.query<const z13::station::Grid>();
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
@@ -311,12 +319,13 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::gameplay::PostUpdatePhase>()
       .read<z13::station::Block>()
       .read<z13::station::BlockChange>()
+      .read<z13::station::Grid>()
       .write<RigidBody>()
-      .each([reader](flecs::iter& it, size_t, PhysicsWorld& physics_world,
+      .each([reader, grids](flecs::iter& it, size_t, PhysicsWorld& physics_world,
                      const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
                      const BlockPalette* palette) {
         SyncBlockBodies(it.world(), physics_world, *reader, restores.count, clock.tick,
-                        palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt);
+                        palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt, grids);
       });
 
   // A door's leaf blocks while the door is shut enough (DoorState::leaf_blocks); SyncBody leaves a body alone that
@@ -326,12 +335,14 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::gameplay::PostUpdatePhase>()
       .read<z13::station::DoorState>()
       .read<z13::station::Block>()
+      .read<z13::station::Grid>()
       .write<RigidBody>()
-      .each([doors](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
+      .each([doors, grids](flecs::iter& it, size_t, PhysicsWorld& physics_world, const BlockPalette* palette) {
         const OptionalPalette optional_palette =
             palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt;
+        const z13::station::GridPoses poses = z13::station::PosesOf(grids);
         doors.each([&](flecs::entity e, const z13::station::DoorState&, const z13::station::Block& block) {
-          SyncBlockBody(e, block, physics_world, optional_palette);
+          SyncBlockBody(e, block, physics_world, optional_palette, poses);
         });
       });
 

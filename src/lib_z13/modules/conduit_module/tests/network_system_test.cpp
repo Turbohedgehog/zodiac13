@@ -27,6 +27,7 @@
 #include <primitives/palette.h>
 #include <z13/components/block_changes.h>
 #include <z13/components/conduit.h>
+#include <z13/components/grid.h>
 #include <z13/components/switch.h>
 
 #include "../../building_module/tests/support/station_builders.h"
@@ -145,6 +146,19 @@ TEST_F(NetworkSystemTest, ABreakerJoinsTheCablesOnItsSidesOnlyWhileItIsOn) {
   breaker.set(z13::station::SwitchState {.on = false});
   world_.Tick();
   EXPECT_NE(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(far_floor.id()));
+}
+
+TEST_F(NetworkSystemTest, ABlockOfAnotherGridIsNotWiredToTheMainGridsConduits) {
+  world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(z13::station::Grid {.id = 1});
+  AddRun(world_, kCableKind, kRunX, kRunLength);
+  // In the cells next to the cable, but in the other grid's axes.
+  const flecs::entity apart = z13::station::SpawnBlock(
+      world_.World().entity().add<z13::flecs_tools::StateEntity>(),
+      {.spec = {.type_id = z13::testing::kFloorId, .size = {2, 2, 1}}, .cell = {kSecondFloorX, kRow, kRow}, .grid = 1});
+  world_.Tick();
+
+  EXPECT_FALSE(Networks(world_).networks.OfPort(apart.id()).has_value());
+  EXPECT_TRUE(Networks(world_).networks.OfPort(first_.id()).has_value());
 }
 
 TEST_F(NetworkSystemTest, DestroyingAPortBlockDropsItFromTheNetworks) {

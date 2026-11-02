@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <vector>
 #include <utility>
 
 #include <Eigen/Dense>
@@ -28,6 +29,7 @@
 
 #include <z13/components/gravity.h>
 #include <z13/components/grid.h>
+#include <z13/components/grid_pose.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
 #include <z13/components/station_mode.h>
@@ -92,25 +94,85 @@ void SetAcceleration(Gravity& gravity, const Eigen::Vector3f& acceleration) {
   }
 }
 
+using GridQuery = flecs::query<const Grid>;
+
+// A grid other than the main one with its rooms, and the pose that takes the world's meters into its own.
+struct DistrictRooms {
+  Eigen::Isometry3f from_world;
+  // Its down in the world: the grid's own -Z turned by its pose.
+  Eigen::Vector3f down;
+  rooms::OptionalRoomGraph graph;
+};
+
+std::vector<DistrictRooms> DistrictsOf(const GridQuery& grids) {
+  std::vector<DistrictRooms> districts;
+  grids.each([&districts](flecs::entity entity, const Grid& grid) {
+    const auto* cache = entity.try_get<RoomCache>();
+    if (grid.id == kMainGrid || cache == nullptr || !cache->Current()) {
+      return;
+    }
+    const Eigen::Isometry3f to_world = GridToWorld(grid);
+    districts.push_back({.from_world = to_world.inverse(),
+                         .down = to_world.linear() * -Eigen::Vector3f::UnitZ(),
+                         .graph = cache->Current()});
+  });
+  return districts;
+}
+
+// What a body at `position` (meters) feels from the rooms of the districts: the pull of the first room that has it, or
+// that it is inside a block of one.
+struct DistrictPull {
+  std::optional<Eigen::Vector3f> pull;
+  bool inside_block {};
+};
+
+DistrictPull FeelDistricts(const std::vector<DistrictRooms>& districts, const Eigen::Vector3f& position, float gravity) {
+  DistrictPull felt;
+  for (const DistrictRooms& district : districts) {
+    const Eigen::Vector3f cell = (district.from_world * position) / kCellSize;
+    const std::optional<rooms::RoomId> room = district.graph->get().RoomAt(cell.array().floor().cast<int>());
+    if (!room) {
+      felt.inside_block = true;
+    } else if (*room != rooms::kVacuumRoom) {
+      felt.pull = district.down * gravity;
+      return felt;
+    }
+  }
+  return felt;
+}
+
 // A body inside a block (a door frame, a wall it's pushed out of) keeps what it had, so
-// passing a door doesn't drop gravity for a few ticks.
-void ApplyRoomGravity(flecs::iter& it) {
+// passing a door doesn't drop gravity for a few ticks. The rooms of the main grid come first, then those of the other
+// grids by their poses: a district's gravity is its own down.
+void ApplyRoomGravity(flecs::iter& it, const GridQuery& grids) {
   const auto main_cache = MainGridData<RoomCache>(it.world());
   const auto graph = main_cache ? main_cache->get().Current() : std::nullopt;
+  const std::vector<DistrictRooms> districts = DistrictsOf(grids);
   while (it.next()) {
     const auto transforms = it.field<const Eigen::Matrix4f>(0);
     const auto bodies = it.field<Gravity>(1);
     const RoomGravity& rooms_gravity = it.field<const RoomGravity>(2)[0];
+    const float gravity = it.field<const z13::PhysicsTuning>(3)[0].gravity;
+    const bool main_known = graph && rooms_gravity.source;
     for (const size_t i : it) {
-      if (!graph || !rooms_gravity.source) {
-        SetAcceleration(bodies[i], Eigen::Vector3f::Zero());
+      const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transforms[i]);
+      std::optional<rooms::RoomId> room;
+      if (main_known) {
+        room = graph->get().RoomAt((position / kCellSize).array().floor().cast<int>());
+      }
+      if (room && *room != rooms::kVacuumRoom) {
+        if (const auto pull = rooms_gravity.by_room.find(*room); pull != rooms_gravity.by_room.end()) {
+          SetAcceleration(bodies[i], pull->second);
+        }
         continue;
       }
-      const Eigen::Vector3f cell = z13::math::ExtractTranslation<float>(transforms[i]) / kCellSize;
-      const std::optional<rooms::RoomId> room = graph->get().RoomAt(cell.array().floor().cast<int>());
-      if (const auto pull = room ? rooms_gravity.by_room.find(*room) : rooms_gravity.by_room.end();
-          pull != rooms_gravity.by_room.end()) {
-        SetAcceleration(bodies[i], pull->second);
+      const DistrictPull district = FeelDistricts(districts, position, gravity);
+      if (district.pull) {
+        SetAcceleration(bodies[i], *district.pull);
+      } else if (!main_known) {
+        SetAcceleration(bodies[i], Eigen::Vector3f::Zero());
+      } else if (!district.inside_block && room) {
+        SetAcceleration(bodies[i], Eigen::Vector3f::Zero());
       }
     }
   }
@@ -125,11 +187,14 @@ void RegisterSystems(flecs::world world) {
       .read<RoomCache>()
       .each(UpdateRoomGravity);
 
-  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity>("GravitySystem::ApplyRoomGravity")
+  const GridQuery grids = world.query<const Grid>();
+  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity, const z13::PhysicsTuning>(
+           "GravitySystem::ApplyRoomGravity")
       .kind<GravityPhase>()
       .with<StationMode>()
       .read<RoomCache>()
-      .run(ApplyRoomGravity);
+      .read<Grid>()
+      .run([grids](flecs::iter& it) { ApplyRoomGravity(it, grids); });
 }
 
 }  // namespace

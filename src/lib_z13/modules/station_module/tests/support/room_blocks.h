@@ -84,8 +84,8 @@ inline std::vector<Block> DoorPartition() {
 
 inline flecs::entity AddBlock(z13::testing::Z13TestWorld& world, const Block& block) {
   // Named, as the game names its blocks: a restore matches state entities by name.
-  const std::string name =
-      std::format("RoomTest_{}_{}_{}_{}", block.spec.type_id, block.cell.x(), block.cell.y(), block.cell.z());
+  const std::string name = std::format("RoomTest_{}_{}_{}_{}_{}", block.grid, block.spec.type_id, block.cell.x(),
+                                       block.cell.y(), block.cell.z());
   return SpawnBlock(world.World().entity(name.c_str()), block);
 }
 
