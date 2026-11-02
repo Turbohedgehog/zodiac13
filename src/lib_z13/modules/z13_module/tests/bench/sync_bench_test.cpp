@@ -147,6 +147,32 @@ std::vector<TuningVariant> TuningVariants() {
   };
 }
 
+// Without gravity a player flies: at a fixed speed with the keys, or drifting (physics.drift_thrust), the prototype of
+// the weightless controller.
+constexpr float kBenchDriftThrust = 8.f;
+
+void WithoutGravity(z13::Settings& settings) {
+  settings.physics->gravity = 0.f;
+}
+
+void Drifting(z13::Settings& settings) {
+  WithoutGravity(settings);
+  settings.physics->drift_thrust = kBenchDriftThrust;
+}
+
+void DriftingWithSendEveryTick(z13::Settings& settings) {
+  Drifting(settings);
+  SendEveryTick(settings);
+}
+
+std::vector<TuningVariant> WeightlessVariants() {
+  return {
+      {.name = "0g_free", .apply = WithoutGravity},
+      {.name = "0g_drift", .apply = Drifting},
+      {.name = "0g_drift+send1+rb0", .apply = DriftingWithSendEveryTick},
+  };
+}
+
 std::vector<SmoothingVariant> SmoothingVariants() {
   return {
       {.name = "raw"},
@@ -322,7 +348,7 @@ constexpr std::string_view kSummaryHeader =
     "look_lag,look_rms,look_max,look_off_path,look_path_ratio,look_max_step,look_truth_max_step,look_rms_accel,"
     "look_truth_rms_accel,look_stall\n";
 
-void RunScenario(const Scenario& scenario) {
+void RunScenario(const Scenario& scenario, const std::vector<TuningVariant>& variants = TuningVariants()) {
   const std::filesystem::path dir = OutputDir() / scenario.name;
   std::filesystem::create_directories(dir);
   std::ofstream summary(dir / kSummaryFileName);
@@ -335,7 +361,7 @@ void RunScenario(const Scenario& scenario) {
       "\n== {} ==   (B's view of A; position in world units, look in degrees)\n{:<26}| position {} | look {}\n",
       scenario.name, "", columns, columns);
   for (const NetProfile& profile : NetProfiles()) {
-    for (const TuningVariant& variant : TuningVariants()) {
+    for (const TuningVariant& variant : variants) {
       const std::optional<BenchRun> run = Run(scenario, profile, variant);
       if (!run) {
         ADD_FAILURE() << profile.name << " " << variant.name << ": the session never got going";
@@ -405,6 +431,34 @@ TEST(SyncBench, DISABLED_Mixed) {
                             {.ticks = 30, .keys = {Keycode::KEY_S, Keycode::KEY_D}},
                             {.ticks = 15},
                             {.ticks = 25, .keys = {Keycode::KEY_W}, .look_delta = {-kYawDelta, -kPitchDelta}}}});
+}
+
+// Weightless: the same keys, with and without inertia (WeightlessVariants).
+TEST(SyncBench, DISABLED_DriftBurst) {
+  RunScenario({.name = "drift_burst",
+               .segments = {{.ticks = 20, .keys = {Keycode::KEY_W}},
+                            {.ticks = 80},
+                            {.ticks = 20, .keys = {Keycode::KEY_S}},
+                            {.ticks = 60}}},
+              WeightlessVariants());
+}
+
+TEST(SyncBench, DISABLED_DriftZigzag) {
+  std::vector<Segment> segments;
+  for (int i = 0; i < 6; ++i) {
+    segments.push_back({.ticks = 15, .keys = {i % 2 == 0 ? Keycode::KEY_A : Keycode::KEY_D}});
+    segments.push_back({.ticks = 15});
+  }
+  RunScenario({.name = "drift_zigzag", .segments = std::move(segments)}, WeightlessVariants());
+}
+
+TEST(SyncBench, DISABLED_DriftTurning) {
+  RunScenario({.name = "drift_turning",
+               .segments = {{.ticks = 20, .keys = {Keycode::KEY_W}},
+                            {.ticks = 60, .look_delta = {kYawDelta, 0}},
+                            {.ticks = 20, .keys = {Keycode::KEY_W}, .look_delta = {-kYawDelta, 0}},
+                            {.ticks = 40}}},
+              WeightlessVariants());
 }
 
 }  // namespace
