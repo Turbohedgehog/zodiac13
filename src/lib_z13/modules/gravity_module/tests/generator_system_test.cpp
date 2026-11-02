@@ -16,6 +16,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <string>
+
 #include <Eigen/Dense>
 
 #include <lib_core/utils/math.h>
@@ -59,7 +62,8 @@ const Eigen::Vector3i kGeneratorCell = testing::kRoomCorner + Eigen::Vector3i(6,
 
 Eigen::Matrix4f AtCenterOf(const Eigen::Vector3i& cell) {
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  z13::math::SetTranslation((cell.cast<float>() + Eigen::Vector3f::Constant(0.5f)) * kCellSize, transform);
+  const Eigen::Vector3f center = (cell.cast<float>() + Eigen::Vector3f::Constant(0.5f)) * kCellSize;
+  z13::math::SetTranslation(center, transform);
   return transform;
 }
 
@@ -87,7 +91,7 @@ class GeneratorSystemTest : public ::testing::Test {
 
   float PullOf(flecs::entity body) const { return -body.get<Gravity>().acceleration.z(); }
 
-  float Full() const { return world_.World().get<z13::PhysicsTuning>().gravity; }
+  float Full() { return world_.World().get<z13::PhysicsTuning>().gravity; }
 
   Z13TestWorld world_ = StationWorld();
   flecs::entity left_;
