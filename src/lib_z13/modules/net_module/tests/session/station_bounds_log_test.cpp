@@ -18,7 +18,7 @@
 
 #include <optional>
 
-#include "../../src/station_bounds_log.h"
+#include "../../src/session/station_bounds_log.h"
 
 namespace z13::net {
 namespace {

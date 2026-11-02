@@ -21,7 +21,7 @@
 
 #include <primitives/palette.h>
 #include <primitives/placement.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <rooms/portal_source.h>
 
 namespace z13::station::rooms {

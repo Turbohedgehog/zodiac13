@@ -22,8 +22,8 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>

@@ -38,10 +38,10 @@
 #include <power/balance.h>
 #include <power/port_names.h>
 #include <primitives/palette.h>
-#include <z13/components/block.h>
-#include <z13/components/power.h>
-#include <z13/components/station_mode.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/utility/power.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_settings/power_tuning.h>
 
 namespace z13::power_module {

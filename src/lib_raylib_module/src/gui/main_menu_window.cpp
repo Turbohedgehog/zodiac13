@@ -20,7 +20,7 @@
 
 #include <imgui.h>
 
-#include <z13/components/net.h>
+#include <z13/components/gameplay/net.h>
 
 #include <raylib_module/raylib_components.h>
 

@@ -28,7 +28,7 @@
 
 #include <z13_settings/settings_fwd.h>
 
-#include "../../../net_module/src/light_client.h"
+#include "../../../net_module/src/session/light_client.h"
 #include "z13_test_world.h"
 
 namespace z13::testing {

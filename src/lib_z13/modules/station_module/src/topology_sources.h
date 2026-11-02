@@ -24,10 +24,10 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <z13/components/block_changes.h>
-#include <z13/components/block.h>
-#include <z13/components/grid.h>
-#include <z13/components/held_sectors.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/held_sectors.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <rooms/room_builder.h>

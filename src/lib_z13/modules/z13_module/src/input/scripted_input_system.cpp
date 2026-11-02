@@ -26,12 +26,12 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/input_state.h>
-#include <z13/components/net.h>
-#include <z13/components/player.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/input/input_state.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/gameplay/player.h>
+#include <player/gameplay_entities.h>
 
 namespace z13::gameplay::input {
 

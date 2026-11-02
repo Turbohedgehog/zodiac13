@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <z13/components/color.h>
-#include <z13/components/conduit.h>
+#include <z13/components/gameplay/color.h>
+#include <z13/components/station/conduit.h>
 
 namespace z13::conduit_render {
 

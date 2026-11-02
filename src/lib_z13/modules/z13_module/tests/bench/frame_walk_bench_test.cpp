@@ -32,8 +32,8 @@
 #include <rooms/space_walk.h>
 #include <rooms/tour_viewpoints.h>
 #include <rooms/view_culling.h>
-#include <z13/components/grid.h>
-#include <z13/components/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/block.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/slow_spot.h>
 #include <z13_tests/camera_view.h>

@@ -32,11 +32,11 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/state_markers.h>
 
-#include <z13/components/block.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/grid.h>
-#include <z13/components/spawn_point.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/spawn_point.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>

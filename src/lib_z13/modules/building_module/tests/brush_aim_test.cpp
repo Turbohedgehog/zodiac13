@@ -17,7 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <primitives/placement.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
+#include <z13_settings/building_tuning.h>
 
 #include "../src/brush_aim.h"
 
@@ -40,7 +41,7 @@ TEST(BrushAimTest, ABlockRestsOnTheFaceTheRayHits) {
   const BlockIndex index = Floor();
   const Aim aim = AimAt(index, {0.5f, 0.5f, 6.f}, {10.5f, 0.5f, -3.f});
 
-  const auto block = BlockAt(aim, kWedge, index);
+  const auto block = BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells);
 
   EXPECT_EQ(aim.normal, Eigen::Vector3i(0, 0, 1));
   EXPECT_EQ(block.cell.z(), 0);
@@ -53,7 +54,7 @@ TEST(BrushAimTest, AFreeBlockThatWouldSinkIntoTheFloorIsDrawnBackAlongTheRay) {
   const Aim aim = AimAt(index, {0.5f, 0.5f, 3.f}, {20.5f, 0.5f, 1.2f});
   ASSERT_TRUE(aim.normal.isZero());
 
-  const auto block = BlockAt(aim, kWedge, index);
+  const auto block = BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells);
 
   EXPECT_FALSE(index.Overlaps(OccupiedCells(block)));
 }
@@ -66,17 +67,30 @@ TEST(BrushAimTest, ABlockBesideAnotherNearTheFloorSlidesUpOutOfTheFloor) {
   const Aim aim = AimAt(index, {0.5f, 2.5f, 0.5f}, {12.5f, 2.5f, 0.5f});
   ASSERT_EQ(aim.normal, Eigen::Vector3i(-1, 0, 0));
 
-  const auto block = BlockAt(aim, kWedge, index);
+  const auto block = BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells);
 
   EXPECT_FALSE(index.Overlaps(OccupiedCells(block)));
   EXPECT_EQ(OccupiedCells(block).End().x(), 8);
+}
+
+TEST(BrushAimTest, ABlockSlidesNoFurtherThanTheSettingAllows) {
+  BlockIndex index = Floor();
+  constexpr grid::BlockId kFirst = 2;
+  index.Insert(kFirst, {.min = {8, 0, 0}, .extent = {4, 4, 4}});
+  const Aim aim = AimAt(index, {0.5f, 2.5f, 0.5f}, {12.5f, 2.5f, 0.5f});
+  ASSERT_EQ(aim.normal, Eigen::Vector3i(-1, 0, 0));
+
+  const auto block = BlockAt(aim, kWedge, index, 0);
+
+  EXPECT_TRUE(index.Overlaps(OccupiedCells(block))) << "no slide: the block stays where it sinks";
 }
 
 TEST(BrushAimTest, AFreeBlockInOpenSpaceIsCentredOnTheReach) {
   const BlockIndex index = Floor();
   const Aim aim = AimAt(index, {0.5f, 0.5f, 20.f}, {10.5f, 0.5f, 20.f});
 
-  EXPECT_EQ(BlockAt(aim, kWedge, index).cell, z13::building::primitives::PlaceCentredOn(aim.point, kWedge).cell);
+  EXPECT_EQ(BlockAt(aim, kWedge, index, z13::BuildingTuning {}.max_slide_cells).cell,
+            z13::building::primitives::PlaceCentredOn(aim.point, kWedge).cell);
 }
 
 }  // namespace

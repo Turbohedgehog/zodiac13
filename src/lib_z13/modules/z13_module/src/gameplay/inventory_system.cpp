@@ -30,15 +30,15 @@
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
-#include <z13/components/action_listener.h>
-#include <z13/components/action_map.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/input_phases.h>
-#include <z13/components/player.h>
-#include <z13/components/spawn_stamp.h>
-#include <z13_module/input/input_config_loader.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/input/input_phases.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/spawn_stamp.h>
+#include <input/input_config_loader.h>
 
 namespace z13::inventory {
 

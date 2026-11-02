@@ -17,7 +17,6 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
-  zodiac13::z13_module
   zodiac13::settings
   zodiac13::primitives
   zodiac13::networks

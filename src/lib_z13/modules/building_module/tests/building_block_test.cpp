@@ -22,10 +22,10 @@
 
 #include <bullet_module/bullet_components.h>
 
-#include <z13/components/building.h>
-#include <z13/components/block.h>
+#include <z13/components/station/building.h>
+#include <z13/components/station/block.h>
 #include <input_config_generated.h>
-#include <z13_module/gameplay/camera_look.h>
+#include <player/camera_look.h>
 #include <lib_core/utils/math.h>
 
 #include "../../z13_module/tests/support/block_test_helpers.h"

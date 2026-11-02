@@ -24,9 +24,9 @@
 #include <lib_core/utils/flecs_utils.h>
 
 #include <primitives/placement.h>
-#include <z13/components/block.h>
-#include <z13/components/door.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/door.h>
+#include <z13/components/utility/utilities.h>
 
 namespace z13::atmos_module {
 
@@ -41,8 +41,8 @@ using z13::station::rooms::RoomId;
 using z13::utility::AirlockCycle;
 using z13::utility::AirlockDoor;
 using z13::utility::AirlockDoors;
-using z13::utility::DoorInterlock;
-using z13::utility::InterlockReason;
+using z13::station::DoorInterlock;
+using z13::station::InterlockReason;
 namespace atmos = z13::utility::atmos;
 using Methods = z13::fbs::station::InteractionMethods;
 

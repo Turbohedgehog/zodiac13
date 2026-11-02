@@ -21,7 +21,7 @@
 
 namespace z13::door_render {
 
-// Gives every door the SceneMesh of its leaf (z13/components/scene_mesh.h) where its position puts it, as the chunk
+// Gives every door the SceneMesh of its leaf (z13/components/gameplay/scene_mesh.h) where its position puts it, as the chunk
 // meshes of raylib_module leave the leaves out.
 class DoorLeafSystem {
  public:

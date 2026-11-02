@@ -31,11 +31,11 @@
 
 #include <primitives/palette.h>
 #include <touch/touch_mapping.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/building.h>
-#include <z13/components/inventory.h>
-#include <z13/components/player.h>
-#include <z13/components/tool_mode_info.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/tool_mode_info.h>
 
 #include "gui_widgets.h"
 

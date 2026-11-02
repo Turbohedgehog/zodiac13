@@ -26,7 +26,7 @@
 #include <raylib.h>
 
 #include <rooms/view_culling.h>
-#include <z13/components/scene_mesh.h>
+#include <z13/components/gameplay/scene_mesh.h>
 
 namespace z13::raylib {
 

@@ -28,15 +28,15 @@
 
 #include <net_module/in_memory_transport.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/spawn_point.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/spawn_point.h>
+#include <z13/components/station/station_mode.h>
 #include <primitives/placement.h>
-#include <z13_module/gameplay/gameplay_entities.h>
+#include <player/gameplay_entities.h>
 
 #include <z13_tests/shipped_station.h>
 

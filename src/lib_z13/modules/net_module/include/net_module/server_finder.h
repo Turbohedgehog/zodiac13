@@ -22,7 +22,7 @@
 
 #include <lib_core/utils/endpoint.h>
 #include <net_module/discovery_messages.h>
-#include <z13/components/net.h>
+#include <z13/components/gameplay/net.h>
 
 namespace z13::net {
 

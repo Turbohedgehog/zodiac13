@@ -18,8 +18,6 @@
 
 #include <flecs.h>
 
-#include "door_system.h"
-#include "gravity_system.h"
 #include "interaction_system.h"
 #include "room_overlay_system.h"
 #include "room_system.h"
@@ -30,10 +28,8 @@ namespace z13::station {
 StationModule::StationModule(flecs::world& world) {
   RoomSystem::Register(world);
   RoomOverlaySystem::Register(world);
-  GravitySystem::Register(world);
   InteractionSystem::Register(world);
   SwitchSystem::Register(world);
-  DoorSystem::Register(world);
 }
 
 }  // namespace z13::station

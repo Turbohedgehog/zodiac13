@@ -23,8 +23,8 @@
 
 #include <imgui.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
 
 #include "gui_widgets.h"
 #include "pending_transition.h"

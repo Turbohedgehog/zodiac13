@@ -16,9 +16,9 @@
 
 #include "held_tool.h"
 
-#include <z13/components/building.h>
-#include <z13/components/inventory.h>
-#include <z13/components/player.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/inventory.h>
+#include <z13/components/gameplay/player.h>
 
 namespace z13::building {
 

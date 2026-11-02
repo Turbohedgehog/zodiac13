@@ -36,4 +36,9 @@ table AtmosTuning {
   body_heat_millijoules: int32 = 10000 (min: 0, max: 1000000, cli);
   // The opening, in cells, through which an airlock's pump moves air between its chamber and the side it cycles to.
   airlock_pump_cells: int32 = 8 (min: 1, max: 256, cli);
+  // The pressure overlay's bands, in percent of the standard pressure: a room under the first is as good as open to
+  // space, under the second it is thin, over the third it is crushing.
+  overlay_empty_percent: int32 = 20 (min: 0, max: 100, cli);
+  overlay_thin_percent: int32 = 80 (min: 0, max: 100, cli);
+  overlay_thick_percent: int32 = 120 (min: 100, max: 1000, cli);
 }

@@ -27,7 +27,7 @@
 #include <lib_core/utils/file_io.h>
 #include <lib_core/utils/frame_report.h>
 #include <lib_core/version.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/station/station_mode.h>
 #include <z13_settings/environment.h>
 #include <z13_settings/settings.h>
 

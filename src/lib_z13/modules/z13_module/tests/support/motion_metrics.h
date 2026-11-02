@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13_module/gameplay/camera_look.h>
+#include <player/camera_look.h>
 
 namespace z13::testing {
 

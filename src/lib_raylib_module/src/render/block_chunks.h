@@ -27,7 +27,7 @@
 #include <Eigen/Dense>
 #include <raylib.h>
 
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <rooms/view_culling.h>
 #include <lib_core/utils/asset_source.h>
 #include <primitives/geometry.h>

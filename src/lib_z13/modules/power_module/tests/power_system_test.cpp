@@ -27,13 +27,13 @@
 #include <lib_core/state/state_markers.h>
 #include <power/port_names.h>
 #include <primitives/palette.h>
-#include <z13/components/block_changes.h>
-#include <z13/components/conduit.h>
-#include <z13/components/lamps.h>
-#include <z13/components/overlay_layers.h>
-#include <z13/components/power.h>
-#include <z13/components/switch.h>
-#include <z13/components/utilities.h>
+#include <z13/components/station/block_changes.h>
+#include <z13/components/station/conduit.h>
+#include <z13/components/utility/lamps.h>
+#include <z13/components/station/overlay_layers.h>
+#include <z13/components/utility/power.h>
+#include <z13/components/station/switch.h>
+#include <z13/components/utility/utilities.h>
 #include <z13_settings/power_tuning.h>
 
 #include "../../building_module/tests/support/station_builders.h"

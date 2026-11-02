@@ -32,17 +32,18 @@
 #include <lib_core/utils/math.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/action_listener.h>
-#include <z13/components/action_map.h>
-#include <z13/components/block.h>
-#include <z13/components/grid.h>
-#include <z13/components/input_events.h>
-#include <z13/components/interaction.h>
-#include <z13/components/player.h>
-#include <z13/components/rooms.h>
-#include <z13/components/station_mode.h>
+#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_map.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/station/interaction.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/rooms.h>
+#include <z13/components/station/station_mode.h>
+#include <z13/components/utility/utilities.h>
 #include <grid/block_index.h>
-#include <z13_module/input/input_config_loader.h>
+#include <input/input_config_loader.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
@@ -169,6 +170,8 @@ void RegisterComponents(flecs::world world) {
 
 void RegisterPipeline(flecs::world world) {
   world.component<InteractionPhase>().add(flecs::Phase).depends_on<StationTopologyPhase>();
+  // What the players did this tick and what the power gave: consumers (the doors, ...) run after both.
+  world.component<z13::utility::UtilityConsumersPhase>().add(flecs::Phase).depends_on<InteractionPhase>();
 }
 
 void RegisterSystems(flecs::world world) {

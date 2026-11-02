@@ -28,7 +28,7 @@
 #include <net_module/enet_transport.h>
 #include <net_module/protocol.h>
 
-#include <z13/components/net.h>
+#include <z13/components/gameplay/net.h>
 
 #include "../support/z13_test_world.h"
 

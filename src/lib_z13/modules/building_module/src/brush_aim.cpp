@@ -43,19 +43,17 @@ Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen
 
 namespace {
 
-// How far along the face a block may slide to clear what it would sink into.
-constexpr int kMaxSlideCells = 8;
-
 // `block` moved along its face (the axes `normal` is zero on) to the nearest place on free
 // cells; unchanged when it is free already or nothing near is.
-Block SlidAlongFace(const Block& block, const Eigen::Vector3i& normal, const grid::BlockIndex& index) {
+Block SlidAlongFace(const Block& block, const Eigen::Vector3i& normal, const grid::BlockIndex& index,
+                    int max_slide_cells) {
   if (!index.Overlaps(OccupiedCells(block))) {
     return block;
   }
   const Eigen::Vector3i along = (normal.array() == 0).cast<int>();
   std::optional<Block> best;
   int best_distance = 0;
-  for (int ring = 1; ring <= kMaxSlideCells && !best; ++ring) {
+  for (int ring = 1; ring <= max_slide_cells && !best; ++ring) {
     for (int x = -ring; x <= ring; ++x) {
       for (int y = -ring; y <= ring; ++y) {
         for (int z = -ring; z <= ring; ++z) {
@@ -79,13 +77,15 @@ Block SlidAlongFace(const Block& block, const Eigen::Vector3i& normal, const gri
 
 }  // namespace
 
-Block BlockAt(const Aim& aim, const BlockSpec& spec, const grid::BlockIndex& index, bool may_overlap) {
+Block BlockAt(const Aim& aim, const BlockSpec& spec, const grid::BlockIndex& index, int max_slide_cells,
+              bool may_overlap) {
   if (may_overlap) {
     return aim.normal.isZero() ? z13::building::primitives::PlaceCentredOn(aim.point, spec)
                                : z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec);
   }
   if (!aim.normal.isZero()) {
-    return SlidAlongFace(z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec), aim.normal, index);
+    return SlidAlongFace(z13::building::primitives::PlaceOnFace(aim.point, aim.normal, spec), aim.normal, index,
+                         max_slide_cells);
   }
   // One cell per step: a block never jumps over the blocks it would sink into.
   const Eigen::Vector3f back = aim.eye - aim.point;

@@ -30,7 +30,7 @@
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/time/simulation_clock.h>
-#include <z13/components/input_events.h>
+#include <z13/components/input/input_events.h>
 
 #include <z13_tests/shipped_station.h>
 

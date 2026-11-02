@@ -42,11 +42,11 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/net.h>
-#include <z13/components/overlay_layers.h>
-#include <z13/components/rooms.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/station/overlay_layers.h>
+#include <z13/components/station/rooms.h>
 
 #include <raylib_module/raylib_components.h>
 

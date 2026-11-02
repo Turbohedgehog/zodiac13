@@ -61,4 +61,6 @@ table BuildingTuning {
   opening_window_sill_cells: int32 = 4 (min: 1, max: 256, cli);
   opening_window_height_cells: int32 = 4 (min: 1, max: 256, cli);
   opening_max_width_steps: int32 = 32 (min: 1, max: 256, cli);
+  // How far along a face, in cells, a block may slide to clear what it would sink into.
+  max_slide_cells: int32 = 8 (min: 0, max: 64, cli);
 }

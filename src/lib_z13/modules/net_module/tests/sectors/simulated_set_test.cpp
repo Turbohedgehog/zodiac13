@@ -20,7 +20,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../src/simulated_set.h"
+#include "../../src/sectors/simulated_set.h"
 
 namespace z13::net {
 namespace {

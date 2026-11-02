@@ -18,8 +18,8 @@ foreach(plugin IN LISTS Z13_PLUGINS)
     install(TARGETS ${plugin}
             RUNTIME DESTINATION ${plugin_dir} COMPONENT runtime
             LIBRARY DESTINATION ${plugin_dir} COMPONENT runtime)
-    # flecs sits two levels up; net_module also links z13_module.
-    set_target_properties(${plugin} PROPERTIES INSTALL_RPATH "$ORIGIN/../..;$ORIGIN/../z13_module")
+    # flecs sits two levels up; no plugin links another.
+    set_target_properties(${plugin} PROPERTIES INSTALL_RPATH "$ORIGIN/../..")
 endforeach()
 
 install(TARGETS core RUNTIME DESTINATION . COMPONENT runtime LIBRARY DESTINATION . COMPONENT runtime)

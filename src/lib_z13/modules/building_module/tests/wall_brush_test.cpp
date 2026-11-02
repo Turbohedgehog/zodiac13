@@ -21,12 +21,12 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player_parts.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player_parts.h>
+#include <z13/components/station/wall.h>
 #include <primitives/wall_bend.h>
 #include <z13_tests/shipped_station.h>
 

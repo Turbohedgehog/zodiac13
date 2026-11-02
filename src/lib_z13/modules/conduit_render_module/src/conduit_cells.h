@@ -25,7 +25,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/placement.h>
-#include <z13/components/conduit.h>
+#include <z13/components/station/conduit.h>
 
 namespace z13::conduit_render {
 

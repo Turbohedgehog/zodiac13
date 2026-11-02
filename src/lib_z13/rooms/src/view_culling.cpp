@@ -20,7 +20,7 @@
 #include <iterator>
 #include <utility>
 
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <rooms/room_visibility.h>
 
 namespace z13::station::rooms {

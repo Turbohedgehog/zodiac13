@@ -15,10 +15,10 @@
  */
 #include <gtest/gtest.h>
 
-#include <z13/components/building.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/player.h>
-#include <z13/components/block.h>
+#include <z13/components/station/building.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/block.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/z13_test_world.h"

@@ -24,8 +24,8 @@
 #include <z13_settings/settings.h>
 
 #include <net_module/in_memory_transport.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/net.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/net.h>
 
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"

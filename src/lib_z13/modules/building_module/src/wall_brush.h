@@ -25,9 +25,9 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <z13/components/block.h>
-#include <z13/components/block_brush.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/block.h>
+#include <z13/components/station/block_brush.h>
+#include <z13/components/station/wall.h>
 #include <primitives/palette.h>
 #include <primitives/wall_panel.h>
 

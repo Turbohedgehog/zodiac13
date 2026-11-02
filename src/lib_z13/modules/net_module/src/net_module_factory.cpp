@@ -28,7 +28,7 @@
 #include <net_module/enet_transport.h>
 
 #include "net_module.h"
-#include "transport_factories.h"
+#include "transport/transport_factories.h"
 
 namespace z13::net {
 

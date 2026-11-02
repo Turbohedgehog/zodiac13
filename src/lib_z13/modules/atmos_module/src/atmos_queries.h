@@ -19,7 +19,7 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
-#include <z13/components/player.h>
+#include <z13/components/gameplay/player.h>
 
 #include "airlock.h"
 #include "door_at.h"

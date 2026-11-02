@@ -25,7 +25,7 @@
 
 #include <lib_core/state/world_snapshot_history.h>
 
-#include <z13/components/player_action.h>
+#include <z13/components/input/player_action.h>
 
 #include <net_module/protocol.h>
 

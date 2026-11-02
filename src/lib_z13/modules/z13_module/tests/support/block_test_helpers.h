@@ -18,7 +18,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 #include <primitives/placement.h>
 
 namespace z13::testing {

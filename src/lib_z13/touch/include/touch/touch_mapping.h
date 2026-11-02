@@ -27,9 +27,9 @@
 
 #include <input_config_generated.h>
 #include <settings_generated.h>
-#include <z13/components/input_state.h>
-#include <z13/components/hotbar.h>
-#include <z13/components/touch_controls.h>
+#include <z13/components/input/input_state.h>
+#include <z13/components/gameplay/hotbar.h>
+#include <z13/components/input/touch_controls.h>
 
 // How touches become input (docs/android-plan.md, "Управление"): the floating stick, the look
 // zone and the buttons, laid out by TouchLayout. Positions and sizes are in pixels.

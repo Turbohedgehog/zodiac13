@@ -22,7 +22,7 @@
 
 #include <imgui.h>
 
-#include <z13/components/gameplay.h>
+#include <z13/components/gameplay/gameplay.h>
 
 #include "graphics_settings_window.h"
 #include "gui_widgets.h"

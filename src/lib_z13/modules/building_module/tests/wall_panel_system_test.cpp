@@ -24,10 +24,10 @@
 
 #include <lib_core/state/world_serializer.h>
 
-#include <z13/components/building.h>
-#include <z13/components/block.h>
-#include <z13/components/gameplay.h>
-#include <z13/components/wall.h>
+#include <z13/components/station/building.h>
+#include <z13/components/station/block.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/station/wall.h>
 #include <primitives/chunk_mesh.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_panel.h>

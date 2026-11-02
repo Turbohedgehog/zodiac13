@@ -42,11 +42,11 @@
 #include <net_module/in_memory_transport.h>
 #include <net_module/state_digest.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/net.h>
-#include <z13/components/player.h>
-#include <z13/components/player_action.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/net.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/player_action.h>
 #include <z13_settings/net_tuning.h>
 #include <z13_tests/shipped_station.h>
 

@@ -26,10 +26,10 @@
 #include <lib_core/time/simulation_clock.h>
 
 #include <net_module/in_memory_transport.h>
-#include <z13/components/player.h>
-#include <z13/components/player_action.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/input/player_action.h>
 
-#include "../../../net_module/src/net_session.h"
+#include "../../../net_module/src/session/net_session.h"
 #include "../support/load_session.h"
 
 namespace z13::net {

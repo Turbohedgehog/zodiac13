@@ -34,9 +34,9 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
-#include <z13/components/gameplay.h>
-#include <z13/components/input_events.h>
-#include <z13/components/input_event_emitter.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/input/input_events.h>
+#include <z13/components/input/input_event_emitter.h>
 
 #include <input_config_generated.h>
 

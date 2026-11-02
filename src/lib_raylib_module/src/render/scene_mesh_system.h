@@ -20,7 +20,7 @@
 
 namespace z13::raylib {
 
-// Draws the SceneMesh of any entity (z13/components/scene_mesh.h), the render API for other modules.
+// Draws the SceneMesh of any entity (z13/components/gameplay/scene_mesh.h), the render API for other modules.
 class SceneMeshSystem {
  public:
   static void Register(flecs::world& world);

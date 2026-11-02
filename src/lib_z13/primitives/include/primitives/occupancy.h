@@ -25,7 +25,7 @@
 
 #include <primitives/geometry.h>
 #include <primitives/placement.h>
-#include <z13/components/block.h>
+#include <z13/components/station/block.h>
 
 // Which cells a block fills: those its convex solids reach with some volume, so the empty
 // half of a wedge stays free for another block.
