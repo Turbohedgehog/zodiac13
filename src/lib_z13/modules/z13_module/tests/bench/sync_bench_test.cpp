@@ -150,6 +150,8 @@ std::vector<TuningVariant> TuningVariants() {
 // Without gravity a player flies: at a fixed speed with the keys, or drifting (physics.drift_thrust), the prototype of
 // the weightless controller.
 constexpr float kBenchDriftThrust = 8.f;
+// Fast enough to reach physics.drift_max_speed within a burst of keys.
+constexpr float kBenchStrongThrust = 30.f;
 
 void WithoutGravity(z13::Settings& settings) {
   settings.physics->gravity = 0.f;
@@ -158,6 +160,11 @@ void WithoutGravity(z13::Settings& settings) {
 void Drifting(z13::Settings& settings) {
   WithoutGravity(settings);
   settings.physics->drift_thrust = kBenchDriftThrust;
+}
+
+void DriftingStrongly(z13::Settings& settings) {
+  WithoutGravity(settings);
+  settings.physics->drift_thrust = kBenchStrongThrust;
 }
 
 void DriftingWithSendEveryTick(z13::Settings& settings) {
@@ -169,6 +176,7 @@ std::vector<TuningVariant> WeightlessVariants() {
   return {
       {.name = "0g_free", .apply = WithoutGravity},
       {.name = "0g_drift", .apply = Drifting},
+      {.name = "0g_drift30", .apply = DriftingStrongly},
       {.name = "0g_drift+send1+rb0", .apply = DriftingWithSendEveryTick},
   };
 }
