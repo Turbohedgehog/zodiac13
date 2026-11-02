@@ -21,6 +21,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/utils/math.h>
 #include <primitives/lights.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/block.h>
@@ -36,6 +37,7 @@ constexpr uint32_t kWallId = 2;
 constexpr uint32_t kLampId = 10;
 const Eigen::Vector3i kLampSize {2, 2, 1};
 const Eigen::Vector3i kLampCell {10, 10, 10};
+constexpr int kEmergencyPercent = 15;
 
 Block LampAt(Orientation orientation) {
   return {.spec = {.type_id = kLampId, .size = kLampSize, .orientation = orientation}, .cell = kLampCell};
@@ -63,6 +65,31 @@ TEST(LightsTest, ALampTurnedOverShinesUp) {
 
   ASSERT_EQ(lights.size(), 1U);
   EXPECT_TRUE(lights[0].position.isApprox(Eigen::Vector3f(11.f, 11.f, 11.5f)));
+}
+
+TEST(LightsTest, ADimmedLampShinesRedAtAShareOfItsIntensity) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const std::vector<Block> blocks {LampAt(Orientation::kFacePosXUpPosZ)};
+  const std::vector<z13::utility::DimmedLamp> dimmed {{.cell = kLampCell}};
+
+  const std::vector<PointLight> lights = LightsOf(blocks, palette, dimmed, kEmergencyPercent);
+
+  ASSERT_EQ(lights.size(), 1U);
+  EXPECT_EQ(lights[0].source.color, kEmergencyColor);
+  EXPECT_NEAR(lights[0].source.intensity,
+              palette.Find(kLampId)->get().light->intensity * kEmergencyPercent / kPercent, z13::math::kEpsilon);
+  EXPECT_EQ(lights[0].source.radius_cells, palette.Find(kLampId)->get().light->radius_cells);
+}
+
+TEST(LightsTest, ALampThatIsNotDimmedKeepsItsLight) {
+  const Palette palette = z13::testing::ShippedPalette().value();
+  const std::vector<Block> blocks {LampAt(Orientation::kFacePosXUpPosZ)};
+  const std::vector<z13::utility::DimmedLamp> elsewhere {{.cell = kLampCell + Eigen::Vector3i::Ones()}};
+
+  const std::vector<PointLight> lights = LightsOf(blocks, palette, elsewhere, kEmergencyPercent);
+
+  ASSERT_EQ(lights.size(), 1U);
+  EXPECT_EQ(lights[0].source, palette.Find(kLampId)->get().light);
 }
 
 TEST(LightsTest, WithoutAPaletteNothingShines) {

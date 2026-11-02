@@ -20,6 +20,7 @@
 #include <array>
 #include <format>
 #include <iterator>
+#include <ranges>
 #include <utility>
 
 #include <primitives/draw_order.h>
@@ -85,12 +86,18 @@ CellLighting::State::~State() {
   }
 }
 
-bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette palette) const {
+bool CellLighting::State::BuiltFrom(z13::building::primitives::OptionalPalette palette) const {
   return light_ && palette_hash_ == (palette ? std::optional(palette->get().hash) : std::nullopt);
 }
 
+bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette palette,
+                                     const EmergencyLamps& emergency) const {
+  return BuiltFrom(palette) && emergency_percent_ == emergency.percent && std::ranges::equal(dimmed_, emergency.dimmed);
+}
+
 Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
-                                 z13::building::primitives::OptionalPalette palette) {
+                                 z13::building::primitives::OptionalPalette palette,
+                                 const EmergencyLamps& emergency) {
   if (failure_) {
     return {};
   }
@@ -111,11 +118,14 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   std::ranges::sort(opaque, BoxBefore);
   std::ranges::sort(glass, GlassBefore);
   std::vector<Lamp> lamps;
-  std::ranges::transform(z13::building::primitives::LightsOf(blocks, palette), std::back_inserter(lamps),
-                         z13::station::light::LampOf);
+  const std::vector<z13::utility::DimmedLamp> dimmed(emergency.dimmed.begin(), emergency.dimmed.end());
+  std::ranges::transform(z13::building::primitives::LightsOf(blocks, palette, dimmed, emergency.percent),
+                         std::back_inserter(lamps), z13::station::light::LampOf);
   std::ranges::sort(lamps, LampBefore);
 
-  if (!SyncedWith(palette)) {
+  dimmed_ = dimmed;
+  emergency_percent_ = emergency.percent;
+  if (!BuiltFrom(palette)) {
     light_.emplace(opaque, glass, lamps);
     palette_hash_ = palette ? std::optional(palette->get().hash) : std::nullopt;
     opaque_ = std::move(opaque);

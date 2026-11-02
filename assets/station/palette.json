@@ -145,7 +145,8 @@
         "emissive": true
       },
       "flags": "Solid",
-      "light": {"color": {"r": 255, "g": 238, "b": 205, "a": 255}, "radius_cells": 64, "intensity": 0.6}
+      "light": {"color": {"r": 255, "g": 238, "b": 205, "a": 255}, "radius_cells": 64, "intensity": 0.6},
+      "ports": [{"network": "power", "role": "consumer", "priority": "lights", "values": [{"name": "demand", "value": 20}]}]
     },
     {
       "id": 11,

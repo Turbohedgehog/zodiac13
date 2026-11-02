@@ -37,8 +37,9 @@ class CellLighting::State {
   State(const State&) = delete;
   State& operator=(const State&) = delete;
 
-  bool SyncedWith(z13::building::primitives::OptionalPalette palette) const;
-  Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette);
+  bool SyncedWith(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette,
+              const EmergencyLamps& emergency);
   const std::optional<std::string>& Failure() const { return failure_; }
   const std::vector<z13::station::light::Lamp>& ShiningLamps() const { return shining_; }
 
@@ -46,6 +47,8 @@ class CellLighting::State {
   void Bind() const;
 
  private:
+  // Whether the light was made for this palette, whatever lamps it has been given since.
+  bool BuiltFrom(z13::building::primitives::OptionalPalette palette) const;
   // New textures for the light's layout, filled whole.
   Status Remake();
   void UploadLabels(const z13::building::primitives::CellBox& cells) const;
@@ -63,6 +66,8 @@ class CellLighting::State {
   std::vector<z13::station::light::Lamp> lamps_;
   std::vector<z13::station::light::Lamp> shining_;
   std::optional<uint64_t> palette_hash_;
+  std::vector<z13::utility::DimmedLamp> dimmed_;
+  int emergency_percent_ {};
   // Why the textures couldn't be made; the lamps then light nothing.
   std::optional<std::string> failure_;
 };

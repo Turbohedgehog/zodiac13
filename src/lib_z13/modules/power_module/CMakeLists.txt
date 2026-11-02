@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/power_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/lamp_system.cpp
   src/power_module.cpp
   src/power_module_factory.cpp
   src/power_overlay_system.cpp
