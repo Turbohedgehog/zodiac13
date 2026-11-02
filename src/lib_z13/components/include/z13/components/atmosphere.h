@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include <Eigen/Dense>
+#include <flecs.h>
 
 // The air of the station's rooms (docs/station-systems-plan.md, "Газ и тепло"), kept by atmos_module.
 namespace z13::utility {
@@ -47,13 +49,35 @@ struct RoomAirBasis {
   bool operator==(const RoomAirBasis&) const = default;
 };
 
-// Why an automatic door does not open for a body, set on the door's block by AtmosSystem; derived, never state.
-enum class InterlockReason : uint8_t { kPressure };
+// Why a door does not open, set on the door's block by AtmosSystem; derived, never state. A pressure interlock only
+// stops an automatic door from opening for a body; an airlock one keeps a shut door shut for any hand.
+enum class InterlockReason : uint8_t { kPressure, kAirlock };
 
 struct DoorInterlock {
   InterlockReason reason {};
 
   bool operator==(const DoorInterlock&) const = default;
+};
+
+// On the block of an airlock controller, added when it appears.
+struct AirlockCycle {
+  using State = void;
+  // Whether the chamber is being brought to the pressure of the far side of the door at `door_cell`, which then opens.
+  bool cycling {};
+  Eigen::Vector3i door_cell = Eigen::Vector3i::Zero();
+
+  bool operator==(const AirlockCycle&) const = default;
+};
+
+struct AirlockDoor {
+  flecs::entity_t entity {};
+  Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+};
+
+// The two doors on the chamber of an airlock controller, ordered by cell; set by AtmosSystem while the rooms have
+// exactly two, never state.
+struct AirlockDoors {
+  std::array<AirlockDoor, 2> doors;
 };
 
 }  // namespace z13::utility

@@ -106,6 +106,54 @@
           "role": "vent"
         }
       ]
+    },
+    {
+      "id": 52,
+      "name": "AirlockController",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "max_size": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "material": {
+        "first": {
+          "r": 215,
+          "g": 175,
+          "b": 80,
+          "a": 255
+        },
+        "second": {
+          "r": 190,
+          "g": 150,
+          "b": 55,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "consumer",
+          "priority": "life_support",
+          "values": [
+            {
+              "name": "demand",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "network": "gas",
+          "role": "airlock"
+        }
+      ]
     }
   ]
 }

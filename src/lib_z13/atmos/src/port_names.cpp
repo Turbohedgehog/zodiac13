@@ -54,7 +54,7 @@ std::optional<Regulation> RegulationOf(const z13::building::primitives::PortSpec
 }
 
 std::optional<std::string> ValidatePort(const z13::building::primitives::PortSpec& port) {
-  if (port.role == kVentRole) {
+  if (port.role == kVentRole || port.role == kAirlockRole) {
     return std::nullopt;
   }
   if (port.role != kUnitRole) {

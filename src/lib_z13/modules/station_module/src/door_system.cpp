@@ -78,13 +78,17 @@ void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interact
     state.hold_ticks = 0;
   } else {
     const Contact contact = ContactOf(interactions, door.id());
-    if (contact.flipped) {
+    const auto* interlock = door.try_get<z13::utility::DoorInterlock>();
+    // An airlock keeps a shut door shut for any hand; its controller opens it when the chamber is level.
+    const bool held_shut = interlock != nullptr && interlock->reason == z13::utility::InterlockReason::kAirlock &&
+                           !state.open_wanted;
+    if (contact.flipped && !held_shut) {
       state.open_wanted = !state.open_wanted;
       state.hold_ticks = state.open_wanted ? static_cast<int>(tuning.close_delay_ticks) : 0;
     }
     if (state.mode == DoorMode::kAuto && !by_hand) {
       // A body in the sensor does not open a door the air would rush through.
-      if (contact.presence && !door.has<z13::utility::DoorInterlock>()) {
+      if (contact.presence && interlock == nullptr) {
         state.open_wanted = true;
         state.hold_ticks = static_cast<int>(tuning.close_delay_ticks);
       } else if (state.open_wanted) {
