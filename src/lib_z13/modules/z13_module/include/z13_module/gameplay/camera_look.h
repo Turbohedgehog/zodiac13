@@ -76,4 +76,17 @@ void ApplyWalkMove(
     const CameraMoveAxes& axes, const WalkStep& step, LookAngles& look, PlayerMotion& motion,
     Eigen::Matrix4f& transform);
 
+struct DriftStep {
+  float delta_time {};
+  // The keys' push, in m/s2, and the most speed it builds up, in m/s.
+  float thrust {};
+  float max_speed {};
+};
+
+// Turns like ApplyCameraMove, but the move axes push by `step.thrust` instead of setting the speed, so the player keeps
+// the speed it has in `motion.drift` with nothing to slow it.
+void ApplyDriftMove(
+    const CameraMoveAxes& axes, const DriftStep& step, LookAngles& look, PlayerMotion& motion,
+    Eigen::Matrix4f& transform);
+
 }  // namespace z13::gameplay

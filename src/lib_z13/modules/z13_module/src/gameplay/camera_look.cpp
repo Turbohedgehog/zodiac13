@@ -116,6 +116,23 @@ void ApplyCameraMove(
   transform.block<3, 1>(0, 3) = position;
 }
 
+void ApplyDriftMove(
+    const CameraMoveAxes& axes, const DriftStep& step, LookAngles& look, PlayerMotion& motion,
+    Eigen::Matrix4f& transform) {
+  const Eigen::Matrix3f rotation = Turn(axes, look, transform);
+  Eigen::Vector3f push = rotation.col(0) * (axes.forward - axes.backward) + rotation.col(1) * (axes.left - axes.right) +
+                         rotation.col(2) * (axes.up - axes.down);
+  // Diagonal keys don't push harder than one.
+  if (push.squaredNorm() > 1.f) {
+    push.normalize();
+  }
+  motion.drift += push * step.thrust * step.delta_time;
+  if (motion.drift.squaredNorm() > step.max_speed * step.max_speed) {
+    motion.drift = motion.drift.normalized() * step.max_speed;
+  }
+  transform.block<3, 1>(0, 3) += motion.drift * step.delta_time;
+}
+
 void ApplyWalkMove(
     const CameraMoveAxes& axes, const WalkStep& step, LookAngles& look, PlayerMotion& motion,
     Eigen::Matrix4f& transform) {

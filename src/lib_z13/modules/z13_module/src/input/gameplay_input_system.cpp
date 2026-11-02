@@ -136,7 +136,13 @@ void ApplyMoveActionListener(
         .walk_speed = tuning.walk_speed,
         .jump_speed = tuning.jump_speed,
     };
+    motion->drift = Eigen::Vector3f::Zero();
     z13::gameplay::ApplyWalkMove(axes, step, look, *motion, transform);
+  } else if (motion != nullptr && tuning.drift_thrust > 0.f) {
+    *motion = {.drift = motion->drift};
+    z13::gameplay::ApplyDriftMove(
+        axes, {.delta_time = delta_time, .thrust = tuning.drift_thrust, .max_speed = tuning.drift_max_speed}, look,
+        *motion, transform);
   } else {
     if (motion != nullptr) {
       *motion = {};

@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include <Eigen/Dense>
+
 namespace z13::gameplay {
 
 struct Camera {
@@ -42,6 +44,8 @@ struct PlayerMotion {
   bool grounded {};
   // Along the gravity, negative while rising after a jump.
   float fall_speed {};
+  // The speed a player without gravity keeps, in m/s (physics.drift_thrust).
+  Eigen::Vector3f drift = Eigen::Vector3f::Zero();
 };
 
 }  // namespace z13::gameplay

@@ -391,5 +391,63 @@ TEST(WalkMove, OnATiltedFloorTheStepStaysAcrossTheGravity) {
   EXPECT_NEAR(along_floor.norm(), step.walk_speed * step.delta_time, kTolerance);
 }
 
+const DriftStep kDrift {.delta_time = 0.1f, .thrust = 4.f, .max_speed = 1.f};
+constexpr int kManySteps = 50;
+
+TEST(DriftMove, AKeyPushesAndTheSpeedStaysAfterItIsReleased) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion;
+  CameraMoveAxes pushing;
+  pushing.forward = 1.f;
+
+  ApplyDriftMove(pushing, kDrift, look, motion, transform);
+  const Eigen::Vector3f speed = motion.drift;
+  ApplyDriftMove({}, kDrift, look, motion, transform);
+
+  EXPECT_NEAR(speed.x(), kDrift.thrust * kDrift.delta_time, kTolerance);
+  EXPECT_TRUE(motion.drift.isApprox(speed)) << "nothing slows the drift";
+  EXPECT_GT(Position(transform).x(), speed.x() * kDrift.delta_time);
+}
+
+TEST(DriftMove, TheSpeedStopsGrowingAtTheLimit) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion;
+  CameraMoveAxes pushing;
+  pushing.forward = 1.f;
+
+  for (int i = 0; i < kManySteps; ++i) {
+    ApplyDriftMove(pushing, kDrift, look, motion, transform);
+  }
+
+  EXPECT_NEAR(motion.drift.norm(), kDrift.max_speed, kTolerance);
+}
+
+TEST(DriftMove, AnOppositePushBrakes) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion {.drift = Eigen::Vector3f(kDrift.max_speed, 0.f, 0.f)};
+  CameraMoveAxes braking;
+  braking.backward = 1.f;
+
+  ApplyDriftMove(braking, kDrift, look, motion, transform);
+
+  EXPECT_LT(motion.drift.x(), kDrift.max_speed);
+}
+
+TEST(DriftMove, DiagonalKeysDontPushHarder) {
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion;
+  CameraMoveAxes diagonal;
+  diagonal.forward = 1.f;
+  diagonal.left = 1.f;
+
+  ApplyDriftMove(diagonal, kDrift, look, motion, transform);
+
+  EXPECT_NEAR(motion.drift.norm(), kDrift.thrust * kDrift.delta_time, kTolerance);
+}
+
 }  // namespace
 }  // namespace z13::gameplay
