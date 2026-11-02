@@ -174,6 +174,9 @@ TEST(PortNamesTest, EveryPowerPortOfTheShippedPaletteIsValid) {
   size_t ports = 0;
   for (const auto& primitive : palette->primitives) {
     for (const auto& port : primitive.ports) {
+      if (port.network != kNetworkKey) {
+        continue;
+      }
       EXPECT_EQ(ValidatePort(port), std::nullopt) << primitive.name;
       ++ports;
     }

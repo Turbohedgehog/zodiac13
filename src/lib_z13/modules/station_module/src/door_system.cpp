@@ -30,6 +30,7 @@
 
 #include <primitives/palette.h>
 #include <rooms/portal_source.h>
+#include <z13/components/atmosphere.h>
 #include <z13/components/block.h>
 #include <z13/components/block_change_reader.h>
 #include <z13/components/door.h>
@@ -82,7 +83,8 @@ void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interact
       state.hold_ticks = state.open_wanted ? static_cast<int>(tuning.close_delay_ticks) : 0;
     }
     if (state.mode == DoorMode::kAuto && !by_hand) {
-      if (contact.presence) {
+      // A body in the sensor does not open a door the air would rush through.
+      if (contact.presence && !door.has<z13::utility::DoorInterlock>()) {
         state.open_wanted = true;
         state.hold_ticks = static_cast<int>(tuning.close_delay_ticks);
       } else if (state.open_wanted) {
@@ -173,6 +175,7 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::utility::UtilityConsumersPhase>()
       .with<StationMode>()
       .read<z13::utility::UtilitySupply>()
+      .read<z13::utility::DoorInterlock>()
       .each(MoveDoor);
 
   const auto doors = world.query<const DoorState, const Block>();

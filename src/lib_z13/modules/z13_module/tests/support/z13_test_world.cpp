@@ -36,6 +36,7 @@
 #include <conduit_render_module/conduit_render_module_factory.h>
 #include <door_render_module/door_render_module_factory.h>
 #include <power_module/power_module_factory.h>
+#include <atmos_module/atmos_module_factory.h>
 #include <z13_module/z13_module_factory.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
@@ -73,6 +74,7 @@ z13::WorldRef CreateWorld(
   core.RegisterModuleFactory(std::make_shared<z13::station::StationModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::conduit::ConduitModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::power_module::PowerModuleFactory>());
+  core.RegisterModuleFactory(std::make_shared<z13::atmos_module::AtmosModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::conduit_render::ConduitRenderModuleFactory>());
   core.RegisterModuleFactory(std::make_shared<z13::door_render::DoorRenderModuleFactory>());
 

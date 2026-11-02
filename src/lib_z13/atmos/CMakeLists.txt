@@ -7,4 +7,7 @@ z13_add_library(
   src/air.cpp
   src/devices.cpp
   src/exchange.cpp
+  src/port_names.cpp
+  PUBLIC
+  zodiac13::primitives
 )

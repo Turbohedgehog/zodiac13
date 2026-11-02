@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 
 #include <primitives/palette.h>
 #include <z13/components/utilities.h>
@@ -44,7 +46,8 @@ TEST(PaletteSystemTest, TheWorldListsTheUtilityModulesLoaded) {
   const auto modules = test_world.World().get<z13::utility::UtilityModules>().Sorted();
 
   ASSERT_FALSE(modules.empty());
-  EXPECT_EQ(modules.front().name, "conduit");
+  EXPECT_TRUE(std::ranges::is_sorted(modules, {}, &z13::utility::UtilityModule::name));
+  EXPECT_TRUE(std::ranges::contains(modules, "conduit", &z13::utility::UtilityModule::name));
 }
 
 }  // namespace

@@ -1,0 +1,111 @@
+{
+  "primitives": [
+    {
+      "id": 50,
+      "name": "AtmosUnit",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 2,
+        "y": 2,
+        "z": 2
+      },
+      "max_size": {
+        "x": 2,
+        "y": 2,
+        "z": 2
+      },
+      "material": {
+        "first": {
+          "r": 170,
+          "g": 200,
+          "b": 215,
+          "a": 255
+        },
+        "second": {
+          "r": 145,
+          "g": 175,
+          "b": 190,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "power",
+          "role": "consumer",
+          "priority": "life_support",
+          "values": [
+            {
+              "name": "demand",
+              "value": 400
+            }
+          ]
+        },
+        {
+          "network": "gas",
+          "role": "unit",
+          "values": [
+            {
+              "name": "pascals",
+              "value": 101325
+            },
+            {
+              "name": "kelvin",
+              "value": 293
+            },
+            {
+              "name": "scrub",
+              "value": 50
+            },
+            {
+              "name": "fill",
+              "value": 500
+            },
+            {
+              "name": "heat",
+              "value": 2000000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "Vent",
+      "shape_type": "Box",
+      "shape": {},
+      "min_size": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "max_size": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "material": {
+        "first": {
+          "r": 150,
+          "g": 170,
+          "b": 180,
+          "a": 255
+        },
+        "second": {
+          "r": 125,
+          "g": 145,
+          "b": 155,
+          "a": 255
+        }
+      },
+      "flags": "Solid",
+      "ports": [
+        {
+          "network": "gas",
+          "role": "vent"
+        }
+      ]
+    }
+  ]
+}
