@@ -63,6 +63,7 @@
 #include <z13/components/player_color.h>
 #include <z13/components/door.h>
 #include <z13/components/grid.h>
+#include <z13/components/lamps.h>
 #include <z13/components/overlay_layers.h>
 #include <z13/components/rooms.h>
 #include <z13/components/block.h>
@@ -73,6 +74,7 @@
 #include <primitives/placement.h>
 #include <rooms/view_culling.h>
 #include <rooms/room_cache.h>
+#include <z13_settings/power_tuning.h>
 #include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
@@ -1091,15 +1093,20 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::LightBlockQuery")
           .detect_changes()
           .build();
-  world.system<CellLighting, const z13::building::primitives::BlockPalette*>("EnvironmentRenderSystem::SyncCellLighting")
+  world.system<CellLighting, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
+               const z13::PowerTuning*>("EnvironmentRenderSystem::SyncCellLighting")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([light_block_query](CellLighting& lighting, const z13::building::primitives::BlockPalette* palette) {
+      .each([light_block_query](CellLighting& lighting, const z13::building::primitives::BlockPalette* palette,
+                                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
-        if (light_block_query.changed() || !lighting.SyncedWith(shown)) {
-          if (const Status synced = lighting.Sync(CollectBlocks(light_block_query), shown); !synced) {
+        const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
+                                                                      : std::span<const z13::utility::DimmedLamp>(),
+                                        .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
+        if (light_block_query.changed() || !lighting.SyncedWith(shown, emergency)) {
+          if (const Status synced = lighting.Sync(CollectBlocks(light_block_query), shown, emergency); !synced) {
             log_error("[raylib] lamps: {}", synced.error());
           }
         }

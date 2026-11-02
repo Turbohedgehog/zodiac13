@@ -23,4 +23,6 @@ namespace z13.fbs.power;
 table PowerTuning {
   // Networks balance once per this many ticks (10 Hz at 60 ticks per second); the tick picks the step, never the time.
   step_ticks: uint32 = 6 (min: 1, max: 600, cli);
+  // A lamp that gets no power on a station that has had it glows red at this share of its light.
+  emergency_light_percent: uint32 = 15 (min: 0, max: 100, cli);
 }

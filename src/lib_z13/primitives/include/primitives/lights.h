@@ -22,6 +22,8 @@
 #include <Eigen/Dense>
 
 #include <z13/components/block.h>
+#include <z13/components/color.h>
+#include <z13/components/lamps.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
 
@@ -41,5 +43,14 @@ struct PointLight {
 // The lights of the blocks whose primitive has one, half a cell below each block's bottom
 // face (its own -Z), so the block doesn't shadow its own light.
 std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, OptionalPalette palette);
+
+// What a dimmed lamp shines (z13/components/lamps.h): the red of the emergency light.
+inline constexpr z13::Rgba kEmergencyColor {255, 40, 30, 255};
+inline constexpr int kPercent = 100;
+
+// The same, with the lamps in `dimmed` (sorted by DimmedLampBefore) shining red at `emergency_percent` of their
+// intensity.
+std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, OptionalPalette palette,
+                                 const std::vector<z13::utility::DimmedLamp>& dimmed, int emergency_percent);
 
 }  // namespace z13::building::primitives

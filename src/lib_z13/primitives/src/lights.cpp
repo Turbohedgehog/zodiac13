@@ -27,6 +27,11 @@ constexpr float kBelowFaceCells = 0.5f;
 }  // namespace
 
 std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, OptionalPalette palette) {
+  return LightsOf(blocks, palette, {}, 0);
+}
+
+std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, OptionalPalette palette,
+                                 const std::vector<z13::utility::DimmedLamp>& dimmed, int emergency_percent) {
   std::vector<PointLight> lights;
   if (!palette) {
     return lights;
@@ -41,11 +46,16 @@ std::vector<PointLight> LightsOf(std::span<const z13::station::Block> blocks, Op
     const Eigen::Vector3f above_centre(below_centre.x(), below_centre.y(),
                                        static_cast<float>(block.spec.size.z()) + kBelowFaceCells);
     const Eigen::Vector3f position = pose.origin.cast<float>() + pose.rotation.cast<float>() * below_centre;
+    LightSource source = *primitive->get().light;
+    if (z13::utility::IsDimmed(dimmed, {.grid = block.grid, .cell = block.cell})) {
+      source.color = kEmergencyColor;
+      source.intensity *= static_cast<float>(emergency_percent) / kPercent;
+    }
     lights.push_back({
         .position = position,
         .behind = pose.origin.cast<float>() + pose.rotation.cast<float>() * above_centre,
         .cell = position.array().floor().cast<int>(),
-        .source = *primitive->get().light,
+        .source = source,
     });
   }
   return lights;
