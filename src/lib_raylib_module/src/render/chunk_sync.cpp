@@ -60,12 +60,19 @@ std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query) {
   return blocks;
 }
 
-void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::RenderTuning& tuning,
-                     BlockMeshes::OptionalPalette palette, const std::vector<std::string>& replaced,
-                     std::vector<std::string>& synced_replaced) {
+std::vector<z13::station::Block> CollectMainGridBlocks(const BlockQuery& query) {
+  std::vector<z13::station::Block> blocks = CollectBlocks(query);
+  std::erase_if(blocks, [](const z13::station::Block& block) { return block.grid != z13::station::kMainGrid; });
+  return blocks;
+}
+
+void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::station::GridPoses& poses,
+                     const z13::RenderTuning& tuning, BlockMeshes::OptionalPalette palette,
+                     const std::vector<std::string>& replaced, std::vector<std::string>& synced_replaced) {
   // Checked first: iterating the query resets its changed state.
-  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette) || replaced != synced_replaced) {
-    chunks.Sync(CollectShownBlocks(blocks, replaced, palette), palette, tuning.chunk_cells);
+  if (blocks.changed() || !chunks.SyncedWith(tuning.chunk_cells, palette) || !chunks.PosedBy(poses) ||
+      replaced != synced_replaced) {
+    chunks.Sync(CollectShownBlocks(blocks, replaced, palette), poses, palette, tuning.chunk_cells);
     synced_replaced = replaced;
   }
 }

@@ -29,11 +29,12 @@ namespace z13::building::primitives {
 bool IsTransparent(const z13::station::Block& block, OptionalPalette palette);
 
 struct ChunkBounds {
+  z13::station::GridId grid = z13::station::kMainGrid;
   Eigen::Vector3i key = Eigen::Vector3i::Zero();
   Eigen::AlignedBox3f bounds;
 };
 
-// Farthest centre first, so glass blends over what lies behind it; ties by key, whatever the
+// Farthest centre first, so glass blends over what lies behind it; ties by grid, then key, whatever the
 // input order. `eye` in the bounds' units.
 void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye);
 

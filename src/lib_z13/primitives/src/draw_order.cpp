@@ -36,6 +36,9 @@ void SortFarthestFirst(std::span<ChunkBounds> chunks, const Eigen::Vector3f& eye
     if (distance_a != distance_b) {
       return distance_a > distance_b;
     }
+    if (a.grid != b.grid) {
+      return a.grid < b.grid;
+    }
     return std::lexicographical_compare(a.key.data(), a.key.data() + a.key.size(), b.key.data(),
                                         b.key.data() + b.key.size());
   });

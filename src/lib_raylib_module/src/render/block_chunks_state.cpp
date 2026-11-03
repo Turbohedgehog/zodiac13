@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <utility>
 
 #include <raymath.h>
@@ -28,6 +29,7 @@
 
 #include "block_checker.h"
 #include "block_model.h"
+#include "../tools/math_convert.h"
 #include "render_components.h"
 #include "render_stats.h"
 #include <rooms/view_culling.h>
@@ -48,6 +50,29 @@ ChunkSyncKey KeyOf(int chunk_cells, BlockChunks::OptionalPalette palette) {
 
 Eigen::AlignedBox3f InMeters(const z13::building::primitives::CellBox& cells) {
   return {cells.min.cast<float>() * z13::station::kCellSize, cells.End().cast<float>() * z13::station::kCellSize};
+}
+
+// The world's box around the corners of `box` taken through `pose`.
+Eigen::AlignedBox3f Posed(const Eigen::AlignedBox3f& box, const Eigen::Isometry3f& pose) {
+  constexpr int kCorners = 8;
+  Eigen::AlignedBox3f posed;
+  for (int corner = 0; corner < kCorners; ++corner) {
+    posed.extend(pose * box.corner(static_cast<Eigen::AlignedBox3f::CornerType>(corner)));
+  }
+  return posed;
+}
+
+// Chunks of the main grid are culled by the rooms in view; those of other grids stand outside those rooms, so only
+// the frustum culls them.
+bool InView(const ViewCulling& culling, z13::station::GridId grid, const Eigen::AlignedBox3f& bounds) {
+  return grid == z13::station::kMainGrid ? culling.Visible(bounds) : culling.InFrustum(bounds);
+}
+
+bool SamePoses(const z13::station::GridPoses& first, const z13::station::GridPoses& second) {
+  return first.size() == second.size() && std::ranges::all_of(first, [&second](const auto& entry) {
+           const auto other = second.find(entry.first);
+           return other != second.end() && other->second.matrix() == entry.second.matrix();
+         });
 }
 
 void DrawChunk(const ChunkModels& chunk, const Lighting& lighting, RenderStats& stats) {
@@ -71,8 +96,12 @@ bool BlockChunks::State::SyncedWith(int chunk_cells, OptionalPalette palette) co
   return synced_with_ == KeyOf(chunk_cells, palette);
 }
 
-void BlockChunks::State::Sync(
-    std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) {
+bool BlockChunks::State::PosedBy(const z13::station::GridPoses& poses) const {
+  return SamePoses(synced_poses_, poses);
+}
+
+void BlockChunks::State::Sync(std::span<const z13::station::Block> blocks, const z13::station::GridPoses& poses,
+                              OptionalPalette palette, int chunk_cells) {
   Z13_PROFILE_ZONE("BlockChunks::Sync");
   if (!SyncedWith(chunk_cells, palette)) {
     opaque_ = {};
@@ -85,7 +114,9 @@ void BlockChunks::State::Sync(
     (z13::building::primitives::IsTransparent(block, palette) ? transparent : opaque).push_back(block);
   }
   // Only the opaque chunks cast shadows.
-  if (const Eigen::AlignedBox3f changed = SyncChunks(opaque_, opaque, palette, chunk_cells); !changed.isEmpty()) {
+  synced_poses_ = poses;
+  if (const Eigen::AlignedBox3f changed = SyncChunks(opaque_, opaque, poses, palette, chunk_cells);
+      !changed.isEmpty()) {
     ++version_;
     changes_.push_back({.version = version_, .bounds = changed});
     if (changes_.size() > kKeptChanges) {
@@ -93,7 +124,7 @@ void BlockChunks::State::Sync(
     }
     extent_.extend(changed);
   }
-  SyncChunks(transparent_, transparent, palette, chunk_cells);
+  SyncChunks(transparent_, transparent, poses, palette, chunk_cells);
 }
 
 Eigen::AlignedBox3f BlockChunks::State::ChangedSince(uint64_t version) const {
@@ -137,9 +168,19 @@ void BlockChunks::State::DrawShadowCasters(const std::function<bool(const Eigen:
   }
 }
 
-Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
-    ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells) {
-  z13::building::primitives::ChunkBlocks grouped = z13::building::primitives::GroupByChunk(blocks, chunk_cells);
+Eigen::AlignedBox3f BlockChunks::State::SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks,
+                                                   const z13::station::GridPoses& poses, OptionalPalette palette,
+                                                   int chunk_cells) {
+  std::map<z13::station::GridId, std::vector<z13::station::Block>> by_grid;
+  for (const z13::station::Block& block : blocks) {
+    by_grid[block.grid].push_back(block);
+  }
+  std::unordered_map<ChunkKey, std::vector<z13::station::Block>, ChunkKeyHash> grouped;
+  for (const auto& [grid, grid_blocks] : by_grid) {
+    for (auto& [chunk, chunk_blocks] : z13::building::primitives::GroupByChunk(grid_blocks, chunk_cells)) {
+      grouped.emplace(ChunkKey {.grid = grid, .chunk = chunk}, std::move(chunk_blocks));
+    }
+  }
   Eigen::AlignedBox3f changed;
   std::erase_if(chunks, [&grouped, &changed](const auto& chunk) {
     if (grouped.contains(chunk.first)) {
@@ -150,25 +191,31 @@ Eigen::AlignedBox3f BlockChunks::State::SyncChunks(
   });
   for (auto& [key, chunk_blocks] : grouped) {
     z13::building::primitives::SortBlocks(chunk_blocks);
+    const Eigen::Isometry3f pose = z13::station::PoseOfGrid(poses, key.grid);
     const auto existing = chunks.find(key);
-    if (existing == chunks.end() || existing->second.blocks != chunk_blocks) {
+    if (existing == chunks.end() || existing->second.blocks != chunk_blocks ||
+        existing->second.pose.matrix() != pose.matrix()) {
       if (existing != chunks.end()) {
         changed.extend(existing->second.bounds);
       }
-      changed.extend(chunks.insert_or_assign(key, Build(std::move(chunk_blocks), palette)).first->second.bounds);
+      changed.extend(chunks.insert_or_assign(key, Build(std::move(chunk_blocks), pose, palette)).first->second.bounds);
     }
   }
   return changed;
 }
 
-ChunkModels BlockChunks::State::Build(std::vector<z13::station::Block> blocks, OptionalPalette palette) {
+ChunkModels BlockChunks::State::Build(
+    std::vector<z13::station::Block> blocks, const Eigen::Isometry3f& pose, OptionalPalette palette) {
   z13::building::primitives::ChunkMesh mesh = z13::building::primitives::BuildChunkMesh(
       blocks, palette, z13::building::primitives::DoorLeaves::kApart);
-  ChunkModels chunk {.blocks = std::move(blocks), .bounds = InMeters(mesh.bounds)};
-  std::ranges::transform(mesh.parts, std::back_inserter(chunk.parts), [this](const auto& part) {
-    return ChunkPart {.material = part.material,
-                      .model = LoadBlockModel(part.mesh, lighting_shader_),
-                      .texture = part.material.texture ? textures_.Find(*part.material.texture) : nullptr};
+  ChunkModels chunk {.blocks = std::move(blocks), .bounds = Posed(InMeters(mesh.bounds), pose), .pose = pose};
+  const ::Matrix transform = EigenToRaylibMatrix(pose.matrix());
+  std::ranges::transform(mesh.parts, std::back_inserter(chunk.parts), [this, &transform](const auto& part) {
+    ChunkPart built {.material = part.material,
+                     .model = LoadBlockModel(part.mesh, lighting_shader_),
+                     .texture = part.material.texture ? textures_.Find(*part.material.texture) : nullptr};
+    built.model->transform = transform;
+    return built;
   });
   return chunk;
 }
@@ -177,7 +224,7 @@ void BlockChunks::State::DrawOpaque(
     const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const {
   stats.chunks = opaque_.size();
   for (const auto& [key, chunk] : opaque_) {
-    if (culling.Visible(chunk.bounds)) {
+    if (InView(culling, key.grid, chunk.bounds)) {
       ++stats.chunks_drawn;
       DrawChunk(chunk, lighting, stats);
     }
@@ -190,14 +237,14 @@ void BlockChunks::State::DrawTransparent(
   stats.glass_chunks = transparent_.size();
   visible_transparent_.clear();
   for (const auto& [key, chunk] : transparent_) {
-    if (culling.Visible(chunk.bounds)) {
-      visible_transparent_.push_back({.key = key, .bounds = chunk.bounds});
+    if (InView(culling, key.grid, chunk.bounds)) {
+      visible_transparent_.push_back({.grid = key.grid, .key = key.chunk, .bounds = chunk.bounds});
     }
   }
   z13::building::primitives::SortFarthestFirst(visible_transparent_, eye);
   stats.glass_chunks_drawn = visible_transparent_.size();
   for (const z13::building::primitives::ChunkBounds& visible : visible_transparent_) {
-    DrawChunk(transparent_.at(visible.key), lighting, stats);
+    DrawChunk(transparent_.at({.grid = visible.grid, .chunk = visible.key}), lighting, stats);
   }
 }
 

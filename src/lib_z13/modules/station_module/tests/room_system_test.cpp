@@ -474,7 +474,10 @@ INSTANTIATE_TEST_SUITE_P(
 constexpr std::string_view kHubScene = "hub";
 const Eigen::Vector3i kSpineEndCell {338, 413, 6};
 const Eigen::Vector3i kFreightLobbyCell {348, 414, 6};
-const Eigen::Vector3i kFreightHangarCell {420, 425, 12};
+constexpr z13::station::GridId kFreightGrid = 1;
+// In the hangar grid's own cells.
+const Eigen::Vector3i kFreightHangarCell {60, 48, 12};
+const Eigen::Vector3i kFreightHangarDoorCell {1, 49, 6};
 
 bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optional<rooms::RoomId> b) {
   return std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
@@ -482,21 +485,24 @@ bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optiona
   });
 }
 
-TEST(HubFreightHangarTest, TheHangarIsASealedRoomBehindALobbyJoinedToTheSpineByDoors) {
+TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTheSpineByADoor) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
 
   const RoomGraph& graph = Graph(world);
   const auto spine = graph.RoomAt(kSpineEndCell);
   const auto lobby = graph.RoomAt(kFreightLobbyCell);
-  const auto hangar = graph.RoomAt(kFreightHangarCell);
   ASSERT_TRUE(spine.has_value() && *spine != rooms::kVacuumRoom) << "spine";
   ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
-  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
   EXPECT_NE(spine, lobby);
-  EXPECT_NE(lobby, hangar);
   EXPECT_TRUE(Joined(graph, spine, lobby));
-  EXPECT_TRUE(Joined(graph, lobby, hangar));
+
+  const flecs::entity hangar_grid = world.World().lookup(std::format("Grid_{}", kFreightGrid).c_str());
+  ASSERT_TRUE(hangar_grid.is_valid() && hangar_grid.has<RoomCache>());
+  const RoomGraph& hangar_graph = hangar_grid.get<RoomCache>().Current()->get();
+  const auto hangar = hangar_graph.RoomAt(kFreightHangarCell);
+  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
+  EXPECT_TRUE(Joined(hangar_graph, hangar, rooms::kVacuumRoom)) << "the hangar's door";
 }
 
 const Eigen::Vector3i kAtriumDoorCell {231, 254, 6};

@@ -46,6 +46,7 @@
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/ghost.h>
 #include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/utility/lamps.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/gameplay/player_parts.h>
@@ -318,17 +319,19 @@ void RegisterSystems(flecs::world world) {
         ChaseDrawnPoses(*drawing, settings, drawn_query);
       });
 
+  const flecs::query<const z13::station::Grid> grid_query = world.query<const z13::station::Grid>();
   world.system<BlockChunks, const z13::RenderTuning, const z13::building::primitives::BlockPalette*>(
            "EnvironmentRenderSystem::SyncBlockChunks")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
+      .read<z13::station::Grid>()
       .read<StationProps>()
-      .each([block_query, synced_replaced = std::make_shared<std::vector<std::string>>()](
+      .each([block_query, grid_query, synced_replaced = std::make_shared<std::vector<std::string>>()](
                 flecs::iter& it, size_t, BlockChunks& chunks, const z13::RenderTuning& tuning,
                 const z13::building::primitives::BlockPalette* palette) {
         const auto* props = it.world().try_get<StationProps>();
-        SyncBlockChunks(chunks, block_query, tuning,
+        SyncBlockChunks(chunks, block_query, z13::station::PosesOf(grid_query), tuning,
                         palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt,
                         props != nullptr ? props->Replaced() : std::vector<std::string> {}, *synced_replaced);
       });
@@ -351,7 +354,7 @@ void RegisterSystems(flecs::world world) {
                                                                       : std::span<const z13::utility::DimmedLamp>(),
                                         .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
         if (light_block_query.changed() || !lighting.SyncedWith(shown, emergency)) {
-          if (const Status synced = lighting.Sync(CollectBlocks(light_block_query), shown, emergency); !synced) {
+          if (const Status synced = lighting.Sync(CollectMainGridBlocks(light_block_query), shown, emergency); !synced) {
             log_error("[raylib] lamps: {}", synced.error());
           }
         }

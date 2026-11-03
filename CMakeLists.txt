@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
+# MSVC's runtime checks as a target property (MSVC_RUNTIME_CHECKS), so the math libraries can drop them
+# and be optimized in Debug (z13_add_library, OPTIMIZE_IN_DEBUG).
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+endif()
+
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
 set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
 
@@ -38,6 +44,13 @@ endif()
 
 project(zodiac13 VERSION ${Z13_FULL_VERSION})
 
+if(MSVC)
+    # A cache from before CMP0141 still holds the flag; the property below supplies it.
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    string(REPLACE "/RTC1" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    set(CMAKE_MSVC_RUNTIME_CHECKS "$<$<CONFIG:Debug>:EnableFastChecks>")
+endif()
+
 # set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
 # set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
 
@@ -59,7 +72,7 @@ option(Z13_PROFILE "Build with Tracy profiler zones" OFF)
 # Off: no raylib_module, so zodiac13 runs only as a windowless dedicated server (--server, whose
 # config loads no renderer). For machines without a display; CI builds the renderer.
 option(Z13_BUILD_RENDER "Build the render plugin (raylib_module)" ON)
-option(Z13_DEBUG_OPTIMIZE "Build the math libraries with -O1 in Debug (GCC, Clang)" ON)
+option(Z13_DEBUG_OPTIMIZE "Build the math libraries optimized in Debug (-O1 on GCC and Clang, /O2 on MSVC)" ON)
 if(ANDROID AND NOT Z13_BUILD_RENDER)
     message(FATAL_ERROR "The Android app needs the renderer: Z13_BUILD_RENDER must be ON")
 endif()

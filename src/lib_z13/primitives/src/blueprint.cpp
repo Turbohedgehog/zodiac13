@@ -16,7 +16,9 @@
 
 #include <primitives/blueprint.h>
 
+#include <algorithm>
 #include <format>
+#include <memory>
 
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection.h>
@@ -51,20 +53,15 @@ std::expected<fbs_station::BlueprintT, std::string> ParseSource(std::string_view
   return source;
 }
 
-}  // namespace
+using BlockEntries = std::vector<std::unique_ptr<fbs_station::BlueprintBlockT>>;
+using WallEntries = std::vector<std::unique_ptr<fbs_station::BlueprintWallT>>;
 
-std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
-    std::string_view json, const Palette& palette) {
-  const auto parsed = ParseSource(json);
-  if (!parsed) {
-    return std::unexpected(parsed.error());
-  }
-  const fbs_station::BlueprintT& source = *parsed;
-
+std::expected<std::vector<z13::station::Block>, std::string> BlocksOf(
+    const BlockEntries& entries, const Palette& palette, z13::station::GridId grid) {
   std::vector<z13::station::Block> blocks;
-  blocks.reserve(source.blocks.size());
-  for (size_t i = 0; i < source.blocks.size(); ++i) {
-    const fbs_station::BlueprintBlockT& entry = *source.blocks[i];
+  blocks.reserve(entries.size());
+  for (size_t i = 0; i < entries.size(); ++i) {
+    const fbs_station::BlueprintBlockT& entry = *entries[i];
     const auto primitive = palette.Find(entry.primitive);
     if (!primitive) {
       return std::unexpected(std::format("blueprint: block {}: no primitive '{}' in the palette", i, entry.primitive));
@@ -82,20 +79,17 @@ std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
                  .orientation = static_cast<Orientation>(entry.orientation),
                  .slant = entry.slant},
         .cell = {entry.cell->x(), entry.cell->y(), entry.cell->z()},
+        .grid = grid,
     });
   }
   return blocks;
 }
 
-std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::string_view json) {
-  const auto parsed = ParseSource(json);
-  if (!parsed) {
-    return std::unexpected(parsed.error());
-  }
+std::expected<std::vector<WallGeometry>, std::string> WallsOf(const WallEntries& entries) {
   std::vector<WallGeometry> walls;
-  walls.reserve(parsed->walls.size());
-  for (size_t i = 0; i < parsed->walls.size(); ++i) {
-    const fbs_station::BlueprintWallT& entry = *parsed->walls[i];
+  walls.reserve(entries.size());
+  for (size_t i = 0; i < entries.size(); ++i) {
+    const fbs_station::BlueprintWallT& entry = *entries[i];
     if (!entry.node_a || !entry.node_b) {
       return std::unexpected(std::format("blueprint: wall {}: no nodes", i));
     }
@@ -111,15 +105,10 @@ std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::s
   return walls;
 }
 
-std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
-    std::string_view json) {
-  const auto parsed = ParseSource(json);
-  if (!parsed) {
-    return std::unexpected(parsed.error());
-  }
+std::vector<std::vector<z13::station::WallOpening>> OpeningsOf(const WallEntries& entries) {
   std::vector<std::vector<z13::station::WallOpening>> openings;
-  openings.reserve(parsed->walls.size());
-  for (const auto& wall : parsed->walls) {
+  openings.reserve(entries.size());
+  for (const auto& wall : entries) {
     std::vector<z13::station::WallOpening>& of_wall = openings.emplace_back();
     for (const auto& entry : wall->openings) {
       of_wall.push_back({.kind = static_cast<z13::station::OpeningKind>(entry->kind),
@@ -130,6 +119,65 @@ std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> 
     }
   }
   return openings;
+}
+
+}  // namespace
+
+std::expected<std::vector<z13::station::Block>, std::string> ParseBlueprint(
+    std::string_view json, const Palette& palette) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  return BlocksOf(parsed->blocks, palette, z13::station::kMainGrid);
+}
+
+std::expected<std::vector<WallGeometry>, std::string> ParseBlueprintWalls(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  return WallsOf(parsed->walls);
+}
+
+std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::string> ParseBlueprintOpenings(
+    std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  return OpeningsOf(parsed->walls);
+}
+
+std::expected<std::vector<BlueprintGridPart>, std::string> ParseBlueprintGrids(
+    std::string_view json, const Palette& palette) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  std::vector<BlueprintGridPart> grids;
+  for (size_t i = 0; i < parsed->grids.size(); ++i) {
+    const fbs_station::BlueprintGridT& entry = *parsed->grids[i];
+    if (entry.id == z13::station::kMainGrid ||
+        std::ranges::any_of(grids, [&entry](const BlueprintGridPart& other) { return other.grid.id == entry.id; })) {
+      return std::unexpected(std::format("blueprint: grid {}: id {} is the main grid's or repeats", i, entry.id));
+    }
+    auto blocks = BlocksOf(entry.blocks, palette, entry.id);
+    auto walls = WallsOf(entry.walls);
+    if (!blocks || !walls) {
+      return std::unexpected(std::format("grid {}: {}", entry.id, blocks ? walls.error() : blocks.error()));
+    }
+    const Eigen::Vector3i origin =
+        entry.origin ? Eigen::Vector3i(entry.origin->x(), entry.origin->y(), entry.origin->z()) : Eigen::Vector3i::Zero();
+    grids.push_back({.grid = {.id = entry.id,
+                              .origin = origin,
+                              .yaw_degrees = entry.yaw_degrees,
+                              .pitch_degrees = entry.pitch_degrees},
+                     .blocks = std::move(*blocks),
+                     .walls = std::move(*walls),
+                     .openings = OpeningsOf(entry.walls)});
+  }
+  return grids;
 }
 
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {

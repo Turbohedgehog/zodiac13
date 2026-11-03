@@ -30,12 +30,14 @@
 #include <raylib.h>
 
 #include <z13/components/station/block.h>
+#include <z13/components/station/grid_pose.h>
 #include <primitives/draw_order.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 
 #include "block_chunks.h"
 #include "block_textures.h"
+#include "chunk_key.h"
 
 namespace z13::raylib {
 
@@ -49,11 +51,13 @@ struct ChunkPart {
 struct ChunkModels {
   // Sorted (SortBlocks), to tell whether the chunk changed.
   std::vector<z13::station::Block> blocks;
+  // In the world's meters: the chunk's grid pose applied to its own bounds.
   Eigen::AlignedBox3f bounds;
+  Eigen::Isometry3f pose = Eigen::Isometry3f::Identity();
   std::vector<ChunkPart> parts;
 };
 
-using ChunkMap = std::unordered_map<Eigen::Vector3i, ChunkModels, z13::building::primitives::CellHash>;
+using ChunkMap = std::unordered_map<ChunkKey, ChunkModels, ChunkKeyHash>;
 
 // What a Sync was made with; another chunk size or palette rebuilds every chunk.
 struct ChunkSyncKey {
@@ -75,7 +79,9 @@ class BlockChunks::State {
       : lighting_shader_(lighting_shader), textures_(std::move(assets)) {}
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
-  void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
+  bool PosedBy(const z13::station::GridPoses& poses) const;
+  void Sync(std::span<const z13::station::Block> blocks, const z13::station::GridPoses& poses, OptionalPalette palette,
+            int chunk_cells);
   uint64_t Version() const { return version_; }
   Eigen::AlignedBox3f ChangedSince(uint64_t version) const;
   std::optional<Eigen::AlignedBox3f> OpaqueBounds() const;
@@ -87,13 +93,14 @@ class BlockChunks::State {
 
  private:
   // The bounds of the chunks rebuilt or dropped, before and after.
-  Eigen::AlignedBox3f SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks, OptionalPalette palette,
-                  int chunk_cells);
-  ChunkModels Build(std::vector<z13::station::Block> blocks, OptionalPalette palette);
+  Eigen::AlignedBox3f SyncChunks(ChunkMap& chunks, std::span<const z13::station::Block> blocks,
+                                 const z13::station::GridPoses& poses, OptionalPalette palette, int chunk_cells);
+  ChunkModels Build(std::vector<z13::station::Block> blocks, const Eigen::Isometry3f& pose, OptionalPalette palette);
 
   ::Shader lighting_shader_ {};
   BlockTextures textures_;
   std::optional<ChunkSyncKey> synced_with_;
+  z13::station::GridPoses synced_poses_;
   uint64_t version_ {};
   // The latest changes; one older than these counts as a change of all of extent_.
   std::deque<ChunkChange> changes_;

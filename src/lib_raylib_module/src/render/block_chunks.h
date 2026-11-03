@@ -28,6 +28,7 @@
 #include <raylib.h>
 
 #include <z13/components/station/block.h>
+#include <z13/components/station/grid_pose.h>
 #include <rooms/view_culling.h>
 #include <lib_core/utils/asset_source.h>
 #include <primitives/geometry.h>
@@ -53,8 +54,12 @@ class BlockChunks {
   // Whether the last Sync used these; if not, the blocks must be synced even if unchanged.
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
 
-  // Rebuilds only the chunks whose blocks differ from the previous call's.
-  void Sync(std::span<const z13::station::Block> blocks, OptionalPalette palette, int chunk_cells);
+  // Whether the last Sync was made with these poses; if not, the blocks must be synced even if unchanged.
+  bool PosedBy(const z13::station::GridPoses& poses) const;
+
+  // Rebuilds only the chunks whose blocks or grid pose differ from the previous call's.
+  void Sync(std::span<const z13::station::Block> blocks, const z13::station::GridPoses& poses, OptionalPalette palette,
+            int chunk_cells);
 
   // Counts the chunks and meshes drawn in `stats`.
   void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;

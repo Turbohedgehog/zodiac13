@@ -15,7 +15,7 @@ from typing import NamedTuple
 
 from station_blueprint import (
     CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
-    block_kinds, door_boxes, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
+    block_kinds, door_boxes, grid_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
     wall_opening, wall_segment, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
@@ -876,22 +876,28 @@ def old_wing_blocks():
 
 # ----- The freight hangar --------------------------------------------------------------------
 
-# A hall of three decks at the spine's end, a true rectangle 9.5 degrees off it (the lattice step (6, 1)). Its near
-# wall is slanted, so a wedge of lobby is left between it and the spine's end: the corridor's door opens into the
-# wedge and a second door in the near wall into the hall. The wedge is shut in by a column of blocks along the
-# spine's end plane, as before, and by a wall along its north.
+# A hall of three decks at the spine's end, a grid of its own (docs/multi-grid-plan.md) turned 9.5 degrees off the
+# main one (the lattice step (6, 1)), so its floor, ceiling and walls are plain rectangles of its own cells. Its near
+# wall is slanted in the world, so a wedge of lobby is left between it and the spine's end: the corridor's door opens
+# into the wedge (main grid, shut in by a column of blocks along the spine's end plane and a wall along its north)
+# and the near wall's door, in the main grid and again in the hall's, into the hall.
 FREIGHT_DECKS = 3
 FREIGHT_STEP = (6, 1)
 FREIGHT_ACROSS = (-1, 6)
 FREIGHT_STEPS = 22
+FREIGHT_GRID = 1
+FREIGHT_LENGTH_CELLS = 134  # 22 lattice steps of 6.08 cells, along the hall
+FREIGHT_WIDTH_CELLS = 97  # 16 of them across
+FREIGHT_HALL_DOOR_OFFSET_CELLS = 43  # along the hall's near wall; its middle, 49, is the main near wall's door's
 FREIGHT_ACROSS_STEPS = 16
 FREIGHT_GAP_CELLS = 3  # from the spine's end plane to the near wall's nearest corner: its thickness and a cell
 FREIGHT_DOOR_OFFSET_STEPS = 6  # along the spine's end wall, whose steps are one cell
 FREIGHT_DOOR_STEPS = 8
 FREIGHT_HALL_DOOR_OFFSET_STEPS = 7  # along the near wall, from its north end
 FREIGHT_HALL_DOOR_STEPS = 2
-FREIGHT_LAMP_STEPS = (5, 11, 17)  # along the middle line
-FREIGHT_LAMP_ROWS = (-5, 0, 5)  # across it, in steps of the lattice step across the hall
+FREIGHT_HALL_DOOR_CELLS = 12  # two steps along the slanted near wall
+FREIGHT_LAMP_CELLS_ALONG = (30, 67, 104)  # along the hall's middle line
+FREIGHT_LAMP_CELLS_ACROSS = (-30, 0, 30)  # across it
 
 
 class FreightGeometry(NamedTuple):
@@ -927,17 +933,33 @@ def freight():
 
 
 def freight_walls():
+    """The main grid's: the slanted near wall with its door, the wedge's north wall and the spine's end wall."""
     h = freight()
     z = deck_floor_z(1)
-    walls = []
+    near, *_, north = h.hall.walls
     hall_door = [wall_opening(FREIGHT_HALL_DOOR_OFFSET_STEPS, FREIGHT_HALL_DOOR_STEPS, DOOR_HEIGHT_CELLS)]
-    for index, (a, b, thickness) in enumerate(h.hall.walls):  # the near wall comes first
-        walls.append(wall_segment((*a, z), (*b, z), thickness, h.hall.height, openings=hall_door if index == 0 else ()))
-    walls += hall_slabs(h.hall)
+    walls = [wall_segment((*a, z), (*b, z), thickness, h.hall.height, openings=openings)
+             for (a, b, thickness), openings in ((near, hall_door), (north, ()))]
     x, y0, y1 = spine_b().cap
     door = wall_opening(FREIGHT_DOOR_OFFSET_STEPS, FREIGHT_DOOR_STEPS, DOOR_HEIGHT_CELLS)
     walls.append(wall_segment((x, y0, z), (x, y1, z), 1, wall_height(1), openings=[door]))
     return walls
+
+
+def wedge_floor_blocks(wedge):
+    """The lobby's floor and ceiling: the cells its outline strictly overlaps, stepped along the slanted near wall
+    under the wall's body."""
+    xs, ys = [p[0] for p in wedge], [p[1] for p in wedge]
+    left, top = min(xs) - 1, min(ys) - 1
+    mask = [[False] * (max(xs) + 2 - left) for _ in range(max(ys) + 2 - top)]
+    for y in range(top, max(ys) + 1):
+        for x in range(left, max(xs) + 1):
+            mask[y - top][x - left] = strictly_overlap(wedge, x, y)
+    blocks = [entry for layer in (0, FREIGHT_DECKS) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
+    for entry in blocks:
+        entry["cell"]["x"] += left
+        entry["cell"]["y"] += top
+    return blocks
 
 
 def freight_blocks():
@@ -945,7 +967,28 @@ def freight_blocks():
     z = deck_floor_z(1)
     near_x = spine_b().cap[0]
     blocks = [entry for first, length in h.near for entry in line_blocks(WALL_BLOCK, 1, first, near_x, z, length, h.hall.height)]
-    return blocks + hall_floor_blocks(h.hall) + hall_lamps(h.hall, (), FREIGHT_LAMP_STEPS, FREIGHT_LAMP_ROWS)
+    return blocks + wedge_floor_blocks(h.hall.polygons[1])
+
+
+def freight_grid():
+    """The hangar in its own axes: x along the hall from the near wall, y across it from its north end. Its origin is
+    the main near wall's north node, so the hall's near wall stands against the main one's far face."""
+    h = freight()
+    length, width = FREIGHT_LENGTH_CELLS, FREIGHT_WIDTH_CELLS
+    z = deck_floor_z(1)
+    height = h.hall.height
+    door = wall_opening(FREIGHT_HALL_DOOR_OFFSET_CELLS, FREIGHT_HALL_DOOR_CELLS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((0, 0, z), (0, width, z), 2, height, openings=[door]),
+             wall_segment((0, 0, z), (length, 0, z), -2, height),
+             wall_segment((0, width, z), (length, width, z), 2, height),
+             wall_segment((length, 0, z), (length, width, z), -2, height)]
+    blocks = [block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
+              for layer in (0, FREIGHT_DECKS)]
+    lamp_z = z + height - 1
+    blocks += [block(LAMP, (along - 1, width // 2 + across - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
+               for along in FREIGHT_LAMP_CELLS_ALONG for across in FREIGHT_LAMP_CELLS_ACROSS]
+    yaw = math.degrees(math.atan2(h.hall.step[1], h.hall.step[0]))
+    return grid_entry(FREIGHT_GRID, blocks, walls, (*h.hall.left_near, 0), yaw)
 
 
 # ----- Drawing ------------------------------------------------------------------------------
@@ -1224,7 +1267,7 @@ def main():
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
     walls = ring_walls() + spine_b_walls() + freight_walls() + arrivals_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
     # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True)
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid()])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")

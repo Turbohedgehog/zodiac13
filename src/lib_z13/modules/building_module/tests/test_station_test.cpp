@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <format>
 #include <memory>
@@ -77,17 +78,21 @@ std::vector<Block> ShippedStation(std::string_view scene, const Palette& palette
   return z13::testing::ShippedBlueprint(scene, palette).value();
 }
 
+// The same cell can hold a block of each grid, and of one grid a block per primitive: all of them order the blocks.
+std::array<int64_t, 8> SortKey(const Block& block) {
+  return {block.grid,       block.cell.x(), block.cell.y(),      block.cell.z(),
+          block.spec.type_id, block.spec.size.x(), block.spec.size.y(), block.spec.size.z()};
+}
+
 std::vector<Block> Blocks(flecs::world world) {
   std::vector<Block> blocks;
   world.query_builder<const Block>().build().each([&blocks](const Block& block) { blocks.push_back(block); });
-  std::ranges::sort(blocks, [](const Block& a, const Block& b) {
-    return std::lexicographical_compare(a.cell.begin(), a.cell.end(), b.cell.begin(), b.cell.end());
-  });
+  std::ranges::sort(blocks, {}, SortKey);
   return blocks;
 }
 
 bool SameBlocks(const std::vector<Block>& a, const std::vector<Block>& b) {
-  return std::ranges::equal(a, b, [](const Block& x, const Block& y) { return x.spec == y.spec && x.cell == y.cell; });
+  return std::ranges::equal(a, b);
 }
 
 std::vector<std::string> StationArgs(std::string_view scene) {
@@ -150,7 +155,15 @@ TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   ASSERT_TRUE(openings.has_value()) << openings.error();
   const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {}, *openings);
   ASSERT_TRUE(panels.has_value()) << panels.error();
-  EXPECT_EQ(Blocks(test_world.World()).size(), shipped.size() + panels->size());
+  const auto grids = z13::testing::ShippedBlueprintGrids(Scene(), palette);
+  ASSERT_TRUE(grids.has_value()) << grids.error();
+  size_t expected = shipped.size() + panels->size();
+  for (const z13::building::primitives::BlueprintGridPart& part : *grids) {
+    const auto part_panels = BlueprintPanels(part.walls, palette, BuildingTuning {}, part.openings);
+    ASSERT_TRUE(part_panels.has_value()) << part_panels.error();
+    expected += part.blocks.size() + part_panels->size();
+  }
+  EXPECT_EQ(Blocks(test_world.World()).size(), expected);
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), SpawnPoints(shipped, palette));
   const Eigen::Vector3f player = z13::math::ExtractTranslation<float>(
       test_world.World().lookup(PlayerEntityName(0).c_str()).get<Eigen::Matrix4f>());

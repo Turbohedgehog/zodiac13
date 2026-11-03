@@ -111,9 +111,21 @@ table BlueprintWall {
   openings: [BlueprintWallOpening];
 }
 
+// A district beside the main grid (docs/multi-grid-plan.md): built in its own cells, set in the world by its pose.
+// `id` is not zero (the main grid's) and unique.
+table BlueprintGrid {
+  id: uint;
+  origin: Cell;
+  yaw_degrees: float;
+  pitch_degrees: float;
+  blocks: [BlueprintBlock];
+  walls: [BlueprintWall];
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
+  grids: [BlueprintGrid];
   doors_open: bool;
 }
 

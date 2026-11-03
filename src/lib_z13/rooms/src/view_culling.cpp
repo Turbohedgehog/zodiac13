@@ -115,6 +115,10 @@ bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {
   });
 }
 
+bool ViewCulling::InFrustum(const Eigen::AlignedBox3f& box) const {
+  return frustum_.Intersects(box);
+}
+
 bool ViewCulling::AllVisible(const Eigen::AlignedBox3f& box) const {
   if (!frustum_.Contains(box)) {
     return false;

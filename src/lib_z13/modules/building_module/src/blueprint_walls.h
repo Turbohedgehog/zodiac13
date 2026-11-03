@@ -42,10 +42,12 @@ std::expected<std::vector<z13::station::Block>, std::string> BlueprintPanels(
 std::vector<std::string> BlueprintJointRefusals(
     std::span<const z13::building::primitives::WallGeometry> walls, const BuildingTuning& tuning);
 
-// Nodes, segments and openings for the walls of a blueprint; their panels follow in WallPanelSystem.
+// Nodes, segments and openings for the walls of a blueprint, in the cells of `grid`; their panels follow in
+// WallPanelSystem.
 void SpawnBlueprintWalls(
     flecs::world world, z13::gameplay::SpawnNamer& namer,
     std::span<const z13::building::primitives::WallGeometry> walls,
-    std::span<const std::vector<z13::station::WallOpening>> openings = {});
+    std::span<const std::vector<z13::station::WallOpening>> openings = {},
+    z13::station::GridId grid = z13::station::kMainGrid);
 
 }  // namespace z13::building

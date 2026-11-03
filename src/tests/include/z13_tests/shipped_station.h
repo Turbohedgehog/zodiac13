@@ -77,6 +77,13 @@ inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBluep
       .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); });
 }
 
+// The grids of a blueprint beside the main one, with their blocks and walls.
+inline std::expected<std::vector<z13::building::primitives::BlueprintGridPart>, std::string> ShippedBlueprintGrids(
+    std::string_view scene, const z13::building::primitives::Palette& palette) {
+  return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
+      .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprintGrids(json, palette); });
+}
+
 // The wall segments of a blueprint, whose panels the scene derives apart from its blocks.
 inline std::expected<std::vector<z13::building::primitives::WallGeometry>, std::string> ShippedBlueprintWalls(
     std::string_view scene) {
