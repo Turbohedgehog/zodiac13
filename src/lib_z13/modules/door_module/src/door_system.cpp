@@ -87,7 +87,9 @@ Contact ContactOf(const Interactions& interactions, flecs::entity_t door) {
 }
 
 void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interactions, const z13::DoorTuning& tuning) {
-  const bool supplied = z13::utility::IsSupplied(door);
+  // Only the main grid has utility networks: a door of another grid has no supply to wait for.
+  const auto* block = door.try_get<Block>();
+  const bool supplied = block != nullptr && block->grid == kMainGrid && z13::utility::IsSupplied(door);
   const bool by_hand = !supplied || state.mode == DoorMode::kManual;
   if (state.mode == DoorMode::kLocked || state.mode == DoorMode::kWelded) {
     state.open_wanted = false;
