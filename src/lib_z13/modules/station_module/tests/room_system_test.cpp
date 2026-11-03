@@ -31,6 +31,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/enum_cycle.h>
 
+#include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/door.h>
 #include <z13/components/station/rooms.h>
@@ -477,7 +478,6 @@ const Eigen::Vector3i kFreightLobbyCell {348, 414, 6};
 constexpr z13::station::GridId kFreightGrid = 1;
 // In the hangar grid's own cells.
 const Eigen::Vector3i kFreightHangarCell {60, 48, 12};
-const Eigen::Vector3i kFreightHangarDoorCell {1, 49, 6};
 
 bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optional<rooms::RoomId> b) {
   return std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
@@ -503,6 +503,11 @@ TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTh
   const auto hangar = hangar_graph.RoomAt(kFreightHangarCell);
   ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
   EXPECT_TRUE(Joined(hangar_graph, hangar, rooms::kVacuumRoom)) << "the hangar's door";
+
+  const auto& links = world.World().get<DockLinks>().list;
+  ASSERT_EQ(links.size(), 1u) << "the hangar's dock";
+  EXPECT_EQ(links[0].a, (RoomRef {.grid = z13::station::kMainGrid, .room = *lobby}));
+  EXPECT_EQ(links[0].b, (RoomRef {.grid = kFreightGrid, .room = *hangar}));
 }
 
 const Eigen::Vector3i kAtriumDoorCell {231, 254, 6};
@@ -620,6 +625,35 @@ TEST_F(GridRoomsTest, EditingTheMainGridLeavesTheOtherGridsTopologyAlone) {
 
   EXPECT_GT(Version(world_), main_version);
   EXPECT_EQ(second_.get<TopologyVersion>().version, second_version);
+}
+
+// A dock joins the rooms holding its two cells, in whichever grids they are.
+TEST_F(GridRoomsTest, ADockJoinsTheRoomsOfTwoGrids) {
+  BuildSecondBox();
+  const Eigen::Vector3i inside = kRoomCorner + Eigen::Vector3i(1, 1, 1);
+  world_.World()
+      .entity("Dock")
+      .add<z13::flecs_tools::StateEntity>()
+      .set(Dock {.a = {.grid = kMainGrid, .cell = inside}, .b = {.grid = kSecondGrid, .cell = inside + kShift}});
+  Advance(1);
+
+  const auto& links = world_.World().get<DockLinks>().list;
+  ASSERT_EQ(links.size(), 1u);
+  EXPECT_EQ(links[0].a, (RoomRef {.grid = kMainGrid, .room = *Graph(world_).RoomAt(inside)}));
+  EXPECT_EQ(links[0].b, (RoomRef {.grid = kSecondGrid, .room = *SecondGraph().RoomAt(inside + kShift)}));
+}
+
+TEST_F(GridRoomsTest, ADockWithAnEndInVacuumJoinsNothing) {
+  BuildSecondBox();
+  const Eigen::Vector3i inside = kRoomCorner + Eigen::Vector3i(1, 1, 1);
+  const Eigen::Vector3i outside = kRoomCorner + kShift - Eigen::Vector3i(10, 10, 10);
+  world_.World()
+      .entity("Dock")
+      .add<z13::flecs_tools::StateEntity>()
+      .set(Dock {.a = {.grid = kMainGrid, .cell = inside}, .b = {.grid = kSecondGrid, .cell = outside}});
+  Advance(1);
+
+  EXPECT_TRUE(world_.World().get<DockLinks>().list.empty());
 }
 
 }  // namespace

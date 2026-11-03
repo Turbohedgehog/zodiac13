@@ -100,10 +100,20 @@ ViewCulling::ViewCulling(const CameraView& view, OptionalGraph graph) : frustum_
   std::vector<RoomId> seen;
   std::ranges::transform(regions, std::back_inserter(seen), [](const auto& entry) { return entry.first; });
   std::ranges::sort(seen);
+  for (const DockedGrid& docked : view.docked) {
+    if (std::ranges::binary_search(seen, docked.room)) {
+      docked_in_sight_.push_back(docked.grid);
+    }
+  }
   seen_rooms_ = std::move(seen);
   if (*eye_room != kVacuumRoom) {
     culling_rooms_ = CullingRooms(view, rooms, regions);
   }
+}
+
+bool ViewCulling::GridInView(z13::station::GridId grid) const {
+  return !culling_rooms_ || std::ranges::binary_search(*seen_rooms_, kVacuumRoom) ||
+         std::ranges::find(docked_in_sight_, grid) != docked_in_sight_.end();
 }
 
 bool ViewCulling::Visible(const Eigen::AlignedBox3f& box) const {

@@ -15,7 +15,7 @@ from typing import NamedTuple
 
 from station_blueprint import (
     CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
-    block_kinds, door_boxes, grid_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
+    block_kinds, door_boxes, dock_entry, grid_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
     wall_opening, wall_segment, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
@@ -896,6 +896,8 @@ FREIGHT_DOOR_STEPS = 8
 FREIGHT_HALL_DOOR_OFFSET_STEPS = 7  # along the near wall, from its north end
 FREIGHT_HALL_DOOR_STEPS = 2
 FREIGHT_HALL_DOOR_CELLS = 12  # two steps along the slanted near wall
+FREIGHT_LOBBY_CELL = (348, 414, 6)  # in the main grid's lobby wedge, which the hall's door opens from
+FREIGHT_HALL_CELL = (60, 48, 12)  # in the hall's own cells
 FREIGHT_LAMP_CELLS_ALONG = (30, 67, 104)  # along the hall's middle line
 FREIGHT_LAMP_CELLS_ACROSS = (-30, 0, 30)  # across it
 
@@ -1267,7 +1269,8 @@ def main():
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
     walls = ring_walls() + spine_b_walls() + freight_walls() + arrivals_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
     # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid()])
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid()],
+                         docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL)])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")

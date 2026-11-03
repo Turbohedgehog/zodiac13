@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <tuple>
 #include <cstdint>
 #include <format>
 #include <memory>
@@ -86,8 +87,17 @@ std::vector<Block> Blocks(flecs::world world) {
   return blocks;
 }
 
-bool SameBlocks(const std::vector<Block>& a, const std::vector<Block>& b) {
-  return std::ranges::equal(a, b, [](const Block& x, const Block& y) { return x.spec == y.spec && x.cell == y.cell; });
+// Entities may arrive in any order, and the two triangles of a bent wall share a cell: compare sorted by everything.
+bool SameBlocks(std::vector<Block> a, std::vector<Block> b) {
+  const auto key = [](const Block& block) {
+    return std::tuple(block.grid, block.cell.x(), block.cell.y(), block.cell.z(), block.spec.type_id,
+                      block.spec.size.x(), block.spec.size.y(), block.spec.size.z(), block.spec.slant);
+  };
+  const auto before = [&key](const Block& x, const Block& y) { return key(x) < key(y); };
+  std::ranges::sort(a, before);
+  std::ranges::sort(b, before);
+  return std::ranges::equal(
+      a, b, [](const Block& x, const Block& y) { return x.grid == y.grid && x.spec == y.spec && x.cell == y.cell; });
 }
 
 std::vector<std::string> StationArgs(std::string_view scene) {
@@ -150,7 +160,15 @@ TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   ASSERT_TRUE(openings.has_value()) << openings.error();
   const auto panels = BlueprintPanels(*walls, palette, BuildingTuning {}, *openings);
   ASSERT_TRUE(panels.has_value()) << panels.error();
-  EXPECT_EQ(Blocks(test_world.World()).size(), shipped.size() + panels->size());
+  const auto grids = z13::testing::ShippedBlueprintGrids(Scene(), palette);
+  ASSERT_TRUE(grids.has_value()) << grids.error();
+  size_t expected = shipped.size() + panels->size();
+  for (const auto& part : *grids) {
+    const auto grid_panels = BlueprintPanels(part.walls, palette, BuildingTuning {}, part.openings);
+    ASSERT_TRUE(grid_panels.has_value()) << grid_panels.error();
+    expected += part.blocks.size() + grid_panels->size();
+  }
+  EXPECT_EQ(Blocks(test_world.World()).size(), expected);
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), SpawnPoints(shipped, palette));
   const Eigen::Vector3f player = z13::math::ExtractTranslation<float>(
       test_world.World().lookup(PlayerEntityName(0).c_str()).get<Eigen::Matrix4f>());
@@ -183,6 +201,7 @@ TEST_P(TestStationTest, ClientJoiningGetsTheWholeStation) {
     return client.World().has<Gameplay>() && client.World().lookup(PlayerEntityName(1).c_str());
   }));
 
+  EXPECT_EQ(Blocks(client.World()).size(), Blocks(server.World()).size());
   EXPECT_TRUE(SameBlocks(Blocks(client.World()), Blocks(server.World())));
   EXPECT_EQ(client.World().count<SpawnPoint>(), server.World().count<SpawnPoint>());
 }

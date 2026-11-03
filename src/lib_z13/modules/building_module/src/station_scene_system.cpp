@@ -29,6 +29,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/station/dock.h>
 #include <z13/components/station/door.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/station_mode.h>
@@ -93,6 +94,7 @@ void PopulateStationScene(
   const auto grids = json.and_then([&palette](const std::string& text) {
     return z13::building::primitives::ParseBlueprintGrids(text, palette.palette);
   });
+  const auto docks = json.and_then(z13::building::primitives::ParseBlueprintDocks);
   const auto panels = walls.and_then([&](const auto& parsed) {
     return openings.and_then([&](const auto& cut) { return BlueprintPanels(parsed, palette.palette, tuning, cut); });
   });
@@ -103,6 +105,9 @@ void PopulateStationScene(
     }
     if (!grids) {
       return std::unexpected(grids.error());
+    }
+    if (!docks) {
+      return std::unexpected(docks.error());
     }
     if (const Status main_valid = ValidateBlueprint(parsed, palette.palette, tuning, *panels); !main_valid) {
       return main_valid;
@@ -128,6 +133,9 @@ void PopulateStationScene(
       CreateBlock(world, std::format("Station_{}_{}", part.grid.id, i), part.blocks[i], palette.palette, tuning);
     }
     SpawnBlueprintWalls(world, namer, part.walls, part.openings, part.grid.id);
+  }
+  for (size_t i = 0; i < docks->size(); ++i) {
+    world.entity(std::format("Dock_{}", i).c_str()).add<z13::flecs_tools::StateEntity>().set((*docks)[i]);
   }
   if (json.and_then(z13::building::primitives::ParseBlueprintDoorsOpen).value_or(false)) {
     world.set(z13::station::DoorsStartOpen {.open = true});

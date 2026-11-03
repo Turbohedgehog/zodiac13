@@ -91,6 +91,12 @@ inline std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::s
       .and_then([](const std::string& json) { return z13::building::primitives::ParseBlueprintOpenings(json); });
 }
 
+inline std::expected<std::vector<z13::building::primitives::BlueprintGridPart>, std::string> ShippedBlueprintGrids(
+    std::string_view scene, const z13::building::primitives::Palette& palette) {
+  return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
+      .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprintGrids(json, palette); });
+}
+
 // What the room build reads from a station's blocks: the sealing ones and their portals.
 inline z13::station::rooms::RoomSources RoomSourcesOf(const std::vector<z13::station::Block>& blocks,
                                                       const z13::building::primitives::Palette& palette) {

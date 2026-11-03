@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <z13/components/station/block.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/wall.h>
 #include <primitives/palette.h>
@@ -56,6 +57,9 @@ struct BlueprintGridPart {
 // whose block lacks a palette primitive.
 std::expected<std::vector<BlueprintGridPart>, std::string> ParseBlueprintGrids(
     std::string_view json, const Palette& palette);
+
+// The docks of a blueprint, naming the first whose grid is neither the main grid nor one of ParseBlueprintGrids's.
+std::expected<std::vector<z13::station::Dock>, std::string> ParseBlueprintDocks(std::string_view json);
 
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
 

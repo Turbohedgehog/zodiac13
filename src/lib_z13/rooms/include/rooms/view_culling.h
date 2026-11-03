@@ -25,6 +25,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/utils/frustum.h>
+#include <z13/components/station/grid.h>
 #include <rooms/room_graph.h>
 
 namespace z13::station::rooms {
@@ -37,6 +38,12 @@ struct SeenRoom {
   z13::math::Frustum frustum;
 };
 
+// A room of the main grid that a dock joins to another grid.
+struct DockedGrid {
+  z13::station::GridId grid {};
+  RoomId room {};
+};
+
 struct CameraView {
   Eigen::Matrix4f view_projection = Eigen::Matrix4f::Identity();
   // In meters.
@@ -45,6 +52,8 @@ struct CameraView {
   Eigen::Vector2f min_portal_extent = Eigen::Vector2f::Zero();
   // Openings of doors that are open, seen through (RoomView::opened); the span must outlive the ViewCulling's build.
   std::span<const z13::building::primitives::CellBox> opened;
+  // The docks of the main grid's rooms, for GridInView; the span must outlive the ViewCulling's build.
+  std::span<const DockedGrid> docked;
 };
 
 // What the camera can see: its frustum and, in the station, the rooms seen through
@@ -64,12 +73,17 @@ class ViewCulling {
   // in one seen room's bounds and narrowed frustum.
   bool AllVisible(const Eigen::AlignedBox3f& box) const;
 
+  // Whether another grid can be seen from where the eye is: always from the vacuum or without rooms; from a room, when
+  // a window shows the vacuum around the grid or a dock joins it to a room in sight.
+  bool GridInView(z13::station::GridId grid) const;
+
   // Sorted; nothing without a graph or with the eye inside a block.
   const std::optional<std::vector<RoomId>>& SeenRooms() const;
   std::optional<size_t> SeenRoomCount() const;
 
  private:
   z13::math::Frustum frustum_;
+  std::vector<z13::station::GridId> docked_in_sight_;
   std::optional<std::vector<RoomId>> seen_rooms_;
   // Also nothing in the vacuum, which has no bounds to cull by.
   std::optional<std::vector<SeenRoom>> culling_rooms_;

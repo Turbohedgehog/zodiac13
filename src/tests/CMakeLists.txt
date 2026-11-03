@@ -324,7 +324,7 @@ set(Z13_HEAVY_TESTS
     ":NamesTest.ABlockBuiltBeyondAClientsPresenceIsNamedAsTheServerNamesIt"
     ":ActionHintsTest.OnlyTheClientsInTheFilterGetHints"
     ":RoomUpdateTest.MovingCutWallsEndWhereAFullBuildDoes"
-    ":HubFreightHangarTest.TheHangarIsASealedRoomBehindALobbyJoinedToTheSpineByDoors"
+    ":HubFreightHangarTest.TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTheSpineByADoor"
     ":HubDoorsTest.EveryDoorStandsOpenAtTheStart")
 string(CONCAT Z13_HEAVY_TESTS ${Z13_HEAVY_TESTS})
 gtest_discover_tests(z13_test_runner

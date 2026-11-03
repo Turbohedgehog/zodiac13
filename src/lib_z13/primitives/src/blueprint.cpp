@@ -180,6 +180,32 @@ std::expected<std::vector<BlueprintGridPart>, std::string> ParseBlueprintGrids(
   return grids;
 }
 
+std::expected<std::vector<z13::station::Dock>, std::string> ParseBlueprintDocks(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  const auto known = [&parsed](z13::station::GridId id) {
+    return id == z13::station::kMainGrid ||
+           std::ranges::any_of(parsed->grids, [id](const auto& grid) { return grid->id == id; });
+  };
+  const auto end = [](z13::station::GridId grid, const fbs_station::Cell* cell) {
+    return z13::station::DockEnd {.grid = grid,
+                                  .cell = cell ? Eigen::Vector3i(cell->x(), cell->y(), cell->z()) : Eigen::Vector3i::Zero()};
+  };
+  std::vector<z13::station::Dock> docks;
+  for (size_t i = 0; i < parsed->docks.size(); ++i) {
+    const fbs_station::BlueprintDockT& entry = *parsed->docks[i];
+    if (!known(entry.a_grid) || !known(entry.b_grid)) {
+      return std::unexpected(std::format("blueprint: dock {}: grid {} or {} is not in the blueprint", i, entry.a_grid,
+                                         entry.b_grid));
+    }
+    docks.push_back({.a = end(entry.a_grid, entry.a_cell ? &*entry.a_cell : nullptr),
+                     .b = end(entry.b_grid, entry.b_cell ? &*entry.b_cell : nullptr)});
+  }
+  return docks;
+}
+
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {
   const auto parsed = ParseSource(json);
   if (!parsed) {
