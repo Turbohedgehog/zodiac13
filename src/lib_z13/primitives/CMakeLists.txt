@@ -17,6 +17,7 @@ z13_add_library(
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/blueprint.cpp
+  src/cell_test.cpp
   src/chunk_mesh.cpp
   src/cut.cpp
   src/decor.cpp
