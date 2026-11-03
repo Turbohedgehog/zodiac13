@@ -21,7 +21,8 @@ endfunction()
 # PRECOMPILE lists the heavy headers most of its sources include (Z13_PRECOMPILE_HEADERS).
 # OPTIMIZE_IN_DEBUG is for a library of heavy math (Eigen, Boost.Graph): a Debug build keeps every
 # template temporary and runs it several times as slowly, so its sources are built with -O1
-# (GCC and Clang; Z13_DEBUG_OPTIMIZE turns it off, MSVC's /RTC1 rules /O1 out).
+# (GCC and Clang; MSVC gets /O2 without its runtime checks, which rule optimization out;
+# Z13_DEBUG_OPTIMIZE turns it off).
 function(z13_add_library name type)
   cmake_parse_arguments(PARSE_ARGV 2 arg "FBS_HEADERS;EXPORT_ALL_SYMBOLS;OPTIMIZE_IN_DEBUG" "" "PRECOMPILE;SOURCES;PUBLIC;PRIVATE")
   if(arg_UNPARSED_ARGUMENTS)
@@ -56,6 +57,8 @@ function(z13_add_library name type)
   endif()
   if(arg_OPTIMIZE_IN_DEBUG AND Z13_DEBUG_OPTIMIZE AND NOT type STREQUAL "INTERFACE")
     target_compile_options(${name} PRIVATE $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O1>)
+    target_compile_options(${name} PRIVATE $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/O2 /Ob2>)
+    set_target_properties(${name} PROPERTIES MSVC_RUNTIME_CHECKS "")
   endif()
   if(arg_PRECOMPILE AND Z13_PRECOMPILE_HEADERS)
     target_precompile_headers(${name} PRIVATE ${arg_PRECOMPILE})
