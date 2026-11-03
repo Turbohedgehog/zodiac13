@@ -20,81 +20,13 @@
 #include <algorithm>
 #include <cstdint>
 
+#include <primitives/cell_test.h>
+
 namespace z13::building::primitives {
 
 namespace {
 
-using Vec = Eigen::Vector3<int64_t>;
-
-constexpr int kCubeCorners = 8;
-
-// Integer coordinates throughout: a cell touching a face without volume behind it is
-// decided exactly, the same on every platform.
-Vec ToInteger(const Eigen::Vector3f& vertex) {
-  return vertex.array().round().cast<int64_t>();
-}
-
-struct Projection {
-  int64_t low {};
-  int64_t high {};
-};
-
-Projection Project(std::span<const Vec> points, const Vec& axis) {
-  Projection range {.low = points.front().dot(axis), .high = points.front().dot(axis)};
-  for (const Vec& point : points) {
-    range.low = std::min(range.low, point.dot(axis));
-    range.high = std::max(range.high, point.dot(axis));
-  }
-  return range;
-}
-
-// Two convex solids share volume unless some axis (a face normal, or a cross product of
-// one edge of each) separates them, touching included. The axes and the solid's range on each
-// do not depend on the cell, and a cell's range on an axis is its corner's dot product plus a
-// fixed offset, so they are worked out once per solid.
-class CellTest {
- public:
-  explicit CellTest(const ConvexSolid& solid) {
-    std::vector<Vec> points;
-    std::ranges::transform(solid.vertices, std::back_inserter(points), ToInteger);
-    std::vector<Vec> axes {Vec::UnitX(), Vec::UnitY(), Vec::UnitZ()};
-    for (const auto& face : solid.faces) {
-      const Vec origin = points[face[0]];
-      axes.push_back((points[face[1]] - origin).cross(points[face[2]] - origin));
-      for (size_t i = 0; i < face.size(); ++i) {
-        const Vec edge = points[face[(i + 1) % face.size()]] - points[face[i]];
-        for (const Vec& cube_edge : {Vec(Vec::UnitX()), Vec(Vec::UnitY()), Vec(Vec::UnitZ())}) {
-          axes.push_back(edge.cross(cube_edge));
-        }
-      }
-    }
-    for (const Vec& axis : axes) {
-      if (!axis.isZero()) {
-        axes_.push_back({.axis = axis,
-                         .solid = Project(points, axis),
-                         .cube = {.low = axis.cwiseMin(0).sum(), .high = axis.cwiseMax(0).sum()}});
-      }
-    }
-  }
-
-  bool ReachesWithVolume(const Eigen::Vector3i& cell) const {
-    const Vec corner = cell.cast<int64_t>();
-    return std::ranges::none_of(axes_, [&corner](const SeparatingAxis& candidate) {
-      const int64_t base = corner.dot(candidate.axis);
-      return candidate.solid.high <= base + candidate.cube.low || base + candidate.cube.high <= candidate.solid.low;
-    });
-  }
-
- private:
-  struct SeparatingAxis {
-    Vec axis;
-    Projection solid;
-    // The cube's range along `axis` relative to its lowest corner's dot product.
-    Projection cube;
-  };
-
-  std::vector<SeparatingAxis> axes_;
-};
+using Vec = IntegerPoint;
 
 size_t IndexIn(const CellBox& box, const Eigen::Vector3i& cell) {
   const Eigen::Vector3i local = cell - box.min;
@@ -147,11 +79,11 @@ bool CellShape::Overlaps(const CellShape& other) const {
 std::vector<bool> FilledCells(std::span<const ConvexSolid> solids, const Eigen::Vector3i& size) {
   const CellBox frame {.min = Eigen::Vector3i::Zero(), .extent = size};
   std::vector<bool> filled(static_cast<size_t>(size.prod()));
-  std::vector<CellTest> tests;
-  std::ranges::transform(solids, std::back_inserter(tests), [](const ConvexSolid& solid) { return CellTest(solid); });
+  std::vector<SolidCellTest> tests;
+  std::ranges::transform(solids, std::back_inserter(tests), [](const ConvexSolid& solid) { return SolidCellTest(solid); });
   ForEachCell(frame, [&](const Eigen::Vector3i& cell) {
     filled[IndexIn(frame, cell)] =
-        std::ranges::any_of(tests, [&cell](const CellTest& test) { return test.ReachesWithVolume(cell); });
+        std::ranges::any_of(tests, [&cell](const SolidCellTest& test) { return test.ReachesWithVolume(cell); });
   });
   return filled;
 }
