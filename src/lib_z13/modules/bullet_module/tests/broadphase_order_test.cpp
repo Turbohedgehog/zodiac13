@@ -53,8 +53,10 @@ constexpr uint32_t kSeed = 13;
 constexpr size_t kProbes = 2000;
 // Entity ids are arbitrary but must be the same in every world: offset from the index.
 constexpr flecs::entity_t kFirstEntity = 1000;
-// Lets the DBVT's incremental optimization reshape the tree, which no tick does now: a stricter check.
-constexpr int kReshapes = 120;
+// Lets the DBVT's incremental optimization reshape the tree, which no tick does now: a stricter check. The tree has
+// no settled shape (every pass moves it on), so a dozen passes give a shape as foreign to the build order as 120 do,
+// at a tenth of the time.
+constexpr int kReshapes = 12;
 // How far a probe's sweep and ray reach, in meters: across a block and into its neighbors.
 constexpr float kProbeReach = 1.5f;
 // One block in this many is destroyed and rebuilt in the grown world.

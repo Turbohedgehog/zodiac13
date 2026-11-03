@@ -49,35 +49,52 @@ Projection Project(std::span<const Vec> points, const Vec& axis) {
 }
 
 // Two convex solids share volume unless some axis (a face normal, or a cross product of
-// one edge of each) separates them, touching included.
-bool ReachesWithVolume(const ConvexSolid& solid, const Eigen::Vector3i& cell) {
-  std::vector<Vec> points;
-  std::ranges::transform(solid.vertices, std::back_inserter(points), ToInteger);
-  std::vector<Vec> corners;
-  for (int i = 0; i < kCubeCorners; ++i) {
-    corners.emplace_back(cell.x() + (i & 1), cell.y() + ((i >> 1) & 1), cell.z() + ((i >> 2) & 1));
-  }
-
-  std::vector<Vec> axes {Vec::UnitX(), Vec::UnitY(), Vec::UnitZ()};
-  for (const auto& face : solid.faces) {
-    const Vec origin = points[face[0]];
-    axes.push_back((points[face[1]] - origin).cross(points[face[2]] - origin));
-    for (size_t i = 0; i < face.size(); ++i) {
-      const Vec edge = points[face[(i + 1) % face.size()]] - points[face[i]];
-      for (const Vec& cube_edge : {Vec(Vec::UnitX()), Vec(Vec::UnitY()), Vec(Vec::UnitZ())}) {
-        axes.push_back(edge.cross(cube_edge));
+// one edge of each) separates them, touching included. The axes and the solid's range on each
+// do not depend on the cell, and a cell's range on an axis is its corner's dot product plus a
+// fixed offset, so they are worked out once per solid.
+class CellTest {
+ public:
+  explicit CellTest(const ConvexSolid& solid) {
+    std::vector<Vec> points;
+    std::ranges::transform(solid.vertices, std::back_inserter(points), ToInteger);
+    std::vector<Vec> axes {Vec::UnitX(), Vec::UnitY(), Vec::UnitZ()};
+    for (const auto& face : solid.faces) {
+      const Vec origin = points[face[0]];
+      axes.push_back((points[face[1]] - origin).cross(points[face[2]] - origin));
+      for (size_t i = 0; i < face.size(); ++i) {
+        const Vec edge = points[face[(i + 1) % face.size()]] - points[face[i]];
+        for (const Vec& cube_edge : {Vec(Vec::UnitX()), Vec(Vec::UnitY()), Vec(Vec::UnitZ())}) {
+          axes.push_back(edge.cross(cube_edge));
+        }
+      }
+    }
+    for (const Vec& axis : axes) {
+      if (!axis.isZero()) {
+        axes_.push_back({.axis = axis,
+                         .solid = Project(points, axis),
+                         .cube = {.low = axis.cwiseMin(0).sum(), .high = axis.cwiseMax(0).sum()}});
       }
     }
   }
-  return std::ranges::none_of(axes, [&](const Vec& axis) {
-    if (axis.isZero()) {
-      return false;
-    }
-    const Projection a = Project(points, axis);
-    const Projection b = Project(corners, axis);
-    return a.high <= b.low || b.high <= a.low;
-  });
-}
+
+  bool ReachesWithVolume(const Eigen::Vector3i& cell) const {
+    const Vec corner = cell.cast<int64_t>();
+    return std::ranges::none_of(axes_, [&corner](const SeparatingAxis& candidate) {
+      const int64_t base = corner.dot(candidate.axis);
+      return candidate.solid.high <= base + candidate.cube.low || base + candidate.cube.high <= candidate.solid.low;
+    });
+  }
+
+ private:
+  struct SeparatingAxis {
+    Vec axis;
+    Projection solid;
+    // The cube's range along `axis` relative to its lowest corner's dot product.
+    Projection cube;
+  };
+
+  std::vector<SeparatingAxis> axes_;
+};
 
 size_t IndexIn(const CellBox& box, const Eigen::Vector3i& cell) {
   const Eigen::Vector3i local = cell - box.min;
@@ -130,9 +147,11 @@ bool CellShape::Overlaps(const CellShape& other) const {
 std::vector<bool> FilledCells(std::span<const ConvexSolid> solids, const Eigen::Vector3i& size) {
   const CellBox frame {.min = Eigen::Vector3i::Zero(), .extent = size};
   std::vector<bool> filled(static_cast<size_t>(size.prod()));
+  std::vector<CellTest> tests;
+  std::ranges::transform(solids, std::back_inserter(tests), [](const ConvexSolid& solid) { return CellTest(solid); });
   ForEachCell(frame, [&](const Eigen::Vector3i& cell) {
     filled[IndexIn(frame, cell)] =
-        std::ranges::any_of(solids, [&cell](const ConvexSolid& solid) { return ReachesWithVolume(solid, cell); });
+        std::ranges::any_of(tests, [&cell](const CellTest& test) { return test.ReachesWithVolume(cell); });
   });
   return filled;
 }

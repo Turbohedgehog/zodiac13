@@ -25,8 +25,8 @@
 #include <grid/block_index.h>
 #include <rooms/room_graph.h>
 
-#include "room_outline.h"
-#include "wall_faces.h"
+#include <outline/room_outline.h>
+#include <outline/wall_faces.h>
 
 namespace z13::station::outline {
 

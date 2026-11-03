@@ -40,8 +40,8 @@
 #include <primitives/palette.h>
 #include <rooms/room_cache.h>
 
-#include "room_box_cache.h"
-#include "room_outline.h"
+#include <outline/room_box_cache.h>
+#include <outline/room_outline.h>
 
 namespace z13::station {
 

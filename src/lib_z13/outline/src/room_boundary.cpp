@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "room_boundary.h"
+#include <outline/room_boundary.h>
 
 #include <algorithm>
 

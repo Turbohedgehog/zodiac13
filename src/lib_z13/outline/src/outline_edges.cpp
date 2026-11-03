@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "outline_edges.h"
+#include <outline/outline_edges.h>
 
 #include <algorithm>
 #include <array>
@@ -25,7 +25,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "span_vertices.h"
+#include <outline/span_vertices.h>
 
 namespace z13::station {
 

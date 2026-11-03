@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "room_box_cache.h"
+#include <outline/room_box_cache.h>
 
 #include <algorithm>
 #include <tuple>

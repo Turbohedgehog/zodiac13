@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "wall_faces.h"
+#include <outline/wall_faces.h>
 
 #include <functional>
 

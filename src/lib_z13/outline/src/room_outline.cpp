@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "room_outline.h"
+#include <outline/room_outline.h>
 
 #include <algorithm>
 #include <array>
@@ -22,9 +22,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "outline_edges.h"
-#include "room_boundary.h"
-#include "wall_faces.h"
+#include <outline/outline_edges.h>
+#include <outline/room_boundary.h>
+#include <outline/wall_faces.h>
 
 namespace z13::station {
 
