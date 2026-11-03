@@ -24,6 +24,7 @@
 #include <lib_core/utils/math.h>
 #include <player/camera_look.h>
 #include <z13/components/gameplay/player_parts.h>
+#include <z13_settings/physics_tuning.h>
 
 // Exercises ApplyCameraMove() directly: it's pure math, with no flecs/ECS,
 // InputConfig, SDL or raylib dependency.
@@ -39,7 +40,15 @@ constexpr float kSumTolerance = 1e-3f;
 // Degrees through an atan2 or an asin.
 constexpr float kAngleToleranceDeg = 1e-3f;
 
+const z13::PhysicsTuning kTuning;
+const float kCameraVelocity = kTuning.fly_speed;
+const float kMaxPitchDeg = kTuning.max_pitch_deg;
+
 constexpr float kDeltaTime = 1.f;  // keeps expected displacement == axis * kCameraVelocity
+
+CameraMoveAxes NewAxes() {
+  return {.speed = kCameraVelocity, .max_pitch_deg = kMaxPitchDeg};
+}
 
 Eigen::Vector3f Position(const Eigen::Matrix4f& transform) {
   return transform.col(3).head<3>();
@@ -48,7 +57,7 @@ Eigen::Vector3f Position(const Eigen::Matrix4f& transform) {
 TEST(CameraLook, ForwardMoveTranslatesAlongForwardAxis) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
@@ -59,7 +68,7 @@ TEST(CameraLook, ForwardMoveTranslatesAlongForwardAxis) {
 TEST(CameraLook, OpposingMoveAxesCancelOut) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   axes.backward = 1.f;
   axes.left = 1.f;
@@ -75,7 +84,7 @@ TEST(CameraLook, OpposingMoveAxesCancelOut) {
 TEST(CameraLook, StrafeAndVerticalMoveAlongSideAndUpAxes) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.left = 1.f;
   axes.up = 1.f;
 
@@ -87,7 +96,7 @@ TEST(CameraLook, StrafeAndVerticalMoveAlongSideAndUpAxes) {
 TEST(CameraLook, BackwardRightDownMoveOppositeTheirPairedAxis) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.backward = 1.f;
   axes.right = 1.f;
   axes.down = 1.f;
@@ -101,7 +110,7 @@ TEST(CameraLook, BackwardRightDownMoveOppositeTheirPairedAxis) {
 TEST(CameraLook, DiagonalMoveCombinesAxesAsVectorSum) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   axes.right = 1.f;
 
@@ -113,7 +122,7 @@ TEST(CameraLook, DiagonalMoveCombinesAxesAsVectorSum) {
 TEST(CameraLook, MoveDeltaScalesWithDeltaTime) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   constexpr float kHalfStep = 0.5f;
 
@@ -126,7 +135,7 @@ TEST(CameraLook, MoveAccumulatesAcrossFramesFromExistingPosition) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   transform.block<3, 1>(0, 3) = Eigen::Vector3f(5.f, 0.f, 0.f);
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
@@ -139,7 +148,7 @@ TEST(CameraLook, NoMoveInputLeavesPositionUnchanged) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   transform.block<3, 1>(0, 3) = Eigen::Vector3f(1.f, 2.f, 3.f);
-  CameraMoveAxes axes;  // all zero
+  CameraMoveAxes axes = NewAxes();  // all zero
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
@@ -147,7 +156,7 @@ TEST(CameraLook, NoMoveInputLeavesPositionUnchanged) {
 }
 
 TEST(CameraLook, TurnLookAddsYawAndSubtractsPitch) {
-  const LookAngles look = TurnLook({}, 30.f, 10.f);
+  const LookAngles look = TurnLook({}, 30.f, 10.f, kMaxPitchDeg);
 
   EXPECT_FLOAT_EQ(look.yaw_deg, 30.f);
   EXPECT_FLOAT_EQ(look.pitch_deg, -10.f);
@@ -155,18 +164,18 @@ TEST(CameraLook, TurnLookAddsYawAndSubtractsPitch) {
 
 TEST(CameraLook, YawWrapsIntoHalfTurnRangeInsteadOfClamping) {
   // 170 + 20 = 190, should wrap to -170, not clamp at 180.
-  EXPECT_NEAR(TurnLook({.yaw_deg = 170.f}, 20.f, 0.f).yaw_deg, -170.f, kAngleToleranceDeg);
+  EXPECT_NEAR(TurnLook({.yaw_deg = 170.f}, 20.f, 0.f, kMaxPitchDeg).yaw_deg, -170.f, kAngleToleranceDeg);
 }
 
 TEST(CameraLook, PitchClampsAtLookLimits) {
-  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, 200.f).pitch_deg, -kMaxPitchDeg);
-  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, -200.f).pitch_deg, kMaxPitchDeg);
+  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, 200.f, kMaxPitchDeg).pitch_deg, -kMaxPitchDeg);
+  EXPECT_FLOAT_EQ(TurnLook({}, 0.f, -200.f, kMaxPitchDeg).pitch_deg, kMaxPitchDeg);
 }
 
 TEST(CameraLook, CameraMoveSetsTheLookAnglesItIsGiven) {
   LookAngles look {.yaw_deg = 45.f, .pitch_deg = 20.f};
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.absolute_look = {.yaw_deg = 10.f, .pitch_deg = -5.f};
 
   ApplyCameraMove(axes, kDeltaTime, look, transform);
@@ -178,7 +187,7 @@ TEST(CameraLook, CameraMoveSetsTheLookAnglesItIsGiven) {
 TEST(CameraLook, LookAnglesFromTransformRecoversTheAngles) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.absolute_look = {.yaw_deg = 60.f, .pitch_deg = -30.f};
   ApplyCameraMove(axes, kDeltaTime, look, transform);
 
@@ -192,11 +201,11 @@ TEST(CameraLook, ForwardMoveFollowsCameraAfterTurning) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 
-  CameraMoveAxes turn;
+  CameraMoveAxes turn = NewAxes();
   turn.absolute_look.yaw_deg = 90.f;
   ApplyCameraMove(turn, kDeltaTime, look, transform);
 
-  CameraMoveAxes move;
+  CameraMoveAxes move = NewAxes();
   move.forward = 1.f;
   move.absolute_look = look;
   ApplyCameraMove(move, kDeltaTime, look, transform);
@@ -213,7 +222,7 @@ TEST(WalkMove, LookingDownStillWalksAlongTheFloor) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion {.grounded = true};
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   axes.absolute_look.pitch_deg = kLookDownDeg;
 
@@ -227,7 +236,7 @@ TEST(WalkMove, DiagonalKeysDontWalkFaster) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion {.grounded = true};
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   axes.left = 1.f;
 
@@ -239,7 +248,7 @@ TEST(WalkMove, DiagonalKeysDontWalkFaster) {
 TEST(WalkMove, JumpsOnlyFromTheGround) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.up = 1.f;
   PlayerMotion grounded {.grounded = true};
   PlayerMotion airborne;
@@ -342,7 +351,7 @@ TEST(CameraLook, ATiltedUprightTurnsTheWholeCameraWithoutChangingWhatYawAndPitch
   LookAngles look;
   Eigen::Matrix4f straight = Eigen::Matrix4f::Identity();
   Eigen::Matrix4f tilted = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.absolute_look = {.yaw_deg = 30.f, .pitch_deg = 10.f};
   CameraMoveAxes tilted_axes = axes;
   tilted_axes.upright = TiltedUp();
@@ -360,7 +369,7 @@ TEST(CameraLook, ATiltedUprightTurnsTheWholeCameraWithoutChangingWhatYawAndPitch
 TEST(CameraLook, ThePitchOfALevelLookIsZeroInTheFrameOfTheUpright) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.upright = TiltedUp();
   axes.absolute_look = {.yaw_deg = 70.f, .pitch_deg = 0.f};
 
@@ -377,7 +386,7 @@ TEST(WalkMove, OnATiltedFloorTheStepStaysAcrossTheGravity) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion {.grounded = true};
-  CameraMoveAxes axes;
+  CameraMoveAxes axes = NewAxes();
   axes.forward = 1.f;
   axes.upright = TiltedUp();
   WalkStep step = kWalk;
@@ -398,7 +407,7 @@ TEST(DriftMove, AKeyPushesAndTheSpeedStaysAfterItIsReleased) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion;
-  CameraMoveAxes pushing;
+  CameraMoveAxes pushing = NewAxes();
   pushing.forward = 1.f;
 
   ApplyDriftMove(pushing, kDrift, look, motion, transform);
@@ -414,7 +423,7 @@ TEST(DriftMove, TheSpeedStopsGrowingAtTheLimit) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion;
-  CameraMoveAxes pushing;
+  CameraMoveAxes pushing = NewAxes();
   pushing.forward = 1.f;
 
   for (int i = 0; i < kManySteps; ++i) {
@@ -428,7 +437,7 @@ TEST(DriftMove, AnOppositePushBrakes) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion {.drift = Eigen::Vector3f(kDrift.max_speed, 0.f, 0.f)};
-  CameraMoveAxes braking;
+  CameraMoveAxes braking = NewAxes();
   braking.backward = 1.f;
 
   ApplyDriftMove(braking, kDrift, look, motion, transform);
@@ -440,7 +449,7 @@ TEST(DriftMove, DiagonalKeysDontPushHarder) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
   PlayerMotion motion;
-  CameraMoveAxes diagonal;
+  CameraMoveAxes diagonal = NewAxes();
   diagonal.forward = 1.f;
   diagonal.left = 1.f;
 

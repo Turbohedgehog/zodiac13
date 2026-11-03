@@ -63,4 +63,11 @@ table BuildingTuning {
   opening_max_width_steps: int32 = 32 (min: 1, max: 256, cli);
   // How far along a face, in cells, a block may slide to clear what it would sink into.
   max_slide_cells: int32 = 8 (min: 0, max: 64, cli);
+  // The aim counts as on a wall within this many cells of its faces and edges (the Opening mode), and on the plane
+  // through a wall's first node within this many cells of it (the Wall mode).
+  wall_pick_slack_cells: float = 0.5 (min: "0", max: "8", cli);
+  wall_plane_slack_cells: float = 0.5 (min: "0", max: "8", cli);
+  // The wall preview's arrow along a stick: its length and the length of its head, in cells.
+  wall_arrow_cells: float = 8 (min: "0.5", max: "64", cli);
+  wall_arrow_head_cells: float = 1.5 (min: "0.1", max: "16", cli);
 }

@@ -43,9 +43,6 @@ using z13::station::BrushLine;
 using z13::station::OpeningKind;
 using z13::station::WallOpening;
 
-// An aim counts as on a wall within this many cells of its faces and its edges.
-constexpr float kPickSlackCells = 0.5f;
-
 // Where the aim is on a wall that takes openings: in steps from node a.
 struct WallHit {
   const JointWall* wall {};
@@ -57,7 +54,7 @@ struct WallHit {
 };
 
 // The point's place on the wall, if it is on it; `distance` is how far off the wall's faces it lies.
-std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point, float& distance) {
+std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point, float slack_cells, float& distance) {
   using z13::building::primitives::PlanAxesOf;
   const auto& geometry = wall.geometry;
   const int steps = z13::building::primitives::WallSteps(geometry);
@@ -79,9 +76,9 @@ std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point
   distance = std::max({low - across, across - high, 0.f});
   const float height = static_cast<float>(direction) * rel[stick];
   const float length = static_cast<float>(std::max(std::abs(geometry.stick_a.length), std::abs(geometry.stick_b.length)));
-  const bool within = distance <= kPickSlackCells && along >= -kPickSlackCells &&
-                      along <= static_cast<float>(steps) + kPickSlackCells && height >= -kPickSlackCells &&
-                      height <= length + kPickSlackCells;
+  const bool within = distance <= slack_cells && along >= -slack_cells &&
+                      along <= static_cast<float>(steps) + slack_cells && height >= -slack_cells &&
+                      height <= length + slack_cells;
   if (!within) {
     return std::nullopt;
   }
@@ -91,12 +88,12 @@ std::optional<WallHit> HitOf(const JointWall& wall, const Eigen::Vector3f& point
   return hit;
 }
 
-std::optional<WallHit> WallUnder(const std::vector<JointWall>& walls, const Eigen::Vector3f& point) {
+std::optional<WallHit> WallUnder(const std::vector<JointWall>& walls, const Eigen::Vector3f& point, float slack_cells) {
   std::optional<WallHit> best;
   float best_distance = 0.f;
   for (const JointWall& wall : walls) {
     float distance = 0.f;
-    const std::optional<WallHit> hit = HitOf(wall, point, distance);
+    const std::optional<WallHit> hit = HitOf(wall, point, slack_cells, distance);
     if (hit && (!best || distance < best_distance)) {
       best = hit;
       best_distance = distance;
@@ -129,7 +126,7 @@ std::vector<BrushLine> OutlineOf(const WallHit& hit, const WallOpening& opening)
 std::optional<AimedOpening> AimOpening(
     flecs::world world, const Aim& aim, const BuildTool& tool, const BuildingTuning& tuning) {
   const std::vector<JointWall> walls = JointWallsOf(world);
-  const std::optional<WallHit> hit = WallUnder(walls, aim.point);
+  const std::optional<WallHit> hit = WallUnder(walls, aim.point, tuning.wall_pick_slack_cells);
   if (!hit) {
     return std::nullopt;
   }

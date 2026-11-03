@@ -41,6 +41,7 @@
 #include <player/camera_look.h>
 #include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
+#include <z13_settings/physics_tuning.h>
 
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
@@ -210,7 +211,7 @@ TEST(CommandStreamTest, LocalCommandMovesTheClientOnTheTickItIsPressed) {
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, 1, [] { return false; });
 
-  const float expected = z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
+  const float expected = z13::PhysicsTuning {}.fly_speed * kNetTestDeltaTime;
   EXPECT_NEAR(Position(client_a, kClientAId).x() - before, expected, z13::testing::kTestEpsilon)
       << "the client's own command waited instead of applying on the tick it was pressed";
 }
@@ -236,7 +237,7 @@ TEST(CommandStreamTest, HeldDurationSurvivesJitteredDelivery) {
   RunNetworkUntil(*network, {server, client_a, client_b}, kNetTestDeltaTime, kSettleTicks, [] { return false; });
 
   const float moved = Position(client_b, kClientAId).x() - before;
-  const float expected = static_cast<float>(kHoldTicks) * z13::gameplay::kCameraVelocity * kNetTestDeltaTime;
+  const float expected = static_cast<float>(kHoldTicks) * z13::PhysicsTuning {}.fly_speed * kNetTestDeltaTime;
   EXPECT_NEAR(moved, expected, z13::testing::kTestEpsilon)
       << "jittered delivery changed how long the hold registered as lasting";
 }
@@ -321,7 +322,7 @@ TEST(CommandStreamTest, OwnCameraMovesSmoothlyThroughRollbacks) {
   const uint64_t rollbacks_before = client_a.World().get<ft::RollbackMetrics>().rollbacks;
   constexpr uint64_t kTicks = 240;
   constexpr int kLookDelta = 7;
-  const float max_step = z13::gameplay::kCameraVelocity * kNetTestDeltaTime + z13::testing::kTestEpsilon;
+  const float max_step = z13::PhysicsTuning {}.fly_speed * kNetTestDeltaTime + z13::testing::kTestEpsilon;
   for (Z13TestWorld* client : {&client_a, &client_b}) {client->EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   }
   Eigen::Vector3f previous = Position(client_a, own_id);

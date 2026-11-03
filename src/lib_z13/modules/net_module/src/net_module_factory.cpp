@@ -43,8 +43,8 @@ void NetModuleFactory::RegisterModules(flecs::world& world) {
   world.set<TransportFactories>({
       .server = server_transport_factory_
           ? server_transport_factory_
-          : ServerTransportFactory([](uint16_t port, z13::SessionTimeoutConfig session_timeout) {
-                return CreateEnetServerTransport(port, kMaxClients, session_timeout);
+          : ServerTransportFactory([](uint16_t port, z13::SessionTimeoutConfig session_timeout, size_t max_clients) {
+                return CreateEnetServerTransport(port, max_clients, session_timeout);
               }),
       .client = client_transport_factory_
           ? client_transport_factory_

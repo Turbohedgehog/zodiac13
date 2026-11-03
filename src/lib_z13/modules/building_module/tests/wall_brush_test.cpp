@@ -29,6 +29,7 @@
 #include <z13/components/station/wall.h>
 #include <primitives/wall_bend.h>
 #include <z13_tests/shipped_station.h>
+#include <z13_settings/building_tuning.h>
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -91,7 +92,12 @@ Aim RayThrough(const Eigen::Vector3f& eye, const Eigen::Vector3f& target) {
 
 constexpr float kEyeHeight = 1.5f;
 constexpr int kThickness = 2;
-const WallPicking kPicking {.snap_cells = kSnapCells, .reach_cells = 64.f};
+const z13::BuildingTuning kDefaults;
+const WallPicking kPicking {.snap_cells = kSnapCells,
+                            .reach_cells = 64.f,
+                            .plane_slack_cells = kDefaults.wall_plane_slack_cells,
+                            .arrow_cells = kDefaults.wall_arrow_cells,
+                            .arrow_head_cells = kDefaults.wall_arrow_head_cells};
 const Eigen::Vector3i kOrigin {0, 0, 0};
 const Eigen::Vector3i kEast {10, 0, 0};
 // A view from above and aside onto a floor point: meets the z plane through the origin first.
@@ -164,7 +170,8 @@ TEST(WallBrushTest, NoStickWhenNoPlaneIsMetOrTheStickIsEmpty) {
   const Eigen::Vector3i first = kOrigin;
   EXPECT_FALSE(PickStick(RayThrough({1.f, 1.f, 1.f}, {2.f, 2.f, 2.f}), first, {}, kPicking).has_value());
   EXPECT_FALSE(PickStick(RayThrough({0.f, 0.f, 5.f}, {0.f, 0.f, 0.f}), first, {}, kPicking).has_value());
-  const WallPicking short_reach {.snap_cells = kSnapCells, .reach_cells = 0.5f};
+  WallPicking short_reach = kPicking;
+  short_reach.reach_cells = 0.5f;
   EXPECT_FALSE(PickStick(DownRay(), first, {}, short_reach).has_value());
 }
 

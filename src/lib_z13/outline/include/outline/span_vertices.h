@@ -19,7 +19,7 @@
 #include <array>
 #include <vector>
 
-#include "edge_types.h"
+#include <outline/edge_types.h>
 
 namespace z13::station {
 

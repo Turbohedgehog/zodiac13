@@ -19,7 +19,7 @@ z13_generate_schemas(
 )
 
 z13_add_plugin(
-  ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS
+  ${PROJECT_NAME} modules/net_module FBS_HEADERS EXPORT_ALL_SYMBOLS OPTIMIZE_IN_DEBUG
   PRECOMPILE "<flecs.h>"
   SOURCES
   src/session/action_hints.cpp

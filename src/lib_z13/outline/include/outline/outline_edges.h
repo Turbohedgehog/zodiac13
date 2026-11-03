@@ -26,7 +26,7 @@
 
 #include <z13/components/station/rooms.h>
 
-#include "edge_types.h"
+#include <outline/edge_types.h>
 
 namespace z13::station {
 

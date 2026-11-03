@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
@@ -499,7 +500,7 @@ TEST(InterestKnowledgeTest, AForgottenClientKnowsNobodyAndNobodyIsKnownToIt) {
   EXPECT_EQ(knowledge.knowers.at(kPlayer), std::unordered_set {kOther});
 }
 
-TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
+void ExpectGhostSwapsStayInSync(std::string_view scene) {
   constexpr size_t kWalkers = 6;
   constexpr uint64_t kWalkTicks = 300;
   constexpr double kWholeStationM = 5000.;
@@ -510,7 +511,7 @@ TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
     settings.net->simulated_radius_m = kWholeStationM;
     settings.net->simulated_players_max = 2;
     settings.net->simulated_players_slack = 0;
-  }, z13::testing::kTestScene);
+  }, scene);
   ASSERT_TRUE(session.Connect(kConnectTicks));
   for (uint64_t tick = 0; tick < kWalkTicks; ++tick) {
     session.Tick();
@@ -521,6 +522,16 @@ TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
   }
   const auto& knowledge = session.Server().World().get<InterestKnowledge>();
   EXPECT_EQ(knowledge.knowers, KnowersOf(knowledge));
+}
+
+// The swapping itself, on the small site: the quick check of the two below.
+TEST(InterestGhostSwapTest, PlayersSwappingWithGhostsStayInSyncOnASite) {
+  ExpectGhostSwapsStayInSync(z13::testing::kSiteScene);
+}
+
+// The same on the test station, whose floors and walls run across sectors (the heavy set).
+TEST(InterestStationTest, PlayersSwappingWithGhostsStayInSyncWithoutAResync) {
+  ExpectGhostSwapsStayInSync(z13::testing::kTestScene);
 }
 
 // Octant's rooms reach past what a client holds: uncut, they read as vacuum there and a player in them stood still.

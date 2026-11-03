@@ -24,7 +24,7 @@
 #include <z13/components/station/rooms.h>
 #include <rooms/room_cache.h>
 
-#include "room_outline.h"
+#include <outline/room_outline.h>
 
 namespace z13::station {
 

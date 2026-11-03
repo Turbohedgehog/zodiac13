@@ -48,7 +48,7 @@ std::string ToString(const std::vector<std::byte>& bytes) {
   return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 
-std::unique_ptr<Transport> MustCreateServer(uint16_t port, size_t max_clients = kMaxClients) {
+std::unique_ptr<Transport> MustCreateServer(uint16_t port, size_t max_clients = z13::NetTuning {}.max_clients) {
   auto result = CreateEnetServerTransport(port, max_clients);
   EXPECT_TRUE(result.has_value()) << (result ? "" : result.error());
   return result ? std::move(*result) : nullptr;

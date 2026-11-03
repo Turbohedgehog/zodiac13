@@ -27,14 +27,13 @@
 #include <lib_core/utils/endpoint.h>
 
 #include <net_module/transport.h>
+#include <z13_settings/net_tuning.h>
 
 namespace z13::net {
 
-constexpr size_t kMaxClients = 32;
-
 // Binds and listens on `port`; error if the port is taken or ENet fails to init.
 std::expected<std::unique_ptr<Transport>, std::string> CreateEnetServerTransport(
-    uint16_t port, size_t max_clients = kMaxClients, z13::SessionTimeoutConfig session_timeout = {});
+    uint16_t port, size_t max_clients = z13::NetTuning {}.max_clients, z13::SessionTimeoutConfig session_timeout = {});
 
 // Starts an outgoing (non-blocking) connection to `server`; the outcome is a
 // kConnected/kDisconnected event from the first Service() call, not the return

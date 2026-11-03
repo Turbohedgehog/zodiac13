@@ -5,7 +5,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED COMPONENTS dll)
 
 z13_add_plugin(
-  ${PROJECT_NAME} modules/bullet_module EXPORT_ALL_SYMBOLS
+  ${PROJECT_NAME} modules/bullet_module EXPORT_ALL_SYMBOLS OPTIMIZE_IN_DEBUG
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/block_shape.cpp

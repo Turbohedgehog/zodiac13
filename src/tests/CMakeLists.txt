@@ -313,10 +313,30 @@ target_link_libraries(z13_test_runner PRIVATE ${PROJECT_NAME} GTest::gtest)
 z13_set_output_directory(z13_test_runner ${Z13_BIN_DIR}/tests)
 
 set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*:LanDiscoveryWorldTest.*")
+# Over 10 s each in a Debug build (about half of the run): labelled `heavy`, so `ctest -LE heavy` is the quick set.
+set(Z13_HEAVY_TESTS
+    "InterestStationTest.*:InterestGhostSwapTest.*:GhostPosesTest.*:BroadphaseOrderTest.*:LightClientTest.*"
+    ":*SessionChurnTest.*:*ConvergenceTest.*seed1"
+    ":*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/hub:*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/spire"
+    ":*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/test:*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/octant"
+    ":*TestStationTest.ClientJoiningGetsTheWholeStation/hub:*TestStationTest.ClientJoiningGetsTheWholeStation/spire"
+    ":*TestStationTest.SaveAndLoadKeepEveryBlock/hub:*TestStationTest.SaveAndLoadKeepEveryBlock/spire"
+    ":NamesTest.ABlockBuiltBeyondAClientsPresenceIsNamedAsTheServerNamesIt"
+    ":ActionHintsTest.OnlyTheClientsInTheFilterGetHints"
+    ":RoomUpdateTest.MovingCutWallsEndWhereAFullBuildDoes"
+    ":HubFreightHangarTest.TheHangarIsASealedRoomBehindALobbyJoinedToTheSpineByDoors"
+    ":HubDoorsTest.EveryDoorStandsOpenAtTheStart")
+string(CONCAT Z13_HEAVY_TESTS ${Z13_HEAVY_TESTS})
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
-    TEST_FILTER "-${Z13_REAL_NETWORK_TESTS}"
+    TEST_FILTER "-${Z13_REAL_NETWORK_TESTS}:${Z13_HEAVY_TESTS}"
+)
+gtest_discover_tests(z13_test_runner
+    DISCOVERY_MODE PRE_TEST
+    WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
+    TEST_FILTER "${Z13_HEAVY_TESTS}"
+    PROPERTIES LABELS heavy
 )
 # Real sockets and wall-clock bounds: alone, so the load of a parallel run can't time them out.
 gtest_discover_tests(z13_test_runner

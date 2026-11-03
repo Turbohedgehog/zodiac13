@@ -20,6 +20,7 @@
 
 #include <z13/components/gameplay/player.h>
 #include <z13/components/input/input_events.h>
+#include <z13_settings/physics_tuning.h>
 #include <player/camera_look.h>
 
 #include "../support/z13_test_world.h"
@@ -81,16 +82,16 @@ TEST(InputPipelineTest, HeldForwardKeyMovesPositionUntilKeyUp) {
 
   test_world.Tick(1.f);
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
+      Eigen::Vector3f(z13::PhysicsTuning {}.fly_speed, 0.f, 0.f), kTestEpsilon));
 
   test_world.Tick(1.f);  // no new event -- key is still held
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
+      Eigen::Vector3f(2.f * z13::PhysicsTuning {}.fly_speed, 0.f, 0.f), kTestEpsilon));
 
   test_world.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
   test_world.Tick(1.f);
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(2.f * z13::gameplay::kCameraVelocity, 0.f, 0.f), kTestEpsilon));
+      Eigen::Vector3f(2.f * z13::PhysicsTuning {}.fly_speed, 0.f, 0.f), kTestEpsilon));
 }
 
 // delta.x=-18, dt=kTurnTestDeltaTime=1 -> -(-18) * 1 * 5 = 90, an exact
@@ -115,7 +116,7 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
 
   // A +90 deg yaw turn rotates the camera's forward axis from +X to +Y.
   EXPECT_TRUE(Position(player).isApprox(
-      Eigen::Vector3f(0.f, z13::gameplay::kCameraVelocity, 0.f), kTestEpsilon));
+      Eigen::Vector3f(0.f, z13::PhysicsTuning {}.fly_speed, 0.f), kTestEpsilon));
 }
 
 }  // namespace

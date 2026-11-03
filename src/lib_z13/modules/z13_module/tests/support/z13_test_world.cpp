@@ -84,7 +84,7 @@ z13::WorldRef CreateWorld(
 
   auto net_factory = std::make_shared<z13::net::NetModuleFactory>();
   net_factory->SetTransportFactories(
-      [network](uint16_t port, z13::SessionTimeoutConfig) {
+      [network](uint16_t port, z13::SessionTimeoutConfig, size_t) {
         return z13::net::CreateInMemoryServerTransport(*network, port);
       },
       [network](const z13::Endpoint& server, z13::ConnectTimeoutConfig, z13::SessionTimeoutConfig) {

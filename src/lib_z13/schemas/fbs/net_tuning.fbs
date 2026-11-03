@@ -85,4 +85,6 @@ table NetTuning {
   ghost_life_intervals: uint64 = 3 (min: 1, cli);
   // A client's knowledge of a player is kept for this many multiples of max_late_ticks, for a late command to find it.
   history_horizons: uint64 = 2 (min: 1, cli);
+  // The most clients a server accepts at once.
+  max_clients: uint64 = 32 (min: 1, max: 1024, cli);
 }

@@ -73,6 +73,8 @@ def run(args: argparse.Namespace) -> int:
     if run_logged(build, args.log_dir / "build.log", repo) != 0 or not args.tests:
         return 0
     ctest = ["ctest", "--test-dir", args.build_dir, "--parallel", str(jobs())] + (["-C", args.config] if args.config else [])
+    if args.quick:
+        ctest += ["-LE", "heavy"]
     run_logged(ctest, args.log_dir / "ctest.log", repo)
     return 0
 
@@ -96,6 +98,7 @@ def start(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tests", action="store_true")
+    parser.add_argument("--quick", action="store_true", help="with --tests: skip the tests labelled heavy")
     parser.add_argument("--keep-going", action="store_true", help="collect every compile error in one pass")
     parser.add_argument("--target")
     parser.add_argument("--render", action="store_true", help="build the renderer in PRoot too")

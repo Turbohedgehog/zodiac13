@@ -41,12 +41,6 @@ using z13::station::WallDraft;
 using z13::station::WallNode;
 using z13::station::WallSegment;
 
-// An aimed face counts as lying in a plane through the first point within this many cells of it.
-constexpr float kOnPlaneCells = 0.5f;
-// The arrow marking the axis of the third click: its length and the reach of its head, in cells.
-constexpr float kArrowCells = 8.f;
-constexpr float kArrowHeadCells = 1.5f;
-
 int Index(WallAxis axis) {
   return static_cast<int>(axis);
 }
@@ -68,15 +62,16 @@ BrushLine Line(const Eigen::Vector3f& from, const Eigen::Vector3f& to) {
 
 // The stick, and from its middle an arrow along `axis` toward the eye: the way the third
 // click measures.
-std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick& pick, const Eigen::Vector3f& eye) {
+std::vector<BrushLine> StickLines(const Eigen::Vector3i& first, const StickPick& pick, const Eigen::Vector3f& eye,
+                                  const WallPicking& picking) {
   const Eigen::Vector3f from = first.cast<float>();
   const Eigen::Vector3f to = pick.point.cast<float>();
   const Eigen::Vector3f middle = (from + to) / 2.f;
   const Eigen::Vector3f axis = Eigen::Vector3f::Unit(Index(pick.axis));
   const float side = eye[Index(pick.axis)] >= middle[Index(pick.axis)] ? 1.f : -1.f;
-  const Eigen::Vector3f tip = middle + axis * (side * kArrowCells);
-  const Eigen::Vector3f back = axis * (side * kArrowHeadCells);
-  const Eigen::Vector3f along = (to - from).normalized() * kArrowHeadCells;
+  const Eigen::Vector3f tip = middle + axis * (side * picking.arrow_cells);
+  const Eigen::Vector3f back = axis * (side * picking.arrow_head_cells);
+  const Eigen::Vector3f along = (to - from).normalized() * picking.arrow_head_cells;
   return {Line(from, to), Line(middle, tip), Line(tip, tip - back + along), Line(tip, tip - back - along)};
 }
 
@@ -98,10 +93,10 @@ std::vector<BrushLine> TipLines(const WallDraft& draft, const std::optional<z13:
 }
 
 // The axis of the face the aim rests on, when that face lies in the plane through `first`.
-std::optional<WallAxis> AimedPlane(const Aim& aim, const Eigen::Vector3i& first) {
+std::optional<WallAxis> AimedPlane(const Aim& aim, const Eigen::Vector3i& first, float slack_cells) {
   for (const WallAxis axis : {WallAxis::kX, WallAxis::kY, WallAxis::kZ}) {
     const int index = Index(axis);
-    if (aim.normal[index] != 0 && std::abs(aim.point[index] - static_cast<float>(first[index])) <= kOnPlaneCells) {
+    if (aim.normal[index] != 0 && std::abs(aim.point[index] - static_cast<float>(first[index])) <= slack_cells) {
       return axis;
     }
   }
@@ -155,7 +150,7 @@ std::optional<StickPick> PickStick(
   }
   // A face aimed at in a plane through `first` is the plane: pointing at the floor or at the wall
   // chooses between them where they meet. In the air, the nearest plane the ray crosses.
-  std::optional<WallAxis> plane_axis = AimedPlane(aim, first);
+  std::optional<WallAxis> plane_axis = AimedPlane(aim, first, picking.plane_slack_cells);
   Eigen::Vector3f hit = aim.point;
   if (!plane_axis) {
     float nearest = picking.reach_cells;
@@ -340,7 +335,7 @@ WallPreview PreviewWall(
     if (!stick) {
       return {.block = CellMarker(hovered), .makeable = false};
     }
-    return {.block = CellMarker(stick->point), .lines = StickLines(draft->first, *stick, aim.eye), .makeable = true};
+    return {.block = CellMarker(stick->point), .lines = StickLines(draft->first, *stick, aim.eye, picking), .makeable = true};
   }
   std::vector<BrushLine> lines;
   if (draft->stage == WallDraft::Stage::kHeight) {
