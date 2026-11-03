@@ -6,6 +6,10 @@ on:
   # A PR can't read another PR's caches, only main's, so main keeps the compiler cache warm.
   push:
     branches: [ main ]
+  # The full set on every platform once a night; a PR runs the heavy tests (ctest label `heavy`) on x64-linux only.
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: pr-tests-${{ github.head_ref || github.ref }}
@@ -26,6 +30,7 @@ jobs:
           - os: ubuntu-24.04
             triplet: x64-linux
             compiler-cache: ccache
+            heavy: true
           - os: ubuntu-24.04-arm
             triplet: arm64-linux
             cache-suffix: -arm64-linux
@@ -98,9 +103,14 @@ jobs:
 
       # Every test is its own process (gtest_discover_tests), so they run side by side.
       - name: Run tests
+        shell: bash
         env:
           Z13_STATE_DUMP: ${{ github.workspace }}/state-dump.txt
-        run: ctest --test-dir build --output-on-failure --no-tests=error --parallel 4
+          Z13_ALL_TESTS: ${{ (matrix.heavy || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'true' || 'false' }}
+        run: |
+          labels=()
+          if [ "$Z13_ALL_TESTS" != true ]; then labels=(-LE heavy); fi
+          ctest --test-dir build --output-on-failure --no-tests=error --parallel 4 "${labels[@]}"
 
       # The failed tests and their first errors, readable without a token (check-runs/<id>/annotations).
       - name: Annotate failed tests

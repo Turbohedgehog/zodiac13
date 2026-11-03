@@ -37,13 +37,14 @@ struct CameraMoveAxes {
   LookAngles absolute_look;
   // Which way the camera's up is, a unit vector: +Z, or the way a player's gravity has turned it.
   Eigen::Vector3f upright = Eigen::Vector3f::UnitZ();
+  // How fast the keys fly the camera, in m/s (physics.fly_speed).
+  float speed {};
+  // The steepest the camera looks up or down, in degrees (physics.max_pitch_deg).
+  float max_pitch_deg {};
 };
 
-constexpr float kCameraVelocity = 30.f;
-constexpr float kMaxPitchDeg = 89.f;
-
-// Turns `look` by a mouse-look delta: yaw wraps into (-180:180], pitch clamps.
-LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg);
+// Turns `look` by a mouse-look delta: yaw wraps into (-180:180], pitch clamps to +-`max_pitch_deg`.
+LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg, float max_pitch_deg);
 
 // The rotation that takes +Z to `up` (a unit vector) by the shortest arc: the frame a player's yaw and pitch are in.
 Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up);

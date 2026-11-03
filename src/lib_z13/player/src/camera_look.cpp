@@ -36,7 +36,7 @@ constexpr float kFullTurnDeg = 360.f;
 
 // Wraps yaw rather than clamping it, so turning past +-180 deg works; an in-range angle is
 // left untouched, so a canonical value stays bit-exact.
-LookAngles Normalized(LookAngles look) {
+LookAngles Normalized(LookAngles look, float max_pitch_deg) {
   if (look.yaw_deg <= -kHalfTurnDeg || look.yaw_deg > kHalfTurnDeg) {
     look.yaw_deg = std::fmod(look.yaw_deg + kHalfTurnDeg, kFullTurnDeg);
     if (look.yaw_deg < 0.f) {
@@ -44,16 +44,16 @@ LookAngles Normalized(LookAngles look) {
     }
     look.yaw_deg -= kHalfTurnDeg;
   }
-  look.pitch_deg = std::clamp(look.pitch_deg, -kMaxPitchDeg, kMaxPitchDeg);
+  look.pitch_deg = std::clamp(look.pitch_deg, -max_pitch_deg, max_pitch_deg);
   return look;
 }
 
 }  // namespace
 
-LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg) {
+LookAngles TurnLook(LookAngles look, float yaw_delta_deg, float pitch_delta_deg, float max_pitch_deg) {
   look.yaw_deg += yaw_delta_deg;
   look.pitch_deg -= pitch_delta_deg;
-  return Normalized(look);
+  return Normalized(look, max_pitch_deg);
 }
 
 Eigen::Matrix3f UpFrame(const Eigen::Vector3f& up) {
@@ -84,7 +84,7 @@ LookAngles LookAnglesFromTransform(const Eigen::Matrix4f& transform, const Eigen
 namespace {
 
 Eigen::Matrix3f Turn(const CameraMoveAxes& axes, LookAngles& look, Eigen::Matrix4f& transform) {
-  look = Normalized(axes.absolute_look);
+  look = Normalized(axes.absolute_look, axes.max_pitch_deg);
   const Eigen::Matrix3f rotation =
       UpFrame(axes.upright) *
       (Eigen::AngleAxisf(z13::math::ToRadians(look.yaw_deg), Eigen::Vector3f::UnitZ()) *
@@ -107,9 +107,9 @@ void ApplyCameraMove(
   auto side_axis = new_rotation_matrix.col(1);
   auto up_axis = new_rotation_matrix.col(2);
 
-  auto x_delta = forward_axis * (axes.forward - axes.backward) * delta_time * kCameraVelocity;
-  auto y_delta = side_axis * (axes.left - axes.right) * delta_time * kCameraVelocity;
-  auto z_delta = up_axis * (axes.up - axes.down) * delta_time * kCameraVelocity;
+  auto x_delta = forward_axis * (axes.forward - axes.backward) * delta_time * axes.speed;
+  auto y_delta = side_axis * (axes.left - axes.right) * delta_time * axes.speed;
+  auto z_delta = up_axis * (axes.up - axes.down) * delta_time * axes.speed;
 
   Eigen::Vector3f position = transform.col(3).head<3>();
   position += x_delta + y_delta + z_delta;

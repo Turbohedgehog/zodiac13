@@ -4,7 +4,7 @@
 
 How to build, test and wait on builds is in the build-and-test skill; the rules:
 
-- Requires `VCPKG_ROOT` set (vcpkg manifest mode; deps come from `vcpkg.json`). Configure + build: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build`; tests: `ctest --test-dir build`.
+- Requires `VCPKG_ROOT` set (vcpkg manifest mode; deps come from `vcpkg.json`). Configure + build: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build`; tests: `ctest --test-dir build` (`-LE heavy` leaves out the tests over 10 s in Debug, labelled `heavy` in `src/tests/CMakeLists.txt`: use it while iterating, the whole set before a push; a new test that runs over 10 s gets the label).
 - Inside PRoot (`uname -a` shows `PRoot-Distro`): cap parallel jobs at `-j3` — higher counts have hung the session. A full vcpkg rebuild only with `-j1` and `VCPKG_MAX_CONCURRENCY=1`, launched detached. Long builds run detached with a log, never as a long foreground call.
 - Never `pkill -f` a pattern that also appears in your own command line — it kills the calling shell.
 - Debug builds compile the math libraries (`rooms`, `primitives`, `grid`, `cell_light`, `touch`: `OPTIMIZE_IN_DEBUG` in `z13_add_library`) with `-O1` on GCC and Clang, since Eigen and Boost.Graph run 8-70 times as slowly at `-O0`; `-DZ13_DEBUG_OPTIMIZE=OFF` turns it off for debugging one of them. A new library of heavy math gets the same flag.

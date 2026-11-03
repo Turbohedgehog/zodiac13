@@ -284,7 +284,11 @@ std::optional<WallDraft> DraftOf(flecs::entity player) {
 }
 
 WallPicking PickingOf(const BuildingTuning& tuning) {
-  return {.snap_cells = tuning.wall_snap_cells, .reach_cells = tuning.wall_pick_reach_cells};
+  return {.snap_cells = tuning.wall_snap_cells,
+          .reach_cells = tuning.wall_pick_reach_cells,
+          .plane_slack_cells = tuning.wall_plane_slack_cells,
+          .arrow_cells = tuning.wall_arrow_cells,
+          .arrow_head_cells = tuning.wall_arrow_head_cells};
 }
 
 // A click of the Wall mode: it sets the draft's next point, and the third makes the wall

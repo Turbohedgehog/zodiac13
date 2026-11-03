@@ -80,7 +80,9 @@ void OnStartServerRequest(flecs::entity e, const StartServerRequest& request, co
     return;
   }
   // Opened only to find a busy port before the scene is built; ListenOnceBuilt opens it again.
-  if (const auto check = factories.server(port, world.get<z13::SessionTimeout>()); !check) {
+  const auto check =
+      factories.server(port, world.get<z13::SessionTimeout>(), world.get<z13::NetTuning>().max_clients);
+  if (!check) {
     FailToListen(world, port, check.error());
     return;
   }
@@ -103,7 +105,8 @@ void ListenOnceBuilt(flecs::world world) {
     return;
   }
 
-  auto transport = world.get<TransportFactories>().server(role.port, world.get<z13::SessionTimeout>());
+  auto transport = world.get<TransportFactories>().server(role.port, world.get<z13::SessionTimeout>(),
+                                                                     world.get<z13::NetTuning>().max_clients);
   if (!transport) {
     FailToListen(world, role.port, transport.error());
     world.remove<z13::gameplay::Gameplay>();

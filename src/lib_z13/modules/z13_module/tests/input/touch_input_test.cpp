@@ -27,6 +27,7 @@
 #include <z13_settings/settings.h>
 #include <touch/touch_mapping.h>
 #include <z13/components/station/block_brush.h>
+#include <z13_settings/physics_tuning.h>
 
 #include "../support/z13_test_world.h"
 
@@ -75,12 +76,12 @@ TEST(TouchInputTest, StickPushedUpMovesForwardLikeW) {
   test_world.EmitInput(Touch<z13::input::TouchMoveEvent>(
       kStickFinger, kStickTouch - Eigen::Vector2f(0.f, StickRadius(test_world))));
   test_world.Tick(1.f);
-  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector2f(z13::gameplay::kCameraVelocity, 0.f), kTestEpsilon));
+  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector2f(z13::PhysicsTuning {}.fly_speed, 0.f), kTestEpsilon));
 
   test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kStickFinger, kStickTouch));
   test_world.Tick(1.f);
   test_world.Tick(1.f);
-  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector2f(z13::gameplay::kCameraVelocity, 0.f), kTestEpsilon));
+  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector2f(z13::PhysicsTuning {}.fly_speed, 0.f), kTestEpsilon));
 }
 
 TEST(TouchInputTest, JitterInsideTheDeadZoneQueuesNothing) {

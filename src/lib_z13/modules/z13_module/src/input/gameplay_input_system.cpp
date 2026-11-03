@@ -127,6 +127,8 @@ void ApplyMoveActionListener(
           .pitch_deg = value_of(move_action_ids.vertical_look_id),
       },
       .upright = player_up.up,
+      .speed = tuning.fly_speed,
+      .max_pitch_deg = tuning.max_pitch_deg,
   };
 
   if (motion != nullptr && gravity != nullptr && gravity->Pulls()) {
@@ -421,7 +423,8 @@ void CalculateLookValues(
     z13::input::InputState& input_state,
     const MoveActionIds& move_action_ids,
     z13::input::ActionListener& action_listener,
-    const Eigen::Matrix4f& transform) {
+    const Eigen::Matrix4f& transform,
+    const z13::PhysicsTuning& tuning) {
   float yaw_delta_deg = 0.f;
   float pitch_delta_deg = 0.f;
   if (e.world().has<z13::gameplay::Pause>() || e.world().has<z13::gameplay::FreeCursor>()) {
@@ -439,7 +442,7 @@ void CalculateLookValues(
   const Eigen::Vector3f upright = player_up != nullptr ? player_up->up : Eigen::Vector3f::UnitZ();
   const LookAngles target = z13::gameplay::TurnLook(
       current ? *current : z13::gameplay::LookAnglesFromTransform(transform, upright), yaw_delta_deg,
-      pitch_delta_deg);
+      pitch_delta_deg, tuning.max_pitch_deg);
   action_listener.action_values[move_action_ids.horizontal_look_id].current_value =
       z13::gameplay::CanonicalActionValue(target.yaw_deg);
   action_listener.action_values[move_action_ids.vertical_look_id].current_value =
@@ -581,8 +584,8 @@ void RegisterSystems(flecs::world world) {
       .kind<z13::input::ClearActionFramePhase>()
       .each(ClearActionListenerCurrentState);
 
-  world.system<z13::input::InputState, const MoveActionIds, z13::input::ActionListener, const Eigen::Matrix4f>(
-      "gameplay_input_system::CalculateLookValues")
+  world.system<z13::input::InputState, const MoveActionIds, z13::input::ActionListener, const Eigen::Matrix4f,
+               const z13::PhysicsTuning>("gameplay_input_system::CalculateLookValues")
       .kind<z13::input::CalculateActionFramePhase>()
       .without<z13::flecs_tools::ReplayInProgress>()
       .with<z13::input::CurrentActionListenerTag>()

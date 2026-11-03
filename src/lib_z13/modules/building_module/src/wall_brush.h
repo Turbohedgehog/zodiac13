@@ -43,6 +43,9 @@ inline constexpr float kParallelEpsilon = 1e-4f;
 struct WallPicking {
   float snap_cells {};
   float reach_cells {};
+  float plane_slack_cells {};
+  float arrow_cells {};
+  float arrow_head_cells {};
 };
 
 // The grid point a click at `aim` sets: the nearest of `anchors` within `snap_cells`, else
