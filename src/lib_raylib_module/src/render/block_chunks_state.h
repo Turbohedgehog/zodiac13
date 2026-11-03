@@ -79,7 +79,6 @@ class BlockChunks::State {
       : lighting_shader_(lighting_shader), textures_(std::move(assets)) {}
 
   bool SyncedWith(int chunk_cells, OptionalPalette palette) const;
-  // Whether the last Sync was made with these poses.
   bool PosedBy(const z13::station::GridPoses& poses) const;
   void Sync(std::span<const z13::station::Block> blocks, const z13::station::GridPoses& poses, OptionalPalette palette,
             int chunk_cells);

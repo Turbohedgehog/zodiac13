@@ -111,9 +111,8 @@ table BlueprintWall {
   openings: [BlueprintWallOpening];
 }
 
-// A grid beside the main one (z13::station::Grid): a district built in its own axes, then set in the world by its
-// pose (docs/multi-grid-plan.md). Cells, nodes and openings are in the grid's cells; `id` is not zero (the main grid's)
-// and no two grids share one.
+// A district beside the main grid (docs/multi-grid-plan.md): built in its own cells, set in the world by its pose.
+// `id` is not zero (the main grid's) and unique.
 table BlueprintGrid {
   id: uint;
   origin: Cell;
