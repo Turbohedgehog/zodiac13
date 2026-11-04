@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <span>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -100,6 +102,38 @@ TEST(ViewCullingTest, AllVisibleNeedsTheWholeBoxInAFrustumAndASeenRoom) {
   EXPECT_TRUE(culling.AllVisible(inside));
   EXPECT_TRUE(culling.Visible(through_the_wall));
   EXPECT_FALSE(culling.AllVisible(through_the_wall)) << "it leaves the room's bounds";
+}
+
+constexpr GridId kDockedGrid = 1;
+constexpr GridId kUndockedGrid = 2;
+
+TEST(ViewCullingTest, AnotherGridIsSeenFromARoomOnlyThroughADockOrAWindowToSpace) {
+  const RoomGraph graph = BuildRooms(RoomWithWindow()).value();
+  const Eigen::Vector3f eye_cells {3.5f, 5.5f, 4.5f};
+  const RoomId room = graph.RoomAt(eye_cells.cast<int>()).value();
+  const std::vector<DockedGrid> docked = {{.grid = kDockedGrid, .room = room}};
+  auto view_from_room = [&](const Eigen::Vector3f& direction, std::span<const DockedGrid> docks) {
+    CameraView view = z13::testing::CameraViewFrom(eye_cells * kCellSize, (eye_cells + direction) * kCellSize);
+    view.docked = docks;
+    return ViewCulling(view, std::cref(graph));
+  };
+
+  const ViewCulling facing_wall = view_from_room({5.f, 0.f, 0.f}, docked);
+  EXPECT_TRUE(facing_wall.GridInView(kDockedGrid));
+  EXPECT_FALSE(facing_wall.GridInView(kUndockedGrid));
+  EXPECT_FALSE(view_from_room({5.f, 0.f, 0.f}, {}).GridInView(kDockedGrid)) << "without a dock";
+  EXPECT_TRUE(view_from_room({-5.f, 0.f, 0.f}, {}).GridInView(kUndockedGrid)) << "the window shows space";
+}
+
+TEST(ViewCullingTest, AnotherGridIsSeenFromSpaceAndWithoutRooms) {
+  const RoomGraph graph = BuildRooms(RoomWithWindow()).value();
+  const Eigen::Vector3f eye_cells {-12.5f, 5.f, 4.f};
+  const ViewCulling from_space(
+      z13::testing::CameraViewFrom(eye_cells * kCellSize, Eigen::Vector3f(5.f, 5.f, 4.f) * kCellSize), std::cref(graph));
+  const ViewCulling without_rooms(z13::testing::CameraViewFrom({0.f, 0.f, 0.f}, {10.f, 0.f, 0.f}), std::nullopt);
+
+  EXPECT_TRUE(from_space.GridInView(kUndockedGrid));
+  EXPECT_TRUE(without_rooms.GridInView(kUndockedGrid));
 }
 
 }  // namespace

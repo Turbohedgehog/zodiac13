@@ -122,10 +122,19 @@ table BlueprintGrid {
   walls: [BlueprintWall];
 }
 
+// A z13::station::Dock.
+table BlueprintDock {
+  a_grid: uint;
+  a_cell: Cell;
+  b_grid: uint;
+  b_cell: Cell;
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
   grids: [BlueprintGrid];
+  docks: [BlueprintDock];
   doors_open: bool;
 }
 

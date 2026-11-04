@@ -62,10 +62,10 @@ Eigen::AlignedBox3f Posed(const Eigen::AlignedBox3f& box, const Eigen::Isometry3
   return posed;
 }
 
-// Chunks of the main grid are culled by the rooms in view; those of other grids stand outside those rooms, so only
-// the frustum culls them.
+// Other grids stand outside the main grid's rooms: the frustum and ViewCulling::GridInView cull them.
 bool InView(const ViewCulling& culling, z13::station::GridId grid, const Eigen::AlignedBox3f& bounds) {
-  return grid == z13::station::kMainGrid ? culling.Visible(bounds) : culling.InFrustum(bounds);
+  return grid == z13::station::kMainGrid ? culling.Visible(bounds)
+                                         : culling.InFrustum(bounds) && culling.GridInView(grid);
 }
 
 bool SamePoses(const z13::station::GridPoses& first, const z13::station::GridPoses& second) {

@@ -92,26 +92,29 @@ std::map<PanelKey, Block> ExpectedPanels(
   });
   std::unordered_map<WallId, std::vector<z13::station::WallOpening>> cut;
   openings.each([&cut](const z13::station::WallOpening& opening) { cut[opening.segment_id].push_back(opening); });
-  std::vector<JointWall> walls;
+  // Walls meet only within one grid: their cells are the grid's own.
+  std::map<z13::station::GridId, std::vector<JointWall>> walls_by_grid;
   segments.each([&](const WallSegment& segment) {
     const auto a = cells.find(segment.node_a);
     const auto b = cells.find(segment.node_b);
     if (a != cells.end() && b != cells.end()) {
-      walls.push_back(JointWallOf(segment, a->second, b->second, cut[segment.id]));
+      walls_by_grid[grids.at(segment.node_a)].push_back(JointWallOf(segment, a->second, b->second, cut[segment.id]));
     }
   });
-  const WallJoints joints = SolveJoints(walls, joint_reach);
   std::map<PanelKey, Block> expected;
-  for (const JointWall& wall : walls) {
-    const auto blocks = JointPanels(wall, joints, palette);
-    if (!blocks) {
-      log_debug("station: wall segment {} has no panel: {}", wall.id, blocks.error());
-      continue;
-    }
-    for (uint32_t part = 0; part < blocks->size(); ++part) {
-      Block panel = (*blocks)[part];
-      panel.grid = grids.at(wall.node_a);
-      expected.emplace(PanelKey {.segment_id = wall.id, .part = part}, panel);
+  for (const auto& [grid, walls] : walls_by_grid) {
+    const WallJoints joints = SolveJoints(walls, joint_reach);
+    for (const JointWall& wall : walls) {
+      const auto blocks = JointPanels(wall, joints, palette);
+      if (!blocks) {
+        log_debug("station: wall segment {} has no panel: {}", wall.id, blocks.error());
+        continue;
+      }
+      for (uint32_t part = 0; part < blocks->size(); ++part) {
+        Block panel = (*blocks)[part];
+        panel.grid = grid;
+        expected.emplace(PanelKey {.segment_id = wall.id, .part = part}, panel);
+      }
     }
   }
   return expected;

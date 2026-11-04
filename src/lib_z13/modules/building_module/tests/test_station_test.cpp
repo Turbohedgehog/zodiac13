@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <array>
+#include <tuple>
 #include <cstdint>
 #include <format>
 #include <memory>
@@ -78,21 +78,26 @@ std::vector<Block> ShippedStation(std::string_view scene, const Palette& palette
   return z13::testing::ShippedBlueprint(scene, palette).value();
 }
 
-// The same cell can hold a block of each grid, and of one grid a block per primitive: all of them order the blocks.
-std::array<int64_t, 8> SortKey(const Block& block) {
-  return {block.grid,       block.cell.x(), block.cell.y(),      block.cell.z(),
-          block.spec.type_id, block.spec.size.x(), block.spec.size.y(), block.spec.size.z()};
-}
-
 std::vector<Block> Blocks(flecs::world world) {
   std::vector<Block> blocks;
   world.query_builder<const Block>().build().each([&blocks](const Block& block) { blocks.push_back(block); });
-  std::ranges::sort(blocks, {}, SortKey);
+  std::ranges::sort(blocks, [](const Block& a, const Block& b) {
+    return std::lexicographical_compare(a.cell.begin(), a.cell.end(), b.cell.begin(), b.cell.end());
+  });
   return blocks;
 }
 
-bool SameBlocks(const std::vector<Block>& a, const std::vector<Block>& b) {
-  return std::ranges::equal(a, b);
+// Entities may arrive in any order, and the two triangles of a bent wall share a cell: compare sorted by everything.
+bool SameBlocks(std::vector<Block> a, std::vector<Block> b) {
+  const auto key = [](const Block& block) {
+    return std::tuple(block.grid, block.cell.x(), block.cell.y(), block.cell.z(), block.spec.type_id,
+                      block.spec.size.x(), block.spec.size.y(), block.spec.size.z(), block.spec.slant);
+  };
+  const auto before = [&key](const Block& x, const Block& y) { return key(x) < key(y); };
+  std::ranges::sort(a, before);
+  std::ranges::sort(b, before);
+  return std::ranges::equal(
+      a, b, [](const Block& x, const Block& y) { return x.grid == y.grid && x.spec == y.spec && x.cell == y.cell; });
 }
 
 std::vector<std::string> StationArgs(std::string_view scene) {
@@ -158,10 +163,10 @@ TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   const auto grids = z13::testing::ShippedBlueprintGrids(Scene(), palette);
   ASSERT_TRUE(grids.has_value()) << grids.error();
   size_t expected = shipped.size() + panels->size();
-  for (const z13::building::primitives::BlueprintGridPart& part : *grids) {
-    const auto part_panels = BlueprintPanels(part.walls, palette, BuildingTuning {}, part.openings);
-    ASSERT_TRUE(part_panels.has_value()) << part_panels.error();
-    expected += part.blocks.size() + part_panels->size();
+  for (const auto& part : *grids) {
+    const auto grid_panels = BlueprintPanels(part.walls, palette, BuildingTuning {}, part.openings);
+    ASSERT_TRUE(grid_panels.has_value()) << grid_panels.error();
+    expected += part.blocks.size() + grid_panels->size();
   }
   EXPECT_EQ(Blocks(test_world.World()).size(), expected);
   EXPECT_EQ(test_world.World().count<SpawnPoint>(), SpawnPoints(shipped, palette));
@@ -196,6 +201,7 @@ TEST_P(TestStationTest, ClientJoiningGetsTheWholeStation) {
     return client.World().has<Gameplay>() && client.World().lookup(PlayerEntityName(1).c_str());
   }));
 
+  EXPECT_EQ(Blocks(client.World()).size(), Blocks(server.World()).size());
   EXPECT_TRUE(SameBlocks(Blocks(client.World()), Blocks(server.World())));
   EXPECT_EQ(client.World().count<SpawnPoint>(), server.World().count<SpawnPoint>());
 }

@@ -77,13 +77,6 @@ inline std::expected<std::vector<z13::station::Block>, std::string> ShippedBluep
       .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprint(json, palette); });
 }
 
-// The grids of a blueprint beside the main one, with their blocks and walls.
-inline std::expected<std::vector<z13::building::primitives::BlueprintGridPart>, std::string> ShippedBlueprintGrids(
-    std::string_view scene, const z13::building::primitives::Palette& palette) {
-  return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
-      .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprintGrids(json, palette); });
-}
-
 // The wall segments of a blueprint, whose panels the scene derives apart from its blocks.
 inline std::expected<std::vector<z13::building::primitives::WallGeometry>, std::string> ShippedBlueprintWalls(
     std::string_view scene) {
@@ -96,6 +89,12 @@ inline std::expected<std::vector<std::vector<z13::station::WallOpening>>, std::s
     std::string_view scene) {
   return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
       .and_then([](const std::string& json) { return z13::building::primitives::ParseBlueprintOpenings(json); });
+}
+
+inline std::expected<std::vector<z13::building::primitives::BlueprintGridPart>, std::string> ShippedBlueprintGrids(
+    std::string_view scene, const z13::building::primitives::Palette& palette) {
+  return SourceAssets().ReadAsset(z13::building::primitives::BlueprintFile(scene))
+      .and_then([&palette](const std::string& json) { return z13::building::primitives::ParseBlueprintGrids(json, palette); });
 }
 
 // What the room build reads from a station's blocks: the sealing ones and their portals.

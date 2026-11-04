@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -42,6 +43,7 @@
 
 #include <z13/components/input/action_listener.h>
 #include <z13/components/station/building.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/door.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/ghost.h>
@@ -124,6 +126,40 @@ void PublishSeenRooms(const ViewCulling& culling, const z13::station::rooms::Roo
       overlay->drawn = z13::station::RoomsDrawn {.fingerprint = *fingerprint, .rooms = std::move(*seen)};
     }
   }
+}
+
+using GridRoomsQuery = flecs::query<const z13::station::Grid, const z13::station::rooms::RoomCache>;
+
+// The main grid's rooms that a dock joins to another grid.
+std::vector<z13::station::rooms::DockedGrid> DockedGridsOf(const z13::station::DockLinks* links) {
+  std::vector<z13::station::rooms::DockedGrid> docked;
+  if (links == nullptr) {
+    return docked;
+  }
+  for (const z13::station::DockLink& link : links->list) {
+    for (const auto& [main, other] : {std::pair {link.a, link.b}, std::pair {link.b, link.a}}) {
+      if (main.grid == z13::station::kMainGrid && other.grid != z13::station::kMainGrid) {
+        docked.push_back({.grid = other.grid, .room = main.room});
+      }
+    }
+  }
+  return docked;
+}
+
+// The main grid's rooms know nothing of the cells of the other grids, so an eye in one of theirs culls by the frustum.
+bool EyeInOtherGrid(const GridRoomsQuery& grids, const ::Vector3& eye) {
+  const Eigen::Vector3f world_eye(eye.x, eye.y, eye.z);
+  bool inside = false;
+  grids.each([&](const z13::station::Grid& grid, const z13::station::rooms::RoomCache& cache) {
+    if (grid.id == z13::station::kMainGrid || !cache.Current()) {
+      return;
+    }
+    const Eigen::Vector3i cell =
+        (z13::station::GridToWorld(grid).inverse() * world_eye / z13::station::kCellSize).array().floor().cast<int>();
+    const auto room = cache.Current()->get().RoomAt(cell);
+    inside = inside || (room && *room != z13::station::rooms::kVacuumRoom);
+  });
+  return inside;
 }
 
 template <typename Draw>
@@ -320,6 +356,7 @@ void RegisterSystems(flecs::world world) {
       });
 
   const flecs::query<const z13::station::Grid> grid_query = world.query<const z13::station::Grid>();
+  const GridRoomsQuery grid_rooms_query = world.query<const z13::station::Grid, const z13::station::rooms::RoomCache>();
   world.system<BlockChunks, const z13::RenderTuning, const z13::building::primitives::BlockPalette*>(
            "EnvironmentRenderSystem::SyncBlockChunks")
       .kind<Render>()
@@ -391,7 +428,9 @@ void RegisterSystems(flecs::world world) {
       .tick_source<RenderGate>()
       .read<z13::station::BrushPreview>()
       .read<z13::station::rooms::RoomCache>()
-      .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, drawing](
+      .read<z13::station::Grid>()
+      .read<z13::station::DockLinks>()
+      .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, grid_rooms_query, drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 FrameProfile& profile, z13::station::RoomOverlay* overlay, const RenderTour* tour,
                 const z13::RenderTuning& tuning, const CellLighting* cell_lighting, ShadowMaps* shadows) {
@@ -410,15 +449,18 @@ void RegisterSystems(flecs::world world) {
             return z13::building::primitives::CellBox {.min = door.min, .extent = door.extent};
           });
         }
+        const auto docked = DockedGridsOf(world.try_get<z13::station::DockLinks>());
         const CameraView camera {
             .view_projection = CurrentViewProjection(),
             .eye = Eigen::Vector3f(eye.x, eye.y, eye.z),
             .min_portal_extent = PixelsInNdc(tuning.min_portal_pixels, size.size),
             .opened = opened,
+            .docked = docked,
         };
+        const bool culls_rooms = (tour == nullptr || tour->CullsRooms()) && !EyeInOtherGrid(grid_rooms_query, eye);
         const SceneView view {
             .eye = eye,
-            .culling = ViewCulling(camera, tour == nullptr || tour->CullsRooms() ? CurrentRooms(rooms) : std::nullopt),
+            .culling = ViewCulling(camera, culls_rooms ? CurrentRooms(rooms) : std::nullopt),
         };
         const double culling_us =
             std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - culling_start).count();
