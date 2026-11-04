@@ -20,6 +20,7 @@
 
 #include <z13/components/gameplay/player.h>
 #include <z13/components/input/input_events.h>
+#include <z13/components/station/station_mode.h>
 #include <z13_settings/physics_tuning.h>
 #include <player/camera_look.h>
 
@@ -117,6 +118,21 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
   // A +90 deg yaw turn rotates the camera's forward axis from +X to +Y.
   EXPECT_TRUE(Position(player).isApprox(
       Eigen::Vector3f(0.f, z13::PhysicsTuning {}.fly_speed, 0.f), kTestEpsilon));
+}
+
+TEST(InputPipelineTest, InAStationAReleasedKeyLeavesTheWeightlessPlayerDrifting) {
+  z13::testing::Z13TestWorld test_world;
+  test_world.World().add<z13::station::StationMode>();
+  auto player = test_world.Player();
+  const z13::PhysicsTuning tuning;
+
+  test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
+  test_world.Tick(1.f);
+  test_world.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+  test_world.Tick(1.f);
+
+  const float speed = tuning.drift_thrust;
+  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector3f(2.f * speed, 0.f, 0.f), kTestEpsilon));
 }
 
 }  // namespace

@@ -28,6 +28,7 @@
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/building.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/player_parts.h>
 #include <z13/components/input/input_phases.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/door.h>
@@ -119,6 +120,47 @@ TEST(PhysicsCollisionTest, DiagonalStepSlidesAlongTheBlockFace) {
 
   EXPECT_NEAR(moved.x(), kTouchingX, kSweepTolerance);
   EXPECT_NEAR(moved.y(), kSlideY, kSweepTolerance);
+}
+
+z13::gameplay::PlayerMotion DriftIntoABlock(z13::testing::Z13TestWorld& test_world, const Eigen::Vector3f& target,
+                                            const Eigen::Vector3f& drift) {
+  flecs::entity mover = test_world.World()
+                            .system<Eigen::Matrix4f, z13::gameplay::PlayerMotion>()
+                            .with<z13::gameplay::Player>()
+                            .kind<z13::input::ApplyActionFramePhase>()
+                            .each([target, drift](Eigen::Matrix4f& transform, z13::gameplay::PlayerMotion& motion) {
+                              z13::math::SetTranslation(target, transform);
+                              motion.drift = drift;
+                            });
+  test_world.Tick(kTestDeltaTime);
+  mover.destruct();
+  return test_world.Player().get<z13::gameplay::PlayerMotion>();
+}
+
+constexpr float kDriftAlongX = 3.f;
+constexpr float kDriftAlongY = 1.f;
+
+TEST(PhysicsCollisionTest, ADriftingPlayerLosesTheSpeedIntoAWallAndKeepsTheRest) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kApproachX);
+
+  const auto motion = DriftIntoABlock(
+      test_world, Eigen::Vector3f(kPastBlockX, kSlideY, 0.f), Eigen::Vector3f(kDriftAlongX, kDriftAlongY, 0.f));
+
+  EXPECT_NEAR(motion.drift.x(), 0.f, kSweepTolerance);
+  EXPECT_NEAR(motion.drift.y(), kDriftAlongY, kSweepTolerance);
+}
+
+TEST(PhysicsCollisionTest, ADriftingPlayerInTheOpenKeepsItsSpeed) {
+  z13::testing::Z13TestWorld test_world;
+  SpawnBlockAt(test_world.World(), TranslatedIdentity(kBlockX, 0.f, 0.f));
+  SettlePlayerAt(test_world, kApproachX);
+
+  const auto motion = DriftIntoABlock(
+      test_world, Eigen::Vector3f(kApproachX, kSlideY, 0.f), Eigen::Vector3f(-kDriftAlongX, kDriftAlongY, 0.f));
+
+  EXPECT_NEAR(motion.drift.x(), -kDriftAlongX, kSweepTolerance);
 }
 
 // Less than any IsNear-style epsilon, so a tolerance would let the player sink into the block.

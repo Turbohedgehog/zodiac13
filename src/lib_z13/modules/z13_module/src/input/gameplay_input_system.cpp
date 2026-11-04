@@ -37,6 +37,7 @@
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/gameplay/player_parts.h>
+#include <z13/components/station/station_mode.h>
 #include <z13/components/utility/gravity.h>
 #include <z13/components/input/action_listener.h>
 #include <z13/components/input/action_map.h>
@@ -140,7 +141,8 @@ void ApplyMoveActionListener(
     };
     motion->drift = Eigen::Vector3f::Zero();
     z13::gameplay::ApplyWalkMove(axes, step, look, *motion, transform);
-  } else if (motion != nullptr && tuning.drift_thrust > 0.f) {
+    // StationMode is checked, not a term: another module registers it, and as a term it would be absent here.
+  } else if (motion != nullptr && e.world().has<z13::station::StationMode>() && tuning.drift_thrust > 0.f) {
     *motion = {.drift = motion->drift};
     z13::gameplay::ApplyDriftMove(
         axes, {.delta_time = delta_time, .thrust = tuning.drift_thrust, .max_speed = tuning.drift_max_speed}, look,
@@ -610,6 +612,7 @@ void RegisterSystems(flecs::world world) {
                const z13::gravity::Gravity*, const z13::PhysicsTuning>(
       "gameplay_input_system::ApplyMoveActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
+      .read<z13::station::StationMode>()
       .each(ApplyMoveActionListener);
 
   world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::SaveConfigEvent>("gameplay_input_system::OnSaveConfigObserver")

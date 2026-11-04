@@ -236,6 +236,18 @@ btVector3 ApplyGravity(
   return stopped;
 }
 
+// `blocked` is the move the collision took back; the speed along the wall stays, the part into it goes.
+void CancelDriftIntoSurface(const Eigen::Vector3f& blocked, z13::gameplay::PlayerMotion& motion) {
+  if (blocked.squaredNorm() < z13::math::kEpsilon * z13::math::kEpsilon) {
+    return;
+  }
+  const Eigen::Vector3f into_surface = blocked.normalized();
+  const float speed_into = motion.drift.dot(into_surface);
+  if (speed_into > 0.f) {
+    motion.drift -= into_surface * speed_into;
+  }
+}
+
 // Mutate-then-e.set() idiom (like BuildingSystem::UpdateBrush), so OnSet
 // observers see the correction. Compared exactly: a sweep can stop a step short by
 // less than any epsilon. The push-out still runs after the sweep, for blocks placed
@@ -261,6 +273,9 @@ void ResolvePlayerCollision(
   const Eigen::Vector3f resolved_position(resolved.x(), resolved.y(), resolved.z());
   if (resolved_position == position) {
     return;
+  }
+  if (motion != nullptr && (gravity == nullptr || !gravity->Pulls())) {
+    CancelDriftIntoSurface(position - resolved_position, *motion);
   }
 
   z13::math::SetTranslation(resolved_position, transform);

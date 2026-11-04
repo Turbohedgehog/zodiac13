@@ -85,10 +85,16 @@ std::vector<fbs::net::SectorHashWire> HashesOf(const SplitHashes& split, const s
   std::vector<fbs::net::SectorHashWire> hashes;
   for (const auto& [sector, parts] : split.by_sector) {
     uint64_t total = parts.blocks;
+    bool holds_anything = parts.blocks != 0;
     for (const PlayerHash& player : parts.players) {
       if (!players || players->contains(player.player_id)) {
         total = Add(total, player.hash);
+        holds_anything = true;
       }
+    }
+    // A sector of players the view leaves out is no sector of the client's: it has no entry to compare with.
+    if (!holds_anything) {
+      continue;
     }
     hashes.emplace_back(sector.x(), sector.y(), sector.z(), total);
   }
