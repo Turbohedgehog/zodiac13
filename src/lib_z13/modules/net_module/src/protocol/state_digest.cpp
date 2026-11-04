@@ -35,6 +35,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_profile/profile.h>
 
+#include <primitives/block_group.h>
 #include <sectors/sector_index.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/input/player_action.h>
@@ -43,6 +44,7 @@
 #include <z13/components/gameplay/net.h>
 #include <z13_settings/building_tuning.h>
 
+#include "../sectors/chunk_reach.h"
 #include "../sectors/interest_events.h"
 #include "../sectors/interest_view.h"
 #include "../session/remote_input.h"
@@ -158,6 +160,11 @@ bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDig
   if (!center) {
     return true;
   }
+  if (!std::ranges::equal(local.grid_hashes, remote.grid_hashes, [](const auto& a, const auto& b) {
+        return a.grid() == b.grid() && a.hash() == b.hash();
+      })) {
+    return false;
+  }
   const int radius = world.get<NetTuning>().interest_radius_sectors;
   for (int dx = -radius; dx <= radius; ++dx) {
     for (int dy = -radius; dy <= radius; ++dy) {
@@ -174,9 +181,14 @@ bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDig
 
 // What a client with interest events can compare: its view's sectors and players. Under a budget a sector
 // holds players the client doesn't, so its hash counts only the view's (`split` is the digest's tick, split).
-fbn::StateDigestT DigestOfView(
-    const fbn::StateDigestT& digest, const InterestView& view, const std::optional<SplitHashes>& split) {
+fbn::StateDigestT DigestOfView(const fbn::StateDigestT& digest, const InterestView& view,
+                               const std::optional<SplitHashes>& split, const ChunkReach& reach) {
   fbn::StateDigestT part(digest);
+  // A district is the client's while it touches a sector it holds.
+  std::erase_if(part.grid_hashes, [&](const fbn::GridHashWire& entry) {
+    return !reach.TouchesAny(z13::building::primitives::BlockGroupId(entry.grid(), Eigen::Vector3i::Zero()),
+                             view.sectors);
+  });
   if (split) {
     part.sector_hashes = HashesOf(*split, &view.players);
   }
@@ -204,6 +216,7 @@ void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT
     return;
   }
   const std::optional<SplitHashes> split = SplitOf(world, digest.tick);
+  const ChunkReach reach = digest.grid_hashes.empty() ? ChunkReach {} : ChunkReach::Of(world);
   const auto& knowledge = world.get<InterestKnowledge>().by_client;
   for (const auto& [connection, client] : session.PlayerConnections()) {
     std::optional<InterestView> view = ViewOf(world, client);
@@ -213,7 +226,7 @@ void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT
       view->players.insert(client);
     }
     Envelope envelope;
-    envelope.body.Set(view ? DigestOfView(digest, *view, split) : fbn::StateDigestT(digest));
+    envelope.body.Set(view ? DigestOfView(digest, *view, split, reach) : fbn::StateDigestT(digest));
     session.Send(connection, Channel::kReliable, envelope);
   }
 }
@@ -240,6 +253,7 @@ fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSn
         world, snapshot.snapshot, world.get<sectors::SectorIndex>(), world.get<z13::BuildingTuning>().index_chunk_cells);
     digest.global_hash = by_sector.global;
     digest.sector_hashes = std::move(by_sector.by_sector);
+    digest.grid_hashes = std::move(by_sector.by_grid);
   }
   digest.entity_count = std::accumulate(
       snapshot.snapshot.groups.begin(), snapshot.snapshot.groups.end(), static_cast<uint32_t>(names.size()),

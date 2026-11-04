@@ -27,6 +27,7 @@
 #include <net_generated.h>
 
 #include <sectors/sector_index.h>
+#include <z13/components/station/grid.h>
 
 namespace z13::net {
 
@@ -36,6 +37,8 @@ namespace z13::net {
 struct SectorHashes {
   uint64_t global {};
   std::vector<fbs::net::SectorHashWire> by_sector;  // sorted by sector
+  // The blocks of each grid other than the main one are one group, hashed apart from the sectors.
+  std::vector<fbs::net::GridHashWire> by_grid;  // sorted by grid
 };
 
 SectorHashes HashBySector(flecs::world world, const z13::flecs_tools::WorldSnapshot& snapshot,
@@ -54,6 +57,7 @@ struct SectorHashParts {
 
 struct SplitHashes {
   uint64_t global {};
+  std::map<z13::station::GridId, uint64_t> by_grid;
   std::unordered_map<sectors::SectorKey, SectorHashParts, sectors::SectorHash> by_sector;
 };
 

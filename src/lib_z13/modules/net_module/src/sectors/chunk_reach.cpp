@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include <primitives/block_group.h>
 #include <primitives/placement.h>
 #include <sectors/sector_index.h>
 #include <z13/components/station/block.h>
@@ -34,8 +35,9 @@ ChunkReach ChunkReach::Of(flecs::world world) {
     if (!block.is_alive() || !block.has<z13::station::Block>()) {
       continue;  // destroyed this tick; the index drops it in its phase
     }
-    const uint64_t chunk = z13::building::primitives::PackChunk(
-        z13::building::primitives::ChunkOf(block.get<z13::station::Block>().cell, chunk_cells));
+    const auto& data = block.get<z13::station::Block>();
+    const uint64_t chunk = z13::building::primitives::BlockGroupId(
+        data.grid, z13::building::primitives::ChunkOf(data.cell, chunk_cells));
     for (const sectors::SectorKey& sector : index.SectorsOf({.kind = sectors::MemberKind::kBlock, .id = id})) {
       reach.sectors_of_[chunk].push_back(sector);
       reach.chunks_in_[sector].push_back(chunk);

@@ -16,6 +16,7 @@ z13_add_library(
   ${PROJECT_NAME} STATIC FBS_HEADERS OPTIMIZE_IN_DEBUG
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
+  src/block_group.cpp
   src/blueprint.cpp
   src/cell_test.cpp
   src/chunk_mesh.cpp

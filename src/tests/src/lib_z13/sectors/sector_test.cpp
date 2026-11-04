@@ -16,7 +16,11 @@
 
 #include <gtest/gtest.h>
 
+#include <numbers>
+#include <vector>
+
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 #include <sectors/sector.h>
 
@@ -71,6 +75,29 @@ TEST(SectorBoxTest, ABoxHoldsTheSectorsBetweenItsCornersAndGrowsOnEverySide) {
   EXPECT_EQ(box.Sectors().size(), 6u);
   EXPECT_TRUE(box.Grown(1).Contains({2, -1, 3}));
   EXPECT_FALSE(box.Grown(1).Contains({3, 0, 2}));
+}
+
+// A grid at the origin turned a quarter about Z: its +X cells run along the world's +Y.
+TEST(SectorTest, ABoxOfATurnedGridTouchesTheSectorsItsWorldCellsAreIn) {
+  const Eigen::Isometry3f turned {Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.f, Eigen::Vector3f::UnitZ())};
+  const z13::building::primitives::CellBox box {.min = {20, 0, 0}, .extent = {1, 1, 1}};
+
+  EXPECT_EQ(SectorsTouched(box, turned, kSectorCells), std::vector<SectorKey> {SectorKey(-1, 1, 0)});
+  EXPECT_EQ(SectorsTouched(box, kSectorCells), std::vector<SectorKey> {SectorKey(1, 0, 0)});
+}
+
+TEST(SectorTest, ABoxOfAMovedGridStaysOnItsSideOfABorderItEndsOn) {
+  const Eigen::Isometry3f moved {Eigen::Translation3f(
+      static_cast<float>(kSectorCells - 4) * z13::station::kCellSize, 0.f, 0.f)};
+  const z13::building::primitives::CellBox box {.min = {0, 0, 0}, .extent = {4, 1, 1}};
+
+  EXPECT_EQ(SectorsTouched(box, moved, kSectorCells), std::vector<SectorKey> {SectorKey(0, 0, 0)});
+}
+
+TEST(SectorTest, ABoxOfAnUnposedGridTouchesWhatTheBoxAloneDoes) {
+  const z13::building::primitives::CellBox box {.min = {14, 0, 0}, .extent = {4, 1, 1}};
+
+  EXPECT_EQ(SectorsTouched(box, Eigen::Isometry3f::Identity(), kSectorCells), SectorsTouched(box, kSectorCells));
 }
 
 }  // namespace

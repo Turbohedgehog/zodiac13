@@ -33,6 +33,7 @@
 
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_point.h>
+#include <primitives/block_group.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
 
@@ -81,7 +82,9 @@ uint64_t HashOf(flecs::entity e) {
 z13::flecs_tools::GroupOf MakeGroupOf(flecs::world world) {
   const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
   return [chunk_cells](flecs::entity e) {
-    return BlockSnapshotSystem::GroupIdOf(z13::building::primitives::ChunkOf(e.get<Block>().cell, chunk_cells));
+    const Block& block = e.get<Block>();
+    return z13::building::primitives::BlockGroupId(
+        block.grid, z13::building::primitives::ChunkOf(block.cell, chunk_cells));
   };
 }
 
@@ -97,10 +100,6 @@ void InstallGrouping(flecs::world world) {
 }
 
 }  // namespace
-
-z13::flecs_tools::SnapshotGroupId BlockSnapshotSystem::GroupIdOf(const Eigen::Vector3i& chunk) {
-  return z13::building::primitives::PackChunk(chunk);
-}
 
 void BlockSnapshotSystem::Register(flecs::world& world) {
   OnInitSystems(world, InstallGrouping);

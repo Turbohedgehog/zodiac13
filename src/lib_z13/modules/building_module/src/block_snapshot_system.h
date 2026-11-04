@@ -26,13 +26,11 @@
 
 namespace z13::building {
 
-// Files the blocks into snapshot groups (SnapshotGrouping) by index chunk.
+// Files the blocks into snapshot groups (SnapshotGrouping): the main grid's by index chunk, any other grid's whole
+// (primitives/block_group.h).
 class BlockSnapshotSystem {
  public:
   static void Register(flecs::world& world);
-
-  // The chunk's three coordinates, 21 bits each.
-  static z13::flecs_tools::SnapshotGroupId GroupIdOf(const Eigen::Vector3i& chunk);
 };
 
 }  // namespace z13::building

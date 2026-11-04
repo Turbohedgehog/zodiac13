@@ -16,6 +16,8 @@
 
 #include <sectors/sector.h>
 
+#include <limits>
+
 #include <net_tuning_generated.h>
 
 namespace z13::net::sectors {
@@ -43,6 +45,34 @@ std::vector<SectorKey> SectorsTouched(const z13::building::primitives::CellBox& 
     }
   }
   return touched;
+}
+
+namespace {
+
+constexpr int kBoxCorners = 8;
+// A box ending exactly on a sector's edge stays on its side, float error included (a grid only moved by whole cells).
+constexpr float kEdgeSlackCells = 1e-3f;
+
+}  // namespace
+
+std::vector<SectorKey> SectorsTouched(
+    const z13::building::primitives::CellBox& box, const Eigen::Isometry3f& grid_to_world, int sector_cells) {
+  if (grid_to_world.isApprox(Eigen::Isometry3f::Identity()) || (box.extent.array() <= 0).any()) {
+    return SectorsTouched(box, sector_cells);
+  }
+  Eigen::Vector3f low = Eigen::Vector3f::Constant(std::numeric_limits<float>::max());
+  Eigen::Vector3f high = Eigen::Vector3f::Constant(std::numeric_limits<float>::lowest());
+  for (int corner = 0; corner < kBoxCorners; ++corner) {
+    const Eigen::Vector3i pick(corner & 1, (corner >> 1) & 1, (corner >> 2) & 1);
+    const Eigen::Vector3f local = (box.min + pick.cwiseProduct(box.extent)).cast<float>() * z13::station::kCellSize;
+    const Eigen::Vector3f world = grid_to_world * local;
+    low = low.cwiseMin(world);
+    high = high.cwiseMax(world);
+  }
+  const Eigen::Vector3i first = ((low / z13::station::kCellSize).array() + kEdgeSlackCells).floor().cast<int>();
+  const Eigen::Vector3i last = ((high / z13::station::kCellSize).array() - kEdgeSlackCells).ceil().cast<int>();
+  return SectorsTouched(
+      {.min = first, .extent = Eigen::Vector3i(last - first).cwiseMax(Eigen::Vector3i::Ones())}, sector_cells);
 }
 
 std::vector<SectorKey> SectorBox::Sectors() const {

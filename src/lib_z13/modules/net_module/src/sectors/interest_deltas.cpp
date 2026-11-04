@@ -31,6 +31,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/log.h>
 
+#include <primitives/block_group.h>
 #include <primitives/placement.h>
 #include <sectors/sector.h>
 #include <z13/components/station/block.h>
@@ -61,10 +62,12 @@ std::vector<flecs::entity> BlocksOf(flecs::world world, std::span<const uint64_t
                : std::nullopt;
   std::vector<flecs::entity> found;
   world.query<const z13::station::Block>().each([&](flecs::entity e, const z13::station::Block& block) {
-    const uint64_t chunk =
-        z13::building::primitives::PackChunk(z13::building::primitives::ChunkOf(block.cell, chunk_cells));
-    if (wanted_chunks.contains(chunk) ||
-        (sector_box && z13::building::primitives::OccupiedCells(block).Overlaps(*sector_box))) {
+    const uint64_t chunk = z13::building::primitives::BlockGroupId(
+        block.grid, z13::building::primitives::ChunkOf(block.cell, chunk_cells));
+    // A district's cells are its own, not the world's: only its group says whether it concerns the sector.
+    const bool in_sector = sector_box && block.grid == z13::station::kMainGrid &&
+                           z13::building::primitives::OccupiedCells(block).Overlaps(*sector_box);
+    if (wanted_chunks.contains(chunk) || in_sector) {
       found.push_back(e);
     }
   });
