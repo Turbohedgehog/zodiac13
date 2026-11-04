@@ -140,6 +140,26 @@ TEST(SectorHashTest, ASectorCountingSomePlayersHashesLikeAWorldWithoutTheOthers)
   EXPECT_EQ(HashOf(counting_one, {kStartSector, 0, 0}), HashOf(Hashes(alone), {kStartSector, 0, 0}));
 }
 
+TEST(SectorHashTest, ASectorOfPlayersTheViewLeavesOutHasNoHash) {
+  constexpr uint32_t kOther = 31;
+  Z13TestWorld world = StationWorld();
+  const float sector_meters = static_cast<float>(SectorCells(world)) * z13::station::kCellSize;
+  z13::testing::AddBuilder(world, kMover, StandingIn(kStartSector, sector_meters));
+  z13::testing::AddBuilder(world, kOther, StandingIn(kEndSector, sector_meters));
+  world.Tick();
+  flecs::world w = world.World();
+  const auto snapshot = z13::flecs_tools::CaptureState(w);
+  ASSERT_TRUE(snapshot.has_value());
+  const SplitHashes split = SplitBySector(
+      w, *snapshot, w.get<sectors::SectorIndex>(), w.get<z13::BuildingTuning>().index_chunk_cells);
+
+  const std::unordered_set<uint32_t> only_mover {kMover};
+  const SectorHashes counting_one {.by_sector = HashesOf(split, &only_mover)};
+
+  EXPECT_TRUE(HashOf(counting_one, {kStartSector, 0, 0}).has_value());
+  EXPECT_FALSE(HashOf(counting_one, {kEndSector, 0, 0}).has_value());
+}
+
 TEST(SectorHashTest, ADigestCarriesTheSectorHashesOfItsSnapshot) {
   Z13TestWorld world = StationWorld();
   world.Tick();

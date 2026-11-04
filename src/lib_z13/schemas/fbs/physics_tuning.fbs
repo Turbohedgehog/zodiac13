@@ -36,8 +36,9 @@ table PhysicsTuning {
   // How fast a player's up turns to a room's new gravity: the share of the turn left that is made up per second
   // (6 closes most of a few degrees in half a second).
   up_follow_rate: float = 6 (min: "0.1", max: "100", cli);
-  // Without gravity: 0 flies at a fixed speed with the keys; above 0 the keys thrust (m/s2) and the player drifts.
-  drift_thrust: float = 0 (min: "0", max: "100", cli);
+  // Without gravity in a station: the keys thrust (m/s2) and the player drifts; 0, or the ship scene, flies at a
+  // fixed speed with the keys.
+  drift_thrust: float = 8 (min: "0", max: "100", cli);
   drift_max_speed: float = 10 (min: "0.1", max: "100", cli);
   // A gravity generator pulls the rooms whose boxes lie within this many cells of its block.
   generator_radius_cells: uint32 = 96 (min: 1, max: 4096, cli);

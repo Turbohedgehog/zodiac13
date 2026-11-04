@@ -41,6 +41,7 @@
 #include <z13/components/gameplay/net.h>
 #include <z13/components/gameplay/player.h>
 #include <player/gameplay_entities.h>
+#include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
 
 #include "../support/building_test_helpers.h"
@@ -69,6 +70,13 @@ constexpr uint64_t kWalkTicks = 45;
 // Digests checked after the churn: the first may still describe a tick before it settled.
 constexpr uint64_t kDigestChecks = 2;
 constexpr uint64_t kMaxSettleTicks = 1200;
+
+// The position check needs players at rest; while drifting, the digests vouch for convergence.
+z13::Settings WalkersComeToRest() {
+  z13::Settings settings = z13::testing::TestSettings();
+  settings.physics->drift_thrust = 0.f;
+  return settings;
+}
 
 class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
  protected:
@@ -195,7 +203,8 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
 
   std::shared_ptr<InMemoryNetwork> network_ = std::make_shared<InMemoryNetwork>();
   std::unique_ptr<Z13TestWorld> server_ = std::make_unique<Z13TestWorld>(
-      std::vector {std::string(kServerArg), std::string(kStationSceneArg), std::string(GetParam())}, network_);
+      std::vector {std::string(kServerArg), std::string(kStationSceneArg), std::string(GetParam())}, network_,
+      WalkersComeToRest());
   std::vector<std::unique_ptr<Z13TestWorld>> clients_;
   // Not ticked: a frozen process, which sends nothing.
   std::set<const Z13TestWorld*> stalled_;
