@@ -56,6 +56,18 @@ void ApplyPong(ClockSync& sync, const NetTuning& tuning, uint64_t sent_tick, uin
 
   const int64_t rtt = std::max<int64_t>(static_cast<int64_t>(received_tick - sent_tick) - adjusted_ticks, 0);
   sync.rtt_ticks = rtt;
+  const bool outlier =
+      sync.smoothed_rtt_ticks &&
+      static_cast<double>(rtt) > *sync.smoothed_rtt_ticks + static_cast<double>(tuning.clock_rtt_outlier_ticks);
+  if (outlier && sync.rtt_outliers_in_row < tuning.clock_rtt_outliers_max) {
+    ++sync.rtt_outliers_in_row;
+    return;
+  }
+  sync.rtt_outliers_in_row = 0;
+  sync.smoothed_rtt_ticks = outlier || !sync.smoothed_rtt_ticks
+                                ? static_cast<double>(rtt)
+                                : tuning.clock_offset_smoothing * static_cast<double>(rtt) +
+                                      (1. - tuning.clock_offset_smoothing) * *sync.smoothed_rtt_ticks;
   // Assumes a symmetric path; asymmetry only costs extra rollbacks.
   const int64_t sample = static_cast<int64_t>(server_tick) + rtt / 2 + static_cast<int64_t>(tuning.clock_lead_ticks) -
                          (static_cast<int64_t>(received_tick) + adjust.ticks);
