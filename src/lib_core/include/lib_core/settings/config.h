@@ -47,7 +47,6 @@ class Config {
 
   // Returns the rejection reason instead of applying anything; see Clear().
   Status ParseCommandLineArguments(int argc, char *argv[]);
-  boost::program_options::options_description& GetOptionsDescription();
   bool NeedShowHelp() const;
   friend std::ostream& operator<<(std::ostream& os, const Config& person);
   double GetFPS() const;

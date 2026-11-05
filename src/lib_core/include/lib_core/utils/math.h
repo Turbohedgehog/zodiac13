@@ -22,8 +22,6 @@ namespace z13::math {
 
 constexpr double kEpsilon = 0.0001f;
 constexpr double kPi = 3.14159265358979323846;
-constexpr double kHalfPi = kPi / 2.0;
-constexpr double kTwoPi = 2.0 * kPi;
 
 template <typename T>
 using Vector3 = Eigen::Matrix<T, 3, 1>;
