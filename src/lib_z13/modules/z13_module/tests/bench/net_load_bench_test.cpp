@@ -242,7 +242,7 @@ TEST(NetLoadBench, DISABLED_RollbacksBySteering) {
 TEST(NetLoadBench, DISABLED_RollbacksByTuning) {
   constexpr int kClients = 16;
   for (const uint64_t send_interval : {3, 6}) {
-    for (const uint64_t rollback_delay : {6, 12, 24}) {
+    for (const uint64_t rollback_delay : {0, 6, 12, 24}) {
       LoadSession session(kClients, {}, [&](z13::Settings& settings) {
         settings.net->send_interval_ticks = send_interval;
         settings.core->max_rollback_delay_ticks = rollback_delay;
@@ -261,6 +261,49 @@ TEST(NetLoadBench, DISABLED_RollbacksByTuning) {
           kClients, send_interval, rollback_delay, after.rollbacks.rollbacks - before.rollbacks.rollbacks,
           after.rollbacks.replayed_ticks - before.rollbacks.replayed_ticks,
           std::chrono::duration<double, std::milli>(after.server_time - before.server_time).count() / kMeasuredTicks);
+    }
+  }
+}
+
+// What batching rollbacks (max_rollback_delay_ticks) saves a client: its own rollbacks and frame time, which
+// Take() doesn't count (docs/net-core.md, "Ревизия избыточного кода").
+TEST(NetLoadBench, DISABLED_ClientRollbacksByDelay) {
+  constexpr z13::net::FaultConfig kLatency {.min_delay_ticks = 1, .max_delay_ticks = 2};
+  for (const int clients : {4, 16}) {
+    for (const uint64_t rollback_delay : {0, 6}) {
+      LoadSession session(static_cast<size_t>(clients), {}, [rollback_delay](z13::Settings& settings) {
+        settings.core->max_rollback_delay_ticks = rollback_delay;
+      });
+      session.Network().SetFaultConfig(kLatency);
+      ASSERT_TRUE(session.Connect(kConnectTicks));
+      for (uint64_t tick = 0; tick < kWarmUpTicks; ++tick) {
+        session.Tick();
+      }
+      const auto rollbacks_of_clients = [&] {
+        z13::flecs_tools::RollbackMetrics total;
+        for (size_t i = 0; i < session.ClientCount(); ++i) {
+          const auto& metrics = session.Client(i).World().get<z13::flecs_tools::RollbackMetrics>();
+          total.rollbacks += metrics.rollbacks;
+          total.replayed_ticks += metrics.replayed_ticks;
+        }
+        return total;
+      };
+      const auto before = rollbacks_of_clients();
+      const auto server_before = session.ServerTime();
+      const auto start = std::chrono::steady_clock::now();
+      for (uint64_t tick = 0; tick < kMeasuredTicks; ++tick) {
+        session.Tick();
+      }
+      const auto wall = std::chrono::steady_clock::now() - start;
+      const auto after = rollbacks_of_clients();
+      const double clients_ms =
+          std::chrono::duration<double, std::milli>(wall - (session.ServerTime() - server_before)).count();
+      std::cout << std::format(
+          "{:2} clients, rollback delay {}: {:.1f} rollbacks and {:.0f} ticks replayed per client, client {:.2f} ms/tick\n",
+          clients, rollback_delay,
+          static_cast<double>(after.rollbacks - before.rollbacks) / clients,
+          static_cast<double>(after.replayed_ticks - before.replayed_ticks) / clients,
+          clients_ms / kMeasuredTicks / clients);
     }
   }
 }
