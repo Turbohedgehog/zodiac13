@@ -227,6 +227,29 @@ TEST(ActionReplayTest, RollbackAndReplayReproducesLiveStateAtTheSameTick) {
   EXPECT_EQ(Checkpoint(test_world), ground_truth);
 }
 
+// A key held since before every retained snapshot is recorded once: the replay finds it carried to the oldest kept tick.
+TEST(ActionReplayTest, RollbackMidHoldReproducesLiveStateWithoutReassertion) {
+  Z13TestWorld test_world;
+  flecs::world& world = test_world.World();
+  const uint64_t interval_ticks = IntervalTicks(test_world);
+  const uint64_t retention_ticks =
+      RoundTicks(test_world.Config().GetSnapshotRetentionSeconds(), test_world.Config().GetFPS());
+
+  test_world.EmitInput(z13::testing::KeyDown(Keycode::KEY_W));
+  RealFrames(test_world, retention_ticks + interval_ticks * 2);
+  // Not the oldest: the capture of the rollback's own tick prunes it first.
+  const uint64_t rollback_tick = world.get<ft::WorldSnapshotHistory>().history.Entries()[1].tick;
+  ASSERT_GT(rollback_tick, 0u);
+
+  const uint64_t target_tick = world.get<ft::SimulationClock>().tick;
+  const std::string ground_truth = Checkpoint(test_world);
+
+  RollBackTo(test_world, rollback_tick, target_tick);
+  ASSERT_FALSE(world.has<ft::RollbackFailed>()) << world.get<ft::RollbackFailed>().reason;
+
+  EXPECT_EQ(Checkpoint(test_world), ground_truth);
+}
+
 // Coalescing is what keeps several late arrivals in one frame down to a single rollback:
 // the earliest tick asked for wins, and the latest target does.
 TEST(ActionReplayTest, RollbackRequestsInOneFrameCoalesce) {

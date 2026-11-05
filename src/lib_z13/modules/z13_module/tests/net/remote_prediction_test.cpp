@@ -167,7 +167,7 @@ TEST(RemotePredictionTest, ARemotePlayerNeverRunsPastItsStop) {
   EXPECT_LT((run.server_final - run.a_final).norm(), kTestEpsilon);
 }
 
-// Past the held-key reassert interval, only the confirmed-tick heartbeat keeps B's A moving.
+// Past the snapshot interval, only the confirmed-tick heartbeat keeps B's A moving.
 TEST(RemotePredictionTest, ALongHoldKeepsMoving) {
   constexpr int kLongHoldTicks = 150;
   constexpr int kMaxExpectedLagTicks = 20;

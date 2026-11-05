@@ -50,22 +50,6 @@ uint64_t RoundTicks(double seconds, uint64_t ticks_per_second) {
   return static_cast<uint64_t>(std::llround(seconds * static_cast<double>(ticks_per_second)));
 }
 
-std::optional<uint64_t> IntervalTicks(flecs::world world) {
-  const std::optional<uint64_t> ticks_per_second = z13::flecs_tools::TicksPerSecond(world);
-  const std::optional<double> interval_seconds = z13::flecs_tools::SnapshotIntervalSeconds(world);
-  if (!ticks_per_second || !interval_seconds) {
-    return std::nullopt;
-  }
-  return RoundTicks(*interval_seconds, *ticks_per_second);
-}
-
-// A held action only changes on press/release, so a snapshot taken mid-hold would leave
-// replay unaware it was active. Re-asserting nonzero values on the same cadence as
-// WorldSnapshotHistory's captures fixes that.
-bool IsReassertTick(const std::optional<uint64_t>& interval_ticks, uint64_t tick) {
-  return interval_ticks && *interval_ticks != 0 && tick % *interval_ticks == 0;
-}
-
 // Mirrors WorldSnapshotHistory's own retention window, so a still-retained snapshot's
 // held-action state is never missing here (a rollback can't reach past it either). A pruned
 // press still holds until its release, so its value moves to the oldest kept tick.
@@ -107,19 +91,17 @@ void PruneOldRecords(flecs::world world, uint64_t current_tick, z13::gameplay::P
 // Compares against last_recorded, not prev_value: see LastRecordedActionValues. The
 // listener keeps the canonical value too, so live play matches the log it replays from.
 void RecordChangedActions(
-    flecs::iter& it, size_t,
+    flecs::iter&, size_t,
     const z13::gameplay::Player& player,
     z13::input::ActionListener& action_listener,
     const z13::flecs_tools::SimulationClock& clock,
     z13::gameplay::OutgoingCommands& outgoing,
     z13::gameplay::LastRecordedActionValues& last_recorded) {
-  const bool reassert = IsReassertTick(IntervalTicks(it.world()), clock.tick);
-
   for (auto& [action_id, holder] : action_listener.action_values) {
     const float current = z13::gameplay::CanonicalActionValue(*holder);
     *holder = current;
     float& last = last_recorded.values[action_id];
-    if (current == last && !(reassert && current != 0.f)) {
+    if (current == last) {
       continue;
     }
 

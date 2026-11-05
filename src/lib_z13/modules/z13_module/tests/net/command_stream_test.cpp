@@ -151,7 +151,7 @@ Eigen::Vector3f Position(Z13TestWorld& world, uint32_t player_id) {
 }
 
 // Welcome's snapshot is the newest one past the late-command window. B joins so that it was
-// taken mid-hold and the held key's next reassert is far off: only held_values tell B W is down.
+// taken mid-hold and the held key is recorded once: only held_values tell B W is down.
 TEST(CommandStreamTest, LateJoinMidHoldSeesTheHeldMovement) {
   constexpr double kSnapshotIntervalSeconds = 5.;
   constexpr double kSnapshotRetentionSeconds = 10.;
@@ -417,7 +417,7 @@ TEST(CommandStreamTest, PausingKeepsTheLookAngle) {
   EXPECT_FLOAT_EQ(Pitch(server, a_id), looked);
 }
 
-TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {
+TEST(CommandStreamTest, AHeldKeyIsOneCommandNotOnePerTick) {
   auto network = std::make_shared<InMemoryNetwork>();
   Z13TestWorld server = MakeServer(network);
   Z13TestWorld client_a = MakeClient(network);
@@ -426,14 +426,13 @@ TEST(CommandStreamTest, HeldKeyReassertsPeriodicallyNotEveryTick) {
       *network, {server, client_a}, kNetTestDeltaTime, kMaxNetTestTicks, [&] { return IsConnected(client_a); }));
 
   const uint64_t interval_ticks = SnapshotIntervalTicks(server);
-  const uint64_t hold_ticks = interval_ticks * 2 + 10;  // spans two reassert boundaries
+  const uint64_t hold_ticks = interval_ticks * 2 + 10;
   client_a.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   RunNetworkUntil(*network, {server, client_a}, kNetTestDeltaTime, hold_ticks, [] { return false; });
   client_a.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
 
   const size_t log_count = LogCountFor(server, kClientAId);
-  EXPECT_GE(log_count, 1u);
-  EXPECT_LE(log_count, 4u) << "expected roughly one record per press/reassert boundary, not one per tick";
+  EXPECT_EQ(log_count, 1u) << "a hold is its press, not a record per tick or per snapshot interval";
 }
 
 }  // namespace
