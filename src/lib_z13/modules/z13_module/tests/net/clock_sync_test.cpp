@@ -319,12 +319,46 @@ TEST(ClockSyncTest, OneSpikeMovesTheEstimateOnlyPartway) {
   }
   ASSERT_EQ(*sync.offset_ticks, 50);
 
-  // A 100-tick latency spike, all of it on the way back: the sample is off by rtt / 2.
+  // A spike short of an outlier (rtt 12 against 4), all of it on the way back: the sample is off by rtt / 2.
   sync.ping_sent_tick = 500;
-  ApplyPong(sync, kTuning, 500, 552, 604);
+  ApplyPong(sync, kTuning, 500, 552, 512);
 
   EXPECT_LT(*sync.offset_ticks, 50);
   EXPECT_GT(*sync.offset_ticks, 25) << "a single spike moved the estimate more than half way";
+}
+
+TEST(ClockSyncTest, AStallInTheRoundTripLeavesTheClockAlone) {
+  ClockSync sync;
+  for (uint64_t sent = 100; sent <= 400; sent += 100) {
+    sync.ping_sent_tick = sent;
+    ApplyPong(sync, kTuning, sent, sent + 52, sent + 4);
+  }
+  ASSERT_EQ(*sync.offset_ticks, 50);
+
+  sync.ping_sent_tick = 500;
+  ApplyPong(sync, kTuning, 500, 552, 600);
+
+  EXPECT_EQ(*sync.offset_ticks, 50);
+  EXPECT_EQ(sync.rtt_ticks, 100);
+  EXPECT_FALSE(sync.ping_sent_tick.has_value());
+}
+
+TEST(ClockSyncTest, ALongerRoadHeldForSeveralPongsIsTaken) {
+  ClockSync sync;
+  sync.ping_sent_tick = 100;
+  ApplyPong(sync, kTuning, 100, 152, 104);
+  ASSERT_EQ(*sync.smoothed_rtt_ticks, 4);
+
+  uint64_t sent = 200;
+  for (uint64_t i = 0; i < kTuning.clock_rtt_outliers_max; ++i, sent += 100) {
+    sync.ping_sent_tick = sent;
+    ApplyPong(sync, kTuning, sent, sent + 70, sent + 40);
+    EXPECT_EQ(*sync.smoothed_rtt_ticks, 4) << "outlier " << i << " was taken";
+  }
+  sync.ping_sent_tick = sent;
+  ApplyPong(sync, kTuning, sent, sent + 70, sent + 40);
+  EXPECT_EQ(*sync.smoothed_rtt_ticks, 40);
+  EXPECT_EQ(sync.rtt_outliers_in_row, 0u);
 }
 
 TEST(ClockSyncTest, AMissLatencyCannotExplainIsTakenWhole) {

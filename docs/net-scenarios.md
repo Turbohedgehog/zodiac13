@@ -17,6 +17,7 @@
 | `clock_catch_up_threshold_ticks` / `clock_catch_up_every_ticks` | 2 / 4 | догон по тику |
 | `clock_jump_threshold_ticks` | 15 | прыжок часов |
 | `clock_offset_smoothing` | 0.25 | сглаживание оценки отставания |
+| `clock_rtt_outlier_ticks` / `clock_rtt_outliers_max` | 8 / 3 | Pong с путём дольше сглаженного больше чем на 8 тиков — фриз, часы не трогает; 3 подряд — дорога сменилась |
 | `SessionTimeout` | 32 попытки, 20–60 с | ENet рвёт соединение с замолчавшей стороной |
 | `ConnectTimeout` | 32 попытки, 1–3 с | сколько ждать соединения при входе |
 

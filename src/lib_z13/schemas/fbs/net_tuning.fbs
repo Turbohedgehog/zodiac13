@@ -38,6 +38,10 @@ table NetTuning {
   clock_catch_up_threshold_ticks: int64 = 2 (min: 1, cli);
   clock_catch_up_every_ticks: uint64 = 4 (min: 1, cli);
   clock_jump_threshold_ticks: int64 = 15 (min: 1, cli);
+  // A Pong whose round trip exceeds the smoothed one by more than this is a stall (a long frame, a burst of loss)
+  // and leaves the clock alone; after clock_rtt_outliers_max in a row the road is taken to have changed.
+  clock_rtt_outlier_ticks: int64 = 8 (min: 1, cli);
+  clock_rtt_outliers_max: uint64 = 3 (min: 1, cli);
   // Ticks a client's clock runs ahead of the server's: about the trip of its commands plus send_interval_ticks, so
   // they arrive before their tick and don't roll the server back. The server's player sees the others this
   // much later, so a server with a player (listen) keeps it short.

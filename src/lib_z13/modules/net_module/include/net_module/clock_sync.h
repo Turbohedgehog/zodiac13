@@ -30,6 +30,9 @@ struct ClockSync {
   std::optional<int64_t> offset_ticks;
   std::optional<uint64_t> ping_sent_tick;
   std::optional<int64_t> rtt_ticks;
+  // Over the Pongs the clock took; a stall's round trip is judged against it.
+  std::optional<double> smoothed_rtt_ticks;
+  uint64_t rtt_outliers_in_row {};
   // ClockAdjustRequest::applied when the Ping went out.
   int64_t applied_at_ping {};
 };
