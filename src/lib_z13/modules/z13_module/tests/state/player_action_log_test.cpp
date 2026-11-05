@@ -200,7 +200,7 @@ TEST(PlayerActionLogTest, PrunedHeldValueIsCarriedToTheOldestKeptTick) {
   EXPECT_EQ(remote.front().tick, test_world.World().get<PlayerActionLog>().retained_since_tick);
 }
 
-TEST(PlayerActionLogTest, HeldActionIsReassertedAtTheSnapshotIntervalBoundary) {
+TEST(PlayerActionLogTest, HeldActionIsRecordedOnceNotAtEverySnapshotInterval) {
   Z13TestWorld test_world;
   const uint64_t interval_ticks = IntervalTicks(test_world);
 
@@ -208,13 +208,12 @@ TEST(PlayerActionLogTest, HeldActionIsReassertedAtTheSnapshotIntervalBoundary) {
   test_world.Tick(kTestDeltaTime);
   const auto action_id = Records(test_world).front().action_id;
 
-  Frames(test_world, interval_ticks - 1);  // now at tick == interval_ticks
+  Frames(test_world, interval_ticks * 2);
 
   const auto records = Records(test_world);
-  ASSERT_EQ(records.size(), 2u) << "expected exactly one re-assertion at the interval boundary";
-  EXPECT_EQ(records[1].action_id, action_id);
-  EXPECT_EQ(records[1].value, 1.f);
-  EXPECT_EQ(records[1].tick, interval_ticks);
+  ASSERT_EQ(records.size(), 1u);
+  EXPECT_EQ(records.front().action_id, action_id);
+  EXPECT_EQ(records.front().value, 1.f);
 }
 
 }  // namespace

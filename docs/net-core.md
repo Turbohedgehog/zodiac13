@@ -113,6 +113,7 @@
 6. **`f/net-clock-lead`**: Н5, с замером числа откатов до и после (по записям откатов из `--log`).
    Сделано частично (`f/clock-lead`, 2026-10-25). Отличия: опережение — настройка сервера `net.clock_lead_ticks` (рассылается в `Welcome`, по умолчанию 3), а не оценка пути; замер — `NetLoadBench.RollbacksByClockLead` (опережение 7 при дороге до 2 тиков и интервале 3: 0 откатов сервера вместо 56 за 300 тиков, тик сервера на 8 клиентах 8,6 → 2,9 мс). Отбрасывание образцов RTT (`f/net-clock-lead`, 2026-11-05): `ClockSync::smoothed_rtt_ticks`, Pong с путём выше сглаженного больше чем на `net.clock_rtt_outlier_ticks` не двигает часы, после `net.clock_rtt_outliers_max` таких подряд принимается как новая дорога (`ClockSyncTest.AStallInTheRoundTripLeavesTheClockAlone`, `ALongerRoadHeldForSeveralPongsIsTaken`). Не сделано: подбор опережения под дорогу клиента.
 7. **`f/drop-reassert`**: Н7, если тест покажет, что переутверждение не нужно.
+   Сделано (`f/drop-reassert`, 2026-11-05). Переутверждение убрано из `RecordChangedActions`: удержание — одна команда (нажатие), снимок посреди удержания закрывают перенос значений при обрезке журнала и `held_values`. Тесты: `ActionReplayTest.RollbackMidHoldReproducesLiveStateWithoutReassertion` (W удержана дольше окна хранения, откат на самый старый снимок совпадает с живой игрой), `PlayerActionLogTest.HeldActionIsRecordedOnceNotAtEverySnapshotInterval`, `CommandStreamTest.AHeldKeyIsOneCommandNotOnePerTick`.
 8. **`f/net-core-trim`**: ревизия избыточного кода (ниже).
 
 ## Ревизия избыточного кода
