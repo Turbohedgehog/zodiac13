@@ -21,7 +21,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 
 namespace z13::station {
 

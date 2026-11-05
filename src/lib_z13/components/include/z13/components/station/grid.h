@@ -24,13 +24,10 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <z13/components/station/grid_id.h>
+
 namespace z13::station {
 
-// The id of a grid: given by the simulation, the same for every participant.
-using GridId = uint32_t;
-
-// The grid the station is built on, always present.
-inline constexpr GridId kMainGrid = 0;
 inline constexpr std::string_view kMainGridName = "MainGrid";
 
 // A grid of cells with its own pose: the cells of its blocks are in its own axes. The pose is set once
