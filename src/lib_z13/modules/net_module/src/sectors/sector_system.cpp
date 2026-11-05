@@ -16,6 +16,7 @@
 
 #include "sector_system.h"
 
+#include <algorithm>
 #include <memory>
 #include <unordered_set>
 
@@ -33,9 +34,12 @@
 #include <sectors/sector_index.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/gameplay/gameplay_phases.h>
 #include <z13/components/gameplay/player.h>
 #include <z13_settings/net_tuning.h>
+
+#include "block_sectors.h"
 
 namespace z13::net {
 
@@ -61,32 +65,44 @@ SectorMember BlockMember(flecs::entity_t entity) {
   return {.kind = MemberKind::kBlock, .id = entity};
 }
 
-void PlaceBlock(SectorIndex& index, flecs::entity_t entity, const z13::station::Block& block, int sector_cells) {
-  index.Place(
-      BlockMember(entity), sectors::SectorsTouched(z13::building::primitives::OccupiedCells(block), sector_cells));
+void PlaceBlock(SectorIndex& index, flecs::entity_t entity, const z13::station::Block& block,
+                const z13::station::GridPoses& poses, int sector_cells) {
+  index.Place(BlockMember(entity), BlockSectors(block, poses, sector_cells));
 }
 
-void RebuildBlocks(const z13::station::BlockChangeReader& reader, SectorIndex& index, int sector_cells) {
+void RebuildBlocks(const z13::station::BlockChangeReader& reader, SectorIndex& index,
+                   const z13::station::GridPoses& poses, int sector_cells) {
   for (const uint64_t id : index.IdsOf(MemberKind::kBlock)) {
     index.Remove(BlockMember(id));
   }
-  reader.Blocks().each([&index, sector_cells](flecs::entity block, const z13::station::Block& data) {
-    PlaceBlock(index, block.id(), data, sector_cells);
+  reader.Blocks().each([&](flecs::entity block, const z13::station::Block& data) {
+    PlaceBlock(index, block.id(), data, poses, sector_cells);
   });
 }
 
+bool SamePoses(const z13::station::GridPoses& a, const z13::station::GridPoses& b) {
+  return a.size() == b.size() && std::ranges::all_of(a, [&b](const auto& entry) {
+           const auto other = b.find(entry.first);
+           return other != b.end() && entry.second.isApprox(other->second);
+         });
+}
+
+// `placed_by` is the poses the index was made with: a grid that moved or appeared files its blocks again.
 void SyncBlocks(z13::station::BlockChangeReader& reader, uint64_t restores, uint64_t tick, SectorIndex& index,
-                int sector_cells, bool regridded) {
+                z13::station::GridPoses& placed_by, const z13::station::GridPoses& poses, int sector_cells,
+                bool regridded) {
   const z13::station::BlockChangeBatch batch = reader.Read(restores, tick);
-  if (batch.resync || regridded) {
-    RebuildBlocks(reader, index, sector_cells);
+  const bool reposed = !SamePoses(placed_by, poses);
+  placed_by = poses;
+  if (batch.resync || regridded || reposed) {
+    RebuildBlocks(reader, index, poses, sector_cells);
     return;
   }
   for (const z13::station::BlockChange& change : batch.changes) {
     if (change.kind == BlockChangeKind::kRemoved) {
       index.Remove(BlockMember(change.entity));
     } else {
-      PlaceBlock(index, change.entity, change.block, sector_cells);
+      PlaceBlock(index, change.entity, change.block, poses, sector_cells);
     }
   }
 }
@@ -111,6 +127,8 @@ void RegisterSystems(flecs::world world) {
 
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
   const PlayerQuery players = world.query<const z13::gameplay::Player, const Eigen::Matrix4f>();
+  const auto grids = world.query<const z13::station::Grid>();
+  const auto placed_by = std::make_shared<z13::station::GridPoses>();
   world.system<SectorIndex, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock,
                const z13::NetTuning>("SectorSystem::Sync")
       .kind<SectorPhase>()
@@ -118,7 +136,8 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::BlockChange>()
       .read<z13::gameplay::Player>()
       .read<Eigen::Matrix4f>()
-      .each([reader, players](flecs::iter&, size_t, SectorIndex& index,
+      .read<z13::station::Grid>()
+      .each([reader, players, grids, placed_by](flecs::iter&, size_t, SectorIndex& index,
                               const z13::flecs_tools::WorldRestores& restores,
                               const z13::flecs_tools::SimulationClock& clock, const z13::NetTuning& tuning) {
         Z13_PROFILE_ZONE("SectorSystem::Sync");
@@ -127,7 +146,8 @@ void RegisterSystems(flecs::world world) {
         if (regridded) {
           index = SectorIndex(sector_cells);
         }
-        SyncBlocks(*reader, restores.count, clock.tick, index, sector_cells, regridded);
+        SyncBlocks(*reader, restores.count, clock.tick, index, *placed_by, z13::station::PosesOf(grids), sector_cells,
+                   regridded);
         SyncPlayers(players, index, sector_cells);
       });
 }

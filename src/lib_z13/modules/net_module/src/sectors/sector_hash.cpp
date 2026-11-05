@@ -29,6 +29,7 @@
 #include <lib_core/state/snapshot_hash.h>
 #include <lib_core/utils/fnv_hash.h>
 
+#include <primitives/block_group.h>
 #include <primitives/placement.h>
 #include <z13/components/gameplay/player.h>
 
@@ -74,6 +75,11 @@ SplitHashes SplitBySector(flecs::world world, const ft::WorldSnapshot& snapshot,
     }
   }
   for (const std::shared_ptr<const ft::GroupSnapshot>& group : snapshot.groups) {
+    if (const auto grid = z13::building::primitives::GridOfGroup(group->id)) {
+      uint64_t& district = result.by_grid[*grid];
+      district = Add(Add(district, group->id), group->fingerprint);
+      continue;
+    }
     const Eigen::Vector3i chunk = z13::building::primitives::UnpackChunk(group->id);
     uint64_t& blocks = result.by_sector[sectors::SectorOf(chunk * chunk_cells, index.SectorCells())].blocks;
     blocks = Add(Add(blocks, group->id), group->fingerprint);
@@ -107,7 +113,11 @@ std::vector<fbs::net::SectorHashWire> HashesOf(const SplitHashes& split, const s
 SectorHashes HashBySector(flecs::world world, const ft::WorldSnapshot& snapshot, const sectors::SectorIndex& index,
                           int chunk_cells) {
   SplitHashes split = SplitBySector(world, snapshot, index, chunk_cells);
-  return {.global = split.global, .by_sector = HashesOf(split, nullptr)};
+  SectorHashes hashes {.global = split.global, .by_sector = HashesOf(split, nullptr)};
+  for (const auto& [grid, hash] : split.by_grid) {
+    hashes.by_grid.emplace_back(grid, hash);
+  }
+  return hashes;
 }
 
 }  // namespace z13::net

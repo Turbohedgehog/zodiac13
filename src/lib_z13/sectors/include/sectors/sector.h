@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 
 #include <primitives/placement.h>
 
@@ -49,5 +50,10 @@ SectorKey SectorOf(const Eigen::Vector3i& cell, int sector_cells);
 
 // Every sector the box touches; none for an empty box.
 std::vector<SectorKey> SectorsTouched(const z13::building::primitives::CellBox& box, int sector_cells);
+
+// The same for a box in the cells of a grid posed at `grid_to_world` (meters): the sectors its corners' bounding box in
+// the world reaches, so a tilted grid may list one more than it touches.
+std::vector<SectorKey> SectorsTouched(
+    const z13::building::primitives::CellBox& box, const Eigen::Isometry3f& grid_to_world, int sector_cells);
 
 }  // namespace z13::net::sectors

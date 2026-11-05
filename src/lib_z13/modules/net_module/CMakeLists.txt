@@ -57,6 +57,7 @@ z13_add_plugin(
   src/session/remote_input.cpp
   src/protocol/reply_limiter.cpp
   src/session/scheduled_commands.cpp
+  src/sectors/block_sectors.cpp
   src/sectors/sector_hash.cpp
   src/sectors/sector_system.cpp
   src/transport/sent_traffic.cpp

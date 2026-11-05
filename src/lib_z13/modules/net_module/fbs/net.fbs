@@ -61,6 +61,13 @@ struct SectorHashWire {
   hash: ulong;
 }
 
+// A district's share of StateDigest.state_hash's snapshot: the one group holding the blocks of a grid other than the
+// main one (docs/multi-grid-plan.md).
+struct GridHashWire {
+  grid: uint;
+  hash: ulong;
+}
+
 struct Vector3iWire {
   x: int;
   y: int;
@@ -260,6 +267,8 @@ table StateDigest {
   // Per player, the tick through which the server had received their own input (a client's
   // CommandBatch.through_tick), so a client doesn't compare a tick its unsent input may still move.
   received_through: [PlayerTickWire];
+  // The districts the snapshot holds, sorted by grid.
+  grid_hashes: [GridHashWire];
 }
 
 union MessageBody {

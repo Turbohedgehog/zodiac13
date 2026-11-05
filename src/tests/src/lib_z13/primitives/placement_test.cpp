@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/block_group.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>
 #include <z13/components/station/block.h>
@@ -190,6 +191,23 @@ TEST(PlacementTest, CellBoxesOverlapOnlyWhenTheyShareACell) {
   EXPECT_FALSE(box.Overlaps({.min = {2, 0, 0}, .extent = {2, 2, 2}}));
   EXPECT_TRUE(box.Contains({1, 1, 1}));
   EXPECT_FALSE(box.Contains({2, 1, 1}));
+}
+
+constexpr z13::station::GridId kDistrict = 3;
+
+TEST(BlockGroupTest, ABlockOfTheMainGridIsInTheGroupOfItsChunk) {
+  const Eigen::Vector3i chunk(2, -3, 1);
+
+  EXPECT_EQ(BlockGroupId(z13::station::kMainGrid, chunk), PackChunk(chunk));
+  EXPECT_FALSE(GridOfGroup(PackChunk(chunk)).has_value());
+}
+
+TEST(BlockGroupTest, AllTheBlocksOfADistrictAreOneGroupWhatEverTheirChunks) {
+  const uint64_t group = BlockGroupId(kDistrict, Eigen::Vector3i(2, -3, 1));
+
+  EXPECT_EQ(group, BlockGroupId(kDistrict, Eigen::Vector3i::Zero()));
+  EXPECT_EQ(GridOfGroup(group), kDistrict);
+  EXPECT_NE(group, BlockGroupId(kDistrict + 1, Eigen::Vector3i::Zero()));
 }
 
 }  // namespace

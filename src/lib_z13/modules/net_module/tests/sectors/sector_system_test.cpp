@@ -27,12 +27,14 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/utils/math.h>
 
 #include <sectors/sector_index.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_changes.h>
+#include <z13/components/station/grid.h>
 #include <z13/components/gameplay/player.h>
 #include <z13_settings/net_tuning.h>
 
@@ -103,6 +105,42 @@ TEST(SectorSystemTest, EveryPlayerIsInTheSectorOfItsPosition) {
 
   EXPECT_EQ(Mismatch(world), "");
   EXPECT_GT(world.World().get<SectorIndex>().Count(MemberKind::kPlayer), 0u);
+}
+
+constexpr z13::station::GridId kDistrict = 2;
+constexpr int kDistrictSectorsAway = 5;
+
+flecs::entity AddDistrict(Z13TestWorld& world, int sector_cells) {
+  const z13::station::Grid grid {.id = kDistrict, .origin = {kDistrictSectorsAway * sector_cells, 0, 0}};
+  return world.World().entity("District").add<z13::flecs_tools::StateEntity>().set(grid);
+}
+
+TEST(SectorSystemTest, ABlockOfAPosedGridIsInTheSectorItsWorldCellsAreIn) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  AddDistrict(world, SectorCellsOf(world));
+
+  const flecs::entity block = z13::station::testing::AddBlock(
+      world, {.spec = z13::station::CubeSpec(), .cell = {1, 1, 1}, .grid = kDistrict});
+  world.Tick();
+
+  EXPECT_EQ(world.World().get<SectorIndex>().Locate({MemberKind::kBlock, block.id()}),
+            sectors::SectorKey(kDistrictSectorsAway, 0, 0));
+}
+
+TEST(SectorSystemTest, ABlockIsFiledAgainWhenItsGridIsPosedAfterIt) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const flecs::entity block = z13::station::testing::AddBlock(
+      world, {.spec = z13::station::CubeSpec(), .cell = {1, 1, 1}, .grid = kDistrict});
+  world.Tick();
+  ASSERT_EQ(world.World().get<SectorIndex>().Locate({MemberKind::kBlock, block.id()}), sectors::SectorKey(0, 0, 0));
+
+  AddDistrict(world, SectorCellsOf(world));
+  world.Tick();
+
+  EXPECT_EQ(world.World().get<SectorIndex>().Locate({MemberKind::kBlock, block.id()}),
+            sectors::SectorKey(kDistrictSectorsAway, 0, 0));
 }
 
 TEST(SectorSystemTest, ABlockIsInTheSectorOfItsAnchorCell) {

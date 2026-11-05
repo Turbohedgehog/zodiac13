@@ -17,6 +17,7 @@
 #include "world_edits.h"
 
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <string>
@@ -31,10 +32,12 @@
 #include <sectors/sector.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_changes.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/station/state_changes.h>
 #include <z13/components/station/wall.h>
 #include <z13_settings/net_tuning.h>
 
+#include "../sectors/block_sectors.h"
 #include "../sectors/interest_events.h"
 #include "net_session.h"
 #include "session_deltas.h"
@@ -66,16 +69,46 @@ void AddNodeCells(const NodeCells& nodes, std::initializer_list<WallId> ids, std
   }
 }
 
-std::vector<sectors::SectorKey> SectorsOfBlock(const z13::station::Block& block, int sector_cells) {
-  return sectors::SectorsTouched(z13::building::primitives::OccupiedCells(block), sector_cells);
+using GridSectors = std::unordered_map<z13::station::GridId, std::vector<sectors::SectorKey>>;
+
+void SortUnique(std::vector<sectors::SectorKey>& keys) {
+  const auto before = [](const sectors::SectorKey& a, const sectors::SectorKey& b) {
+    return std::ranges::lexicographical_compare(a, b);
+  };
+  std::ranges::sort(keys, before);
+  keys.erase(std::ranges::unique(keys).begin(), keys.end());
+}
+
+// A district reaches a client as a whole, so an edit in it concerns every client holding any sector the district
+// touches; `cache` keeps them for the tick.
+std::vector<sectors::SectorKey> SectorsOfBlock(
+    flecs::world world, const z13::station::Block& block, const z13::station::GridPoses& poses, GridSectors& cache,
+    int sector_cells) {
+  std::vector<sectors::SectorKey> touched = BlockSectors(block, poses, sector_cells);
+  if (block.grid == z13::station::kMainGrid) {
+    return touched;
+  }
+  const auto [district, added] = cache.try_emplace(block.grid);
+  if (added) {
+    world.query<const z13::station::Block>().each([&](const z13::station::Block& other) {
+      if (other.grid == block.grid) {
+        std::ranges::copy(BlockSectors(other, poses, sector_cells), std::back_inserter(district->second));
+      }
+    });
+    SortUnique(district->second);
+  }
+  std::ranges::copy(district->second, std::back_inserter(touched));
+  SortUnique(touched);
+  return touched;
 }
 
 // The sectors an entity stands in: every one a block touches, those of a wall's nodes. None for state that has no
 // place, which every client that could see the player gets.
 std::vector<sectors::SectorKey> SectorsOf(
-    flecs::world world, flecs::entity entity, const NodeCells& nodes, int sector_cells) {
+    flecs::world world, flecs::entity entity, const NodeCells& nodes, const z13::station::GridPoses& poses,
+    GridSectors& districts, int sector_cells) {
   if (const auto* block = entity.try_get<z13::station::Block>()) {
-    return SectorsOfBlock(*block, sector_cells);
+    return SectorsOfBlock(world, *block, poses, districts, sector_cells);
   }
   std::vector<Eigen::Vector3i> cells;
   if (const auto* node = entity.try_get<z13::station::WallNode>()) {
@@ -115,12 +148,14 @@ struct Edit {
 std::vector<Edit> EditsOfTick(flecs::world world, int sector_cells) {
   std::vector<Edit> edits;
   const NodeCells nodes = CellsOfNodes(world);
+  const z13::station::GridPoses poses = z13::station::PosesOf(world.query<const z13::station::Grid>());
+  GridSectors districts;
   const auto removed_blocks = RemovedBlocks(world);
   world.query<const StateChange>().each([&](const StateChange& change) {
     Edit edit {.change = change};
     if (change.kind == StateChangeKind::kRemoved) {
       if (const auto block = removed_blocks.find(change.entity); block != removed_blocks.end()) {
-        edit.sectors = SectorsOfBlock(block->second, sector_cells);
+        edit.sectors = SectorsOfBlock(world, block->second, poses, districts, sector_cells);
       } else if (change.cell) {
         edit.sectors.push_back(sectors::SectorOf(*change.cell, sector_cells));
       }
@@ -130,7 +165,7 @@ std::vector<Edit> EditsOfTick(flecs::world world, int sector_cells) {
         return;  // set and then removed within the tick
       }
       edit.change.name = entity.name().c_str();
-      edit.sectors = SectorsOf(world, entity, nodes, sector_cells);
+      edit.sectors = SectorsOf(world, entity, nodes, poses, districts, sector_cells);
       if (const auto state = ft::CaptureEntityState(world, entity)) {
         // A block comes in a group of its chunk.
         if (const auto all = ft::AllEntities(*state); !all.empty()) {
