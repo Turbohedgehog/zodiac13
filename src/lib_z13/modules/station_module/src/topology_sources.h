@@ -26,7 +26,7 @@
 
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/block.h>
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 #include <z13/components/station/held_sectors.h>
 #include <primitives/palette.h>
 #include <primitives/placement.h>

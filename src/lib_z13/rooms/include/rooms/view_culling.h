@@ -25,7 +25,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/utils/frustum.h>
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 #include <rooms/room_graph.h>
 
 namespace z13::station::rooms {

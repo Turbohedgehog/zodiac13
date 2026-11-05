@@ -20,7 +20,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 
 // Walls of any direction (docs/oblique-walls-plan.md, stage 5): nodes on the grid, segments
 // between them, and the panel block a system derives from each segment.

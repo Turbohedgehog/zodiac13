@@ -27,7 +27,7 @@
 #include <net_generated.h>
 
 #include <sectors/sector_index.h>
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 
 namespace z13::net {
 

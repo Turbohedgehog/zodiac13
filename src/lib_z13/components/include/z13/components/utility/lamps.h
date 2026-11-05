@@ -22,7 +22,7 @@
 
 #include <Eigen/Dense>
 
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 
 // The lamps that shine as emergency light (docs/station-systems-plan.md, "Электричество"), set by power_module and
 // read by the renderer.

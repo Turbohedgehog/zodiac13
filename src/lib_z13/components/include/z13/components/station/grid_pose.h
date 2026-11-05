@@ -23,7 +23,7 @@
 #include <Eigen/Geometry>
 #include <flecs.h>
 
-#include <z13/components/station/block.h>
+#include <z13/components/station/block_spec.h>
 #include <z13/components/station/grid.h>
 
 namespace z13::station {

@@ -21,7 +21,7 @@
 
 #include <lib_profile/profile.h>
 #include <primitives/palette.h>
-#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_id.h>
 
 namespace z13::raylib {
 
