@@ -22,8 +22,6 @@
 
 namespace z13 {
 
-struct PendingDestroy {};
-
 struct CoreComponent {
   std::optional<CoreRef> core;
 };

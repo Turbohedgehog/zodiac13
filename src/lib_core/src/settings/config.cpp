@@ -93,10 +93,6 @@ void Config::Clear() {
   command_line_ = {};
 }
 
-boost::program_options::options_description& Config::GetOptionsDescription() {
-  return options_description_;
-}
-
 Status Config::ParseCommandLineArguments(int argc, char *argv[]) {
   Clear();
   try {
