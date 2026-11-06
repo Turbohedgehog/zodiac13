@@ -656,7 +656,6 @@ TEST_F(GridRoomsTest, ADockWithAnEndInVacuumJoinsNothing) {
   EXPECT_TRUE(world_.World().get<DockLinks>().list.empty());
 }
 
-// The door among the blocks of `grid`.
 flecs::entity DoorOfGrid(Z13TestWorld& world, GridId grid) {
   flecs::entity found;
   world.World().query_builder<const Block>().build().each([&](flecs::entity block, const Block& placed) {
@@ -708,8 +707,10 @@ TEST_F(DockedDoorsTest, ADockNamesTheNearestDoorOfEachEndsRoomWithItsOpening) {
 TEST_F(DockedDoorsTest, AWishToOpenOneDoorOfThePairOpensTheOtherToo) {
   const flecs::entity a = DoorOfGrid(world_, kMainGrid);
   const flecs::entity b = DoorOfGrid(world_, kSecondGrid);
-  const flecs::entity lead = a.id() < b.id() ? a : b;
-  const flecs::entity follower = a.id() < b.id() ? b : a;
+  ASSERT_STRNE(a.name().c_str(), b.name().c_str());
+  const bool a_leads = std::string_view(a.name().c_str()) < std::string_view(b.name().c_str());
+  const flecs::entity lead = a_leads ? a : b;
+  const flecs::entity follower = a_leads ? b : a;
   ASSERT_FALSE(follower.get<DoorState>().open_wanted);
 
   lead.set(DoorState {.mode = DoorMode::kManual, .open_wanted = true});

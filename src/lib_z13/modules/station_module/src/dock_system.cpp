@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -59,6 +60,11 @@ int64_t DistanceSquared(const Eigen::Vector3i& cell, const z13::building::primit
   return (cell - cell.cwiseMax(box.min).cwiseMin(last)).cast<int64_t>().squaredNorm();
 }
 
+// Doors are told apart by name: ids differ between peers, names do not.
+bool NameBefore(const flecs::world& world, flecs::entity_t a, flecs::entity_t b) {
+  return std::string_view(world.entity(a).name().c_str()) < std::string_view(world.entity(b).name().c_str());
+}
+
 // The door among the portals of `room` whose opening is nearest `cell`: the door block is found by the index.
 DockDoor NearestDoor(flecs::entity grid, const rooms::RoomGraph& graph, rooms::RoomId room, const Eigen::Vector3i& cell) {
   const auto* index = grid.try_get<BlockIndex>();
@@ -76,7 +82,7 @@ DockDoor NearestDoor(flecs::entity grid, const rooms::RoomGraph& graph, rooms::R
       if (!grid.world().entity(block).has<DoorState>()) {
         continue;
       }
-      if (distance < best || (distance == best && block < nearest.door)) {
+      if (distance < best || (distance == best && NameBefore(grid.world(), block, nearest.door))) {
         best = distance;
         nearest = {.door = block, .area_cells = portal.area_cells};
       }

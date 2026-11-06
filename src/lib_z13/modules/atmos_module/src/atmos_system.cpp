@@ -373,7 +373,6 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RoomAirBasis, RoomAirEntry, DoorInterlock, AirlockCycle, AirlockDoors>(world);
 }
 
-// A grid with rooms at hand.
 struct RoomsOfAGrid {
   flecs::entity entity;
   z13::station::GridId id {};

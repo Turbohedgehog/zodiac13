@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include <flecs.h>
@@ -106,14 +108,18 @@ std::optional<flecs::entity_t> PartnerOf(const DockLinks& docks, flecs::entity_t
   return std::nullopt;
 }
 
-// The door of a pair with the lower id leads: a door built or restored apart from its partner takes its wish.
+// The door of a pair with the lower name leads (ids differ between peers, names do): a door built or restored apart
+// from its partner takes its wish.
 void PairDoors(const flecs::world& world, const DockLinks& docks) {
   for (const DockLink& link : docks.list) {
     if (link.door_a.door == 0 || link.door_b.door == 0) {
       continue;
     }
-    const flecs::entity first = world.entity(std::min(link.door_a.door, link.door_b.door));
-    const flecs::entity second = world.entity(std::max(link.door_a.door, link.door_b.door));
+    flecs::entity first = world.entity(link.door_a.door);
+    flecs::entity second = world.entity(link.door_b.door);
+    if (std::string_view(second.name().c_str()) < std::string_view(first.name().c_str())) {
+      std::swap(first, second);
+    }
     if (!first.has<DoorState>() || !second.has<DoorState>()) {
       continue;
     }
