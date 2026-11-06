@@ -656,5 +656,69 @@ TEST_F(GridRoomsTest, ADockWithAnEndInVacuumJoinsNothing) {
   EXPECT_TRUE(world_.World().get<DockLinks>().list.empty());
 }
 
+// The door among the blocks of `grid`.
+flecs::entity DoorOfGrid(Z13TestWorld& world, GridId grid) {
+  flecs::entity found;
+  world.World().query_builder<const Block>().build().each([&](flecs::entity block, const Block& placed) {
+    if (placed.grid == grid && placed.spec.type_id == IdOf(kDoor)) {
+      found = block;
+    }
+  });
+  return found;
+}
+
+// Both boxes split by a partition with a door, docked through the rooms beside the doors.
+class DockedDoorsTest : public GridRoomsTest {
+ protected:
+  // Long enough for a door to start moving.
+  static constexpr int kOpenTicks = 10;
+
+  void SetUp() override {
+    GridRoomsTest::SetUp();
+    AddBlocks(world_, DoorPartition());
+    for (Block block : SealedBox()) {
+      block.cell += kShift;
+      block.grid = kSecondGrid;
+      AddBlock(world_, block);
+    }
+    for (Block block : DoorPartition()) {
+      block.cell += kShift;
+      block.grid = kSecondGrid;
+      AddBlock(world_, block);
+    }
+    const Eigen::Vector3i beside_door = kRoomCorner + Eigen::Vector3i(3, 3, 3);
+    world_.World()
+        .entity("Dock")
+        .add<z13::flecs_tools::StateEntity>()
+        .set(Dock {.a = {.grid = kMainGrid, .cell = beside_door}, .b = {.grid = kSecondGrid, .cell = beside_door + kShift}});
+    Advance(kSettleTicks + 2);
+  }
+};
+
+TEST_F(DockedDoorsTest, ADockNamesTheNearestDoorOfEachEndsRoomWithItsOpening) {
+  const auto& links = world_.World().get<DockLinks>().list;
+  ASSERT_EQ(links.size(), 1u);
+
+  EXPECT_EQ(links[0].door_a.door, DoorOfGrid(world_, kMainGrid).id());
+  EXPECT_EQ(links[0].door_b.door, DoorOfGrid(world_, kSecondGrid).id());
+  EXPECT_GT(links[0].door_a.area_cells, 0);
+  EXPECT_GT(links[0].door_b.area_cells, 0);
+}
+
+TEST_F(DockedDoorsTest, AWishToOpenOneDoorOfThePairOpensTheOtherToo) {
+  const flecs::entity a = DoorOfGrid(world_, kMainGrid);
+  const flecs::entity b = DoorOfGrid(world_, kSecondGrid);
+  const flecs::entity lead = a.id() < b.id() ? a : b;
+  const flecs::entity follower = a.id() < b.id() ? b : a;
+  ASSERT_FALSE(follower.get<DoorState>().open_wanted);
+
+  lead.set(DoorState {.mode = DoorMode::kManual, .open_wanted = true});
+  Advance(kOpenTicks);
+
+  EXPECT_TRUE(follower.get<DoorState>().open_wanted);
+  EXPECT_EQ(lead.get<DoorState>().position, follower.get<DoorState>().position);
+  EXPECT_GT(follower.get<DoorState>().position, 0);
+}
+
 }  // namespace
 }  // namespace z13::station
