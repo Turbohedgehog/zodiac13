@@ -29,7 +29,6 @@
 #include <SDL3/SDL.h>
 #include <flecs.h>
 
-#include <lib_core/state/world_state.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
@@ -53,7 +52,7 @@ namespace zkey = z13::fbs::input;
 constexpr std::string_view kInputSourceName = "z13::raylib::InputEventSource";
 
 // SDL keycode -> z13 Keycode. The z13 enum names mirror SDL's, so this is a
-// straight rename table; unlisted keys still reach systems via RaylibInputFrame.
+// straight rename table.
 constexpr auto kKeyMap = std::to_array<std::pair<SDL_Keycode, zkey::Keycode>>({
       {SDLK_A, zkey::Keycode::KEY_A}, {SDLK_B, zkey::Keycode::KEY_B},
       {SDLK_C, zkey::Keycode::KEY_C}, {SDLK_D, zkey::Keycode::KEY_D},
@@ -189,8 +188,6 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
   z13::WorldNoDeferGuard no_defer(world);
   flecs::entity source = world.entity(kInputSourceName.data());
 
-  const Eigen::Vector2f mouse_pos = platform.MousePosition();
-
   const std::vector<SDL_Event>& events = platform.FrameEvents();
   for (const SDL_Event& event : events) {
     switch (event.type) {
@@ -280,22 +277,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
     }
   }
 
-  RaylibInputFrame frame{};
-  frame.mouse_pos = mouse_pos;
-  frame.mouse_delta = platform.MouseDelta();
-  frame.mouse_wheel = 0.f;
-  for (const SDL_Event& event : events) {
-    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-      frame.mouse_wheel += event.wheel.y;
-    }
-  }
-  world.set<RaylibInputFrame>(frame);
-
   platform.SetRelativeMouse(!CursorShown(world));
-}
-
-void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponent<RaylibInputFrame>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -311,7 +293,6 @@ void RegisterSystems(flecs::world world) {
 
 void CreateDefaults(flecs::world world) {
   world.entity(kInputSourceName.data());
-  world.set<RaylibInputFrame>({});
   // RaylibSystem::CreateDefaults runs first and may have already torn down SDL
   // (and called Core::Shutdown(), which only sets a pending flag) on init failure.
   SdlPlatform& platform = *world.get_mut<SdlPlatformData>().platform;
@@ -324,8 +305,6 @@ void CreateDefaults(flecs::world world) {
 }  // namespace
 
 void InputPublisher::Register(flecs::world& world) {
-  OnRegisterComponents(world, RegisterComponents);
-
   OnInitSystems(world, RegisterSystems);
 
   OnInitWorldData(world, CreateDefaults);
