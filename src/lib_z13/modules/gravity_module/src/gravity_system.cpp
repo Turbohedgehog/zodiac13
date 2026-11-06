@@ -28,6 +28,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/utility/gravity.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/grid_pose.h>
 #include <z13/components/station/rooms.h>
@@ -45,7 +46,10 @@ namespace {
 
 using z13::gravity::Gravity;
 using z13::gravity::GravitySources;
+using z13::station::DockLink;
+using z13::station::DockLinks;
 using z13::station::Grid;
+using z13::station::RoomRef;
 using z13::station::kMainGrid;
 using z13::station::kCellSize;
 using z13::station::MainGridData;
@@ -139,10 +143,14 @@ using GridQuery = flecs::query<const Grid>;
 
 // A grid other than the main one with its rooms, and the pose that takes the world's meters into its own.
 struct DistrictRooms {
+  z13::station::GridId grid {};
   Eigen::Isometry3f from_world;
   // Its down in the world: the grid's own -Z turned by its pose.
   Eigen::Vector3f down;
   rooms::OptionalRoomGraph graph;
+  // The share of the pull its rooms feel: the strongest of the main grid's rooms its docks join, or all of it where
+  // none does.
+  float share = 1.f;
 };
 
 std::vector<DistrictRooms> DistrictsOf(const GridQuery& grids) {
@@ -153,11 +161,35 @@ std::vector<DistrictRooms> DistrictsOf(const GridQuery& grids) {
       return;
     }
     const Eigen::Isometry3f to_world = GridToWorld(grid);
-    districts.push_back({.from_world = to_world.inverse(),
+    districts.push_back({.grid = grid.id, .from_world = to_world.inverse(),
                          .down = to_world.linear() * -Eigen::Vector3f::UnitZ(),
                          .graph = cache->Current()});
   });
   return districts;
+}
+
+// A district's rooms feel the pull of the main grid's rooms its docks join: where the generators do not reach them,
+// nor do they reach the district.
+void ShareAcrossDocks(std::vector<DistrictRooms>& districts, const DockLinks& docks, const RoomGravity& main,
+                      float gravity) {
+  if (gravity <= 0.f) {
+    return;
+  }
+  for (DistrictRooms& district : districts) {
+    std::optional<float> share;
+    for (const DockLink& link : docks.list) {
+      const bool a_here = link.a.grid == district.grid;
+      const RoomRef& other = a_here ? link.b : link.a;
+      if ((!a_here && link.b.grid != district.grid) || other.grid != kMainGrid) {
+        continue;
+      }
+      const auto pull = main.by_room.find(other.room);
+      if (pull != main.by_room.end()) {
+        share = std::max(share.value_or(0.f), pull->second.norm() / gravity);
+      }
+    }
+    district.share = share.value_or(1.f);
+  }
 }
 
 // What a body at `position` (meters) feels from the rooms of the districts: the pull of the first room that has it, or
@@ -175,7 +207,7 @@ DistrictPull FeelDistricts(const std::vector<DistrictRooms>& districts, const Ei
     if (!room) {
       felt.inside_block = true;
     } else if (*room != rooms::kVacuumRoom) {
-      felt.pull = district.down * gravity;
+      felt.pull = district.down * gravity * district.share;
       return felt;
     }
   }
@@ -188,12 +220,17 @@ DistrictPull FeelDistricts(const std::vector<DistrictRooms>& districts, const Ei
 void ApplyRoomGravity(flecs::iter& it, const GridQuery& grids) {
   const auto main_cache = MainGridData<RoomCache>(it.world());
   const auto graph = main_cache ? main_cache->get().Current() : std::nullopt;
-  const std::vector<DistrictRooms> districts = DistrictsOf(grids);
+  std::vector<DistrictRooms> districts = DistrictsOf(grids);
+  bool shared = false;
   while (it.next()) {
     const auto transforms = it.field<const Eigen::Matrix4f>(0);
     const auto bodies = it.field<Gravity>(1);
     const RoomGravity& rooms_gravity = it.field<const RoomGravity>(2)[0];
     const float gravity = it.field<const z13::PhysicsTuning>(3)[0].gravity;
+    if (!shared) {
+      ShareAcrossDocks(districts, it.field<const DockLinks>(4)[0], rooms_gravity, gravity);
+      shared = true;
+    }
     const bool main_known = graph && rooms_gravity.source;
     for (const size_t i : it) {
       const Eigen::Vector3f position = z13::math::ExtractTranslation<float>(transforms[i]);
@@ -231,7 +268,7 @@ void RegisterSystems(flecs::world world) {
       .each(UpdateRoomGravity);
 
   const GridQuery grids = world.query<const Grid>();
-  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity, const z13::PhysicsTuning>(
+  world.system<const Eigen::Matrix4f, Gravity, const RoomGravity, const z13::PhysicsTuning, const DockLinks>(
            "GravitySystem::ApplyRoomGravity")
       .kind<GravityPhase>()
       .with<StationMode>()

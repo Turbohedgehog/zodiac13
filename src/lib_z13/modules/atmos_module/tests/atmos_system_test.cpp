@@ -36,7 +36,9 @@
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/conduit.h>
 #include <z13/components/station/door.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/overlay_layers.h>
 #include <z13/components/utility/utilities.h>
@@ -548,6 +550,112 @@ TEST_F(AtmosSystemTest, TheWorldCarriesTheAtmosModuleAndItsBlocks) {
   EXPECT_TRUE(std::ranges::contains(modules, "atmos", &z13::utility::UtilityModule::name));
   EXPECT_TRUE(world_.World().get<z13::building::primitives::BlockPalette>().palette.Find("AtmosUnit").has_value());
   EXPECT_TRUE(world_.World().get<z13::building::primitives::BlockPalette>().palette.Find("Vent").has_value());
+}
+
+// The sealed box of the main grid, and a second one with an outer door in another grid, turned and tilted, joined by a
+// dock between their rooms: the door of the second box is the dock's door.
+class DockedAirTest : public AtmosSystemTest {
+ protected:
+  static constexpr z13::station::GridId kDistrict = 1;
+  static inline const Eigen::Vector3i kShift {200, 0, 0};
+
+  void SetUp() override {
+    AtmosSystemTest::SetUp();
+    Build(testing::SealedBox());
+    world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(pose_);
+    for (Block block : BoxWithAnOuterDoor()) {
+      block.cell += kShift;
+      block.grid = kDistrict;
+      testing::AddBlock(world_, block);
+    }
+    world_.World()
+        .entity("Dock")
+        .add<z13::flecs_tools::StateEntity>()
+        .set(z13::station::Dock {.a = {.grid = z13::station::kMainGrid, .cell = kBoxCell},
+                                 .b = {.grid = kDistrict, .cell = kBoxCell + kShift}});
+    Advance(world_);
+  }
+
+  const z13::station::rooms::RoomGraph& DistrictGraph() {
+    return world_.World().lookup("District").get<RoomCache>().Current()->get();
+  }
+
+  RoomAirEntry DistrictEntry() { return RoomsOfGrid(Rooms(world_), kDistrict).at(0); }
+
+  int64_t DistrictPressure() {
+    const auto& graph = DistrictGraph();
+    return atmos::PressurePascals(AirOf(DistrictEntry()),
+                                  graph.rooms.at(*graph.RoomAt(kBoxCell + kShift)).volume_cells);
+  }
+
+  void SetDistrictAir(const Air& air) {
+    world_.World().query<const RoomAirEntry>().each([&](flecs::entity room, const RoomAirEntry& entry) {
+      if (entry.grid == kDistrict) {
+        RoomAirEntry updated = EntryOf(entry.anchor, air);
+        updated.grid = kDistrict;
+        room.set(updated);
+      }
+    });
+  }
+
+  flecs::entity DistrictDoor() {
+    flecs::entity found;
+    world_.World().query_builder<const Block>().build().each([&](flecs::entity block, const Block& placed) {
+      if (placed.grid == kDistrict && placed.spec.type_id == testing::IdOf(testing::kDoor)) {
+        found = block;
+      }
+    });
+    return found;
+  }
+
+  int64_t MainPressure() {
+    return atmos::PressurePascals(AirOf(RoomsOfGrid(Rooms(world_), z13::station::kMainGrid).at(0)),
+                                  VolumeAt(world_, kBoxCell));
+  }
+
+  Air Total() { return Everything(world_); }
+
+  const z13::station::Grid pose_ {.id = kDistrict, .origin = {-400, 0, 0}, .yaw_degrees = 30.f, .pitch_degrees = 4.f};
+};
+
+TEST_F(DockedAirTest, EveryGridsRoomsHaveTheirOwnAirFromTheStart) {
+  EXPECT_EQ(RoomsOfGrid(Rooms(world_), kDistrict).size(), 1u);
+  EXPECT_NEAR(DistrictPressure(), atmos::kStandardPascals, kPascalsTolerance);
+  EXPECT_NEAR(MainPressure(), atmos::kStandardPascals, kPascalsTolerance);
+}
+
+TEST_F(DockedAirTest, AShutDockDoorHoldsTheDifferenceAndAnOpenOneLevelsItKeepingEveryMillimole) {
+  const Air thin = atmos::StandardAir(DistrictGraph().rooms.at(*DistrictGraph().RoomAt(kBoxCell + kShift)).volume_cells);
+  SetDistrictAir(Air {.millimoles = {thin.millimoles[0] / 2, thin.millimoles[1] / 2, 0}, .energy = thin.energy / 2});
+  const Air before = Total();
+  Advance(world_);
+  ASSERT_LT(DistrictPressure(), MainPressure()) << "a shut door holds the difference";
+
+  OpenDoor(DistrictDoor());
+  Advance(world_, kLongRunTicks);
+
+  EXPECT_NEAR(DistrictPressure(), MainPressure(), kLevelledPascals);
+  EXPECT_EQ(Total(), before) << "the dock's door lets nothing out into its own grid's vacuum";
+}
+
+TEST_F(DockedAirTest, TheDockDoorIsInterlockedByTheRoomAcrossTheDockNotByTheVacuumBesideIt) {
+  Advance(world_);
+  EXPECT_FALSE(DistrictDoor().has<DoorInterlock>()) << "equal pressures across the dock";
+
+  SetDistrictAir(Air {});
+  Advance(world_);
+  EXPECT_TRUE(DistrictDoor().has<DoorInterlock>());
+}
+
+TEST_F(DockedAirTest, ABodyInTheTurnedGridsRoomBreathesItsAir) {
+  const Air before = RoomsOfGrid(Rooms(world_), kDistrict).empty() ? Air {} : AirOf(DistrictEntry());
+  const Eigen::Vector3f local = (kBoxCell.cast<float>() + Eigen::Vector3f::Constant(0.5f) + kShift.cast<float>()) * kCellSize;
+  world_.Player().set(TransformAt(z13::station::GridToWorld(pose_) * local));
+
+  Advance(world_, kLongRunTicks);
+
+  const auto oxygen = static_cast<size_t>(atmos::Gas::kOxygen);
+  EXPECT_LT(AirOf(DistrictEntry()).millimoles[oxygen], before.millimoles[oxygen]);
 }
 
 }  // namespace

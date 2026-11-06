@@ -28,6 +28,11 @@
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/dock.h>
+#include <z13/components/station/dock.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/utility/gravity.h>
 #include <z13/components/utility/utilities.h>
 #include <z13_settings/physics_tuning.h>
@@ -67,6 +72,8 @@ const Eigen::Vector3i kGeneratorCell = testing::kRoomCorner + Eigen::Vector3i(6,
 const Eigen::Vector3i kCableCell = testing::kRoomCorner + Eigen::Vector3i(6, 1, 5);
 const Eigen::Vector3i kReactorCell = testing::kRoomCorner + Eigen::Vector3i(6, 1, 6);
 const Eigen::Vector3i kUnwiredCell = testing::kRoomCorner + Eigen::Vector3i(6, 6, 1);
+const z13::station::Grid kDistrictPose {.id = 1, .origin = {-400, 0, 0}, .yaw_degrees = 30.f, .pitch_degrees = 4.f};
+const Eigen::Vector3i kDistrictCell = testing::kRoomCorner + Eigen::Vector3i(4, 4, 3);
 // The cable kind of assets/station/conduits.json.
 constexpr uint32_t kCableKind = 1;
 
@@ -103,6 +110,27 @@ class GeneratorSystemTest : public ::testing::Test {
         z13::conduit::Conduit {.kind = kCableKind, .cell = kCableCell, .axis = z13::conduit::ConduitAxis::kZ, .length = 1});
     return testing::AddBlock(world_, {.spec = {.type_id = testing::IdOf("Reactor"), .size = {4, 4, 4}},
                                       .cell = kReactorCell});
+  }
+
+  // A turned and tilted grid with the sealed box, its room docked to the main grid's room at `main_cell`; returns a
+  // body in it.
+  flecs::entity DockedDistrict(const Eigen::Vector3i& main_cell) {
+    world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(kDistrictPose);
+    for (z13::station::Block block : testing::SealedBox()) {
+      block.grid = kDistrictPose.id;
+      testing::AddBlock(world_, block);
+    }
+    world_.World()
+        .entity("Dock")
+        .add<z13::flecs_tools::StateEntity>()
+        .set(z13::station::Dock {.a = {.grid = z13::station::kMainGrid, .cell = main_cell},
+                                 .b = {.grid = kDistrictPose.id, .cell = kDistrictCell}});
+    const Eigen::Vector3f local = (kDistrictCell.cast<float>() + Eigen::Vector3f::Constant(0.5f)) * kCellSize;
+    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    z13::math::SetTranslation(z13::station::GridToWorld(kDistrictPose) * local, transform);
+    const flecs::entity body = world_.World().entity().set(transform).set(Gravity {});
+    z13::testing::Ticks(world_, 4);
+    return body;
   }
 
   void Advance(int ticks) { z13::testing::Ticks(world_, ticks); }
@@ -170,6 +198,37 @@ TEST_F(GeneratorSystemTest, AnUnpoweredGeneratorPullsNothingAnywhere) {
 
   EXPECT_NEAR(PullOf(left_), 0.f, kAccelerationTolerance);
   EXPECT_NEAR(PullOf(right_), 0.f, kAccelerationTolerance);
+}
+
+TEST_F(GeneratorSystemTest, ADistrictDockedToARoomOutOfReachFloatsWithIt) {
+  AddGenerator();
+  Power();
+  const flecs::entity body = DockedDistrict(kLeftCell);
+
+  Advance(kRiseTicks);
+
+  EXPECT_NEAR(body.get<Gravity>().acceleration.norm(), 0.f, kAccelerationTolerance);
+}
+
+TEST_F(GeneratorSystemTest, ADistrictDockedToARoomInReachPullsAlongItsOwnDown) {
+  AddGenerator();
+  Power();
+  const flecs::entity body = DockedDistrict(kRightCell);
+
+  Advance(kRiseTicks);
+
+  const Eigen::Vector3f expected = z13::station::GridToWorld(kDistrictPose).linear() * Eigen::Vector3f(0.f, 0.f, -Full());
+  EXPECT_TRUE(body.get<Gravity>().acceleration.isApprox(expected, kAccelerationTolerance));
+}
+
+TEST_F(GeneratorSystemTest, ADistrictWithoutADockPullsWhateverTheGeneratorsDo) {
+  AddGenerator();
+  const flecs::entity body = DockedDistrict(kLeftCell);
+  world_.World().lookup("Dock").destruct();
+
+  Advance(kRiseTicks);
+
+  EXPECT_NEAR(body.get<Gravity>().acceleration.norm(), Full(), kAccelerationTolerance);
 }
 
 TEST_F(GeneratorSystemTest, TheStrongestGeneratorInReachSetsTheRoomsPull) {
