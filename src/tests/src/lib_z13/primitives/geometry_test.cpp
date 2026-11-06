@@ -25,6 +25,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/geometry.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 namespace {

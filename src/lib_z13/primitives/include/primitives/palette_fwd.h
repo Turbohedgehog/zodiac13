@@ -18,6 +18,7 @@
 
 namespace z13::building::primitives {
 
+struct Shape;
 struct Primitive;
 struct Palette;
 struct BlockPalette;

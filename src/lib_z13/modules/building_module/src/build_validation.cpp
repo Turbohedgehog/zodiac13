@@ -26,6 +26,7 @@
 #include <primitives/placement.h>
 
 #include <lib_core/utils/status.h>
+#include <primitives/palette.h>
 
 #include "block_entities.h"
 

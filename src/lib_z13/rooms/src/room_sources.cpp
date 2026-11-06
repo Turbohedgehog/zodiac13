@@ -19,6 +19,7 @@
 #include <iterator>
 
 #include <primitives/occupancy.h>
+#include <primitives/palette.h>
 
 namespace z13::station::rooms {
 
