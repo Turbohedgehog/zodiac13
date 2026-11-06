@@ -20,12 +20,16 @@
 
 #include <z13/components/station/block.h>
 #include <grid/block_index.h>
+#include <z13/components/station/grid_id.h>
+
+#include "build_grids.h"
 
 namespace z13::building {
 
 // Where a brush points, in cells: the face of the first block along its ray (`normal` is
-// non-zero), else the free point at its reach, `eye` being where the ray started.
+// non-zero), else the free point at its reach, `eye` being where the ray started. All in the cells of `grid`.
 struct Aim {
+  z13::station::GridId grid = z13::station::kMainGrid;
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
   Eigen::Vector3f point = Eigen::Vector3f::Zero();
   Eigen::Vector3i normal = Eigen::Vector3i::Zero();
@@ -39,6 +43,10 @@ struct Aim {
 
 // Aims the ray from `eye` to `reach` at `index`.
 Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen::Vector3f& reach);
+
+// Aims the world ray (meters) at the grid whose block it meets first, in that grid's cells; a ray that meets none
+// aims at the free point in the main grid's.
+Aim AimAtGrids(const BuildGrids& grids, const Eigen::Vector3f& eye_meters, const Eigen::Vector3f& reach_meters);
 
 // The block of `spec` resting on the aimed face, slid along it off what it would sink into,
 // or centred on the free point and then drawn back along the ray until it clears others.

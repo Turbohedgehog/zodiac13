@@ -23,6 +23,7 @@ z13_add_plugin(
   src/brush_aim.cpp
   src/brush_system.cpp
   src/build_action_ids.cpp
+  src/build_grids.cpp
   src/build_validation.cpp
   src/building_input_system.cpp
   src/building_module.cpp

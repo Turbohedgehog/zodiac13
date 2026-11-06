@@ -33,12 +33,21 @@ Eigen::Vector3i Aim::Cell() const {
 }
 
 Aim Aim::Flipped() const {
-  return {.eye = eye, .point = point, .normal = -normal};
+  return {.grid = grid, .eye = eye, .point = point, .normal = -normal};
 }
 
 Aim AimAt(const grid::BlockIndex& index, const Eigen::Vector3f& eye, const Eigen::Vector3f& reach) {
   const auto hit = index.RaycastHit(eye, reach);
   return hit ? Aim {.eye = eye, .point = hit->point, .normal = hit->normal} : Aim {.eye = eye, .point = reach};
+}
+
+Aim AimAtGrids(const BuildGrids& grids, const Eigen::Vector3f& eye_meters, const Eigen::Vector3f& reach_meters) {
+  if (const auto hit = grids.Raycast(eye_meters, reach_meters)) {
+    const GridView& grid = hit->grid;
+    return {.grid = grid.id, .eye = grid.ToCells(eye_meters), .point = hit->hit.point, .normal = hit->hit.normal};
+  }
+  const GridView& main = grids.Fallback();
+  return {.grid = main.id, .eye = main.ToCells(eye_meters), .point = main.ToCells(reach_meters)};
 }
 
 namespace {
