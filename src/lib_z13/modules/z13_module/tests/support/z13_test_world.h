@@ -26,7 +26,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/world/core_types.h>
-#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_listener_fwd.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/input/input_event_emitter.h>
 #include <z13_settings/settings_fwd.h>

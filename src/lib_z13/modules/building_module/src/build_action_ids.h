@@ -19,7 +19,7 @@
 #include <cstddef>
 #include <optional>
 
-#include <z13/components/input/action_listener.h>
+#include <z13/components/input/action_listener_fwd.h>
 
 namespace z13::building {
 

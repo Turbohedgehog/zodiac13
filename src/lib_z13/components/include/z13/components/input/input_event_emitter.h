@@ -18,7 +18,7 @@
 
 #include <flecs.h>
 
-#include <z13/components/input/input_events.h>
+#include <z13/components/input/system_input_event_type.h>
 
 namespace z13::input {
 
