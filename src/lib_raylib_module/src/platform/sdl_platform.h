@@ -70,7 +70,6 @@ class SdlPlatform {
 
   // Relative-mouse (FPS look) toggle + this-frame accumulated delta.
   void SetRelativeMouse(bool enabled);
-  bool RelativeMouseEnabled() const;
   Eigen::Vector2f MouseDelta() const;
   Eigen::Vector2f MousePosition() const;
 

@@ -245,8 +245,6 @@ void SdlPlatform::SetRelativeMouse(bool enabled) {
   spdlog::info("[sdl] SetRelativeMouse(requested={}) -> actual={}", enabled, relative_mouse_);
 }
 
-bool SdlPlatform::RelativeMouseEnabled() const { return relative_mouse_; }
-
 Eigen::Vector2f SdlPlatform::MouseDelta() const { return mouse_delta_; }
 
 Eigen::Vector2f SdlPlatform::MousePosition() const { return mouse_pos_; }
