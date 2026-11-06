@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
+#include <unordered_map>
 #include <cstdlib>
 #include <memory>
 #include <optional>
@@ -49,8 +51,10 @@
 #include <z13/components/utility/atmosphere.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/door.h>
 #include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/station/interaction.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/station/station_mode.h>
@@ -75,7 +79,10 @@ using z13::station::Block;
 using z13::station::BlockChangeBatch;
 using z13::station::BlockChangeReader;
 using z13::station::DoorState;
+using z13::station::DockLinks;
 using z13::station::Grid;
+using z13::station::GridToWorld;
+using z13::station::kMainGrid;
 using z13::station::kCellSize;
 using z13::station::rooms::Portal;
 using z13::station::rooms::RoomCache;
@@ -98,38 +105,103 @@ int64_t OpenArea(const Portal& portal, std::span<const DoorAt> doors) {
   return portal.passable ? portal.area_cells : 0;
 }
 
-std::vector<atmos::Link> LinksOf(const RoomGraph& graph, const RoomIndex& index, std::span<const DoorAt> doors) {
+using DoorIds = std::unordered_set<flecs::entity_t>;
+
+// The links of one grid's portals. The vacuum a dock door opens into is the dock's other side, which the dock link
+// joins, so the door lets nothing out into it.
+std::vector<atmos::Link> LinksOf(const GridAir& grid, const DoorIds& dock_doors) {
   std::vector<atmos::Link> links;
-  for (const Portal& portal : graph.portals) {
-    const int64_t area = OpenArea(portal, doors);
-    const size_t a = ChamberOf(index, portal.a);
-    const size_t b = ChamberOf(index, portal.b);
-    if (area > 0 && (a != atmos::kOutside || b != atmos::kOutside)) {
-      links.push_back({.a = a, .b = b, .area_cells = area});
+  for (const Portal& portal : grid.graph.get().portals) {
+    const int64_t area = OpenArea(portal, grid.doors);
+    const size_t a = ChamberOf(grid.index, portal.a);
+    const size_t b = ChamberOf(grid.index, portal.b);
+    const auto door = DoorAtOpening(grid.doors, portal.opening);
+    const bool to_dock = door && dock_doors.contains(door->get().entity.id());
+    if (area > 0 && (a != atmos::kOutside || b != atmos::kOutside) &&
+        !(to_dock && (a == atmos::kOutside || b == atmos::kOutside))) {
+      links.push_back({.a = a == atmos::kOutside ? a : a + grid.first,
+                       .b = b == atmos::kOutside ? b : b + grid.first,
+                       .area_cells = area});
     }
   }
   return links;
 }
 
-std::vector<atmos::Chamber> ChambersOf(const std::vector<RoomAirEntry>& rooms, const RoomGraph& graph,
-                                       const RoomIndex& index) {
+std::optional<size_t> ChamberOfRef(std::span<const GridAir> grids, const z13::station::RoomRef& ref) {
+  const auto grid = std::ranges::find(grids, ref.grid, &GridAir::grid);
+  if (grid == grids.end()) {
+    return std::nullopt;
+  }
+  const size_t chamber = ChamberOf(grid->index, ref.room);
+  return chamber == atmos::kOutside ? std::nullopt : std::optional(chamber + grid->first);
+}
+
+// What a dock lets through: the cells of the smaller of its two doors' openings as far as they are open; a dock
+// without a door lets nothing through.
+std::optional<int64_t> DockArea(const z13::station::DockLink& link, const flecs::world& world) {
+  std::optional<int64_t> area;
+  for (const z13::station::DockDoor& side : {link.door_a, link.door_b}) {
+    const auto* state = side.door != 0 && world.is_alive(side.door) ? world.entity(side.door).try_get<DoorState>()
+                                                                     : nullptr;
+    if (state == nullptr) {
+      continue;
+    }
+    const int64_t open = side.area_cells * static_cast<int64_t>(state->position) / z13::station::kDoorOpen;
+    area = area ? std::min(*area, open) : open;
+  }
+  return area;
+}
+
+void AddDockLinks(std::vector<atmos::Link>& links, std::span<const GridAir> grids, const DockLinks& docks,
+                  const flecs::world& world) {
+  for (const z13::station::DockLink& dock : docks.list) {
+    const auto a = ChamberOfRef(grids, dock.a);
+    const auto b = ChamberOfRef(grids, dock.b);
+    const auto area = DockArea(dock, world);
+    if (a && b && area && *area > 0) {
+      links.push_back({.a = *a, .b = *b, .area_cells = *area});
+    }
+  }
+}
+
+DoorIds DockDoorsOf(const DockLinks& docks) {
+  DoorIds doors;
+  for (const z13::station::DockLink& dock : docks.list) {
+    doors.insert({dock.door_a.door, dock.door_b.door});
+  }
+  doors.erase(0);
+  return doors;
+}
+
+std::vector<atmos::Chamber> ChambersOf(const std::vector<RoomAirEntry>& rooms, std::span<const GridAir> grids) {
   std::vector<atmos::Chamber> chambers;
-  for (size_t i = 0; i < index.ids.size(); ++i) {
-    chambers.push_back({.air = AirOf(rooms[i]), .volume_cells = graph.rooms.at(index.ids[i]).volume_cells});
+  for (const GridAir& grid : grids) {
+    for (size_t i = 0; i < grid.index.ids.size(); ++i) {
+      chambers.push_back({.air = AirOf(rooms[grid.first + i]),
+                          .volume_cells = grid.graph.get().rooms.at(grid.index.ids[i]).volume_cells});
+    }
   }
   return chambers;
 }
 
-size_t ChamberAt(const RoomGraph& graph, const RoomIndex& index, const Eigen::Vector3f& position) {
-  const auto room = graph.RoomAt((position / kCellSize).array().floor().cast<int>());
-  return room ? ChamberOf(index, *room) : atmos::kOutside;
+// The chamber holding a body at `position` (the world's meters), in whichever grid.
+size_t ChamberAt(std::span<const GridAir> grids, const Eigen::Vector3f& position) {
+  for (const GridAir& grid : grids) {
+    const Eigen::Vector3f cell = (grid.from_world * position) / kCellSize;
+    const auto room = grid.graph.get().RoomAt(cell.array().floor().cast<int>());
+    const size_t chamber = room ? ChamberOf(grid.index, *room) : atmos::kOutside;
+    if (chamber != atmos::kOutside) {
+      return chamber + grid.first;
+    }
+  }
+  return atmos::kOutside;
 }
 
-void BreatheRooms(std::vector<atmos::Chamber>& chambers, const RoomGraph& graph, const RoomIndex& index,
-                  const PlayerQuery& players, const z13::AtmosTuning& tuning) {
+void BreatheRooms(std::vector<atmos::Chamber>& chambers, std::span<const GridAir> grids, const PlayerQuery& players,
+                  const z13::AtmosTuning& tuning) {
   std::vector<int> bodies(chambers.size());
   players.each([&](const z13::gameplay::Player&, const Eigen::Matrix4f& transform) {
-    const size_t chamber = ChamberAt(graph, index, z13::math::ExtractTranslation<float>(transform));
+    const size_t chamber = ChamberAt(grids, z13::math::ExtractTranslation<float>(transform));
     if (chamber != atmos::kOutside) {
       ++bodies[chamber];
     }
@@ -156,8 +228,7 @@ bool IsPowered(flecs::entity unit) {
 }
 
 void RegulateNetwork(const z13::utility::networks::Network& network, const flecs::world& world,
-                     const BlockPalette& palette, const RoomGraph& graph, const RoomIndex& index,
-                     std::vector<atmos::Chamber>& chambers) {
+                     const BlockPalette& palette, const GridAir& main, std::vector<atmos::Chamber>& chambers) {
   std::vector<atmos::Regulation> units;
   std::vector<size_t> vented;
   for (const uint64_t id : network.ports) {
@@ -169,7 +240,7 @@ void RegulateNetwork(const z13::utility::networks::Network& network, const flecs
       continue;
     }
     if (port->get().role == atmos::kVentRole) {
-      const std::vector<size_t> around = ChambersAround(graph, index, z13::building::primitives::OccupiedCells(placed));
+      const std::vector<size_t> around = ChambersAround(main.graph, main.index, z13::building::primitives::OccupiedCells(placed));
       vented.insert(vented.end(), around.begin(), around.end());
     } else if (const auto regulation = atmos::RegulationOf(port->get()); regulation && IsPowered(block)) {
       units.push_back(*regulation);
@@ -190,42 +261,66 @@ void RegulateNetwork(const z13::utility::networks::Network& network, const flecs
   }
 }
 
+// Only the main grid has networks, so its units and vents are the ones regulating.
 void RegulateRooms(const StationNetworks& stations, const flecs::world& world, const BlockPalette& palette,
-                   const RoomGraph& graph, const RoomIndex& index, std::vector<atmos::Chamber>& chambers) {
+                   const GridAir& main, std::vector<atmos::Chamber>& chambers) {
   for (const auto& network : stations.networks.All()) {
     if (network.key == atmos::kNetworkKey) {
-      RegulateNetwork(network, world, palette, graph, index, chambers);
+      RegulateNetwork(network, world, palette, main, chambers);
     }
   }
 }
 
-int64_t DifferenceAt(const DoorAt& door, const RoomGraph& graph, const RoomIndex& index,
-                     const std::vector<atmos::Chamber>& chambers) {
+int64_t DifferenceAt(const DoorAt& door, const GridAir& grid, const std::vector<atmos::Chamber>& chambers) {
   int64_t greatest = 0;
-  for (const Portal& portal : graph.portals) {
+  const auto pressure = [&](z13::station::rooms::RoomId room) {
+    const size_t chamber = ChamberOf(grid.index, room);
+    return atmos::PressureOf(chambers, chamber == atmos::kOutside ? chamber : chamber + grid.first);
+  };
+  for (const Portal& portal : grid.graph.get().portals) {
     if (Overlaps(door, portal.opening)) {
-      const int64_t difference =
-          atmos::PressureOf(chambers, ChamberOf(index, portal.a)) -
-          atmos::PressureOf(chambers, ChamberOf(index, portal.b));
-      greatest = std::max(greatest, std::abs(difference));
+      greatest = std::max(greatest, std::abs(pressure(portal.a) - pressure(portal.b)));
     }
   }
   return greatest;
 }
 
-// Locked while the difference is great: an automatic door does not open into a room that would empty through it.
-// The doors of airlocks are held by their controllers instead.
-void LockDoors(std::span<const DoorAt> doors, const std::unordered_set<flecs::entity_t>& held, const RoomGraph& graph,
-               const RoomIndex& index, const std::vector<atmos::Chamber>& chambers, const z13::AtmosTuning& tuning) {
-  for (const DoorAt& door : doors) {
-    if (held.contains(door.entity.id())) {
+// A dock door sees the pressure of the room across the dock, not the vacuum its own grid has beyond the frame.
+std::unordered_map<flecs::entity_t, int64_t> DockDifferences(std::span<const GridAir> grids, const DockLinks& docks,
+                                                             const std::vector<atmos::Chamber>& chambers) {
+  std::unordered_map<flecs::entity_t, int64_t> differences;
+  for (const z13::station::DockLink& dock : docks.list) {
+    const auto a = ChamberOfRef(grids, dock.a);
+    const auto b = ChamberOfRef(grids, dock.b);
+    if (!a || !b) {
       continue;
     }
-    const bool locked = DifferenceAt(door, graph, index, chambers) > tuning.interlock_pascals;
-    if (locked && !door.entity.has<DoorInterlock>()) {
-      door.entity.set(DoorInterlock {.reason = z13::station::InterlockReason::kPressure});
-    } else if (!locked && door.entity.has<DoorInterlock>()) {
-      door.entity.remove<DoorInterlock>();
+    const int64_t difference = std::abs(atmos::PressureOf(chambers, *a) - atmos::PressureOf(chambers, *b));
+    for (const flecs::entity_t door : {dock.door_a.door, dock.door_b.door}) {
+      differences[door] = std::max(differences[door], difference);
+    }
+  }
+  return differences;
+}
+
+// Locked while the difference is great: an automatic door does not open into a room that would empty through it.
+// The doors of airlocks are held by their controllers instead.
+void LockDoors(std::span<const GridAir> grids, const DockLinks& docks, const std::unordered_set<flecs::entity_t>& held,
+               const std::vector<atmos::Chamber>& chambers, const z13::AtmosTuning& tuning) {
+  const auto dock_differences = DockDifferences(grids, docks, chambers);
+  for (const GridAir& grid : grids) {
+    for (const DoorAt& door : grid.doors) {
+      if (held.contains(door.entity.id())) {
+        continue;
+      }
+      const auto dock = dock_differences.find(door.entity.id());
+      const int64_t difference = dock != dock_differences.end() ? dock->second : DifferenceAt(door, grid, chambers);
+      const bool locked = difference > tuning.interlock_pascals;
+      if (locked && !door.entity.has<DoorInterlock>()) {
+        door.entity.set(DoorInterlock {.reason = z13::station::InterlockReason::kPressure});
+      } else if (!locked && door.entity.has<DoorInterlock>()) {
+        door.entity.remove<DoorInterlock>();
+      }
     }
   }
 }
@@ -249,21 +344,28 @@ void FollowRooms(RoomAirBasis& basis, std::vector<RoomAirEntry>& rooms, const Ro
 
 void Step(std::vector<RoomAirEntry>& rooms, const RoomsNow& now, const std::unordered_set<flecs::entity_t>& held,
           const StationNetworks& stations, const BlockPalette& palette, const z13::AtmosTuning& tuning,
-          const z13::DoorTuning& door_tuning, const flecs::world& world, const PlayerQuery& players) {
-  const RoomGraph& graph = now.graph;
-  std::vector<atmos::Chamber> chambers = ChambersOf(rooms, graph, now.index);
+          const z13::DoorTuning& door_tuning, const DockLinks& docks, const flecs::world& world,
+          const PlayerQuery& players) {
+  std::vector<atmos::Chamber> chambers = ChambersOf(rooms, now.grids);
 
-  std::vector<atmos::Link> links = LinksOf(graph, now.index, now.doors);
+  std::vector<atmos::Link> links;
+  const DoorIds dock_doors = DockDoorsOf(docks);
+  for (const GridAir& grid : now.grids) {
+    std::ranges::move(LinksOf(grid, dock_doors), std::back_inserter(links));
+  }
+  AddDockLinks(links, now.grids, docks, world);
   AddPumpLinks(links, now.airlocks, tuning);
   atmos::Exchange(chambers, links, {.coefficient = tuning.flow_coefficient, .max_outflow_ppm = tuning.max_outflow_ppm});
-  BreatheRooms(chambers, graph, now.index, players, tuning);
-  RegulateRooms(stations, world, palette, graph, now.index, chambers);
+  BreatheRooms(chambers, now.grids, players, tuning);
+  RegulateRooms(stations, world, palette, now.Main(), chambers);
   FinishCycles(now.airlocks, chambers, tuning, door_tuning);
-  LockDoors(now.doors, held, graph, now.index, chambers, tuning);
+  LockDoors(now.grids, docks, held, chambers, tuning);
 
   for (size_t i = 0; i < chambers.size(); ++i) {
     auto& room = rooms[i];
+    const z13::station::GridId grid = room.grid;
     room = EntryOf(room.anchor, chambers[i].air);
+    room.grid = grid;
   }
 }
 
@@ -271,29 +373,83 @@ void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RoomAirBasis, RoomAirEntry, DoorInterlock, AirlockCycle, AirlockDoors>(world);
 }
 
+// A grid with rooms at hand.
+struct RoomsOfAGrid {
+  flecs::entity entity;
+  z13::station::GridId id {};
+  std::reference_wrapper<const RoomCache> cache;
+  std::reference_wrapper<const RoomGraph> graph;
+};
+
+// The grids that have a room graph, the main one first and then by id; empty if the main one has none.
+std::vector<RoomsOfAGrid> GridsWithRooms(const GridRoomsQuery& query, flecs::world world) {
+  // Components are added first: a grid changing table would move the caches the result refers to.
+  std::vector<flecs::entity> unbased;
+  query.each([&unbased](flecs::entity entity, const Grid&, const RoomCache& cache) {
+    if (cache.Current() && !entity.has<RoomAirBasis>()) {
+      unbased.push_back(entity);
+    }
+  });
+  if (!unbased.empty()) {
+    const z13::ImmediateScope immediate(world);
+    std::ranges::for_each(unbased, [](flecs::entity entity) { entity.set(RoomAirBasis {}); });
+  }
+  std::vector<RoomsOfAGrid> found;
+  query.each([&found](flecs::entity entity, const Grid& grid, const RoomCache& cache) {
+    if (cache.Current()) {
+      found.push_back({.entity = entity, .id = grid.id, .cache = cache, .graph = *cache.Current()});
+    }
+  });
+  std::ranges::sort(found, {}, &RoomsOfAGrid::id);
+  if (found.empty() || found.front().id != kMainGrid) {
+    return {};
+  }
+  return found;
+}
+
+RoomAirBasis& BasisOf(flecs::entity grid) {
+  return grid.get_mut<RoomAirBasis>();
+}
+
+RoomsNow RoomsNowOf(const std::vector<RoomsOfAGrid>& grids, const AtmosQueries& queries,
+                    const BlockPalette& palette, const flecs::world& world) {
+  RoomsNow now;
+  size_t first = 0;
+  for (const RoomsOfAGrid& rooms : grids) {
+    GridAir grid {.grid = rooms.id, .graph = rooms.graph, .index = IndexOf(rooms.graph), .first = first};
+    grid.doors = DoorsOf(queries.doors, palette, rooms.id);
+    if (rooms.id != kMainGrid) {
+      grid.from_world = GridToWorld(rooms.entity.get<Grid>()).inverse();
+    }
+    first += grid.index.ids.size();
+    now.grids.push_back(std::move(grid));
+  }
+  const GridAir& main = now.Main();
+  now.airlocks = FindAirlocks(queries.airlocks, world, main.graph, main.index, main.doors);
+  return now;
+}
+
 void Update(flecs::iter& it, const AtmosQueries& queries, const StationNetworks& stations, const BlockPalette& palette,
             const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
-            const z13::station::Interactions& interactions, const z13::flecs_tools::SimulationClock& clock) {
+            const z13::station::Interactions& interactions, const DockLinks& docks,
+            const z13::flecs_tools::SimulationClock& clock) {
   flecs::world world = it.world();
-  const flecs::entity grid = z13::station::MainGridEntity(world);
-  const auto cache = z13::station::MainGridData<RoomCache>(world);
-  const auto graph = cache ? cache->get().Current() : std::nullopt;
-  if (!grid.is_valid() || !graph) {
+  const std::vector<RoomsOfAGrid> grids = GridsWithRooms(queries.grids, world);
+  if (grids.empty()) {
     return;
   }
-  if (!grid.has<RoomAirBasis>()) {
-    const z13::ImmediateScope immediate(world);
-    grid.set(RoomAirBasis {});
+  size_t room_count = 0;
+  bool follows = true;
+  for (const RoomsOfAGrid& grid : grids) {
+    const RoomAirBasis& basis = BasisOf(grid.entity);
+    follows = follows && basis.seeded && basis.fingerprint == grid.cache.get().CurrentFingerprint();
+    room_count += grid.graph.get().ByAnchor().size();
   }
-  RoomAirBasis& basis = grid.get_mut<RoomAirBasis>();
-  const bool follows = basis.seeded && basis.fingerprint == cache->get().CurrentFingerprint() &&
-                       static_cast<size_t>(queries.stored.count()) == graph->get().ByAnchor().size();
-  const bool step = basis.seeded && clock.tick % tuning.step_ticks == 0;
-  RoomsNow now {.graph = graph->get()};
+  follows = follows && static_cast<size_t>(queries.stored.count()) == room_count;
+  const bool step = BasisOf(grids.front().entity).seeded && clock.tick % tuning.step_ticks == 0;
+  RoomsNow now;
   if (!follows || step) {
-    now.index = IndexOf(now.graph);
-    now.doors = DoorsOf(queries.doors, palette);
-    now.airlocks = FindAirlocks(queries.airlocks, world, now.graph, now.index, now.doors);
+    now = RoomsNowOf(grids, queries, palette, world);
   }
   // Every tick, so that a use of an airlock's door is never missed between two steps of the air.
   const std::unordered_set<flecs::entity_t> held =
@@ -301,14 +457,22 @@ void Update(flecs::iter& it, const AtmosQueries& queries, const StationNetworks&
   if (follows && !step) {
     return;
   }
-  std::vector<RoomAirEntry> rooms = LoadRoomAir(queries.stored);
-  if (!follows) {
-    FollowRooms(basis, rooms, cache->get(), graph->get());
+  const std::vector<RoomAirEntry> stored = LoadRoomAir(queries.stored);
+  std::vector<RoomAirEntry> rooms;
+  std::vector<z13::station::GridId> ids;
+  for (const RoomsOfAGrid& grid : grids) {
+    std::vector<RoomAirEntry> of_grid = RoomsOfGrid(stored, grid.id);
+    if (!follows) {
+      FollowRooms(BasisOf(grid.entity), of_grid, grid.cache, grid.graph);
+      std::ranges::for_each(of_grid, [&grid](RoomAirEntry& room) { room.grid = grid.id; });
+    }
+    std::ranges::move(of_grid, std::back_inserter(rooms));
+    ids.push_back(grid.id);
   }
-  if (basis.seeded && step) {
-    Step(rooms, now, held, stations, palette, tuning, door_tuning, world, queries.players);
+  if (BasisOf(grids.front().entity).seeded && step) {
+    Step(rooms, now, held, stations, palette, tuning, door_tuning, docks, world, queries.players);
   }
-  StoreRoomAir(world, queries.stored, rooms);
+  StoreRoomAir(world, queries.stored, rooms, ids);
 }
 
 bool IsAirlockBlock(const Block& block, const BlockPalette& palette) {
@@ -360,6 +524,7 @@ void RegisterSystems(flecs::world world) {
   const AtmosQueries queries {.doors = world.query<const DoorState, const Block>(),
                               .players = world.query<const z13::gameplay::Player, const Eigen::Matrix4f>(),
                               .stored = world.query<const RoomAirEntry>(),
+                              .grids = world.query<const Grid, const RoomCache>(),
                               .airlocks = world.query<const AirlockCycle, const Block>(),
                               .interlocks = world.query<const DoorInterlock>()};
   const auto reader = std::make_shared<BlockChangeReader>(world);
@@ -377,7 +542,8 @@ void RegisterSystems(flecs::world world) {
       });
   world
       .system<const StationNetworks, const BlockPalette, const z13::AtmosTuning, const z13::DoorTuning,
-              const z13::station::Interactions, const z13::flecs_tools::SimulationClock>("AtmosSystem::Update")
+              const z13::station::Interactions, const DockLinks, const z13::flecs_tools::SimulationClock>(
+                  "AtmosSystem::Update")
       .kind<z13::utility::UtilitySimulationPhase>()
       .with<z13::station::StationMode>()
       // Immediate, so a grid new to the air gets its component at once (ImmediateScope).
@@ -394,9 +560,9 @@ void RegisterSystems(flecs::world world) {
       .write<AirlockDoors>()
       .each([queries](flecs::iter& it, size_t, const StationNetworks& stations, const BlockPalette& palette,
                       const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
-                      const z13::station::Interactions& interactions,
+                      const z13::station::Interactions& interactions, const DockLinks& docks,
                       const z13::flecs_tools::SimulationClock& clock) {
-        Update(it, queries, stations, palette, tuning, door_tuning, interactions, clock);
+        Update(it, queries, stations, palette, tuning, door_tuning, interactions, docks, clock);
       });
 }
 

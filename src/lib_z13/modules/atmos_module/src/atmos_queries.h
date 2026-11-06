@@ -19,7 +19,9 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <rooms/room_cache.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/station/grid.h>
 
 #include "airlock.h"
 #include "door_at.h"
@@ -27,6 +29,7 @@
 
 namespace z13::atmos_module {
 
+using GridRoomsQuery = flecs::query<const z13::station::Grid, const z13::station::rooms::RoomCache>;
 using PlayerQuery = flecs::query<const z13::gameplay::Player, const Eigen::Matrix4f>;
 
 // The queries AtmosSystem runs on its ticks, built once with the system.
@@ -34,6 +37,7 @@ struct AtmosQueries {
   DoorQuery doors;
   PlayerQuery players;
   RoomAirQuery stored;
+  GridRoomsQuery grids;
   AirlockQuery airlocks;
   InterlockQuery interlocks;
 };

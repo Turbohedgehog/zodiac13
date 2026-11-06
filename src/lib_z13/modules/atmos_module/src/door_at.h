@@ -32,14 +32,15 @@ namespace z13::atmos_module {
 
 using DoorQuery = flecs::query<const z13::station::DoorState, const z13::station::Block>;
 
-// A door of the main grid with the openings its block closes.
+// A door of one grid with the openings its block closes.
 struct DoorAt {
   flecs::entity entity;
   std::vector<z13::building::primitives::CellBox> openings;
   z13::station::DoorPosition position {};
 };
 
-std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const z13::building::primitives::BlockPalette& palette);
+std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const z13::building::primitives::BlockPalette& palette,
+                            z13::station::GridId grid);
 
 bool Overlaps(const DoorAt& door, const z13::building::primitives::CellBox& opening);
 
