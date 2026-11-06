@@ -68,11 +68,8 @@ class SdlPlatform {
   // The display scale of the monitor the window is on (1 at 96 DPI), for sizing the interface.
   float DisplayScale() const;
 
-  // Relative-mouse (FPS look) toggle + this-frame accumulated delta.
+  // Relative-mouse (FPS look) toggle.
   void SetRelativeMouse(bool enabled);
-  bool RelativeMouseEnabled() const;
-  Eigen::Vector2f MouseDelta() const;
-  Eigen::Vector2f MousePosition() const;
 
   // Queried once the context is up.
   const GlInfo& Gl() const;
@@ -86,8 +83,6 @@ class SdlPlatform {
   Eigen::Vector2i window_size_ = Eigen::Vector2i::Zero();
   bool quit_ {};
   bool relative_mouse_ {};
-  Eigen::Vector2f mouse_delta_ = Eigen::Vector2f::Zero();
-  Eigen::Vector2f mouse_pos_ = Eigen::Vector2f::Zero();
   std::vector<SDL_Event> events_;
   GlInfo gl_info_;
 };
