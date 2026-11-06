@@ -37,7 +37,9 @@
 #include <z13/components/station/block_changes.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/inventory.h>
+#include <primitives/block_group.h>
 #include <primitives/placement.h>
+#include <z13/components/station/grid.h>
 #include <z13/components/gameplay/net.h>
 #include <player/gameplay_entities.h>
 #include <z13_settings/building_tuning.h>
@@ -173,6 +175,97 @@ TEST(InterestDeltasTest, ASectorLeftRemovesTheBlocksOfTheChunksItNames) {
 
   EXPECT_FALSE(HasBlock(world, here_name));
   EXPECT_TRUE(HasBlock(world, kept));
+  EXPECT_TRUE(HasBlock(world, elsewhere));
+}
+
+constexpr z13::station::GridId kDistrict = 1;
+constexpr float kDistrictYawDegrees = 20.f;
+constexpr int kDistrictFarCell = 5;
+
+// A posed grid whose cell (0, 0, 0) is in the sector `sector_x`, with a block at the cells in `cells`.
+std::vector<std::string> AddDistrict(Z13TestWorld& world, int sector_x, const std::vector<Eigen::Vector3i>& cells) {
+  const int sector_cells = world.World().get<z13::NetTuning>().sector_size_cells;
+  world.World()
+      .entity("District")
+      .add<ft::StateEntity>()
+      .set(z13::station::Grid {.id = kDistrict,
+                               .origin = Eigen::Vector3i(sector_x * sector_cells + 1, 1, 1),
+                               .yaw_degrees = kDistrictYawDegrees});
+  std::vector<std::string> names;
+  for (const Eigen::Vector3i& cell : cells) {
+    names.emplace_back(
+        z13::station::testing::AddBlock(world, {.spec = z13::station::CubeSpec(), .cell = cell, .grid = kDistrict})
+            .name()
+            .c_str());
+  }
+  return names;
+}
+
+// Entering `sector_x` with the group of the district, which the whole of it makes.
+fbs::net::SectorEnteredT EnteredWithDistrict(Z13TestWorld& world, int sector_x) {
+  const auto snapshot = ft::CaptureState(world.World());
+  EXPECT_TRUE(snapshot.has_value());
+  fbs::net::SectorEnteredT entered;
+  entered.sector_x = sector_x;
+  ft::WorldSnapshot blocks;
+  for (const auto& group : snapshot->groups) {
+    if (z13::building::primitives::GridOfGroup(group->id)) {
+      blocks.groups.push_back(group);
+      entered.chunks.push_back(group->id);
+    }
+  }
+  entered.blocks = ToWire(blocks);
+  return entered;
+}
+
+TEST(InterestDeltasTest, ASectorEnteredReplacesTheBlocksOfADistrictTouchingIt) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const std::vector<std::string> names = AddDistrict(world, kNearbySector, {{0, 0, 0}, {3, 0, 0}});
+  world.Tick();
+  const fbs::net::SectorEnteredT entered = EnteredWithDistrict(world, kNearbySector);
+  const std::string stray = AddDistrict(world, kNearbySector, {{0, kDistrictFarCell, 0}}).front();
+  const flecs::entity gone = world.World().lookup(names.front().c_str());
+  z13::station::DestroyBlock(gone, gone.get<Block>());
+  world.Tick();
+
+  ApplySectorEntered(world.World(), entered);
+
+  EXPECT_TRUE(HasBlock(world, names.front()));
+  EXPECT_TRUE(HasBlock(world, names.back()));
+  EXPECT_FALSE(HasBlock(world, stray));
+}
+
+// The district the server no longer has anything of in the sector: its blocks in the posed cells go.
+TEST(InterestDeltasTest, ASectorEnteredRemovesADistrictBlockInItThatTheServerDropped) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const std::vector<std::string> names = AddDistrict(world, kNearbySector, {{0, 0, 0}});
+  const std::string elsewhere = AddBlockInSector(world, kFarSector).name().c_str();
+  world.Tick();
+  fbs::net::SectorEnteredT entered;
+  entered.sector_x = kNearbySector;
+
+  ApplySectorEntered(world.World(), entered);
+
+  EXPECT_FALSE(HasBlock(world, names.front()));
+  EXPECT_TRUE(HasBlock(world, elsewhere));
+}
+
+TEST(InterestDeltasTest, ASectorLeftRemovesTheBlocksOfTheDistrictItNames) {
+  Z13TestWorld world = StationWorld();
+  world.Tick();
+  const std::vector<std::string> names = AddDistrict(world, kNearbySector, {{0, 0, 0}, {3, 0, 0}});
+  const std::string elsewhere = AddBlockInSector(world, kFarSector).name().c_str();
+  world.Tick();
+  fbs::net::SectorLeftT left;
+  left.sector_x = kNearbySector;
+  left.chunks = {z13::building::primitives::BlockGroupId(kDistrict, Eigen::Vector3i::Zero())};
+
+  ApplySectorLeft(world.World(), left);
+
+  EXPECT_FALSE(HasBlock(world, names.front()));
+  EXPECT_FALSE(HasBlock(world, names.back()));
   EXPECT_TRUE(HasBlock(world, elsewhere));
 }
 

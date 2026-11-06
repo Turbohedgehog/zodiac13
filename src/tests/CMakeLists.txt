@@ -100,6 +100,7 @@ set(
   ${MODULES_DIR}/building_module/tests/build_tool_test.cpp
   ${MODULES_DIR}/building_module/tests/build_validation_test.cpp
   ${MODULES_DIR}/building_module/tests/building_block_test.cpp
+  ${MODULES_DIR}/building_module/tests/grid_build_test.cpp
   ${MODULES_DIR}/building_module/tests/building_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/palette_system_test.cpp
   ${MODULES_DIR}/building_module/tests/player_order_test.cpp
