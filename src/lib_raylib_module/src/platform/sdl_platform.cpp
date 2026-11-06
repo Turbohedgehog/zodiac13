@@ -168,7 +168,6 @@ SDL_GLContextState* SdlPlatform::GlContext() const { return gl_; }
 
 void SdlPlatform::PumpEvents() {
   events_.clear();
-  mouse_delta_ = Eigen::Vector2f::Zero();
 
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
@@ -183,10 +182,6 @@ void SdlPlatform::PumpEvents() {
         break;
       case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
         window_size_ = {event.window.data1, event.window.data2};
-        break;
-      case SDL_EVENT_MOUSE_MOTION:
-        mouse_delta_ += Eigen::Vector2f{event.motion.xrel, event.motion.yrel};
-        mouse_pos_ = {event.motion.x, event.motion.y};
         break;
       default:
         break;
@@ -244,12 +239,6 @@ void SdlPlatform::SetRelativeMouse(bool enabled) {
   relative_mouse_ = SDL_GetWindowRelativeMouseMode(window_);
   spdlog::info("[sdl] SetRelativeMouse(requested={}) -> actual={}", enabled, relative_mouse_);
 }
-
-bool SdlPlatform::RelativeMouseEnabled() const { return relative_mouse_; }
-
-Eigen::Vector2f SdlPlatform::MouseDelta() const { return mouse_delta_; }
-
-Eigen::Vector2f SdlPlatform::MousePosition() const { return mouse_pos_; }
 
 const std::vector<SDL_Event>& SdlPlatform::FrameEvents() const { return events_; }
 

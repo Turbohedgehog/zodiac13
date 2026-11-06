@@ -47,13 +47,4 @@ struct Render {};
 struct PostRender {};
 struct FinalizeRender {};
 
-// Raw raylib input for the current frame; escape hatch for what the table-driven
-// flecs events don't cover (wheel, absolute position, arbitrary keys).
-struct RaylibInputFrame {
-  using Singleton = void;
-  Eigen::Vector2f mouse_pos = Eigen::Vector2f::Zero();
-  Eigen::Vector2f mouse_delta = Eigen::Vector2f::Zero();
-  float mouse_wheel {};
-};
-
 }  // namespace z13::raylib
