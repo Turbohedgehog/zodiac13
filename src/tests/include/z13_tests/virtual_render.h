@@ -27,7 +27,7 @@
 #include <primitives/chunk_mesh.h>
 #include <primitives/decor.h>
 #include <primitives/draw_order.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <lib_core/utils/camera_pose.h>
 #include <lib_core/utils/math.h>
 #include <primitives/placement.h>

@@ -15,6 +15,7 @@
  */
 
 #include <primitives/chunk_mesh.h>
+#include <primitives/placement.h>
 
 #include <algorithm>
 #include <iterator>

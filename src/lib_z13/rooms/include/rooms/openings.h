@@ -19,7 +19,7 @@
 #include <span>
 #include <vector>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <rooms/parallel_for.h>
 #include <rooms/portal_source.h>
 

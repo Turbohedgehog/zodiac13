@@ -21,7 +21,7 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 namespace z13::net::sectors {
 

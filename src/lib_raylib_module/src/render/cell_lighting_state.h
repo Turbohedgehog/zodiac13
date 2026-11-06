@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <cell_light/cell_light.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 #include "cell_lighting.h"
 #include "gl_volumes.h"

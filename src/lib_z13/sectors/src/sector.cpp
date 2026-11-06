@@ -19,6 +19,7 @@
 #include <limits>
 
 #include <net_tuning_generated.h>
+#include <z13/components/station/block_spec.h>
 
 namespace z13::net::sectors {
 

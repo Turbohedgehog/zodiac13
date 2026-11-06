@@ -27,7 +27,7 @@
 
 #include <Eigen/Dense>
 
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <z13/components/station/block_spec.h>
 
 // Geometry of a primitive in its own frame, in cells: it spans [0, size] on each axis,

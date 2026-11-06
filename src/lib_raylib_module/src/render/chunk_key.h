@@ -22,7 +22,7 @@
 #include <Eigen/Dense>
 
 #include <z13/components/station/block.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 namespace z13::raylib {
 

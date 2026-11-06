@@ -26,7 +26,7 @@
 #include <z13/components/station/block.h>
 #include <primitives/geometry.h>
 #include <primitives/palette.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 // Blocks merged into one mesh per render chunk and material, so a station draws in hundreds
 // of calls instead of one per block.

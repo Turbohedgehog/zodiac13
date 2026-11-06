@@ -26,7 +26,7 @@
 
 #include <z13/components/station/building.h>
 #include <z13/components/station/spawn_stamp.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 
 #include "brush_aim.h"
 

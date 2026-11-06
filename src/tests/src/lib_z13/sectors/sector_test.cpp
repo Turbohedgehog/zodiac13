@@ -23,6 +23,7 @@
 #include <Eigen/Geometry>
 
 #include <sectors/sector.h>
+#include <z13/components/station/block_spec.h>
 
 namespace z13::net::sectors {
 namespace {

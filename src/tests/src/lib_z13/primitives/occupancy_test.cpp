@@ -24,6 +24,7 @@
 #include <z13_tests/shipped_station.h>
 
 #include <primitives/occupancy.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 namespace {

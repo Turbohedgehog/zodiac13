@@ -27,6 +27,7 @@
 #include <primitives/placement.h>
 #include <primitives/wall_bend.h>
 #include <primitives/wall_seam.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 

@@ -24,7 +24,7 @@
 
 #include <z13/components/station/block.h>
 #include <z13/components/station/wall.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <primitives/triangle_panel.h>
 #include <primitives/wall_panel.h>
 

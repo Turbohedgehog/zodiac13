@@ -21,6 +21,8 @@
 #include <primitives_generated.h>
 
 #include <primitives/occupancy.h>
+#include <primitives/placement.h>
+#include <primitives/palette.h>
 
 namespace z13::station::rooms {
 

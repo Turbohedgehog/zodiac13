@@ -26,7 +26,7 @@
 #include <flecs.h>
 
 #include <z13/components/station/wall.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 
 #include "wall_brush.h"
 

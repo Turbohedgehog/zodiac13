@@ -18,7 +18,7 @@
 
 #include <cstdint>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <z13/components/station/block.h>
 
 namespace z13::station::rooms {

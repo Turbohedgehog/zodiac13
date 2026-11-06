@@ -21,7 +21,7 @@
 #include <vector>
 
 #include <grid/block_index.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <rooms/room_graph.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/rooms.h>

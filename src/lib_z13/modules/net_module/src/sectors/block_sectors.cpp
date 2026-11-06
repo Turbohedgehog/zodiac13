@@ -15,6 +15,7 @@
  */
 
 #include "block_sectors.h"
+#include <primitives/placement.h>
 
 namespace z13::net {
 

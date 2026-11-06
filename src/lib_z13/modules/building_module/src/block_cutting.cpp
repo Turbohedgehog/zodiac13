@@ -27,6 +27,7 @@
 #include <z13/components/station/wall.h>
 #include <primitives/cut.h>
 #include <primitives/occupancy.h>
+#include <primitives/palette.h>
 
 #include "block_entities.h"
 

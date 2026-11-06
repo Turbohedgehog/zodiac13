@@ -26,7 +26,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/occupancy.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 namespace z13::building::grid {
 

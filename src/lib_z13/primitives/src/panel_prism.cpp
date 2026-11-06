@@ -20,6 +20,7 @@
 #include <limits>
 
 #include <primitives/placement.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 

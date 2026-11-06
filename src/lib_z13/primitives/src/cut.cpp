@@ -15,6 +15,8 @@
  */
 
 #include <primitives/cut.h>
+#include <primitives/placement.h>
+#include <primitives/palette.h>
 
 #include <algorithm>
 

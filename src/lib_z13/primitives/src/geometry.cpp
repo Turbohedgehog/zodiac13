@@ -26,6 +26,7 @@
 #include <utility>
 
 #include <primitives_generated.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 
