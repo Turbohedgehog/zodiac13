@@ -63,11 +63,12 @@ int main() {
   const std::filesystem::path exe_dir = boost::dll::program_location().parent_path().string();
   const z13::AssetSource assets(exe_dir / kBinDir);
   core.SetAssetSource(assets);
-  const auto modules = z13::ReadModuleList(assets, z13::kServerModuleList);
+  auto modules = z13::ReadModuleList(assets, z13::kServerModuleList);
   if (!modules) {
     z13::log_error("{}", modules.error());
     return EXIT_FAILURE;
   }
+  modules->emplace_back(z13::dll::kModulePath);
   if (std::ranges::any_of(*modules, [&core](const std::string& module_path) {
         const auto registered = core.RegisterModuleFactory(kBinDir / module_path);
         if (!registered) {

@@ -13,4 +13,3 @@ modules:
   - modules/atmos_module/atmos_module
   - modules/gravity_module/gravity_module
   - modules/net_module/net_module
-  - modules/test_dll/test_dll_module
