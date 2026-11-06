@@ -82,8 +82,6 @@ struct TouchUpEvent : TouchEvent {
 };
 
 struct SaveConfigEvent {};
-struct LoadConfigEvent {};
-struct SetDefaultConfigEvent {};
 struct AppendInputSchema {};
 struct OnConfigUpdatedEvent {};
 

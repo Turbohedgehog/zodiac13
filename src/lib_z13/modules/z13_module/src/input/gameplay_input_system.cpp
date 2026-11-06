@@ -46,7 +46,6 @@
 #include <z13/components/input/input_phases.h>
 #include <z13/components/input/input_state.h>
 #include <z13/components/input/player_action.h>
-#include <z13_settings/environment.h>
 #include <z13_settings/physics_tuning.h>
 #include <input/action_negotiation.h>
 #include <input/input_config_loader.h>
@@ -251,30 +250,6 @@ void OnSaveConfig(
   SaveInputConfig(input_config, action_map);
 }
 
-void CallConfigUpdatedEvent(flecs::world w) {
-  NotifyConfigUpdated(w);
-}
-
-void OnLoadConfig(
-    flecs::entity e,
-    z13::input::InputConfig& input_config,
-    const z13::input::ActionMap& action_map,
-    z13::input::LoadConfigEvent) {
-  if (const auto loaded = InputConfigLoader::LoadConfig(input_config, action_map); !loaded) {
-    log_error("cannot load input config: {}", loaded.error());
-  }
-  CallConfigUpdatedEvent(e.world());
-}
-
-void OnSetDefaultConfig(
-    flecs::entity e,
-    z13::input::InputConfig& input_config,
-    const z13::input::ActionMap& action_map,
-    z13::input::SetDefaultConfigEvent) {
-  InputConfigLoader::SetDefaults(input_config, action_map);
-  CallConfigUpdatedEvent(e.world());
-}
-
 void AppendActions(const z13::input::FlatbufferBinarySchema& binary_schema, z13::input::ActionMap& action_map) {
   if (const auto appended = InputConfigLoader::AppendFlatbufActionsFromBinarySchema(binary_schema, action_map);
       !appended) {
@@ -341,8 +316,6 @@ void OnInputSystemStartupGameEvent(
       .emit();
   }
 
-  log_info("~~~~ OnInputSystemStartupGameEvent");
-
   bool loaded = false;
   if (persistence.load_config_from_file) {
     const auto load = InputConfigLoader::LoadConfig(input_config, action_map);
@@ -358,7 +331,7 @@ void OnInputSystemStartupGameEvent(
     }
   }
 
-  CallConfigUpdatedEvent(it.world());
+  NotifyConfigUpdated(it.world());
 }
 
 // ActionListener isn't state, so a restored player never gets one -- backfill it for
@@ -467,7 +440,6 @@ void CalculateInputValues(
     if (action_listener.action_group_priority.empty()) {
       if (auto ag_it = key_codes.find(key_code); ag_it != key_codes.end()) {
         action_listener.action_values[ag_it->action_id] += key_value;
-        // log_info("~~~~ 1 action_listener.action_values[{}] = {}", ag_it->action_id, action_listener.action_values[ag_it->action_id].current_value);
       }
     } else {
       for (
@@ -476,9 +448,7 @@ void CalculateInputValues(
           ++action_group_it) {
         auto agkc_it = action_group_key_codes.find(std::make_tuple(*action_group_it, key_code));
         if (agkc_it != action_group_key_codes.end()) {
-          // log_info("=== agkc_it = {}", agkc_it->display_text);
           action_listener.action_values[agkc_it->action_id] += key_value;
-          // log_info("~~~~ 2 action_listener.action_values[{}] = {}", agkc_it->action_id, action_listener.action_values[agkc_it->action_id].current_value);
           break;
         }
       }
@@ -619,18 +589,6 @@ void RegisterSystems(flecs::world world) {
       .event<z13::input::SystemInputEventType>()
       .each(OnSaveConfig);
 
-  world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::LoadConfigEvent>("gameplay_input_system::LoadConfigObserver")
-      .event<z13::input::SystemInputEventType>()
-      .each(OnLoadConfig);
-
-  world.observer<z13::input::InputConfig, const z13::input::ActionMap, z13::input::SetDefaultConfigEvent>("gameplay_input_system::OnSetDefaultConfigObserver")
-      .event<z13::input::SystemInputEventType>()
-      .each(OnSetDefaultConfig);
-
-  world.observer<const z13::input::FlatbufferBinarySchema, z13::input::ActionMap>("gameplay_input_system::AppendFlatbufActionsFromBinarySchema")
-      .event<z13::input::SystemInputEventType>()
-      .each(AppendActions);
-
   world.observer<z13::input::OnConfigUpdatedEvent, z13::input::ActionMap>()
       .event<z13::input::SystemInputEventType>()
       .each(OnConfigUpdated);
@@ -663,8 +621,6 @@ void GameplayInputSystem::Register(flecs::world& world) {
     };
     w.set(input_listener_query_component);
   });
-
-  log_info("=== GameplayInputSystem::Register {}", z13::tools::environment::GetGameInputConfigJsonPath().string());
 }
 
 } // namespace z13::gameplay::input
