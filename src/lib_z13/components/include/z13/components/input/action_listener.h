@@ -51,21 +51,12 @@ struct ActionValueHolder {
     return *this;
   }
 
-  ActionValueHolder& operator-= (float value) {
-    current_value -= value;
-    return *this;
-  }
-
   float& operator* () {
     return current_value;
   }
 
   const float& operator* () const {
     return current_value;
-  }
-
-  bool HasBeenChanged() const {
-    return std::abs(current_value - prev_value) >= kInputValueEps;
   }
 
   float current_value {};
