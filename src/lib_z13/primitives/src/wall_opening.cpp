@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <primitives/wall_bend.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 

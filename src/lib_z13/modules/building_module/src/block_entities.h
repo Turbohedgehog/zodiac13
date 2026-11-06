@@ -22,7 +22,7 @@
 
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_stamp.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <primitives/cell_box.h>
 #include <z13_settings/building_tuning.h>
 

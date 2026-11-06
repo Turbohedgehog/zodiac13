@@ -20,6 +20,7 @@
 #include <utility>
 
 #include <rooms/portal_source.h>
+#include <primitives/palette.h>
 
 namespace z13::atmos_module {
 

@@ -20,7 +20,7 @@
 #include <vector>
 
 #include <z13/components/station/block.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <primitives/cell_box.h>
 
 namespace z13::station::rooms {

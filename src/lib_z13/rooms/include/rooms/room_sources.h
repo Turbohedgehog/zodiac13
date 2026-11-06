@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <primitives/cell_box.h>
 #include <z13/components/station/block.h>
 #include <rooms/portal_source.h>

@@ -28,7 +28,7 @@
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_brush.h>
 #include <z13/components/station/wall.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 #include <primitives/wall_panel.h>
 
 #include "brush_aim.h"

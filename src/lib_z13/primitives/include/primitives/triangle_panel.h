@@ -24,7 +24,7 @@
 #include <Eigen/Core>
 
 #include <z13/components/station/block.h>
-#include <primitives/palette.h>
+#include <primitives/palette_fwd.h>
 
 namespace z13::building::primitives {
 

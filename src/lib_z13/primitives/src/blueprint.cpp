@@ -24,6 +24,7 @@
 #include <flatbuffers/reflection.h>
 
 #include <blueprint_generated.h>
+#include <primitives/palette.h>
 
 namespace z13::building::primitives {
 

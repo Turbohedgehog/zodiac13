@@ -28,6 +28,7 @@
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_point.h>
 #include <primitives/placement.h>
+#include <primitives/palette.h>
 
 namespace z13::building {
 

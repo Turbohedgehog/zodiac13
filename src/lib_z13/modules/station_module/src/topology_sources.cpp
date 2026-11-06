@@ -21,6 +21,7 @@
 #include <rooms/cut_walls.h>
 #include <rooms/room_sources.h>
 #include <rooms/topology_fingerprint.h>
+#include <primitives/palette.h>
 
 namespace z13::station {
 
