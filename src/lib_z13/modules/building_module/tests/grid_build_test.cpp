@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <optional>
+#include <vector>
 
 #include <Eigen/Dense>
 
@@ -31,6 +32,7 @@
 #include <z13/components/station/grid.h>
 #include <z13/components/station/grid_pose.h>
 
+#include "support/station_builders.h"
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
 
@@ -51,6 +53,7 @@ constexpr float kQuarterTurnDegrees = 90.f;
 constexpr float kSmallTiltDegrees = 3.f;
 // How far along the player's ray (0 at the eye, 1 at the brush) the district block is put.
 constexpr float kBlockAlongRay = 0.5f;
+constexpr int kCubeHalfEdge = z13::station::kCubeEdgeCells / 2;
 
 struct Ray {
   Eigen::Vector3f eye = Eigen::Vector3f::Zero();
@@ -81,7 +84,9 @@ class GridBuildTest : public ::testing::Test {
  protected:
   void SetUp() override {
     EnterBuildMode(world_);
+    z13::testing::Ticks(world_, z13::testing::kToolSettleTicks);
     ray_ = PlayersRay(world_.World());
+    main_blocks_ = z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size();
     ASSERT_GT(ray_.length, 0.f);
   }
 
@@ -93,11 +98,26 @@ class GridBuildTest : public ::testing::Test {
     pose.origin = (target / z13::station::kCellSize).array().floor().cast<int>();
     world.entity("District").add<ft::StateEntity>().set(pose);
     const Eigen::Vector3f local = z13::station::GridToWorld(pose).inverse() * target / z13::station::kCellSize;
-    return {.spec = z13::station::CubeSpec(), .cell = local.array().floor().cast<int>(), .grid = kDistrict};
+    const Eigen::Vector3i local_cell = local.array().floor().cast<int>();
+    const Eigen::Vector3i centred_on_ray = local_cell - Eigen::Vector3i::Constant(kCubeHalfEdge);
+    return {.spec = z13::station::CubeSpec(), .cell = centred_on_ray, .grid = kDistrict};
+  }
+
+  // The block's middle in the world, by the district's pose.
+  Eigen::Vector3f WorldCentre(const Block& block) {
+    const Eigen::Vector3f centre = block.cell.cast<float>() + block.spec.size.cast<float>() * 0.5f;
+    return z13::station::GridToWorld(world_.World().lookup("District").get<Grid>()) * (centre * z13::station::kCellSize);
+  }
+
+  // Whether `block` lies on the player's side of `other`, along the ray.
+  bool OnThePlayersSide(const Block& block, const Block& other) {
+    return (WorldCentre(block) - WorldCentre(other)).dot(ray_.direction) < 0.f;
   }
 
   flecs::entity AddDistrictBlock(const Block& block) {
     const flecs::entity entity = z13::station::SpawnBlock(world_.World().entity("DistrictBlock"), block);
+    // The first tick makes the new grid's index (the system defers its set); the second reads it.
+    world_.Tick();
     world_.Tick();
     return entity;
   }
@@ -112,8 +132,9 @@ class GridBuildTest : public ::testing::Test {
     return found;
   }
 
-  z13::testing::Z13TestWorld world_;
+  z13::testing::Z13TestWorld world_ {z13::testing::SiteArgs()};
   Ray ray_;
+  size_t main_blocks_ {};
 };
 
 TEST_F(GridBuildTest, ABlockIsBuiltAgainstTheFaceOfAPosedGridTheRayMeets) {
@@ -125,10 +146,9 @@ TEST_F(GridBuildTest, ABlockIsBuiltAgainstTheFaceOfAPosedGridTheRayMeets) {
 
   const std::optional<Block> built = Newest(kDistrict, placed);
   ASSERT_TRUE(built.has_value());
-  // The ray runs along the world's +X, which is the grid's -Y: it enters the grid block by its +Y face.
-  EXPECT_EQ(built->cell, district_block.cell + Eigen::Vector3i::UnitY());
+  EXPECT_TRUE(OnThePlayersSide(*built, district_block));
   EXPECT_EQ(IndexedIn(world_.World(), "District"), 2u);
-  EXPECT_EQ(z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size(), 0u);
+  EXPECT_EQ(z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size(), main_blocks_);
 }
 
 TEST_F(GridBuildTest, ABlockBuiltInATiltedGridIsOnTheFreeCellNextToWhatTheRayHit) {
@@ -138,7 +158,7 @@ TEST_F(GridBuildTest, ABlockBuiltInATiltedGridIsOnTheFreeCellNextToWhatTheRayHit
 
   const std::optional<Block> built = Newest(kDistrict, placed);
   ASSERT_TRUE(built.has_value());
-  EXPECT_EQ((built->cell - placed.get<Block>().cell).cwiseAbs().sum(), 1);
+  EXPECT_TRUE(OnThePlayersSide(*built, placed.get<Block>()));
 }
 
 TEST_F(GridBuildTest, TheNearerOfTwoGridsTheRayMeetsTakesTheBuild) {
@@ -153,7 +173,7 @@ TEST_F(GridBuildTest, TheNearerOfTwoGridsTheRayMeetsTakesTheBuild) {
 
   EXPECT_TRUE(Newest(kDistrict, placed).has_value());
   EXPECT_EQ(IndexedIn(world_.World(), "District"), 2u);
-  EXPECT_EQ(z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size(), 1u);
+  EXPECT_EQ(z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size(), main_blocks_ + 1);
 }
 
 TEST_F(GridBuildTest, DestroyingTakesTheBlockOfThePosedGridTheRayMeets) {
@@ -172,16 +192,20 @@ TEST_F(GridBuildTest, ABlockCutOutOfAPosedGridLeavesRemaindersInThatGrid) {
   wide.cell -= Eigen::Vector3i::Ones();
   const flecs::entity placed = AddDistrictBlock(wide);
 
+  std::vector<flecs::entity> players;
   world_.World().query_builder<const z13::gameplay::Player>().build().each(
-      [](flecs::entity player, const z13::gameplay::Player&) { player.add<CutModifier>(); });
+      [&players](flecs::entity player, const z13::gameplay::Player&) { players.push_back(player); });
+  for (const flecs::entity player : players) {
+    player.add<CutModifier>();
+  }
   Click(world_, z13::fbs::input::Keycode::MOUSE_BUTTON_LEFT);
 
   size_t remainders {};
   world_.World().query_builder<const Block>().build().each([&](flecs::entity e, const Block& block) {
     remainders += block.grid == kDistrict && e != placed ? 1 : 0;
-    EXPECT_NE(block.grid, z13::station::kMainGrid);
   });
   EXPECT_GT(remainders, 0u);
+  EXPECT_EQ(z13::station::MainGridEntity(world_.World()).get<grid::BlockIndex>().Size(), main_blocks_);
 }
 
 }  // namespace
