@@ -33,7 +33,6 @@ namespace {
 
 // assets/shaders/lighting.fs: kLightTexels.
 constexpr int kLightTexels = 5;
-constexpr int kIndicesPerTexel = 4;
 constexpr size_t kFloatsPerTexel = 4;
 // The shader's slot for a light without a shadow.
 constexpr float kNoShadow = -1.f;
