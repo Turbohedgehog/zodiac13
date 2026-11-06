@@ -40,7 +40,7 @@ using MadeBlocks = std::unordered_map<flecs::entity_t, z13::station::Block>;
 
 // What the build requests of one tick share, so each sees what the ones before it made.
 struct BuildRun {
-  // The grid the request in hand builds in (Select): its index, the players and spawn clearances in its cells.
+  // The grid the request in hand builds in (Select).
   std::reference_wrapper<grid::BlockIndex> index;
   z13::station::GridId grid = z13::station::kMainGrid;
   bool selected {};
@@ -60,7 +60,6 @@ struct BuildRun {
     return namers.try_emplace(stamp.player_id, stamp).first->second;
   }
 
-  // Builds in `target` from now on; the clearances it had are kept for the next time.
   void Select(const GridView& target) {
     if (selected) {
       clearances_by_grid[grid] = std::move(spawn_clearances);

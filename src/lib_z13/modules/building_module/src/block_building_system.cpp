@@ -524,7 +524,7 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run, const BuildGrids& 
     run.made.emplace(created.id(), block);
     if (spawns) {
       ++run.spawn_points;
-      run.spawn_clearances.push_back(SpawnClearance(block, run.tuning));  // the grid of `block` is the selected one
+      run.spawn_clearances.push_back(SpawnClearance(block, run.tuning));
     }
   }
   if (drag) {

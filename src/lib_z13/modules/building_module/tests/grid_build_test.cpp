@@ -85,13 +85,11 @@ class GridBuildTest : public ::testing::Test {
     ASSERT_GT(ray_.length, 0.f);
   }
 
-  // A district posed `yaw`/`pitch` whose origin puts the cell at the middle of the ray at `cell` (its own cells).
+  // A district posed so that the middle of the ray is in its returned cell.
   Block MakeDistrict(float yaw, float pitch) {
     flecs::world world = world_.World();
     Grid pose {.id = kDistrict, .yaw_degrees = yaw, .pitch_degrees = pitch};
     const Eigen::Vector3f target = ray_.eye + ray_.direction * (ray_.length * kBlockAlongRay);
-    // The world cell under the target becomes the district's origin; its block then sits at the cell 0 offset by the
-    // pose, so look the local cell up through the pose.
     pose.origin = (target / z13::station::kCellSize).array().floor().cast<int>();
     world.entity("District").add<ft::StateEntity>().set(pose);
     const Eigen::Vector3f local = z13::station::GridToWorld(pose).inverse() * target / z13::station::kCellSize;
