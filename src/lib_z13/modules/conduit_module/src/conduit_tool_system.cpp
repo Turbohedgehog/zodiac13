@@ -39,6 +39,7 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 #include <primitives/palette.h>
+#include <z13/components/input/action_listener.h>
 #include <z13/components/input/action_map.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/grid.h>

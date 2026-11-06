@@ -21,10 +21,9 @@
 #include <Eigen/Core>
 
 #include <input_config_generated.h>
+#include <z13/components/input/system_input_event_type.h>
 
 namespace z13::input {
-
-struct SystemInputEventType {};
 
 struct MousePos {
   int x;

@@ -24,10 +24,9 @@
 #include <boost/container/flat_map.hpp>
 
 #include <z13/components/input/action_id.h>
+#include <z13/components/input/action_listener_fwd.h>
 
 namespace z13::input {
-
-struct CurrentActionListenerTag {};
 
 struct ActionValueHolder {
   static constexpr float kInputValueEps = 0.001f;
