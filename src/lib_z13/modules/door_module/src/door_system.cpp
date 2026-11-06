@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include <rooms/portal_source.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_change_reader.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/door.h>
 #include <z13/components/station/interaction.h>
 #include <z13/components/station/station_mode.h>
@@ -48,6 +50,8 @@ using z13::station::BlockChange;
 using z13::station::BlockChangeKind;
 using z13::station::BlockChangeBatch;
 using z13::station::BlockChangeReader;
+using z13::station::DockLink;
+using z13::station::DockLinks;
 using z13::station::DoorMode;
 using z13::station::DoorOpening;
 using z13::station::DoorPosition;
@@ -86,7 +90,44 @@ Contact ContactOf(const Interactions& interactions, flecs::entity_t door) {
   return contact;
 }
 
-void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interactions, const z13::DoorTuning& tuning) {
+// The other door of the dock `door` is one of the pair of, if it is.
+std::optional<flecs::entity_t> PartnerOf(const DockLinks& docks, flecs::entity_t door) {
+  for (const DockLink& link : docks.list) {
+    if (link.door_a.door == 0 || link.door_b.door == 0) {
+      continue;
+    }
+    if (link.door_a.door == door) {
+      return link.door_b.door;
+    }
+    if (link.door_b.door == door) {
+      return link.door_a.door;
+    }
+  }
+  return std::nullopt;
+}
+
+// The door of a pair with the lower id leads: a door built or restored apart from its partner takes its wish.
+void PairDoors(const flecs::world& world, const DockLinks& docks) {
+  for (const DockLink& link : docks.list) {
+    if (link.door_a.door == 0 || link.door_b.door == 0) {
+      continue;
+    }
+    const flecs::entity first = world.entity(std::min(link.door_a.door, link.door_b.door));
+    const flecs::entity second = world.entity(std::max(link.door_a.door, link.door_b.door));
+    if (!first.has<DoorState>() || !second.has<DoorState>()) {
+      continue;
+    }
+    const DoorState& lead = first.get<DoorState>();
+    if (second.get<DoorState>().open_wanted != lead.open_wanted) {
+      DoorState& follower = second.get_mut<DoorState>();
+      follower.open_wanted = lead.open_wanted;
+      follower.hold_ticks = lead.hold_ticks;
+    }
+  }
+}
+
+void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interactions, const DockLinks& docks,
+              const z13::DoorTuning& tuning) {
   // Only the main grid has utility networks: a door of another grid has no supply to wait for.
   const auto* block = door.try_get<Block>();
   const bool supplied = block != nullptr && block->grid == kMainGrid && z13::utility::IsSupplied(door);
@@ -95,7 +136,12 @@ void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interact
     state.open_wanted = false;
     state.hold_ticks = 0;
   } else {
-    const Contact contact = ContactOf(interactions, door.id());
+    Contact contact = ContactOf(interactions, door.id());
+    if (const auto partner = PartnerOf(docks, door.id())) {
+      // What is done to either door of a pair is done to both.
+      const Contact other = ContactOf(interactions, *partner);
+      contact = {.presence = contact.presence || other.presence, .flipped = contact.flipped != other.flipped};
+    }
     const auto* interlock = door.try_get<z13::station::DoorInterlock>();
     // An airlock keeps a shut door shut for any hand; its controller opens it when the chamber is level.
     const bool held_shut = interlock != nullptr && interlock->reason == z13::station::InterlockReason::kAirlock &&
@@ -189,7 +235,13 @@ void RegisterSystems(flecs::world world) {
         AddStates(*reader, restores.count, clock.tick, palette, start, it.world());
       });
 
-  world.system<DoorState, const Interactions, const z13::DoorTuning>("DoorSystem::Move")
+  world.system<const DockLinks>("DoorSystem::PairDocks")
+      .kind<z13::utility::UtilityConsumersPhase>()
+      .with<StationMode>()
+      .write<DoorState>()
+      .each([](flecs::iter& it, size_t, const DockLinks& docks) { PairDoors(it.world(), docks); });
+
+  world.system<DoorState, const Interactions, const DockLinks, const z13::DoorTuning>("DoorSystem::Move")
       .kind<z13::utility::UtilityConsumersPhase>()
       .with<StationMode>()
       .read<z13::utility::UtilitySupply>()
