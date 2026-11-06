@@ -20,6 +20,9 @@
 
 namespace z13::dll {
 
+// The plugin's path as a module list names it; only z13_plugin_smoke loads it.
+constexpr std::string_view kModulePath = "modules/test_dll/test_dll_module";
+
 // Logged at debug level from RegisterModules; z13_plugin_smoke looks for it.
 constexpr std::string_view kRegisterModulesMessage = "TestDllModuleFactory::RegisterModules";
 
