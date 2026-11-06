@@ -411,7 +411,7 @@ RoomAirBasis& BasisOf(flecs::entity grid) {
 }
 
 RoomsNow RoomsNowOf(const std::vector<RoomsOfAGrid>& grids, const AtmosQueries& queries,
-                    const BlockPalette& palette, const flecs::world& world) {
+                    const BlockPalette& palette, flecs::world& world) {
   RoomsNow now;
   size_t first = 0;
   for (const RoomsOfAGrid& rooms : grids) {
