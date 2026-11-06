@@ -22,6 +22,7 @@
 
 #include <Eigen/Dense>
 
+#include <primitives/cell_box.h>
 #include <z13/components/station/block.h>
 
 // Placing a block on the grid: which cells it occupies and where its primitive's own frame
@@ -52,41 +53,11 @@ enum class TurnAxis : uint8_t { kX, kY, kZ };
 // `orientation` turned a further 90° counterclockwise around the world `axis`.
 z13::station::Orientation QuarterTurn(z13::station::Orientation orientation, TurnAxis axis);
 
-inline constexpr int kCellAxes = Eigen::Vector3i::SizeAtCompileTime;
-
-// The cells [min, min + extent).
-struct CellBox {
-  Eigen::Vector3i min = Eigen::Vector3i::Zero();
-  Eigen::Vector3i extent = Eigen::Vector3i::Zero();
-
-  Eigen::Vector3i End() const { return min + extent; }
-  bool Contains(const Eigen::Vector3i& cell) const;
-  bool Overlaps(const CellBox& other) const;
-  // The cells both boxes hold; an empty box (zero extent) if they share none.
-  CellBox Intersection(const CellBox& other) const;
-  // The box with `cells` more cells on both sides along each axis.
-  CellBox Grown(const Eigen::Vector3i& cells) const;
-
-  bool operator==(const CellBox&) const = default;
-};
-
 // Maps a point p of the primitive's frame to origin + rotation * p.
 struct CellPose {
   Eigen::Matrix3i rotation = Eigen::Matrix3i::Identity();
   Eigen::Vector3i origin = Eigen::Vector3i::Zero();
 };
-
-struct CellHash {
-  size_t operator()(const Eigen::Vector3i& cell) const;
-};
-
-// The chunk of `chunk_cells`³ cells holding `cell`, by floor division so negative cells land
-// in the chunk below zero.
-Eigen::Vector3i ChunkOf(const Eigen::Vector3i& cell, int chunk_cells);
-
-// A chunk as one number, 21 bits per axis; UnpackChunk gives the chunk back.
-uint64_t PackChunk(const Eigen::Vector3i& chunk);
-Eigen::Vector3i UnpackChunk(uint64_t packed);
 
 CellBox OccupiedCells(const z13::station::Block& block);
 CellPose PoseOf(const z13::station::Block& block);

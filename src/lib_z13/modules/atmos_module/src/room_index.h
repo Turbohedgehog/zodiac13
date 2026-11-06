@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <rooms/room_graph.h>
 
 namespace z13::atmos_module {

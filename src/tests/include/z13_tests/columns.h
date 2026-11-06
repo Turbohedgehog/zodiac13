@@ -20,7 +20,7 @@
 
 #include <Eigen/Dense>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 namespace z13::testing {
 

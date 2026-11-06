@@ -23,6 +23,7 @@
 
 #include <primitives/cut.h>
 #include <z13/components/station/block.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 namespace {

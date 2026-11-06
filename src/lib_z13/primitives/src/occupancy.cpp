@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include <primitives/cell_test.h>
+#include <primitives/placement.h>
 
 namespace z13::building::primitives {
 

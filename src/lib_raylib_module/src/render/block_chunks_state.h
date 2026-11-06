@@ -33,7 +33,6 @@
 #include <z13/components/station/grid_pose.h>
 #include <primitives/draw_order.h>
 #include <primitives/palette.h>
-#include <primitives/placement.h>
 
 #include "block_chunks.h"
 #include "block_textures.h"

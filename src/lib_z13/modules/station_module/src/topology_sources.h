@@ -29,7 +29,7 @@
 #include <z13/components/station/grid_id.h>
 #include <z13/components/station/held_sectors.h>
 #include <primitives/palette.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <rooms/room_builder.h>
 #include <z13_settings/building_tuning.h>
 

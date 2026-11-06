@@ -28,7 +28,6 @@
 #include <primitives/blueprint.h>
 #include <primitives/occupancy.h>
 #include <primitives/palette.h>
-#include <primitives/placement.h>
 #include <primitives/station_assets.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_sources.h>

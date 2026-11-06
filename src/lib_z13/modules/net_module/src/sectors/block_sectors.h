@@ -18,7 +18,6 @@
 
 #include <vector>
 
-#include <primitives/placement.h>
 #include <sectors/sector.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/grid_pose.h>

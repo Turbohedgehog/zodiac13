@@ -26,7 +26,7 @@
 #include <z13/components/station/spawn_stamp.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <z13_settings/building_tuning.h>
 
 #include "build_validation.h"

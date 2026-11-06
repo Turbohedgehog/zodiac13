@@ -27,7 +27,7 @@
 
 #include <Eigen/Dense>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 #include <rooms/free_space.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_id.h>

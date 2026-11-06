@@ -19,6 +19,7 @@
 #include <functional>
 
 #include <primitives/geometry.h>
+#include <primitives/placement.h>
 
 namespace z13::station::outline {
 

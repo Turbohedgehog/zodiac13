@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 
-#include <primitives/placement.h>
 #include <rooms/parallel_for.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_graph.h>

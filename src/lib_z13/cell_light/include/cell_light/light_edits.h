@@ -19,7 +19,7 @@
 #include <optional>
 #include <vector>
 
-#include <primitives/placement.h>
+#include <primitives/cell_box.h>
 
 #include <cell_light/lamp.h>
 
