@@ -135,6 +135,7 @@ set(
   ${MODULES_DIR}/net_module/tests/protocol/codec_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/hint_packet_test.cpp
   ${MODULES_DIR}/net_module/tests/protocol/pose_packet_test.cpp
+  ${MODULES_DIR}/net_module/tests/sectors/interest_district_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/interest_events_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/interest_system_test.cpp
   ${MODULES_DIR}/net_module/tests/sectors/sector_hash_test.cpp
@@ -316,7 +317,7 @@ z13_set_output_directory(z13_test_runner ${Z13_BIN_DIR}/tests)
 set(Z13_REAL_NETWORK_TESTS "EnetTransportTest.*:LanDiscoverySocketTest.*:LanDiscoveryWorldTest.*")
 # Over 10 s each in a Debug build (about half of the run): labelled `heavy`, so `ctest -LE heavy` is the quick set.
 set(Z13_HEAVY_TESTS
-    "InterestStationTest.*:InterestGhostSwapTest.*:GhostPosesTest.*:BroadphaseOrderTest.*:LightClientTest.*"
+    "InterestStationTest.*:InterestDistrictTest.*:InterestGhostSwapTest.*:GhostPosesTest.*:BroadphaseOrderTest.*:LightClientTest.*"
     ":*SessionChurnTest.*:*ConvergenceTest.*seed1"
     ":*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/hub:*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/spire"
     ":*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/test:*ShippedRoomsTest.TheOverlayOfAllRoomsHoldsTheirWholeVolume/octant"

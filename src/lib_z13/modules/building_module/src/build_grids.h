@@ -39,6 +39,8 @@ struct GridView {
   grid::BlockIndex& MutableIndex() const { return entity.get_mut<grid::BlockIndex>(); }
   // A point from the world's meters into the grid's cells, and back.
   Eigen::Vector3f ToCells(const Eigen::Vector3f& world_meters) const;
+  // The same point in the grid's own meters, for what is measured against cell boxes.
+  Eigen::Vector3f ToLocalMeters(const Eigen::Vector3f& world_meters) const { return to_world.inverse() * world_meters; }
   Eigen::Vector3f ToWorldMeters(const Eigen::Vector3f& cells) const;
 };
 

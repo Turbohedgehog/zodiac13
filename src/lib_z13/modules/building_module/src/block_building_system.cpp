@@ -731,7 +731,7 @@ void UpdateBrushPreview(flecs::entity brush, const PreviewContext& context) {
   std::vector<PlayerSphere> local_players;
   for (const PlayerSphere& player : context.players) {
     local_players.push_back(
-        {.center = target.ToCells(player.center) * z13::station::kCellSize, .radius = player.radius});
+        {.center = target.ToLocalMeters(player.center), .radius = player.radius});
   }
   const auto clearances = context.clearances.get().find(aim->grid);
   const BuildView view {

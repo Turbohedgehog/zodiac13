@@ -71,7 +71,7 @@ struct BuildRun {
     spawn_clearances = std::move(clearances_by_grid[grid]);
     local_players.clear();
     for (const PlayerSphere& player : players) {
-      local_players.push_back({.center = target.ToCells(player.center) * z13::station::kCellSize,
+      local_players.push_back({.center = target.ToLocalMeters(player.center),
                                .radius = player.radius});
     }
   }

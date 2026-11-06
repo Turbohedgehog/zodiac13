@@ -27,7 +27,7 @@ namespace z13::building {
 using z13::station::kCellSize;
 
 Eigen::Vector3f GridView::ToCells(const Eigen::Vector3f& world_meters) const {
-  return to_world.inverse() * world_meters / kCellSize;
+  return ToLocalMeters(world_meters) / kCellSize;
 }
 
 Eigen::Vector3f GridView::ToWorldMeters(const Eigen::Vector3f& cells) const {
