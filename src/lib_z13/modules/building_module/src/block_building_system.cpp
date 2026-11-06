@@ -545,7 +545,8 @@ bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
   if (opening) {
     z13::gameplay::RecordStateChange(
         *opening, z13::gameplay::StateChangeKind::kRemoved,
-        WallSegmentCell(player.world(), opening->get<z13::station::WallOpening>().segment_id));
+        WallSegmentCell(player.world(), opening->get<z13::station::WallOpening>().segment_id),
+        WallSegmentGrid(player.world(), opening->get<z13::station::WallOpening>().segment_id));
     opening->destruct();
   }
   return opening.has_value();

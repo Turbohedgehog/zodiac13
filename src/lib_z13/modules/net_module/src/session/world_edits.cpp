@@ -52,19 +52,29 @@ using z13::gameplay::StateChange;
 using z13::gameplay::StateChangeKind;
 using z13::station::WallId;
 
-using NodeCells = std::map<WallId, Eigen::Vector3i>;
+using NodeCells = std::map<WallId, z13::station::WallNode>;
 
 NodeCells CellsOfNodes(flecs::world world) {
   NodeCells cells;
   world.query<const z13::station::WallNode>().each(
-      [&cells](const z13::station::WallNode& node) { cells.emplace(node.id, node.cell); });
+      [&cells](const z13::station::WallNode& node) { cells.emplace(node.id, node); });
   return cells;
 }
 
-void AddNodeCells(const NodeCells& nodes, std::initializer_list<WallId> ids, std::vector<Eigen::Vector3i>& cells) {
+// The sectors a cell of `grid` is in, by the grid's pose.
+void AddCellSectors(const z13::station::GridPoses& poses, z13::station::GridId grid, const Eigen::Vector3i& cell,
+                    int sector_cells, std::vector<sectors::SectorKey>& touched) {
+  std::ranges::copy(
+      sectors::SectorsTouched({.min = cell, .extent = Eigen::Vector3i::Ones()}, z13::station::PoseOfGrid(poses, grid),
+                              sector_cells),
+      std::back_inserter(touched));
+}
+
+void AddNodeSectors(const NodeCells& nodes, const z13::station::GridPoses& poses, std::initializer_list<WallId> ids,
+                    int sector_cells, std::vector<sectors::SectorKey>& touched) {
   for (const WallId id : ids) {
     if (const auto node = nodes.find(id); node != nodes.end()) {
-      cells.push_back(node->second);
+      AddCellSectors(poses, node->second.grid, node->second.cell, sector_cells, touched);
     }
   }
 }
@@ -110,21 +120,19 @@ std::vector<sectors::SectorKey> SectorsOf(
   if (const auto* block = entity.try_get<z13::station::Block>()) {
     return SectorsOfBlock(world, *block, poses, districts, sector_cells);
   }
-  std::vector<Eigen::Vector3i> cells;
+  std::vector<sectors::SectorKey> touched;
   if (const auto* node = entity.try_get<z13::station::WallNode>()) {
-    cells.push_back(node->cell);
+    AddCellSectors(poses, node->grid, node->cell, sector_cells, touched);
   } else if (const auto* segment = entity.try_get<z13::station::WallSegment>()) {
-    AddNodeCells(nodes, {segment->node_a, segment->node_b}, cells);
+    AddNodeSectors(nodes, poses, {segment->node_a, segment->node_b}, sector_cells, touched);
   } else if (const auto* opening = entity.try_get<z13::station::WallOpening>()) {
     world.query<const z13::station::WallSegment>().each([&](const z13::station::WallSegment& segment) {
       if (segment.id == opening->segment_id) {
-        AddNodeCells(nodes, {segment.node_a, segment.node_b}, cells);
+        AddNodeSectors(nodes, poses, {segment.node_a, segment.node_b}, sector_cells, touched);
       }
     });
   }
-  std::vector<sectors::SectorKey> touched;
-  std::ranges::transform(cells, std::back_inserter(touched),
-                         [sector_cells](const Eigen::Vector3i& cell) { return sectors::SectorOf(cell, sector_cells); });
+  SortUnique(touched);
   return touched;
 }
 
@@ -157,7 +165,8 @@ std::vector<Edit> EditsOfTick(flecs::world world, int sector_cells) {
       if (const auto block = removed_blocks.find(change.entity); block != removed_blocks.end()) {
         edit.sectors = SectorsOfBlock(world, block->second, poses, districts, sector_cells);
       } else if (change.cell) {
-        edit.sectors.push_back(sectors::SectorOf(*change.cell, sector_cells));
+        AddCellSectors(poses, change.grid, *change.cell, sector_cells, edit.sectors);
+        SortUnique(edit.sectors);
       }
     } else {
       const flecs::entity entity = world.entity(change.entity);

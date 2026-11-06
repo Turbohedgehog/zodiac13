@@ -24,6 +24,8 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <z13/components/station/grid_id.h>
+
 namespace z13::gameplay {
 
 enum class StateChangeKind : uint8_t { kSet, kRemoved };
@@ -42,7 +44,8 @@ struct StateChange {
   StateChangeKind kind {};
   flecs::entity_t entity {};
   std::string name;
-  std::optional<Eigen::Vector3i> cell;
+  std::optional<Eigen::Vector3i> cell;  // in the cells of `grid`
+  z13::station::GridId grid = z13::station::kMainGrid;
   uint32_t actor {};
 };
 
@@ -64,7 +67,8 @@ class ActorScope {
 
 // Nothing when no player is acting.
 inline void RecordStateChange(
-    flecs::entity entity, StateChangeKind kind, const std::optional<Eigen::Vector3i>& cell = std::nullopt) {
+    flecs::entity entity, StateChangeKind kind, const std::optional<Eigen::Vector3i>& cell = std::nullopt,
+    z13::station::GridId grid = z13::station::kMainGrid) {
   flecs::world world = entity.world();
   const auto* acting = world.try_get<EditActor>();
   if (!acting || !acting->player_id) {
@@ -75,6 +79,7 @@ inline void RecordStateChange(
       .entity = entity.id(),
       .name = kind == StateChangeKind::kRemoved ? std::string(entity.name().c_str()) : std::string(),
       .cell = cell,
+      .grid = grid,
       .actor = *acting->player_id});
 }
 
