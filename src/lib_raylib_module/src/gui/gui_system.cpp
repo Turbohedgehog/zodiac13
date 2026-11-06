@@ -74,8 +74,7 @@ namespace z13::raylib {
 
 namespace {
 
-// Singleton: whether the ImGui context/backends are up. Was a file-scope static;
-// moved into the world so nothing here is process-global state.
+// Singleton: whether the ImGui context/backends are up.
 struct GuiState {
   using Singleton = void;
   bool imgui_ready {};
