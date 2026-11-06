@@ -64,14 +64,10 @@ void UpdateBrush(
     const Brush& brush,
     Eigen::Matrix4f& brush_transform) {
   Eigen::Vector3f dir { brush.distance, 0.f, 0.f };
-  // Eigen::Vector3f pos = z13::math::ExtractTranslation(parent_transform) + dir;
   auto pos = Eigen::Vector3f((parent_transform * dir.homogeneous()).head<3>());
   auto prev_pos = z13::math::ExtractTranslation(brush_transform);
   if (!z13::math::IsNear(pos, prev_pos)) {
-    // log_info("UpdateBrush = {}, {}, {}", pos.x(), pos.y(), pos.z());
     z13::math::SetTranslation(pos, brush_transform);
-    // log_info("~~~ UpdateBrush");
-    // notify all
     e.set(brush_transform);
   }
 }
@@ -150,17 +146,6 @@ void ProcessBuildBlockRequest(
   SpawnCube(player.world(), namer, z13::math::ExtractTranslation<float>(*brush_transform));
 }
 
-void UpdateBuildingTool(
-    flecs::entity e,
-    const z13::gameplay::Player&,
-    const BuildingTool& building_tool,
-    const Eigen::Matrix4f&) {
-}
-
-void AppendBuildingTool(flecs::entity e, const z13::gameplay::Player&) {
-  e.add<BuildingTool>();
-}
-
 void RegisterSystems(flecs::world world) {
   // Registered before UpdateBrush (same phase, so runs before it); the write<>
   // terms make flecs merge a new brush before UpdateBrush and the block request.
@@ -180,10 +165,6 @@ void RegisterSystems(flecs::world world) {
     .kind<UpdateBuildingToolPhase>()
     .term_at(0).parent()
     .each(UpdateBrush);
-
-  world.system<z13::gameplay::Player, BuildingTool, Eigen::Matrix4f>("BuildingSystem::UpdateBuildingTool")
-    .kind<UpdateBuildingToolPhase>()
-    .each(UpdateBuildingTool);
 
   // Registered after UpdateBrush above (same phase, so runs after it): reads
   // the brush position UpdateBrush just refreshed this frame.
