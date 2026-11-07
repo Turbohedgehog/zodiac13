@@ -58,11 +58,4 @@ std::optional<std::reference_wrapper<const T>> MainGridData(flecs::world world) 
   return grid.is_valid() && grid.has<T>() ? std::optional(std::cref(grid.get<T>())) : std::nullopt;
 }
 
-// The same, to change in place: for a system that declares it writes T.
-template <typename T>
-std::optional<std::reference_wrapper<T>> MutableMainGridData(flecs::world world) {
-  flecs::entity grid = MainGridEntity(world);
-  return grid.is_valid() && grid.has<T>() ? std::optional(std::ref(grid.get_mut<T>())) : std::nullopt;
-}
-
 }  // namespace z13::station

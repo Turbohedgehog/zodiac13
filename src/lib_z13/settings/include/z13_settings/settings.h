@@ -127,8 +127,6 @@ Settings MakeSettings();
 
 void EnsureNestedSettings(Settings& settings);
 
-SessionSettings SessionOf(const Settings& settings);
-
 Settings WithSession(Settings settings, const SessionSettings& session);
 
 // The ranges the schema declares (min/max), plus what a range cannot say: fields that must

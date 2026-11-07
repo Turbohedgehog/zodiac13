@@ -25,7 +25,6 @@ namespace z13::tools::environment {
 constexpr std::string_view kDataDirectoryVariable = "Z13_DATA_DIR";
 
 std::filesystem::path GetGameDataDirectory();
-std::filesystem::path GetGameInputConfigJsonPath();
 std::filesystem::path GetGameInputConfigJsonPath2();
 // Next to the input config; generated from the schema defaults when missing.
 std::filesystem::path GetGameSettingsJsonPath();

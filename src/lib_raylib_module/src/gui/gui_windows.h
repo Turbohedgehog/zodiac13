@@ -50,8 +50,6 @@ class Window {
   virtual StackRequest OnBack();  // default: pop
   virtual void OnKeyDown(z13::fbs::input::Keycode) {}
 
-  const std::string& Title() const { return title_; }
-
  protected:
   virtual void DrawBody() = 0;
 
