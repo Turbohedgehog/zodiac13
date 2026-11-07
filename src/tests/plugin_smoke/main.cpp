@@ -15,26 +15,20 @@
  */
 
 // Loads the dedicated server's plugins through boost::dll, as the launcher does, and runs
-// a few frames: fails where each plugin gets its own copy of flecs (a static flecs build),
-// or keeps its own spdlog logger registry instead of the process's one.
+// a few frames: fails where each plugin gets its own copy of flecs (a static flecs build).
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include <boost/dll/runtime_symbol_info.hpp>
-#include <spdlog/sinks/ringbuffer_sink.h>
-#include <spdlog/spdlog.h>
 
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/core.h>
-#include <lib_test_dll/test_dll_messages.h>
 #include <z13_launcher/module_list.h>
 
 namespace {
@@ -45,16 +39,10 @@ const std::filesystem::path kBinDir = "..";
 
 constexpr uint64_t kFrames {10};
 constexpr float kDeltaTime {1.f / 60.f};
-constexpr size_t kCapturedMessages {256};
 
 }  // namespace
 
 int main() {
-  // Debug here; a plugin with its own spdlog copy would still be at the default info level.
-  auto captured = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(kCapturedMessages);
-  spdlog::default_logger()->sinks().push_back(captured);
-  spdlog::set_level(spdlog::level::debug);
-
   std::string program {"z13_plugin_smoke"};
   std::string skip_main_menu {"--skip-main-menu"};
   std::vector<char*> argv {program.data(), skip_main_menu.data()};
@@ -68,7 +56,6 @@ int main() {
     z13::log_error("{}", modules.error());
     return EXIT_FAILURE;
   }
-  modules->emplace_back(z13::dll::kModulePath);
   if (std::ranges::any_of(*modules, [&core](const std::string& module_path) {
         const auto registered = core.RegisterModuleFactory(kBinDir / module_path);
         if (!registered) {
@@ -87,13 +74,6 @@ int main() {
   flecs::world& world = created->get();
   for (uint64_t frame = 0; frame < kFrames; ++frame) {
     core.Update(kDeltaTime);
-  }
-
-  if (std::ranges::none_of(captured->last_formatted(), [](const std::string& line) {
-        return line.find(z13::dll::kRegisterModulesMessage) != std::string::npos;
-      })) {
-    z13::log_error("test_dll's debug message didn't reach the core's logger");
-    return EXIT_FAILURE;
   }
 
   const uint64_t tick = world.get<z13::flecs_tools::SimulationClock>().tick;

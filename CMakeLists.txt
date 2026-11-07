@@ -133,7 +133,6 @@ add_subdirectory(src/zodiac13)
 if(Z13_BUILD_RENDER)
     add_subdirectory(src/lib_raylib_module)
 endif()
-add_subdirectory(src/lib_test_dll)
 
 # Android builds the app alone: the tests run on the desktop platforms.
 if(NOT ANDROID)

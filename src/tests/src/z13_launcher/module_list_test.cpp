@@ -25,7 +25,7 @@ constexpr char kSampleYaml[] = R"(
 modules:
   - modules/z13_module/z13_module
   - path: modules/raylib/raylib_module
-  - modules/test_dll/test_dll_module
+  - modules/door_module/door_module
 )";
 
 TEST(ParseModuleListTest, ScalarAndMapEntriesAreBothRead) {
@@ -35,7 +35,7 @@ TEST(ParseModuleListTest, ScalarAndMapEntriesAreBothRead) {
   ASSERT_EQ(modules->size(), 3u);
   EXPECT_EQ((*modules)[0], "modules/z13_module/z13_module");
   EXPECT_EQ((*modules)[1], "modules/raylib/raylib_module");
-  EXPECT_EQ((*modules)[2], "modules/test_dll/test_dll_module");
+  EXPECT_EQ((*modules)[2], "modules/door_module/door_module");
 }
 
 TEST(ParseModuleListTest, MalformedEntryReturnsError) {
