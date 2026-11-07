@@ -42,6 +42,8 @@
 #include <z13/components/utility/utilities.h>
 #include <z13_settings/door_tuning.h>
 
+#include "portal_cache.h"
+
 namespace z13::door_module {
 
 namespace {
@@ -199,22 +201,8 @@ void AddStates(BlockChangeReader& reader, uint64_t restores, uint64_t tick, cons
 }
 
 void UpdatePortals(const flecs::query<const DoorState, const Block>& doors, const BlockPalette& palette,
-                   DoorPortals& portals) {
-  std::vector<DoorOpening> open;
-  // The openings are in the main grid's cells, which the renderer matches against its portals.
-  doors.each([&](const DoorState& state, const Block& block) {
-    const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (state.position == 0 || block.grid != kMainGrid || !primitive) {
-      return;
-    }
-    for (const rooms::PortalSource& source : rooms::PortalsOf(block, primitive->get(), palette.palette)) {
-      open.push_back({.min = source.opening.min, .extent = source.opening.extent});
-    }
-  });
-  std::ranges::sort(open, [](const DoorOpening& a, const DoorOpening& b) {
-    return std::tie(a.min.x(), a.min.y(), a.min.z(), a.extent.x(), a.extent.y(), a.extent.z()) <
-           std::tie(b.min.x(), b.min.y(), b.min.z(), b.extent.x(), b.extent.y(), b.extent.z());
-  });
+                   PortalCache& cache, DoorPortals& portals) {
+  std::vector<DoorOpening> open = cache.OpenOf(doors, palette);
   if (open != portals.open) {
     portals.open = std::move(open);
   }
@@ -255,12 +243,15 @@ void RegisterSystems(flecs::world world) {
       .each(MoveDoor);
 
   const auto doors = world.query<const DoorState, const Block>();
+  const auto cache = std::make_shared<PortalCache>();
   world.system<DoorPortals, const BlockPalette>("DoorSystem::UpdatePortals")
       .kind<z13::utility::UtilityConsumersPhase>()
       .with<StationMode>()
       .read<DoorState>()
       .read<Block>()
-      .each([doors](DoorPortals& portals, const BlockPalette& palette) { UpdatePortals(doors, palette, portals); });
+      .each([doors, cache](DoorPortals& portals, const BlockPalette& palette) {
+        UpdatePortals(doors, palette, *cache, portals);
+      });
 }
 
 }  // namespace

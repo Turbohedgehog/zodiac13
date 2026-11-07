@@ -42,6 +42,9 @@ struct SnapshotGrouping {
   std::function<uint64_t(flecs::entity)> hash_of;
   // Optional: no grouped entity changed since the previous call, so fingerprinting is skipped.
   std::function<bool(flecs::world)> unchanged;
+  // Optional: a fingerprint of an ungrouped entity covering its name and every state value, or none when it can't
+  // say; an entity whose fingerprint is the last capture's is not encoded again.
+  std::function<std::optional<uint64_t>(flecs::entity)> hash_ungrouped;
   std::shared_ptr<SnapshotGroupingState> state_ = std::make_shared<SnapshotGroupingState>();
 };
 

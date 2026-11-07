@@ -10,6 +10,7 @@ z13_add_plugin(
   src/door_module.cpp
   src/door_module_factory.cpp
   src/door_system.cpp
+  src/portal_cache.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE

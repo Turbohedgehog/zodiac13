@@ -37,6 +37,7 @@
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/spawn_point.h>
+#include <z13/components/station/wall.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
 #include <z13_settings/building_tuning.h>
@@ -184,6 +185,64 @@ TEST(BlockSnapshotTest, ACachedChunkNeverGoesStale) {
   EXPECT_TRUE(matches_ungrouped());
   doomed.destruct();
   EXPECT_TRUE(matches_ungrouped());
+}
+
+flecs::entity PlaceWallEntity(flecs::world world, std::string_view name) {
+  return world.entity(std::string(name).c_str()).add<ft::StateEntity>();
+}
+
+// The wall hash (HashOfWallEntity) covers the wall components; an entity holding anything else is not cached.
+TEST(BlockSnapshotTest, AWallEntityHoldsOnlyWhatItsHashCovers) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  const flecs::entity segment = PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
+  const flecs::entity opening = PlaceWallEntity(world, "TestWallOpening").set(z13::station::WallOpening {.id = 3});
+
+  for (const flecs::entity e : {node, segment, opening}) {
+    const auto snapshot = ft::CaptureEntityState(world, e);
+    ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
+    ASSERT_EQ(snapshot->entities.size(), 1u);
+    EXPECT_EQ(snapshot->entities[0].components.size(), 1u) << e.name();
+    EXPECT_TRUE(snapshot->entities[0].tags.empty()) << e.name();
+    EXPECT_TRUE(snapshot->entities[0].relationships.empty()) << e.name();
+    EXPECT_TRUE(world.get<ft::SnapshotGrouping>().hash_ungrouped(e).has_value()) << e.name();
+  }
+}
+
+TEST(BlockSnapshotTest, ACachedWallNeverGoesStale) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  const flecs::entity segment = PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
+  const flecs::entity opening = PlaceWallEntity(world, "TestWallOpening").set(z13::station::WallOpening {.id = 3});
+  ft::CaptureState(world).value();
+
+  const auto matches_uncached = [&world] {
+    const StateByName cached = Flatten(ft::CaptureState(world).value());
+    const auto hash_ungrouped = std::exchange(world.get_mut<ft::SnapshotGrouping>().hash_ungrouped, nullptr);
+    const StateByName uncached = Flatten(ft::CaptureState(world).value());
+    world.get_mut<ft::SnapshotGrouping>().hash_ungrouped = hash_ungrouped;
+    return cached == uncached;
+  };
+
+  EXPECT_TRUE(matches_uncached());
+  node.set(z13::station::WallNode {.id = 1, .cell = Eigen::Vector3i(1, 0, 0)});
+  EXPECT_TRUE(matches_uncached());
+  node.set(z13::station::WallNode {.id = 1, .grid = 1, .cell = Eigen::Vector3i(1, 0, 0)});
+  EXPECT_TRUE(matches_uncached());
+  segment.set(z13::station::WallSegment {.id = 2, .stick_a = {.length = 3}});
+  EXPECT_TRUE(matches_uncached());
+  segment.set(z13::station::WallSegment {.id = 2, .stick_a = {.length = 3}, .thickness = -1});
+  EXPECT_TRUE(matches_uncached());
+  opening.set(z13::station::WallOpening {.id = 3, .width = 2});
+  EXPECT_TRUE(matches_uncached());
+  opening.set(z13::station::WallOpening {.id = 3, .kind = z13::station::OpeningKind::kWindow, .width = 2});
+  EXPECT_TRUE(matches_uncached());
+  PlaceWallEntity(world, "TestWallNode_2").set(z13::station::WallNode {.id = 4});
+  EXPECT_TRUE(matches_uncached());
+  node.destruct();
+  EXPECT_TRUE(matches_uncached());
 }
 
 TEST(BlockSnapshotTest, RestoreTouchesOnlyTheChunksThatChanged) {

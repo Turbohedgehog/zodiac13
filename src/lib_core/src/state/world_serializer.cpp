@@ -257,18 +257,35 @@ std::expected<WorldSnapshot, std::string> CaptureImpl(
   if (grouping) {
     ungrouped.without(*grouping->get().member);
   }
+  const auto hash_ungrouped = grouping ? grouping->get().hash_ungrouped : nullptr;
+  std::unordered_map<flecs::entity_t, CachedEntity> kept;
   ungrouped.build().each([&](flecs::entity e) {
     if (!captured || (accept && !accept(e))) {
       return;
     }
 
+    const std::optional<uint64_t> hash = hash_ungrouped ? hash_ungrouped(e) : std::nullopt;
+    if (hash) {
+      auto& previous = grouping->get().state_->ungrouped;
+      if (const auto same = previous.find(e.id()); same != previous.end() && same->second.hash == *hash) {
+        snapshot.entities.push_back(same->second.snapshot);
+        kept.emplace(e.id(), std::move(same->second));
+        return;
+      }
+    }
     auto entity = CaptureEntity(w, e, accept_component, accept_target);
     if (!entity) {
       captured = std::unexpected(std::move(entity.error()));
       return;
     }
+    if (hash) {
+      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = *entity});
+    }
     snapshot.entities.push_back(std::move(*entity));
   });
+  if (captured && hash_ungrouped) {
+    grouping->get().state_->ungrouped = std::move(kept);
+  }
   if (captured && grouping) {
     captured = CaptureGroups(w, *grouping, accept_component, accept_target, snapshot);
   }
