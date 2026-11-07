@@ -30,14 +30,13 @@ using z13::building::primitives::BlockPalette;
 using z13::building::primitives::CellBox;
 using z13::station::Block;
 using z13::station::DoorState;
-using z13::station::kMainGrid;
 
 }  // namespace
 
-std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const BlockPalette& palette) {
+std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const BlockPalette& palette, z13::station::GridId grid) {
   std::vector<DoorAt> found;
   doors.each([&](flecs::entity entity, const DoorState& state, const Block& block) {
-    const auto primitive = block.grid == kMainGrid ? palette.palette.Find(block.spec.type_id) : std::nullopt;
+    const auto primitive = block.grid == grid ? palette.palette.Find(block.spec.type_id) : std::nullopt;
     if (!primitive) {
       return;
     }

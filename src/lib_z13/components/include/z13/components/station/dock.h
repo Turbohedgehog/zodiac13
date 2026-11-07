@@ -52,10 +52,21 @@ struct RoomRef {
   bool operator==(const RoomRef&) const = default;
 };
 
+// The door of one end's room nearest the dock's cell and the cells of its opening; none (0) if the room has no door.
+struct DockDoor {
+  flecs::entity_t door {};
+  int32_t area_cells {};
+
+  bool operator==(const DockDoor&) const = default;
+};
+
 struct DockLink {
   flecs::entity_t dock {};
   RoomRef a;
   RoomRef b;
+  // The pair of doors of the dock, one per grid: they open and close together, and what passes is what both let by.
+  DockDoor door_a;
+  DockDoor door_b;
 
   bool operator==(const DockLink&) const = default;
 };

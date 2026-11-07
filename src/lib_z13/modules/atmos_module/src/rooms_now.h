@@ -19,7 +19,10 @@
 #include <functional>
 #include <vector>
 
+#include <Eigen/Dense>
+
 #include <rooms/room_graph.h>
+#include <z13/components/station/grid_id.h>
 
 #include "airlock.h"
 #include "door_at.h"
@@ -27,12 +30,24 @@
 
 namespace z13::atmos_module {
 
-// What the room graph at hand gives a tick: the chambers, the doors and the airlocks.
-struct RoomsNow {
+// The room graph of one grid at hand: its chambers, which are numbered from `first` among the chambers of all grids,
+// its doors, and the pose that takes the world's meters into its cells.
+struct GridAir {
+  z13::station::GridId grid {};
   std::reference_wrapper<const z13::station::rooms::RoomGraph> graph;
   RoomIndex index;
   std::vector<DoorAt> doors;
+  size_t first {};
+  Eigen::Isometry3f from_world = Eigen::Isometry3f::Identity();
+};
+
+// What the room graphs at hand give a tick: the grids, the main one first, and the airlocks, which are the main
+// grid's.
+struct RoomsNow {
+  std::vector<GridAir> grids;
   std::vector<Airlock> airlocks;
+
+  const GridAir& Main() const { return grids.front(); }
 };
 
 }  // namespace z13::atmos_module

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <span>
 #include <vector>
 
 #include <flecs.h>
@@ -28,8 +29,14 @@ using RoomAirQuery = flecs::query<const z13::utility::RoomAirEntry>;
 
 std::vector<z13::utility::RoomAirEntry> LoadRoomAir(const RoomAirQuery& query);
 
-// Makes the rooms' state entities hold exactly `rooms` (sorted by anchor): sets the ones that differ, makes the missing
-// ones and destroys the others. Each is named by its anchor, as a restore matches state entities by name.
-void StoreRoomAir(flecs::world world, const RoomAirQuery& query, const std::vector<z13::utility::RoomAirEntry>& rooms);
+// Makes the state entities of the rooms of `grids` hold exactly `rooms` (sorted by grid, then anchor): sets the ones
+// that differ, makes the missing ones and destroys the others; the rooms of other grids are left alone. Each is named
+// by its grid and anchor, as a restore matches state entities by name.
+void StoreRoomAir(flecs::world world, const RoomAirQuery& query, const std::vector<z13::utility::RoomAirEntry>& rooms,
+                  std::span<const z13::station::GridId> grids);
+
+// The rooms of one grid out of `rooms`, in their order.
+std::vector<z13::utility::RoomAirEntry> RoomsOfGrid(const std::vector<z13::utility::RoomAirEntry>& rooms,
+                                                    z13::station::GridId grid);
 
 }  // namespace z13::atmos_module

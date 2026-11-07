@@ -108,7 +108,7 @@ void RegisterSystems(flecs::world world) {
         const auto cache = z13::station::MainGridData<z13::station::rooms::RoomCache>(it.world());
         const auto graph = cache ? cache->get().Current() : std::nullopt;
         if (graph) {
-          Fill(*layer, LoadRoomAir(stored), graph->get(), tuning);
+          Fill(*layer, RoomsOfGrid(LoadRoomAir(stored), z13::station::kMainGrid), graph->get(), tuning);
         }
       });
 }

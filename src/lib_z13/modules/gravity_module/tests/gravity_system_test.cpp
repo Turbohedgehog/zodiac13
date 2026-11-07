@@ -324,5 +324,22 @@ TEST_F(DistrictGravityTest, ABodyOutsideEveryRoomFloatsAndTheMainGridsRoomsKeepT
   EXPECT_TRUE(main_room.get<Gravity>().acceleration.isApprox(Eigen::Vector3f(0.f, 0.f, -kTuning.gravity)));
 }
 
+TEST_F(DistrictGravityTest, ThePlayersUpTurnsFromTheDistrictsDownToTheMainGridsStepByStepNotAtOnce) {
+  const flecs::entity player = world_.Player();
+  player.set(At(InDistrict(1.f)));
+  Advance(kFallTicks);
+  const Eigen::Vector3f district_up = GridToWorld(pose_).linear() * Eigen::Vector3f::UnitZ();
+  ASSERT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(district_up, kUpTolerance));
+
+  player.set(At(InBox(1.f)));
+  Advance(2);
+  const Eigen::Vector3f after_a_step = player.get<z13::gravity::PlayerUp>().up;
+  Advance(kFallTicks);
+
+  EXPECT_GT(after_a_step.dot(district_up), Eigen::Vector3f::UnitZ().dot(district_up)) << "a step turns it part of the way";
+  EXPECT_LT(after_a_step.dot(district_up), 1.f);
+  EXPECT_TRUE(player.get<z13::gravity::PlayerUp>().up.isApprox(Eigen::Vector3f::UnitZ(), kUpTolerance));
+}
+
 }  // namespace
 }  // namespace z13::station
