@@ -1,7 +1,5 @@
-# One CTest test per gtest suite instead of per test: starting z13_test_runner costs about 0.3 s in a Debug build
-# (a 490 MB library), a third of a serial run, and a suite's tests share the process. Called when CTest reads the
-# test list, so it sees the tests the built runner has; `excluded` is a gtest negative filter (the tests registered
-# on their own).
+# One CTest test per gtest suite instead of per test: starting z13_test_runner costs ~0.3 s in Debug, a third of a
+# serial run. `excluded` is the gtest negative filter of the tests registered on their own.
 function(z13_add_gtest_suite_tests runner working_directory excluded)
   execute_process(
       COMMAND "${runner}" --gtest_list_tests "--gtest_filter=-${excluded}"
