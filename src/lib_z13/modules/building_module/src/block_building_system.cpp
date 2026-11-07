@@ -61,6 +61,7 @@
 #include <z13_settings/building_tuning.h>
 
 #include "block_cutting.h"
+#include "build_grids.h"
 #include "block_entities.h"
 #include "build_run.h"
 #include "brush_aim.h"
@@ -200,16 +201,20 @@ void SyncBlockIndexes(z13::station::BlockChangeReader& reader, uint64_t restores
   }
 }
 
-std::optional<Aim> FindAim(flecs::entity player, const BlockIndex& index) {
+// The aim of the player's brush in the grid its ray meets first (brush_aim.h).
+std::optional<Aim> FindAim(flecs::entity player, const BuildGrids& grids) {
   std::optional<Aim> aim;
-  player.children([&aim, player, &index](flecs::entity child) {
+  if (grids.Empty()) {
+    return aim;
+  }
+  player.children([&aim, player, &grids](flecs::entity child) {
     if (aim || !child.has<z13::building::Brush>() || !child.has<Eigen::Matrix4f>() ||
         !player.has<Eigen::Matrix4f>()) {
       return;
     }
-    const Eigen::Vector3f eye = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()) / kCellSize;
-    const Eigen::Vector3f reach = z13::math::ExtractTranslation<float>(child.get<Eigen::Matrix4f>()) / kCellSize;
-    aim = AimAt(index, eye, reach);
+    const Eigen::Vector3f eye = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
+    const Eigen::Vector3f reach = z13::math::ExtractTranslation<float>(child.get<Eigen::Matrix4f>());
+    aim = AimAtGrids(grids, eye, reach);
   });
   return aim;
 }
@@ -221,20 +226,26 @@ std::optional<BrushDrag> DragOf(flecs::entity player) {
 // What a build would place with the brush aimed at `aim`: the block dragged out from
 // `drag`, or without one (or before it moved) the brush's block where it can rest (see BlockAt).
 // When `kind` cuts the block goes into the aimed face, not against it, over what it cuts.
-Block BrushBlock(const std::optional<BrushDrag>& drag, const BlockSpec& spec, const Aim& aimed, const BuildView& view,
-                 BuildKind kind) {
+Block BrushBlock(const std::optional<BrushDrag>& dragged, const BlockSpec& spec, const Aim& aimed,
+                 const BuildView& view, BuildKind kind) {
+  // A drag begun in another grid is no drag here: its anchor is in other cells.
+  const std::optional<BrushDrag> drag = dragged && dragged->anchor_grid == aimed.grid ? dragged : std::nullopt;
   const bool cutting = kind != BuildKind::kBuild;
   const Aim aim = cutting ? aimed.Flipped() : aimed;
   const Eigen::Vector3i anchor_cell = drag ? (cutting ? drag->anchor_cell - drag->anchor_normal : drag->anchor_cell)
                                            : Eigen::Vector3i::Zero();
+  Block block;
   if (!drag || anchor_cell == aim.Cell()) {
-    return BlockAt(aim, spec, view.index, view.tuning.get().max_slide_cells, cutting);
+    block = BlockAt(aim, spec, view.index, view.tuning.get().max_slide_cells, cutting);
+  } else {
+    const auto primitive = view.palette.get().Find(spec.type_id);
+    block = z13::building::primitives::DraggedBlock(
+        anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
+        primitive ? primitive->get().max_size : spec.size, cutting ? -drag->anchor_normal : drag->anchor_normal,
+        primitive ? primitive->get().shape : Shape {});
   }
-  const auto primitive = view.palette.get().Find(spec.type_id);
-  return z13::building::primitives::DraggedBlock(
-      anchor_cell, aim.Cell(), spec, primitive ? primitive->get().min_size : spec.size,
-      primitive ? primitive->get().max_size : spec.size, cutting ? -drag->anchor_normal : drag->anchor_normal,
-      primitive ? primitive->get().shape : Shape {});
+  block.grid = aimed.grid;
+  return block;
 }
 
 Status CheckPermission(flecs::entity player) {
@@ -252,18 +263,20 @@ std::vector<PlayerSphere> PlayerSpheres(const PlayerQuery& players) {
   return spheres;
 }
 
-std::vector<CellBox> SpawnClearances(const SpawnBlockQuery& spawn_blocks, const BuildingTuning& tuning) {
-  std::vector<CellBox> clearances;
+using ClearancesByGrid = std::unordered_map<z13::station::GridId, std::vector<CellBox>>;
+
+ClearancesByGrid SpawnClearances(const SpawnBlockQuery& spawn_blocks, const BuildingTuning& tuning) {
+  ClearancesByGrid clearances;
   spawn_blocks.each([&clearances, &tuning](const Block& marker) {
-    clearances.push_back(SpawnClearance(marker, tuning));
+    clearances[marker.grid].push_back(SpawnClearance(marker, tuning));
   });
   return clearances;
 }
 
-void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BlockIndex& index) {
+void StartBrushDrag(flecs::entity player, RequestBrushDrag, const BuildGrids& grids) {
   player.remove<RequestBrushDrag>();
-  if (const auto aim = FindAim(player, index)) {
-    player.set(BrushDrag {.anchor_cell = aim->Cell(), .anchor_normal = aim->normal});
+  if (const auto aim = FindAim(player, grids)) {
+    player.set(BrushDrag {.anchor_cell = aim->Cell(), .anchor_normal = aim->normal, .anchor_grid = aim->grid});
   }
 }
 
@@ -425,17 +438,30 @@ void ProcessOpeningClick(flecs::entity player, flecs::entity tool, const Aim& ai
   SpawnWallOpening(player.world(), NamerOf(run, player), aimed->opening);
 }
 
+// The modes whose walls, nodes and openings live in the main grid only.
+bool UsesWalls(ToolMode mode) {
+  return mode == ToolMode::kWall || mode == ToolMode::kMerge || mode == ToolMode::kBridge ||
+         mode == ToolMode::kOpening;
+}
+
 // A dragged block's size becomes the brush's, so the next click repeats it. With CutModifier
 // the block's cells are cut out of the station instead; with CutInModifier they are cut
 // out first and the block takes their place.
-void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
+void ProcessBuildRequest(flecs::entity player, BuildRun& run, const BuildGrids& grids) {
   player.remove<z13::building::RequestBuildBlock>();
   const std::optional<flecs::entity> tool = z13::building::HeldBuildTool(player);
   if (!tool || !tool->has<BlockBrush>()) {
     player.remove<BrushDrag>();
     return;
   }
-  const auto aim = FindAim(player, run.index);
+  const auto aim = FindAim(player, grids);
+  if (aim) {
+    run.Select(grids.Find(aim->grid)->get());
+  }
+  if (aim && aim->grid != z13::station::kMainGrid && UsesWalls(tool->get<BuildTool>().mode)) {
+    log_debug("station: the wall tools work on the main grid only");
+    return;
+  }
   if (tool->get<BuildTool>().mode == ToolMode::kWall) {
     if (aim) {
       ProcessWallClick(player, *tool, *aim, run);
@@ -510,42 +536,44 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run) {
 // request keeps its clearance free for the requests after it in the same tick.
 void ProcessBuildRequests(flecs::iter& it, const PlayerQuery& players, const SpawnBlockQuery& spawn_blocks) {
   std::optional<BuildRun> run;
-  const auto index = z13::station::MutableMainGridData<BlockIndex>(it.world());
+  const BuildGrids grids = BuildGrids::Of(it.world());
   while (it.next()) {
-    if (!index) {
+    if (grids.Empty()) {
       continue;
     }
     if (!run) {
       const auto& tuning = it.field<const BuildingTuning>(3)[0];
       run = BuildRun {
-          .index = *index,
+          .index = grids.Fallback().MutableIndex(),
           .palette = it.field<const BlockPalette>(2)[0].palette,
           .tuning = tuning,
           .players = PlayerSpheres(players),
-          .spawn_clearances = SpawnClearances(spawn_blocks, tuning),
+          .clearances_by_grid = SpawnClearances(spawn_blocks, tuning),
           .spawn_points = it.world().count<SpawnPoint>()};
     }
     auto& actor = it.field<z13::gameplay::EditActor>(4)[0];
     for (const size_t i : it) {
       const flecs::entity player = it.entity(i);
       const z13::gameplay::ActorScope scope(actor, player.get<z13::gameplay::Player>().id);
-      ProcessBuildRequest(player, *run);
+      ProcessBuildRequest(player, *run, grids);
     }
   }
 }
 
 // In the Opening mode destroying takes the opening aimed at, gap included, and leaves its wall.
-bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
+bool DestroyAimedOpening(flecs::entity player, const BuildGrids& grids) {
   const std::optional<flecs::entity> tool = z13::building::HeldBuildTool(player);
   if (!tool || !tool->has<BuildTool>() || tool->get<BuildTool>().mode != ToolMode::kOpening) {
     return false;
   }
-  const auto aim = FindAim(player, index);
-  const auto opening = aim ? OpeningUnder(player.world(), *aim) : std::nullopt;
+  const auto aim = FindAim(player, grids);
+  const auto opening =
+      aim && aim->grid == z13::station::kMainGrid ? OpeningUnder(player.world(), *aim) : std::nullopt;
   if (opening) {
     z13::gameplay::RecordStateChange(
         *opening, z13::gameplay::StateChangeKind::kRemoved,
-        WallSegmentCell(player.world(), opening->get<z13::station::WallOpening>().segment_id));
+        WallSegmentCell(player.world(), opening->get<z13::station::WallOpening>().segment_id),
+        WallSegmentGrid(player.world(), opening->get<z13::station::WallOpening>().segment_id));
     opening->destruct();
   }
   return opening.has_value();
@@ -555,12 +583,11 @@ bool DestroyAimedOpening(flecs::entity player, const BlockIndex& index) {
 // players can't each remove one of the last two in the same tick.
 void ProcessDestroyRequests(flecs::iter& it) {
   int spawn_points = it.world().count<SpawnPoint>();
-  const auto main_index = z13::station::MutableMainGridData<BlockIndex>(it.world());
+  const BuildGrids grids = BuildGrids::Of(it.world());
   while (it.next()) {
-    if (!main_index) {
+    if (grids.Empty()) {
       continue;
     }
-    BlockIndex& index = main_index->get();
     const auto transforms = it.field<const Eigen::Matrix4f>(2);
     const auto& palette = it.field<const BlockPalette>(3)[0];
     const auto& tuning = it.field<const BuildingTuning>(4)[0];
@@ -574,17 +601,16 @@ void ProcessDestroyRequests(flecs::iter& it) {
         continue;
       }
 
-      if (DestroyAimedOpening(player, index)) {
+      if (DestroyAimedOpening(player, grids)) {
         continue;
       }
       const Eigen::Vector3f origin = z13::math::ExtractTranslation<float>(transforms[i]);
       const Eigen::Vector3f forward = transforms[i].block<3, 3>(0, 0).col(0);
-      const auto hit =
-          index.Raycast(origin / kCellSize, (origin + forward * tuning.destroy_reach_distance) / kCellSize);
+      const auto hit = grids.Raycast(origin, origin + forward * tuning.destroy_reach_distance);
       if (!hit) {
         continue;
       }
-      const flecs::entity target = it.world().entity(*hit);
+      const flecs::entity target = it.world().entity(hit->hit.block);
       const Block& block = target.get<Block>();
       if (const auto valid = ValidateDestroy(block, palette.palette, spawn_points); !valid) {
         log_debug("station: destroy refused: {}", valid.error());
@@ -598,7 +624,7 @@ void ProcessDestroyRequests(flecs::iter& it) {
       if (target.has<SpawnPoint>()) {
         --spawn_points;
       }
-      index.Erase(*hit);
+      hit->grid.get().MutableIndex().Erase(hit->hit.block);
       z13::station::DestroyBlock(target, block);
     }
   }
@@ -679,16 +705,39 @@ BrushPreview OpeningBrushPreview(flecs::entity owner, flecs::entity tool, const 
   return preview;
 }
 
-void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
+// What the preview is judged against, apart from the grid it is aimed at.
+struct PreviewContext {
+  std::reference_wrapper<const Palette> palette;
+  std::reference_wrapper<const BuildingTuning> tuning;
+  std::reference_wrapper<const BuildGrids> grids;
+  std::span<const PlayerSphere> players;  // in the world, meters
+  std::reference_wrapper<const ClearancesByGrid> clearances;
+};
+
+void UpdateBrushPreview(flecs::entity brush, const PreviewContext& context) {
   const flecs::entity owner = brush.parent();
   const std::optional<flecs::entity> tool = owner ? z13::building::HeldBuildTool(owner) : std::nullopt;
   if (!tool || !tool->has<BlockBrush>()) {
     return;
   }
-  const auto aim = FindAim(owner, view.index);
+  const auto aim = FindAim(owner, context.grids);
   if (!aim) {
     return;
   }
+  if (aim->grid != z13::station::kMainGrid && UsesWalls(tool->get<BuildTool>().mode)) {
+    return;
+  }
+  const GridView& target = context.grids.get().Find(aim->grid)->get();
+  std::vector<PlayerSphere> local_players;
+  for (const PlayerSphere& player : context.players) {
+    local_players.push_back(
+        {.center = target.ToLocalMeters(player.center), .radius = player.radius});
+  }
+  const auto clearances = context.clearances.get().find(aim->grid);
+  const BuildView view {
+      .palette = context.palette, .index = target.Index(), .tuning = context.tuning, .players = local_players,
+      .spawn_clearances = clearances != context.clearances.get().end() ? std::span<const CellBox>(clearances->second)
+                                                                       : std::span<const CellBox> {}};
   if (tool->get<BuildTool>().mode == ToolMode::kWall) {
     brush.set(WallBrushPreview(owner, *tool, *aim, view));
     return;
@@ -725,7 +774,6 @@ void UpdateBrushPreview(flecs::entity brush, const BuildView& view) {
 }
 
 void RegisterSystems(flecs::world world) {
-  // Every request and aim below reads the main grid's index until the grid under the cursor picks it (f/grid-pose).
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
   const GridQuery grids = world.query<const z13::station::Grid>();
   world.system<const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock, const BuildingTuning,
@@ -748,8 +796,9 @@ void RegisterSystems(flecs::world world) {
       .read<BlockIndex>()
       .write<BrushDrag>()
       .each([](flecs::entity player, RequestBrushDrag request) {
-        if (const auto index = z13::station::MainGridData<BlockIndex>(player.world())) {
-          StartBrushDrag(player, request, index->get());
+        const BuildGrids grids = BuildGrids::Of(player.world());
+        if (!grids.Empty()) {
+          StartBrushDrag(player, request, grids);
         }
       });
 
@@ -826,15 +875,14 @@ void RegisterSystems(flecs::world world) {
       .write<BrushPreview>()
       .each([players, spawn_blocks](flecs::entity brush, const Eigen::Matrix4f&, const BlockPalette& palette,
                                     const BuildingTuning& tuning) {
-        const auto main_index = z13::station::MainGridData<BlockIndex>(brush.world());
-        if (!main_index) {
+        const BuildGrids grids = BuildGrids::Of(brush.world());
+        if (grids.Empty()) {
           return;
         }
-        const BlockIndex& index = main_index->get();
         const std::vector<PlayerSphere> spheres = PlayerSpheres(players);
-        const std::vector<CellBox> clearances = SpawnClearances(spawn_blocks, tuning);
-        UpdateBrushPreview(brush, {.palette = palette.palette, .index = index, .tuning = tuning,
-                                   .players = spheres, .spawn_clearances = clearances});
+        const ClearancesByGrid clearances = SpawnClearances(spawn_blocks, tuning);
+        UpdateBrushPreview(brush, {.palette = palette.palette, .tuning = tuning, .grids = grids,
+                                   .players = spheres, .clearances = clearances});
       });
 }
 

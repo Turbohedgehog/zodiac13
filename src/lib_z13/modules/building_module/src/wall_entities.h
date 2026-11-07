@@ -45,6 +45,8 @@ flecs::entity SpawnWall(
 
 // Where a segment stands: the cell of its first node.
 std::optional<Eigen::Vector3i> WallSegmentCell(flecs::world world, z13::station::WallId segment_id);
+// The grid of the segment (that of its first node), the main one if it has none.
+z13::station::GridId WallSegmentGrid(flecs::world world, z13::station::WallId segment_id);
 
 // The id of the node at `cell` of `grid`, spawning one when there is none.
 z13::station::WallId WallNodeAt(flecs::world world, z13::gameplay::SpawnNamer& namer, const Eigen::Vector3i& cell,

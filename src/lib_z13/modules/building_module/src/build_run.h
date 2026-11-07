@@ -29,6 +29,7 @@
 #include <primitives/cell_box.h>
 #include <z13_settings/building_tuning.h>
 
+#include "build_grids.h"
 #include "build_validation.h"
 
 namespace z13::building {
@@ -39,10 +40,16 @@ using MadeBlocks = std::unordered_map<flecs::entity_t, z13::station::Block>;
 
 // What the build requests of one tick share, so each sees what the ones before it made.
 struct BuildRun {
+  // The grid the request in hand builds in (Select).
   std::reference_wrapper<grid::BlockIndex> index;
+  z13::station::GridId grid = z13::station::kMainGrid;
+  bool selected {};
   std::reference_wrapper<const z13::building::primitives::Palette> palette;
   std::reference_wrapper<const BuildingTuning> tuning;
-  std::vector<PlayerSphere> players;
+  std::vector<PlayerSphere> players;  // in the world, meters
+  std::vector<PlayerSphere> local_players;
+  // The space above the spawn points of each grid, in its cells; those of the selected one are in `spawn_clearances`.
+  std::unordered_map<z13::station::GridId, std::vector<z13::building::primitives::CellBox>> clearances_by_grid;
   std::vector<z13::building::primitives::CellBox> spawn_clearances;
   int spawn_points {};
   MadeBlocks made;
@@ -53,8 +60,23 @@ struct BuildRun {
     return namers.try_emplace(stamp.player_id, stamp).first->second;
   }
 
+  void Select(const GridView& target) {
+    if (selected) {
+      clearances_by_grid[grid] = std::move(spawn_clearances);
+    }
+    selected = true;
+    grid = target.id;
+    index = target.MutableIndex();
+    spawn_clearances = std::move(clearances_by_grid[grid]);
+    local_players.clear();
+    for (const PlayerSphere& player : players) {
+      local_players.push_back({.center = target.ToLocalMeters(player.center),
+                               .radius = player.radius});
+    }
+  }
+
   BuildView View() const {
-    return {.palette = palette, .index = std::cref(index.get()), .tuning = tuning, .players = players,
+    return {.palette = palette, .index = std::cref(index.get()), .tuning = tuning, .players = local_players,
             .spawn_clearances = spawn_clearances};
   }
 };

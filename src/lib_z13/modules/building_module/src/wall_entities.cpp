@@ -162,6 +162,12 @@ std::optional<Eigen::Vector3i> WallSegmentCell(flecs::world world, WallId segmen
   return node ? std::optional(node->get<WallNode>().cell) : std::nullopt;
 }
 
+z13::station::GridId WallSegmentGrid(flecs::world world, WallId segment_id) {
+  const auto segment = FindWallSegment(world, segment_id);
+  const auto node = segment ? FindWallNode(world, segment->get<WallSegment>().node_a) : std::nullopt;
+  return node ? node->get<WallNode>().grid : z13::station::kMainGrid;
+}
+
 std::vector<JointWall> JointWallsOf(flecs::world world) {
   std::map<WallId, Eigen::Vector3i> cells;
   world.query<const WallNode>().each([&cells](const WallNode& node) { cells.emplace(node.id, node.cell); });
@@ -220,15 +226,16 @@ void DestroyWallSegment(flecs::world world, WallId segment_id) {
         }
       });
   const std::optional<Eigen::Vector3i> segment_cell = WallSegmentCell(world, segment_id);
+  const z13::station::GridId segment_grid = WallSegmentGrid(world, segment_id);
   for (const flecs::entity opening : openings) {
-    z13::gameplay::RecordStateChange(opening, z13::gameplay::StateChangeKind::kRemoved, segment_cell);
+    z13::gameplay::RecordStateChange(opening, z13::gameplay::StateChangeKind::kRemoved, segment_cell, segment_grid);
     opening.destruct();
   }
-  z13::gameplay::RecordStateChange(*segment, z13::gameplay::StateChangeKind::kRemoved, segment_cell);
+  z13::gameplay::RecordStateChange(*segment, z13::gameplay::StateChangeKind::kRemoved, segment_cell, segment_grid);
   segment->destruct();
   for (const WallId node_id : {gone.node_a, gone.node_b}) {
     if (const auto node = FindWallNode(world, node_id); node && !UsesNode(world, node_id, gone.id)) {
-      z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kRemoved, node->get<WallNode>().cell);
+      z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kRemoved, node->get<WallNode>().cell, node->get<WallNode>().grid);
       node->destruct();
     }
   }

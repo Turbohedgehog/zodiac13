@@ -33,6 +33,7 @@
 
 #include <primitives/block_group.h>
 #include <primitives/placement.h>
+#include <z13/components/station/grid_pose.h>
 #include <sectors/sector.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/block_changes.h>
@@ -42,6 +43,7 @@
 #include <z13_settings/net_tuning.h>
 
 #include "../session/catch_up.h"
+#include "block_sectors.h"
 #include "../protocol/wire_records.h"
 
 namespace z13::net {
@@ -56,17 +58,16 @@ std::vector<flecs::entity> BlocksOf(flecs::world world, std::span<const uint64_t
   const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
   const int sector_cells = world.get<NetTuning>().sector_size_cells;
   const std::unordered_set<uint64_t> wanted_chunks(chunks.begin(), chunks.end());
-  const std::optional<z13::building::primitives::CellBox> sector_box =
-      touching ? std::optional(z13::building::primitives::CellBox {
-                     .min = *touching * sector_cells, .extent = Eigen::Vector3i::Constant(sector_cells)})
-               : std::nullopt;
+  const z13::station::GridPoses poses = z13::station::PosesOf(world.query<const z13::station::Grid>());
   std::vector<flecs::entity> found;
   world.query<const z13::station::Block>().each([&](flecs::entity e, const z13::station::Block& block) {
     const uint64_t chunk = z13::building::primitives::BlockGroupId(
         block.grid, z13::building::primitives::ChunkOf(block.cell, chunk_cells));
-    // A district's cells are its own, not the world's: only its group says whether it concerns the sector.
-    const bool in_sector = sector_box && block.grid == z13::station::kMainGrid &&
-                           z13::building::primitives::OccupiedCells(block).Overlaps(*sector_box);
+    bool in_sector {};
+    if (touching) {
+      const std::vector<sectors::SectorKey> reached = BlockSectors(block, poses, sector_cells);
+      in_sector = std::ranges::find(reached, *touching) != reached.end();
+    }
     if (wanted_chunks.contains(chunk) || in_sector) {
       found.push_back(e);
     }

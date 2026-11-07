@@ -41,6 +41,8 @@ struct BrushDrag {
   using State = void;
   Eigen::Vector3i anchor_cell = Eigen::Vector3i::Zero();
   Eigen::Vector3i anchor_normal = Eigen::Vector3i::Zero();
+  // The grid whose cells the anchor is in.
+  GridId anchor_grid = kMainGrid;
 };
 
 // The right to build and destroy blocks; every station player gets it for now.

@@ -81,7 +81,8 @@ std::vector<z13::station::Block> LeftAfterCut(
                              .slant = block.spec.slant,
                              .corners = block.spec.corners,
                              .face_cuts = block.spec.face_cuts},
-                    .cell = box.min});
+                    .cell = box.min,
+                    .grid = block.grid});
   }
   return left;
 }
