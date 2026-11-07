@@ -197,6 +197,17 @@ TEST_F(InterestDistrictTest, AnEditInTheDistrictDoesNotReachAClientFarFromIt) {
   EXPECT_EQ(Holds(session_.Client(0), added), !near_zero.empty());
 }
 
+// The wall segments of a district reach every client; the panels derived from them must not, outside its sectors.
+TEST_F(InterestDistrictTest, AClientFarFromTheDistrictDerivesNoPanelOfIt) {
+  StandInTheDistrict(1);
+  Run(kSettleTicks);
+
+  size_t district_blocks {};
+  session_.Client(0).World().query_builder<const z13::station::Block>().build().each(
+      [&district_blocks](const z13::station::Block& block) { district_blocks += block.grid == kDistrict ? 1 : 0; });
+  EXPECT_EQ(district_blocks, 0u);
+}
+
 TEST_F(InterestDistrictTest, ClientsStayInSyncWithADistrictInTheirSectors) {
   StandInTheDistrict(1);
   // Standing the player there is a jump the other peers did not see: its client resyncs at the next digests.

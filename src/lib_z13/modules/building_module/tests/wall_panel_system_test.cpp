@@ -26,6 +26,9 @@
 
 #include <z13/components/station/building.h>
 #include <z13/components/station/block.h>
+#include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
+#include <z13/components/station/held_sectors.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/wall.h>
 #include <primitives/chunk_mesh.h>
@@ -35,6 +38,7 @@
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "../src/held_blocks.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
 #include "support/test_namer.h"
@@ -440,6 +444,46 @@ TEST(WallPanelSystemTest, AWallWithADoorSurvivesSaveAndLoad) {
   z13::building::primitives::SortBlocks(original);
   EXPECT_EQ(restored, original);
   EXPECT_EQ(restored.size(), 4u);
+}
+
+constexpr int kSectorCells = 64;
+const Eigen::Vector3i kSectorOfTheWall {0, 0, 0};
+
+Block CubeAt(const Eigen::Vector3i& cell, z13::station::GridId grid = z13::station::kMainGrid) {
+  return {.spec = z13::station::CubeSpec(), .cell = cell, .grid = grid};
+}
+
+z13::station::HeldSectors Holding(std::vector<Eigen::Vector3i> sectors) {
+  return {.sectors = std::move(sectors), .sector_cells = kSectorCells};
+}
+
+TEST(HeldBlocksTest, EveryBlockOfAWorldHoldingAllIsHeld) {
+  EXPECT_TRUE(TouchesHeldSectors(CubeAt({500, 500, 500}), z13::station::HeldSectors {}, {}));
+}
+
+TEST(HeldBlocksTest, ABlockIsHeldWhenItTouchesASectorHeld) {
+  const z13::station::HeldSectors held = Holding({kSectorOfTheWall});
+
+  EXPECT_TRUE(TouchesHeldSectors(CubeAt({8, 8, 0}), held, {}));
+  EXPECT_FALSE(TouchesHeldSectors(CubeAt({8, 8 + kSectorCells, 0}), held, {}));
+}
+
+TEST(HeldBlocksTest, ABlockOnTheEdgeOfTwoSectorsIsHeldByEither) {
+  const Eigen::Vector3i across_the_edge {kSectorCells - 1, 8, 0};
+
+  EXPECT_TRUE(TouchesHeldSectors(CubeAt(across_the_edge), Holding({kSectorOfTheWall}), {}));
+  EXPECT_TRUE(TouchesHeldSectors(CubeAt(across_the_edge), Holding({{1, 0, 0}}), {}));
+}
+
+// A district's cells are its own: where it stands in the world decides the sectors.
+TEST(HeldBlocksTest, ABlockOfAPosedGridIsHeldWhereThePoseSetsIt) {
+  constexpr z13::station::GridId kDistrict = 1;
+  const z13::station::Grid district {.id = kDistrict, .origin = {kSectorCells * 3, 0, 0}};
+  const z13::station::GridPoses poses {{kDistrict, z13::station::GridToWorld(district)}};
+  const Block block = CubeAt({8, 8, 0}, kDistrict);
+
+  EXPECT_FALSE(TouchesHeldSectors(block, Holding({kSectorOfTheWall}), poses));
+  EXPECT_TRUE(TouchesHeldSectors(block, Holding({{3, 0, 0}}), poses));
 }
 
 }  // namespace
