@@ -327,11 +327,13 @@ set(Z13_HEAVY_TESTS
     ":HubFreightHangarTest.TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTheSpineByADoor"
     ":HubDoorsTest.EveryDoorStandsOpenAtTheStart")
 string(CONCAT Z13_HEAVY_TESTS ${Z13_HEAVY_TESTS})
-gtest_discover_tests(z13_test_runner
-    DISCOVERY_MODE PRE_TEST
-    WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
-    TEST_FILTER "-${Z13_REAL_NETWORK_TESTS}:${Z13_HEAVY_TESTS}"
-)
+# The rest run a suite per CTest test (cmake/z13_gtest_suites.cmake).
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/z13_suite_tests_include.cmake CONTENT
+"include(\"${CMAKE_SOURCE_DIR}/cmake/z13_gtest_suites.cmake\")
+z13_add_gtest_suite_tests(\"$<TARGET_FILE:z13_test_runner>\" \"${Z13_BIN_DIR}/tests\"
+    \"${Z13_REAL_NETWORK_TESTS}:${Z13_HEAVY_TESTS}\")
+")
+set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES ${CMAKE_CURRENT_BINARY_DIR}/z13_suite_tests_include.cmake)
 gtest_discover_tests(z13_test_runner
     DISCOVERY_MODE PRE_TEST
     WORKING_DIRECTORY ${Z13_BIN_DIR}/tests
