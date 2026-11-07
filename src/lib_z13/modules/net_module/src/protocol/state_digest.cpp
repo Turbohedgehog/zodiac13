@@ -160,7 +160,13 @@ bool InnerRingMatches(flecs::world world, uint32_t local_id, const fbn::StateDig
   if (!center) {
     return true;
   }
-  if (!std::ranges::equal(local.grid_hashes, remote.grid_hashes, [](const auto& a, const auto& b) {
+  // The server sends the districts that touch the client's sectors; the client derives parts of others from the
+  // wall segments it holds (WallPanelSystem), so it compares only the ones sent.
+  std::vector<fbn::GridHashWire> local_districts;
+  std::ranges::copy_if(local.grid_hashes, std::back_inserter(local_districts), [&remote](const auto& entry) {
+    return std::ranges::any_of(remote.grid_hashes, [&entry](const auto& sent) { return sent.grid() == entry.grid(); });
+  });
+  if (!std::ranges::equal(local_districts, remote.grid_hashes, [](const auto& a, const auto& b) {
         return a.grid() == b.grid() && a.hash() == b.hash();
       })) {
     return false;

@@ -56,6 +56,7 @@ using z13::testing::Z13TestWorld;
 constexpr uint64_t kConnectTicks = 600;
 constexpr uint64_t kSettleTicks = 30;
 constexpr uint64_t kWalkTicks = 300;
+constexpr uint64_t kJumpResyncTicks = 150;
 constexpr z13::station::GridId kDistrict = 1;
 constexpr uint32_t kOutsideActor = 900;
 // Above the district's floor, in cells of the district.
@@ -196,15 +197,20 @@ TEST_F(InterestDistrictTest, AnEditInTheDistrictDoesNotReachAClientFarFromIt) {
   EXPECT_EQ(Holds(session_.Client(0), added), !near_zero.empty());
 }
 
-// Disabled: the digests diverge and the clients resync (docs/multi-grid-plan.md, item 5, "Не сделано").
-TEST_F(InterestDistrictTest, DISABLED_ClientsStayInSyncWithADistrictInTheirSectors) {
+TEST_F(InterestDistrictTest, ClientsStayInSyncWithADistrictInTheirSectors) {
   StandInTheDistrict(1);
+  // Standing the player there is a jump the other peers did not see: its client resyncs at the next digests.
+  Run(kJumpResyncTicks);
+  std::vector<uint64_t> resyncs_before;
+  for (size_t index = 0; index < session_.ClientCount(); ++index) {
+    resyncs_before.push_back(session_.Client(index).World().get<StateDigests>().resyncs);
+  }
   Run(kWalkTicks);
 
   for (size_t index = 0; index < session_.ClientCount(); ++index) {
     const auto& digests = session_.Client(index).World().get<StateDigests>();
     EXPECT_GT(digests.checked, 0u) << "client " << index;
-    EXPECT_EQ(digests.resyncs, 0u) << "client " << index;
+    EXPECT_EQ(digests.resyncs, resyncs_before[index]) << "client " << index;
   }
 }
 
