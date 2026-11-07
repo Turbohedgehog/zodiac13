@@ -354,8 +354,6 @@ gtest_discover_tests(z13_test_runner
 find_package(Boost REQUIRED COMPONENTS dll)
 add_executable(z13_plugin_smoke plugin_smoke/main.cpp)
 target_link_libraries(z13_plugin_smoke PRIVATE zodiac13::core zodiac13::z13_launcher Boost::dll)
-# Only for test_dll_messages.h; the plugin itself is loaded, not linked.
-target_include_directories(z13_plugin_smoke PRIVATE ${CMAKE_SOURCE_DIR}/src/lib_test_dll/include)
 z13_set_output_directory(z13_plugin_smoke ${Z13_BIN_DIR}/tests)
 if(WIN32)
   add_custom_command(TARGET z13_plugin_smoke POST_BUILD
@@ -364,5 +362,5 @@ if(WIN32)
 endif()
 add_dependencies(
     z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module door_module conduit_module
-    conduit_render_module door_render_module power_module atmos_module gravity_module test_dll_module)
+    conduit_render_module door_render_module power_module atmos_module gravity_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)
