@@ -12,7 +12,7 @@ Development runs on ARM under PRoot (Termux); `uname -a` shows `PRoot-Distro` in
 
 - An edit to a header most objects depend on: about an hour (check with perf-measure's `header_width.py`).
 - An edit to one module's source: minutes.
-- `ctest --test-dir build`: about 10-15 minutes for ~700 tests.
+- `ctest --test-dir build`: about 16 minutes serial (`-j1`, 2026-11-07) for ~1500 tests in 282 CTest entries.
 
 ## Killing builds
 
