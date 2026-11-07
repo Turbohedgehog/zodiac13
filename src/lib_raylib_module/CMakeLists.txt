@@ -1,6 +1,9 @@
 project(raylib_module)
 
 find_package(raylib CONFIG REQUIRED)   # used only as an rlgl render lib (no InitWindow)
+if(NOT ANDROID)
+  find_package(glfw3 CONFIG REQUIRED)  # the desktop raylib's rcore needs it, its exported target omits it
+endif()
 find_package(SDL3 CONFIG REQUIRED)     # owns the window / GL context / event loop
 find_package(imgui CONFIG REQUIRED)    # UI layer (sdl3 + opengl3 bindings)
 find_package(Boost REQUIRED COMPONENTS dll)
@@ -104,6 +107,8 @@ endif()
 if(ANDROID)
   target_compile_definitions(${PROJECT_NAME} PRIVATE GRAPHICS_API_OPENGL_ES3)
   target_link_libraries(${PROJECT_NAME} PRIVATE GLESv3 EGL)
+else()
+  target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
 endif()
 
 # vcpkg's applocal step already deploys raylib.dll / glfw3.dll / ... next to
