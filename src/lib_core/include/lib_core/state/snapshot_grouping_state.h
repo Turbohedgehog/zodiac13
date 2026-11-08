@@ -30,8 +30,7 @@ struct CachedEntity {
   EntitySnapshot snapshot;
 };
 
-// The groups the last CaptureState made, shared with the snapshots that hold them, and the ungrouped entities it
-// fingerprinted.
+// What the last CaptureState made, kept to reuse: block groups and fingerprinted ungrouped entities.
 struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;

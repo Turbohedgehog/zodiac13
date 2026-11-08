@@ -81,8 +81,7 @@ uint64_t HashOf(flecs::entity e) {
   return hash;
 }
 
-// A wall entity has its name, StateEntity and one wall component: any other state it might carry is not hashed, so
-// such an entity is encoded every time.
+// Hashes only the name, StateEntity and one wall component; an entity with other state is encoded every time.
 constexpr int kWallEntityTypeSize = 3;
 
 uint64_t HashOfStick(uint64_t hash, const z13::station::WallStick& stick) {
