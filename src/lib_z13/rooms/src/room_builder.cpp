@@ -26,12 +26,10 @@
 #include <unordered_map>
 #include <utility>
 
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/connected_components.hpp>
-
 #include <lib_profile/profile.h>
 #include <rooms/openings.h>
 
+#include "disjoint_sets.h"
 #include "numbered_leaves.h"
 #include "room_parts.h"
 
@@ -40,10 +38,10 @@ namespace z13::station::rooms {
 namespace {
 
 using z13::building::primitives::CellBox;
-using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
 // Per leaf, its connected set; the leaves open to space join the vertex after the last leaf.
-// The neighbours are found in parallel, the edges added in one thread in leaf order.
+// The neighbours are found in parallel, the sets joined in one thread (not a Boost graph: Debug
+// spent 30 s on it over the hub).
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& numbered, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("ConnectedSets");
   const size_t vacuum = numbered.Leaves().size();
@@ -58,15 +56,13 @@ std::vector<size_t> ConnectedSets(const FreeSpace& space, const NumberedLeaves& 
       }
     }
   });
-  LeafGraph graph(vacuum + 1);
+  DisjointSets sets(vacuum + 1);
   for (size_t i = 0; i < vacuum; ++i) {
     for (const size_t j : linked[i]) {
-      boost::add_edge(i, j, graph);
+      sets.Join(i, j);
     }
   }
-  std::vector<size_t> set_of(vacuum + 1);
-  boost::connected_components(graph, set_of.data());
-  return set_of;
+  return sets.Labels();
 }
 
 // Names the connected sets: the vacuum's set is room 0, the rest get ids by anchor from

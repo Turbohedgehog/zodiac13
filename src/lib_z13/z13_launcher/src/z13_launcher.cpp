@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/tick_log.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/install_dir.h>
@@ -105,6 +106,8 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   }
   InstallSettings(*world, *effective);
   flecs_tools::ShowTickInLog(*world);
+  // Only a network session rolls back, and it sets its own rate: playing alone takes no snapshots.
+  world->get().set<flecs_tools::SnapshotCaptureRate>({.per_interval = 0});
 
   return core.Run();
 }

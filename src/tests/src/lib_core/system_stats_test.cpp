@@ -40,7 +40,8 @@ TEST(SystemFrameStatsTest, SummarizesEachSystemsFrames) {
     stats.AddFrame(before, {{.path = "a", .ms = a}});
   }
   EXPECT_EQ(stats.Frames(), 4);
-  const SystemSummary& summary = Find(stats.Summary(), "a");
+  const std::vector<SystemSummary> summaries = stats.Summary();
+  const SystemSummary& summary = Find(summaries, "a");
   EXPECT_NEAR(summary.mean_ms, 4.0, kTolerance);
   EXPECT_NEAR(summary.min_ms, 1.0, kTolerance);
   EXPECT_NEAR(summary.max_ms, 9.0, kTolerance);
@@ -63,7 +64,8 @@ TEST(SystemFrameStatsTest, ASystemFirstSeenLateCountsZeroForTheFramesBefore) {
   stats.AddFrame({}, {});
   stats.AddFrame({}, {});
   stats.AddFrame({}, {{.path = "late", .ms = 6.0}});
-  const SystemSummary& summary = Find(stats.Summary(), "late");
+  const std::vector<SystemSummary> summaries = stats.Summary();
+  const SystemSummary& summary = Find(summaries, "late");
   EXPECT_NEAR(summary.mean_ms, 2.0, kTolerance);
   EXPECT_NEAR(summary.min_ms, 0.0, kTolerance);
   EXPECT_NEAR(summary.max_ms, 6.0, kTolerance);

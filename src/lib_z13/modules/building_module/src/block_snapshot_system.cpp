@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -33,6 +34,7 @@
 
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_point.h>
+#include <z13/components/station/wall.h>
 #include <primitives/block_group.h>
 #include <primitives/placement.h>
 #include <z13_settings/building_tuning.h>
@@ -79,6 +81,49 @@ uint64_t HashOf(flecs::entity e) {
   return hash;
 }
 
+// Hashes only the name, StateEntity and one wall component; an entity with other state is encoded every time.
+constexpr int kWallEntityTypeSize = 3;
+
+uint64_t HashOfStick(uint64_t hash, const z13::station::WallStick& stick) {
+  hash = Combine(hash, std::to_underlying(stick.axis));
+  return Combine(hash, stick.length);
+}
+
+std::optional<uint64_t> HashOfWallEntity(flecs::entity e) {
+  if (e.type().count() != kWallEntityTypeSize) {
+    return std::nullopt;
+  }
+  const flecs::string_view name = e.name();
+  const uint64_t seed = MixHash(z13::flecs_tools::HashName(std::string_view(name.c_str(), name.length())));
+  if (const auto* node = e.try_get<z13::station::WallNode>()) {
+    uint64_t hash = Combine(seed, 1);
+    hash = Combine(hash, node->id);
+    hash = Combine(hash, node->grid);
+    return CombineAll(hash, std::span<const int>(node->cell.data(), node->cell.size()));
+  }
+  if (const auto* segment = e.try_get<z13::station::WallSegment>()) {
+    uint64_t hash = Combine(seed, 2);
+    hash = Combine(hash, segment->id);
+    hash = Combine(hash, segment->node_a);
+    hash = Combine(hash, segment->node_b);
+    hash = HashOfStick(hash, segment->stick_a);
+    hash = HashOfStick(hash, segment->stick_b);
+    hash = Combine(hash, segment->thickness);
+    return Combine(hash, std::to_underlying(segment->diagonal));
+  }
+  if (const auto* opening = e.try_get<z13::station::WallOpening>()) {
+    uint64_t hash = Combine(seed, 3);
+    hash = Combine(hash, opening->id);
+    hash = Combine(hash, opening->segment_id);
+    hash = Combine(hash, std::to_underlying(opening->kind));
+    hash = Combine(hash, opening->offset);
+    hash = Combine(hash, opening->width);
+    hash = Combine(hash, opening->sill);
+    return Combine(hash, opening->height);
+  }
+  return std::nullopt;
+}
+
 z13::flecs_tools::GroupOf MakeGroupOf(flecs::world world) {
   const int chunk_cells = world.get<z13::BuildingTuning>().index_chunk_cells;
   return [chunk_cells](flecs::entity e) {
@@ -96,6 +141,7 @@ void InstallGrouping(flecs::world world) {
       .make_group_of = MakeGroupOf,
       .hash_of = HashOf,
       .unchanged = [watch](flecs::world world) { return watch->Unchanged(world); },
+      .hash_ungrouped = HashOfWallEntity,
   });
 }
 

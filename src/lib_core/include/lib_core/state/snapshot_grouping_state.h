@@ -16,16 +16,24 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 #include <lib_core/state/world_serializer.h>
 
 namespace z13::flecs_tools {
 
-// The groups the last CaptureState made, shared with the snapshots that hold them.
+struct CachedEntity {
+  uint64_t hash {};
+  EntitySnapshot snapshot;
+};
+
+// What the last CaptureState made, kept to reuse: block groups and fingerprinted ungrouped entities.
 struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
+  std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
 };
 
 }  // namespace z13::flecs_tools

@@ -42,7 +42,7 @@ struct WorldSnapshotHistory {
   std::optional<std::string> capture_error;
 };
 
-// A rollback re-simulates up to one capture gap; worlds that roll back often raise this.
+// A rollback re-simulates up to one capture gap; worlds that roll back often raise this. Zero captures nothing.
 struct SnapshotCaptureRate {
   using Singleton = void;
   using SessionScoped = void;

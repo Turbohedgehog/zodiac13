@@ -39,6 +39,8 @@ struct WallNode {
   WallId id {};
   GridId grid = kMainGrid;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+
+  bool operator==(const WallNode&) const = default;
 };
 
 // A segment's edge at one of its nodes: from the node along `axis` by `length`, signed.
@@ -66,6 +68,8 @@ struct WallSegment {
   WallStick stick_b;
   int thickness {};
   WallDiagonal diagonal {};
+
+  bool operator==(const WallSegment&) const = default;
 };
 
 // A player's wall in the making (the Wall brush mode): the first click set `first`; the second
@@ -112,6 +116,8 @@ struct WallOpening {
   int width {};
   int sill {};
   int height {};
+
+  bool operator==(const WallOpening&) const = default;
 };
 
 // Marks a block derived from a segment (`part` of its one or two); the segment owns it
@@ -120,6 +126,8 @@ struct WallPanelOf {
   using State = void;
   WallId segment_id {};
   uint32_t part {};
+
+  bool operator==(const WallPanelOf&) const = default;
 };
 
 }  // namespace z13::station
