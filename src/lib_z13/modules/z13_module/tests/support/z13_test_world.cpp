@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <lib_core/settings/config.h>
+#include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/world/core.h>
 
 #include <building_module/building_module_factory.h>
@@ -119,7 +120,10 @@ Z13TestWorld::Z13TestWorld(std::vector<std::string> args, std::shared_ptr<z13::n
     : quick_save_path_(QuickSavePathFor(this)),
       network_(network ? std::move(network) : std::make_shared<z13::net::InMemoryNetwork>()),
       core_(MakeCore(quick_save_path_, std::move(args))),
-      world_(CreateWorld(*core_, network_, settings)) {}
+      world_(CreateWorld(*core_, network_, settings)) {
+  // The history tests and the replays read snapshots without a session.
+  world_.get().set<z13::flecs_tools::SnapshotCaptureRate>({.per_interval = 1});
+}
 
 Z13TestWorld::~Z13TestWorld() {
   std::error_code ignored;

@@ -42,11 +42,12 @@ struct WorldSnapshotHistory {
   std::optional<std::string> capture_error;
 };
 
-// A rollback re-simulates up to one capture gap; worlds that roll back often raise this.
+// A rollback re-simulates up to one capture gap; worlds that roll back often raise this. Zero captures nothing: only a
+// network session rolls back, and it sets its own rate.
 struct SnapshotCaptureRate {
   using Singleton = void;
   using SessionScoped = void;
-  uint64_t per_interval {1};
+  uint64_t per_interval {};
 };
 
 // Captures SnapshotCaptureRate snapshots every Config::GetSnapshotIntervalSeconds(), keeping
