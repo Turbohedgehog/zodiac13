@@ -29,13 +29,11 @@
 #include <utility>
 #include <vector>
 
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/connected_components.hpp>
-
 #include <lib_profile/profile.h>
 #include <rooms/openings.h>
 #include <rooms/room_builder.h>
 
+#include "disjoint_sets.h"
 #include "local_leaves.h"
 #include "room_parts.h"
 
@@ -44,7 +42,6 @@ namespace z13::station::rooms {
 namespace {
 
 using z13::building::primitives::CellBox;
-using LeafGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 using KeySet = std::unordered_set<Eigen::Vector3i, z13::building::primitives::CellHash>;
 
 
@@ -146,23 +143,21 @@ std::vector<LeafRef> ClosedPockets(const RoomGraph& previous, const FreeSpace& s
 std::vector<size_t> ConnectedSets(const FreeSpace& space, const LocalLeaves& local) {
   Z13_PROFILE_ZONE("ConnectedSets");
   const size_t vacuum = local.Leaves().size();
-  LeafGraph graph(vacuum + 1);
+  DisjointSets sets(vacuum + 1);
   for (size_t i = 0; i < local.Leaves().size(); ++i) {
     if (space.OnOuterFace(space.Leaf(local.Leaves()[i]))) {
-      boost::add_edge(i, vacuum, graph);
+      sets.Join(i, vacuum);
     }
     for (const LeafRef& neighbour : space.Neighbours(local.Leaves()[i])) {
       const auto found = local.IndexOf(neighbour);
       if (!found) {
-        boost::add_edge(i, vacuum, graph);
+        sets.Join(i, vacuum);
       } else if (*found > i) {
-        boost::add_edge(i, *found, graph);
+        sets.Join(i, *found);
       }
     }
   }
-  std::vector<size_t> set_of(vacuum + 1);
-  boost::connected_components(graph, set_of.data());
-  return set_of;
+  return sets.Labels();
 }
 
 // The old rooms a new leaf took cells from: its own room if its chunk was kept, else the

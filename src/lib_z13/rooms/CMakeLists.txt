@@ -14,6 +14,7 @@ z13_add_library(
   src/cut_walls.cpp
   src/free_space.cpp
   src/local_leaves.cpp
+  src/disjoint_sets.cpp
   src/numbered_leaves.cpp
   src/openings.cpp
   src/parallel_for.cpp

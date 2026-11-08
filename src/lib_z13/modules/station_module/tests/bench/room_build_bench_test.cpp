@@ -25,11 +25,16 @@
 #include <string>
 
 #include <primitives/station_assets.h>
+#include <rooms/free_space.h>
+#include <rooms/openings.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_builder.h>
 #include <z13_tests/pool_parallel.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/station/block.h>
+#include <z13_settings/building_tuning.h>
+
+#include "../../../building_module/src/blueprint_walls.h"
 
 namespace z13::testing {
 namespace {
@@ -37,6 +42,20 @@ namespace {
 namespace primitives = z13::building::primitives;
 
 constexpr int kRuns = 5;
+
+double MsSince(std::chrono::steady_clock::time_point start) {
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+// The sealing sources of a scene as a game builds them: its blocks and the panels derived from its walls.
+z13::station::rooms::RoomSources SceneSources(std::string_view scene, const primitives::Palette& palette) {
+  auto blocks = ShippedBlueprint(scene, palette).value();
+  const auto walls = ShippedBlueprintWalls(scene).value();
+  const auto openings = ShippedBlueprintOpenings(scene).value();
+  const auto panels = z13::building::BlueprintPanels(walls, palette, z13::BuildingTuning {}, openings).value();
+  blocks.insert(blocks.end(), panels.begin(), panels.end());
+  return RoomSourcesOf(blocks, palette);
+}
 
 TEST(RoomBuildBench, DISABLED_FullRebuild) {
   const primitives::Palette palette = ShippedPalette().value();
@@ -63,6 +82,37 @@ TEST(RoomBuildBench, DISABLED_FullRebuild) {
           "{:.1f} ms on {} threads\n",
           scene, run, sources.sealed.size(), graph->rooms.size(), graph->portals.size(), graph->space.LeafCount(),
           serial_ms, pooled_ms, kPoolThreads)
+                << std::flush;
+    }
+  }
+}
+
+// Where BuildRooms spends its time on the blocks and the wall panels of a scene, by stage, in one run.
+TEST(RoomBuildBench, DISABLED_StagesWithWallPanels) {
+  const primitives::Palette palette = ShippedPalette().value();
+  const z13::ThreadPool pool(kPoolThreads);
+  for (const std::string& scene : ShippedScenes()) {
+    const z13::station::rooms::RoomSources sources = SceneSources(scene, palette);
+    const z13::station::rooms::RoomSettings settings;
+    for (int run = 0; run < kRuns; ++run) {
+      auto start = std::chrono::steady_clock::now();
+      const auto openings = z13::station::rooms::FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells);
+      const double openings_ms = MsSince(start);
+      start = std::chrono::steady_clock::now();
+      const auto space = z13::station::rooms::FreeSpace::Build(sources.sealed, settings.chunk_cells);
+      const double space_ms = MsSince(start);
+      start = std::chrono::steady_clock::now();
+      const auto graph = z13::station::rooms::BuildRooms(sources);
+      const double serial_ms = MsSince(start);
+      start = std::chrono::steady_clock::now();
+      const auto pooled = z13::station::rooms::BuildRooms(sources, z13::station::rooms::kVacuumRoom + 1, {}, OnPool(pool));
+      const double pooled_ms = MsSince(start);
+      ASSERT_TRUE(space.has_value() && graph.has_value() && pooled.has_value());
+      std::cout << std::format(
+          "[ bench ] '{}' run {}: {} sealing, {} openings found in {:.0f} ms, free space {:.0f} ms, BuildRooms {:.0f} ms "
+          "serial, {:.0f} ms on {} threads; {} rooms, {} portals\n",
+          scene, run, sources.sealed.size(), openings.size(), openings_ms, space_ms, serial_ms, pooled_ms, kPoolThreads,
+          graph->rooms.size(), graph->portals.size())
                 << std::flush;
     }
   }
