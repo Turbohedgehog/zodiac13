@@ -32,10 +32,6 @@ std::filesystem::path GetGameDataDirectory() {
   return std::filesystem::path(sago::getDataHome()) / z13::constants::kGameName;
 }
 
-std::filesystem::path GetGameInputConfigJsonPath() {
-  return GetGameDataDirectory() / "input_config.json";
-}
-
 std::filesystem::path GetGameInputConfigJsonPath2() {
   return GetGameDataDirectory() / "input_config_2.json";
 }

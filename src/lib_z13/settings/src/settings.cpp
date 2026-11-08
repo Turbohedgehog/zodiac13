@@ -128,18 +128,6 @@ void EnsureNestedSettings(Settings& settings) {
   }
 }
 
-SessionSettings SessionOf(const Settings& settings) {
-  return {
-      .fps = settings.core ? settings.core->fps : CoreSettings {}.fps,
-      .net = settings.net ? *settings.net : fbs::net::NetTuningT {},
-      .physics = settings.physics ? *settings.physics : fbs::physics::PhysicsTuningT {},
-      .building = settings.building ? *settings.building : fbs::building::BuildingTuningT {},
-      .power = settings.power ? *settings.power : fbs::power::PowerTuningT {},
-      .door = settings.door ? *settings.door : fbs::door::DoorTuningT {},
-      .atmos = settings.atmos ? *settings.atmos : fbs::atmos::AtmosTuningT {},
-  };
-}
-
 Settings WithSession(Settings settings, const SessionSettings& session) {
   EnsureNestedSettings(settings);
   settings.core->fps = session.fps;

@@ -54,7 +54,6 @@ void LossyUdpProxy::Release() {
     } else if (client_) {
       front_.SendTo(*client_, datagram.bytes);
     }
-    ++forwarded_;
   }
 }
 

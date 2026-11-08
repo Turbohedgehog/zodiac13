@@ -57,7 +57,6 @@ class LossyUdpProxy {
   uint16_t Port() const { return front_.Port(); }
   void Pump();
   uint64_t Dropped() const { return dropped_; }
-  uint64_t Forwarded() const { return forwarded_; }
 
  private:
   LossyUdpProxy(const LossyProxyConfig& config, DiscoverySocket front, DiscoverySocket back);
@@ -72,7 +71,6 @@ class LossyUdpProxy {
   std::deque<DelayedDatagram> queue_;
   std::mt19937 random_;
   uint64_t dropped_ {};
-  uint64_t forwarded_ {};
 };
 
 }  // namespace z13::net

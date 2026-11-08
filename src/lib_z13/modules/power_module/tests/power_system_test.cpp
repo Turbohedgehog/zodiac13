@@ -56,7 +56,6 @@ constexpr int kBreakerRow = kRow + 2;
 constexpr int kFarRow = kRow + 3;
 // Enough ticks for a step to land whatever tick the edit was made on.
 constexpr int kStepTicks = 7;
-constexpr int64_t kReactorWatts = 5000;
 constexpr int64_t kTerminalWatts = 200;
 
 flecs::entity AddBlock(Z13TestWorld& world, std::string_view name, int x, int y = kRow) {

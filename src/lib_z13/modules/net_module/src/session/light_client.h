@@ -75,7 +75,6 @@ class LightClient {
   bool Joined() const { return player_id_.has_value(); }
   const std::optional<uint32_t>& PlayerId() const { return player_id_; }
   const std::optional<std::string>& Failure() const { return failure_; }
-  uint64_t CurrentTick() const { return tick_; }
   const SentTraffic& Sent() const { return session_.Sent(); }
 
  private:
