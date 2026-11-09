@@ -78,6 +78,7 @@ set(
   src/lib_z13/rooms/openings_test.cpp
   src/lib_z13/rooms/view_culling_test.cpp
   src/lib_z13/rooms/portal_source_test.cpp
+  src/lib_z13/rooms/rect_holes_test.cpp
   src/lib_z13/rooms/room_builder_test.cpp
   src/lib_z13/rooms/room_cache_test.cpp
   src/lib_z13/rooms/room_changes_test.cpp

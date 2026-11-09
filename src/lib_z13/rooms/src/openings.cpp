@@ -23,19 +23,17 @@
 #include <functional>
 #include <map>
 
-#include <boost/polygon/polygon.hpp>
-
 #include <lib_profile/profile.h>
 #include <rooms/room_graph.h>
 #include <grid/block_index.h>
 
 #include "cell_boxes.h"
+#include "rect_holes.h"
 
 namespace z13::station::rooms {
 
 namespace {
 
-namespace gtl = boost::polygon;
 using z13::building::primitives::CellBox;
 using z13::building::primitives::kCellAxes;
 
@@ -43,11 +41,11 @@ using z13::building::primitives::kCellAxes;
 template <typename T>
 using ByPlane = std::array<std::map<int, T>, kCellAxes>;
 
-// One wall plane to search: each owns its section, so planes are searched side by side.
+// One wall plane to search, with the cross-sections of the sealed boxes through it; planes are searched side by side.
 struct Plane {
   int axis {};
   int at {};
-  std::reference_wrapper<gtl::polygon_90_set_data<int>> section;
+  std::reference_wrapper<const std::vector<PlaneRect>> section;
 };
 
 struct Axes {
@@ -90,33 +88,26 @@ bool OnThin(const std::vector<CellBox>& thin, const CellBox& strip) {
 
 // The holes of one plane's union of sealed cross-sections that are boxes no wider than
 // `max_cells` with two opposite sides on thin boxes: the candidates FindOpenings checks.
-std::vector<CellBox> HolesOf(gtl::polygon_90_set_data<int>& section, const std::vector<CellBox>& thin,
+std::vector<CellBox> HolesOf(const std::vector<PlaneRect>& section, const std::vector<CellBox>& thin,
                              const Axes& axes, int at, int max_cells) {
-  std::vector<gtl::polygon_90_with_holes_data<int>> shapes;
-  section.get(shapes);
+  std::vector<PlaneRect> beside;
+  beside.reserve(thin.size());
+  std::ranges::transform(thin, std::back_inserter(beside), [&axes](const CellBox& box) {
+    return PlaneRect {.u0 = box.min[axes.u], .v0 = box.min[axes.v], .u1 = box.End()[axes.u], .v1 = box.End()[axes.v]};
+  });
   std::vector<CellBox> holes;
-  for (const auto& shape : shapes) {
-    for (auto hole = shape.begin_holes(); hole != shape.end_holes(); ++hole) {
-      gtl::rectangle_data<int> bounds;
-      gtl::extents(bounds, *hole);
-      const int width = gtl::delta(bounds, gtl::HORIZONTAL);
-      const int height = gtl::delta(bounds, gtl::VERTICAL);
-      if (width > max_cells || height > max_cells ||
-          static_cast<int64_t>(gtl::area(*hole)) != static_cast<int64_t>(width) * height) {
-        continue;
-      }
-      CellBox cells {.min = Eigen::Vector3i::Zero(), .extent = Eigen::Vector3i::Ones()};
-      cells.min[axes.across] = at;
-      cells.min[axes.u] = gtl::xl(bounds);
-      cells.min[axes.v] = gtl::yl(bounds);
-      cells.extent[axes.u] = width;
-      cells.extent[axes.v] = height;
-      const auto pair_on_thin = [&](int in_plane) {
-        return OnThin(thin, Beside(cells, in_plane, false)) && OnThin(thin, Beside(cells, in_plane, true));
-      };
-      if (pair_on_thin(axes.u) || pair_on_thin(axes.v)) {
-        holes.push_back(cells);
-      }
+  for (const PlaneRect& hole : RectangularHoles(section, beside, max_cells)) {
+    CellBox cells {.min = Eigen::Vector3i::Zero(), .extent = Eigen::Vector3i::Ones()};
+    cells.min[axes.across] = at;
+    cells.min[axes.u] = hole.u0;
+    cells.min[axes.v] = hole.v0;
+    cells.extent[axes.u] = hole.u1 - hole.u0;
+    cells.extent[axes.v] = hole.v1 - hole.v0;
+    const auto pair_on_thin = [&](int in_plane) {
+      return OnThin(thin, Beside(cells, in_plane, false)) && OnThin(thin, Beside(cells, in_plane, true));
+    };
+    if (pair_on_thin(axes.u) || pair_on_thin(axes.v)) {
+      holes.push_back(cells);
     }
   }
   return holes;
@@ -127,7 +118,7 @@ std::vector<CellBox> HolesOf(gtl::polygon_90_set_data<int>& section, const std::
 std::vector<PortalSource> FindOpenings(std::span<const CellBox> sealed, std::span<const CellBox> walls,
                                        int max_cells, const ParallelFor& parallel) {
   Z13_PROFILE_ZONE("FindOpenings");
-  ByPlane<gtl::polygon_90_set_data<int>> sections;
+  ByPlane<std::vector<PlaneRect>> sections;
   for (const CellBox& wall : walls) {
     for (int axis = 0; axis < kCellAxes; ++axis) {
       if (wall.extent[axis] == 1) {
@@ -144,8 +135,8 @@ std::vector<PortalSource> FindOpenings(std::span<const CellBox> sealed, std::spa
       const Axes axes = AxesOf(axis);
       auto plane = sections[axis].lower_bound(box.min[axis]);
       for (; plane != sections[axis].end() && plane->first < box.End()[axis]; ++plane) {
-        plane->second.insert(
-            gtl::rectangle_data<int>(box.min[axes.u], box.min[axes.v], box.End()[axes.u], box.End()[axes.v]));
+        plane->second.push_back(
+            {.u0 = box.min[axes.u], .v0 = box.min[axes.v], .u1 = box.End()[axes.u], .v1 = box.End()[axes.v]});
       }
       if (box.extent[axis] == 1 && sections[axis].contains(box.min[axis])) {
         thin[axis][box.min[axis]].push_back(box);

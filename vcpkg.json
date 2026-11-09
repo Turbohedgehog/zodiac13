@@ -17,7 +17,6 @@
     "boost-container",
     "boost-geometry",
     "boost-graph",
-    "boost-polygon",
     "eigen3",
     "flecs",
     "gtest",
