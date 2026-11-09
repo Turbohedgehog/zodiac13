@@ -30,11 +30,16 @@
 #include <Eigen/Dense>
 
 #include <cell_light/cell_light.h>
+#include <cell_light/light_edits.h>
 #include <primitives/draw_order.h>
 #include <primitives/lights.h>
+#include <primitives/occupancy.h>
 #include <primitives/placement.h>
 #include <z13_tests/shipped_station.h>
 #include <z13/components/station/block.h>
+#include <z13_settings/building_tuning.h>
+
+#include "../../../building_module/src/blueprint_walls.h"
 
 namespace z13::testing {
 namespace {
@@ -110,6 +115,63 @@ TEST(CellLightBench, DISABLED_FloodAndEdit) {
     if (scene == "spire") {
       TimePanel(*cell_light, "in the atrium", kSpireAtrium);
     }
+  }
+}
+
+// What CellLighting::Sync hands the flood: the cells of the blocks' solids, glass apart.
+struct SealedParts {
+  std::vector<primitives::CellBox> opaque;
+  std::vector<light::GlassBox> glass;
+};
+
+SealedParts SealedPartsOf(const std::vector<z13::station::Block>& blocks, const primitives::Palette& palette) {
+  SealedParts parts;
+  for (const z13::station::Block& block : blocks) {
+    const std::vector<primitives::CellBox> boxes = primitives::SealedBoxes(block, primitives::OptionalPalette(palette));
+    if (primitives::IsTransparent(block, primitives::OptionalPalette(palette))) {
+      const float transmission = palette.Find(block.spec.type_id)->get().light_transmission;
+      for (const primitives::CellBox& cells : boxes) {
+        parts.glass.push_back({.cells = cells, .transmission = transmission});
+      }
+    } else {
+      parts.opaque.insert(parts.opaque.end(), boxes.begin(), boxes.end());
+    }
+  }
+  return parts;
+}
+
+// The blueprint's blocks flooded first and its wall panels (spawned in the first tick) applied after, against all of
+// them flooded at once.
+TEST(CellLightBench, DISABLED_BlocksThenWallPanels) {
+  const primitives::Palette palette = ShippedPalette().value();
+  for (const std::string scene : {"hub", "octant"}) {
+    const auto blocks = ShippedBlueprint(scene, palette).value();
+    const auto walls = ShippedBlueprintWalls(scene).value();
+    const auto openings = ShippedBlueprintOpenings(scene).value();
+    const auto panels = z13::building::BlueprintPanels(walls, palette, z13::BuildingTuning {}, openings).value();
+    std::vector<z13::station::Block> all = blocks;
+    all.insert(all.end(), panels.begin(), panels.end());
+    std::vector<light::Lamp> lamps;
+    for (const auto& point : primitives::LightsOf(all, primitives::OptionalPalette(palette))) {
+      lamps.push_back(light::LampOf(point));
+    }
+    const SealedParts first = SealedPartsOf(blocks, palette);
+    const SealedParts panel_parts = SealedPartsOf(panels, palette);
+    const SealedParts everything = SealedPartsOf(all, palette);
+
+    std::optional<light::CellLight> at_once;
+    const double once_ms = Ms([&] { at_once.emplace(everything.opaque, everything.glass, lamps); });
+    std::optional<light::CellLight> staged;
+    const double blocks_ms = Ms([&] { staged.emplace(first.opaque, first.glass, lamps); });
+    const double panels_ms = Ms([&] {
+      staged->Apply({.opaque_added = panel_parts.opaque, .glass_added = panel_parts.glass});
+    });
+    std::cout << std::format(
+                     "[ bench ] '{}': {} blocks + {} panels ({} opaque boxes, {} glass), {} lamps; all at once "
+                     "{:.0f} ms; blocks {:.0f} ms, then the panels {:.0f} ms (together {:.0f})\n",
+                     scene, blocks.size(), panels.size(), panel_parts.opaque.size(), panel_parts.glass.size(),
+                     lamps.size(), once_ms, blocks_ms, panels_ms, blocks_ms + panels_ms)
+              << std::flush;
   }
 }
 
