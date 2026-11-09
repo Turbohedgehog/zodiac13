@@ -79,7 +79,6 @@ struct PanelKey {
   auto operator<=>(const PanelKey&) const = default;
 };
 
-// What the last derivation saw and wanted.
 struct PanelCache {
   std::optional<PanelInputs> inputs;
   std::map<PanelKey, Block> expected;
@@ -91,7 +90,6 @@ bool SameSources(const PanelInputs& a, const PanelInputs& b) {
          a.joint_reach == b.joint_reach && (!a.held.sectors || a.grids == b.grids);
 }
 
-// Every panel is one the last derivation wanted and none is missing: nothing to spawn or destroy.
 bool PanelsAreExpected(const std::vector<PanelEntity>& panels, const std::map<PanelKey, Block>& expected) {
   std::set<PanelKey> seen;
   return panels.size() == expected.size() && std::ranges::all_of(panels, [&](const PanelEntity& panel) {

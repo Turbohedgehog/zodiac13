@@ -308,7 +308,6 @@ Status CaptureUngrouped(
   if (cache) {
     // The entries taken from the cache were moved out of it; after a failure it starts over.
     if (reuse_members && captured) {
-      // The members stay where they are; only the entities visited are replaced.
       std::erase_if(cache->ungrouped, [](const auto& entry) { return !entry.second.member; });
       cache->ungrouped.merge(kept);
     } else {
