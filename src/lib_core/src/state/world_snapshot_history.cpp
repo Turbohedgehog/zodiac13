@@ -16,6 +16,8 @@
 
 #include <lib_core/state/world_snapshot_history.h>
 
+#include <tuple>
+
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
@@ -42,7 +44,16 @@ void CaptureSnapshot(
   }
   PruneSnapshots(clock.tick, *retention_ticks, history);
   const uint64_t capture_ticks = *interval_ticks / rate.per_interval;
-  if (capture_ticks == 0 || clock.tick % capture_ticks != 0) {
+  if (capture_ticks == 0) {
+    return;
+  }
+  if (clock.tick % capture_ticks != 0) {
+    // The first encoding of the whole state is a hitch of its own: it is done while the world is still loading, and
+    // kept only in the encoding caches, so the history holds snapshots at the usual ticks alone.
+    if (history.history.Empty() && !history.warmed_up) {
+      history.warmed_up = true;
+      std::ignore = CaptureState(world);
+    }
     return;
   }
 
