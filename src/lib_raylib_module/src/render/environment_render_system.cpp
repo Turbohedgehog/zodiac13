@@ -391,7 +391,13 @@ void RegisterSystems(flecs::world world) {
                                                                       : std::span<const z13::utility::DimmedLamp>(),
                                         .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
         if (light_block_query.changed() || !lighting.SyncedWith(shown, emergency)) {
-          if (const Status synced = lighting.Sync(CollectMainGridBlocks(light_block_query), shown, emergency); !synced) {
+          const auto blocks = CollectMainGridBlocks(light_block_query);
+          const auto start = std::chrono::steady_clock::now();
+          const Status synced = lighting.Sync(blocks, shown, emergency);
+          log_info("[raylib] cell light: {} blocks, {} lamps shine, synced in {:.0f} ms", blocks.size(),
+                   lighting.ShiningLamps().size(),
+                   std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
+          if (!synced) {
             log_error("[raylib] lamps: {}", synced.error());
           }
         }
