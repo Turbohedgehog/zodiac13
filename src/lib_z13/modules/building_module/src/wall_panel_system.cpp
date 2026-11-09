@@ -16,6 +16,7 @@
 
 #include "wall_panel_system.h"
 
+#include <algorithm>
 #include <format>
 #include <map>
 #include <memory>
@@ -147,6 +148,8 @@ PanelInputs InputsOf(const flecs::query<const WallNode>& nodes, const flecs::que
     inputs.panels.push_back({.entity = entity.id(), .of = of, .block = block});
   });
   grids.each([&inputs](const z13::station::Grid& grid) { inputs.grids.push_back(grid); });
+  // The query walks archetypes, and a panel that gains a component elsewhere (a body) moves to another one.
+  std::ranges::sort(inputs.panels, {}, &PanelEntity::entity);
   return inputs;
 }
 

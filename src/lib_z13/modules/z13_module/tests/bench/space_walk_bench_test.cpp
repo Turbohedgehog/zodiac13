@@ -171,5 +171,55 @@ TEST(SpaceWalkBench, DISABLED_OctantWalk) {
   std::cout << std::format("[ bench ] CSV in {}\n", dir.string());
 }
 
+TEST(SpaceWalkBench, DISABLED_HubAtrium) {
+  constexpr std::string_view kHubScene = "hub";
+  constexpr float kAtriumX = 46.0f;
+  constexpr float kAtriumY = 75.0f;
+  constexpr float kEyeZ = 1.5f;
+  Z13TestWorld world({std::string(kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  for (int tick = 0; tick < kWarmUpTicks; ++tick) {
+    world.Tick();
+  }
+  ecs_measure_system_time(world.World(), true);
+  const Eigen::Vector3f eye = Eigen::Vector3f(kAtriumX, kAtriumY, kEyeZ) / z13::station::kCellSize;
+  const rooms::SpaceWalkStop stop {.label = "atrium", .eye = eye, .target = eye + Eigen::Vector3f::UnitX()};
+  const StopResult result = MeasureStop(world, stop);
+  std::cout << "[ bench ] hub atrium, " << result.systems.Frames() << " ticks\n" << Describe(result.tick) << '\n';
+  const std::vector<z13::SystemSummary> systems = result.systems.Summary();
+  for (const z13::SystemSummary& system : std::span(systems).first(std::min(systems.size(), kTopSystems))) {
+    std::cout << Describe(system) << '\n';
+  }
+  ecs_measure_system_time(world.World(), false);
+}
+
+TEST(SpaceWalkBench, DISABLED_HubLoad) {
+  constexpr int kLoadTicks = 300;
+  constexpr double kBudgetMs = 16.7;
+  const auto construct_start = std::chrono::steady_clock::now();
+  Z13TestWorld world({std::string(kStationSceneArg), "hub"});
+  std::cout << std::format("[ bench ] world built in {:.0f} ms\n", Ms(std::chrono::steady_clock::now() - construct_start));
+  flecs::world w = world.World();
+  ecs_measure_system_time(w, true);
+  std::vector<z13::SystemTime> before = z13::SystemTimes(w);
+  for (int tick = 0; tick < kLoadTicks; ++tick) {
+    const auto start = std::chrono::steady_clock::now();
+    world.Tick();
+    const double tick_ms = Ms(std::chrono::steady_clock::now() - start);
+    std::vector<z13::SystemTime> after = z13::SystemTimes(w);
+    const std::vector<z13::SystemTime> spent = z13::SystemTimesPerFrame(before, after, 1);
+    before = std::move(after);
+    if (tick > 11 && tick_ms < kBudgetMs) {
+      continue;
+    }
+    std::cout << std::format("[ bench ] tick {:3} {:9.1f} ms", tick, tick_ms);
+    for (const z13::SystemTime& system : std::span(spent).first(std::min<size_t>(spent.size(), 3))) {
+      std::cout << std::format("  | {} {:.1f}", system.path, system.ms);
+    }
+    std::cout << '\n';
+  }
+  ecs_measure_system_time(w, false);
+}
+
 }  // namespace
 }  // namespace z13::testing
