@@ -37,6 +37,7 @@ struct SnapshotGroupingState {
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
   // Every entity with a hashed member was fingerprinted in the last capture, so the next may take them all from it.
   bool members_cached {};
+  SharedEntities sorted_members;  // their records by name, valid while members_cached
 };
 
 }  // namespace z13::flecs_tools
