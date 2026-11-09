@@ -267,10 +267,9 @@ Status CaptureUngrouped(
 
   std::unordered_map<flecs::entity_t, CachedEntity> kept;
   if (reuse_members) {
-    for (auto& [id, cached] : cache->ungrouped) {
+    for (const auto& [id, cached] : cache->ungrouped) {
       if (cached.member) {
         snapshot.entities.push_back(cached.snapshot);
-        kept.emplace(id, std::move(cached));
       }
     }
     for (const flecs::entity_t member : grouping->get().hashed_members) {
@@ -308,7 +307,13 @@ Status CaptureUngrouped(
   });
   if (cache) {
     // The entries taken from the cache were moved out of it; after a failure it starts over.
-    cache->ungrouped = captured ? std::move(kept) : decltype(kept) {};
+    if (reuse_members && captured) {
+      // The members stay where they are; only the entities visited are replaced.
+      std::erase_if(cache->ungrouped, [](const auto& entry) { return !entry.second.member; });
+      cache->ungrouped.merge(kept);
+    } else {
+      cache->ungrouped = captured ? std::move(kept) : decltype(kept) {};
+    }
     cache->members_cached = captured && (reuse_members || members_complete);
   }
   return captured;
