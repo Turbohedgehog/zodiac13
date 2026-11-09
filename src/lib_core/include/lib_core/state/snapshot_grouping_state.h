@@ -27,7 +27,7 @@ namespace z13::flecs_tools {
 
 struct CachedEntity {
   uint64_t hash {};
-  EntitySnapshot snapshot;
+  SharedEntity snapshot;
   bool member {};  // has one of SnapshotGrouping::hashed_members
 };
 

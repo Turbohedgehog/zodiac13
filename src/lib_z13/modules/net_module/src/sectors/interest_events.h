@@ -50,7 +50,7 @@ struct ClientKnowledge {
   // can enter or leave the client's sectors at any time).
   std::map<uint64_t, std::unordered_set<uint32_t>> players_from;
   // What each EntityEntered carried, by the tick it was captured in and the player (ResendChangedEntries).
-  std::map<uint64_t, std::unordered_map<uint32_t, std::vector<z13::flecs_tools::EntitySnapshot>>> entries;
+  std::map<uint64_t, std::unordered_map<uint32_t, z13::flecs_tools::SharedEntities>> entries;
 };
 
 // What InterestMap::Update reported for each client this tick.

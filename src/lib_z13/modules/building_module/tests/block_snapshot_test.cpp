@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <format>
 #include <functional>
@@ -102,11 +103,11 @@ TEST(BlockSnapshotTest, ABlockHoldsOnlyWhatItsHashCovers) {
 
     ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
     ASSERT_EQ(snapshot->entities.size(), 1u);
-    for (const ft::ComponentValue& component : snapshot->entities[0].components) {
+    for (const ft::ComponentValue& component : snapshot->entities[0]->components) {
       EXPECT_TRUE(covered.contains(world.lookup(component.type.c_str()).id())) << primitive.name << ": " << component.type;
     }
-    EXPECT_TRUE(snapshot->entities[0].tags.empty()) << primitive.name;
-    EXPECT_TRUE(snapshot->entities[0].relationships.empty()) << primitive.name;
+    EXPECT_TRUE(snapshot->entities[0]->tags.empty()) << primitive.name;
+    EXPECT_TRUE(snapshot->entities[0]->relationships.empty()) << primitive.name;
     e.destruct();
   }
   EXPECT_GT(spawn_points, 0);
@@ -204,9 +205,9 @@ TEST(BlockSnapshotTest, AWallEntityHoldsOnlyWhatItsHashCovers) {
     const auto snapshot = ft::CaptureEntityState(world, e);
     ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
     ASSERT_EQ(snapshot->entities.size(), 1u);
-    EXPECT_EQ(snapshot->entities[0].components.size(), 1u) << e.name();
-    EXPECT_TRUE(snapshot->entities[0].tags.empty()) << e.name();
-    EXPECT_TRUE(snapshot->entities[0].relationships.empty()) << e.name();
+    EXPECT_EQ(snapshot->entities[0]->components.size(), 1u) << e.name();
+    EXPECT_TRUE(snapshot->entities[0]->tags.empty()) << e.name();
+    EXPECT_TRUE(snapshot->entities[0]->relationships.empty()) << e.name();
     EXPECT_TRUE(world.get<ft::SnapshotGrouping>().hash_ungrouped(e).has_value()) << e.name();
   }
 }
@@ -277,6 +278,26 @@ TEST(BlockSnapshotTest, QuietWallsAreNotVisitedAgain) {
   StateByName moved;
   EXPECT_GT(HashesTakenBy(world, [&] { moved = Flatten(ft::CaptureState(world).value()); }), 0);
   EXPECT_NE(moved, first);
+}
+
+TEST(BlockSnapshotTest, AnUnchangedWallIsTheSameRecordInTheNextSnapshot) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
+  const auto find = [](const ft::WorldSnapshot& snapshot, std::string_view name) {
+    const auto found = std::ranges::find_if(snapshot.entities, [name](const auto& e) { return e->name == name; });
+    return found == snapshot.entities.end() ? ft::SharedEntity {} : *found;
+  };
+  ft::CaptureState(world).value();
+  const ft::WorldSnapshot before = ft::CaptureState(world).value();
+
+  node.set(z13::station::WallNode {.id = 1, .cell = Eigen::Vector3i(1, 0, 0)});
+  const ft::WorldSnapshot after = ft::CaptureState(world).value();
+
+  ASSERT_TRUE(find(before, "TestWallSegment"));
+  EXPECT_EQ(find(after, "TestWallSegment"), find(before, "TestWallSegment"));
+  EXPECT_NE(find(after, "TestWallNode"), find(before, "TestWallNode"));
 }
 
 TEST(BlockSnapshotTest, AWallGainingOtherStateIsEncodedAgain) {

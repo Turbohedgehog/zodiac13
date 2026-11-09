@@ -75,12 +75,12 @@ std::map<std::string, std::string> WallState(flecs::world world) {
   const auto add = [&](flecs::entity entity) {
     const auto captured = ft::CaptureEntityState(world, entity);
     ASSERT_TRUE(captured.has_value());
-    for (const ft::EntitySnapshot& snapshot : captured->entities) {
+    for (const ft::SharedEntity& snapshot : captured->entities) {
       std::string text;
-      for (const ft::ComponentValue& component : snapshot.components) {
+      for (const ft::ComponentValue& component : snapshot->components) {
         text += component.type + "=" + std::string(component.value.begin(), component.value.end()) + ";";
       }
-      state[snapshot.name] = text;
+      state[snapshot->name] = text;
     }
   };
   world.query<const WallNode>().each([&](flecs::entity e, const WallNode&) { add(e); });
@@ -107,7 +107,7 @@ void Replay(flecs::world from, flecs::world to, const std::vector<StateChange>& 
     const auto captured = ft::CaptureEntityState(from, entity);
     ASSERT_TRUE(captured.has_value());
     for (const ft::EntitySnapshot& snapshot_of : ft::AllEntities(*captured)) {
-      snapshot.entities.push_back(snapshot_of);
+      snapshot.entities.push_back(ft::ShareEntity(snapshot_of));
     }
   }
   ASSERT_TRUE(ft::ApplyWorldStateDelta(to, snapshot).has_value());

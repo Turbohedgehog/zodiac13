@@ -175,6 +175,17 @@ void SortByName(std::vector<EntitySnapshot>& entities) {
             [](const EntitySnapshot& a, const EntitySnapshot& b) { return a.name < b.name; });
 }
 
+void SortByName(SharedEntities& entities) {
+  std::sort(entities.begin(), entities.end(),
+            [](const SharedEntity& a, const SharedEntity& b) { return a->name < b->name; });
+}
+
+EntityRefs RefsOf(const SharedEntities& entities) {
+  EntityRefs refs;
+  std::ranges::transform(entities, std::back_inserter(refs), [](const SharedEntity& e) { return std::cref(*e); });
+  return refs;
+}
+
 using GroupBuckets = std::map<SnapshotGroupId, GroupBucket>;
 
 OptionalGrouping ActiveGrouping(const SnapshotGrouping* grouping) {
@@ -300,10 +311,11 @@ Status CaptureUngrouped(
       captured = std::unexpected(std::move(entity.error()));
       return;
     }
+    SharedEntity shared = ShareEntity(std::move(*entity));
     if (hash) {
-      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = *entity, .member = member});
+      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = shared, .member = member});
     }
-    snapshot.entities.push_back(std::move(*entity));
+    snapshot.entities.push_back(std::move(shared));
   });
   if (cache) {
     // The entries taken from the cache were moved out of it; after a failure it starts over.
@@ -396,8 +408,12 @@ Status ApplyEntities(flecs::world& world, const EntityRefs& entities) {
 
 }  // namespace
 
+bool SameEntities(const SharedEntities& a, const SharedEntities& b) {
+  return std::ranges::equal(a, b, [](const SharedEntity& x, const SharedEntity& y) { return x == y || *x == *y; });
+}
+
 EntityRefs AllEntities(const WorldSnapshot& snapshot) {
-  EntityRefs all(snapshot.entities.begin(), snapshot.entities.end());
+  EntityRefs all = RefsOf(snapshot.entities);
   for (const auto& group : snapshot.groups) {
     all.insert(all.end(), group->entities.begin(), group->entities.end());
   }
@@ -603,7 +619,7 @@ std::vector<flecs::entity> StaleEntities(flecs::world& world, OptionalGrouping g
 }
 
 EntityRefs EntitiesToApply(const WorldSnapshot& snapshot, const GroupIds& matching) {
-  EntityRefs entities(snapshot.entities.begin(), snapshot.entities.end());
+  EntityRefs entities = RefsOf(snapshot.entities);
   for (const auto& group : snapshot.groups) {
     if (!matching.contains(group->id)) {
       entities.insert(entities.end(), group->entities.begin(), group->entities.end());
@@ -709,7 +725,7 @@ fbs::state::WorldSnapshotT ToFlatbuffer(const WorldSnapshot& snapshot) {
 WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& flat) {
   WorldSnapshot snapshot;
   for (const auto& flat_entity : flat.entities) {
-    EntitySnapshot& entity = snapshot.entities.emplace_back();
+    EntitySnapshot entity;
     entity.name = flat_entity->name;
     for (const auto& flat_tag : flat_entity->tags) {
       entity.tags.push_back(flat_tag->name);
@@ -720,6 +736,7 @@ WorldSnapshot FromFlatbuffer(const fbs::state::WorldSnapshotT& flat) {
     for (const auto& flat_relationship : flat_entity->relationships) {
       entity.relationships.push_back({.relation = flat_relationship->relation, .target = flat_relationship->target});
     }
+    snapshot.entities.push_back(ShareEntity(std::move(entity)));
   }
   return snapshot;
 }

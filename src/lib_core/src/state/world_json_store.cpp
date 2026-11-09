@@ -117,7 +117,7 @@ std::expected<WorldSnapshot, std::string> WorldJsonStore::FromJson(
       }
       s.components.push_back({c.type, std::move(*bytes)});
     }
-    snapshot.entities.push_back(std::move(s));
+    snapshot.entities.push_back(ShareEntity(std::move(s)));
   }
   return snapshot;
 }
