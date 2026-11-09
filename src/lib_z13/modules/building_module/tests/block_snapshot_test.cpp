@@ -300,6 +300,32 @@ TEST(BlockSnapshotTest, AnUnchangedWallIsTheSameRecordInTheNextSnapshot) {
   EXPECT_NE(find(after, "TestWallNode"), find(before, "TestWallNode"));
 }
 
+TEST(BlockSnapshotTest, TheUngroupedRecordsStayInOrderOfNameWhenTheWallsAreReused) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  PlaceWallEntity(world, "TestB_Wall").set(z13::station::WallNode {.id = 1});
+  PlaceWallEntity(world, "TestD_Wall").set(z13::station::WallNode {.id = 2});
+  PlaceWallEntity(world, "TestA_Item");
+  PlaceWallEntity(world, "TestC_Item");
+  const auto sorted_names = [&world] {
+    std::vector<std::string> names;
+    const ft::WorldSnapshot snapshot = ft::CaptureState(world).value();
+    for (const ft::SharedEntity& entity : snapshot.entities) {
+      names.push_back(entity->name);
+    }
+    return std::ranges::is_sorted(names) ? names : std::vector<std::string> {"unsorted"};
+  };
+
+  const std::vector<std::string> first = sorted_names();
+  EXPECT_EQ(sorted_names(), first);
+  PlaceWallEntity(world, "TestBA_Item");
+  const std::vector<std::string> with_item = sorted_names();
+  EXPECT_EQ(with_item.size(), first.size() + 1);
+  EXPECT_EQ(sorted_names(), with_item);
+  PlaceWallEntity(world, "TestC_Wall").set(z13::station::WallNode {.id = 3});
+  EXPECT_EQ(sorted_names().size(), with_item.size() + 1);
+}
+
 TEST(BlockSnapshotTest, AWallGainingOtherStateIsEncodedAgain) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
