@@ -28,12 +28,15 @@ namespace z13::flecs_tools {
 struct CachedEntity {
   uint64_t hash {};
   EntitySnapshot snapshot;
+  bool member {};  // has one of SnapshotGrouping::hashed_members
 };
 
 // What the last CaptureState made, kept to reuse: block groups and fingerprinted ungrouped entities.
 struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
+  // Every entity with a hashed member was fingerprinted in the last capture, so the next may take them all from it.
+  bool members_cached {};
 };
 
 }  // namespace z13::flecs_tools

@@ -41,6 +41,7 @@ z13_add_plugin(
   src/wall_merge.cpp
   src/wall_opening_brush.cpp
   src/wall_panel_system.cpp
+  src/wall_watch.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE
