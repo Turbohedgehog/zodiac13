@@ -1,7 +1,7 @@
 project(rooms)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
-find_package(Boost REQUIRED COMPONENTS geometry graph)
+find_package(Boost REQUIRED COMPONENTS geometry)
 
 # Stateless, like grid: each plugin linking its own copy shares nothing.
 z13_add_library(
@@ -36,7 +36,6 @@ z13_add_library(
   PUBLIC
   Eigen3::Eigen
   Boost::geometry
-  Boost::graph
   zodiac13::fbs_schemas
   zodiac13::primitives
   zodiac13::grid

@@ -19,7 +19,7 @@ endfunction()
 #                 [PRECOMPILE ...] [SOURCES ...] [PUBLIC ...] [PRIVATE ...])
 # Adds zodiac13::<name> with the directory's include/ as its public headers, and installs it.
 # PRECOMPILE lists the heavy headers most of its sources include (Z13_PRECOMPILE_HEADERS).
-# OPTIMIZE_IN_DEBUG is for a library of heavy math (Eigen, Boost.Graph): a Debug build keeps every
+# OPTIMIZE_IN_DEBUG is for a library of heavy math (Eigen): a Debug build keeps every
 # template temporary and runs it several times as slowly, so its sources are built with -O1
 # (GCC and Clang; MSVC gets /O2 without its runtime checks, which rule optimization out;
 # Z13_DEBUG_OPTIMIZE turns it off).
