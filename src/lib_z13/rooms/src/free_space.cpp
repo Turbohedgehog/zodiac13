@@ -22,6 +22,7 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <ranges>
 #include <unordered_set>
 
 #include <boost/container_hash/hash.hpp>
@@ -73,13 +74,25 @@ struct Split {
   double cost {};
 };
 
+// The sorted edges BestSplit works on, kept between its calls so they are allocated once per chunk.
+struct SplitBuffers {
+  std::vector<int> mins;
+  std::vector<int> ends;
+  std::vector<int> candidates;
+};
+
 // Where cutting `region` costs least, by the volume on each side times the boxes there:
 // cheap cuts run along walls and floors and leave whole free boxes on one side.
-Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
+Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes, SplitBuffers& buffers) {
   Split best {.cost = std::numeric_limits<double>::max()};
+  auto& [mins, ends, candidates] = buffers;
   for (int axis = 0; axis < kCellAxes; ++axis) {
-    std::vector<int> mins;
-    std::vector<int> ends;
+    mins.clear();
+    ends.clear();
+    candidates.clear();
+    mins.reserve(boxes.size());
+    ends.reserve(boxes.size());
+    candidates.reserve(2 * boxes.size());
     std::ranges::transform(boxes, std::back_inserter(mins), [axis](const CellBox& box) { return box.min[axis]; });
     std::ranges::transform(boxes, std::back_inserter(ends), [axis](const CellBox& box) { return box.End()[axis]; });
     std::ranges::sort(mins);
@@ -88,7 +101,6 @@ Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
     const int high = region.End()[axis];
     // The area of a cut across this axis, so cuts along different axes compare by volume.
     const double cross = static_cast<double>(region.extent.cast<int64_t>().prod()) / (high - low);
-    std::vector<int> candidates;
     std::ranges::merge(mins, ends, std::back_inserter(candidates));
     const auto [first, last] = std::ranges::unique(candidates);
     candidates.erase(first, last);
@@ -109,17 +121,18 @@ Split BestSplit(const CellBox& region, const std::vector<CellBox>& boxes) {
 }
 
 std::vector<CellBox> Clipped(const std::vector<CellBox>& boxes, const CellBox& region) {
+  const auto overlaps = [&region](const CellBox& box) { return box.Overlaps(region); };
   std::vector<CellBox> clipped;
-  for (const CellBox& box : boxes) {
-    if (box.Overlaps(region)) {
-      clipped.push_back(box.Intersection(region));
-    }
+  clipped.reserve(static_cast<size_t>(std::ranges::count_if(boxes, overlaps)));
+  for (const CellBox& box : boxes | std::views::filter(overlaps)) {
+    clipped.push_back(box.Intersection(region));
   }
   return clipped;
 }
 
 // The free boxes of `region` left by cutting it along the faces of `boxes`, kd-tree style.
-void CutFree(const CellBox& region, const std::vector<CellBox>& boxes, std::vector<CellBox>& leaves) {
+void CutFree(const CellBox& region, const std::vector<CellBox>& boxes, std::vector<CellBox>& leaves,
+             SplitBuffers& buffers) {
   if (boxes.empty()) {
     leaves.push_back(region);
     return;
@@ -127,21 +140,23 @@ void CutFree(const CellBox& region, const std::vector<CellBox>& boxes, std::vect
   if (std::ranges::any_of(boxes, [&region](const CellBox& box) { return ContainsBox(box, region); })) {
     return;
   }
-  const Split split = BestSplit(region, boxes);
+  const Split split = BestSplit(region, boxes, buffers);
   CellBox low = region;
   low.extent[split.axis] = split.at - region.min[split.axis];
   CellBox high = region;
   high.min[split.axis] = split.at;
   high.extent[split.axis] = region.End()[split.axis] - split.at;
-  CutFree(low, Clipped(boxes, low), leaves);
-  CutFree(high, Clipped(boxes, high), leaves);
+  CutFree(low, Clipped(boxes, low), leaves, buffers);
+  CutFree(high, Clipped(boxes, high), leaves, buffers);
 }
 
 std::shared_ptr<const FreeChunk> BuildChunk(const CellBox& region, const std::vector<CellBox>& sealed) {
   Z13_PROFILE_ZONE("BuildChunk");
   FreeChunk chunk;
-  CutFree(region, Clipped(sealed, region), chunk.leaves);
+  SplitBuffers buffers;
+  CutFree(region, Clipped(sealed, region), chunk.leaves, buffers);
   std::vector<LeafEntry> entries;
+  entries.reserve(chunk.leaves.size());
   for (uint32_t i = 0; i < chunk.leaves.size(); ++i) {
     entries.emplace_back(ToLeafBox(chunk.leaves[i]), i);
   }
