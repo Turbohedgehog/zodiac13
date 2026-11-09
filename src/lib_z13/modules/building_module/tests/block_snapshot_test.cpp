@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -243,6 +244,66 @@ TEST(BlockSnapshotTest, ACachedWallNeverGoesStale) {
   EXPECT_TRUE(matches_uncached());
   node.destruct();
   EXPECT_TRUE(matches_uncached());
+}
+
+// Counts the fingerprints given while `capture` runs (an entity that can't be fingerprinted gets none).
+int HashesTakenBy(flecs::world world, const std::function<void()>& capture) {
+  int taken = 0;
+  auto& grouping = world.get_mut<ft::SnapshotGrouping>();
+  const auto hash_ungrouped = grouping.hash_ungrouped;
+  grouping.hash_ungrouped = [&taken, &hash_ungrouped](flecs::entity e) {
+    const auto hash = hash_ungrouped(e);
+    taken += hash.has_value() ? 1 : 0;
+    return hash;
+  };
+  capture();
+  world.get_mut<ft::SnapshotGrouping>().hash_ungrouped = hash_ungrouped;
+  return taken;
+}
+
+TEST(BlockSnapshotTest, QuietWallsAreNotVisitedAgain) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
+  const StateByName first = Flatten(ft::CaptureState(world).value());
+  ft::CaptureState(world).value();
+
+  StateByName quiet;
+  EXPECT_EQ(HashesTakenBy(world, [&] { quiet = Flatten(ft::CaptureState(world).value()); }), 0);
+  EXPECT_EQ(quiet, first);
+
+  node.set(z13::station::WallNode {.id = 1, .cell = Eigen::Vector3i(1, 0, 0)});
+  StateByName moved;
+  EXPECT_GT(HashesTakenBy(world, [&] { moved = Flatten(ft::CaptureState(world).value()); }), 0);
+  EXPECT_NE(moved, first);
+}
+
+TEST(BlockSnapshotTest, AWallGainingOtherStateIsEncodedAgain) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  ft::CaptureState(world).value();
+  ft::CaptureState(world).value();
+
+  node.set(z13::station::WallPanelOf {.segment_id = 7});
+  const auto with_panel = Flatten(ft::CaptureState(world).value());
+  EXPECT_EQ(with_panel.at("TestWallNode").size(), 2u);
+  EXPECT_EQ(Flatten(ft::CaptureState(world).value()), with_panel);
+}
+
+TEST(BlockSnapshotTest, RestoringWallsDropsWhatWasCached) {
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
+  const ft::WorldSnapshot before = ft::CaptureState(world).value();
+  const StateByName expected = Flatten(before);
+  ft::CaptureState(world).value();
+
+  node.set(z13::station::WallNode {.id = 1, .cell = Eigen::Vector3i(5, 0, 0)});
+  ft::CaptureState(world).value();
+  ASSERT_TRUE(ft::RestoreWorld(world, before).has_value());
+  EXPECT_EQ(Flatten(ft::CaptureState(world).value()), expected);
 }
 
 TEST(BlockSnapshotTest, RestoreTouchesOnlyTheChunksThatChanged) {

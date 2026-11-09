@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include <flecs.h>
 
@@ -44,6 +45,10 @@ struct SnapshotGrouping {
   std::function<bool(flecs::world)> unchanged;
   // Fingerprint of an ungrouped entity (name and all state), none if it can't say; an unchanged one is not re-encoded.
   std::function<std::optional<uint64_t>(flecs::entity)> hash_ungrouped;
+  // Optional, with hash_ungrouped: the components of the entities it fingerprints, and whether none of them changed
+  // since the previous call. Then those entities come from the last capture without being visited.
+  std::vector<flecs::entity_t> hashed_members;
+  std::function<bool(flecs::world)> hashed_unchanged;
   std::shared_ptr<SnapshotGroupingState> state_ = std::make_shared<SnapshotGroupingState>();
 };
 

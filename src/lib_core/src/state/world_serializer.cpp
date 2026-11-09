@@ -245,47 +245,85 @@ Status CaptureGroups(
   return {};
 }
 
-std::expected<WorldSnapshot, std::string> CaptureImpl(
-    const flecs::world& world, const EntityFilter& accept, const ComponentFilter& accept_component,
-    const EntityFilter& accept_target, OptionalGrouping grouping = std::nullopt) {
-  WorldSnapshot snapshot;
-  Status captured;
+bool HasHashedMember(flecs::entity e, const SnapshotGrouping& grouping) {
+  return std::ranges::any_of(grouping.hashed_members, [&e](flecs::entity_t member) { return e.has(member); });
+}
 
-  flecs::world w = world;
-  auto ungrouped = w.query_builder();
+// The named entities outside the groups. The fingerprinted ones are encoded again only when their fingerprint
+// differs from the last capture's, and when no hashed member changed they are not even visited.
+Status CaptureUngrouped(
+    flecs::world world, const EntityFilter& accept, const ComponentFilter& accept_component,
+    const EntityFilter& accept_target, OptionalGrouping grouping, WorldSnapshot& snapshot) {
+  auto ungrouped = world.query_builder();
   ungrouped.with<flecs::Identifier>(flecs::Name);  // every named entity
   if (grouping) {
     ungrouped.without(*grouping->get().member);
   }
   const auto hash_ungrouped = grouping ? grouping->get().hash_ungrouped : nullptr;
+  SnapshotGroupingState* const cache = hash_ungrouped ? grouping->get().state_.get() : nullptr;
+  // The watch is asked on every capture: asking consumes the change.
+  const bool members_unchanged = cache && grouping->get().hashed_unchanged && grouping->get().hashed_unchanged(world);
+  const bool reuse_members = members_unchanged && cache->members_cached;
+
   std::unordered_map<flecs::entity_t, CachedEntity> kept;
+  if (reuse_members) {
+    for (const auto& [id, cached] : cache->ungrouped) {
+      if (cached.member) {
+        snapshot.entities.push_back(cached.snapshot);
+      }
+    }
+    for (const flecs::entity_t member : grouping->get().hashed_members) {
+      ungrouped.without(member);
+    }
+  }
+
+  Status captured;
+  bool members_complete = true;
   ungrouped.build().each([&](flecs::entity e) {
     if (!captured || (accept && !accept(e))) {
       return;
     }
 
     const std::optional<uint64_t> hash = hash_ungrouped ? hash_ungrouped(e) : std::nullopt;
+    const bool member = cache && HasHashedMember(e, *grouping);
+    members_complete = members_complete && (hash || !member);
     if (hash) {
-      auto& previous = grouping->get().state_->ungrouped;
-      if (const auto same = previous.find(e.id()); same != previous.end() && same->second.hash == *hash) {
+      const auto same = cache->ungrouped.find(e.id());
+      if (same != cache->ungrouped.end() && same->second.hash == *hash) {
         snapshot.entities.push_back(same->second.snapshot);
         kept.emplace(e.id(), std::move(same->second));
         return;
       }
     }
-    auto entity = CaptureEntity(w, e, accept_component, accept_target);
+    auto entity = CaptureEntity(world, e, accept_component, accept_target);
     if (!entity) {
       captured = std::unexpected(std::move(entity.error()));
       return;
     }
     if (hash) {
-      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = *entity});
+      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = *entity, .member = member});
     }
     snapshot.entities.push_back(std::move(*entity));
   });
-  if (captured && hash_ungrouped) {
-    grouping->get().state_->ungrouped = std::move(kept);
+  if (cache) {
+    // The entries taken from the cache were moved out of it; after a failure it starts over.
+    if (reuse_members && captured) {
+      std::erase_if(cache->ungrouped, [](const auto& entry) { return !entry.second.member; });
+      cache->ungrouped.merge(kept);
+    } else {
+      cache->ungrouped = captured ? std::move(kept) : decltype(kept) {};
+    }
+    cache->members_cached = captured && (reuse_members || members_complete);
   }
+  return captured;
+}
+
+std::expected<WorldSnapshot, std::string> CaptureImpl(
+    const flecs::world& world, const EntityFilter& accept, const ComponentFilter& accept_component,
+    const EntityFilter& accept_target, OptionalGrouping grouping = std::nullopt) {
+  WorldSnapshot snapshot;
+  flecs::world w = world;
+  Status captured = CaptureUngrouped(w, accept, accept_component, accept_target, grouping, snapshot);
   if (captured && grouping) {
     captured = CaptureGroups(w, *grouping, accept_component, accept_target, snapshot);
   }

@@ -40,6 +40,7 @@
 #include <z13_settings/building_tuning.h>
 
 #include "block_watch.h"
+#include "wall_watch.h"
 
 namespace z13::building {
 
@@ -136,12 +137,16 @@ z13::flecs_tools::GroupOf MakeGroupOf(flecs::world world) {
 // In the systems stage, not next to the registration (see PhysicsSystem::RegisterSystems).
 void InstallGrouping(flecs::world world) {
   const auto watch = std::make_shared<BlockWatch>(world);
+  const auto wall_watch = std::make_shared<WallWatch>(world);
   world.set(z13::flecs_tools::SnapshotGrouping {
       .member = world.component<Block>().id(),
       .make_group_of = MakeGroupOf,
       .hash_of = HashOf,
       .unchanged = [watch](flecs::world world) { return watch->Unchanged(world); },
       .hash_ungrouped = HashOfWallEntity,
+      .hashed_members = {world.component<z13::station::WallNode>().id(), world.component<z13::station::WallSegment>().id(),
+                         world.component<z13::station::WallOpening>().id()},
+      .hashed_unchanged = [wall_watch](flecs::world world) { return wall_watch->Unchanged(world); },
   });
 }
 

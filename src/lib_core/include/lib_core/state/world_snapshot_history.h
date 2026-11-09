@@ -40,6 +40,7 @@ struct WorldSnapshotHistory {
   BoundedHistory<TimestampedSnapshot> history;
   // Logged when it changes, not on every failed capture.
   std::optional<std::string> capture_error;
+  bool warmed_up {};
 };
 
 // A rollback re-simulates up to one capture gap; worlds that roll back often raise this. Zero captures nothing.
