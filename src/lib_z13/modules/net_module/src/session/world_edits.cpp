@@ -222,7 +222,7 @@ void SendWorldEdits(flecs::world world) {
       if (edit.change.kind == StateChangeKind::kRemoved) {
         message.removed.push_back(edit.change.name);
       } else if (edit.state) {
-        state.entities.push_back(*edit.state);
+        state.entities.push_back(ft::ShareEntity(*edit.state));
       }
     }
     if (state.entities.empty() && message.removed.empty()) {

@@ -22,6 +22,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <flecs.h>
@@ -67,8 +68,19 @@ struct GroupSnapshot {
   std::vector<EntitySnapshot> entities;  // sorted by name
 };
 
+// An entity's snapshot is never edited once made, so captures hand the same one on while the entity doesn't change.
+using SharedEntity = std::shared_ptr<const EntitySnapshot>;
+using SharedEntities = std::vector<SharedEntity>;
+
+inline SharedEntity ShareEntity(EntitySnapshot entity) {
+  return std::make_shared<const EntitySnapshot>(std::move(entity));
+}
+
+// Equal by value: the pointers of two captures differ.
+bool SameEntities(const SharedEntities& a, const SharedEntities& b);
+
 struct WorldSnapshot {
-  std::vector<EntitySnapshot> entities;                      // ungrouped, sorted by name
+  SharedEntities entities;                                   // ungrouped, sorted by name
   std::vector<std::shared_ptr<const GroupSnapshot>> groups;  // sorted by id
 };
 

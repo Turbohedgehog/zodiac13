@@ -186,7 +186,8 @@ std::expected<ft::WorldSnapshot, std::string> CapturePlayerWithBound(
     }
     std::ranges::move(captured->entities, std::back_inserter(state->entities));
   }
-  std::ranges::sort(state->entities, {}, &ft::EntitySnapshot::name);
+  std::ranges::sort(
+      state->entities, {}, [](const ft::SharedEntity& entity) -> const std::string& { return entity->name; });
   return state;
 }
 
@@ -224,7 +225,7 @@ void ResendChangedEntriesOf(const EventSender& sender, ClientKnowledge& known) {
       continue;
     }
     std::optional<ft::WorldSnapshot> state = CaptureEntry(sender, player_id);
-    if (state && state->entities != sent) {
+    if (state && !ft::SameEntities(state->entities, sent)) {
       SendEntityEntered(sender, player_id, *state);
       sent = std::move(state->entities);
     }

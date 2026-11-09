@@ -140,10 +140,11 @@ void ApplySectorEntered(flecs::world world, const fbs::net::SectorEnteredT& ente
   ft::WorldSnapshot changed;
   for (const auto& [name, entity] : sent_by_name) {
     if (!kept.contains(name)) {
-      changed.entities.push_back(entity);
+      changed.entities.push_back(ft::ShareEntity(entity));
     }
   }
-  std::ranges::sort(changed.entities, {}, &ft::EntitySnapshot::name);
+  std::ranges::sort(
+      changed.entities, {}, [](const ft::SharedEntity& entity) -> const std::string& { return entity->name; });
   if (auto applied = ft::ApplyWorldStateDelta(world, changed); !applied) {
     log_warn("NetSession: interest event rejected: {}", applied.error());
   }

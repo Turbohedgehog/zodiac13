@@ -41,9 +41,9 @@ ft::WorldSnapshot MakeBenchmarkSnapshot(const flecs::world& world, std::size_t e
   ft::WorldSnapshot inflated;
   inflated.entities.reserve(entity_count);
   for (std::size_t i = 0; inflated.entities.size() < entity_count; ++i) {
-    ft::EntitySnapshot duplicate = base.entities[i % base.entities.size()];
+    ft::EntitySnapshot duplicate = *base.entities[i % base.entities.size()];
     duplicate.name += "_" + std::to_string(i);
-    inflated.entities.push_back(std::move(duplicate));
+    inflated.entities.push_back(ft::ShareEntity(std::move(duplicate)));
   }
   return inflated;
 }

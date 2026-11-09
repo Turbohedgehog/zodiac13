@@ -103,8 +103,8 @@ TEST_F(SnapshotGroupingTest, GroupedEntitiesAreFiledByGroupNotListedFlat) {
   EXPECT_EQ(snapshot.groups[0]->entities.size(), 2u);
   EXPECT_EQ(snapshot.groups[1]->id, 1u);
   EXPECT_EQ(snapshot.groups[1]->entities.size(), 1u);
-  for (const ft::EntitySnapshot& entity : snapshot.entities) {
-    EXPECT_TRUE(entity.name != "a" && entity.name != "b" && entity.name != "c") << entity.name;
+  for (const ft::SharedEntity& entity : snapshot.entities) {
+    EXPECT_TRUE(entity->name != "a" && entity->name != "b" && entity->name != "c") << entity->name;
   }
 }
 

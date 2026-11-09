@@ -65,7 +65,8 @@ SplitHashes SplitBySector(flecs::world world, const ft::WorldSnapshot& snapshot,
                           int chunk_cells) {
   SplitHashes result;
   // Entities come sorted by name and groups by id, so both peers add them in the same order.
-  for (const ft::EntitySnapshot& entity : snapshot.entities) {
+  for (const ft::SharedEntity& shared : snapshot.entities) {
+    const ft::EntitySnapshot& entity = *shared;
     const uint64_t hash = ft::HashEntitySnapshot(entity);
     const auto player = PlayerOfEntity(world, entity, index);
     if (player && player->sector) {

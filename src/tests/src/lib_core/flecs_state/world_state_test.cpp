@@ -94,10 +94,10 @@ TEST_F(WorldStateTest, CaptureKeepsOnlyStateEntitiesAndComponents) {
   // +1 for the SimulationClock state singleton that RegisterStateMeta always gives a
   // value to; "hero" still sorts first ("h" < the singleton's "z13::..." path).
   ASSERT_EQ(snapshot.entities.size(), 2u);
-  EXPECT_EQ(snapshot.entities[0].name, "hero");
-  ASSERT_EQ(snapshot.entities[0].components.size(), 1u);
-  EXPECT_EQ(snapshot.entities[0].components[0].type, "z13::tests::Position");
-  EXPECT_TRUE(snapshot.entities[0].tags.empty());
+  EXPECT_EQ(snapshot.entities[0]->name, "hero");
+  ASSERT_EQ(snapshot.entities[0]->components.size(), 1u);
+  EXPECT_EQ(snapshot.entities[0]->components[0].type, "z13::tests::Position");
+  EXPECT_TRUE(snapshot.entities[0]->tags.empty());
 }
 
 TEST_F(WorldStateTest, CaptureDropsRelationshipsToNonStateEntities) {
@@ -111,8 +111,8 @@ TEST_F(WorldStateTest, CaptureDropsRelationshipsToNonStateEntities) {
 
   // +1 for the SimulationClock state singleton (see CaptureKeepsOnlyStateEntitiesAndComponents).
   ASSERT_EQ(snapshot.entities.size(), 3u);
-  ASSERT_EQ(snapshot.entities[0].relationships.size(), 1u);
-  EXPECT_EQ(snapshot.entities[0].relationships[0].target, "b");
+  ASSERT_EQ(snapshot.entities[0]->relationships.size(), 1u);
+  EXPECT_EQ(snapshot.entities[0]->relationships[0].target, "b");
 }
 
 TEST_F(WorldStateTest, RestoreReplacesStateAndLeavesRuntimeDataAlone) {
@@ -169,16 +169,18 @@ TEST_F(WorldStateTest, RestoreRejectsInvalidSnapshotsWithoutTouchingTheWorld) {
   SpawnState(target_, "hero").set(Position{1.f, 1.f, 1.f});
 
   ft::WorldSnapshot unknown_component;
-  unknown_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Nope", {}}}});
+  unknown_component.entities.push_back(ft::ShareEntity({.name = "hero", .components = {{"z13::tests::Nope", {}}}}));
   ft::WorldSnapshot non_state_component;
-  non_state_component.entities.push_back({.name = "hero", .components = {{"z13::tests::Velocity", {}}}});
+  non_state_component.entities.push_back(
+      ft::ShareEntity({.name = "hero", .components = {{"z13::tests::Velocity", {}}}}));
   ft::WorldSnapshot bad_value;
-  bad_value.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}});
+  bad_value.entities.push_back(ft::ShareEntity({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}}));
   ft::WorldSnapshot duplicate_names;
-  duplicate_names.entities.push_back({.name = "hero"});
-  duplicate_names.entities.push_back({.name = "hero"});
+  duplicate_names.entities.push_back(ft::ShareEntity({.name = "hero"}));
+  duplicate_names.entities.push_back(ft::ShareEntity({.name = "hero"}));
   ft::WorldSnapshot dangling_relation;
-  dangling_relation.entities.push_back({.name = "hero", .relationships = {{"z13::tests::Likes", "ghost"}}});
+  dangling_relation.entities.push_back(
+      ft::ShareEntity({.name = "hero", .relationships = {{"z13::tests::Likes", "ghost"}}}));
 
   for (const auto* snapshot :
        {&unknown_component, &non_state_component, &bad_value, &duplicate_names, &dangling_relation}) {
@@ -344,7 +346,7 @@ TEST_F(WorldStateTest, PlainComponentEntitiesCannotBeRestoreTargets) {
   SetUpSingletons(target_);
   ft::WorldSnapshot names_a_component;
   names_a_component.entities.push_back(
-      {.name = std::string(target_.component<Scratch>().path().c_str() + 2)});
+      ft::ShareEntity({.name = std::string(target_.component<Scratch>().path().c_str() + 2)}));
 
   EXPECT_FALSE(ft::RestoreWorld(target_, names_a_component).has_value());
   EXPECT_EQ(target_.get<Scratch>().value, 7.f);
@@ -364,7 +366,7 @@ TEST_F(WorldStateTest, NanAndInfinityRoundTrip) {
 
 TEST_F(WorldStateTest, ToJsonRejectsAValueThatDoesNotDecode) {
   ft::WorldSnapshot snapshot;
-  snapshot.entities.push_back({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}});
+  snapshot.entities.push_back(ft::ShareEntity({.name = "hero", .components = {{"z13::tests::Position", {1, 2}}}}));
 
   const auto json = ft::WorldJsonStore::ToJson(source_, snapshot);
 

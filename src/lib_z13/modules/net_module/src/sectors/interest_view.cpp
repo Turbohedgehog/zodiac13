@@ -112,8 +112,8 @@ std::optional<InterestView> ViewOf(flecs::world world, sectors::ClientId client)
 z13::flecs_tools::WorldSnapshot FilterSnapshot(
     flecs::world world, const z13::flecs_tools::WorldSnapshot& snapshot, const InterestView& view) {
   z13::flecs_tools::WorldSnapshot filtered;
-  for (const z13::flecs_tools::EntitySnapshot& entity : snapshot.entities) {
-    const flecs::entity found = world.lookup(entity.name.c_str());
+  for (const z13::flecs_tools::SharedEntity& entity : snapshot.entities) {
+    const flecs::entity found = world.lookup(entity->name.c_str());
     const auto* player = found ? found.try_get<z13::gameplay::Player>() : nullptr;
     if (!player || view.players.contains(player->id)) {
       filtered.entities.push_back(entity);
