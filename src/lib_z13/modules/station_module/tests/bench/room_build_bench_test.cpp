@@ -19,9 +19,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <format>
 #include <iostream>
+#include <limits>
 #include <string>
 
 #include <primitives/station_assets.h>
@@ -115,6 +118,48 @@ TEST(RoomBuildBench, DISABLED_StagesWithWallPanels) {
           graph->rooms.size(), graph->portals.size())
                 << std::flush;
     }
+  }
+}
+
+template <typename F>
+double BestMs(F&& work) {
+  constexpr int kBestOf = 3;
+  double best = std::numeric_limits<double>::max();
+  for (int run = 0; run < kBestOf; ++run) {
+    const auto start = std::chrono::steady_clock::now();
+    work();
+    best = std::min(best, MsSince(start));
+  }
+  return best;
+}
+
+// How the stages of BuildRooms on the blocks and the wall panels of the hub speed up with the threads of the pool.
+TEST(RoomBuildBench, DISABLED_ParallelScaling) {
+  const primitives::Palette palette = ShippedPalette().value();
+  const z13::station::rooms::RoomSources sources = SceneSources("hub", palette);
+  const z13::station::rooms::RoomSettings settings;
+  const auto stages = [&](const z13::station::rooms::ParallelFor& parallel) {
+    const double openings_ms = BestMs([&] {
+      z13::station::rooms::FindOpenings(sources.sealed, sources.sealed, settings.max_opening_cells, parallel);
+    });
+    const double space_ms =
+        BestMs([&] { z13::station::rooms::FreeSpace::Build(sources.sealed, settings.chunk_cells, parallel); });
+    const double rooms_ms = BestMs(
+        [&] { z13::station::rooms::BuildRooms(sources, z13::station::rooms::kVacuumRoom + 1, {}, parallel); });
+    return std::array {openings_ms, space_ms, rooms_ms};
+  };
+  const std::array serial = stages(z13::station::rooms::Serial);
+  std::cout << std::format("[ bench ] serial: openings {:.0f}, free space {:.0f}, BuildRooms {:.0f} ms\n", serial[0],
+                           serial[1], serial[2]);
+  for (const size_t threads : {size_t {2}, size_t {4}, size_t {8}}) {
+    const z13::ThreadPool pool(threads);
+    const std::array pooled = stages(OnPool(pool));
+    std::cout << std::format(
+                     "[ bench ] {} threads: openings {:.0f} ({:.1f}x), free space {:.0f} ({:.1f}x), BuildRooms {:.0f} "
+                     "({:.1f}x) ms\n",
+                     threads, pooled[0], serial[0] / pooled[0], pooled[1], serial[1] / pooled[1], pooled[2],
+                     serial[2] / pooled[2])
+              << std::flush;
   }
 }
 
