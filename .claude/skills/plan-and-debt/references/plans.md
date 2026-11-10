@@ -27,6 +27,7 @@
 | `station-import-plan.md` | importing the Blender-built station into the game: the map export contract and the map-to-blueprint converter | "Порядок работ", "Открытые вопросы" |
 | `dynamic-objects-plan.md` | items, kinematics, debris, asteroids | stage 0 `f/dynamic-bench` first |
 | `android-plan.md` | Android build and touch controls: joysticks, on-screen inventory, the building tool as an item, context actions | "Порядок работ" (`f/android-build` first), "Открытые вопросы" |
+| `android-local-build-plan.md` | building the APK on the phone itself (NDK, `aapt2`, Gradle under PRoot) and installing and running the game by script | "Порядок работ" (`f/android-local-toolchain` first), "Открытые вопросы" |
 | `asset-pack-plan.md` | packing assets/ and config/ into one archive read on every platform (release packages, APK without unpacking) | stages `f/asset-source` → `f/asset-pack`, "Открытые вопросы" |
 | `ss13-reference.md` | Space Station 13 as the gameplay reference: what is repeated, and each difference with its reason | table "Отличия", grows with every gameplay decision |
 | `station-layout/` | generators of the shipped station blueprints (`generate_layout.py`, `generate_spire.py`, `generate_shard.py`, `generate_octant.py` — the Blender station `octant` from `blender/export/station_map.json`) | scripts, deck plans |
