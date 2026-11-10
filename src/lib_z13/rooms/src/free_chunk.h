@@ -23,6 +23,7 @@
 #include <vector>
 
 // Not <boost/geometry.hpp>: its overlay pulls in Boost.Graph, whose keywords every module linking rooms then defines.
+// relate/cartesian.hpp is what the R-tree's 3D box queries need.
 #include <boost/geometry/core/access.hpp>
 #include <boost/geometry/core/cs.hpp>
 #include <boost/geometry/geometries/box.hpp>
