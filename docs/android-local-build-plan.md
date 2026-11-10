@@ -10,16 +10,12 @@ APK сейчас собирает только CI (`.github/workflows/android.ym
 
 Проверено на машине 2026-11-10:
 
-- В Debian (arm64) есть `openjdk-21-jdk-headless`, `aapt` 14 beta, `apksigner` 35.0.2, `zipalign`, `android-sdk-build-tools` 29.0.3, `android-sdk-platform-tools`. `gradle` в Debian 4.4.1 — слишком старый (CI: 8.11.1, Java 17): Gradle берётся архивом с сайта, он на Java и от архитектуры не зависит.
+- В Debian (arm64) есть `openjdk-21-jdk-headless` (в системе его не было: ставится скриптом), `clang-22`/`lld-22`/`llvm-22` (`clang-21` нет), `aapt` с `aapt2` 2.19, `apksigner`, `zipalign`. `gradle` в Debian 4.4.1 — слишком старый (CI: 8.11.1, Java 17): Gradle берётся архивом с сайта, он на Java и от архитектуры не зависит.
 - `adb` стоит (Termux, 35.0.2), но демон в PRoot не стартует (`proot error: 'tcp:5037' not found`).
-- NDK, `aapt2` и Android SDK (`platforms;android-35`) не установлены.
 - vcpkg собирается здесь (`~/vcpkg`, `VCPKG_FORCE_SYSTEM_BINARIES=1`): на Linux 145 пакетов ушли около 4 часов, на двух потоках `VCPKG_MAX_CONCURRENCY=2` (память: 11 ГБ, подкачка 12 ГБ принадлежит хосту).
-
-Не проверено (каждое — отдельный пункт этапа 1):
-
-- Запускается ли неофициальный NDK под aarch64 (сборки для Termux, например проект `lzhiyong/termux-ndk`) в PRoot с glibc: его `clang` собран под bionic.
-- Входит ли `aapt2` в Debian-пакет `aapt`; иначе — неофициальная сборка (`lzhiyong/android-sdk-tools`).
-- Версия NDK: CI берёт `ANDROID_NDK_LATEST_HOME` образа; локальная должна быть той же серии, иначе другой libc++ и API.
+- CI собирает NDK r30 (`30.0.16248370`, `clang` 21.0.0): версия видна по строкам `clang version` в `.comment` библиотек опубликованного APK.
+- Google не выпускает NDK под aarch64 Linux, но sysroot x86_64-NDK от хоста не зависит: гибрид «официальный NDK + системный arm64 `clang`» собрал и запустил на устройстве C++23 (`docs/android-local-toolchain.md`); неофициальные сборки не понадобились.
+- `aapt2` 2.19 из Debian не читает `android.jar` API 35; `aapt2` 16.0.0.4 из Termux читает (бинарник под bionic, PRoot его запускает).
 
 ## Принципы
 
@@ -32,6 +28,7 @@ APK сейчас собирает только CI (`.github/workflows/android.ym
 ## Порядок работ (одна ветка на этап)
 
 1. **`f/android-local-toolchain`** — разведка и установка инструментов, без изменений кода: JDK 21 (Gradle 8.11.1 держит Java 17-21, проверить с AGP из `android/build.gradle`), Gradle 8.11.1 архивом, `cmdline-tools` и `platforms;android-35` (чистые данные, `android.jar`; `sdkmanager` — Java), NDK под aarch64 и `aapt2`. Проверки по одной: `clang --version` из NDK, `aapt2 version`, сборка пустого `.c` под `aarch64-linux-android26`. Итог — страница «как поставить» в `docs/` и скрипт `tools/android/setup_toolchain.py` (идемпотентный, с версиями и хэшами скачиваемого). Если NDK не запускается — решение: искать другую сборку или остановиться; остальные этапы без него не имеют смысла.
+   Сделано (`f/android-local-toolchain`): `tools/android/setup_toolchain.py` и `docs/android-local-toolchain.md`. Отличия от замысла: NDK — официальный r30 с подменой x86_64-бинарников системным `clang-22` (а не неофициальная сборка); `aapt2` — из Termux (Debian-версия не читает API 35); `sdkmanager` не запускается, SDK (`platforms;android-35`, `build-tools;34.0.0`, `cmdline-tools`) разложен вручную по ссылкам из манифеста Google. Проверено: пробный C++23 собирается штатным `android.toolchain.cmake` и запускается на устройстве; `gradle assembleDebug` с пустой стадией даёт подписанный APK за 41 с. Установка с нуля — около трёх минут при прогретом кеше загрузок.
 2. **`f/android-local-libs`** — vcpkg для `arm64-android` локально: `-DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/...`, `ANDROID_NDK_HOME`, `VCPKG_CHAINLOAD_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake`. Хост-инструменты vcpkg (cmake, ninja) — системные. Скрипт `tools/android/build_libs.py` (конфигурация, `--target z13_android_stage`, отделённый запуск, лог). Замеряем: время, память, `ccache`. Ожидание: несколько часов для зависимостей, потом минуты на проект; кеш двоичных пакетов vcpkg сократит повторы.
 3. **`f/android-local-apk`** — упаковка: SDL Java-исходники (из релиза той же версии SDL3, как в workflow), `gradle -p android assembleDebug` с `-Pz13StageDir`, `-Pz13SdlJavaDir`, `-Pz13VersionCode`, `-Pz13VersionName`. AGP скачивает `aapt2` из Google Maven под x86 — подменяется `android.aapt2FromMavenOverride` на локальный (свойство Gradle в `~/.gradle/gradle.properties`, не в репозитории). Версия: `git rev-list --count $(git merge-base HEAD origin/main)` и `version.txt`, как в workflow. Скрипт `tools/android/build_apk.py`.
 4. **`f/android-local-run`** — установка и запуск на том же телефоне. Варианты (проверить, какой работает): (а) `termux-open` с APK — системный установщик, подтверждение вручную; (б) беспроводная отладка (`adb pair`/`adb connect localhost:<порт>`, Android 11+) и `adb install -r`, `adb shell am start -n org.zodiac13.game/...` — полностью по скрипту; (в) `adb` из Termux, не из PRoot, если PRoot не пробрасывает сокеты. Подпись — отладочным ключом из репозитория, так что новый APK встаёт поверх старого (`versionCode` растёт по числу коммитов). Скрипт `tools/android/install_run.py`; логи игры — `adb logcat`.
@@ -41,7 +38,8 @@ APK сейчас собирает только CI (`.github/workflows/android.ym
 
 ## Открытые вопросы
 
-- Какой NDK и откуда: источник, версия, лицензия, хэш; как следить за обновлением вместе с `ANDROID_NDK_LATEST_HOME` в CI.
+- Как следить за обновлением NDK вместе с `ANDROID_NDK_LATEST_HOME` в CI: версия и хэш закреплены в скрипте (процедура — в конце `android-local-toolchain.md`); расхождение компилятора (Debian `clang` 22 против 21 у Google) побитово совпадения не даёт.
+- Лицензия Android SDK: скрипт её не принимает (`sdkmanager --licenses` не запускается), архивы берутся по ссылкам из манифеста Google, как в CI.
 - Хватит ли ОЗУ и подкачки на Release-сборку тяжёлых портов (`assimp`, `bullet3`) для Android; `VCPKG_MAX_CONCURRENCY=1` — запасной вариант.
 - Какой способ установки (этап 4) работает на устройстве пользователя: зависит от версии Android и включённой отладки по Wi-Fi.
 - Подпись: отладочный ключ годится для личных тестов; публикуются по-прежнему только APK из CI.
