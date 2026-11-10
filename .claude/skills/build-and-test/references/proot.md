@@ -24,7 +24,14 @@ A port built before its packages are installed is not rebuilt afterwards: vcpkg'
 
 ## Claude Code freezes
 
-In PRoot a `stat`/`open` costs 150-300 µs (about 100 times native; `mprotect` and `getpid` stay cheap), and Claude Code's UI stalls for seconds to a minute (`claude --debug`, `~/.claude/debug/<session>.txt`, `[event-loop-stall]`: little CPU used, startup takes ~2 minutes). The cause is not found. Native Termux does not run it: since 2.1.113 the binary is built for glibc (`unexpected e_type: 2`).
+In PRoot a `stat`/`open` costs 150-300 µs (about 100 times native; `mprotect` and `getpid` stay cheap; a failing `close()` measured 90 µs), and Claude Code's UI stalls for seconds to a minute (`claude --debug`, `~/.claude/debug/<session>.txt`, `[event-loop-stall]`: little CPU used, startup takes ~2 minutes, ~4 stalls a minute, input is not accepted meanwhile). Native Termux does not run it: since 2.1.113 the binary is built for glibc (`unexpected e_type: 2`).
+
+Measured 2026-11-10, in this order:
+
+- Not the cause: disk (604 MB/s, `git status` 0.2 s), network (IPv4 0.12 s; IPv6 to api.anthropic.com times out, but `--dns-result-order=ipv4first` changed nothing), memory, CPU or scheduler, `--debug`, `--no-kill-on-exit`, a `fork()` of a 400 MB process (10 ms). The "git took 5-9 s" lines in the debug log are the stalled loop itself.
+- Sampling `/proc/<claude pid>`: the main thread sits in state `D`, `wchan=kernel_clone`, ~60 of 66 s. A `/proc` poll every few ms shows why: every ~8 s Claude Code clones itself (its own `git -c core.askPass= ...`, `git -c core.fsmonitor= ...`, `ps -A -o pid= ...`; not from settings, hooks or plugins), the parent waits in `kernel_clone` until the child execs, and the child spends 7-8 s in `ptrace_stop` before the exec.
+- Suspected mechanism, not proven: the child walks the descriptors up to `ulimit -n` (32768 here, ~3 s at 90 µs a syscall) between fork and exec.
+- Workaround: start it with a low limit, `claude() { ( ulimit -n 1024; command claude "$@" ); }` in `~/.bashrc` (only claude gets it; builds keep 32768). The user reported it "seems better"; clone-to-exec under an active turn was not measured afterwards. If the stalls come back, rerun the poll (children of the claude pid, log exe/argv changes) and compare with 7-8 s.
 
 ## Timings to expect (Debug, ARM, -j3)
 
