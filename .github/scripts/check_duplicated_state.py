@@ -36,6 +36,9 @@ ALLOWED = [
      "by id, and nothing changes the path locale"),
     (r"^\(anonymous namespace\)::g_(path_locale|path_locale_deleter|dot_path|dot_dot_path)$",
      "Boost.Filesystem path globals, as above"),
+    (r"^boost::integral_constant<bool, true>::operator mpl_::bool_<true> const&\(\) const::data$",
+     "the static inside Boost.TypeTraits' conversion to an MPL constant, which the R-tree in `rooms` instantiates: "
+     "an empty constant per binary"),
     (r"^spdlog::details::os::default_eol$",
      "a header's `static const char* = SPDLOG_EOL`: a constant line ending per binary, which a "
      "Release build inlines and a Debug build keeps as a symbol"),

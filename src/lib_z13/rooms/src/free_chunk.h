@@ -22,9 +22,13 @@
 #include <utility>
 #include <vector>
 
-// The whole of it: the R-tree alone lacks the strategies it needs for 3D boxes.
-#include <boost/geometry.hpp>
+// Not <boost/geometry.hpp>: its overlay pulls in Boost.Graph, whose keywords every module linking rooms then defines.
+#include <boost/geometry/core/access.hpp>
+#include <boost/geometry/core/cs.hpp>
+#include <boost/geometry/geometries/box.hpp>
+#include <boost/geometry/geometries/point.hpp>
 #include <boost/geometry/index/rtree.hpp>
+#include <boost/geometry/strategies/relate/cartesian.hpp>
 
 #include <primitives/cell_box.h>
 #include <rooms/free_space.h>
