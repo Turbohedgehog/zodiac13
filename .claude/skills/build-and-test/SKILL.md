@@ -41,5 +41,5 @@ Run CI's two local checks:
 
 ## References
 
-- references/proot.md — why the caps exist, the full vcpkg rebuild procedure, flaky GitHub downloads.
+- references/proot.md — why the caps exist, the full vcpkg rebuild procedure, flaky GitHub downloads, why Claude Code itself freezes in PRoot and the `ulimit -n` workaround.
 - references/triplets.md — shared flecs/spdlog/z13_core, what `PluginSmoke` and the duplicated-state check guard.
