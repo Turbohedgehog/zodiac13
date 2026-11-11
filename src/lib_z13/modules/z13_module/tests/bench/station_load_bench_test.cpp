@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <chrono>
 #include <cstdint>
@@ -49,6 +50,7 @@
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/state/state_markers.h>
+#include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/math.h>
 #include <lib_core/utils/system_times.h>
@@ -71,6 +73,26 @@
 #include "../support/building_test_helpers.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"
+
+namespace z13::testing::bench {
+
+// What an item will carry as state (docs/dynamic-objects-plan.md): a pose and both velocities, 13 floats; the awake
+// ones also move every tick.
+struct ItemBody {
+  using State = void;
+  Eigen::Vector3f position = Eigen::Vector3f::Zero();
+  Eigen::Vector3f orientation_vector = Eigen::Vector3f::Zero();
+  float orientation_w = 1.f;
+  Eigen::Vector3f linear_velocity = Eigen::Vector3f::Zero();
+  Eigen::Vector3f angular_velocity = Eigen::Vector3f::Zero();
+};
+
+struct ItemAwake {
+  using State = void;
+  uint32_t ticks {};
+};
+
+}  // namespace z13::testing::bench
 
 namespace z13::testing {
 namespace {
@@ -185,7 +207,39 @@ std::vector<z13::SystemTime> TopSystems(
   return spent;
 }
 
-Row Measure(const std::string& label, const std::vector<z13::station::Block>& blocks, int copies) {
+struct ItemLoad {
+  int total {};
+  int awake {};
+};
+
+constexpr float kItemSpacing = 0.5f;  // in meters, a row of items on the floor
+constexpr float kItemSpeed = 1.f;
+constexpr int kItemsPerRow = 100;
+
+void SpawnItems(Z13TestWorld& world, const ItemLoad& load) {
+  if (load.total == 0) {
+    return;
+  }
+  flecs::world w = world.World();
+  ft::RegisterComponents<bench::ItemBody, bench::ItemAwake>(w);
+  w.system<bench::ItemBody, bench::ItemAwake>("BenchItems::Move").each([](bench::ItemBody& body, bench::ItemAwake& awake) {
+    body.position += body.linear_velocity * kNetTestDeltaTime;
+    ++awake.ticks;
+  });
+  for (int i = 0; i < load.total; ++i) {
+    bench::ItemBody body {.position = {static_cast<float>(i % kItemsPerRow) * kItemSpacing,
+                                       static_cast<float>(i / kItemsPerRow) * kItemSpacing, 0.f}};
+    flecs::entity item = w.entity(std::format("Item_{}", i).c_str()).add<ft::StateEntity>();
+    if (i < load.awake) {
+      body.linear_velocity = Eigen::Vector3f::UnitX() * kItemSpeed;
+      item.set(bench::ItemAwake {});
+    }
+    item.set(body);
+  }
+}
+
+Row Measure(const std::string& label, const std::vector<z13::station::Block>& blocks, int copies,
+            const ItemLoad& items = {}) {
   const StationLayout layout = LayoutOf(blocks);
   Row row {.label = label};
   Z13TestWorld world;
@@ -199,6 +253,8 @@ Row Measure(const std::string& label, const std::vector<z13::station::Block>& bl
     world.Tick();  // bodies are created on the first frame that sees the blocks
   });
   row.blocks = static_cast<size_t>(w.count<z13::station::Block>());
+  SpawnItems(world, items);
+  world.Tick();
 
   std::vector<double> capture;
   std::vector<double> restore;
@@ -300,6 +356,20 @@ TEST(StationLoadBench, DISABLED_Scales) {
       rows.push_back(Measure(std::format("x{}", scale), *blocks, scale));
     }
     Print(std::format("station '{}'", scene), rows);
+  }
+}
+
+// What the state of items costs on a station: each row is the same walk as `Scales`, with `total` item entities of
+// which `awake` move every tick. The first row, without items, is the base the others are read against.
+TEST(StationLoadBench, DISABLED_Items) {
+  constexpr std::array kLoads {ItemLoad {0, 0},      ItemLoad {1000, 0},  ItemLoad {1000, 100}, ItemLoad {5000, 0},
+                               ItemLoad {5000, 500}, ItemLoad {20000, 0}, ItemLoad {20000, 2000}};
+  const auto blocks = ReadStation("spire");
+  ASSERT_TRUE(blocks.has_value()) << blocks.error();
+  // A row at a time: the heaviest loads may not come back, and the rows before them should still be seen.
+  for (const ItemLoad& load : kLoads) {
+    Print("station 'spire' with items, label: items/awake",
+          {Measure(std::format("{}/{}", load.total, load.awake), *blocks, 1, load)});
   }
 }
 
