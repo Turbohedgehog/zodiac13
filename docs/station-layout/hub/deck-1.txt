@@ -7,7 +7,7 @@ The atrium is a 16-gon of oblique panels (drawn as @ outside it); the spine is s
   1 
   2 
   3 
-  4                                 #===========================#
+  4                                 #============DD=============#
   5                                 #                           #
   6                                 #                           #
   7                                 #                           #
