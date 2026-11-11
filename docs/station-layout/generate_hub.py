@@ -633,24 +633,9 @@ def spine_b_walls():
 
 # ----- Lattice halls --------------------------------------------------------------------------
 
-# A hall that is a true rectangle, along a lattice step and across it, behind a neck of two parallel walls. Every
-# wall is a segment, and the walls that meet share their nodes on the inner-face lines, so the game stitches the
-# jambs. The neck and the hall are one room; the hall's floor and ceiling are strips along
-# the step, and the cells they leave (the neck, the slanted near and far edges) are masks of cells, less the cells
-# another floor holds.
+# The halls are true rectangles in a grid of their own, with walls that share their nodes on the inner-face lines, so
+# the game stitches the jambs.
 HALL_WALL_CELLS = 2  # the least that holds air back at 40 degrees from an axis
-
-
-class HallPlan(NamedTuple):
-    starts: tuple  # the neck walls' first nodes, on inner-face lines, on the wall the neck leaves
-    entry: tuple  # a line (point, direction) the floor begins at, on the far side of that wall
-    step: tuple  # a lattice step along the neck and the hall
-    across: tuple  # the lattice step across them
-    neck_steps: int
-    hall_steps: int
-    across_steps: int
-    margin_steps: int  # from the neck's first wall to the hall's
-    decks: int
 
 
 class Hall(NamedTuple):
@@ -664,129 +649,6 @@ class Hall(NamedTuple):
     height: int
     decks: int
     steps: int  # the hall's length in `step`s
-
-
-def _minor(step):
-    return 1 if abs(step[0]) >= abs(step[1]) else 0
-
-
-def _on_axis(axis, amount):
-    return (amount, 0) if axis == 0 else (0, amount)
-
-
-def lattice_hall(plan):
-    step, across, wall = plan.step, plan.across, HALL_WALL_CELLS
-    step_minor = _minor(step)
-    start1, start2 = sorted(plan.starts, key=lambda point: point[step_minor])
-    if across[step_minor] < 0:
-        across = (-across[0], -across[1])
-    across_minor = _minor(across)
-    toward_neck = -1 if step[across_minor] > 0 else 1  # which way along the near wall's minor axis the neck lies
-    end1 = _along(start1, plan.neck_steps, step)
-    # The neck's walls run on to the near wall's hall face and share its nodes.
-    hall_face = _shifted(end1, _on_axis(across_minor, -toward_neck * wall))
-    node1 = meet((start1, step), (hall_face, across))
-    left_near = _along(node1, -plan.margin_steps, across)
-    right_near = _along(left_near, plan.across_steps, across)
-    node2 = meet((start2, step), (left_near, across))
-    left_far, right_far = (_along(point, plan.hall_steps, step) for point in (left_near, right_near))
-    near = toward_neck * wall
-    walls = ((start1, node1, -wall), (start2, node2, wall), (left_near, node1, near), (node2, right_near, near),
-             (left_near, left_far, -wall), (right_near, right_far, wall), (left_far, right_far, -near))
-    neck = [meet((start1, step), plan.entry), meet((start2, step), plan.entry),
-            meet((start2, step), (hall_face, across)), meet((start1, step), (hall_face, across))]
-    hall = [meet((left_near, step), (hall_face, across)), meet((right_near, step), (hall_face, across)),
-            meet((right_near, step), (left_far, across)), meet((left_near, step), (left_far, across))]
-    return Hall(walls, (neck, hall), (start1, start2), left_near, step, across, plan.across_steps,
-                plan.decks * DECK_PITCH_CELLS - SLAB_CELLS, plan.decks, plan.hall_steps)
-
-
-def hall_walls(hall):
-    z = deck_floor_z(1)
-    return [wall_segment((*a, z), (*b, z), thickness, hall.height) for a, b, thickness in hall.walls] + hall_slabs(hall)
-
-
-class SlabStrip(NamedTuple):
-    start: tuple
-    end: tuple
-    thickness: int  # along the minor axis of its direction, signed
-
-
-def hall_strips(hall):
-    """The hall's floor and ceiling between its side walls as strips along `step`, from the first node past the near
-    wall's corners to the last before the far wall's: the ends are cut by the grid, so the slanted near and far
-    edges are left to a mask."""
-    step, across = hall.step, hall.across
-    minor = _minor(step)
-    major = 1 - minor
-    sign = 1 if step[major] > 0 else -1
-    left_near = hall.left_near
-    right_near = _along(left_near, hall.across_steps, across)
-    far = tuple(_along(point, hall.steps, step) for point in (left_near, right_near))
-    first = max(sign * point[major] for point in (left_near, right_near))
-    last = min(sign * point[major] for point in far)
-    k = 0
-    while sign * _along(left_near, k, step)[major] < first:
-        k += 1
-    k_end = hall.steps
-    while sign * _along(left_near, k_end, step)[major] > last:
-        k_end -= 1
-    offset = (right_near[0] - left_near[0], right_near[1] - left_near[1])
-    gap = Fraction(offset[minor]) - Fraction(offset[major] * step[minor], step[major])
-    thickness = math.ceil(gap) if gap > 0 else math.floor(gap)
-    return [SlabStrip(_along(left_near, k, step), _along(left_near, k_end, step), thickness)]
-
-
-def strip_cells(strip):
-    """The cells a strip's panel takes: those its parallelogram strictly overlaps."""
-    direction = (strip.end[0] - strip.start[0], strip.end[1] - strip.start[1])
-    rise = _on_axis(_minor(direction), strip.thickness)
-    corners = [strip.start, strip.end, _shifted(strip.end, rise), _shifted(strip.start, rise)]
-    xs, ys = [p[0] for p in corners], [p[1] for p in corners]
-    return {(x, y) for y in range(min(ys) - 1, max(ys) + 1) for x in range(min(xs) - 1, max(xs) + 1)
-            if strictly_overlap(corners, x, y)}
-
-
-def hall_slabs(hall):
-    return [wall_segment((*strip.start, layer * DECK_PITCH_CELLS), (*strip.end, layer * DECK_PITCH_CELLS),
-                         strip.thickness, SLAB_CELLS)
-            for strip in hall_strips(hall) for layer in (0, hall.decks)]
-
-
-def hall_floor_blocks(hall, held=frozenset()):
-    """The floor and the ceiling's cells the strips don't take: those the outlines strictly overlap but `held`
-    (another floor's cells) has."""
-    held = set(held).union(*(strip_cells(strip) for strip in hall_strips(hall)))
-    polygons = hall.polygons
-    points = [p for polygon in polygons for p in polygon]
-    xs, ys = [p[0] for p in points], [p[1] for p in points]
-    left, top = min(xs) - 1, min(ys) - 1  # the mask starts here, so cells may lie at negative x or y
-    mask = [[False] * (max(xs) + 2 - left) for _ in range(max(ys) + 2 - top)]
-    for y in range(top, max(ys) + 1):
-        for x in range(left, max(xs) + 1):
-            if (x, y) not in held and any(strictly_overlap(polygon, x, y) for polygon in polygons):
-                mask[y - top][x - left] = True
-    blocks = [entry for layer in (0, hall.decks) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
-    for entry in blocks:
-        entry["cell"]["x"] += left
-        entry["cell"]["y"] += top
-    return blocks
-
-
-def hall_lamps(hall, neck_steps, hall_steps, rows, floor_steps=()):
-    """Lamps under the ceiling along the neck's middle and in rows across the hall; `floor_steps` stand on the floor."""
-    z = deck_floor_z(1)
-    ceiling = z + hall.height - 1
-    middle = _along(hall.left_near, hall.across_steps // 2, hall.across)
-    spots = []
-    if neck_steps:
-        start = ((hall.starts[0][0] + hall.starts[1][0]) // 2, (hall.starts[0][1] + hall.starts[1][1]) // 2)
-        spots += [(_along(start, steps, hall.step), ceiling) for steps in neck_steps]
-    for steps in hall_steps:
-        centre = _along(middle, steps, hall.step)
-        spots += [(_along(centre, row, hall.across), ceiling) for row in rows]
-    spots += [(_along(middle, steps, hall.step), z) for steps in floor_steps]
-    return [block(LAMP, (x - 1, y - 1, level), (LAMP_CELLS, LAMP_CELLS, 1)) for (x, y), level in spots]
 
 
 # ----- The arrivals hangar -------------------------------------------------------------------
@@ -868,39 +730,85 @@ def arrivals_grid():
 # ----- The old wing --------------------------------------------------------------------------
 
 # Behind the west spine's end, 9.5 degrees off it (the lattice step (-6, -1)): a wide tunnel where the reactor will
-# stand, then the abandoned hall, three decks tall, lit by a few lamps. The tunnel starts at the door in the corridor's
-# end wall; blocks beside the door close the walls' start, a cell short of their nodes.
+# stand, then the abandoned hall. A grid of its own like the freight hangar's, docked to a lobby wedge of the main
+# grid; the grid's x runs away from the spine, its y north.
 OLD_DECKS = 3
-OLD_DOOR_X = -1  # the column the tunnel's walls stop short of
-OLD_CENTRE_Y = 302  # the corridor's end wall's middle, in cells (rows 72-78 of characters)
-OLD_TUNNEL_WIDTH_CELLS = 24  # between the tunnel's inner faces
-OLD_NECK_LAMP_STEPS = (2, 5, 8, 11)
-OLD_HALL_LAMP_STEPS = (4, 10, 16)  # along the middle line
-OLD_HALL_CEILING_ROWS = (-4, 4)  # across it, in steps of the lattice step across the hall
-OLD_HALL_FLOOR_STEPS = (3, 9, 15)  # lamps on the floor, so it isn't left to the roof
+OLD_GRID = 3
+OLD_STEP = (-6, -1)
+OLD_ACROSS = (-1, 6)
+OLD_ACROSS_STEPS = 4  # the near wall, as many lattice steps across
+OLD_END_X = 0  # the spine's end wall's far face, where the lobby begins
+OLD_NORTH_NODE = (-3, 290)  # the near wall's north end: its thickness and a cell from the end wall
+OLD_TUNNEL_WIDTH_CELLS = 24  # between the tunnel's inner faces: 4 lattice steps
+OLD_TUNNEL_LENGTH_CELLS = 73  # 12 steps, from the near wall's outer face to the hall's near face
+OLD_HALL_LENGTH_CELLS = 122  # 20 steps
+OLD_HALL_Y = (-36, 61)  # the hall's inner faces across it, 16 steps; the tunnel stands in the middle
+OLD_DOOR_OFFSET_STEPS = 1  # along the main near wall from its north end
+OLD_DOOR_STEPS = 2
+OLD_DOOR_OFFSET_CELLS = 6  # along the grid's near wall, from its south end
+OLD_DOOR_CELLS = 12
+OLD_LOBBY_CELL = (-3, 302, 6)  # in the lobby, beside the near wall's door rather than the corridor's
+OLD_HALL_CELL = (30, 12, 12)  # in the tunnel, in the grid's own cells
+OLD_TUNNEL_LAMP_CELLS = (12, 30, 49, 67)  # along the tunnel's middle line
+OLD_HALL_LAMP_CELLS_ALONG = (24, 61, 97)  # from the hall's near face, on the ceiling
+OLD_HALL_LAMP_CELLS_ACROSS = (-24, 24)  # from the hall's middle line
+OLD_HALL_FLOOR_LAMP_CELLS = (18, 55, 91)  # on the floor along the middle line, so it isn't left to the roof
 
 
-@functools.cache
-def old_wing():
-    top, bottom = OLD_CENTRE_Y - OLD_TUNNEL_WIDTH_CELLS // 2, OLD_CENTRE_Y + OLD_TUNNEL_WIDTH_CELLS // 2
-    starts = ((OLD_DOOR_X, top), (OLD_DOOR_X, bottom))
-    plan = HallPlan(starts, ((0, 0), (0, 1)), (-6, -1), (-1, 6), neck_steps=12, hall_steps=20, across_steps=16,
-                    margin_steps=6, decks=OLD_DECKS)
-    return lattice_hall(plan)
+def old_wing_nodes():
+    """The near wall's two ends in the main grid: the north one and the south one, a lattice step across."""
+    north = OLD_NORTH_NODE
+    return north, (north[0] + OLD_ACROSS_STEPS * OLD_ACROSS[0], north[1] + OLD_ACROSS_STEPS * OLD_ACROSS[1])
 
 
 def old_wing_walls():
-    return hall_walls(old_wing())
+    """The main grid's: the slanted near wall with its door, and the lobby's north and south walls."""
+    north, south = old_wing_nodes()
+    z = deck_floor_z(1)
+    height = OLD_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+    door = wall_opening(OLD_DOOR_OFFSET_STEPS, OLD_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+    return [wall_segment((*north, z), (*south, z), HALL_WALL_CELLS, height, openings=[door]),
+            wall_segment((OLD_END_X, north[1], z), (*north, z), -HALL_WALL_CELLS, height),
+            wall_segment((OLD_END_X, south[1], z), (*south, z), HALL_WALL_CELLS, height)]
 
 
 def old_wing_blocks():
-    hall = old_wing()
-    z, wall = deck_floor_z(1), HALL_WALL_CELLS
-    north, south = hall.starts[0][1], hall.starts[1][1]
-    blocks = hall_floor_blocks(hall) + hall_lamps(hall, OLD_NECK_LAMP_STEPS, OLD_HALL_LAMP_STEPS,
-                                                  OLD_HALL_CEILING_ROWS, OLD_HALL_FLOOR_STEPS)
-    return blocks + [entry for y in (north - wall, south)
-                     for entry in line_blocks(WALL_BLOCK, 1, y, OLD_DOOR_X, z, wall, hall.height)]
+    """The lobby's floor and ceiling."""
+    north, south = old_wing_nodes()
+    return wedge_floor_blocks([(OLD_END_X, north[1]), north, south, (OLD_END_X, south[1])], OLD_DECKS)
+
+
+def old_wing_grid():
+    """The tunnel and the hall in their own axes, as the arrivals': the near wall with its door, the tunnel's walls
+    to the hall's near wall pieces, which end on their nodes, the hall's walls, floor, ceiling and lamps."""
+    z = deck_floor_z(1)
+    height = OLD_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+    wall = HALL_WALL_CELLS
+    tunnel_x = OLD_TUNNEL_LENGTH_CELLS
+    hall_x = tunnel_x + OLD_HALL_LENGTH_CELLS
+    width = OLD_TUNNEL_WIDTH_CELLS
+    hall0, hall1 = OLD_HALL_Y
+    door = wall_opening(OLD_DOOR_OFFSET_CELLS, OLD_DOOR_CELLS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((wall, 0, z), (wall, width, z), -wall, height, openings=[door]),
+             wall_segment((wall, 0, z), (tunnel_x, 0, z), -wall, height),
+             wall_segment((wall, width, z), (tunnel_x, width, z), wall, height),
+             wall_segment((tunnel_x, hall0, z), (tunnel_x, 0, z), -wall, height),
+             wall_segment((tunnel_x, width, z), (tunnel_x, hall1, z), -wall, height),
+             wall_segment((tunnel_x, hall0, z), (hall_x, hall0, z), -wall, height),
+             wall_segment((tunnel_x, hall1, z), (hall_x, hall1, z), wall, height),
+             wall_segment((hall_x, hall0, z), (hall_x, hall1, z), wall, height)]
+    blocks = [block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, across, SLAB_CELLS))
+              for layer in (0, OLD_DECKS)
+              for x, y, length, across in ((0, 0, tunnel_x, width), (tunnel_x, hall0, hall_x - tunnel_x, hall1 - hall0))]
+    ceiling = z + height - 1
+    tunnel_middle, hall_middle = width // 2, (hall0 + hall1) // 2
+    spots = [((along, tunnel_middle), ceiling) for along in OLD_TUNNEL_LAMP_CELLS]
+    spots += [((tunnel_x + along, hall_middle + across), ceiling)
+              for along in OLD_HALL_LAMP_CELLS_ALONG for across in OLD_HALL_LAMP_CELLS_ACROSS]
+    spots += [((tunnel_x + along, hall_middle), z) for along in OLD_HALL_FLOOR_LAMP_CELLS]
+    blocks += [block(LAMP, (x - 1, y - 1, level), (LAMP_CELLS, LAMP_CELLS, 1)) for (x, y), level in spots]
+    yaw = math.degrees(math.atan2(OLD_STEP[1], OLD_STEP[0]))
+    return grid_entry(OLD_GRID, blocks, walls, (*old_wing_nodes()[1], 0), yaw)
 
 
 # ----- The freight hangar --------------------------------------------------------------------
@@ -977,7 +885,7 @@ def freight_walls():
     return walls
 
 
-def wedge_floor_blocks(wedge):
+def wedge_floor_blocks(wedge, decks=FREIGHT_DECKS):
     """The lobby's floor and ceiling: the cells its outline strictly overlaps, stepped along the slanted near wall
     under the wall's body."""
     xs, ys = [p[0] for p in wedge], [p[1] for p in wedge]
@@ -986,7 +894,7 @@ def wedge_floor_blocks(wedge):
     for y in range(top, max(ys) + 1):
         for x in range(left, max(xs) + 1):
             mask[y - top][x - left] = strictly_overlap(wedge, x, y)
-    blocks = [entry for layer in (0, FREIGHT_DECKS) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
+    blocks = [entry for layer in (0, decks) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
     for entry in blocks:
         entry["cell"]["x"] += left
         entry["cell"]["y"] += top
@@ -1298,9 +1206,10 @@ def main():
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
     walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
     # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid()],
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid(), old_wing_grid()],
                          docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
-                                dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL)])
+                                dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
+                                dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL)])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
