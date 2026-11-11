@@ -212,6 +212,7 @@ if(Z13_BUILD_BENCHMARKS)
     PROJECT_SOURCE_FILES
     src/lib_core/bench/thread_pool_bench_test.cpp
     ${MODULES_DIR}/bullet_module/tests/bench/empty_sector_bench_test.cpp
+    ${MODULES_DIR}/bullet_module/tests/bench/item_physics_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/cell_light_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/opening_bench_test.cpp
     ${MODULES_DIR}/station_module/tests/bench/props_culling_bench_test.cpp
@@ -283,6 +284,13 @@ target_link_libraries(
   GTest::gmock
   reflectcpp::reflectcpp
 )
+
+if(Z13_BUILD_BENCHMARKS)
+  # ItemPhysicsBench steps a Bullet dynamics world of its own.
+  find_package(Bullet REQUIRED)
+  target_link_libraries(${PROJECT_NAME} PRIVATE ${BULLET_LIBRARIES})
+  target_include_directories(${PROJECT_NAME} PRIVATE ${BULLET_INCLUDE_DIRS})
+endif()
 
 # The palette and blueprint tests read the shipped assets from the source tree.
 target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_SOURCE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
