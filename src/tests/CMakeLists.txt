@@ -13,6 +13,7 @@ set(
   PROJECT_SOURCE_FILES
   src/lib_core/asset_source_test.cpp
   src/lib_core/camera_pose_test.cpp
+  src/lib_core/command_registry_test.cpp
   src/lib_core/config_test.cpp
   src/lib_core/core_settings_test.cpp
   src/lib_core/drawn_poses_test.cpp

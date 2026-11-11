@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/tick_log.h>
 #include <lib_core/utils/asset_source.h>
@@ -103,6 +104,9 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
   if (!world) {
     log_error("{}", world.error());
     return 1;
+  }
+  for (const std::string& name : CommandsWithoutHandler(world->get())) {
+    log_warn("Command '{}' has no handler", name);
   }
   InstallSettings(*world, *effective);
   flecs_tools::ShowTickInLog(*world);
