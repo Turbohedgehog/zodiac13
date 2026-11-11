@@ -34,6 +34,7 @@ z13_add_library(
   ${PROJECT_NAME} SHARED EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>"
   SOURCES
+  src/commands/command_registry.cpp
   src/settings/config.cpp
   src/settings/schema_attributes.cpp
   src/state/component_codec.cpp

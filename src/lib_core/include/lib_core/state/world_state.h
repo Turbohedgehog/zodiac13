@@ -20,6 +20,7 @@
 
 #include <flecs.h>
 
+#include <lib_core/commands/command_registry.h>
 #include <lib_core/state/component_meta.h>
 #include <lib_core/state/player_bound.h>
 #include <lib_core/state/state_markers.h>
@@ -29,7 +30,8 @@
 namespace z13::flecs_tools {
 
 // Registers T and applies its properties: State builds reflect-cpp meta and adds the
-// StateComponent trait, Singleton the flecs Singleton trait, PlayerBound enrols it in
+// StateComponent trait, Singleton the flecs Singleton trait, Command files it as a command
+// (lib_core/commands/command.h), PlayerBound enrols it in
 // PlayerBoundComponents. Only state components need to be reflectable aggregates; others are
 // registered as plain runtime data. Set a singleton's value after registration, not in the same event.
 template <class T>
@@ -46,6 +48,9 @@ flecs::untyped_component RegisterComponent(flecs::world& world) {
   if constexpr (SessionScopedComponentType<T>) {
     static_assert(SingletonComponentType<T>, "only singletons can be session-scoped");
     component.template add<SessionScopedComponent>();
+  }
+  if constexpr (CommandComponentType<T>) {
+    RegisterCommand<T>(world);
   }
   if constexpr (PlayerBoundComponentType<T>) {
     static_assert(StateComponentType<T>, "only state goes with a player");

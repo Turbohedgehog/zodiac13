@@ -1,0 +1,39 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+#pragma once
+
+#include <string>
+
+namespace z13 {
+
+// How a channel turns a word into a value of the field.
+enum class FieldKind {
+  kBool,
+  kInteger,
+  kNumber,
+  kText,
+  kOther,  // nested or of a type a word can't spell
+};
+
+// In the order of the command struct's fields.
+struct CommandField {
+  std::string name;
+  FieldKind kind {};
+};
+
+}  // namespace z13
