@@ -25,6 +25,7 @@ JAVA_HOME = Path("/usr/lib/jvm/java-21-openjdk-arm64")
 
 NDK_VERSION = "30.0.16248370"
 NDK_CLANG_MAJOR = 21  # the compiler Google's NDK r30 ships: its resource directory name
+NDK_DIRECTORY = "android-ndk-r30"
 NDK_PREBUILT = Path("toolchains/llvm/prebuilt/linux-x86_64")
 ELF_MAGIC = b"\x7fELF"
 ELF_MACHINE_OFFSET = 18
@@ -100,6 +101,14 @@ TERMUX_AAPT2 = [
 
 class SetupError(Exception):
     pass
+
+
+def default_root() -> Path:
+    return Path.home() / "android"
+
+
+def ndk_home(root: Path) -> Path:
+    return root / "ndk" / NDK_DIRECTORY
 
 
 def log(message: str) -> None:
@@ -212,8 +221,8 @@ def check_apt(install: bool) -> None:
 def install_all(root: Path) -> dict[str, Path]:
     downloads = root / "downloads"
     downloads.mkdir(parents=True, exist_ok=True)
-    ndk = root / "ndk" / "android-ndk-r30"
-    install_zip(NDK, downloads, "android-ndk-r30", ndk)
+    ndk = ndk_home(root)
+    install_zip(NDK, downloads, NDK_DIRECTORY, ndk)
     swap_ndk_binaries(ndk)
 
     gradle = root / "gradle" / f"gradle-{GRADLE_VERSION}"
@@ -253,7 +262,7 @@ def print_environment(paths: dict[str, Path]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--root", type=Path, default=Path.home() / "android")
+    parser.add_argument("--root", type=Path, default=default_root())
     parser.add_argument("--install-apt", action="store_true", help="install the missing system packages with sudo")
     parser.add_argument("--verify-only", action="store_true", help="only check what is installed")
     args = parser.parse_args()
@@ -261,7 +270,7 @@ def main() -> int:
         check_apt(args.install_apt)
         root = args.root.expanduser()
         if args.verify_only:
-            paths = {"ndk": root / "ndk" / "android-ndk-r30", "gradle": root / "gradle" / f"gradle-{GRADLE_VERSION}",
+            paths = {"ndk": ndk_home(root), "gradle": root / "gradle" / f"gradle-{GRADLE_VERSION}",
                      "sdk": root / "sdk", "aapt2": root / "bin" / "aapt2"}
         else:
             paths = install_all(root)

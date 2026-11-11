@@ -37,6 +37,7 @@
 # build
 build/
 build-release/
+build-android/
 install/
 bin/
 bin-release/

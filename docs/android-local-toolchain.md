@@ -48,6 +48,51 @@ export ANDROID_NDK_HOME=~/android/ndk/android-ndk-r30
 
 Стадия и Java-исходники SDL — как в `.github/workflows/android.yml`; сборка библиотек и скрипт упаковки — этапы 2 и 3 плана. Проверено 2026-11-10: с пустой стадией и SDL 3.4.14 APK (60 КБ, подпись v2 сходится) собирается за 41 с.
 
+## Библиотеки проекта
+
+```
+python3 tools/android/build_libs.py          # отделённо; лог и build.pid — в /tmp/z13-build-android
+python3 .claude/skills/build-and-test/scripts/wait_build.py --status --log-dir /tmp/z13-build-android
+```
+
+Скрипт повторяет настройку из `.github/workflows/android.yml` (триплет `arm64-android`, NDK, `android-26`, `c++_shared`, `-DZ13_PROFILE=ON`, `ccache`), настраивает проект в `build-android/` (vcpkg ставит зависимости во время настройки) и собирает `z13_android_stage`: библиотеки и ресурсы для Gradle лежат в `build-android/android/`. `--vcpkg-jobs` (по умолчанию 2), `--jobs` (3), `--configure-only`, `--build-dir`.
+
+- **Отдельное дерево vcpkg.** Скрипт передаёт `-DVCPKG_INSTALLED_DIR=build-android/vcpkg_installed`. Общее `vcpkg_installed/` в корне — дерево Linux-сборки: пакеты двух триплетов в одном дереве vcpkg снимает друг у друга (при первой попытке за 30 секунд слетели 140 пакетов `arm64-linux`; их вернула настройка `build/` из бинарного кеша за 2,5 минуты, а датам файлов пришлось вернуть старое значение, иначе Ninja пересобирал все 573 шага).
+- **Телефон не должен спать.** Остановленный сном телефона процесс не продвигается: для `assimp` часы Ninja показали 27 минут при 325 на стене. Запуск сессии берёт `termux-wake-lock` (`~/.shortcuts/debian-th`).
+
+Замер 2026-11-10/11 (Release, первая сборка, `ccache` пуст): 125 пакетов vcpkg — около 2,3 часа работы (первые 110 пакетов на одном потоке — 130 минут, из них `assimp` 56; последние пакеты и настройка проекта на двух потоках — 8 минут), проект `z13_android_stage` с `-j3` — 32 минуты; сюда не входят пять часов простоя, пока телефон спал. В `build-android/` потом 608 МБ в `vcpkg_installed`, 131 МБ в стадии (21 библиотека и 74 МБ ресурсов); набор библиотек и размеры совпадают с APK из CI.
+
+## APK
+
+```
+python3 tools/android/build_apk.py       # после build_libs.py; около минуты, лог — в терминал
+```
+
+Скрипт берёт Java-исходники SDL того же выпуска, что поставил vcpkg (3.4.14; кладёт в `~/android/sdl-java`), запускает `gradle assembleDebug` с теми же `-Pz13...`, что workflow, и `aapt2` из Termux, и кладёт APK в `build-android/apk/zodiac13-<версия>-local-android-arm64.apk`. Версия — `version.txt`, число коммитов в `main` до точки ветвления и суффикс `-local`.
+
+Замер 2026-11-11: Gradle 31 с (всего 37 с), APK 79,7 МБ (у CI на тот же момент 79,8 МБ), 21 библиотека `arm64-v8a`, подпись v2 сходится. На телефон не ставился (этап 4).
+
+## Одной командой
+
+```
+python3 tools/android/android.py               # APK и установка (около полуминуты при готовых библиотеках)
+python3 tools/android/android.py --libs        # заново библиотеки: отделённо, затем повторить без флага
+python3 tools/android/android.py --no-install  # только APK
+```
+
+Без собранной стадии (`build-android/android/jniLibs`) скрипт запускает `build_libs.py` отделённо и останавливается. `build_apk.py --install` собирает и ставит, `install_run.py` ставит последний APK.
+
+## Установка на телефон
+
+```
+python3 tools/android/install_run.py            # копия в /sdcard/Download и открытая папка «Файлы»: тап по APK
+python3 tools/android/install_run.py --launch   # запуск установленной игры
+```
+
+То же делает ярлык Termux:Widget `~/.shortcuts/install-zodiac13` (лежит вне репозитория, работает в Termux и берёт самый новый APK из корня PRoot).
+
+Termux сам установить APK не может: у него нет `REQUEST_INSTALL_PACKAGES` (пункта «Установка неизвестных приложений» в настройках нет), и системный установщик, запущенный из него, закрывается без окна и без записи в логе. Не сработали (2026-11-11): `termux-open` (приёмник Termux молча ничего не запускает; с `--chooser` предлагает только сохранить файл), `am start` с `file://` (Termux подхватывает его сам: «open directory / edit / cancel»), `am start -n com.android.packageinstaller/.InstallStart`. Работает открытая папка «Файлы»: у менеджера разрешение на установку есть. APK подписан `android/debug.keystore` из репозитория, как в CI, так что встаёт поверх прежнего. Беспроводной `adb` не нужен: в PRoot демон стартует только как `adb -L tcp:5037 server nodaemon`, но сопряжение настраивается на каждом устройстве.
+
 ## Обновление версий
 
 NDK, Gradle, SDK и пакеты Termux закреплены в начале скрипта (ссылки и хэши). Новый NDK: версия из `ANDROID_NDK_LATEST_HOME` образа CI (читается по строке `clang version` в `.comment` библиотек опубликованного APK), хэш — в `repository2-3.xml` на `dl.google.com`; при смене мажорной версии `clang` в NDK меняется `NDK_CLANG_MAJOR` (каталог `lib/clang/<N>`). Пакеты Termux устаревают в пуле: если загрузка падает с 404, взять актуальные версии и хэши из индекса `packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages`.
