@@ -542,23 +542,42 @@ TEST(HubArrivalsHangarTest, TheHallIsAGridWithASealedRoomJoinedToTheAtriumByADoc
 }
 
 const Eigen::Vector3i kWestCorridorCell {8, 304, 6};
-const Eigen::Vector3i kOldTunnelCell {-30, 297, 6};
-const Eigen::Vector3i kOldHallCell {-135, 280, 12};
+const Eigen::Vector3i kOldLobbyCell {-3, 302, 6};
+constexpr z13::station::GridId kOldWingGrid = 3;
+// In the old wing's grid, in its own cells.
+const Eigen::Vector3i kOldTunnelCell {30, 12, 12};
+const Eigen::Vector3i kOldHallCell {150, 12, 12};
 
-TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomJoinedToTheCorridorByADoor) {
+TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomOfAGridBehindALobbyJoinedToTheCorridorByADoor) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
+  world.Tick();  // the doors get their state in the first tick, after the docks were linked
 
   const RoomGraph& graph = Graph(world);
   const auto corridor = graph.RoomAt(kWestCorridorCell);
-  const auto tunnel = graph.RoomAt(kOldTunnelCell);
-  const auto hall = graph.RoomAt(kOldHallCell);
+  const auto lobby = graph.RoomAt(kOldLobbyCell);
   ASSERT_TRUE(corridor.has_value() && *corridor != rooms::kVacuumRoom) << "corridor";
+  ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
+  EXPECT_NE(corridor, lobby);
+  EXPECT_TRUE(Joined(graph, corridor, lobby));
+
+  const flecs::entity wing_grid = world.World().lookup(std::format("Grid_{}", kOldWingGrid).c_str());
+  ASSERT_TRUE(wing_grid.is_valid() && wing_grid.has<RoomCache>());
+  const RoomGraph& wing_graph = wing_grid.get<RoomCache>().Current()->get();
+  const auto tunnel = wing_graph.RoomAt(kOldTunnelCell);
+  const auto hall = wing_graph.RoomAt(kOldHallCell);
   ASSERT_TRUE(tunnel.has_value() && *tunnel != rooms::kVacuumRoom) << "tunnel";
   ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << "hall";
-  EXPECT_NE(corridor, tunnel);
   EXPECT_EQ(tunnel, hall);
-  EXPECT_TRUE(Joined(graph, corridor, hall));
+  EXPECT_TRUE(Joined(wing_graph, tunnel, rooms::kVacuumRoom)) << "the near wall's door";
+
+  const auto link = DockLinkTo(world, kOldWingGrid);
+  ASSERT_TRUE(link.has_value()) << "the wing's dock";
+  EXPECT_EQ(link->a, (RoomRef {.grid = z13::station::kMainGrid, .room = *lobby}));
+  EXPECT_EQ(link->b, (RoomRef {.grid = kOldWingGrid, .room = *tunnel}));
+  // The dock's door is the near wall's, west of the corridor's end wall whose own door stands nearly as close.
+  ASSERT_NE(link->door_a.door, 0u);
+  EXPECT_LT(world.World().entity(link->door_a.door).get<Block>().cell.x(), 0);
 }
 
 TEST(HubDoorsTest, EveryDoorStandsOpenAtTheStart) {

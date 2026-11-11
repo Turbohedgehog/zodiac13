@@ -87,11 +87,13 @@ std::vector<Block> Blocks(flecs::world world) {
   return blocks;
 }
 
-// Entities may arrive in any order, and the two triangles of a bent wall share a cell: compare sorted by everything.
+// Entities may arrive in any order, and the two triangles of a bent wall share a cell and differ in their cuts: compare
+// sorted by every field.
 bool SameBlocks(std::vector<Block> a, std::vector<Block> b) {
   const auto key = [](const Block& block) {
     return std::tuple(block.grid, block.cell.x(), block.cell.y(), block.cell.z(), block.spec.type_id,
-                      block.spec.size.x(), block.spec.size.y(), block.spec.size.z(), block.spec.slant);
+                      block.spec.size.x(), block.spec.size.y(), block.spec.size.z(), block.spec.slant,
+                      block.spec.orientation, block.spec.corners, block.spec.face_cuts);
   };
   const auto before = [&key](const Block& x, const Block& y) { return key(x) < key(y); };
   std::ranges::sort(a, before);
