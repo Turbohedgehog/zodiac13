@@ -791,49 +791,78 @@ def hall_lamps(hall, neck_steps, hall_steps, rows, floor_steps=()):
 
 # ----- The arrivals hangar -------------------------------------------------------------------
 
-# A hall of two decks off the atrium's north-east 45-degree side, the mirror of the east spine's: a door on deck 1,
-# a neck at the lattice step (5, -6), 50 degrees, and the hall across it.
+# A hall of two decks off the atrium's north-east side: a door on deck 1 and a grid turned to the side exactly, so its
+# near wall stands against the side's outer face with no wedge. The grid's x runs away from the atrium, y along the side.
 ARRIVALS_SIDE = 10
 ARRIVALS_OPENING_OFFSET_STEPS = 3  # wall steps from the atrium side's first node
 ARRIVALS_OPENING_STEPS = 13
-ARRIVALS_ENTRY_SHIFT_CELLS = 6  # how far the floor mask reaches into the ring, which keeps its own cells
-ARRIVALS_NECK_LAMP_STEPS = (2, 5)
-ARRIVALS_HALL_LAMP_STEPS = (3, 7, 11)
-ARRIVALS_HALL_LAMP_ROWS = (-3, 0, 3)  # across the hall, in steps of the lattice step across it
+ARRIVALS_GRID = 2
+ARRIVALS_DECKS = 2
+ARRIVALS_YAW_DEGREES = -45.0
+ARRIVALS_NECK_Y = (4, 22)  # the neck's inner faces across it, in the grid's cells
+ARRIVALS_NECK_LENGTH_CELLS = 55  # from the near wall's outer face to the hall's near face
+ARRIVALS_HALL_LENGTH_CELLS = 102
+ARRIVALS_HALL_Y = (-27, 59)  # the hall's inner faces across it
+ARRIVALS_DOOR_OFFSET_CELLS = 1  # from the neck's first wall, inside the atrium side's opening
+ARRIVALS_DOOR_CELLS = 16
+ARRIVALS_NECK_LAMP_CELLS = (16, 39)  # along the neck, from the near wall
+ARRIVALS_HALL_LAMP_CELLS_ALONG = (23, 55, 86)  # from the hall's near face
+ARRIVALS_HALL_LAMP_CELLS_ACROSS = (-23, 0, 23)  # from the hall's middle line
+ARRIVALS_ATRIUM_CELL = (231, 254, 6)  # in the atrium, inside the side's opening
+ARRIVALS_HALL_CELL = (100, 16, 12)  # in the hall, in the grid's own cells
 
 
 @functools.cache
-def arrivals():
+def arrivals_side():
     a, b, minor, thickness = oblique_sides()[ARRIVALS_SIDE]
-    side_step = (1, 1)
     assert (b[0] - a[0], b[1] - a[1]) == (19, 19)
-    assert minor == 1 and thickness < 0, "the hall is drawn for the north-east 45-degree side"
-    step = (5, -6)
-    face = ((a[0], a[1] + thickness), side_step)
-    edge1 = _along(a, ARRIVALS_OPENING_OFFSET_STEPS, side_step)
-    edge2 = _along(edge1, ARRIVALS_OPENING_STEPS, side_step)
-    starts = tuple(meet(face, (edge, step)) for edge in (edge1, edge2))
-    entry = (_shifted(face[0], (0, ARRIVALS_ENTRY_SHIFT_CELLS)), side_step)
-    plan = HallPlan(starts, entry, step, (6, 5), neck_steps=7, hall_steps=13, across_steps=11, margin_steps=4, decks=2)
-    return (a, b, thickness), lattice_hall(plan)
+    assert minor == 1 and thickness < 0 and thickness % 2 == 0, "the hall is drawn for the north-east 45-degree side"
+    return a, b, thickness
 
 
 def arrivals_atrium_wall(number):
     """The atrium's side on deck `number`, with the hall's door on deck 1."""
-    (a, b, thickness), _ = arrivals()
+    a, b, thickness = arrivals_side()
     door = wall_opening(ARRIVALS_OPENING_OFFSET_STEPS, ARRIVALS_OPENING_STEPS, DOOR_HEIGHT_CELLS)
     return wall_segment((*a, deck_floor_z(number)), (*b, deck_floor_z(number)), thickness, wall_height(number),
                         openings=[door] if number == 1 else ())
 
 
-def arrivals_walls():
-    return hall_walls(arrivals()[1])
+def arrivals_origin():
+    """The side's outer face level with its first node (a 45-degree wall's thickness lies along y)."""
+    a, _, thickness = arrivals_side()
+    return a[0] - thickness // 2, a[1] + thickness // 2
 
 
-def arrivals_blocks():
-    hall = arrivals()[1]
-    return hall_floor_blocks(hall, ring_cells()) + hall_lamps(
-        hall, ARRIVALS_NECK_LAMP_STEPS, ARRIVALS_HALL_LAMP_STEPS, ARRIVALS_HALL_LAMP_ROWS)
+def arrivals_grid():
+    """The hall in its own axes: the near wall with the door, the neck, the hall's near wall pieces ending on the neck
+    walls' nodes, the hall's walls, floor, ceiling and lamps."""
+    z = deck_floor_z(1)
+    height = ARRIVALS_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+    wall = HALL_WALL_CELLS
+    neck_x = ARRIVALS_NECK_LENGTH_CELLS
+    hall_x = neck_x + ARRIVALS_HALL_LENGTH_CELLS
+    (neck0, neck1), (hall0, hall1) = ARRIVALS_NECK_Y, ARRIVALS_HALL_Y
+    door = wall_opening(ARRIVALS_DOOR_OFFSET_CELLS, ARRIVALS_DOOR_CELLS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((wall, neck0, z), (wall, neck1, z), -wall, height, openings=[door]),
+             wall_segment((wall, neck0, z), (neck_x, neck0, z), -wall, height),
+             wall_segment((wall, neck1, z), (neck_x, neck1, z), wall, height),
+             wall_segment((neck_x, hall0, z), (neck_x, neck0, z), -wall, height),
+             wall_segment((neck_x, neck1, z), (neck_x, hall1, z), -wall, height),
+             wall_segment((neck_x, hall0, z), (hall_x, hall0, z), -wall, height),
+             wall_segment((neck_x, hall1, z), (hall_x, hall1, z), wall, height),
+             wall_segment((hall_x, hall0, z), (hall_x, hall1, z), wall, height)]
+    blocks = [block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
+              for layer in (0, ARRIVALS_DECKS)
+              for x, y, length, width in ((0, neck0, neck_x, neck1 - neck0),
+                                          (neck_x, hall0, hall_x - neck_x, hall1 - hall0))]
+    lamp_z = z + height - 1
+    neck_middle, hall_middle = (neck0 + neck1) // 2, (hall0 + hall1) // 2
+    spots = [(along, neck_middle) for along in ARRIVALS_NECK_LAMP_CELLS]
+    spots += [(neck_x + along, hall_middle + across) for along in ARRIVALS_HALL_LAMP_CELLS_ALONG
+              for across in ARRIVALS_HALL_LAMP_CELLS_ACROSS]
+    blocks += [block(LAMP, (x - 1, y - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1)) for x, y in spots]
+    return grid_entry(ARRIVALS_GRID, blocks, walls, (*arrivals_origin(), 0), ARRIVALS_YAW_DEGREES)
 
 
 # ----- The old wing --------------------------------------------------------------------------
@@ -1235,7 +1264,7 @@ def station_blocks(decks):
             deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
-    blocks += freight_blocks() + arrivals_blocks() + old_wing_blocks()
+    blocks += freight_blocks() + old_wing_blocks()
     ceilings = ring_ceiling_blocks()
     for deck in decks:
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
@@ -1267,10 +1296,11 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    walls = ring_walls() + spine_b_walls() + freight_walls() + arrivals_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
+    walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
     # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid()],
-                         docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL)])
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid()],
+                         docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
+                                dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL)])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")

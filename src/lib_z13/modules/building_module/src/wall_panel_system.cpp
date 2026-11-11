@@ -149,11 +149,28 @@ std::map<PanelKey, Block> ExpectedPanels(
   return expected;
 }
 
+// The districts a client under interest holds: one with a block in its sectors reaches it whole, panels included.
+std::set<z13::station::GridId> HeldDistricts(const flecs::query<const Block>& blocks,
+                                             const z13::station::HeldSectors& held,
+                                             const z13::station::GridPoses& poses) {
+  std::set<z13::station::GridId> districts;
+  if (held.sectors) {
+    blocks.each([&](const Block& block) {
+      if (block.grid != z13::station::kMainGrid && TouchesHeldSectors(block, held, poses)) {
+        districts.insert(block.grid);
+      }
+    });
+  }
+  return districts;
+}
+
 // A client under interest holds the blocks of its sectors and gets those by group; the wall segments reach it whole,
 // so it must not derive the panels of the rest (they would be named by its own tick, apart from the server's).
 void KeepHeld(std::map<PanelKey, Block>& expected, const z13::station::HeldSectors& held,
-              const z13::station::GridPoses& poses) {
-  std::erase_if(expected, [&](const auto& entry) { return !TouchesHeldSectors(entry.second, held, poses); });
+              const z13::station::GridPoses& poses, const std::set<z13::station::GridId>& districts) {
+  std::erase_if(expected, [&](const auto& entry) {
+    return !districts.contains(entry.second.grid) && !TouchesHeldSectors(entry.second, held, poses);
+  });
 }
 
 PanelInputs InputsOf(const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
@@ -178,7 +195,7 @@ void SyncPanels(
     flecs::world world, const flecs::query<const WallNode>& nodes, const flecs::query<const WallSegment>& segments,
     const flecs::query<const z13::station::WallOpening>& openings,
     const flecs::query<const WallPanelOf, const Block>& panels, const flecs::query<const z13::station::Grid>& grids,
-    const BlockPalette& palette, const BuildingTuning& tuning, const z13::station::HeldSectors& held,
+    const flecs::query<const Block>& blocks, const BlockPalette& palette, const BuildingTuning& tuning, const z13::station::HeldSectors& held,
     PanelCache& cache) {
   // Deriving every panel costs tens of ms in Debug, so it waits for a change in what they derive from; the panels
   // there are among the inputs, so one that is missing or changed by anyone else is derived again.
@@ -195,7 +212,8 @@ void SyncPanels(
   cache.inputs = std::move(inputs);
   std::map<PanelKey, Block> expected =
       ExpectedPanels(nodes, segments, openings, palette.palette, tuning.wall_joint_max_reach_cells);
-  KeepHeld(expected, held, z13::station::PosesOf(grids));
+  const z13::station::GridPoses poses = z13::station::PosesOf(grids);
+  KeepHeld(expected, held, poses, HeldDistricts(blocks, held, poses));
   cache.expected = expected;
 
   std::map<PanelKey, Panel> existing;
@@ -229,6 +247,7 @@ void RegisterSystems(flecs::world world) {
   const auto openings = world.query<const z13::station::WallOpening>("WallPanelSystem::Openings");
   const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
   const auto grids = world.query<const z13::station::Grid>("WallPanelSystem::Grids");
+  const auto blocks = world.query<const Block>("WallPanelSystem::Blocks");
   const auto cache = std::make_shared<PanelCache>();
   world.system<const BlockPalette, const BuildingTuning, const z13::station::HeldSectors>("WallPanelSystem::SyncPanels")
       .kind<WallPanelPhase>()
@@ -241,10 +260,10 @@ void RegisterSystems(flecs::world world) {
       .write<Block>()
       .write<WallPanelOf>()
       .write<z13::station::BlockChange>()
-      .each([nodes, segments, openings, panels, grids, cache](flecs::iter& it, size_t, const BlockPalette& palette,
+      .each([nodes, segments, openings, panels, grids, blocks, cache](flecs::iter& it, size_t, const BlockPalette& palette,
                                                                 const BuildingTuning& tuning,
                                                                 const z13::station::HeldSectors& held) {
-        SyncPanels(it.world(), nodes, segments, openings, panels, grids, palette, tuning, held, *cache);
+        SyncPanels(it.world(), nodes, segments, openings, panels, grids, blocks, palette, tuning, held, *cache);
       });
 }
 

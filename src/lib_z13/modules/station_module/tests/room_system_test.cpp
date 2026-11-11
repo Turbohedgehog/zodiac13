@@ -479,6 +479,12 @@ constexpr z13::station::GridId kFreightGrid = 1;
 // In the hangar grid's own cells.
 const Eigen::Vector3i kFreightHangarCell {60, 48, 12};
 
+std::optional<z13::station::DockLink> DockLinkTo(Z13TestWorld& world, GridId grid) {
+  const auto& links = world.World().get<DockLinks>().list;
+  const auto found = std::ranges::find_if(links, [grid](const auto& link) { return link.b.grid == grid; });
+  return found == links.end() ? std::nullopt : std::optional(*found);
+}
+
 bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optional<rooms::RoomId> b) {
   return std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
     return (portal.a == a && portal.b == b) || (portal.a == b && portal.b == a);
@@ -504,28 +510,35 @@ TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTh
   ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
   EXPECT_TRUE(Joined(hangar_graph, hangar, rooms::kVacuumRoom)) << "the hangar's door";
 
-  const auto& links = world.World().get<DockLinks>().list;
-  ASSERT_EQ(links.size(), 1u) << "the hangar's dock";
-  EXPECT_EQ(links[0].a, (RoomRef {.grid = z13::station::kMainGrid, .room = *lobby}));
-  EXPECT_EQ(links[0].b, (RoomRef {.grid = kFreightGrid, .room = *hangar}));
+  const auto link = DockLinkTo(world, kFreightGrid);
+  ASSERT_TRUE(link.has_value()) << "the hangar's dock";
+  EXPECT_EQ(link->a, (RoomRef {.grid = z13::station::kMainGrid, .room = *lobby}));
+  EXPECT_EQ(link->b, (RoomRef {.grid = kFreightGrid, .room = *hangar}));
 }
 
 const Eigen::Vector3i kAtriumDoorCell {231, 254, 6};
-const Eigen::Vector3i kArrivalsHallCell {304, 170, 12};
+constexpr z13::station::GridId kArrivalsGrid = 2;
+// In the arrivals grid's own cells.
+const Eigen::Vector3i kArrivalsHallCell {100, 16, 12};
 
-TEST(HubArrivalsHangarTest, TheHallIsASealedRoomJoinedToTheAtriumByADoor) {
+TEST(HubArrivalsHangarTest, TheHallIsAGridWithASealedRoomJoinedToTheAtriumByADock) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
 
-  const RoomGraph& graph = Graph(world);
-  const auto atrium = graph.RoomAt(kAtriumDoorCell);
-  const auto hall = graph.RoomAt(kArrivalsHallCell);
-  ASSERT_TRUE(atrium.has_value() && *atrium != rooms::kVacuumRoom);
-  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom);
-  EXPECT_NE(atrium, hall);
-  EXPECT_TRUE(std::ranges::any_of(graph.portals, [&](const rooms::Portal& portal) {
-    return (portal.a == atrium && portal.b == hall) || (portal.a == hall && portal.b == atrium);
-  }));
+  const auto atrium = Graph(world).RoomAt(kAtriumDoorCell);
+  ASSERT_TRUE(atrium.has_value() && *atrium != rooms::kVacuumRoom) << "atrium";
+
+  const flecs::entity hall_grid = world.World().lookup(std::format("Grid_{}", kArrivalsGrid).c_str());
+  ASSERT_TRUE(hall_grid.is_valid() && hall_grid.has<RoomCache>());
+  const RoomGraph& hall_graph = hall_grid.get<RoomCache>().Current()->get();
+  const auto hall = hall_graph.RoomAt(kArrivalsHallCell);
+  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << "hall";
+  EXPECT_TRUE(Joined(hall_graph, hall, rooms::kVacuumRoom)) << "the hall's door";
+
+  const auto link = DockLinkTo(world, kArrivalsGrid);
+  ASSERT_TRUE(link.has_value()) << "the hall's dock";
+  EXPECT_EQ(link->a, (RoomRef {.grid = z13::station::kMainGrid, .room = *atrium}));
+  EXPECT_EQ(link->b, (RoomRef {.grid = kArrivalsGrid, .room = *hall}));
 }
 
 const Eigen::Vector3i kWestCorridorCell {8, 304, 6};
