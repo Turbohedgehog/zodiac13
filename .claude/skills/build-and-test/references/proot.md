@@ -7,6 +7,7 @@ Development runs on ARM under PRoot (Termux); `uname -a` shows `PRoot-Distro` in
 - `-j$(nproc)` has hung the whole session; `-j3` was verified safe for incremental and full clean rebuilds on 2026-09-16. `make.py` applies the cap itself (`-j` overrides it).
 - A full vcpkg rebuild (after a triplet change, a new port, a baseline bump) ignores `-jN` for ports. Only `-j1` with `VCPKG_MAX_CONCURRENCY=1` completed without hanging. Launch it detached (`setsid -f bash -c '...' > log 2>&1 < /dev/null`) and read the log: a long foreground or background tool call is killed together with the build.
 - GitHub downloads during configure drop intermittently: retry the configure.
+- A detached build stands still while the phone sleeps (2026-11-11: an `assimp` build showed 27 min on ninja's monotonic clock against 325 min on the wall; `CLOCK_MONOTONIC` stops in suspend, so the stop is the whole system, not Android freezing Termux). Termux's launcher takes `termux-wake-lock` before `proot-distro login`; the lock is released with `termux-wake-unlock` or from Termux's notification. Compare `.ninja_log` times with the wall clock before blaming the compiler for a slow build.
 - 2026-11-06, measured: `-j4` and `-j5` aborted `cmake`/`ninja` within minutes (`ninja: fatal: waitpid: Function not implemented`, libuv `uv__io_poll: Assertion 'errno == EINTR' failed`, then `cannot make pipe for command substitution`); `VCPKG_MAX_CONCURRENCY=2` ran a 107-minute vcpkg build and `-j3` the whole project (~50 minutes) without a failure.
 
 ## System packages the first configure needs

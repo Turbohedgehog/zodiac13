@@ -7,7 +7,10 @@ if(POLICY CMP0141)
 endif()
 
 file(TO_CMAKE_PATH $ENV{VCPKG_ROOT} VCPKG_ROOT)
-set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
+# A build of another triplet (Android) passes its own: packages of two triplets in one tree remove each other.
+if(NOT DEFINED VCPKG_INSTALLED_DIR)
+    set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
+endif()
 
 # MSVC2026 building fix
 set(VCPKG_INSTALL_OPTIONS "--clean-after-build")
