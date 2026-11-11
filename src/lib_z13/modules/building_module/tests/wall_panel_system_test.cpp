@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+
 #include <algorithm>
 #include <optional>
 #include <vector>
@@ -38,6 +39,7 @@
 
 #include "../../z13_module/tests/support/building_test_helpers.h"
 #include "../../z13_module/tests/support/z13_test_world.h"
+#include "../../net_module/src/sectors/held_sector_history.h"
 #include "../src/held_blocks.h"
 #include "../src/wall_entities.h"
 #include "support/station_builders.h"
@@ -484,6 +486,54 @@ TEST(HeldBlocksTest, ABlockOfAPosedGridIsHeldWhereThePoseSetsIt) {
 
   EXPECT_FALSE(TouchesHeldSectors(block, Holding({kSectorOfTheWall}), poses));
   EXPECT_TRUE(TouchesHeldSectors(block, Holding({{3, 0, 0}}), poses));
+}
+
+// A district reaches a client whole once any of its blocks touches a sector the client holds, so the server's hash of
+// it counts every panel: the panels of its far walls must stay, though they touch no sector held.
+class HeldDistrictTest : public ::testing::Test {
+ protected:
+  static constexpr z13::station::GridId kDistrict = 1;
+  static constexpr int kFarCells = kSectorCells * 3;
+
+  void SetUp() override {
+    namer_ = &z13::testing::TestNamer(world_.World());
+    SpawnDistrictWall({kFrom.x(), kFrom.y(), 0}, {kTo.x(), kTo.y(), 0});
+    SpawnDistrictWall({kFrom.x() + kFarCells, kFrom.y(), 0}, {kTo.x() + kFarCells, kTo.y(), 0});
+    world_.Tick();
+    world_.Tick();
+    ASSERT_EQ(Panels(world_.World()).size(), 2u) << "a world holding all derives both";
+  }
+
+  void SpawnDistrictWall(const Eigen::Vector3i& from, const Eigen::Vector3i& to) {
+    SpawnWall(world_.World(), *namer_,
+              {.node_a = from, .node_b = to, .stick_a = {WallAxis::kZ, kStickLength},
+                  .stick_b = {WallAxis::kZ, kStickLength}, .thickness = kThickness},
+              kDistrict);
+  }
+
+  // The net session derives HeldSectors from its history every tick, so the history is what a client's world holds.
+  void HoldOnly(const std::vector<Eigen::Vector3i>& sectors) {
+    z13::net::SectorSet held;
+    held.insert(sectors.begin(), sectors.end());
+    world_.World().set(z13::net::HeldSectorHistory {.base = std::move(held)});
+    world_.Tick();
+    world_.Tick();
+  }
+
+  Z13TestWorld world_ = StationWorld();
+  z13::gameplay::SpawnNamer* namer_ {};
+};
+
+TEST_F(HeldDistrictTest, ADistrictWithAPanelInTheHeldSectorsKeepsItsFarPanels) {
+  HoldOnly({kSectorOfTheWall});
+
+  EXPECT_EQ(Panels(world_.World()).size(), 2u);
+}
+
+TEST_F(HeldDistrictTest, ADistrictTouchingNoHeldSectorHasNoPanels) {
+  HoldOnly({{0, 5, 0}});
+
+  EXPECT_TRUE(Panels(world_.World()).empty());
 }
 
 }  // namespace
