@@ -48,6 +48,7 @@ set(
   src/lib_core/tick_pacer_test.cpp
   src/lib_z13/atmos/atmos_test.cpp
   src/lib_z13/cell_light/cell_light_test.cpp
+  src/lib_z13/console_input/console_input_test.cpp
   src/lib_z13/components/grid_pose_test.cpp
   src/lib_z13/components/overlay_layers_test.cpp
   src/lib_z13/grid/block_index_test.cpp
@@ -280,6 +281,7 @@ target_link_libraries(
   zodiac13::power
   zodiac13::atmos
   zodiac13::touch
+  zodiac13::console_input
   GTest::gtest
   GTest::gmock
   reflectcpp::reflectcpp

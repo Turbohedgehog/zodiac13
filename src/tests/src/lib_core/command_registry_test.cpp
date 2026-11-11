@@ -21,6 +21,7 @@
 #include <string>
 
 #include <flecs.h>
+#include <rfl/json.hpp>
 
 #include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_state.h>
@@ -76,11 +77,17 @@ class CommandRegistryTest : public testing::Test {
     });
   }
 
-  CommandResultText Run(const CommandFilter& filter, std::string_view line) {
-    std::optional<CommandResultText> reply;
-    const Status submitted = SubmitCommandLine(world_, filter, line, [&reply](CommandResultText text) {
-      reply = std::move(text);
-    });
+  CommandResult Run(const CommandFilter& filter, std::string_view name,
+                    std::initializer_list<std::pair<std::string, rfl::Generic>> fields = {}) {
+    rfl::Generic::Object arguments;
+    for (const auto& [field, value] : fields) {
+      arguments[field] = value;
+    }
+    std::optional<CommandResult> reply;
+    const Status submitted =
+        SubmitCommand(world_, filter, name, rfl::Generic(std::move(arguments)), [&reply](CommandResult result) {
+          reply = std::move(result);
+        });
     if (!submitted) {
       return std::unexpected(submitted.error());
     }
@@ -88,10 +95,7 @@ class CommandRegistryTest : public testing::Test {
     return reply.value_or(std::unexpected("no reply"));
   }
 
-  std::string Text(const CommandFilter& filter, std::string_view line) {
-    const CommandResultText reply = Run(filter, line);
-    return reply ? *reply : "error: " + reply.error();
-  }
+  std::string Json(const CommandResult& reply) { return reply ? rfl::json::write(*reply) : "error: " + reply.error(); }
 
   flecs::world world_;
   CommandFilter debug_ {.tags = {"debug"}};
@@ -104,48 +108,38 @@ TEST(CommandNameTest, TakesTheTypeNameWithoutTheSuffixInSnakeCase) {
   EXPECT_EQ(CommandNameOf("Command"), "command");
 }
 
-TEST(CommandLineTest, SplitsWordsHonoringQuotesAndBackslashes) {
-  const auto words = SplitCommandLine(R"(say "two words" a\ b "")");
-  ASSERT_TRUE(words);
-  EXPECT_EQ(*words, (std::vector<std::string> {"say", "two words", "a b", ""}));
-  EXPECT_FALSE(SplitCommandLine("\"open"));
-  EXPECT_FALSE(SplitCommandLine("end\\"));
-}
-
-TEST_F(CommandRegistryTest, AHandlerAnswersALineWithPositionalAndNamedArguments) {
-  EXPECT_EQ(Text(debug_, "add 2 3"), "5");
-  EXPECT_EQ(Text(debug_, "add b=10 1"), "11");
-  EXPECT_EQ(Text(debug_, "add 4"), "4");
+TEST_F(CommandRegistryTest, AHandlerAnswersAndAMissingArgumentKeepsItsDefault) {
+  EXPECT_EQ(Json(Run(debug_, "add", {{"a", rfl::Generic(std::int64_t {2})}, {"b", rfl::Generic(std::int64_t {3})}})), "\"5\"");
+  EXPECT_EQ(Json(Run(debug_, "add", {{"a", rfl::Generic(std::int64_t {4})}})), "\"4\"");
 }
 
 TEST_F(CommandRegistryTest, ExplicitNameReplacesTheTypesAndAHandlerCanFail) {
-  EXPECT_EQ(Text(debug_, "say_loudly 123"), "123!");
-  EXPECT_EQ(Run(debug_, "say_loudly \"\"").error(), "nothing to say");
+  EXPECT_EQ(Json(Run(debug_, "say_loudly", {{"word", rfl::Generic(std::string("hi"))}})), "\"hi!\"");
+  EXPECT_EQ(Json(Run(debug_, "say_loudly", {{"word", rfl::Generic(std::string())}})), "error: nothing to say");
 }
 
 TEST_F(CommandRegistryTest, RejectsBadArgumentsAndUnknownCommandsWithAMessage) {
-  EXPECT_NE(Run(debug_, "add x 1").error().find("not a number"), std::string::npos);
-  EXPECT_NE(Run(debug_, "add 1 2 3").error().find("takes 2"), std::string::npos);
+  EXPECT_FALSE(Run(debug_, "add", {{"a", rfl::Generic(std::string("x"))}}));
   EXPECT_NE(Run(debug_, "nothing").error().find("unknown command"), std::string::npos);
 }
 
 TEST_F(CommandRegistryTest, ATagLimitsWhatAChannelSees) {
-  EXPECT_NE(Run(debug_, "where_point 1").error().find("unknown command"), std::string::npos);
-  EXPECT_TRUE(Run(cheat_, "where_point 1"));
-  EXPECT_TRUE(Run(cheat_, "say_loudly a"));
-  EXPECT_FALSE(Run(cheat_, "add 1 2"));
-  EXPECT_FALSE(Run(CommandFilter {}, "add 1 2"));
+  EXPECT_NE(Run(debug_, "where_point").error().find("unknown command"), std::string::npos);
+  EXPECT_TRUE(Run(cheat_, "where_point"));
+  EXPECT_TRUE(Run(cheat_, "say_loudly", {{"word", rfl::Generic(std::string("a"))}}));
+  EXPECT_FALSE(Run(cheat_, "add"));
+  EXPECT_FALSE(Run(CommandFilter {}, "add"));
 }
 
-TEST_F(CommandRegistryTest, AStructResultBecomesJson) {
-  EXPECT_EQ(Text(cheat_, "where_point 7"), R"({"x":7,"y":2})");
+TEST_F(CommandRegistryTest, AStructResultIsAnObject) {
+  EXPECT_EQ(Json(Run(cheat_, "where_point", {{"x", rfl::Generic(std::int64_t {7})}})), R"({"x":7,"y":2})");
 }
 
 TEST_F(CommandRegistryTest, MoreThanOneHandlerSeesAndChangesTheReply) {
   z13::CommandSystem<AddCommand>(world_, "Double", [](const AddCommand&, ReplyOf<AddCommand>& reply) {
     reply.Succeed(reply.value + reply.value);
   });
-  EXPECT_EQ(Text(debug_, "add 2 3"), "55");
+  EXPECT_EQ(Json(Run(debug_, "add", {{"a", rfl::Generic(std::int64_t {2})}, {"b", rfl::Generic(std::int64_t {3})}})), "\"55\"");
 }
 
 TEST_F(CommandRegistryTest, ACommandWithoutAHandlerIsRefusedAndListed) {
@@ -153,12 +147,13 @@ TEST_F(CommandRegistryTest, ACommandWithoutAHandlerIsRefusedAndListed) {
   EXPECT_EQ(CommandsWithoutHandler(world_), std::vector<std::string> {"orphan"});
 }
 
-TEST_F(CommandRegistryTest, KeepsTheSchemaAndDescriptionForTheBridge) {
+TEST_F(CommandRegistryTest, KeepsTheDescriptionAndFieldsForTheChannels) {
   const auto& entry = world_.get<Commands>().entries.at("add");
   EXPECT_EQ(entry.description, "Adds two numbers.");
-  EXPECT_NE(entry.schema.find("\"a\""), std::string::npos);
-  ASSERT_EQ(entry.arguments.size(), 2U);
-  EXPECT_EQ(entry.arguments.front().name, "a");
+  ASSERT_EQ(entry.fields.size(), 2U);
+  EXPECT_EQ(entry.fields.front().name, "a");
+  EXPECT_EQ(entry.fields.front().kind, FieldKind::kInteger);
+  EXPECT_EQ(world_.get<Commands>().entries.at("say_loudly").fields.front().kind, FieldKind::kText);
 }
 
 }  // namespace z13::commands_test

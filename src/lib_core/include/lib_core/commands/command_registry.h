@@ -31,21 +31,16 @@
 
 #include <flecs.h>
 #include <rfl.hpp>
-#include <rfl/json.hpp>
 
 #include <lib_core/commands/command.h>
+#include <lib_core/commands/command_field.h>
 #include <lib_core/utils/status.h>
 
 namespace z13 {
 
-using CommandResultText = std::expected<std::string, std::string>;
-using CommandCallback = std::function<void(CommandResultText)>;
-
-// One argument of a command, in the order of the struct's fields.
-struct CommandArgument {
-  std::string name;
-  bool is_text {};  // a string: its token is quoted into the JSON
-};
+// A command's arguments and reply as plain data, which every channel can make and read.
+using CommandResult = std::expected<rfl::Generic, std::string>;
+using CommandCallback = std::function<void(CommandResult)>;
 
 // What a registered command is, as a channel sees it. Runtime only, never state.
 struct CommandEntry {
@@ -53,13 +48,11 @@ struct CommandEntry {
   flecs::entity_t component {};  // the request's component
   std::string description;
   std::vector<std::string> tags;
-  std::string schema;  // JSON schema of the arguments
-  std::vector<CommandArgument> arguments;
+  std::vector<CommandField> fields;
   int handlers {};  // systems made by CommandSystem
-  // Makes the request's entity from an arguments' JSON object.
-  std::function<std::expected<flecs::entity, std::string>(flecs::world, std::string_view)> create;
-  // The reply of a request's entity once a handler gave it, as text.
-  std::function<std::optional<CommandResultText>(flecs::entity)> collect;
+  // Makes the request's entity from an object of the arguments by field name; a missing one keeps its default.
+  std::function<std::expected<flecs::entity, std::string>(flecs::world, const rfl::Generic&)> create;
+  std::function<std::optional<CommandResult>(flecs::entity)> collect;
 };
 
 // The tags a channel shows: a command matches when it shares one. One without tags matches no channel.
@@ -84,47 +77,44 @@ struct Commands {
 // "TeleportCommand" -> "teleport", "SetShadows" -> "set_shadows".
 std::string CommandNameOf(std::string_view type_name);
 
-// Words with "double quotes" and backslash escapes.
-std::expected<std::vector<std::string>, std::string> SplitCommandLine(std::string_view line);
-
-// Builds the arguments' JSON object from tokens, each positional or name=value.
-CommandResultText ArgumentsJson(const CommandEntry& entry, std::span<const std::string> tokens);
-
 // Makes the world's Commands and the phases of the handlers; called by RegisterCommand, safe to repeat.
 void EnsureCommands(flecs::world& world);
 
+const CommandEntry* FindCommand(flecs::world world, const CommandFilter& filter, std::string_view name);
+
 // Files a request for a command the filter shows: `callback` gets the reply once the handlers ran, in the
 // frame's CommandCollectPhase. Call it from the thread that progresses the world.
-Status SubmitCommand(flecs::world world, const CommandFilter& filter, std::string_view name, std::string_view json,
-                     CommandCallback callback);
-
-// The same for a console line: the command's name, then its arguments.
-Status SubmitCommandLine(flecs::world world, const CommandFilter& filter, std::string_view line,
-                         CommandCallback callback);
+Status SubmitCommand(flecs::world world, const CommandFilter& filter, std::string_view name,
+                     const rfl::Generic& arguments, CommandCallback callback);
 
 // The commands nothing handles; the launcher warns about them and a test fails on them.
 std::vector<std::string> CommandsWithoutHandler(flecs::world world);
 
 namespace commands_detail {
 
-template <class T>
-std::vector<CommandArgument> ArgumentsOf() {
-  T sample {};
-  std::vector<CommandArgument> arguments;
-  rfl::to_view(sample).apply([&arguments](const auto& field) {
-    using Value = std::remove_cvref_t<decltype(*field.value())>;
-    arguments.push_back({.name = std::string(field.name()), .is_text = std::is_convertible_v<Value, std::string_view>});
-  });
-  return arguments;
+template <class Value>
+constexpr FieldKind KindOf() {
+  if constexpr (std::is_same_v<Value, bool>) {
+    return FieldKind::kBool;
+  } else if constexpr (std::is_integral_v<Value>) {
+    return FieldKind::kInteger;
+  } else if constexpr (std::is_floating_point_v<Value>) {
+    return FieldKind::kNumber;
+  } else if constexpr (std::is_convertible_v<Value, std::string_view>) {
+    return FieldKind::kText;
+  } else {
+    return FieldKind::kOther;
+  }
 }
 
-template <class R>
-std::string TextOf(const R& result) {
-  if constexpr (std::is_convertible_v<R, std::string_view>) {
-    return std::string(result);
-  } else {
-    return rfl::json::write(result);
-  }
+template <class T>
+std::vector<CommandField> FieldsOf() {
+  T sample {};
+  std::vector<CommandField> fields;
+  rfl::to_view(sample).apply([&fields](const auto& field) {
+    fields.push_back({.name = std::string(field.name()), .kind = KindOf<std::remove_cvref_t<decltype(*field.value())>>()});
+  });
+  return fields;
 }
 
 template <class TagList>
@@ -145,11 +135,10 @@ void RegisterCommand(flecs::world& world) {
       .component = world.component<T>().id(),
       .description = std::string(Spec::kText),
       .tags = commands_detail::TagsOf<typename Spec::TagsOf>(),
-      .schema = rfl::json::to_schema<T>(),
-      .arguments = commands_detail::ArgumentsOf<T>(),
+      .fields = commands_detail::FieldsOf<T>(),
       .create = [](flecs::world create_world,
-                   std::string_view json) -> std::expected<flecs::entity, std::string> {
-        auto arguments = rfl::json::read<T, rfl::DefaultIfMissing>(std::string(json));
+                   const rfl::Generic& arguments_data) -> std::expected<flecs::entity, std::string> {
+        auto arguments = rfl::from_generic<T, rfl::DefaultIfMissing>(arguments_data);
         if (!arguments) {
           return std::unexpected(std::string(arguments.error().what()));
         }
@@ -158,7 +147,7 @@ void RegisterCommand(flecs::world& world) {
         request.add<ReplyOf<T>>();
         return request;
       },
-      .collect = [](flecs::entity request) -> std::optional<CommandResultText> {
+      .collect = [](flecs::entity request) -> std::optional<CommandResult> {
         const auto& reply = request.get<ReplyOf<T>>();
         if (!reply.done) {
           return std::nullopt;
@@ -166,7 +155,7 @@ void RegisterCommand(flecs::world& world) {
         if (reply.failed) {
           return std::unexpected(reply.error);
         }
-        return commands_detail::TextOf(reply.value);
+        return rfl::to_generic(reply.value);
       },
   };
   if constexpr (!std::is_void_v<typename Spec::NameSource>) {
