@@ -157,8 +157,8 @@ table LanDiscovery {
 // A loopback socket for tools and the MCP bridge (docs/debug-server-plan.md): on by default, the main menu switches it. Client only, never sent.
 table McpServer {
   enabled: bool = true (cli: "--mcp-server");
-  // The loopback port; 0 lets the system pick one (tests).
-  port: uint32 = 38123 (min: 0, max: 65535, cli: "--mcp-port");
+  // The loopback port, below the ephemeral range (CLAUDE.md); 0 lets the system pick one (tests).
+  port: uint32 = 28123 (min: 0, max: 65535, cli: "--mcp-port");
   // The commands it shows by tag, comma-separated (lib_core/commands/command.h).
   tags: string = "debug" (non_empty);
 }
