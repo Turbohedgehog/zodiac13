@@ -777,6 +777,10 @@ OLD_DOOR_OFFSET_STEPS = 1  # along the main near wall from its north end
 OLD_DOOR_STEPS = 2
 OLD_DOOR_OFFSET_CELLS = 6  # along the grid's near wall, from its south end
 OLD_DOOR_CELLS = 12
+OLD_TECH_LOBBY_CELL = (-1, 296, -6)  # in the trunk's lobby, west of the trunk's end wall
+OLD_TECH_LOBBY_LAMP = (-3, 303, -1)
+OLD_TECH_HALL_CELL = (10, 12, -6)  # in the tunnel's lower deck, in the grid's own cells
+OLD_TECH_FLIGHT = (6, 17, 6)  # x, y and width, in cells: up from the lower deck beside the north wall
 OLD_LOBBY_CELL = (-3, 302, 6)  # in the lobby, beside the near wall's door rather than the corridor's
 OLD_HALL_CELL = (30, 12, 12)  # in the tunnel, in the grid's own cells
 OLD_TUNNEL_LAMP_CELLS = (12, 30, 49, 67)  # along the tunnel's middle line
@@ -813,9 +817,23 @@ def old_wing_walls():
 
 
 def old_wing_blocks():
-    """The lobby's floor and ceiling."""
+    """The lobby's floor and ceiling, and the floor of the tech trunk's lobby a deck below."""
     north, south = old_wing_nodes()
-    return wedge_floor_blocks([(OLD_END_X, north[1]), north, south, (OLD_END_X, south[1])], OLD_DECKS)
+    wedge = [(OLD_END_X, north[1]), north, south, (OLD_END_X, south[1])]
+    return (wedge_floor_blocks(wedge, OLD_DECKS)
+            + wedge_floor_blocks(wedge, OLD_DECKS, (TECH_DECK - 1,))
+            + [block(LAMP, OLD_TECH_LOBBY_LAMP, (LAMP_CELLS, LAMP_CELLS, 1))])
+
+
+def old_wing_tech_walls():
+    """The main grid's walls of the trunk's lobby under the old wing's: the near wall with its door and the lobby's
+    north and south walls, a deck down."""
+    north, south = old_wing_nodes()
+    z = deck_floor_z(TECH_DECK)
+    door = wall_opening(OLD_DOOR_OFFSET_STEPS, OLD_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+    return [wall_segment((*north, z), (*south, z), HALL_WALL_CELLS, WALL_HEIGHT_CELLS, openings=[door]),
+            wall_segment((OLD_END_X, north[1], z), (*north, z), -HALL_WALL_CELLS, WALL_HEIGHT_CELLS),
+            wall_segment((OLD_END_X, south[1], z), (*south, z), HALL_WALL_CELLS, WALL_HEIGHT_CELLS)]
 
 
 def old_reactor_flight(x, width):
@@ -858,6 +876,48 @@ def old_reactor_shaft(tunnel_x, width):
     return blocks, walls
 
 
+def floor_around(entry, hole):
+    """The floor box without the hole's footprint (x0, y0, x1, y1), as up to four boxes."""
+    if hole is None:
+        return [entry]
+    x0, y0, z = (entry["cell"][axis] for axis in "xyz")
+    x1, y1 = x0 + entry["size"]["x"], y0 + entry["size"]["y"]
+    hx0, hy0, hx1, hy1 = max(hole[0], x0), max(hole[1], y0), min(hole[2], x1), min(hole[3], y1)
+    if hx0 >= hx1 or hy0 >= hy1:
+        return [entry]
+    pieces = [(x0, y0, hx0, y1), (hx1, y0, x1, y1), (hx0, y0, hx1, hy0), (hx0, hy1, hx1, y1)]
+    return [block(FLOOR, (ax, ay, z), (bx - ax, by - ay, SLAB_CELLS)) for ax, ay, bx, by in pieces
+            if bx > ax and by > ay]
+
+
+def old_tech_flight():
+    """The flight from the lower deck up to the tunnel's floor beside its north wall, and the slab's opening over it."""
+    x, y, width = OLD_TECH_FLIGHT
+    z0 = deck_floor_z(TECH_DECK)
+    top = z0 + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
+    blocks = [block(SLOPE, (x, y, z0), (FLIGHT_LIP_RUN_CELLS, width, FLIGHT_LIP_RISE_CELLS)),
+              wall_panel_block((x + FLIGHT_LIP_RUN_CELLS, y, z0), (x + FLIGHT_LENGTH_CELLS, y, top),
+                               FLIGHT_PLATE_THICKNESS_CELLS, width, 1)]
+    return blocks, (x, y, x + FLIGHT_LENGTH_CELLS, y + width)
+
+
+def old_tech_deck(tunnel_x, width):
+    """The tunnel's lower deck in the wing grid's cells: a slab, the tunnel's walls a deck down with the near wall's
+    door, a cap at the far end, and lamps along the middle."""
+    z = deck_floor_z(TECH_DECK)
+    wall = HALL_WALL_CELLS
+    door = wall_opening(OLD_DOOR_OFFSET_CELLS, OLD_DOOR_CELLS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((wall, 0, z), (wall, width, z), -wall, WALL_HEIGHT_CELLS, openings=[door]),
+             wall_segment((wall, 0, z), (tunnel_x, 0, z), -wall, WALL_HEIGHT_CELLS),
+             wall_segment((wall, width, z), (tunnel_x, width, z), wall, WALL_HEIGHT_CELLS),
+             wall_segment((tunnel_x, 0, z), (tunnel_x, width, z), wall, WALL_HEIGHT_CELLS)]
+    blocks = [block(FLOOR, (0, -wall, slab_z(TECH_DECK - 1)), (tunnel_x + wall, width + 2 * wall, SLAB_CELLS))]
+    ceiling = z + WALL_HEIGHT_CELLS - 1
+    blocks += [block(LAMP, (along - 1, width // 2 - 1, ceiling), (LAMP_CELLS, LAMP_CELLS, 1))
+               for along in OLD_TUNNEL_LAMP_CELLS]
+    return blocks, walls
+
+
 def old_wing_grid():
     """The tunnel and the hall in their own axes, as the arrivals': the near wall with its door, the tunnel's walls
     to the hall's near wall pieces, which end on their nodes, the hall's walls, floor, ceiling and lamps."""
@@ -877,9 +937,16 @@ def old_wing_grid():
              wall_segment((tunnel_x, hall0, z), (hall_x, hall0, z), -wall, height),
              wall_segment((tunnel_x, hall1, z), (hall_x, hall1, z), wall, height),
              wall_segment((hall_x, hall0, z), (hall_x, hall1, z), wall, height)]
-    blocks = [block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, across, SLAB_CELLS))
+    flight_blocks, hole = old_tech_flight()
+    blocks = [piece
               for layer in (0, OLD_DECKS)
-              for x, y, length, across in ((0, 0, tunnel_x, width), (tunnel_x, hall0, hall_x - tunnel_x, hall1 - hall0))]
+              for x, y, length, across in ((0, 0, tunnel_x, width), (tunnel_x, hall0, hall_x - tunnel_x, hall1 - hall0))
+              for piece in floor_around(block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, across, SLAB_CELLS)),
+                                        hole if layer == 0 else None)]
+    blocks += flight_blocks
+    tech_blocks, tech_walls = old_tech_deck(tunnel_x, width)
+    blocks += tech_blocks
+    walls += tech_walls
     shaft_blocks, shaft_walls = old_reactor_shaft(tunnel_x, width)
     blocks += shaft_blocks
     walls += shaft_walls
@@ -968,7 +1035,7 @@ def freight_walls():
     return walls
 
 
-def wedge_floor_blocks(wedge, decks=FREIGHT_DECKS):
+def wedge_floor_blocks(wedge, decks=FREIGHT_DECKS, layers=None):
     """The lobby's floor and ceiling: the cells its outline strictly overlaps, stepped along the slanted near wall
     under the wall's body."""
     xs, ys = [p[0] for p in wedge], [p[1] for p in wedge]
@@ -977,7 +1044,7 @@ def wedge_floor_blocks(wedge, decks=FREIGHT_DECKS):
     for y in range(top, max(ys) + 1):
         for x in range(left, max(xs) + 1):
             mask[y - top][x - left] = strictly_overlap(wedge, x, y)
-    blocks = [entry for layer in (0, decks) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
+    blocks = [entry for layer in (layers or (0, decks)) for entry in mask_blocks(mask, layer * DECK_PITCH_CELLS, FLOOR)]
     for entry in blocks:
         entry["cell"]["x"] += left
         entry["cell"]["y"] += top
@@ -1206,6 +1273,9 @@ def build_decks():
     decks[0].spawn_rooms = (Room.SPAWN,)
     trunk = HubDeck(TECH_DECK, "Tech trunk")
     trunk.room(*TECH_TRUNK, Room.TECH_TRUNK)
+    for y in range(TECH_TRUNK[3], SPINE_OPENING_Y[1] + 2):
+        trunk.put(TECH_TRUNK[0], y, WALL)
+    trunk.door_on(*TECH_TRUNK, "W")
     return decks + [trunk]
 
 
@@ -1369,11 +1439,12 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls() + mining_walls()
+    walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls() + old_wing_tech_walls() + mining_walls()
     grids = [freight_grid(), arrivals_grid(), old_wing_grid(), mining_grid()]
     docks = [dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
              dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
              dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL),
+             dock_entry(0, OLD_TECH_LOBBY_CELL, OLD_GRID, OLD_TECH_HALL_CELL),
              dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)]
     blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, grids=grids, docks=docks,
                              conduits=wire_hub(blocks, walls, grids, docks))
