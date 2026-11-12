@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <z13/components/station/block.h>
+#include <z13/components/station/conduit.h>
 #include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/wall.h>
@@ -60,6 +61,19 @@ std::expected<std::vector<BlueprintGridPart>, std::string> ParseBlueprintGrids(
 
 // The docks of a blueprint, naming the first whose grid is neither the main grid nor one of ParseBlueprintGrids's.
 std::expected<std::vector<z13::station::Dock>, std::string> ParseBlueprintDocks(std::string_view json);
+
+// A conduit run of a blueprint, its kind still a name: the kinds are the conduit module's.
+struct BlueprintConduit {
+  std::string kind;
+  z13::station::GridId grid = z13::station::kMainGrid;
+  Eigen::Vector3i cell = Eigen::Vector3i::Zero();
+  z13::conduit::ConduitAxis axis {};
+  int length = 1;
+};
+
+// The conduit runs of a blueprint, naming the first whose grid is neither the main grid nor one of ParseBlueprintGrids's,
+// or whose length is not positive.
+std::expected<std::vector<BlueprintConduit>, std::string> ParseBlueprintConduits(std::string_view json);
 
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
 

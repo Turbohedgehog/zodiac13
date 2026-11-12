@@ -207,6 +207,30 @@ std::expected<std::vector<z13::station::Dock>, std::string> ParseBlueprintDocks(
   return docks;
 }
 
+std::expected<std::vector<BlueprintConduit>, std::string> ParseBlueprintConduits(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  std::vector<BlueprintConduit> conduits;
+  for (size_t i = 0; i < parsed->conduits.size(); ++i) {
+    const fbs_station::BlueprintConduitT& entry = *parsed->conduits[i];
+    const bool known = entry.grid == z13::station::kMainGrid ||
+                       std::ranges::any_of(parsed->grids, [&entry](const auto& grid) { return grid->id == entry.grid; });
+    if (!known || entry.length < 1) {
+      return std::unexpected(std::format("blueprint: conduit {}: grid {} is not in the blueprint or length {} is not positive",
+                                         i, entry.grid, entry.length));
+    }
+    conduits.push_back({.kind = entry.kind,
+                        .grid = entry.grid,
+                        .cell = entry.cell ? Eigen::Vector3i(entry.cell->x(), entry.cell->y(), entry.cell->z())
+                                           : Eigen::Vector3i::Zero(),
+                        .axis = static_cast<z13::conduit::ConduitAxis>(entry.axis),
+                        .length = entry.length});
+  }
+  return conduits;
+}
+
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {
   const auto parsed = ParseSource(json);
   if (!parsed) {
