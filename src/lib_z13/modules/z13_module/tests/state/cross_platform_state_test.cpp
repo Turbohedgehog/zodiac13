@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <cmath>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -103,18 +104,24 @@ class Scenario {
     world.system<z13::testing::bench::ItemBody>("BenchItems::Spin")
         .with<z13::testing::bench::ItemAwake>()
         .each([delta](z13::testing::bench::ItemBody& body) {
-          // First-order step, no sin/cos: libm's differ in the last digit between platforms (arm64 against x64).
+          // First-order step in plain scalar arithmetic: no sin/cos (libm rounds them differently) and no Eigen
+          // quaternion product (its SSE and NEON versions add the terms in different orders).
           constexpr float kHalf = 0.5f;
-          const Eigen::Quaternionf pose(body.orientation_w, body.orientation_vector.x(), body.orientation_vector.y(),
-                                        body.orientation_vector.z());
-          const Eigen::Quaternionf spin(0.f, body.angular_velocity.x(), body.angular_velocity.y(),
-                                        body.angular_velocity.z());
-          const Eigen::Quaternionf change = spin * pose;
-          const Eigen::Quaternionf next(pose.w() + kHalf * delta * change.w(), pose.x() + kHalf * delta * change.x(),
-                                        pose.y() + kHalf * delta * change.y(), pose.z() + kHalf * delta * change.z());
-          const Eigen::Quaternionf unit = next.normalized();
-          body.orientation_vector = unit.vec();
-          body.orientation_w = unit.w();
+          const float step = kHalf * delta;
+          const float w = body.orientation_w;
+          const float x = body.orientation_vector.x();
+          const float y = body.orientation_vector.y();
+          const float z = body.orientation_vector.z();
+          const float wx = body.angular_velocity.x();
+          const float wy = body.angular_velocity.y();
+          const float wz = body.angular_velocity.z();
+          const float next_w = w + step * (-(wx * x) - (wy * y) - (wz * z));
+          const float next_x = x + step * ((wx * w) + (wy * z) - (wz * y));
+          const float next_y = y + step * ((wy * w) + (wz * x) - (wx * z));
+          const float next_z = z + step * ((wz * w) + (wx * y) - (wy * x));
+          const float length = std::sqrt((next_w * next_w) + (next_x * next_x) + (next_y * next_y) + (next_z * next_z));
+          body.orientation_w = next_w / length;
+          body.orientation_vector = {next_x / length, next_y / length, next_z / length};
         });
     for (int i = 0; i < kItems; ++i) {
       const auto index = static_cast<float>(i);
