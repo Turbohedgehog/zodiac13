@@ -32,7 +32,6 @@
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/time/simulation_clock.h>
-#include <lib_core/utils/math.h>
 #include <z13/components/input/input_events.h>
 
 #include <z13_tests/shipped_station.h>
@@ -104,17 +103,18 @@ class Scenario {
     world.system<z13::testing::bench::ItemBody>("BenchItems::Spin")
         .with<z13::testing::bench::ItemAwake>()
         .each([delta](z13::testing::bench::ItemBody& body) {
-          const float speed = body.angular_velocity.norm();
-          if (speed < z13::math::kEpsilon) {
-            return;
-          }
-          const Eigen::Quaternionf turn(Eigen::AngleAxisf(speed * delta, body.angular_velocity / speed));
-          const Eigen::Quaternionf pose =
-              (turn * Eigen::Quaternionf(body.orientation_w, body.orientation_vector.x(), body.orientation_vector.y(),
-                                         body.orientation_vector.z()))
-                  .normalized();
-          body.orientation_vector = pose.vec();
-          body.orientation_w = pose.w();
+          // First-order step, no sin/cos: libm's differ in the last digit between platforms (arm64 against x64).
+          constexpr float kHalf = 0.5f;
+          const Eigen::Quaternionf pose(body.orientation_w, body.orientation_vector.x(), body.orientation_vector.y(),
+                                        body.orientation_vector.z());
+          const Eigen::Quaternionf spin(0.f, body.angular_velocity.x(), body.angular_velocity.y(),
+                                        body.angular_velocity.z());
+          const Eigen::Quaternionf change = spin * pose;
+          const Eigen::Quaternionf next(pose.w() + kHalf * delta * change.w(), pose.x() + kHalf * delta * change.x(),
+                                        pose.y() + kHalf * delta * change.y(), pose.z() + kHalf * delta * change.z());
+          const Eigen::Quaternionf unit = next.normalized();
+          body.orientation_vector = unit.vec();
+          body.orientation_w = unit.w();
         });
     for (int i = 0; i < kItems; ++i) {
       const auto index = static_cast<float>(i);
