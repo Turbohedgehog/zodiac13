@@ -752,10 +752,16 @@ def dock_entry(a_grid, a_cell, b_grid, b_cell):
     return {"a_grid": a_grid, "a_cell": dict(zip("xyz", a_cell)), "b_grid": b_grid, "b_cell": dict(zip("xyz", b_cell))}
 
 
-def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=()):
+def conduit_run(grid, kind, cell, axis, length):
+    """A run of conduit of the kind named in assets/station/conduits.json (blueprint.fbs, BlueprintConduit): `length`
+    cells from `cell` along `axis` ("X", "Y" or "Z"), in the cells of `grid` (0 is the main grid)."""
+    return {"grid": grid, "kind": kind, "cell": dict(zip("xyz", cell)), "axis": axis, "length": length}
+
+
+def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=(), conduits=()):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
     returns the blocks written, the long ones cut. `doors_open`: the scene's doors stand open at the start. `grids`:
-    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s."""
+    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s. `conduits`: `conduit_run`s."""
     blocks = [piece for entry in blocks for piece in split_long(entry)]
     walls = [piece for wall in walls for piece in split_wall(wall)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
@@ -769,6 +775,9 @@ def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=()
     if docks:
         dock_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in docks]
         text += ",\n  \"docks\": [\n    " + ",\n    ".join(dock_lines) + "\n  ]"
+    if conduits:
+        conduit_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in conduits]
+        text += ",\n  \"conduits\": [\n    " + ",\n    ".join(conduit_lines) + "\n  ]"
     if doors_open:
         text += ',\n  "doors_open": true'
     path.parent.mkdir(parents=True, exist_ok=True)

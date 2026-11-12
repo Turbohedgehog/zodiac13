@@ -16,10 +16,12 @@
 
 #include "station_scene_system.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <span>
 #include <string>
+#include <vector>
 
 #include <flecs.h>
 
@@ -29,6 +31,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/station/conduit.h>
 #include <z13/components/station/dock.h>
 #include <z13/components/station/door.h>
 #include <z13/components/gameplay/gameplay.h>
@@ -68,6 +71,20 @@ Status ValidateGrids(std::span<const z13::building::primitives::BlueprintGridPar
   return {};
 }
 
+// The conduits' kinds are the conduit module's: without it a blueprint's runs are left out.
+Status ResolveConduits(std::span<const z13::building::primitives::BlueprintConduit> runs,
+                       const z13::conduit::ConduitKinds& kinds, std::vector<z13::conduit::Conduit>& resolved) {
+  for (const z13::building::primitives::BlueprintConduit& run : runs) {
+    const auto kind = std::ranges::find(kinds.kinds, run.kind, &z13::conduit::ConduitKind::name);
+    if (kind == kinds.kinds.end()) {
+      return std::unexpected(std::format("conduit kind '{}' is unknown", run.kind));
+    }
+    resolved.push_back(
+        {.kind = kind->id, .grid = run.grid, .cell = run.cell, .axis = run.axis, .length = run.length});
+  }
+  return {};
+}
+
 void PopulateStationScene(
     flecs::entity e,
     z13::gameplay::PopulateSceneEvent,
@@ -95,9 +112,12 @@ void PopulateStationScene(
     return z13::building::primitives::ParseBlueprintGrids(text, palette.palette);
   });
   const auto docks = json.and_then(z13::building::primitives::ParseBlueprintDocks);
+  const auto conduit_runs = json.and_then(z13::building::primitives::ParseBlueprintConduits);
   const auto panels = walls.and_then([&](const auto& parsed) {
     return openings.and_then([&](const auto& cut) { return BlueprintPanels(parsed, palette.palette, tuning, cut); });
   });
+  const auto* kinds = world.try_get<z13::conduit::ConduitKinds>();
+  std::vector<z13::conduit::Conduit> conduits;
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.
   const Status valid = blocks.and_then([&](const auto& parsed) -> Status {
     if (!panels) {
@@ -108,6 +128,14 @@ void PopulateStationScene(
     }
     if (!docks) {
       return std::unexpected(docks.error());
+    }
+    if (!conduit_runs) {
+      return std::unexpected(conduit_runs.error());
+    }
+    if (kinds != nullptr) {
+      if (const Status resolved_ok = ResolveConduits(*conduit_runs, *kinds, conduits); !resolved_ok) {
+        return resolved_ok;
+      }
     }
     if (const Status main_valid = ValidateBlueprint(parsed, palette.palette, tuning, *panels); !main_valid) {
       return main_valid;
@@ -136,6 +164,9 @@ void PopulateStationScene(
   }
   for (size_t i = 0; i < docks->size(); ++i) {
     world.entity(std::format("Dock_{}", i).c_str()).add<z13::flecs_tools::StateEntity>().set((*docks)[i]);
+  }
+  for (size_t i = 0; i < conduits.size(); ++i) {
+    world.entity(std::format("BlueprintConduit_{}", i).c_str()).add<z13::flecs_tools::StateEntity>().set(conduits[i]);
   }
   if (json.and_then(z13::building::primitives::ParseBlueprintDoorsOpen).value_or(false)) {
     world.set(z13::station::DoorsStartOpen {.open = true});

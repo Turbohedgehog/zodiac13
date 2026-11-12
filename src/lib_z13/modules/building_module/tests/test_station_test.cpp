@@ -149,6 +149,31 @@ TEST(StationBlueprintTest, BlueprintNamingAnUnknownPrimitiveIsRejected) {
   EXPECT_NE(blocks.error().find("Teleporter"), std::string::npos);
 }
 
+TEST(StationBlueprintTest, ConduitRunsAreParsedWithTheirKindNameGridAndAxis) {
+  const auto conduits = z13::building::primitives::ParseBlueprintConduits(
+      R"({"grids": [{"id": 2}], "conduits": [
+        {"grid": 0, "kind": "Cable", "cell": {"x": 1, "y": 2, "z": 3}, "axis": "Y", "length": 4},
+        {"grid": 2, "kind": "Pipe", "cell": {"x": 5, "y": 6, "z": 7}, "axis": "X", "length": 1}]})");
+
+  ASSERT_TRUE(conduits.has_value()) << conduits.error();
+  ASSERT_EQ(conduits->size(), 2u);
+  EXPECT_EQ((*conduits)[0].kind, "Cable");
+  EXPECT_EQ((*conduits)[0].cell, Eigen::Vector3i(1, 2, 3));
+  EXPECT_EQ((*conduits)[0].axis, z13::conduit::ConduitAxis::kY);
+  EXPECT_EQ((*conduits)[0].length, 4);
+  EXPECT_EQ((*conduits)[1].grid, 2u);
+  EXPECT_EQ((*conduits)[1].axis, z13::conduit::ConduitAxis::kX);
+}
+
+TEST(StationBlueprintTest, ConduitRunOfAnUnknownGridOrWithoutLengthIsRejected) {
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintConduits(
+                   R"({"conduits": [{"grid": 9, "kind": "Cable", "length": 1}]})")
+                   .has_value());
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintConduits(
+                   R"({"conduits": [{"grid": 0, "kind": "Cable", "length": 0}]})")
+                   .has_value());
+}
+
 TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   Z13TestWorld test_world(StationArgs(Scene()));
   test_world.Tick();

@@ -37,6 +37,7 @@
 #include <z13/components/station/rooms.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_point.h>
+#include <z13/components/utility/utilities.h>
 #include <primitives/palette.h>
 #include <primitives/station_assets.h>
 #include <rooms/room_cache.h>
@@ -473,6 +474,7 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<std::string>& info) { return info.param; });
 
 constexpr std::string_view kHubScene = "hub";
+constexpr int kPowerSettleTicks = 30;  // a few power steps (PowerTuning::step_ticks)
 const Eigen::Vector3i kSpineEndCell {338, 413, 6};
 const Eigen::Vector3i kFreightLobbyCell {348, 414, 6};
 constexpr z13::station::GridId kFreightGrid = 1;
@@ -650,18 +652,25 @@ TEST(HubMiningTest, TheHallIsASealedRoomOfAGridBehindALobbyJoinedToTheHangarByAD
   EXPECT_LT(world.World().entity(link->door_a.door).get<Block>().cell.y(), kHangarWallCellY);
 }
 
-TEST(HubDoorsTest, EveryDoorStandsOpenAtTheStart) {
+// The hub's cables power its doors, so they work by themselves: shut until a body comes (the blueprint no longer
+// starts them open for want of power).
+TEST(HubDoorsTest, EveryDoorIsPoweredAndShutUntilABodyComes) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
-  world.Tick();
+  for (int tick = 0; tick < kPowerSettleTicks; ++tick) {
+    world.Tick();
+  }
 
   int doors = 0;
-  int shut = 0;
-  world.World().each([&](const DoorState& state) {
+  int unpowered = 0;
+  int open = 0;
+  world.World().each([&](flecs::entity door, const DoorState& state) {
     ++doors;
-    shut += state.position != kDoorOpen || state.leaf_blocks;
+    unpowered += !z13::utility::IsSupplied(door);
+    open += state.position != 0 || state.open_wanted;
   });
   EXPECT_GT(doors, 0);
-  EXPECT_EQ(shut, 0);
+  EXPECT_EQ(unpowered, 0);
+  EXPECT_EQ(open, 0);
 }
 
 // What is derived from a grid's blocks is a component of its entity, and each grid has its own.

@@ -13,6 +13,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
+from hub_wiring import wire_hub
 from station_blueprint import (
     CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
     block_kinds, door_boxes, dock_entry, grid_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
@@ -1333,12 +1334,13 @@ def main():
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
     walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls() + mining_walls()
-    # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid(), old_wing_grid(), mining_grid()],
-                         docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
-                                dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
-                                dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL),
-                                dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)])
+    grids = [freight_grid(), arrivals_grid(), old_wing_grid(), mining_grid()]
+    docks = [dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
+             dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
+             dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL),
+             dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)]
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, grids=grids, docks=docks,
+                             conduits=wire_hub(blocks, walls, grids, docks))
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
