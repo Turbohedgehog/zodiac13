@@ -80,9 +80,9 @@ class Networks {
   std::unordered_map<ItemId, size_t> of_port_;
 };
 
-// Runs of one network and grid that share a face join, and so do a port and the runs touching its cells. Two ports
-// meet only through a run; a port no run touches is a network of its own. A link then joins what touches its two
-// cells, across grids. The result doesn't depend on the order of the inputs or on their ids.
+// Runs of one network and grid that share a face join, and so do a port and the runs touching its cells; a port no
+// run touches is a network of its own. A link then joins what touches its two cells across grids. The result
+// doesn't depend on the order of the inputs or on their ids.
 Networks BuildNetworks(std::span<const ConduitRun> runs, std::span<const Port> ports,
                        std::span<const Link> links = {});
 

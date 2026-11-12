@@ -141,7 +141,6 @@ void JoinPorts(std::span<const Item> network, size_t first, Groups& groups) {
   }
 }
 
-// The items of a network and grid that touch the cell, as indices.
 std::vector<size_t> Touching(std::span<const Item> items, std::string_view network, z13::station::GridId grid,
                              const Eigen::Vector3i& cell) {
   const CellBox box {.min = cell, .extent = Eigen::Vector3i::Ones()};

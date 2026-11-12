@@ -64,7 +64,7 @@ RunCorners CornersOf(const Conduit& conduit, const ConduitKind& kind, const Cond
           .high = cells.Turns(kind.network, conduit.grid, after, conduit.axis)};
 }
 
-// The mesh is built in the meters of the run's grid: the grid's pose moves it into the world's.
+// The mesh is in the run's grid meters; the grid's pose moves it into the world.
 void SetInWorld(SceneMesh& mesh, const Eigen::Matrix4f& pose) {
   if (pose.isIdentity()) {
     return;

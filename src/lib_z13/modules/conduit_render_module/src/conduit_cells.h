@@ -41,7 +41,6 @@ class ConduitCells {
   bool Turns(std::string_view network, z13::station::GridId grid, const Eigen::Vector3i& cell,
              z13::conduit::ConduitAxis axis) const;
   void SetPoses(z13::station::GridPoses poses) { poses_ = std::move(poses); }
-  // Where the grid stands in the world.
   Eigen::Matrix4f PoseOf(z13::station::GridId grid) const;
 
  private:
