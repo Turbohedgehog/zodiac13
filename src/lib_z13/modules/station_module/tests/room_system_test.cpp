@@ -616,6 +616,22 @@ TEST(HubOldWingTest, TheReactorStandsInTheTunnelBelowGalleriesOfItsRoom) {
   }
 }
 
+// The tech trunk is a corridor a deck under the spine; the flight down from the spine corridor opens its ceiling.
+const Eigen::Vector3i kTrunkWestCell {20, 294, -6};
+const Eigen::Vector3i kTrunkEastCell {104, 294, -6};
+const Eigen::Vector3i kSpineCorridorCell {20, 308, 6};
+
+TEST(HubTechTrunkTest, TheTrunkBelowTheSpineIsOneRoomWithTheCorridorAboveItThroughTheFlightsOpening) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto west = graph.RoomAt(kTrunkWestCell);
+  ASSERT_TRUE(west.has_value() && *west != rooms::kVacuumRoom) << "the trunk's west end";
+  EXPECT_EQ(graph.RoomAt(kTrunkEastCell), west) << "the trunk's two sides of the flight";
+  EXPECT_EQ(graph.RoomAt(kSpineCorridorCell), west) << "the spine corridor";
+}
+
 // The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
 constexpr int kMiningGrid = 4;
 constexpr int kHangarWallCellY = 16;

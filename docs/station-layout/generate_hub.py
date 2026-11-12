@@ -55,6 +55,7 @@ class Room:
     HEADS = "HEADS' ROOM"
     HANGAR = "DEPARTURE HANGAR"
     SPAWN = "SPAWN"
+    TECH_TRUNK = "TECH TRUNK"
 
 
 # ----- Geometry -----------------------------------------------------------------------------
@@ -151,6 +152,34 @@ WALL_LINE_CELLS = {side: cell for side, cell in
 PODIUM = (172, 64 + NORTH_CELLS, 24)  # x, y, size in cells
 PODIUM_LAYERS = 4
 SPAWN_ROOM = (34, 17 + NORTH_M, 38, 21 + NORTH_M)
+
+
+# ----- The tech trunk -----------------------------------------------------------------------
+
+# Deck 0: a corridor a deck below the spine, three characters wide under the spine corridor's north half, its ceiling
+# the spine's floor slab. A flight down from the corridor floor enters it (the controller can't climb a ladder:
+# docs/client-server-plan.md, "Технический долг").
+TECH_DECK = 0
+TECH_TRUNK = (SPINE[0], SPINE_OPENING_Y[0] - 1, SPINE[2], SPINE_OPENING_Y[0] + 3)
+TECH_FLIGHT_X = 60  # cells; the flight climbs towards +x
+TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the trunk's 12
+
+
+def tech_flight():
+    """The flight from the trunk's floor up to the spine corridor's, and the footprint it opens in the slab above."""
+    y = (TECH_TRUNK[1] + 1) * CELLS_PER_M
+    z0 = deck_floor_z(TECH_DECK)
+    top = z0 + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
+    x = TECH_FLIGHT_X
+    blocks = [block(SLOPE, (x, y, z0), (FLIGHT_LIP_RUN_CELLS, TECH_FLIGHT_WIDTH_CELLS, FLIGHT_LIP_RISE_CELLS)),
+              wall_panel_block((x + FLIGHT_LIP_RUN_CELLS, y, z0), (x + FLIGHT_LENGTH_CELLS, y, top),
+                               FLIGHT_PLATE_THICKNESS_CELLS, TECH_FLIGHT_WIDTH_CELLS, 1)]
+    return blocks, (x, y, x + FLIGHT_LENGTH_CELLS, y + TECH_FLIGHT_WIDTH_CELLS)
+
+
+def tech_floor_blocks():
+    x0, y0, x1, y1 = outer_box(TECH_TRUNK)
+    return [block(FLOOR, (x0, y0, slab_z(TECH_DECK - 1)), (x1 - x0, y1 - y0, SLAB_CELLS))]
 
 
 def outer_box(box):
@@ -1175,7 +1204,9 @@ def build_decks():
         decks.append(deck)
     decks[0].rects.append((*SPAWN_ROOM, Room.SPAWN))
     decks[0].spawn_rooms = (Room.SPAWN,)
-    return decks
+    trunk = HubDeck(TECH_DECK, "Tech trunk")
+    trunk.room(*TECH_TRUNK, Room.TECH_TRUNK)
+    return decks + [trunk]
 
 
 # ----- Blueprint ----------------------------------------------------------------------------
@@ -1259,6 +1290,11 @@ def slab_mask(index):
         fill(outer_box(FORECOURT))
     for x, y in ring_cells():
         mask[y][x] = False
+    if index == 0:
+        hx0, hy0, hx1, hy1 = tech_flight()[1]
+        for y in range(hy0, hy1):
+            for x in range(hx0, hx1):
+                mask[y][x] = False
     return mask
 
 
@@ -1290,14 +1326,14 @@ def podium_blocks():
 
 
 def station_blocks(decks):
-    blocks = slab_blocks() + podium_blocks()
+    blocks = slab_blocks() + podium_blocks() + tech_floor_blocks() + tech_flight()[0]
     for _, flight_blocks, _ in flights():
         blocks += flight_blocks
     for deck in decks:
         z = deck_floor_z(deck.number)
         height = wall_height(deck.number)
         deck.blocks = wall_blocks(deck.grid, z, wall_height=height)
-        if deck.number <= SPINE_B_DECKS and deck.number != 1:  # deck 1's end is the hangar's door wall
+        if 1 < deck.number <= SPINE_B_DECKS:  # deck 1's end is the hangar's door wall
             deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
@@ -1307,7 +1343,7 @@ def station_blocks(decks):
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
         deck.blocks += lamps
         blocks += lamps
-        if deck.number <= SPINE_B_DECKS:
+        if 1 <= deck.number <= SPINE_B_DECKS:
             lamps = spine_b_lamps(deck.number)
             deck.blocks += lamps
             blocks += lamps
