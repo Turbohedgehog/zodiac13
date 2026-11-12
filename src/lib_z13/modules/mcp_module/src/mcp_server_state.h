@@ -17,10 +17,14 @@
 
 #pragma once
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -28,16 +32,28 @@
 
 #include <lib_core/utils/status.h>
 
+#include "mcp_protocol.h"
 #include "mcp_server.h"
 #include "mcp_session.h"
 
 namespace z13::mcp {
+
+// The built-in request the server's own thread answers, without the game thread.
+constexpr std::string_view kServerStatusCommand = "server_status";
+
+struct ServerStatus {
+  std::uint64_t pumps {};
+  std::size_t queued_calls {};
+  std::optional<std::int64_t> ms_since_pump;  // absent until the first pump
+};
 
 // What the server's thread and the game thread share. The sessions are the thread's; the queue is locked.
 struct McpServerState {
   Status Listen(std::uint16_t port);
 
   void Accept();
+
+  CommandResult StatusOf();
 
   boost::asio::io_context io;
   boost::asio::ip::tcp::acceptor acceptor {io};
@@ -46,6 +62,9 @@ struct McpServerState {
   std::uint64_t next_session {1};
   std::mutex mutex;
   std::vector<McpCall> calls;
+  // Read by server_status: tells a frozen game from a broken server.
+  std::atomic<std::uint64_t> pumps {};
+  std::atomic<std::chrono::steady_clock::rep> last_pump {};
   std::thread thread;
 };
 

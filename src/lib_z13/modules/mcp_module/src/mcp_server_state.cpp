@@ -39,6 +39,17 @@ Status McpServerState::Listen(std::uint16_t port) {
   return {};
 }
 
+CommandResult McpServerState::StatusOf() {
+  const auto now = std::chrono::steady_clock::now();
+  const std::scoped_lock lock(mutex);
+  ServerStatus status {.pumps = pumps.load(), .queued_calls = calls.size()};
+  if (status.pumps > 0) {
+    const std::chrono::steady_clock::time_point last {std::chrono::steady_clock::duration(last_pump.load())};
+    status.ms_since_pump = std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count();
+  }
+  return rfl::to_generic(status);
+}
+
 void McpServerState::Accept() {
   acceptor.async_accept([this](const boost::system::error_code& error, boost::asio::ip::tcp::socket socket) {
     if (error == boost::asio::error::operation_aborted) {
@@ -52,6 +63,10 @@ void McpServerState::Accept() {
             const auto request = ParseRequest(line);
             if (!request) {
               sessions.at(session_id)->Write(FormatReply(0, std::unexpected(request.error())));
+              return;
+            }
+            if (request->command == kServerStatusCommand) {
+              sessions.at(session_id)->Write(FormatReply(request->id, StatusOf()));
               return;
             }
             const std::scoped_lock lock(mutex);

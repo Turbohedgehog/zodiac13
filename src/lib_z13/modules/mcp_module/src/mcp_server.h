@@ -47,6 +47,7 @@ class McpServer {
 
   std::uint16_t Port() const;
   std::vector<McpCall> TakeCalls();
+  void NotePump();
   void Reply(std::uint64_t session, std::string line);
 
  private:

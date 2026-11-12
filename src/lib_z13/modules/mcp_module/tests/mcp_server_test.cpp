@@ -26,6 +26,7 @@
 #include <flecs.h>
 
 #include <mcp_module/mcp_module_factory.h>
+#include <lib_core/time/simulation_clock.h>
 #include <lib_core/world/core.h>
 #include <z13_settings/settings.h>
 
@@ -128,11 +129,25 @@ TEST_F(McpServerWorldTest, PingAnswersThroughTheCommands) {
   EXPECT_EQ(Ask(client, R"({"id":1,"command":"ping"})"), R"({"id":1,"ok":true,"result":"pong"})");
 }
 
+TEST_F(McpServerWorldTest, PingAnswersWhileTheSimulationIsFrozen) {
+  world_.add<z13::flecs_tools::SimulationFrozen>();
+  auto client = Connect(Enable());
+  EXPECT_EQ(Ask(client, R"({"id":5,"command":"ping"})"), R"({"id":5,"ok":true,"result":"pong"})");
+}
+
 TEST_F(McpServerWorldTest, ListsTheCommandsOfTheChannel) {
   auto client = Connect(Enable());
   const std::string reply = Ask(client, R"({"id":2,"command":"commands"})");
   EXPECT_NE(reply.find(R"("name":"ping")"), std::string::npos) << reply;
   EXPECT_NE(reply.find(R"("name":"commands")"), std::string::npos) << reply;
+}
+
+TEST_F(McpServerWorldTest, ServerStatusCountsThePumpsOfTheGameThread) {
+  auto client = Connect(Enable());
+  const std::string reply = Ask(client, R"({"id":4,"command":"server_status"})");
+  EXPECT_NE(reply.find(R"("ok":true)"), std::string::npos) << reply;
+  EXPECT_NE(reply.find(R"("pumps":)"), std::string::npos) << reply;
+  EXPECT_NE(reply.find(R"("ms_since_pump":)"), std::string::npos) << reply;
 }
 
 TEST_F(McpServerWorldTest, RefusesWhatItDoesNotShowAndWhatIsNotARequest) {

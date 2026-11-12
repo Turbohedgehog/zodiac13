@@ -56,6 +56,7 @@ void Pump(flecs::world world, const z13::McpServerSettings& settings, McpServerH
   if (!handle.server) {
     return;
   }
+  handle.server->NotePump();
   const CommandFilter filter = FilterOf(settings);
   for (McpCall& call : handle.server->TakeCalls()) {
     const auto reply = [server = handle.server, session = call.session, id = call.request.id](CommandResult result) {
@@ -77,6 +78,7 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::McpServerSettings>({});
   world.set<McpServerHandle>({});
   world.system<const z13::McpServerSettings, McpServerHandle>("McpServerSystem::Pump")
+      .kind(flecs::PreFrame)  // a frame phase: the simulation phases are off in the menu
       .immediate()
       .each([](flecs::iter& it, size_t, const z13::McpServerSettings& settings, McpServerHandle& handle) {
         Pump(it.world(), settings, handle);

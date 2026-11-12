@@ -6,7 +6,7 @@ takes hours in PRoot. The steps repeat .github/workflows/android.yml.
 Like build.py, it writes build.log (one EXIT line at the end) and build.pid into --log-dir, so wait_build.py
 and stop_build.py of the build-and-test skill work on it. Needs the toolchain of setup_toolchain.py and VCPKG_ROOT.
 
-Usage: build_libs.py [--root DIR] [--build-dir DIR] [--log-dir DIR] [--vcpkg-jobs N] [--jobs N] [--configure-only]
+Usage: build_libs.py [--root DIR] [--build-dir DIR] [--bin-dir DIR] [--log-dir DIR] [--vcpkg-jobs N] [--jobs N] [--configure-only]
 """
 
 import argparse
@@ -28,6 +28,8 @@ TRIPLET = "arm64-android"
 DEFAULT_VCPKG_JOBS = 2
 # The project's own compilers: more have hung PRoot sessions (CLAUDE.md).
 DEFAULT_JOBS = 3
+# Apart from bin/ and bin-release/: both Linux builds link the same library names there.
+DEFAULT_BIN_DIR = "android_bin_release"
 # Local APKs carry this suffix, so they are not taken for the CI's of the same commit.
 VERSION_SUFFIX = "-local"
 
@@ -55,6 +57,7 @@ def configure_command(args: argparse.Namespace, repo: Path, ndk: Path, vcpkg_roo
         f"-DCMAKE_TOOLCHAIN_FILE={vcpkg_root / 'scripts/buildsystems/vcpkg.cmake'}",
         "-DCMAKE_BUILD_TYPE=Release", f"-DVCPKG_TARGET_TRIPLET={TRIPLET}", "-DVCPKG_BUILD_TYPE=release",
         f"-DVCPKG_INSTALLED_DIR={repo / args.build_dir / 'vcpkg_installed'}",
+        f"-DZ13_BIN_DIR={repo / args.bin_dir}",
         f"-DZ13_BUILD_DATE={datetime.now(timezone.utc):%Y-%m-%d}",
         f"-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE={ndk / 'build/cmake/android.toolchain.cmake'}",
         "-DANDROID_ABI=arm64-v8a", "-DANDROID_PLATFORM=android-26", "-DANDROID_STL=c++_shared",
@@ -124,6 +127,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=default_root(), help="where setup_toolchain.py installed")
     parser.add_argument("--build-dir", default="build-android", help="apart from build/, the Linux one")
+    parser.add_argument("--bin-dir", default=DEFAULT_BIN_DIR, help="where the libraries and the executable link to")
     parser.add_argument("--log-dir", type=Path, default=DEFAULT_LOG_DIR)
     parser.add_argument("--vcpkg-jobs", type=int, default=DEFAULT_VCPKG_JOBS)
     parser.add_argument("--jobs", type=int, default=DEFAULT_JOBS)

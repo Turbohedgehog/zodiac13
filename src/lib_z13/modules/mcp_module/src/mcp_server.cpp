@@ -44,6 +44,11 @@ std::uint16_t McpServer::Port() const {
   return state_->port;
 }
 
+void McpServer::NotePump() {
+  state_->pumps.fetch_add(1);
+  state_->last_pump.store(std::chrono::steady_clock::now().time_since_epoch().count());
+}
+
 std::vector<McpCall> McpServer::TakeCalls() {
   const std::scoped_lock lock(state_->mutex);
   return std::exchange(state_->calls, {});
