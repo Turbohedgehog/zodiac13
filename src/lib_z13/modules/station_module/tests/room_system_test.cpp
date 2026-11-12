@@ -580,6 +580,40 @@ TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomOfAGridBehindALobbyJoine
   EXPECT_LT(world.World().entity(link->door_a.door).get<Block>().cell.x(), 0);
 }
 
+// The reactor shaft: the second deck's galleries and bridge are cells of the tunnel's own room, over the core.
+const Eigen::Vector3i kSouthGalleryCell {50, 3, 13};
+const Eigen::Vector3i kNorthGalleryCell {50, 20, 13};
+const Eigen::Vector3i kBridgeCell {69, 12, 13};
+constexpr std::string_view kReactor = "Reactor";
+
+TEST(HubOldWingTest, TheReactorStandsInTheTunnelBelowGalleriesOfItsRoom) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  size_t reactors {};
+  world.World().query_builder<const Block>().build().each([&](const Block& placed) {
+    reactors += placed.grid == kOldWingGrid && placed.spec.type_id == IdOf(kReactor) ? 1 : 0;
+  });
+  EXPECT_EQ(reactors, 1u);
+
+  const flecs::entity wing_grid = world.World().lookup(std::format("Grid_{}", kOldWingGrid).c_str());
+  ASSERT_TRUE(wing_grid.is_valid() && wing_grid.has<RoomCache>());
+  const RoomGraph& graph = wing_grid.get<RoomCache>().Current()->get();
+  const auto tunnel = graph.RoomAt(kOldTunnelCell);
+  ASSERT_TRUE(tunnel.has_value() && *tunnel != rooms::kVacuumRoom) << "tunnel";
+  for (const Eigen::Vector3i& cell : {kSouthGalleryCell, kNorthGalleryCell, kBridgeCell}) {
+    EXPECT_EQ(graph.RoomAt(cell), tunnel) << cell.transpose();
+    bool floor_below = false;
+    world.World().query_builder<const Block>().build().each([&](const Block& placed) {
+      const Eigen::Vector3i below = cell - Eigen::Vector3i::UnitZ();
+      floor_below |= placed.grid == kOldWingGrid && placed.spec.type_id == IdOf(kFloor) &&
+                     (below.array() >= placed.cell.array()).all() &&
+                     (below.array() < (placed.cell + placed.spec.size).array()).all();
+    });
+    EXPECT_TRUE(floor_below) << "a slab under " << cell.transpose();
+  }
+}
+
 // The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
 constexpr int kMiningGrid = 4;
 constexpr int kHangarWallCellY = 16;
