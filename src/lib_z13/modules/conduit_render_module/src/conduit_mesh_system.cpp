@@ -27,6 +27,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/gameplay/scene_mesh.h>
 
 #include "conduit_cells.h"
@@ -59,7 +60,22 @@ RunCorners CornersOf(const Conduit& conduit, const ConduitKind& kind, const Cond
   before[axis] -= 1;
   Eigen::Vector3i after = conduit.cell;
   after[axis] += conduit.length;
-  return {.low = cells.Turns(kind.network, before, conduit.axis), .high = cells.Turns(kind.network, after, conduit.axis)};
+  return {.low = cells.Turns(kind.network, conduit.grid, before, conduit.axis),
+          .high = cells.Turns(kind.network, conduit.grid, after, conduit.axis)};
+}
+
+// The mesh is in the run's grid meters; the grid's pose moves it into the world.
+void SetInWorld(SceneMesh& mesh, const Eigen::Matrix4f& pose) {
+  if (pose.isIdentity()) {
+    return;
+  }
+  const Eigen::Affine3f transform(pose);
+  for (Eigen::Vector3f& position : mesh.positions) {
+    position = transform * position;
+  }
+  for (Eigen::Vector3f& normal : mesh.normals) {
+    normal = transform.linear() * normal;
+  }
 }
 
 // A conduit whose kind the file lacks has no mesh.
@@ -72,12 +88,15 @@ void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds
   }
   const ConduitLook look {.conduit = conduit,
                           .corners = CornersOf(conduit, *kind, cells),
-                          .color = kind->color, .thickness_cells = kind->thickness_cells};
+                          .color = kind->color,
+                          .thickness_cells = kind->thickness_cells,
+                          .pose = cells.PoseOf(conduit.grid)};
   const auto* built = entity.try_get<ConduitLook>();
   if (built != nullptr && *built == look) {
     return;
   }
   SceneMesh mesh = BuildConduitMesh(conduit, *kind, look.corners);
+  SetInWorld(mesh, look.pose);
   const auto* old = entity.try_get<SceneMesh>();
   mesh.revision = old != nullptr ? old->revision + 1 : 1;
   entity.set(look);
@@ -88,10 +107,15 @@ void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set(ConduitCells {});
   const auto conduits = world.query<const Conduit>();
+  const auto grids = world.query<const z13::station::Grid>();
   world.system<ConduitCells, const ConduitKinds>("ConduitMeshSystem::UpdateCells")
       .kind<SceneMeshPhase>()
       .read<Conduit>()
-      .each([conduits](ConduitCells& cells, const ConduitKinds& kinds) { cells.Rebuild(SortedConduits(conduits), kinds); });
+      .read<z13::station::Grid>()
+      .each([conduits, grids](ConduitCells& cells, const ConduitKinds& kinds) {
+        cells.SetPoses(z13::station::PosesOf(grids));
+        cells.Rebuild(SortedConduits(conduits), kinds);
+      });
 
   world.system<const Conduit, const ConduitKinds, const ConduitCells>("ConduitMeshSystem::DeriveMesh")
       .kind<SceneMeshPhase>()

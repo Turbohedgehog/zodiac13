@@ -36,17 +36,22 @@ bool ConduitCells::Rebuild(std::vector<z13::conduit::Conduit> conduits, const z1
     for (int step = 0; step < conduit.length; ++step) {
       Eigen::Vector3i cell = conduit.cell;
       cell[axis] += step;
-      by_cell_[cell].push_back({.network = kind->network, .axis = conduit.axis});
+      by_cell_[cell].push_back({.network = kind->network, .grid = conduit.grid, .axis = conduit.axis});
     }
   }
   return true;
 }
 
-bool ConduitCells::Turns(std::string_view network, const Eigen::Vector3i& cell, z13::conduit::ConduitAxis axis) const {
+bool ConduitCells::Turns(std::string_view network, z13::station::GridId grid, const Eigen::Vector3i& cell,
+                         z13::conduit::ConduitAxis axis) const {
   const auto found = by_cell_.find(cell);
   return found != by_cell_.end() && std::ranges::any_of(found->second, [&](const Occupant& occupant) {
-           return occupant.network == network && occupant.axis != axis;
+           return occupant.network == network && occupant.grid == grid && occupant.axis != axis;
          });
+}
+
+Eigen::Matrix4f ConduitCells::PoseOf(z13::station::GridId grid) const {
+  return z13::station::PoseOfGrid(poses_, grid).matrix();
 }
 
 }  // namespace z13::conduit_render

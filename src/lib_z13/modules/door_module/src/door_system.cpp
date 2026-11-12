@@ -65,7 +65,6 @@ using z13::station::DoorState;
 using z13::station::DoorsStartOpen;
 using z13::station::Interaction;
 using z13::station::Interactions;
-using z13::station::kMainGrid;
 using z13::station::StationMode;
 using Methods = fbs::station::InteractionMethods;
 namespace rooms = z13::station::rooms;
@@ -136,9 +135,7 @@ void PairDoors(const flecs::world& world, const DockLinks& docks) {
 
 void MoveDoor(flecs::entity door, DoorState& state, const Interactions& interactions, const DockLinks& docks,
               const z13::DoorTuning& tuning) {
-  // Only the main grid has utility networks: a door of another grid has no supply to wait for.
-  const auto* block = door.try_get<Block>();
-  const bool supplied = block != nullptr && block->grid == kMainGrid && z13::utility::IsSupplied(door);
+  const bool supplied = z13::utility::IsSupplied(door);
   const bool by_hand = !supplied || state.mode == DoorMode::kManual;
   if (state.mode == DoorMode::kLocked || state.mode == DoorMode::kWelded) {
     state.open_wanted = false;

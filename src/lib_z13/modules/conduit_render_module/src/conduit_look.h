@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <Eigen/Dense>
+
 #include <z13/components/gameplay/color.h>
 #include <z13/components/station/conduit.h>
 
@@ -35,6 +37,8 @@ struct ConduitLook {
   RunCorners corners;
   z13::Rgba color {};
   float thickness_cells {};
+  // The pose of the run's grid the mesh was set in the world by.
+  Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
 
   bool operator==(const ConduitLook&) const = default;
 };

@@ -22,6 +22,7 @@
 
 #include <z13/components/station/block.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/grid.h>
 #include <z13/components/gameplay/scene_mesh.h>
 
 #include "../../building_module/tests/support/station_builders.h"
@@ -108,11 +109,11 @@ TEST(ConduitCellsTest, ARunTurnsInTheCellsOfARunAlongAnotherAxisOfTheSameNetwork
                              {.kind = 2, .cell = {5, 0, 0}, .axis = ConduitAxis::kY, .length = 2}},
                             kinds));
 
-  EXPECT_TRUE(cells.Turns("power", {0, 1, 0}, ConduitAxis::kX));
-  EXPECT_FALSE(cells.Turns("power", {0, 1, 0}, ConduitAxis::kY));  // a continuation, not a corner
-  EXPECT_FALSE(cells.Turns("power", {0, 2, 0}, ConduitAxis::kX));  // beyond the run
-  EXPECT_FALSE(cells.Turns("data", {0, 1, 0}, ConduitAxis::kX));   // another network
-  EXPECT_TRUE(cells.Turns("data", {5, 0, 0}, ConduitAxis::kZ));
+  EXPECT_TRUE(cells.Turns("power", z13::station::kMainGrid, {0, 1, 0}, ConduitAxis::kX));
+  EXPECT_FALSE(cells.Turns("power", z13::station::kMainGrid, {0, 1, 0}, ConduitAxis::kY));  // a continuation, not a corner
+  EXPECT_FALSE(cells.Turns("power", z13::station::kMainGrid, {0, 2, 0}, ConduitAxis::kX));  // beyond the run
+  EXPECT_FALSE(cells.Turns("data", z13::station::kMainGrid, {0, 1, 0}, ConduitAxis::kX));   // another network
+  EXPECT_TRUE(cells.Turns("data", z13::station::kMainGrid, {5, 0, 0}, ConduitAxis::kZ));
 }
 
 TEST(ConduitCellsTest, RebuildingWithTheSameRunsChangesNothing) {
@@ -164,6 +165,30 @@ TEST_F(ConduitMeshSystemTest, AConduitOfAnUnknownKindHasNoMesh) {
   const flecs::entity entity = Lay({.kind = 999, .cell = {0, 0, 0}, .axis = ConduitAxis::kZ, .length = 1});
 
   EXPECT_FALSE(entity.has<SceneMesh>());
+}
+
+TEST_F(ConduitMeshSystemTest, ARunOfAGridIsSetInTheWorldByItsPose) {
+  constexpr z13::station::GridId kDistrict = 2;
+  constexpr int kOriginCells = 40;
+  world_.World().entity().set(z13::station::Grid {.id = kDistrict, .origin = {kOriginCells, 0, 0}});
+  world_.Tick();
+  const flecs::entity entity =
+      Lay({.kind = kCable, .grid = kDistrict, .cell = {0, 0, 0}, .axis = ConduitAxis::kX, .length = 2});
+  world_.Tick();
+
+  ASSERT_TRUE(entity.has<SceneMesh>());
+  EXPECT_NEAR(BoundsOf(entity.get<SceneMesh>()).min().x(), static_cast<float>(kOriginCells) * kCell, kCell);
+  EXPECT_GT(BoundsOf(entity.get<SceneMesh>()).min().x(), 2.f * kCell);
+}
+
+TEST_F(ConduitMeshSystemTest, ARunDoesNotBendAtARunOfAnotherGridInTheNextCell) {
+  constexpr z13::station::GridId kDistrict = 2;
+  world_.World().entity().set(z13::station::Grid {.id = kDistrict});
+  const flecs::entity along_x = Lay({.kind = kCable, .cell = {0, 0, 0}, .axis = ConduitAxis::kX, .length = 2});
+  Lay({.kind = kCable, .grid = kDistrict, .cell = {2, 0, 0}, .axis = ConduitAxis::kY, .length = 2});
+  world_.Tick();
+
+  EXPECT_NEAR(BoundsOf(along_x.get<SceneMesh>()).max().x(), 2.f * kCell, 1e-5f);
 }
 
 }  // namespace
