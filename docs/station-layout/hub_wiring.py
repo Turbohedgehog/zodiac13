@@ -8,7 +8,11 @@ from math import gcd
 from station_blueprint import conduit_run, split_wall
 
 CABLE = "Cable"
-CONSUMERS = ("Lamp", "Door", "Reactor")
+PIPE = "Pipe"
+# What each network's runs must reach: the power cables go to every consumer, the reactor and the equipment, the pipes
+# to the atmosphere units and their vents.
+POWER_BLOCKS = ("Lamp", "Door", "Reactor", "Battery", "Breaker", "Terminal", "AtmosUnit")
+GAS_BLOCKS = ("AtmosUnit", "Vent")
 AXES = "XYZ"
 MAIN_GRID = 0
 
@@ -36,9 +40,9 @@ def door_cells(walls):
     return cells
 
 
-def terminals(blocks, extra_cells):
-    """The cells the cables must reach: each consumer's or reactor's lowest cell, and the extra cells (docks, doors)."""
-    cells = {cell_of(entry) for entry in blocks if entry["primitive"] in CONSUMERS}
+def terminals(blocks, primitives, extra_cells):
+    """The cells the runs must reach: the lowest cell of each block of the primitives, and the extra cells."""
+    cells = {cell_of(entry) for entry in blocks if entry["primitive"] in primitives}
     return sorted(cells | set(extra_cells))
 
 
@@ -75,7 +79,7 @@ def legs(a, b):
     return cells
 
 
-def runs_of(cells, grid):
+def runs_of(cells, grid, kind=CABLE):
     """Maximal straight runs of the (cell, axis) pairs."""
     lines = {}
     for cell, axis in cells:
@@ -91,18 +95,23 @@ def runs_of(cells, grid):
                 continue
             cell = list(others)
             cell.insert(axis, start)
-            runs.append(conduit_run(grid, CABLE, cell, AXES[axis], previous - start + 1))
+            runs.append(conduit_run(grid, kind, cell, AXES[axis], previous - start + 1))
             if position is not None:
                 start = previous = position
     return runs
 
 
-def wire_grid(grid, blocks, extra_cells):
-    points = terminals(blocks, extra_cells)
+def wire_network(grid, kind, blocks, primitives, extra_cells=()):
+    points = terminals(blocks, primitives, extra_cells)
     cells = {(point, 2) for point in points}
     for a, b in spanning_edges(points):
         cells |= legs(a, b)
-    return runs_of(cells, grid)
+    return runs_of(cells, grid, kind)
+
+
+def wire_grid(grid, blocks, extra_cells):
+    return (wire_network(grid, CABLE, blocks, POWER_BLOCKS, extra_cells)
+            + wire_network(grid, PIPE, blocks, GAS_BLOCKS))
 
 
 def wire_hub(main_blocks, main_walls, grids, docks):

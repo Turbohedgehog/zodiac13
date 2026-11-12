@@ -632,6 +632,25 @@ TEST(HubTechTrunkTest, TheTrunkBelowTheSpineIsOneRoomWithTheCorridorAboveItThrou
   EXPECT_EQ(graph.RoomAt(kSpineCorridorCell), west) << "the spine corridor";
 }
 
+// The halls of equipment either side of the trunk, each a room of its own behind a door in the trunk's wall.
+const Eigen::Vector3i kAtmosHallCell {60, 276, -6};
+const Eigen::Vector3i kPowerHallCell {60, 312, -6};
+
+TEST(HubTechTrunkTest, TheAtmosphereAndPowerHallsAreRoomsBehindDoorsInTheTrunksWalls) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto trunk = graph.RoomAt(kTrunkWestCell);
+  ASSERT_TRUE(trunk.has_value() && *trunk != rooms::kVacuumRoom) << "trunk";
+  for (const Eigen::Vector3i& cell : {kAtmosHallCell, kPowerHallCell}) {
+    const auto hall = graph.RoomAt(cell);
+    ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << cell.transpose();
+    EXPECT_NE(hall, trunk) << cell.transpose();
+    EXPECT_TRUE(Joined(graph, trunk, hall)) << "the door " << cell.transpose();
+  }
+}
+
 // The trunk's lobby under the old wing's, joined to the trunk by a door and by a dock to the wing's lower deck, which a
 // flight joins to the reactor's tunnel.
 const Eigen::Vector3i kTrunkLobbyCell {-1, 296, -6};

@@ -56,6 +56,8 @@ class Room:
     HANGAR = "DEPARTURE HANGAR"
     SPAWN = "SPAWN"
     TECH_TRUNK = "TECH TRUNK"
+    POWER_HALL = "POWER HALL"
+    ATMOS_HALL = "ATMOS HALL"
 
 
 # ----- Geometry -----------------------------------------------------------------------------
@@ -161,8 +163,13 @@ SPAWN_ROOM = (34, 17 + NORTH_M, 38, 21 + NORTH_M)
 # docs/client-server-plan.md, "Технический долг").
 TECH_DECK = 0
 TECH_TRUNK = (SPINE[0], SPINE_OPENING_Y[0] - 1, SPINE[2], SPINE_OPENING_Y[0] + 3)
+# Halls of equipment either side of the trunk, off doors in its walls: the atmosphere hall under the spine's north
+# rooms, the power hall under the corridor's south half. Boxes in characters.
+TECH_ATMOS_HALL = (6, TECH_TRUNK[1] - 5, 22, TECH_TRUNK[1])
+TECH_POWER_HALL = (6, TECH_TRUNK[3], 22, TECH_TRUNK[3] + 5)
 TECH_FLIGHT_X = 60  # cells; the flight climbs towards +x
 TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the trunk's 12
+TECH_VENT_CELL = (28, (TECH_TRUNK[1] + 1) * CELLS_PER_M + 4)  # on the trunk's floor, west of the flight
 
 
 def tech_flight():
@@ -178,8 +185,36 @@ def tech_flight():
 
 
 def tech_floor_blocks():
-    x0, y0, x1, y1 = outer_box(TECH_TRUNK)
-    return [block(FLOOR, (x0, y0, slab_z(TECH_DECK - 1)), (x1 - x0, y1 - y0, SLAB_CELLS))]
+    """The slabs of the trunk and its two halls, each hall's stopping where the trunk's begins."""
+    trunk = outer_box(TECH_TRUNK)
+    atmos, power = outer_box(TECH_ATMOS_HALL), outer_box(TECH_POWER_HALL)
+    boxes = (trunk, (atmos[0], atmos[1], atmos[2], trunk[1]), (power[0], trunk[3], power[2], power[3]))
+    return [block(FLOOR, (x0, y0, slab_z(TECH_DECK - 1)), (x1 - x0, y1 - y0, SLAB_CELLS)) for x0, y0, x1, y1 in boxes]
+
+
+def tech_ceiling_blocks():
+    """The roof of each hall's part that lies outside the spine's slab above."""
+    sx0, sy0, sx1, sy1 = outer_box(SPINE)
+    blocks = []
+    for hall in (TECH_ATMOS_HALL, TECH_POWER_HALL):
+        x0, y0, x1, y1 = outer_box(hall)
+        for strip in ((y0, min(y1, sy0)), (max(y0, sy1), y1)):
+            if strip[0] < strip[1]:
+                blocks.append(block(FLOOR, (x0, strip[0], slab_z(TECH_DECK)), (x1 - x0, strip[1] - strip[0], SLAB_CELLS)))
+    return blocks
+
+
+def tech_equipment():
+    """The halls' blocks on the floor: the power hall's batteries, breaker and terminal, the atmosphere hall's unit, and
+    a vent on the trunk's floor for the unit to hold its room by."""
+    z = deck_floor_z(TECH_DECK)
+    cell = CELLS_PER_M
+    power_y = (TECH_POWER_HALL[1] + 2) * cell
+    atmos_y = (TECH_ATMOS_HALL[1] + 2) * cell
+    return [block("Battery", (36, power_y, z), (2, 2, 2)), block("Battery", (42, power_y, z), (2, 2, 2)),
+            block("Breaker", (48, power_y, z), (1, 1, 2)), block("Terminal", (52, power_y, z), (2, 1, 2)),
+            block("AtmosUnit", (36, atmos_y, z), (2, 2, 2)),
+            block("Vent", (TECH_VENT_CELL[0], TECH_VENT_CELL[1], z), (1, 1, 1))]
 
 
 def outer_box(box):
@@ -1325,6 +1360,8 @@ def build_decks():
     for y in range(TECH_TRUNK[3], SPINE_OPENING_Y[1] + 2):
         trunk.put(TECH_TRUNK[0], y, WALL)
     trunk.door_on(*TECH_TRUNK, "W")
+    trunk.room(*TECH_ATMOS_HALL, Room.ATMOS_HALL, ("S", None))
+    trunk.room(*TECH_POWER_HALL, Room.POWER_HALL, ("N", None))
     return decks + [trunk]
 
 
@@ -1445,7 +1482,7 @@ def podium_blocks():
 
 
 def station_blocks(decks):
-    blocks = slab_blocks() + podium_blocks() + tech_floor_blocks() + tech_flight()[0]
+    blocks = slab_blocks() + podium_blocks() + tech_floor_blocks() + tech_ceiling_blocks() + tech_flight()[0] + tech_equipment()
     for _, flight_blocks, _ in flights():
         blocks += flight_blocks
     for deck in decks:

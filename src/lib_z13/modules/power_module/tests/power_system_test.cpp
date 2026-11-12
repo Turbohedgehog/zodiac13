@@ -26,6 +26,7 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/state_markers.h>
+#include <networks/station_networks.h>
 #include <power/port_names.h>
 #include <primitives/palette.h>
 #include <z13/components/station/block_changes.h>
@@ -293,6 +294,29 @@ TEST(HubWiringTest, TheReactorSuppliesEveryLampAndDoorOfTheHub) {
   EXPECT_GE(consumers, kHubConsumersAtLeast);
   EXPECT_TRUE(unsupplied.empty()) << unsupplied.size() << " unsupplied, the first " << unsupplied.front();
   EXPECT_TRUE(world.World().get<z13::utility::DimmedLamps>().list.empty());
+}
+
+// The tech trunk's halls: batteries charge from the reactor's surplus, and the atmosphere unit's pipe reaches its vent.
+TEST(HubWiringTest, TheTechHallsBatteriesChargeAndTheAtmosphereUnitHasAVentOnItsPipe) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  for (int tick = 0; tick < kHubTicks; ++tick) {
+    world.Tick();
+  }
+
+  size_t batteries = 0;
+  size_t charged = 0;
+  world.World().each([&](const z13::utility::BatteryCharge& battery) {
+    ++batteries;
+    charged += battery.watt_ticks > 0 ? 1 : 0;
+  });
+  EXPECT_GT(batteries, 0u);
+  EXPECT_EQ(charged, batteries);
+
+  const auto& networks = world.World().get<z13::utility::networks::StationNetworks>().networks.All();
+  const auto gas = std::ranges::find(networks, std::string_view("gas"), &z13::utility::networks::Network::key);
+  ASSERT_NE(gas, networks.end());
+  EXPECT_FALSE(gas->runs.empty());
+  EXPECT_GE(gas->ports.size(), 2u) << "the unit and its vent";
 }
 
 }  // namespace
