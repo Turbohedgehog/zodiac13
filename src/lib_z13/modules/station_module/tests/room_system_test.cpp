@@ -580,6 +580,42 @@ TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomOfAGridBehindALobbyJoine
   EXPECT_LT(world.World().entity(link->door_a.door).get<Block>().cell.x(), 0);
 }
 
+// The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
+constexpr int kMiningGrid = 4;
+constexpr int kHangarWallCellY = 16;
+const Eigen::Vector3i kHangarCell {184, 70, 6};
+const Eigen::Vector3i kMiningLobbyCell {184, 8, 6};
+const Eigen::Vector3i kMiningHallCell {60, 48, 12};
+
+TEST(HubMiningTest, TheHallIsASealedRoomOfAGridBehindALobbyJoinedToTheHangarByADoor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();  // the doors get their state in the first tick, after the docks were linked
+
+  const RoomGraph& graph = Graph(world);
+  const auto hangar = graph.RoomAt(kHangarCell);
+  const auto lobby = graph.RoomAt(kMiningLobbyCell);
+  ASSERT_TRUE(hangar.has_value() && *hangar != rooms::kVacuumRoom) << "hangar";
+  ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
+  EXPECT_NE(hangar, lobby);
+  EXPECT_TRUE(Joined(graph, hangar, lobby));
+
+  const flecs::entity district = world.World().lookup(std::format("Grid_{}", kMiningGrid).c_str());
+  ASSERT_TRUE(district.is_valid() && district.has<RoomCache>());
+  const RoomGraph& district_graph = district.get<RoomCache>().Current()->get();
+  const auto hall = district_graph.RoomAt(kMiningHallCell);
+  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << "hall";
+  EXPECT_TRUE(Joined(district_graph, hall, rooms::kVacuumRoom)) << "the near wall's door";
+
+  const auto link = DockLinkTo(world, kMiningGrid);
+  ASSERT_TRUE(link.has_value()) << "the district's dock";
+  EXPECT_EQ(link->a, (RoomRef {.grid = z13::station::kMainGrid, .room = *lobby}));
+  EXPECT_EQ(link->b, (RoomRef {.grid = kMiningGrid, .room = *hall}));
+  // The dock's door is the near wall's, south of the hangar's wall whose own door stands nearly as close.
+  ASSERT_NE(link->door_a.door, 0u);
+  EXPECT_LT(world.World().entity(link->door_a.door).get<Block>().cell.y(), kHangarWallCellY);
+}
+
 TEST(HubDoorsTest, EveryDoorStandsOpenAtTheStart) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();

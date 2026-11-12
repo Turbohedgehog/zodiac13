@@ -930,6 +930,79 @@ def freight_grid():
     return grid_entry(FREIGHT_GRID, blocks, walls, (*h.hall.left_near, 0), yaw)
 
 
+# ----- The mining district -------------------------------------------------------------------
+
+# A hall of three decks south of the departure hangar, the size of the freight hangar's, a grid of its own turned
+# 9.5 degrees off the main one (the lattice step (1, -6)). As in the old wing, a wedge of lobby is left between the
+# hangar's south wall and the slanted near wall, whose door leads into the hall; the hangar's own door opens into it.
+MINING_DECKS = FREIGHT_DECKS
+MINING_GRID = 4
+MINING_STEP = (1, -6)
+MINING_ACROSS = (-6, -1)  # from the near wall's east end to its west end
+MINING_ACROSS_STEPS = FREIGHT_ACROSS_STEPS
+MINING_END_Y = DEPARTURE[1] * CELLS_PER_M  # the hangar's south wall, whose far face is where the lobby begins
+MINING_GAP_CELLS = 3  # from the hangar's wall to the near wall's east end: its thickness and a cell
+MINING_DOOR_OFFSET_STEPS = FREIGHT_HALL_DOOR_OFFSET_STEPS  # along the main near wall from its east end
+MINING_DOOR_STEPS = FREIGHT_HALL_DOOR_STEPS
+MINING_HANGAR_DOOR_OFFSET_CHARS = 13  # from the hangar's west wall: 2 characters centred on the near wall's middle
+MINING_LOBBY_CELL = (184, 8, 6)  # in the lobby, beside the near wall's door rather than the hangar's
+MINING_HALL_CELL = FREIGHT_HALL_CELL  # in the hall, in the grid's own cells
+
+
+def mining_nodes():
+    """The near wall's two ends in the main grid, the east one a lattice step off the hangar's middle."""
+    middle_x = (DEPARTURE[0] + DEPARTURE[2]) * CELLS_PER_M // 2
+    east = (middle_x - MINING_ACROSS_STEPS * MINING_ACROSS[0] // 2, MINING_END_Y - MINING_GAP_CELLS)
+    west = (east[0] + MINING_ACROSS_STEPS * MINING_ACROSS[0], east[1] + MINING_ACROSS_STEPS * MINING_ACROSS[1])
+    return east, west
+
+
+def mining_walls():
+    """The main grid's: the slanted near wall with its door, and the lobby's east and west walls."""
+    east, west = mining_nodes()
+    z = deck_floor_z(1)
+    height = MINING_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+    door = wall_opening(MINING_DOOR_OFFSET_STEPS, MINING_DOOR_STEPS, DOOR_HEIGHT_CELLS)
+    return [wall_segment((*east, z), (*west, z), HALL_WALL_CELLS, height, openings=[door]),
+            wall_segment((east[0], MINING_END_Y, z), (*east, z), -HALL_WALL_CELLS, height),
+            wall_segment((west[0], MINING_END_Y, z), (*west, z), HALL_WALL_CELLS, height),
+            mining_cap_wall(west[0], east[0])]
+
+
+def mining_cap_wall(west_x, east_x):
+    """The lobby is a deck taller than the hangar: the hangar's wall plane needs a wall above its roof."""
+    first_deck = HANGAR_DECKS.stop
+    height = (MINING_DECKS - first_deck + 1) * DECK_PITCH_CELLS - SLAB_CELLS
+    z = deck_floor_z(first_deck)
+    return wall_segment((west_x, MINING_END_Y, z), (east_x, MINING_END_Y, z), -1, height)
+
+
+def mining_blocks():
+    """The lobby's floor and ceiling."""
+    east, west = mining_nodes()
+    return wedge_floor_blocks([(east[0], MINING_END_Y), east, west, (west[0], MINING_END_Y)], MINING_DECKS)
+
+
+def mining_grid():
+    """The hall in its own axes, as the old wing's: x away from the near wall, y along it from its west end."""
+    z = deck_floor_z(1)
+    height = MINING_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
+    wall = HALL_WALL_CELLS
+    length, width = wall + FREIGHT_LENGTH_CELLS, FREIGHT_WIDTH_CELLS
+    door = wall_opening(FREIGHT_HALL_DOOR_OFFSET_CELLS, FREIGHT_HALL_DOOR_CELLS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((wall, 0, z), (wall, width, z), -wall, height, openings=[door]),
+             wall_segment((wall, 0, z), (length, 0, z), -wall, height),
+             wall_segment((wall, width, z), (length, width, z), wall, height),
+             wall_segment((length, 0, z), (length, width, z), wall, height)]
+    blocks = [block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
+              for layer in (0, MINING_DECKS)]
+    lamp_z = z + height - 1
+    blocks += [block(LAMP, (wall + along - 1, width // 2 + across - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
+               for along in FREIGHT_LAMP_CELLS_ALONG for across in FREIGHT_LAMP_CELLS_ACROSS]
+    yaw = math.degrees(math.atan2(MINING_STEP[1], MINING_STEP[0]))
+    return grid_entry(MINING_GRID, blocks, walls, (*mining_nodes()[1], 0), yaw)
+
+
 # ----- Drawing ------------------------------------------------------------------------------
 
 class HubDeck(Deck):
@@ -1014,6 +1087,8 @@ class HubDeck(Deck):
         self.room(x0, y0, x1, y1, Room.HANGAR)
         for x in range(x0 + 1, x1):
             self.put(x, y0, WINDOW)
+        if self.number == 1:
+            self.door_on(x0, y0, x1, y1, "N", MINING_HANGAR_DOOR_OFFSET_CHARS)
 
     def bridge(self):
         x0, y0, x1, y1 = BRIDGE
@@ -1172,7 +1247,7 @@ def station_blocks(decks):
             deck.blocks += spine_b_end_wall(deck.number)
         deck.blocks += spawn_blocks(deck, z)
         blocks += deck.blocks
-    blocks += freight_blocks() + old_wing_blocks()
+    blocks += freight_blocks() + old_wing_blocks() + mining_blocks()
     ceilings = ring_ceiling_blocks()
     for deck in decks:
         lamps = lamp_blocks(deck, deck_floor_z(deck.number), blocks + ceilings, wall_height(deck.number))
@@ -1204,12 +1279,13 @@ def main():
         (OUT / DECK_FILE.format(number=deck.number)).write_text(render(deck), encoding="ascii", newline="\n")
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
-    walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls()
+    walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls() + mining_walls()
     # No power or cables yet, so hand-cranked closed doors would shut the districts off.
-    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid(), old_wing_grid()],
+    blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, doors_open=True, grids=[freight_grid(), arrivals_grid(), old_wing_grid(), mining_grid()],
                          docks=[dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
                                 dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
-                                dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL)])
+                                dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL),
+                                dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
