@@ -154,6 +154,15 @@ table LanDiscovery {
   forget_after_ms: uint32 = 5000 (min: 100, max: 600000, cli: "--discovery-forget-after");
 }
 
+// A loopback socket for tools and the MCP bridge (docs/debug-server-plan.md): on by default, the main menu switches it. Client only, never sent.
+table McpServer {
+  enabled: bool = true (cli: "--mcp-server");
+  // The loopback port; 0 lets the system pick one (tests).
+  port: uint32 = 38123 (min: 0, max: 65535, cli: "--mcp-port");
+  // The commands it shows by tag, comma-separated (lib_core/commands/command.h).
+  tags: string = "debug" (non_empty);
+}
+
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
@@ -168,6 +177,7 @@ table Settings {
   render: RenderTuning;
   touch: TouchLayout;
   lan_discovery: LanDiscovery;
+  mcp_server: McpServer;
   // Write every run's log to the logs directory, as --log does.
   log_to_file: bool = false;
 }

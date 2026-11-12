@@ -95,6 +95,13 @@ struct LanDiscoverySettings : fbs::settings::LanDiscoveryT {
   explicit LanDiscoverySettings(const fbs::settings::LanDiscoveryT& values) : fbs::settings::LanDiscoveryT(values) {}
 };
 
+struct McpServerSettings : fbs::settings::McpServerT {
+  using Singleton = void;
+
+  McpServerSettings() : McpServerSettings(SchemaDefaults<fbs::settings::McpServerT>()) {}
+  explicit McpServerSettings(const fbs::settings::McpServerT& values) : fbs::settings::McpServerT(values) {}
+};
+
 // The part of Settings a client takes from the server it joins: peers must tick alike.
 struct SessionSettings {
   double fps {};
@@ -139,7 +146,7 @@ Status AddSettingsOptions(Config& config);
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
 // Sets the world's NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-// RenderTuning, TouchLayout and LanDiscoverySettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
+// RenderTuning, TouchLayout, LanDiscoverySettings and McpServerSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 }  // namespace z13

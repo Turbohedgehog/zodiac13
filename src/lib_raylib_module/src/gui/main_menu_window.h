@@ -32,6 +32,9 @@ class MainMenuWindow : public Window {
 
  protected:
   void DrawBody() override;
+
+ private:
+  void SaveMcpEnabled(bool enabled);
 };
 
 WindowPtr MakeMainMenu(flecs::world world);

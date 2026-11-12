@@ -15,3 +15,4 @@ modules:
   - modules/raylib/raylib_module
   - modules/conduit_render_module/conduit_render_module
   - modules/door_render_module/door_render_module
+  - modules/mcp_module/mcp_module
