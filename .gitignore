@@ -41,6 +41,7 @@ build-android/
 install/
 bin/
 bin-release/
+android_bin_release/
 
 # vcpkg
 vcpkg_installed/

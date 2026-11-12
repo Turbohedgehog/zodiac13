@@ -17,6 +17,7 @@
 #include <lib_core/utils/text_lines.h>
 
 #include <algorithm>
+#include <ranges>
 
 namespace z13 {
 
@@ -24,8 +25,21 @@ namespace {
 
 constexpr char kLineFeed = '\n';
 constexpr char kCarriageReturn = '\r';
+constexpr char kBlank = ' ';
 
 }  // namespace
+
+std::vector<std::string> SplitList(std::string_view text) {
+  std::vector<std::string> items;
+  for (const auto part : std::views::split(text, kListSeparator)) {
+    std::string item(part.begin(), part.end());
+    std::erase(item, kBlank);
+    if (!item.empty()) {
+      items.push_back(std::move(item));
+    }
+  }
+  return items;
+}
 
 std::vector<std::string> SplitLines(std::string_view text) {
   std::vector<std::string> lines;

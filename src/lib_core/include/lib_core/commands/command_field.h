@@ -17,7 +17,10 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <string>
+#include <string_view>
 
 namespace z13 {
 
@@ -29,6 +32,15 @@ enum class FieldKind {
   kText,
   kOther,  // nested or of a type a word can't spell
 };
+
+inline constexpr std::array kFieldKindNames {std::string_view("bool"), std::string_view("integer"),
+                                             std::string_view("number"), std::string_view("text"),
+                                             std::string_view("other")};
+static_assert(kFieldKindNames.size() == static_cast<std::size_t>(FieldKind::kOther) + 1);
+
+inline std::string_view FieldKindName(FieldKind kind) {
+  return kFieldKindNames[static_cast<std::size_t>(kind)];
+}
 
 // In the order of the command struct's fields.
 struct CommandField {

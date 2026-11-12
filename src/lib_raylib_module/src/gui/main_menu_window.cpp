@@ -20,7 +20,11 @@
 
 #include <imgui.h>
 
+#include <lib_core/utils/log.h>
 #include <z13/components/gameplay/net.h>
+#include <z13_settings/environment.h>
+#include <z13_settings/settings.h>
+#include <z13_settings/settings_file.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -37,6 +41,16 @@ MainMenuWindow::MainMenuWindow(flecs::world world) : Window(world, "Main menu") 
 
 Window::StackRequest MainMenuWindow::OnBack() {
   return {};
+}
+
+Status MainMenuWindow::SaveMcpEnabled(bool enabled) {
+  const auto path = z13::tools::environment::GetGameSettingsJsonPath();
+  auto settings = z13::ReadSettings(path);
+  if (!settings) {
+    return std::unexpected(settings.error());
+  }
+  settings->mcp_server->enabled = enabled;
+  return z13::WriteSettings(path, *settings);
 }
 
 void MainMenuWindow::DrawBody() {
@@ -68,6 +82,13 @@ void MainMenuWindow::DrawBody() {
   }
   if (ImGui::Button("Graphics...", ButtonSize())) {
     RequestPush(MakeGraphicsSettings(World()));
+  }
+  if (auto* mcp = World().try_get_mut<z13::McpServerSettings>()) {
+    if (ImGui::Checkbox("MCP server", &mcp->enabled)) {
+      if (const Status saved = SaveMcpEnabled(mcp->enabled); !saved) {
+        log_error("Main menu: MCP server switch not saved: {}", saved.error());
+      }
+    }
   }
   if (ImGui::Button("Exit", ButtonSize())) {
     World().add<RaylibWindowClosed>();

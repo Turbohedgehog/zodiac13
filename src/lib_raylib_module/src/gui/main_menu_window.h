@@ -18,6 +18,8 @@
 
 #include <flecs.h>
 
+#include <lib_core/utils/status.h>
+
 #include "gui_windows.h"
 
 namespace z13::raylib::gui {
@@ -32,6 +34,9 @@ class MainMenuWindow : public Window {
 
  protected:
   void DrawBody() override;
+
+ private:
+  Status SaveMcpEnabled(bool enabled);
 };
 
 WindowPtr MakeMainMenu(flecs::world world);

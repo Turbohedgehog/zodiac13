@@ -26,6 +26,12 @@
 
 namespace z13 {
 
+// The separator of a list written in one string: the tags of a channel, the names of a command line option.
+inline constexpr char kListSeparator = ',';
+
+// The items of such a list without blanks inside or around them; empty items are dropped.
+std::vector<std::string> SplitList(std::string_view text);
+
 // Without the line ends; a final one doesn't start another line.
 std::vector<std::string> SplitLines(std::string_view text);
 

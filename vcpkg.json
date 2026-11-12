@@ -14,6 +14,7 @@
     "boost-dll",
     "boost-multi-index",
     "boost-algorithm",
+    "boost-asio",
     "boost-container",
     "boost-geometry",
     "eigen3",
@@ -64,6 +65,10 @@
     },
     {
       "name": "boost-algorithm",
+      "version": "1.91.0#0"
+    },
+    {
+      "name": "boost-asio",
       "version": "1.91.0#0"
     },
     {

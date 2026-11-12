@@ -16,6 +16,7 @@
 
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/utils/status.h>
+#include <lib_core/utils/text_lines.h>
 
 #include <algorithm>
 #include <charconv>
@@ -29,7 +30,6 @@ namespace {
 
 constexpr std::string_view kLongPrefix = "--";
 constexpr std::string_view kShortPrefix = "-";
-constexpr char kCliNameSeparator = ',';
 constexpr char kPathSeparator = '.';
 // flatc stores an attribute written without a value, as in `(cli)`, as "0".
 constexpr std::string_view kValuelessAttribute = "0";
@@ -149,7 +149,7 @@ std::expected<std::pair<std::string, std::optional<char>>, std::string> ParseCli
 
   size_t begin = 0;
   while (begin <= spec.size()) {
-    const size_t end = std::min(spec.find(kCliNameSeparator, begin), spec.size());
+    const size_t end = std::min(spec.find(kListSeparator, begin), spec.size());
     std::string_view token = spec.substr(begin, end - begin);
     begin = end + 1;
     while (!token.empty() && token.front() == ' ') {

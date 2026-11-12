@@ -16,6 +16,7 @@
 
 
 #include <lib_core/commands/command_registry.h>
+#include <lib_core/time/simulation_clock.h>
 
 #include <algorithm>
 #include <cctype>
@@ -57,8 +58,10 @@ void EnsureCommands(flecs::world& world) {
     return;
   }
   world.component<CommandRequest>();
-  world.component<CommandPhase>().add(flecs::Phase).depends_on(flecs::PostLoad);
-  world.component<CommandCollectPhase>().add(flecs::Phase).depends_on<CommandPhase>();
+  // Presentation phases run every frame, also while the simulation is frozen (menu, pause), when a console or a
+  // channel still has to be answered.
+  world.component<CommandPhase>().add(flecs::Phase).add<flecs_tools::PresentationPhase>().depends_on(flecs::PreFrame);
+  world.component<CommandCollectPhase>().add(flecs::Phase).add<flecs_tools::PresentationPhase>().depends_on<CommandPhase>();
   world.component<Commands>().add(flecs::Singleton);
   world.set<Commands>({});
   // A request created after this frame's handlers ran has no reply yet: it waits one frame.

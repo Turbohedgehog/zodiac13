@@ -126,6 +126,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.lan_discovery) {
     settings.lan_discovery = NewDefaults<fbs::settings::LanDiscoveryT>();
   }
+  if (!settings.mcp_server) {
+    settings.mcp_server = NewDefaults<fbs::settings::McpServerT>();
+  }
 }
 
 Settings WithSession(Settings settings, const SessionSettings& session) {
@@ -145,7 +148,7 @@ namespace {
 bool HasAllNestedTables(const Settings& settings) {
   return settings.core && settings.connect_timeout && settings.session_timeout && settings.net && settings.physics &&
          settings.building && settings.power && settings.door && settings.atmos && settings.visual_smoothing && settings.render &&
-         settings.touch && settings.lan_discovery;
+         settings.touch && settings.lan_discovery && settings.mcp_server;
 }
 
 }  // namespace
@@ -270,7 +273,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 
 void InstallSettings(flecs::world world, const Settings& settings) {
   flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-                                  RenderTuning, TouchLayout, LanDiscoverySettings>(world);
+                                  RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
   }
@@ -304,6 +307,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.lan_discovery) {
     world.set(LanDiscoverySettings(*settings.lan_discovery));
+  }
+  if (settings.mcp_server) {
+    world.set(McpServerSettings(*settings.mcp_server));
   }
 }
 
