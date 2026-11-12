@@ -700,6 +700,7 @@ ARRIVALS_DOOR_CELLS = 16
 ARRIVALS_NECK_LAMP_CELLS = (16, 39)  # along the neck, from the near wall
 ARRIVALS_HALL_LAMP_CELLS_ALONG = (23, 55, 86)  # from the hall's near face
 ARRIVALS_HALL_LAMP_CELLS_ACROSS = (-23, 0, 23)  # from the hall's middle line
+ARRIVALS_TECH_X = 30  # where the lower deck's corridor starts, from the hall's near face
 ARRIVALS_ATRIUM_CELL = (231, 254, 6)  # in the atrium, inside the side's opening
 ARRIVALS_HALL_CELL = (100, 16, 12)  # in the hall, in the grid's own cells
 
@@ -744,10 +745,14 @@ def arrivals_grid():
              wall_segment((neck_x, hall0, z), (hall_x, hall0, z), -wall, height),
              wall_segment((neck_x, hall1, z), (hall_x, hall1, z), wall, height),
              wall_segment((hall_x, hall0, z), (hall_x, hall1, z), wall, height)]
-    blocks = [block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
-              for layer in (0, ARRIVALS_DECKS)
+    tech_blocks, tech_walls, hole = district_tech_deck(neck_x + ARRIVALS_TECH_X, (hall0 + hall1) // 2)
+    blocks = [piece for layer in (0, ARRIVALS_DECKS)
               for x, y, length, width in ((0, neck0, neck_x, neck1 - neck0),
-                                          (neck_x, hall0, hall_x - neck_x, hall1 - hall0))]
+                                          (neck_x, hall0, hall_x - neck_x, hall1 - hall0))
+              for piece in floor_around(block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS)),
+                                        hole if layer == 0 else None)]
+    blocks += tech_blocks
+    walls += tech_walls
     lamp_z = z + height - 1
     neck_middle, hall_middle = (neck0 + neck1) // 2, (hall0 + hall1) // 2
     spots = [(along, neck_middle) for along in ARRIVALS_NECK_LAMP_CELLS]
@@ -876,6 +881,40 @@ def old_reactor_shaft(tunnel_x, width):
     return blocks, walls
 
 
+# A district's lower deck: a corridor under its hall's floor, entered by a flight down from the hall (docs/hub-station-plan.md,
+# "Техсеть"). The flight climbs towards +x from the corridor's floor, its head at the hall floor; the corridor runs on
+# either side of it.
+DISTRICT_TECH_WIDTH_CELLS = 12
+DISTRICT_TECH_BEFORE_FLIGHT_CELLS = 12  # corridor west of the flight's foot, inside its end wall
+DISTRICT_TECH_AFTER_FLIGHT_CELLS = 18  # corridor east of the flight's head
+DISTRICT_TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the corridor's width
+
+
+def district_tech_deck(x0, y_middle):
+    """A district's lower deck in its grid's cells, starting at x `x0` with the corridor centred on y `y_middle`:
+    its blocks, its walls and the footprint the flight opens in the hall's floor slab."""
+    wall = HALL_WALL_CELLS
+    z = deck_floor_z(TECH_DECK)
+    y0 = y_middle - DISTRICT_TECH_WIDTH_CELLS // 2
+    y1 = y0 + DISTRICT_TECH_WIDTH_CELLS
+    foot = x0 + wall + DISTRICT_TECH_BEFORE_FLIGHT_CELLS
+    head = foot + FLIGHT_LENGTH_CELLS
+    x1 = head + DISTRICT_TECH_AFTER_FLIGHT_CELLS + wall
+    top = z + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
+    walls = [wall_segment((x0, y0, z), (x1, y0, z), -wall, WALL_HEIGHT_CELLS),
+             wall_segment((x0, y1, z), (x1, y1, z), wall, WALL_HEIGHT_CELLS),
+             wall_segment((x0, y0, z), (x0, y1, z), wall, WALL_HEIGHT_CELLS),
+             wall_segment((x1, y0, z), (x1, y1, z), -wall, WALL_HEIGHT_CELLS)]
+    blocks = [block(FLOOR, (x0, y0 - wall, slab_z(TECH_DECK - 1)), (x1 - x0, y1 - y0 + 2 * wall, SLAB_CELLS)),
+              block(SLOPE, (foot, y0, z), (FLIGHT_LIP_RUN_CELLS, DISTRICT_TECH_FLIGHT_WIDTH_CELLS, FLIGHT_LIP_RISE_CELLS)),
+              wall_panel_block((foot + FLIGHT_LIP_RUN_CELLS, y0, z), (head, y0, top), FLIGHT_PLATE_THICKNESS_CELLS,
+                               DISTRICT_TECH_FLIGHT_WIDTH_CELLS, 1)]
+    ceiling = z + WALL_HEIGHT_CELLS - 1
+    blocks += [block(LAMP, (x - 1, y_middle - 1, ceiling), (LAMP_CELLS, LAMP_CELLS, 1))
+               for x in (x0 + wall + DISTRICT_TECH_BEFORE_FLIGHT_CELLS // 2, head + DISTRICT_TECH_AFTER_FLIGHT_CELLS // 2)]
+    return blocks, walls, (foot, y0, head, y0 + DISTRICT_TECH_FLIGHT_WIDTH_CELLS)
+
+
 def floor_around(entry, hole):
     """The floor box without the hole's footprint (x0, y0, x1, y1), as up to four boxes."""
     if hole is None:
@@ -987,6 +1026,7 @@ FREIGHT_LOBBY_CELL = (348, 414, 6)  # in the main grid's lobby wedge, which the 
 FREIGHT_HALL_CELL = (60, 48, 12)  # in the hall's own cells
 FREIGHT_LAMP_CELLS_ALONG = (30, 67, 104)  # along the hall's middle line
 FREIGHT_LAMP_CELLS_ACROSS = (-30, 0, 30)  # across it
+FREIGHT_TECH_X = 30  # where the lower deck's corridor starts, along the hall
 
 
 class FreightGeometry(NamedTuple):
@@ -1071,8 +1111,12 @@ def freight_grid():
              wall_segment((0, 0, z), (length, 0, z), -2, height),
              wall_segment((0, width, z), (length, width, z), 2, height),
              wall_segment((length, 0, z), (length, width, z), -2, height)]
-    blocks = [block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
-              for layer in (0, FREIGHT_DECKS)]
+    tech_blocks, tech_walls, hole = district_tech_deck(FREIGHT_TECH_X, width // 2)
+    blocks = [piece for layer in (0, FREIGHT_DECKS)
+              for piece in floor_around(block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS)),
+                                        hole if layer == 0 else None)]
+    blocks += tech_blocks
+    walls += tech_walls
     lamp_z = z + height - 1
     blocks += [block(LAMP, (along - 1, width // 2 + across - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
                for along in FREIGHT_LAMP_CELLS_ALONG for across in FREIGHT_LAMP_CELLS_ACROSS]
@@ -1097,6 +1141,7 @@ MINING_DOOR_STEPS = FREIGHT_HALL_DOOR_STEPS
 MINING_HANGAR_DOOR_OFFSET_CHARS = 13  # from the hangar's west wall: 2 characters centred on the near wall's middle
 MINING_LOBBY_CELL = (184, 8, 6)  # in the lobby, beside the near wall's door rather than the hangar's
 MINING_HALL_CELL = FREIGHT_HALL_CELL  # in the hall, in the grid's own cells
+MINING_TECH_X = 40  # where the lower deck's corridor starts, along the hall
 
 
 def mining_nodes():
@@ -1144,8 +1189,12 @@ def mining_grid():
              wall_segment((wall, 0, z), (length, 0, z), -wall, height),
              wall_segment((wall, width, z), (length, width, z), wall, height),
              wall_segment((length, 0, z), (length, width, z), wall, height)]
-    blocks = [block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS))
-              for layer in (0, MINING_DECKS)]
+    tech_blocks, tech_walls, hole = district_tech_deck(MINING_TECH_X, width // 2)
+    blocks = [piece for layer in (0, MINING_DECKS)
+              for piece in floor_around(block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS)),
+                                        hole if layer == 0 else None)]
+    blocks += tech_blocks
+    walls += tech_walls
     lamp_z = z + height - 1
     blocks += [block(LAMP, (wall + along - 1, width // 2 + across - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
                for along in FREIGHT_LAMP_CELLS_ALONG for across in FREIGHT_LAMP_CELLS_ACROSS]
