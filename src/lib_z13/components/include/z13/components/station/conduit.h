@@ -27,6 +27,7 @@
 #include <flecs.h>
 
 #include <z13/components/gameplay/color.h>
+#include <z13/components/station/grid_id.h>
 
 // Cables, wires and pipes laid through the station (docs/station-systems-plan.md, "Проводка"):
 // conduit_module lays them, the networks read them, a render module draws them.
@@ -51,11 +52,12 @@ struct ConduitKinds {
 
 enum class ConduitAxis : uint8_t { kX, kY, kZ };
 
-// A straight run of `length` cells from `cell` along `axis`. Conduits are not blocks: they share cells with the
-// station's blocks, and rooms, physics and light don't see them.
+// A straight run of `length` cells from `cell` (of the grid `grid`) along `axis`. Conduits are not blocks: they share
+// cells with the station's blocks, and rooms, physics and light don't see them.
 struct Conduit {
   using State = void;
   uint32_t kind {};
+  z13::station::GridId grid = z13::station::kMainGrid;
   Eigen::Vector3i cell = Eigen::Vector3i::Zero();
   ConduitAxis axis {};
   int length = 1;
@@ -82,7 +84,7 @@ struct ConduitDrag {
 // A fixed order of runs by content, so peers and rebuilds see them alike whatever their entity ids.
 inline bool ConduitOrder(const Conduit& a, const Conduit& b) {
   const auto key = [](const Conduit& c) {
-    return std::make_tuple(c.kind, c.cell.x(), c.cell.y(), c.cell.z(), c.axis, c.length);
+    return std::make_tuple(c.kind, c.grid, c.cell.x(), c.cell.y(), c.cell.z(), c.axis, c.length);
   };
   return key(a) < key(b);
 }

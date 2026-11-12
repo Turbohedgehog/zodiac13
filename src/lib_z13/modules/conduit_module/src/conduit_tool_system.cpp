@@ -199,14 +199,15 @@ std::optional<std::string> NetworkOf(const ConduitKinds& kinds, uint32_t kind) {
   return found ? std::optional(found->network) : std::nullopt;
 }
 
-// The world's conduits with this tick's edits so far, built at the tick's first edit.
+// The main grid's conduits with this tick's edits so far, built at the tick's first edit: the tool lays and removes
+// in the main grid only, and the ray runs in its cells.
 using TickConduits = std::optional<ConduitIndex>;
 
 ConduitIndex& IndexOf(TickConduits& conduits, flecs::world world, const ConduitKinds& kinds) {
   if (!conduits) {
     conduits.emplace();
     world.each([&](flecs::entity entity, const Conduit& conduit) {
-      if (const auto network = NetworkOf(kinds, conduit.kind)) {
+      if (const auto network = NetworkOf(kinds, conduit.kind); network && conduit.grid == z13::station::kMainGrid) {
         conduits->Insert(entity.id(), *network, conduit);
       }
     });

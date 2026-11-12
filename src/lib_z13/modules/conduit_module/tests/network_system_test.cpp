@@ -27,6 +27,7 @@
 #include <primitives/palette.h>
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/station/switch.h>
 
@@ -148,17 +149,60 @@ TEST_F(NetworkSystemTest, ABreakerJoinsTheCablesOnItsSidesOnlyWhileItIsOn) {
   EXPECT_NE(Networks(world_).networks.OfPort(first_.id()), Networks(world_).networks.OfPort(far_floor.id()));
 }
 
-TEST_F(NetworkSystemTest, ABlockOfAnotherGridIsNotWiredToTheMainGridsConduits) {
-  world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(z13::station::Grid {.id = 1});
-  AddRun(world_, kCableKind, kRunX, kRunLength);
-  // In the cells next to the cable, but in the other grid's axes.
-  const flecs::entity apart = z13::station::SpawnBlock(
-      world_.World().entity().add<z13::flecs_tools::StateEntity>(),
-      {.spec = {.type_id = z13::testing::kFloorId, .size = {2, 2, 1}}, .cell = {kSecondFloorX, kRow, kRow}, .grid = 1});
+constexpr z13::station::GridId kDistrict = 1;
+constexpr int kDistrictFloorX = 110;
+constexpr int kDistrictRunX = 112;
+constexpr int kDistrictRunLength = 3;
+
+// A floor and a cable end to end in the district, standing in cells that are the main grid's own cable's neighbours.
+class DockedNetworkTest : public NetworkSystemTest {
+ protected:
+  void SetUp() override {
+    NetworkSystemTest::SetUp();
+    world_.World().entity("District").add<z13::flecs_tools::StateEntity>().set(z13::station::Grid {.id = kDistrict});
+    AddRun(world_, kCableKind, kRunX, kRunLength);
+    apart_ = z13::station::SpawnBlock(
+        world_.World().entity().add<z13::flecs_tools::StateEntity>(),
+        {.spec = {.type_id = z13::testing::kFloorId, .size = {2, 2, 1}},
+         .cell = {kDistrictFloorX, kRow, kRow},
+         .grid = kDistrict});
+    world_.World().entity().add<z13::flecs_tools::StateEntity>().set(Conduit {.kind = kCableKind,
+                                                                              .grid = kDistrict,
+                                                                              .cell = {kDistrictRunX, kRow, kRow},
+                                                                              .axis = ConduitAxis::kX,
+                                                                              .length = kDistrictRunLength});
+  }
+
+  flecs::entity AddDock() {
+    return world_.World().entity().add<z13::flecs_tools::StateEntity>().set(
+        z13::station::Dock {.a = {.grid = z13::station::kMainGrid, .cell = {kRunX + kRunLength - 1, kRow, kRow}},
+                            .b = {.grid = kDistrict, .cell = {kDistrictRunX + kDistrictRunLength - 1, kRow, kRow}}});
+  }
+
+  flecs::entity apart_;
+};
+
+TEST_F(DockedNetworkTest, ABlockOfAnotherGridIsWiredToItsOwnGridsConduitsOnly) {
   world_.Tick();
 
-  EXPECT_FALSE(Networks(world_).networks.OfPort(apart.id()).has_value());
-  EXPECT_TRUE(Networks(world_).networks.OfPort(first_.id()).has_value());
+  ASSERT_TRUE(Networks(world_).networks.OfPort(apart_.id()).has_value());
+  EXPECT_NE(Networks(world_).networks.OfPort(apart_.id()), Networks(world_).networks.OfPort(first_.id()));
+}
+
+TEST_F(DockedNetworkTest, ADockJoinsTheCablesOfItsTwoGrids) {
+  AddDock();
+  world_.Tick();
+
+  EXPECT_EQ(Networks(world_).networks.OfPort(apart_.id()), Networks(world_).networks.OfPort(first_.id()));
+}
+
+TEST_F(DockedNetworkTest, RemovingTheDockSplitsThem) {
+  const flecs::entity dock = AddDock();
+  world_.Tick();
+  dock.destruct();
+  world_.Tick();
+
+  EXPECT_NE(Networks(world_).networks.OfPort(apart_.id()), Networks(world_).networks.OfPort(first_.id()));
 }
 
 TEST_F(NetworkSystemTest, DestroyingAPortBlockDropsItFromTheNetworks) {

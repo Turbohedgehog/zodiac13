@@ -32,8 +32,11 @@ using z13::conduit::ConduitAxis;
 
 constexpr uint32_t kCable = 1;
 
-ConduitRun RunOf(ItemId id, const char* network, Eigen::Vector3i cell, ConduitAxis axis, int length) {
-  return {.id = id, .network = network, .conduit = {.kind = kCable, .cell = cell, .axis = axis, .length = length}};
+ConduitRun RunOf(ItemId id, const char* network, Eigen::Vector3i cell, ConduitAxis axis, int length,
+                 z13::station::GridId grid = z13::station::kMainGrid) {
+  return {.id = id,
+          .network = network,
+          .conduit = {.kind = kCable, .grid = grid, .cell = cell, .axis = axis, .length = length}};
 }
 
 Port PortAt(ItemId id, const char* network, Eigen::Vector3i cell, Eigen::Vector3i extent = Eigen::Vector3i::Ones()) {
@@ -134,6 +137,74 @@ TEST(NetworksTest, TheResultFollowsTheCellsNotTheOrderOrTheIds) {
 
     EXPECT_EQ(keyed(BuildNetworks(runs, ports)), reference);
   }
+}
+
+constexpr z13::station::GridId kDistrict = 3;
+
+TEST(NetworksTest, RunsInTheSameCellsOfTwoGridsAreTwoNetworks) {
+  const std::vector runs = {RunOf(1, "power", {0, 0, 0}, ConduitAxis::kX, 4),
+                            RunOf(2, "power", {0, 0, 0}, ConduitAxis::kX, 4, kDistrict)};
+
+  const Networks networks = BuildNetworks(runs, {});
+
+  EXPECT_EQ(networks.All().size(), 2u);
+  EXPECT_NE(networks.OfRun(1), networks.OfRun(2));
+}
+
+TEST(NetworksTest, APortOnlyMeetsTheRunsOfItsOwnGrid) {
+  const std::vector runs = {RunOf(1, "power", {0, 0, 0}, ConduitAxis::kX, 4)};
+  Port port = PortAt(10, "power", {2, 1, 0});
+  port.grid = kDistrict;
+
+  const Networks networks = BuildNetworks(runs, std::vector {port});
+
+  EXPECT_NE(networks.OfRun(1), networks.OfPort(10));
+}
+
+TEST(NetworksTest, ALinkJoinsWhatTouchesItsTwoCells) {
+  const std::vector runs = {RunOf(1, "power", {0, 0, 0}, ConduitAxis::kX, 4),
+                            RunOf(2, "power", {10, 0, 0}, ConduitAxis::kX, 4, kDistrict)};
+  const std::vector links = {Link {.network = "power",
+                                   .a_grid = z13::station::kMainGrid,
+                                   .a_cell = {3, 0, 0},
+                                   .b_grid = kDistrict,
+                                   .b_cell = {10, 0, 0}}};
+
+  const Networks networks = BuildNetworks(runs, {}, links);
+
+  ASSERT_EQ(networks.All().size(), 1u);
+  EXPECT_EQ(networks.OfRun(1), networks.OfRun(2));
+}
+
+TEST(NetworksTest, ALinkWithNothingOnOneSideJoinsNothing) {
+  const std::vector runs = {RunOf(1, "power", {0, 0, 0}, ConduitAxis::kX, 4),
+                            RunOf(2, "power", {10, 0, 0}, ConduitAxis::kX, 4, kDistrict)};
+  const std::vector links = {Link {.network = "power",
+                                   .a_grid = z13::station::kMainGrid,
+                                   .a_cell = {3, 0, 0},
+                                   .b_grid = kDistrict,
+                                   .b_cell = {20, 0, 0}}};
+
+  const Networks networks = BuildNetworks(runs, {}, links);
+
+  EXPECT_NE(networks.OfRun(1), networks.OfRun(2));
+}
+
+TEST(NetworksTest, ALinkJoinsOnlyItsOwnNetwork) {
+  const std::vector runs = {RunOf(1, "power", {0, 0, 0}, ConduitAxis::kX, 4),
+                            RunOf(2, "power", {10, 0, 0}, ConduitAxis::kX, 4, kDistrict),
+                            RunOf(3, "data", {0, 0, 0}, ConduitAxis::kX, 4),
+                            RunOf(4, "data", {10, 0, 0}, ConduitAxis::kX, 4, kDistrict)};
+  const std::vector links = {Link {.network = "power",
+                                   .a_grid = z13::station::kMainGrid,
+                                   .a_cell = {3, 0, 0},
+                                   .b_grid = kDistrict,
+                                   .b_cell = {10, 0, 0}}};
+
+  const Networks networks = BuildNetworks(runs, {}, links);
+
+  EXPECT_EQ(networks.OfRun(1), networks.OfRun(2));
+  EXPECT_NE(networks.OfRun(3), networks.OfRun(4));
 }
 
 }  // namespace

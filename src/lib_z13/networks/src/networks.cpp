@@ -39,6 +39,7 @@ std::array<int, 3> AsArray(const Eigen::Vector3i& v) {
 // The order that makes the result independent of the inputs': content first, ids only to break a tie.
 struct ItemOrder {
   std::string_view network;
+  z13::station::GridId grid = z13::station::kMainGrid;
   std::array<int, 3> min {};
   std::array<int, 3> extent {};
   bool is_port {};
@@ -62,7 +63,11 @@ CellBox BoxOf(const z13::conduit::Conduit& conduit) {
 
 Item RunItem(const ConduitRun& run) {
   const CellBox box = BoxOf(run.conduit);
-  Item item {.order = {.network = run.network, .min = AsArray(box.min), .extent = AsArray(box.extent), .id = run.id},
+  Item item {.order = {.network = run.network,
+                       .grid = run.conduit.grid,
+                       .min = AsArray(box.min),
+                       .extent = AsArray(box.extent),
+                       .id = run.id},
              .box = box};
   for (int i = 0; i < run.conduit.length; ++i) {
     item.cells.push_back(run.conduit.cell + Eigen::Vector3i::Unit(std::to_underlying(run.conduit.axis)) * i);
@@ -72,6 +77,7 @@ Item RunItem(const ConduitRun& run) {
 
 Item PortItem(const Port& port) {
   return {.order = {.network = port.network,
+                    .grid = port.grid,
                     .min = AsArray(port.cells.min),
                     .extent = AsArray(port.cells.extent),
                     .is_port = true,
@@ -135,6 +141,34 @@ void JoinPorts(std::span<const Item> network, size_t first, Groups& groups) {
   }
 }
 
+// The items of a network and grid that touch the cell, as indices.
+std::vector<size_t> Touching(std::span<const Item> items, std::string_view network, z13::station::GridId grid,
+                             const Eigen::Vector3i& cell) {
+  const CellBox box {.min = cell, .extent = Eigen::Vector3i::Ones()};
+  std::vector<size_t> touching;
+  for (size_t i = 0; i < items.size(); ++i) {
+    if (items[i].order.network == network && items[i].order.grid == grid && Touch(items[i].box, box)) {
+      touching.push_back(i);
+    }
+  }
+  return touching;
+}
+
+void JoinLinks(std::span<const Item> items, std::span<const Link> links, Groups& groups) {
+  for (const Link& link : links) {
+    std::vector<size_t> ends = Touching(items, link.network, link.a_grid, link.a_cell);
+    const std::vector<size_t> other = Touching(items, link.network, link.b_grid, link.b_cell);
+    // Both sides must hold something: a cable stopping at one side's door leaves the other unconnected.
+    if (ends.empty() || other.empty()) {
+      continue;
+    }
+    ends.insert(ends.end(), other.begin(), other.end());
+    for (const size_t item : ends) {
+      groups.Join(ends.front(), item);
+    }
+  }
+}
+
 }  // namespace
 
 std::optional<size_t> Networks::OfRun(ItemId id) const {
@@ -147,7 +181,7 @@ std::optional<size_t> Networks::OfPort(ItemId id) const {
   return found != of_port_.end() ? std::optional(found->second) : std::nullopt;
 }
 
-Networks BuildNetworks(std::span<const ConduitRun> runs, std::span<const Port> ports) {
+Networks BuildNetworks(std::span<const ConduitRun> runs, std::span<const Port> ports, std::span<const Link> links) {
   std::vector<Item> items;
   items.reserve(runs.size() + ports.size());
   std::ranges::transform(runs, std::back_inserter(items), RunItem);
@@ -158,12 +192,16 @@ Networks BuildNetworks(std::span<const ConduitRun> runs, std::span<const Port> p
   for (size_t first = 0; first < items.size();) {
     const auto rest = std::span<const Item>(items).subspan(first);
     const auto key = rest.front().order.network;
+    const auto grid = rest.front().order.grid;
     const auto network = rest.first(static_cast<size_t>(
-        std::ranges::find_if(rest, [key](const Item& item) { return item.order.network != key; }) - rest.begin()));
+        std::ranges::find_if(rest, [key, grid](const Item& item) {
+          return item.order.network != key || item.order.grid != grid;
+        }) - rest.begin()));
     JoinRuns(network, first, groups);
     JoinPorts(network, first, groups);
     first += network.size();
   }
+  JoinLinks(items, links, groups);
 
   Networks result;
   std::unordered_map<size_t, size_t> network_of_group;

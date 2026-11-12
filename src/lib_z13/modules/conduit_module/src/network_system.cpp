@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include <flecs.h>
@@ -34,6 +35,7 @@
 #include <primitives/placement.h>
 #include <z13/components/station/block_change_reader.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/dock.h>
 #include <z13/components/station/station_mode.h>
 #include <z13/components/station/switch.h>
 #include <z13/components/utility/utilities.h>
@@ -49,16 +51,13 @@ using z13::utility::networks::StationNetworks;
 // What the last build used, to tell when the next tick needs another.
 struct BuildInputs {
   std::vector<Conduit> conduits;
+  std::vector<z13::station::Dock> docks;
   // The switches that were on.
   std::vector<flecs::entity_t> closed;
   bool built {};
 };
 
-// Only the main grid's blocks have ports for now: those of another grid are not wired to the conduits of the station.
 bool HasPort(const z13::building::primitives::BlockPalette& palette, const Block& block) {
-  if (block.grid != z13::station::kMainGrid) {
-    return false;
-  }
   const auto primitive = palette.palette.Find(block.spec.type_id);
   return primitive && !primitive->get().ports.empty();
 }
@@ -83,8 +82,42 @@ std::vector<flecs::entity_t> ClosedSwitches(const flecs::query<const z13::statio
   return closed;
 }
 
+// A dock joins the networks of its two grids, as a cable through its door would: one link for each network.
+std::vector<z13::utility::networks::Link> LinksOf(const std::vector<z13::station::Dock>& docks,
+                                                  const ConduitKinds& kinds) {
+  std::vector<std::string> networks;
+  for (const ConduitKind& kind : kinds.kinds) {
+    if (!std::ranges::contains(networks, kind.network)) {
+      networks.push_back(kind.network);
+    }
+  }
+  std::vector<z13::utility::networks::Link> links;
+  for (const z13::station::Dock& dock : docks) {
+    for (const std::string& network : networks) {
+      links.push_back({.network = network,
+                       .a_grid = dock.a.grid,
+                       .a_cell = dock.a.cell,
+                       .b_grid = dock.b.grid,
+                       .b_cell = dock.b.cell});
+    }
+  }
+  return links;
+}
+
+std::vector<z13::station::Dock> SortedDocks(const flecs::query<const z13::station::Dock>& query) {
+  std::vector<z13::station::Dock> docks;
+  query.each([&docks](const z13::station::Dock& dock) { docks.push_back(dock); });
+  const auto key = [](const z13::station::Dock& dock) {
+    return std::make_tuple(dock.a.grid, dock.a.cell.x(), dock.a.cell.y(), dock.a.cell.z(), dock.b.grid,
+                           dock.b.cell.x(), dock.b.cell.y(), dock.b.cell.z());
+  };
+  std::ranges::sort(docks, [&key](const auto& a, const auto& b) { return key(a) < key(b); });
+  return docks;
+}
+
 z13::utility::networks::Networks Build(const flecs::query<const Conduit>& conduits,
-                                       const flecs::query<const Block>& blocks, const ConduitKinds& kinds,
+                                       const flecs::query<const Block>& blocks,
+                                       const std::vector<z13::station::Dock>& docks, const ConduitKinds& kinds,
                                        const z13::building::primitives::BlockPalette& palette) {
   std::vector<z13::utility::networks::ConduitRun> runs;
   conduits.each([&](flecs::entity entity, const Conduit& conduit) {
@@ -95,16 +128,17 @@ z13::utility::networks::Networks Build(const flecs::query<const Conduit>& condui
   std::vector<z13::utility::networks::Port> ports;
   blocks.each([&](flecs::entity entity, const Block& block) {
     const auto primitive = palette.palette.Find(block.spec.type_id);
-    if (block.grid != z13::station::kMainGrid || !primitive || !Conducts(entity, *primitive)) {
+    if (!primitive || !Conducts(entity, *primitive)) {
       return;
     }
     for (const auto& port : primitive->get().ports) {
       ports.push_back({.id = entity.id(),
                        .network = port.network,
+                       .grid = block.grid,
                        .cells = z13::building::primitives::OccupiedCells(block)});
     }
   });
-  return z13::utility::networks::BuildNetworks(runs, ports);
+  return z13::utility::networks::BuildNetworks(runs, ports, LinksOf(docks, kinds));
 }
 
 void RegisterComponents(flecs::world world) {
@@ -119,6 +153,7 @@ void RegisterSystems(flecs::world world) {
   const auto inputs = std::make_shared<BuildInputs>();
   const auto conduits = world.query<const Conduit>();
   const auto switches = world.query<const z13::station::SwitchState>();
+  const auto docks = world.query<const z13::station::Dock>();
   world.system<StationNetworks, const ConduitKinds, const z13::building::primitives::BlockPalette,
                const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
            "NetworkSystem::Update")
@@ -127,8 +162,9 @@ void RegisterSystems(flecs::world world) {
       .read<Block>()
       .read<Conduit>()
       .read<z13::station::SwitchState>()
+      .read<z13::station::Dock>()
       .read<z13::station::BlockChange>()
-      .each([reader, inputs, conduits, switches](flecs::iter&, size_t, StationNetworks& stations,
+      .each([reader, inputs, conduits, switches, docks](flecs::iter&, size_t, StationNetworks& stations,
                                                  const ConduitKinds& kinds,
                                        const z13::building::primitives::BlockPalette& palette,
                                        const z13::flecs_tools::WorldRestores& restores,
@@ -139,12 +175,17 @@ void RegisterSystems(flecs::world world) {
               return HasPort(palette, change.block);
             });
         std::vector<Conduit> sorted = SortedConduits(conduits);
+        std::vector<z13::station::Dock> sorted_docks = SortedDocks(docks);
         std::vector<flecs::entity_t> closed = ClosedSwitches(switches);
-        if (inputs->built && !port_changed && sorted == inputs->conduits && closed == inputs->closed) {
+        if (inputs->built && !port_changed && sorted == inputs->conduits && sorted_docks == inputs->docks &&
+            closed == inputs->closed) {
           return;
         }
-        *inputs = {.conduits = std::move(sorted), .closed = std::move(closed), .built = true};
-        stations.networks = Build(conduits, reader->Blocks(), kinds, palette);
+        *inputs = {.conduits = std::move(sorted),
+                   .docks = std::move(sorted_docks),
+                   .closed = std::move(closed),
+                   .built = true};
+        stations.networks = Build(conduits, reader->Blocks(), inputs->docks, kinds, palette);
         ++stations.generation;
       });
 }

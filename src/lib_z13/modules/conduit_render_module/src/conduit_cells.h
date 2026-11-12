@@ -26,6 +26,7 @@
 
 #include <primitives/cell_box.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/grid_pose.h>
 
 namespace z13::conduit_render {
 
@@ -36,15 +37,21 @@ class ConduitCells {
 
   // Takes `conduits` in a fixed order; false if they are those it holds already.
   bool Rebuild(std::vector<z13::conduit::Conduit> conduits, const z13::conduit::ConduitKinds& kinds);
-  // A run of `network` fills `cell` along another axis than `axis`.
-  bool Turns(std::string_view network, const Eigen::Vector3i& cell, z13::conduit::ConduitAxis axis) const;
+  // A run of `network` in `grid` fills `cell` along another axis than `axis`.
+  bool Turns(std::string_view network, z13::station::GridId grid, const Eigen::Vector3i& cell,
+             z13::conduit::ConduitAxis axis) const;
+  void SetPoses(z13::station::GridPoses poses) { poses_ = std::move(poses); }
+  // Where the grid stands in the world.
+  Eigen::Matrix4f PoseOf(z13::station::GridId grid) const;
 
  private:
   struct Occupant {
     std::string network;
+    z13::station::GridId grid = z13::station::kMainGrid;
     z13::conduit::ConduitAxis axis {};
   };
 
+  z13::station::GridPoses poses_;
   std::vector<z13::conduit::Conduit> built_;
   std::unordered_map<Eigen::Vector3i, std::vector<Occupant>, z13::building::primitives::CellHash> by_cell_;
 };
