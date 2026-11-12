@@ -753,6 +753,16 @@ OLD_TUNNEL_LAMP_CELLS = (12, 30, 49, 67)  # along the tunnel's middle line
 OLD_HALL_LAMP_CELLS_ALONG = (24, 61, 97)  # from the hall's near face, on the ceiling
 OLD_HALL_LAMP_CELLS_ACROSS = (-24, 24)  # from the hall's middle line
 OLD_HALL_FLOOR_LAMP_CELLS = (18, 55, 91)  # on the floor along the middle line, so it isn't left to the roof
+# The reactor shaft: the tunnel's three decks stay open around the core, with a gallery on the second deck along each
+# wall reached by a flight, joined by a bridge across the tunnel's far end; the core stands on a pedestal on the first.
+REACTOR = "Reactor"
+REACTOR_CELLS = 4  # the Reactor primitive's size (assets/station/palette/power.json)
+OLD_FLIGHT_START_CELLS = 4  # along the tunnel from the near wall's inner face to the flight's foot
+OLD_FLIGHT_WIDTH_CELLS = 6
+OLD_GALLERY_WIDTH_CELLS = 8  # the gallery's slab: 6 to walk on and the railing's 2 over its edge
+OLD_BRIDGE_DEPTH_CELLS = 8
+OLD_PEDESTAL_CELLS = (12, 8)  # two slabs thick
+OLD_FLOOR_LAMP_ACROSS_CELLS = (4, 20)  # beside the pedestal
 
 
 def old_wing_nodes():
@@ -778,6 +788,46 @@ def old_wing_blocks():
     return wedge_floor_blocks([(OLD_END_X, north[1]), north, south, (OLD_END_X, south[1])], OLD_DECKS)
 
 
+def old_reactor_flight(x, width):
+    """A flight along the tunnel's south wall climbing towards +x from deck 1 to deck 2: the atrium's flight
+    (`flight`) at the gallery's width, the lip wedge and the plate."""
+    z0 = deck_floor_z(1)
+    top = z0 + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
+    return [block(SLOPE, (x, 0, z0), (FLIGHT_LIP_RUN_CELLS, width, FLIGHT_LIP_RISE_CELLS)),
+            wall_panel_block((x + FLIGHT_LIP_RUN_CELLS, 0, z0), (x + FLIGHT_LENGTH_CELLS, 0, top),
+                             FLIGHT_PLATE_THICKNESS_CELLS, width, 1)]
+
+
+def old_reactor_shaft(tunnel_x, width):
+    """The shaft's blocks and railings in the wing grid's cells: the flight, the second deck's galleries and bridge,
+    the pedestal, the core and the lamps beside it. The tunnel's walls and ceiling are the wing's own."""
+    flight_x = HALL_WALL_CELLS + OLD_FLIGHT_START_CELLS
+    gallery_x = flight_x + FLIGHT_LENGTH_CELLS
+    bridge_x = tunnel_x - OLD_BRIDGE_DEPTH_CELLS
+    rail_x = bridge_x + RAIL_THICKNESS_CELLS
+    south, north = OLD_GALLERY_WIDTH_CELLS, width - OLD_GALLERY_WIDTH_CELLS
+    slab_z = DECK_PITCH_CELLS
+    blocks = old_reactor_flight(flight_x, OLD_FLIGHT_WIDTH_CELLS)
+    blocks += [block(FLOOR, (gallery_x, 0, slab_z), (bridge_x - gallery_x, south, SLAB_CELLS)),
+               block(FLOOR, (gallery_x, north, slab_z), (bridge_x - gallery_x, width - north, SLAB_CELLS)),
+               block(FLOOR, (bridge_x, 0, slab_z), (tunnel_x - bridge_x, width, SLAB_CELLS))]
+    middle_x, middle_y = (gallery_x + bridge_x) // 2, width // 2
+    pedestal_x, pedestal_y = middle_x - OLD_PEDESTAL_CELLS[0] // 2, middle_y - OLD_PEDESTAL_CELLS[1] // 2
+    z0 = deck_floor_z(1)
+    blocks += [block(FLOOR, (pedestal_x, pedestal_y, z0 + layer), (*OLD_PEDESTAL_CELLS, SLAB_CELLS))
+               for layer in range(2)]
+    core = REACTOR_CELLS // 2
+    blocks.append(block(REACTOR, (middle_x - core, middle_y - core, z0 + 2), (REACTOR_CELLS,) * 3))
+    blocks += [block(LAMP, (middle_x - 1, y - 1, z0), (LAMP_CELLS, LAMP_CELLS, 1)) for y in OLD_FLOOR_LAMP_ACROSS_CELLS]
+    # The railings stand on the slabs' inner edges, their bodies towards the shaft; they share the corners' nodes.
+    rail_z = deck_floor_z(2)
+    south_rail, north_rail = south - RAIL_THICKNESS_CELLS, north + RAIL_THICKNESS_CELLS
+    corners = [(gallery_x, south_rail, rail_z), (rail_x, south_rail, rail_z), (rail_x, north_rail, rail_z),
+               (gallery_x, north_rail, rail_z)]
+    walls = [wall_segment(a, b, RAIL_THICKNESS_CELLS, COUNTER_HEIGHT_CELLS) for a, b in zip(corners, corners[1:])]
+    return blocks, walls
+
+
 def old_wing_grid():
     """The tunnel and the hall in their own axes, as the arrivals': the near wall with its door, the tunnel's walls
     to the hall's near wall pieces, which end on their nodes, the hall's walls, floor, ceiling and lamps."""
@@ -800,6 +850,9 @@ def old_wing_grid():
     blocks = [block(FLOOR, (x, y, layer * DECK_PITCH_CELLS), (length, across, SLAB_CELLS))
               for layer in (0, OLD_DECKS)
               for x, y, length, across in ((0, 0, tunnel_x, width), (tunnel_x, hall0, hall_x - tunnel_x, hall1 - hall0))]
+    shaft_blocks, shaft_walls = old_reactor_shaft(tunnel_x, width)
+    blocks += shaft_blocks
+    walls += shaft_walls
     ceiling = z + height - 1
     tunnel_middle, hall_middle = width // 2, (hall0 + hall1) // 2
     spots = [((along, tunnel_middle), ceiling) for along in OLD_TUNNEL_LAMP_CELLS]
