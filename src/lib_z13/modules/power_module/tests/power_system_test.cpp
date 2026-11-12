@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -107,7 +108,7 @@ TEST_F(PowerSystemTest, TheOverlayFillsItsLayerOnlyWhileItIsShown) {
   const z13::station::OverlayLayer& layer = *layers.Find("power");
   // The cable, the reactor and the terminal.
   EXPECT_EQ(layer.boxes.size(), 3u);
-  EXPECT_NE(layer.label.find("5000 W produced"), std::string::npos) << layer.label;
+  EXPECT_NE(layer.label.find("12000 W produced"), std::string::npos) << layer.label;
 
   layers.shown.reset();
   Run();
@@ -265,6 +266,33 @@ TEST_F(LampSystemTest, LosingTheReactorDimsEveryLampAndTheStationStaysDark) {
   EXPECT_TRUE(Dimmed(wired_));
   EXPECT_TRUE(Dimmed(unwired_));
   EXPECT_TRUE(world_.World().get<z13::utility::LampsFollowPower>().on) << "the light does not come back";
+}
+
+// The shipped hub: one reactor in the old wing's tunnel feeds every lamp and door through the cables of the blueprint
+// and the links of its docks.
+constexpr std::string_view kHubScene = "hub";
+constexpr int kHubTicks = 30;  // a few power steps (PowerTuning::step_ticks)
+constexpr size_t kHubConsumersAtLeast = 300;  // its lamps and doors, to catch a blueprint that lost its consumers
+
+TEST(HubWiringTest, TheReactorSuppliesEveryLampAndDoorOfTheHub) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  for (int tick = 0; tick < kHubTicks; ++tick) {
+    world.Tick();
+  }
+
+  size_t consumers = 0;
+  std::vector<std::string> unsupplied;
+  world.World().query_builder<const z13::utility::UtilityDemand>().build().each(
+      [&](flecs::entity entity, const z13::utility::UtilityDemand&) {
+        ++consumers;
+        if (!z13::utility::IsSupplied(entity)) {
+          unsupplied.push_back(std::string(entity.name().c_str()));
+        }
+      });
+
+  EXPECT_GE(consumers, kHubConsumersAtLeast);
+  EXPECT_TRUE(unsupplied.empty()) << unsupplied.size() << " unsupplied, the first " << unsupplied.front();
+  EXPECT_TRUE(world.World().get<z13::utility::DimmedLamps>().list.empty());
 }
 
 }  // namespace
