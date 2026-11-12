@@ -130,11 +130,22 @@ table BlueprintDock {
   b_cell: Cell;
 }
 
+// A run of conduit (z13::conduit::Conduit) by the name of its kind (assets/station/conduits.json), in the cells of
+// `grid`; `axis` as a wall's.
+table BlueprintConduit {
+  grid: uint;
+  kind: string;
+  cell: Cell;
+  axis: WallAxis = Z;
+  length: int;
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
   grids: [BlueprintGrid];
   docks: [BlueprintDock];
+  conduits: [BlueprintConduit];
   doors_open: bool;
 }
 
