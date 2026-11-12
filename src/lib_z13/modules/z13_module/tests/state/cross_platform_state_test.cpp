@@ -26,15 +26,19 @@
 #include <string>
 #include <string_view>
 
+#include <Eigen/Dense>
+
 #include <lib_core/settings/config.h>
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/math.h>
 #include <z13/components/input/input_events.h>
 
 #include <z13_tests/shipped_station.h>
 
 #include "../support/building_test_helpers.h"
+#include "../support/item_bodies.h"
 #include "../support/z13_test_world.h"
 
 // Dumps a scripted session's state at checkpoints. CI compares the dumps of every
@@ -52,6 +56,10 @@ constexpr int kWalkTicks = 45;
 constexpr int kBlocks = 3;
 constexpr int kTurnTicks = 10;
 constexpr int kPushTicks = 40;
+constexpr int kItems = 300;
+constexpr int kAwakeItems = 150;
+constexpr float kItemSpacingM = 0.5f;
+constexpr int kItemsPerRow = 20;
 
 std::optional<std::filesystem::path> DumpPath() {
   const std::string variable(kDumpPathVariable);
@@ -62,18 +70,23 @@ std::optional<std::filesystem::path> DumpPath() {
 // The ship scene builds cubes; the station builds wall panels on the grid.
 constexpr std::string_view kShipMode = "ship";
 constexpr std::string_view kStationMode = "station";
+// The ship scene with hundreds of items, half of them moving and spinning: the float math of the dump.
+constexpr std::string_view kItemsMode = "items";
 
 class Scenario {
  public:
   explicit Scenario(std::string_view mode)
       : mode_(mode),
-        world_(mode == kShipMode ? std::vector<std::string> {std::string(z13::testing::kSkipMainMenuArg)}
-                                 : std::vector<std::string> {std::string(z13::testing::kStationSceneArg),
-                                                             std::string(z13::testing::kSiteScene)}) {}
+        world_(mode == kStationMode ? std::vector<std::string> {std::string(z13::testing::kStationSceneArg),
+                                                                std::string(z13::testing::kSiteScene)}
+                                    : std::vector<std::string> {std::string(z13::testing::kSkipMainMenuArg)}) {}
 
   // One line per component, so a diff points at the first diverging value.
   std::string Run() {
     Step();
+    if (mode_ == kItemsMode) {
+      SpawnItems();
+    }
     WalkAndLook();
     BuildAndTurn();
     z13::testing::Click(world_, Keycode::MOUSE_BUTTON_RIGHT, Advance());
@@ -83,6 +96,41 @@ class Scenario {
   }
 
  private:
+  // Fractional velocities, so the integration rounds the same way on every platform or the dump shows where not.
+  void SpawnItems() {
+    flecs::world world = world_.World();
+    const float delta = 1.f / static_cast<float>(world_.Config().GetFPS());
+    z13::testing::bench::RegisterItemBodies(world, delta);
+    world.system<z13::testing::bench::ItemBody>("BenchItems::Spin")
+        .with<z13::testing::bench::ItemAwake>()
+        .each([delta](z13::testing::bench::ItemBody& body) {
+          const float speed = body.angular_velocity.norm();
+          if (speed < z13::math::kEpsilon) {
+            return;
+          }
+          const Eigen::Quaternionf turn(Eigen::AngleAxisf(speed * delta, body.angular_velocity / speed));
+          const Eigen::Quaternionf pose =
+              (turn * Eigen::Quaternionf(body.orientation_w, body.orientation_vector.x(), body.orientation_vector.y(),
+                                         body.orientation_vector.z()))
+                  .normalized();
+          body.orientation_vector = pose.vec();
+          body.orientation_w = pose.w();
+        });
+    for (int i = 0; i < kItems; ++i) {
+      const auto index = static_cast<float>(i);
+      z13::testing::bench::ItemBody body {
+          .position = {static_cast<float>(i % kItemsPerRow) * kItemSpacingM,
+                       static_cast<float>(i / kItemsPerRow) * kItemSpacingM, 0.f}};
+      flecs::entity item = world.entity(std::format("Item_{}", i).c_str()).add<ft::StateEntity>();
+      if (i < kAwakeItems) {
+        body.linear_velocity = {0.37f * static_cast<float>(i % 7 - 3), 0.11f * static_cast<float>(i % 5 - 2), 0.53f};
+        body.angular_velocity = {0.9f + index * 0.013f, -0.4f, 0.21f * static_cast<float>(i % 3)};
+        item.add<z13::testing::bench::ItemAwake>();
+      }
+      item.set(body);
+    }
+  }
+
   void WalkAndLook() {
     world_.EmitInput(z13::testing::KeyDown(Keycode::KEY_W));
     for (int i = 0; i < kWalkTicks; ++i) {
@@ -154,7 +202,7 @@ class Scenario {
 
 TEST(CrossPlatformStateTest, ScriptedSessionIsDeterministic) {
   std::string dump;
-  for (const std::string_view mode : {kShipMode, kStationMode}) {
+  for (const std::string_view mode : {kShipMode, kStationMode, kItemsMode}) {
     const std::string run = Scenario(mode).Run();
     EXPECT_EQ(Scenario(mode).Run(), run) << mode;
     dump += run;
