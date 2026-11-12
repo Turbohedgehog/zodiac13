@@ -17,28 +17,12 @@
 
 #include "mcp_filter.h"
 
-#include <algorithm>
-#include <ranges>
-#include <string>
+#include <lib_core/utils/text_lines.h>
 
 namespace z13::mcp {
 
-namespace {
-
-constexpr char kTagSeparator = ',';
-
-}  // namespace
-
 CommandFilter FilterOf(const z13::McpServerSettings& settings) {
-  CommandFilter filter;
-  for (const auto part : std::views::split(settings.tags, kTagSeparator)) {
-    std::string tag(part.begin(), part.end());
-    std::erase_if(tag, [](char c) { return c == ' '; });
-    if (!tag.empty()) {
-      filter.tags.push_back(std::move(tag));
-    }
-  }
-  return filter;
+  return {.tags = SplitList(settings.tags)};
 }
 
 }  // namespace z13::mcp

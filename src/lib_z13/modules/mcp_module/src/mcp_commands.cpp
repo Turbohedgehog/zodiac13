@@ -30,7 +30,7 @@ namespace z13::mcp {
 namespace {
 
 struct PingCommand {
-  using Command = z13::Command<std::string, "Answers pong: checks the connection.", Tags<"debug">>;
+  using Command = z13::Command<std::string, "Answers pong: checks the connection.", Tags<kDebugTag>>;
 
   int unused {};  // a command takes its arguments from fields; this one takes none
 };
@@ -50,26 +50,10 @@ struct CommandInfo {
 struct CommandsCommand {
   using Command =
       z13::Command<std::vector<CommandInfo>, "Lists the commands this channel shows: name, description, tags, fields.",
-                   Tags<"debug">>;
+                   Tags<kDebugTag>>;
 
   int unused {};
 };
-
-std::string KindName(FieldKind kind) {
-  switch (kind) {
-    case FieldKind::kBool:
-      return "bool";
-    case FieldKind::kInteger:
-      return "integer";
-    case FieldKind::kNumber:
-      return "number";
-    case FieldKind::kText:
-      return "text";
-    case FieldKind::kOther:
-      break;
-  }
-  return "other";
-}
 
 std::vector<CommandInfo> Listed(flecs::world world) {
   const CommandFilter filter = FilterOf(world.get<z13::McpServerSettings>());
@@ -80,7 +64,7 @@ std::vector<CommandInfo> Listed(flecs::world world) {
     }
     CommandInfo info {.name = name, .description = entry.description, .tags = entry.tags};
     for (const CommandField& field : entry.fields) {
-      info.fields.push_back({.name = field.name, .kind = KindName(field.kind)});
+      info.fields.push_back({.name = field.name, .kind = std::string(FieldKindName(field.kind))});
     }
     listed.push_back(std::move(info));
   }

@@ -43,6 +43,9 @@ struct Tags {
   static constexpr std::array<std::string_view, sizeof...(kNames)> kValues {kNames.View()...};
 };
 
+// The tag settings.fbs lists as the debug channel's default (a test keeps the two equal).
+inline constexpr FixedText kDebugTag("debug");
+
 template <FixedText kText>
 struct CommandName {
   static constexpr std::string_view kValue = kText.View();

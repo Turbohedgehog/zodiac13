@@ -43,17 +43,14 @@ Window::StackRequest MainMenuWindow::OnBack() {
   return {};
 }
 
-void MainMenuWindow::SaveMcpEnabled(bool enabled) {
+Status MainMenuWindow::SaveMcpEnabled(bool enabled) {
   const auto path = z13::tools::environment::GetGameSettingsJsonPath();
   auto settings = z13::ReadSettings(path);
   if (!settings) {
-    log_error("Main menu: MCP server switch not saved: {}", settings.error());
-    return;
+    return std::unexpected(settings.error());
   }
   settings->mcp_server->enabled = enabled;
-  if (const auto written = z13::WriteSettings(path, *settings); !written) {
-    log_error("Main menu: MCP server switch not saved: {}", written.error());
-  }
+  return z13::WriteSettings(path, *settings);
 }
 
 void MainMenuWindow::DrawBody() {
@@ -88,7 +85,9 @@ void MainMenuWindow::DrawBody() {
   }
   if (auto* mcp = World().try_get_mut<z13::McpServerSettings>()) {
     if (ImGui::Checkbox("MCP server", &mcp->enabled)) {
-      SaveMcpEnabled(mcp->enabled);
+      if (const Status saved = SaveMcpEnabled(mcp->enabled); !saved) {
+        log_error("Main menu: MCP server switch not saved: {}", saved.error());
+      }
     }
   }
   if (ImGui::Button("Exit", ButtonSize())) {

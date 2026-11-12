@@ -96,5 +96,10 @@ TEST(SelectionAfterTapTest, ATapOnOtherLineGrowsASingleLineSelection) {
   EXPECT_EQ(grown->last, 7U);
 }
 
+TEST(SplitListTest, DropsBlanksAndEmptyItems) {
+  EXPECT_EQ(SplitList("debug, cheat ,,admin"), (std::vector<std::string> {"debug", "cheat", "admin"}));
+  EXPECT_TRUE(SplitList(" , ").empty());
+}
+
 }  // namespace
 }  // namespace z13

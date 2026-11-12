@@ -54,6 +54,10 @@ TEST(McpProtocolTest, AReplyCarriesTheResultOrTheError) {
   EXPECT_EQ(FormatReply(4, std::unexpected("no way")), R"({"id":4,"ok":false,"error":"no way"})");
 }
 
+TEST(McpFilterTest, TheDefaultTagsAreTheDebugTag) {
+  EXPECT_EQ(FilterOf(z13::McpServerSettings()).tags, (std::vector<std::string> {std::string(kDebugTag.View())}));
+}
+
 TEST(McpFilterTest, SplitsTheTagsOfTheSetting) {
   z13::McpServerSettings settings;
   settings.tags = "debug, cheat ,,admin";
@@ -140,6 +144,7 @@ TEST_F(McpServerWorldTest, ListsTheCommandsOfTheChannel) {
   const std::string reply = Ask(client, R"({"id":2,"command":"commands"})");
   EXPECT_NE(reply.find(R"("name":"ping")"), std::string::npos) << reply;
   EXPECT_NE(reply.find(R"("name":"commands")"), std::string::npos) << reply;
+  EXPECT_NE(reply.find(R"("kind":"integer")"), std::string::npos) << reply;
 }
 
 TEST_F(McpServerWorldTest, ServerStatusCountsThePumpsOfTheGameThread) {
