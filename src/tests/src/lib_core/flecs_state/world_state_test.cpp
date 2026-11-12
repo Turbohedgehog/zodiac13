@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <optional>
 #include <string>
@@ -418,6 +419,39 @@ TEST(PlayerBoundTest, EveryEntityOfAPlayerBoundComponentIsVisitedOnceWithItsPlay
   std::ranges::sort(visited);
 
   EXPECT_EQ(visited, (std::vector<std::pair<std::string, uint32_t>> {{"first", 3}, {"second", 5}}));
+}
+
+// flecs gives the first components low ids and refuses to read a tag whose id is high, so a tag registered late
+// (after the game's own components) must still be captured.
+struct LateTag {
+  using State = void;
+};
+
+TEST(WorldStateTagTest, ATagRegisteredAfterManyComponentsIsCapturedAndRestored) {
+  constexpr int kFillerComponents = 400;
+  constexpr int kItems = 10;
+  const auto make_world = [](flecs::world& world) {
+    ft::RegisterStateMeta(world);
+    for (int i = 0; i < kFillerComponents; ++i) {
+      ecs_component_desc_t desc {};
+      desc.type.size = sizeof(int);
+      desc.type.alignment = alignof(int);
+      ecs_component_init(world, &desc);
+    }
+    ft::RegisterComponents<Position, LateTag>(world);
+  };
+  flecs::world source;
+  flecs::world target;
+  make_world(source);
+  make_world(target);
+  for (int i = 0; i < kItems; ++i) {
+    SpawnState(source, std::format("item_{}", i)).set(Position{static_cast<float>(i), 0.f, 0.f}).add<LateTag>();
+  }
+
+  const ft::WorldSnapshot snapshot = ft::CaptureState(source).value();
+  ASSERT_TRUE(ft::RestoreWorld(target, snapshot).has_value());
+
+  EXPECT_TRUE(target.lookup("item_7").has<LateTag>());
 }
 
 }  // namespace

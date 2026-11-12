@@ -101,9 +101,14 @@ Status CaptureComponentsAndTags(
       return;
     }
 
+    // Not try_get: flecs aborts on a tag whose id is past its low component ids.
+    const ecs_type_info_t* type_info = ecs_get_type_info(world, id.raw_id());
+    if (type_info == nullptr || type_info->size == 0) {
+      s.tags.push_back(info.path);
+      return;
+    }
     const void* value = e.try_get(id.raw_id());
     if (value == nullptr) {
-      s.tags.push_back(info.path);  // zero-size component -> tag
       return;
     }
 

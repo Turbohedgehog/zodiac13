@@ -29,7 +29,6 @@
 #include <expected>
 #include <format>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -89,7 +88,6 @@ struct ItemBody {
 
 struct ItemAwake {
   using State = void;
-  uint32_t ticks {};
 };
 
 }  // namespace z13::testing::bench
@@ -222,9 +220,8 @@ void SpawnItems(Z13TestWorld& world, const ItemLoad& load) {
   }
   flecs::world w = world.World();
   ft::RegisterComponents<bench::ItemBody, bench::ItemAwake>(w);
-  w.system<bench::ItemBody, bench::ItemAwake>("BenchItems::Move").each([](bench::ItemBody& body, bench::ItemAwake& awake) {
+  w.system<bench::ItemBody>("BenchItems::Move").with<bench::ItemAwake>().each([](bench::ItemBody& body) {
     body.position += body.linear_velocity * kNetTestDeltaTime;
-    ++awake.ticks;
   });
   for (int i = 0; i < load.total; ++i) {
     bench::ItemBody body {.position = {static_cast<float>(i % kItemsPerRow) * kItemSpacing,
@@ -232,7 +229,7 @@ void SpawnItems(Z13TestWorld& world, const ItemLoad& load) {
     flecs::entity item = w.entity(std::format("Item_{}", i).c_str()).add<ft::StateEntity>();
     if (i < load.awake) {
       body.linear_velocity = Eigen::Vector3f::UnitX() * kItemSpeed;
-      item.set(bench::ItemAwake {});
+      item.add<bench::ItemAwake>();
     }
     item.set(body);
   }
