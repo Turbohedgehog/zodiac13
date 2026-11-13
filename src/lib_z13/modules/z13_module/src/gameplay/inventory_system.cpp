@@ -33,6 +33,7 @@
 #include <z13/components/input/action_listener.h>
 #include <z13/components/input/action_map.h>
 #include <z13/components/station/building.h>
+#include <z13/components/gameplay/access.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/input/input_events.h>
 #include <z13/components/input/input_phases.h>
@@ -168,7 +169,8 @@ void DropItemsOfLeftPlayers(flecs::iter& it) {
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
-      Item, ItemCaption, CarriedBy, Hotbar, StarterKitGiven, ActiveItem, InventoryActionIds>(world);
+      Item, ItemCaption, CarriedBy, Hotbar, StarterKitGiven, ActiveItem, InventoryActionIds, Pass,
+      AccessRequirement>(world);
 }
 
 void RegisterPhases(flecs::world world) {

@@ -37,6 +37,7 @@
 #include <z13/components/station/block.h>
 #include <z13/components/station/grid.h>
 #include <z13/components/input/input_events.h>
+#include <z13/components/gameplay/access.h>
 #include <z13/components/station/interaction.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/station/rooms.h>
@@ -104,7 +105,8 @@ void AddUses(flecs::entity player, const Eigen::Matrix4f& transform, Methods req
   }
   for (const Methods method : {Methods::Use, Methods::Hold}) {
     if ((requested & method) == method && interaction->Accepts(method)) {
-      found.push_back({.actor = player.id(), .target = block->id(), .method = method});
+      found.push_back({.actor = player.id(), .target = block->id(), .method = method,
+                       .permitted = z13::inventory::MayUse(player.world(), player.id(), block->id())});
     }
   }
 }
@@ -146,7 +148,8 @@ void AddPresence(flecs::entity player, const Eigen::Matrix4f& transform, const B
   }
   std::ranges::sort(sensing, CellBefore);
   for (const flecs::entity& block : sensing) {
-    found.push_back({.actor = player.id(), .target = block.id(), .method = Methods::Presence});
+    found.push_back({.actor = player.id(), .target = block.id(), .method = Methods::Presence,
+                     .permitted = z13::inventory::MayUse(player.world(), player.id(), block.id())});
   }
 }
 

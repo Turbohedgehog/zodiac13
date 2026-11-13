@@ -43,7 +43,8 @@ bool IsIdle(const KinematicBody& cabin, uint64_t tick) {
 
 bool ButtonUsed(const flecs::world& world, const Lift& lift, const z13::station::Interactions& interactions) {
   return std::ranges::any_of(interactions.list, [&](const z13::station::Interaction& interaction) {
-    if (interaction.method != fbs::station::InteractionMethods::Use || !world.is_alive(interaction.target)) {
+    if (interaction.method != fbs::station::InteractionMethods::Use || !interaction.permitted ||
+        !world.is_alive(interaction.target)) {
       return false;
     }
     const auto* block = world.entity(interaction.target).try_get<z13::station::Block>();

@@ -45,7 +45,8 @@ void ToggleSwitches(flecs::iter& it, size_t, const Interactions& interactions, c
   const flecs::world world = it.world();
   std::unordered_map<flecs::entity_t, bool> flipped;
   for (const Interaction& interaction : interactions.list) {
-    if (interaction.method == fbs::station::InteractionMethods::Use && world.is_alive(interaction.target) &&
+    if (interaction.method == fbs::station::InteractionMethods::Use && interaction.permitted &&
+        world.is_alive(interaction.target) &&
         IsSwitch(world.entity(interaction.target), palette)) {
       flipped[interaction.target] = !flipped[interaction.target];
     }
