@@ -15,6 +15,7 @@ set(
   src/lib_core/camera_pose_test.cpp
   src/lib_core/command_registry_test.cpp
   src/lib_core/config_test.cpp
+  src/lib_core/console_log_test.cpp
   src/lib_core/core_settings_test.cpp
   src/lib_core/drawn_poses_test.cpp
   src/lib_core/endpoint_test.cpp
@@ -165,6 +166,7 @@ set(
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
+  ${MODULES_DIR}/z13_module/tests/console/console_commands_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/pause_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/player_color_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/server_launch_test.cpp

@@ -50,6 +50,12 @@ CommandResult McpServerState::StatusOf() {
   return rfl::to_generic(status);
 }
 
+void McpServerState::Publish(const std::string& line) {
+  for (const std::uint64_t id : subscribers) {
+    sessions.at(id)->Write(line);
+  }
+}
+
 void McpServerState::Accept() {
   acceptor.async_accept([this](const boost::system::error_code& error, boost::asio::ip::tcp::socket socket) {
     if (error == boost::asio::error::operation_aborted) {
@@ -69,10 +75,20 @@ void McpServerState::Accept() {
               sessions.at(session_id)->Write(FormatReply(request->id, StatusOf()));
               return;
             }
+            if (request->command == kSubscribeCommand) {
+              subscribers.insert(session_id);
+              subscribed = subscribers.size();
+              sessions.at(session_id)->Write(FormatReply(request->id, rfl::Generic(std::string("subscribed"))));
+              return;
+            }
             const std::scoped_lock lock(mutex);
             calls.push_back({.session = session_id, .request = *request});
           },
-          [this](std::uint64_t session_id) { sessions.erase(session_id); });
+          [this](std::uint64_t session_id) {
+            sessions.erase(session_id);
+            subscribers.erase(session_id);
+            subscribed = subscribers.size();
+          });
       sessions.emplace(id, session);
       session->Start();
     }

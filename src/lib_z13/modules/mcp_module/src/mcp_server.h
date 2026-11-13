@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <memory>
@@ -49,6 +50,9 @@ class McpServer {
   std::vector<McpCall> TakeCalls();
   void NotePump();
   void Reply(std::uint64_t session, std::string line);
+  // Sends a line to the clients that sent `subscribe`, whenever they connected.
+  void Publish(std::string line);
+  std::size_t Subscribers() const;
 
  private:
   explicit McpServer(std::shared_ptr<McpServerState> state);

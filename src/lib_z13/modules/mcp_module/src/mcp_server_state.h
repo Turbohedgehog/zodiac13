@@ -24,6 +24,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -41,6 +43,9 @@ namespace z13::mcp {
 // The built-in request the server's own thread answers, without the game thread.
 constexpr std::string_view kServerStatusCommand = "server_status";
 
+// The built-in request that makes the session a receiver of the server's events (McpServer::Publish).
+constexpr std::string_view kSubscribeCommand = "subscribe";
+
 struct ServerStatus {
   std::uint64_t pumps {};
   std::size_t queued_calls {};
@@ -55,9 +60,15 @@ struct McpServerState {
 
   CommandResult StatusOf();
 
+  // Sends the line to every subscribed session; on the server's thread.
+  void Publish(const std::string& line);
+
   boost::asio::io_context io;
   boost::asio::ip::tcp::acceptor acceptor {io};
   std::map<std::uint64_t, std::shared_ptr<McpSession>> sessions;
+  std::set<std::uint64_t> subscribers;
+  // The count of subscribers, for the game thread.
+  std::atomic<std::size_t> subscribed {};
   std::uint16_t port {};  // the bound one, which differs from the asked when that was 0
   std::uint64_t next_session {1};
   std::mutex mutex;

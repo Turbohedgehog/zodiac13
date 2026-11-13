@@ -62,4 +62,12 @@ void McpServer::Reply(std::uint64_t session, std::string line) {
   });
 }
 
+void McpServer::Publish(std::string line) {
+  boost::asio::post(state_->io, [state = state_.get(), text = std::move(line)] { state->Publish(text); });
+}
+
+std::size_t McpServer::Subscribers() const {
+  return state_->subscribed.load();
+}
+
 }  // namespace z13::mcp

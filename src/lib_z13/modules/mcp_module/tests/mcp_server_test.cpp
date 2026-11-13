@@ -28,6 +28,7 @@
 #include <mcp_module/mcp_module_factory.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/world/core.h>
+#include <z13/components/console/assistant_chat.h>
 #include <z13_settings/settings.h>
 
 #include "../src/mcp_filter.h"
@@ -92,6 +93,11 @@ class McpServerWorldTest : public testing::Test {
 
   std::string Ask(boost::asio::ip::tcp::socket& client, const std::string& line) {
     boost::asio::write(client, boost::asio::buffer(line + "\n"));
+    return ReadLine(client);
+  }
+
+  // The next line the server sends, frame by frame.
+  std::string ReadLine(boost::asio::ip::tcp::socket& client) {
     std::string reply;
     const auto deadline = std::chrono::steady_clock::now() + kWait;
     while (std::chrono::steady_clock::now() < deadline) {
@@ -153,6 +159,52 @@ TEST_F(McpServerWorldTest, ServerStatusCountsThePumpsOfTheGameThread) {
   EXPECT_NE(reply.find(R"("ok":true)"), std::string::npos) << reply;
   EXPECT_NE(reply.find(R"("pumps":)"), std::string::npos) << reply;
   EXPECT_NE(reply.find(R"("ms_since_pump":)"), std::string::npos) << reply;
+}
+
+TEST_F(McpServerWorldTest, ASubscriberGetsWhatThePlayerSaidToTheAssistant) {
+  world_.set<console::AssistantChat>({});
+  auto client = Connect(Enable());
+  EXPECT_EQ(Ask(client, R"({"id":1,"command":"subscribe"})"), R"({"id":1,"ok":true,"result":"subscribed"})");
+
+  console::SayToAssistant(world_.get_mut<console::AssistantChat>(), "where am I?");
+
+  EXPECT_EQ(ReadLine(client), R"({"event":"say","text":"where am I?"})");
+  EXPECT_TRUE(world_.get<console::AssistantChat>().unsent.empty());
+  EXPECT_TRUE(world_.get<console::AssistantChat>().listening);
+}
+
+TEST_F(McpServerWorldTest, WhatWasSaidBeforeAnyoneListenedWaitsForTheFirstSubscriber) {
+  world_.set<console::AssistantChat>({});
+  auto client = Connect(Enable());
+  console::SayToAssistant(world_.get_mut<console::AssistantChat>(), "anyone there?");
+  world_.progress();
+  ASSERT_EQ(world_.get<console::AssistantChat>().unsent.size(), 1U);
+  EXPECT_FALSE(world_.get<console::AssistantChat>().listening);
+
+  boost::asio::write(client, boost::asio::buffer(std::string(R"({"id":2,"command":"subscribe"})") + "\n"));
+
+  EXPECT_NE(ReadLine(client).find("subscribed"), std::string::npos);
+  EXPECT_EQ(ReadLine(client), R"({"event":"say","text":"anyone there?"})");
+}
+
+TEST_F(McpServerWorldTest, ASessionThatLeavesIsNotListeningAnyMore) {
+  world_.set<console::AssistantChat>({});
+  {
+    auto client = Connect(Enable());
+    ASSERT_NE(Ask(client, R"({"id":1,"command":"subscribe"})").find("subscribed"), std::string::npos);
+  }
+  const auto deadline = std::chrono::steady_clock::now() + kWait;
+  while (world_.get<McpServerHandle>().server->Subscribers() > 0 && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(kPoll);
+  }
+
+  world_.progress();
+
+  EXPECT_FALSE(world_.get<console::AssistantChat>().listening);
+}
+
+TEST(McpProtocolTest, AnEventLineCarriesTheEventAndItsText) {
+  EXPECT_EQ(FormatEvent("say", "hi \"you\""), R"({"event":"say","text":"hi \"you\""})");
 }
 
 TEST_F(McpServerWorldTest, RefusesWhatItDoesNotShowAndWhatIsNotARequest) {

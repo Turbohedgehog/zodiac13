@@ -93,8 +93,21 @@ std::vector<std::string> CommandsWithoutHandler(flecs::world world);
 namespace commands_detail {
 
 template <class Value>
+struct ValueOf {
+  using Type = Value;
+};
+
+// An optional argument is spelled as the value it may hold; leaving it out leaves it empty.
+template <class Value>
+struct ValueOf<std::optional<Value>> {
+  using Type = Value;
+};
+
+template <class Value>
 constexpr FieldKind KindOf() {
-  if constexpr (std::is_same_v<Value, bool>) {
+  if constexpr (!std::is_same_v<typename ValueOf<Value>::Type, Value>) {
+    return KindOf<typename ValueOf<Value>::Type>();
+  } else if constexpr (std::is_same_v<Value, bool>) {
     return FieldKind::kBool;
   } else if constexpr (std::is_integral_v<Value>) {
     return FieldKind::kInteger;

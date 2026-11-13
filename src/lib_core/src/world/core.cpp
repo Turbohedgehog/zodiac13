@@ -98,6 +98,10 @@ void Core::SetAssetSource(AssetSource source) {
   asset_source_ = std::move(source);
 }
 
+void Core::SetConsoleLog(ConsoleLog log) {
+  console_log_ = std::move(log);
+}
+
 std::expected<WorldRef, std::string> Core::CreateWorld() {
   auto it = worlds_.insert({new_world_id_, flecs::world()});
   ++new_world_id_;
@@ -107,6 +111,8 @@ std::expected<WorldRef, std::string> Core::CreateWorld() {
   world.set(ActiveCoreSettings(config_.GetCoreSettings()));
   flecs_tools::RegisterComponent<Assets>(world);
   world.set(Assets {.source = asset_source_});
+  flecs_tools::RegisterComponent<ConsoleLog>(world);
+  world.set(console_log_);
   if (!thread_pool_) {
     thread_pool_.emplace(config_.GetCoreSettings().threads, config_.GetCoreSettings().min_parallel_count);
   }

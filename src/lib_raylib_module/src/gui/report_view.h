@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -31,11 +32,20 @@ namespace z13::raylib::gui {
 // selects lines, later taps grow, narrow and clear the selection (z13::SelectionAfterTap).
 class ReportView {
  public:
+  // `id` tells two views of one window apart.
+  explicit ReportView(std::string id = "##report") : id_(std::move(id)) {}
+
   void SetText(const std::string& text);
+  // Lines drawn each in its own colour, which `colors` gives by line (none: the text colour).
+  void SetLines(std::vector<std::string> lines, std::vector<ImU32> colors = {});
   void Draw(const ImVec2& size);
 
   bool HasSelection() const { return selection_.has_value(); }
   std::string Selection() const;
+  std::string AllText() const;
+  // The box was scrolled to its last line when last drawn: a log that follows its end stays there.
+  bool AtEnd() const { return at_end_; }
+  void ScrollToEnd() { scroll_to_end_ = true; }
 
  private:
   enum class Gesture { kNone, kPressed, kScrolling, kSelecting };
@@ -44,7 +54,11 @@ class ReportView {
   size_t LineAt(float y, const ImVec2& origin, float line_height) const;
   void ScrollNearTheEdge(float y);
 
+  std::string id_;
   std::vector<std::string> lines_;
+  std::vector<ImU32> colors_;
+  bool at_end_ = true;
+  bool scroll_to_end_ {};
   std::optional<z13::LineSelection> selection_;
   Gesture gesture_ {};
   size_t anchor_ {};

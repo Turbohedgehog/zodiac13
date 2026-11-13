@@ -38,6 +38,11 @@ struct ReplyJson {
   std::optional<std::string> error;
 };
 
+struct EventJson {
+  std::string event;
+  std::string text;
+};
+
 }  // namespace
 
 std::expected<McpRequest, std::string> ParseRequest(std::string_view line) {
@@ -51,6 +56,10 @@ std::expected<McpRequest, std::string> ParseRequest(std::string_view line) {
   return McpRequest {.id = parsed->id,
                        .command = parsed->command,
                        .arguments = parsed->arguments.value_or(rfl::Generic(rfl::Generic::Object {}))};
+}
+
+std::string FormatEvent(std::string_view event, std::string_view text) {
+  return rfl::json::write(EventJson {.event = std::string(event), .text = std::string(text)});
 }
 
 std::string FormatReply(std::int64_t id, const CommandResult& result) {

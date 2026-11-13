@@ -17,6 +17,8 @@
 
 #include "mcp_system.h"
 
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include <lib_core/commands/command_registry.h>
@@ -24,6 +26,7 @@
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
+#include <z13/components/console/assistant_chat.h>
 #include <z13_settings/settings.h>
 
 #include "mcp_filter.h"
@@ -33,12 +36,27 @@ namespace z13::mcp {
 
 namespace {
 
+constexpr std::string_view kSayEvent = "say";
+
 void RegisterComponents(flecs::world world) {
-  flecs_tools::RegisterComponents<McpServerHandle, z13::McpServerSettings>(world);
+  flecs_tools::RegisterComponents<McpServerHandle, z13::McpServerSettings, console::AssistantChat>(world);
+}
+
+// What the player said to the assistant goes to the clients that follow the chat, as it is said.
+void ServeChat(McpServer& server, console::AssistantChat& chat) {
+  chat.listening = server.Subscribers() > 0;
+  if (!chat.listening) {
+    return;
+  }
+  for (const std::string& text : chat.unsent) {
+    server.Publish(FormatEvent(kSayEvent, text));
+  }
+  chat.unsent.clear();
 }
 
 // Hands the requests that came in to the commands, which answer in this or the next frame's command phases.
-void Pump(flecs::world world, const z13::McpServerSettings& settings, McpServerHandle& handle) {
+void Pump(flecs::world world, const z13::McpServerSettings& settings, McpServerHandle& handle,
+          console::AssistantChat* chat) {
   if (!settings.enabled) {
     handle = {};
     return;
@@ -57,6 +75,9 @@ void Pump(flecs::world world, const z13::McpServerSettings& settings, McpServerH
     return;
   }
   handle.server->NotePump();
+  if (chat != nullptr) {
+    ServeChat(*handle.server, *chat);
+  }
   const CommandFilter filter = FilterOf(settings);
   for (McpCall& call : handle.server->TakeCalls()) {
     const auto reply = [server = handle.server, session = call.session, id = call.request.id](CommandResult result) {
@@ -77,12 +98,11 @@ void RegisterSystems(flecs::world world) {
   // The launcher overwrites the settings with the loaded ones (z13::InstallSettings).
   world.set<z13::McpServerSettings>({});
   world.set<McpServerHandle>({});
-  world.system<const z13::McpServerSettings, McpServerHandle>("McpServerSystem::Pump")
+  world.system<const z13::McpServerSettings, McpServerHandle, console::AssistantChat*>("McpServerSystem::Pump")
       .kind(flecs::PreFrame)  // a frame phase: the simulation phases are off in the menu
       .immediate()
-      .each([](flecs::iter& it, size_t, const z13::McpServerSettings& settings, McpServerHandle& handle) {
-        Pump(it.world(), settings, handle);
-      });
+      .each([](flecs::iter& it, size_t, const z13::McpServerSettings& settings, McpServerHandle& handle,
+               console::AssistantChat* chat) { Pump(it.world(), settings, handle, chat); });
 }
 
 }  // namespace

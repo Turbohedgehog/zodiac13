@@ -9,6 +9,7 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/bootstrap/bootstrap_system.cpp
+  src/console/console_commands.cpp
   src/debug/settings_commands.cpp
   src/gameplay/block_change_system.cpp
   src/gameplay/flashlight_system.cpp
@@ -31,6 +32,7 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::console_input
   zodiac13::settings
   zodiac13::touch
   zodiac13::input

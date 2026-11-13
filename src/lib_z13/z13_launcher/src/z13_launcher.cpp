@@ -6,6 +6,7 @@
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/tick_log.h>
 #include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/console_log.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/core.h>
@@ -34,6 +35,8 @@ constexpr spdlog::level::level_enum kLogLevel = spdlog::level::debug;
 int Zodiac13Launcher::Run(int argc, char *argv[]) {
   spdlog::flush_on(kLogLevel);
   spdlog::set_level(kLogLevel);
+  const ConsoleLog console_log;
+  spdlog::default_logger()->sinks().push_back(console_log.Sink());
 
   Core core(argc, argv, [](Config& config) { return AddSettingsOptions(config); });
 
@@ -86,6 +89,7 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     return 1;
   }
   core.SetAssetSource(assets);
+  core.SetConsoleLog(console_log);
 
   const bool windowless = core.GetConfig().IsServer() || core.GetConfig().IsHeadless();
   const auto modules = ReadModuleList(assets, windowless ? kServerModuleList : kGameModuleList);

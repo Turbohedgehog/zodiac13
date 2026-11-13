@@ -109,6 +109,9 @@ KeyBindingModel BuildKeyBindingModel(flecs::world world) {
 }
 
 void RebindSlot(KeyBindingModel& model, KeyBindingSlot slot, z13::fbs::input::Keycode key) {
+  if (key == z13::input::kConsoleKeycode) {
+    return;
+  }
   if (slot.group < 0 || slot.group >= static_cast<int>(model.groups.size())) {
     return;
   }
