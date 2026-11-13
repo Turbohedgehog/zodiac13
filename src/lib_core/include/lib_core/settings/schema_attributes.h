@@ -49,6 +49,15 @@ inline constexpr std::string_view kPlatformDefaultPrefix = "default_";
 Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table);
 
+// The bounds a scalar field's min/max attributes give; a missing one is no bound.
+struct ScalarRange {
+  std::optional<double> min;
+  std::optional<double> max;
+};
+
+std::expected<ScalarRange, std::string> RangeOfField(
+    const reflection::Schema& schema, const reflection::Object& root, std::string_view path);
+
 struct CliOption {
   std::string long_name;
   std::optional<char> short_name;

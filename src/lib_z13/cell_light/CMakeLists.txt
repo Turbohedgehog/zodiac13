@@ -8,6 +8,7 @@ z13_add_library(
   PRECOMPILE "<Eigen/Dense>"
   SOURCES
   src/cell_light.cpp
+  src/cell_borrow.cpp
   src/cell_light_state.cpp
   src/glass_bridges.cpp
   src/lamp.cpp

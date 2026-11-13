@@ -18,6 +18,7 @@
 
 #include <flecs.h>
 
+#include "debug/debug_commands.h"
 #include "gui/gui_system.h"
 #include "raylib_system.h"
 #include "render/environment_render_system.h"
@@ -35,6 +36,7 @@ RaylibRender::RaylibRender(flecs::world& world) {
   EnvironmentRenderSystem::Register(world);
   InputPublisher::Register(world);
   GuiSystem::Register(world);
+  DebugCommands::Register(world);
 }
 
 }  // namespace z13::raylib

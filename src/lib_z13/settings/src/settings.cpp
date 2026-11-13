@@ -25,6 +25,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <flatbuffers/reflection.h>
 
+#include <lib_core/settings/core_settings.h>
 #include <lib_core/settings/schema_attributes.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/status.h>
@@ -36,6 +37,8 @@ namespace {
 
 // A client's interest is a cube of (2 * rings + 1)³ sectors: this keeps it from growing into thousands.
 constexpr int kMostInterestSectors = 4;
+
+constexpr std::string_view kCorePathPrefix = "core.";
 
 std::unexpected<std::string> Invalid(std::string_view field, std::string requirement) {
   return std::unexpected(std::format("settings: {} {}", field, requirement));
@@ -294,6 +297,8 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.connect_timeout) {
     world.set(ConnectTimeout(*settings.connect_timeout));
+  }
+  if (settings.session_timeout) {
     world.set(SessionTimeout(*settings.session_timeout));
   }
   if (settings.visual_smoothing) {
@@ -311,6 +316,108 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   if (settings.mcp_server) {
     world.set(McpServerSettings(*settings.mcp_server));
   }
+}
+
+namespace {
+
+template <typename Singleton, typename Table>
+void TakeFrom(flecs::world world, std::unique_ptr<Table>& table) {
+  if (const auto* value = world.try_get<Singleton>()) {
+    table = std::make_unique<Table>(*value);
+  }
+}
+
+void CollectSettings(const reflection::Schema& schema, const reflection::Object& object,
+                     const flatbuffers::Table& table, const std::string& prefix, std::string_view wanted,
+                     std::vector<SettingEntry>& out) {
+  for (const reflection::Field* field : *object.fields()) {
+    const std::string path = prefix + field->name()->str();
+    const reflection::BaseType kind = field->type()->base_type();
+    if (kind == reflection::Obj) {
+      if (const flatbuffers::Table* nested = flatbuffers::GetFieldT(table, *field)) {
+        CollectSettings(schema, *schema.objects()->Get(field->type()->index()), *nested, path + ".", wanted, out);
+      }
+    } else if (kind != reflection::Vector && kind != reflection::Union && path.starts_with(wanted)) {
+      out.push_back({.path = path, .value = flatbuffers::GetAnyFieldS(table, *field, &schema)});
+    }
+  }
+}
+
+}  // namespace
+
+Settings SettingsOf(flecs::world world) {
+  Settings settings;
+  EnsureNestedSettings(settings);
+  if (const auto* core = world.try_get<ActiveCoreSettings>()) {
+    settings.core = std::make_unique<CoreSettings>(*core);
+  }
+  TakeFrom<ConnectTimeout>(world, settings.connect_timeout);
+  TakeFrom<SessionTimeout>(world, settings.session_timeout);
+  TakeFrom<NetTuning>(world, settings.net);
+  TakeFrom<PhysicsTuning>(world, settings.physics);
+  TakeFrom<BuildingTuning>(world, settings.building);
+  TakeFrom<PowerTuning>(world, settings.power);
+  TakeFrom<DoorTuning>(world, settings.door);
+  TakeFrom<AtmosTuning>(world, settings.atmos);
+  TakeFrom<VisualSmoothing>(world, settings.visual_smoothing);
+  TakeFrom<RenderTuning>(world, settings.render);
+  TakeFrom<TouchLayout>(world, settings.touch);
+  TakeFrom<LanDiscoverySettings>(world, settings.lan_discovery);
+  TakeFrom<McpServerSettings>(world, settings.mcp_server);
+  return settings;
+}
+
+std::expected<schema::ScalarRange, std::string> RangeOfSetting(std::string_view path) {
+  return schema::RangeOfField(SettingsSchema(), *SettingsSchema().root_table(), path);
+}
+
+std::vector<SettingEntry> ListSettings(const Settings& settings, std::string_view prefix) {
+  const flatbuffers::FlatBufferBuilder packed = PackSettings(settings);
+  const reflection::Schema& schema = SettingsSchema();
+  std::vector<SettingEntry> entries;
+  CollectSettings(schema, *schema.root_table(), *flatbuffers::GetRoot<flatbuffers::Table>(packed.GetBufferPointer()),
+                  {}, prefix, entries);
+  return entries;
+}
+
+Status ChangeSetting(flecs::world world, std::string_view path, std::string_view text) {
+  if (path.starts_with(kCorePathPrefix)) {
+    return std::unexpected("core settings are read before the world exists: restart with a new value");
+  }
+  Settings before = SettingsOf(world);
+  flatbuffers::FlatBufferBuilder packed = PackSettings(before);
+  auto* table = flatbuffers::GetMutableRoot<flatbuffers::Table>(packed.GetBufferPointer());
+  if (const auto set = schema::SetFieldFromText(SettingsSchema(), *SettingsSchema().root_table(), *table, path, text);
+      !set) {
+    return std::unexpected(set.error());
+  }
+  Settings after;
+  fbs::settings::GetSettings(packed.GetBufferPointer())->UnPackTo(&after);
+  EnsureNestedSettings(after);
+  if (const auto valid = ValidateSettings(after); !valid) {
+    return valid;
+  }
+  Settings changed;
+  const auto keep_changed = [](auto& now, const auto& old, auto& out) {
+    if (!(*now == *old)) {
+      out = std::move(now);
+    }
+  };
+  keep_changed(after.connect_timeout, before.connect_timeout, changed.connect_timeout);
+  keep_changed(after.session_timeout, before.session_timeout, changed.session_timeout);
+  keep_changed(after.net, before.net, changed.net);
+  keep_changed(after.physics, before.physics, changed.physics);
+  keep_changed(after.building, before.building, changed.building);
+  keep_changed(after.power, before.power, changed.power);
+  keep_changed(after.door, before.door, changed.door);
+  keep_changed(after.atmos, before.atmos, changed.atmos);
+  keep_changed(after.visual_smoothing, before.visual_smoothing, changed.visual_smoothing);
+  keep_changed(after.render, before.render, changed.render);
+  keep_changed(after.touch, before.touch, changed.touch);
+  keep_changed(after.lan_discovery, before.lan_discovery, changed.lan_discovery);
+  keep_changed(after.mcp_server, before.mcp_server, changed.mcp_server);
+  InstallSettings(world, changed);
+  return {};
 }
 
 }  // namespace z13

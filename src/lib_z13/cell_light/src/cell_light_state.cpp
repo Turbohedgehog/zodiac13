@@ -24,6 +24,8 @@
 #include <optional>
 #include <utility>
 
+#include "cell_borrow.h"
+
 namespace z13::station::light {
 
 namespace {
@@ -215,8 +217,17 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
     Flood(lamps_.emplace_back(LampState {.lamp = lamp}));
     Extend(lit, lamps_.back().reached);
   }
+  // A borrowed cell follows both the labels and the light around it.
+  std::optional<CellBox> texels;
+  if (changed_cells) {
+    Extend(texels, CellsOfCubes(layout, relabelled));
+  }
+  if (lit) {
+    Extend(texels, CellsOfCubes(layout, *lit));
+  }
   return {
-      .labels = changed_cells ? std::optional(CellsOfCubes(layout, relabelled)) : std::nullopt,
+      .cell_texels = texels ? std::optional(texels->Grown(Eigen::Vector3i::Constant(kBorrowReach)).Intersection(layout.CellBounds()))
+                       : std::nullopt,
       .light = lit,
   };
 }
@@ -301,6 +312,10 @@ Eigen::Vector3f CellLight::State::LightAt(size_t node) const {
 
 Eigen::Vector3f CellLight::State::DirectionAt(size_t node) const {
   return luminance_[node] > kNoLight ? Eigen::Vector3f(directions_[node] / luminance_[node]) : Eigen::Vector3f::Zero();
+}
+
+std::vector<CellTexel> CellLight::State::CellTexels(const CellBox& cells) const {
+  return CellTexelsOf(nodes_, light_, cells);
 }
 
 std::vector<Eigen::Vector4f> CellLight::State::Texels(const CellBox& cubes, uint8_t piece, NodeTexel texel) const {

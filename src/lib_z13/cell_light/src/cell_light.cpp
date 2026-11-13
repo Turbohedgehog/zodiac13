@@ -41,6 +41,10 @@ const std::vector<uint8_t>& CellLight::Labels() const {
   return state_->Nodes().Labels();
 }
 
+std::vector<CellTexel> CellLight::CellTexels(const z13::building::primitives::CellBox& cells) const {
+  return state_->CellTexels(cells);
+}
+
 std::optional<size_t> CellLight::NodeAt(const Eigen::Vector3i& cell) const {
   return state_->Nodes().NodeAt(cell);
 }

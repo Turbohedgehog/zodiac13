@@ -47,12 +47,12 @@ struct LightEdits {
   bool Empty() const;
 };
 
-// What an update changed, for the renderer to upload: labels in cells, light in cubes from
+// What an update changed, for the renderer to upload: cell texels in cells, light in cubes from
 // the layout's origin.
 struct LightChanges {
   // The layout itself changed: everything did.
   bool resized {};
-  std::optional<z13::building::primitives::CellBox> labels;
+  std::optional<z13::building::primitives::CellBox> cell_texels;
   std::optional<z13::building::primitives::CellBox> light;
 };
 

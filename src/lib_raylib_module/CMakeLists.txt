@@ -14,8 +14,10 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/raylib FBS_HEADERS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/debug/debug_commands.cpp
   src/gui/build_info.cpp
   src/gui/game_scenes.cpp
+  src/gui/game_transitions.cpp
   src/gui/gui_keybindings.cpp
   src/gui/gui_system.cpp
   src/gui/graphics_settings_window.cpp
@@ -55,9 +57,11 @@ z13_add_plugin(
   src/render/environment_render_system.cpp
   src/render/frame_profile.cpp
   src/render/gl_depth_buffer.cpp
+  src/render/gl_blit.cpp
   src/render/gl_volumes.cpp
   src/render/lights.cpp
   src/render/render_resources.cpp
+  src/render/shader_gl.cpp
   src/render/scene_overlay.cpp
   src/render/scene_models.cpp
   src/render/scene_camera.cpp
@@ -70,6 +74,7 @@ z13_add_plugin(
   src/render/scene_meshes.cpp
   src/render/scene_meshes_state.cpp
   src/render/shadow_maps.cpp
+  src/render/scene_target.cpp
   src/render/shadow_maps_state.cpp
   src/render/skybox.cpp
   src/render/station_props.cpp

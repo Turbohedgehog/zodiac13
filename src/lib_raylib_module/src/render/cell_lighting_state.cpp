@@ -150,8 +150,8 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   if (changes.resized) {
     return Remake();
   }
-  if (changes.labels) {
-    UploadLabels(*changes.labels);
+  if (changes.cell_texels) {
+    UploadLabels(*changes.cell_texels);
   }
   if (changes.light) {
     UploadLight(*changes.light);
@@ -194,7 +194,7 @@ void CellLighting::State::UploadLabels(const CellBox& cells) const {
   }
   const z13::station::light::LightLayout& layout = light_->Layout();
   const CellBox local {.min = cells.min - layout.origin, .extent = cells.extent};
-  gl_->UploadLabels(*labels_, local, light_->Labels());
+  gl_->UploadLabels(*labels_, local, light_->CellTexels(cells));
 }
 
 void CellLighting::State::UploadLight(const CellBox& cubes) const {

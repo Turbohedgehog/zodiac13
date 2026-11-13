@@ -31,7 +31,7 @@ struct TexelFormat {
 };
 
 TexelFormat FormatOf(VolumeFormat format) {
-  return format == VolumeFormat::kLabels ? TexelFormat {GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE}
+  return format == VolumeFormat::kLabels ? TexelFormat {GL_RG8UI, GL_RG_INTEGER, GL_UNSIGNED_BYTE}
                                          : TexelFormat {GL_RGBA16F, GL_RGBA, GL_FLOAT};
 }
 
@@ -97,17 +97,18 @@ std::optional<Volume> GlVolumes::Create(VolumeFormat format, const Eigen::Vector
   return Volume {.id = id, .size = size, .format = format};
 }
 
-void GlVolumes::UploadLabels(const Volume& volume, const CellBox& region, std::span<const uint8_t> labels) const {
+void GlVolumes::UploadLabels(const Volume& volume, const CellBox& region,
+                             std::span<const z13::station::light::CellTexel> texels) const {
   if (!functions_ || volume.id == 0 || (region.extent.array() <= 0).any() ||
-      labels.size() != static_cast<size_t>(volume.size.cast<int64_t>().prod())) {
+      texels.size() != static_cast<size_t>(region.extent.cast<int64_t>().prod())) {
     return;
   }
   const GlVolumeFunctions& gl = *functions_;
   const TexelFormat texel = FormatOf(volume.format);
   gl.bind_texture(GL_TEXTURE_3D, volume.id);
-  SetUnpack(gl, volume.size, region.min);
+  SetUnpack(gl, region.extent, Eigen::Vector3i::Zero());
   gl.tex_sub_image_3d(GL_TEXTURE_3D, 0, region.min.x(), region.min.y(), region.min.z(), region.extent.x(),
-                      region.extent.y(), region.extent.z(), texel.format, texel.type, labels.data());
+                      region.extent.y(), region.extent.z(), texel.format, texel.type, texels.data());
   ResetUnpack(gl);
   gl.bind_texture(GL_TEXTURE_3D, 0);
 }

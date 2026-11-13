@@ -18,6 +18,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <string>
 #include <optional>
 #include <span>
 
@@ -25,6 +27,9 @@
 #include <raylib.h>
 
 #include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/status.h>
+
+#include "../tools/shader_asset.h"
 
 namespace z13::raylib {
 
@@ -127,9 +132,17 @@ struct LightUniforms {
   int player_shadow_colors {};
 };
 
-// Loads assets/shaders/lighting.{vs,fs} with its samplers on their units. Returns an empty
-// Shader (id 0) on compile failure.
+// Compiles assets/shaders/lighting.{vs,fs} (or the overriding text) with `defines` and gives its samplers their
+// units; on failure the drivers' log.
+std::expected<::Shader, std::string> CompileLightingShader(const AssetSource& assets,
+                                                           std::span<const std::string> defines,
+                                                           const ShaderTextOverride& text);
+// Without defines. Returns an empty Shader (id 0) on compile failure.
 ::Shader LoadLightingShader(const AssetSource& assets);
+// Rebuilds `shader`'s program from a fresh compile and takes its locations in place: materials copied the shader,
+// so its id and locs array must stay.
+z13::Status ReplaceLightingShader(::Shader& shader, const AssetSource& assets, std::span<const std::string> defines,
+                                  const ShaderTextOverride& text);
 LightUniforms FindLightUniforms(const ::Shader& shader);
 
 void UploadShadowAtlas(const ::Shader& shader, const LightUniforms& uniforms, const ShadowAtlasLayout& atlas);

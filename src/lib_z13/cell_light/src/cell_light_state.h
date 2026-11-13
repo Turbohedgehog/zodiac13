@@ -41,6 +41,7 @@ class CellLight::State {
   const LightNodes& Nodes() const { return nodes_; }
   Eigen::Vector3f LightAt(size_t node) const;
   Eigen::Vector3f DirectionAt(size_t node) const;
+  std::vector<CellTexel> CellTexels(const z13::building::primitives::CellBox& cells) const;
   std::vector<Eigen::Vector4f> Texels(const z13::building::primitives::CellBox& cubes, uint8_t piece,
                                       NodeTexel texel) const;
   std::vector<Lamp> Lamps() const;
