@@ -8,5 +8,6 @@ Deck 5 (Atrium level 5): rooms 1, doors 0, blocks 20
 Deck 6 (Atrium level 6): rooms 4, doors 2, blocks 49
 Deck 7 (Atrium level 7): rooms 4, doors 2, blocks 51
 Deck 8 (Atrium top and bridge): rooms 2, doors 0, blocks 51
+Deck 0 (Tech trunk): rooms 1, doors 1, blocks 13
 
-Blueprint blocks (hub.json): 864 - Floor 175, Slope 10, Panel 10, Wall 334, Window 5, Door 41, SpawnPoint 4, Lamp 285.
+Blueprint blocks (hub.json): 892 - Floor 185, Slope 11, Panel 11, Wall 344, Window 5, Door 42, SpawnPoint 4, Lamp 290.

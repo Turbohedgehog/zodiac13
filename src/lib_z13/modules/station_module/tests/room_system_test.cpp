@@ -616,6 +616,56 @@ TEST(HubOldWingTest, TheReactorStandsInTheTunnelBelowGalleriesOfItsRoom) {
   }
 }
 
+// The tech trunk is a corridor a deck under the spine; the flight down from the spine corridor opens its ceiling.
+const Eigen::Vector3i kTrunkWestCell {20, 294, -6};
+const Eigen::Vector3i kTrunkEastCell {104, 294, -6};
+const Eigen::Vector3i kSpineCorridorCell {20, 308, 6};
+
+TEST(HubTechTrunkTest, TheTrunkBelowTheSpineIsOneRoomWithTheCorridorAboveItThroughTheFlightsOpening) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto west = graph.RoomAt(kTrunkWestCell);
+  ASSERT_TRUE(west.has_value() && *west != rooms::kVacuumRoom) << "the trunk's west end";
+  EXPECT_EQ(graph.RoomAt(kTrunkEastCell), west) << "the trunk's two sides of the flight";
+  EXPECT_EQ(graph.RoomAt(kSpineCorridorCell), west) << "the spine corridor";
+}
+
+// The trunk's lobby under the old wing's, joined to the trunk by a door and by a dock to the wing's lower deck, which a
+// flight joins to the reactor's tunnel.
+const Eigen::Vector3i kTrunkLobbyCell {-1, 296, -6};
+const Eigen::Vector3i kWingLowerDeckCell {10, 12, -6};
+
+TEST(HubTechTrunkTest, TheTrunkReachesTheReactorsTunnelThroughALobbyADockAndAFlight) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();  // the doors get their state in the first tick, after the docks were linked
+
+  const RoomGraph& graph = Graph(world);
+  const auto trunk = graph.RoomAt(kTrunkWestCell);
+  const auto lobby = graph.RoomAt(kTrunkLobbyCell);
+  ASSERT_TRUE(trunk.has_value() && *trunk != rooms::kVacuumRoom) << "trunk";
+  ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
+  EXPECT_NE(trunk, lobby);
+  EXPECT_TRUE(Joined(graph, trunk, lobby)) << "the trunk's end door";
+
+  const flecs::entity wing_grid = world.World().lookup(std::format("Grid_{}", kOldWingGrid).c_str());
+  ASSERT_TRUE(wing_grid.is_valid() && wing_grid.has<RoomCache>());
+  const RoomGraph& wing_graph = wing_grid.get<RoomCache>().Current()->get();
+  const auto lower = wing_graph.RoomAt(kWingLowerDeckCell);
+  ASSERT_TRUE(lower.has_value() && *lower != rooms::kVacuumRoom) << "the wing's lower deck";
+  EXPECT_EQ(wing_graph.RoomAt(kOldTunnelCell), lower) << "the flight opens the tunnel's floor";
+
+  const auto& links = world.World().get<DockLinks>().list;
+  const RoomRef lobby_ref {.grid = z13::station::kMainGrid, .room = *lobby};
+  const auto link = std::ranges::find_if(links, [&](const auto& found) { return found.a == lobby_ref; });
+  ASSERT_NE(link, links.end()) << "the dock";
+  EXPECT_EQ(link->b, (RoomRef {.grid = kOldWingGrid, .room = *lower}));
+  EXPECT_NE(link->door_a.door, 0u) << "the near wall's door a deck down";
+  EXPECT_NE(link->door_b.door, 0u);
+}
+
 // The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
 constexpr int kMiningGrid = 4;
 constexpr int kHangarWallCellY = 16;
