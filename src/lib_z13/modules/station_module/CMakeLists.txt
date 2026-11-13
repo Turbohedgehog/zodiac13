@@ -9,6 +9,7 @@ z13_add_plugin(
   SOURCES
   src/dock_system.cpp
   src/interaction_system.cpp
+  src/room_commands.cpp
   src/room_overlay_system.cpp
   src/room_system.cpp
   src/station_module.cpp

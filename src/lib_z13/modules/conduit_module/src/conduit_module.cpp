@@ -26,6 +26,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <z13/components/utility/utilities.h>
 
+#include "conduit_commands.h"
 #include "conduit_tool_system.h"
 #include "network_system.h"
 
@@ -41,6 +42,8 @@ constexpr uint32_t kModuleVersion = 1;
 ConduitModule::ConduitModule(flecs::world& world) {
   ConduitToolSystem::Register(world);
   NetworkSystem::Register(world);
+  z13::OnRegisterComponents(world, RegisterConduitCommandComponents);
+  z13::OnInitSystems(world, RegisterConduitCommandSystems);
   // In the phases stage, once building_module has made the list (see UtilityModules).
   z13::OnInitPhases(world, [](flecs::world& w) {
     z13::utility::DeclareUtilityModule(w, {.name = std::string(kModuleName), .version = kModuleVersion});

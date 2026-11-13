@@ -104,6 +104,7 @@ set(
   ${MODULES_DIR}/building_module/tests/build_tool_test.cpp
   ${MODULES_DIR}/building_module/tests/build_validation_test.cpp
   ${MODULES_DIR}/building_module/tests/building_block_test.cpp
+  ${MODULES_DIR}/building_module/tests/build_commands_test.cpp
   ${MODULES_DIR}/building_module/tests/grid_build_test.cpp
   ${MODULES_DIR}/building_module/tests/building_mode_test.cpp
   ${MODULES_DIR}/building_module/tests/palette_system_test.cpp
@@ -124,14 +125,17 @@ set(
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
   ${MODULES_DIR}/bullet_module/tests/kinematic_body_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
+  ${MODULES_DIR}/conduit_module/tests/conduit_commands_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_index_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
   ${MODULES_DIR}/conduit_module/tests/network_system_test.cpp
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
+  ${MODULES_DIR}/power_module/tests/power_commands_test.cpp
   ${MODULES_DIR}/power_module/tests/power_system_test.cpp
   ${MODULES_DIR}/atmos_module/tests/atmos_system_test.cpp
+  ${MODULES_DIR}/door_module/tests/door_commands_test.cpp
   ${MODULES_DIR}/door_module/tests/door_system_test.cpp
   ${MODULES_DIR}/lift_module/tests/lift_system_test.cpp
   ${MODULES_DIR}/gravity_module/tests/generator_system_test.cpp
@@ -160,6 +164,7 @@ set(
   ${MODULES_DIR}/station_module/tests/block_change_test.cpp
   ${MODULES_DIR}/station_module/tests/interaction_system_test.cpp
   ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
+  ${MODULES_DIR}/station_module/tests/room_commands_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
   ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/utility_phases_test.cpp

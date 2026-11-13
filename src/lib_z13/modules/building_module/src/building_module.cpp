@@ -18,8 +18,11 @@
 
 #include <flecs.h>
 
+#include <lib_core/world/lifecycle.h>
+
 #include "block_building_system.h"
 #include "block_snapshot_system.h"
+#include "build_commands.h"
 #include "brush_system.h"
 #include "building_input_system.h"
 #include "building_system.h"
@@ -39,6 +42,8 @@ BuildingModule::BuildingModule(flecs::world& world) {
   BrushSystem::Register(world);
   BlockBuildingSystem::Register(world);
   WallPanelSystem::Register(world);
+  OnRegisterComponents(world, RegisterBuildCommandComponents);
+  OnInitSystems(world, RegisterBuildCommandSystems);
 }
 
 }  // namespace z13::building

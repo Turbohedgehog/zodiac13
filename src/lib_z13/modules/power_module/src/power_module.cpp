@@ -28,6 +28,7 @@
 #include <z13/components/utility/utilities.h>
 
 #include "lamp_system.h"
+#include "power_commands.h"
 #include "power_overlay_system.h"
 #include "power_system.h"
 
@@ -44,6 +45,8 @@ PowerModule::PowerModule(flecs::world& world) {
   PowerSystem::Register(world);
   PowerOverlaySystem::Register(world);
   LampSystem::Register(world);
+  z13::OnRegisterComponents(world, RegisterPowerCommandComponents);
+  z13::OnInitSystems(world, RegisterPowerCommandSystems);
   // In the phases stage, once building_module has made the list (see UtilityModules).
   z13::OnInitPhases(world, [](flecs::world& w) {
     z13::utility::DeclareUtilityModule(

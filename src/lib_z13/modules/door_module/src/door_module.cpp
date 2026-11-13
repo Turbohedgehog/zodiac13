@@ -18,12 +18,17 @@
 
 #include <flecs.h>
 
+#include <lib_core/world/lifecycle.h>
+
+#include "door_commands.h"
 #include "door_system.h"
 
 namespace z13::door_module {
 
 DoorModule::DoorModule(flecs::world& world) {
   DoorSystem::Register(world);
+  z13::OnRegisterComponents(world, RegisterDoorCommandComponents);
+  z13::OnInitSystems(world, RegisterDoorCommandSystems);
 }
 
 }  // namespace z13::door_module

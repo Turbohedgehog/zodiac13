@@ -15,6 +15,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/conduit_module FBS_HEADERS EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/conduit_commands.cpp
   src/conduit_index.cpp
   src/conduit_kinds.cpp
   src/conduit_module.cpp
