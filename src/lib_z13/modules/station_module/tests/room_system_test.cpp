@@ -632,6 +632,25 @@ TEST(HubTechTrunkTest, TheTrunkBelowTheSpineIsOneRoomWithTheCorridorAboveItThrou
   EXPECT_EQ(graph.RoomAt(kSpineCorridorCell), west) << "the spine corridor";
 }
 
+// The halls of equipment either side of the trunk, each a room of its own behind a door in the trunk's wall.
+const Eigen::Vector3i kAtmosHallCell {60, 276, -6};
+const Eigen::Vector3i kPowerHallCell {60, 312, -6};
+
+TEST(HubTechTrunkTest, TheAtmosphereAndPowerHallsAreRoomsBehindDoorsInTheTrunksWalls) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const RoomGraph& graph = Graph(world);
+  const auto trunk = graph.RoomAt(kTrunkWestCell);
+  ASSERT_TRUE(trunk.has_value() && *trunk != rooms::kVacuumRoom) << "trunk";
+  for (const Eigen::Vector3i& cell : {kAtmosHallCell, kPowerHallCell}) {
+    const auto hall = graph.RoomAt(cell);
+    ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << cell.transpose();
+    EXPECT_NE(hall, trunk) << cell.transpose();
+    EXPECT_TRUE(Joined(graph, trunk, hall)) << "the door " << cell.transpose();
+  }
+}
+
 // The trunk's lobby under the old wing's, joined to the trunk by a door and by a dock to the wing's lower deck, which a
 // flight joins to the reactor's tunnel.
 const Eigen::Vector3i kTrunkLobbyCell {-1, 296, -6};
@@ -665,6 +684,36 @@ TEST(HubTechTrunkTest, TheTrunkReachesTheReactorsTunnelThroughALobbyADockAndAFli
   EXPECT_NE(link->door_a.door, 0u) << "the near wall's door a deck down";
   EXPECT_NE(link->door_b.door, 0u);
 }
+
+// Each district's lower deck: a corridor under its hall, one room with the hall through the flight's opening in the floor.
+struct DistrictTechCase {
+  z13::station::GridId grid {};
+  Eigen::Vector3i hall;
+  Eigen::Vector3i lower_west;
+  Eigen::Vector3i lower_east;
+};
+
+class HubDistrictTechTest : public ::testing::TestWithParam<DistrictTechCase> {};
+
+TEST_P(HubDistrictTechTest, TheLowerDeckIsOneRoomWithTheHallOnBothSidesOfTheFlight) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+
+  const DistrictTechCase& district = GetParam();
+  const flecs::entity grid = world.World().lookup(std::format("Grid_{}", district.grid).c_str());
+  ASSERT_TRUE(grid.is_valid() && grid.has<RoomCache>());
+  const RoomGraph& graph = grid.get<RoomCache>().Current()->get();
+  const auto hall = graph.RoomAt(district.hall);
+  ASSERT_TRUE(hall.has_value() && *hall != rooms::kVacuumRoom) << "hall";
+  EXPECT_EQ(graph.RoomAt(district.lower_west), hall) << "west of the flight";
+  EXPECT_EQ(graph.RoomAt(district.lower_east), hall) << "east of the flight";
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Districts, HubDistrictTechTest,
+    ::testing::Values(DistrictTechCase {1, {60, 48, 12}, {38, 48, -6}, {84, 48, -6}},
+                      DistrictTechCase {2, {100, 16, 12}, {93, 16, -6}, {139, 16, -6}},
+                      DistrictTechCase {4, {60, 48, 12}, {48, 48, -6}, {94, 48, -6}}));
 
 // The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
 constexpr int kMiningGrid = 4;
