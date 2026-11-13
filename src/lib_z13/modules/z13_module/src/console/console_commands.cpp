@@ -50,6 +50,18 @@ struct ClearCommand {
   int unused {};
 };
 
+struct QuitCommand {
+  using Command = z13::Command<std::string, "Closes the game.", Tags<console_input::kConsoleTag>>;
+
+  int unused {};
+};
+
+struct ExitCommand {
+  using Command = z13::Command<std::string, "Closes the game, like quit.", Tags<console_input::kConsoleTag>>;
+
+  int unused {};
+};
+
 struct EchoCommand {
   using Command = z13::Command<std::string, "Answers with `text`.", Tags<console_input::kConsoleTag>>;
 
@@ -81,7 +93,8 @@ std::string FieldsOf(const CommandEntry& entry) {
 }
 
 void RegisterComponents(flecs::world world) {
-  flecs_tools::RegisterComponents<console::AssistantChat, HelpCommand, ClearCommand, EchoCommand, ConsoleSayCommand>(world);
+  flecs_tools::RegisterComponents<console::AssistantChat, HelpCommand, ClearCommand, QuitCommand, ExitCommand,
+                                  EchoCommand, ConsoleSayCommand>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -121,6 +134,16 @@ void RegisterSystems(flecs::world world) {
         console::AssistantSays(it.world().get_mut<console::AssistantChat>(), command.text);
         reply.Succeed("");
       });
+  CommandSystem<QuitCommand>(world, "ConsoleCommands::Quit",
+                             [](flecs::iter& it, size_t, const QuitCommand&, ReplyOf<QuitCommand>& reply) {
+                               ShutdownCore(it.world(), 0);
+                               reply.Succeed("");
+                             });
+  CommandSystem<ExitCommand>(world, "ConsoleCommands::Exit",
+                             [](flecs::iter& it, size_t, const ExitCommand&, ReplyOf<ExitCommand>& reply) {
+                               ShutdownCore(it.world(), 0);
+                               reply.Succeed("");
+                             });
   CommandSystem<EchoCommand>(world, "ConsoleCommands::Echo",
                              [](const EchoCommand& command, ReplyOf<EchoCommand>& reply) {
                                reply.Succeed(command.text);

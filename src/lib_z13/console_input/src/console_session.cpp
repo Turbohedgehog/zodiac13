@@ -23,6 +23,7 @@
 #include <lib_core/utils/log.h>
 
 #include <console_input/console_input.h>
+#include <console_input/console_variables.h>
 
 namespace z13::console_input {
 
@@ -50,6 +51,13 @@ void RunConsoleLine(flecs::world world, std::string_view line) {
       log_error("{}", result.error());
     }
   };
+  if (const auto words = SplitCommandLine(line);
+      words && !words->empty() && FindCommand(world, ConsoleFilter(), words->front()) == nullptr) {
+    if (const auto variable = RunVariable(world, *words)) {
+      reply(*variable);
+      return;
+    }
+  }
   Status submitted;
   {
     const ImmediateScope immediate(world);
