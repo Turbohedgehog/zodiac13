@@ -33,15 +33,22 @@ const std::filesystem::path kConfigDir = "config";
 
 AssetSource::AssetSource(std::filesystem::path root) : root_(std::move(root)) {}
 
+AssetSource::AssetSource(std::shared_ptr<const AssetPack> pack) : pack_(std::move(pack)) {}
+
 std::expected<std::string, std::string> AssetSource::ReadAsset(const std::filesystem::path& relative) const {
-  return ReadFile(root_ / kAssetsDir / relative);
+  const auto path = kAssetsDir / relative;
+  return pack_ ? pack_->Read(path.generic_string()) : ReadFile(root_ / path);
 }
 
 std::expected<std::string, std::string> AssetSource::ReadConfig(const std::filesystem::path& relative) const {
-  return ReadFile(root_ / kConfigDir / relative);
+  const auto path = kConfigDir / relative;
+  return pack_ ? pack_->Read(path.generic_string()) : ReadFile(root_ / path);
 }
 
 std::vector<std::string> AssetSource::ListAssets(const std::filesystem::path& relative_dir) const {
+  if (pack_) {
+    return pack_->List((kAssetsDir / relative_dir).generic_string());
+  }
   std::vector<std::string> names;
   std::error_code error;
   for (const auto& entry : std::filesystem::directory_iterator(root_ / kAssetsDir / relative_dir, error)) {

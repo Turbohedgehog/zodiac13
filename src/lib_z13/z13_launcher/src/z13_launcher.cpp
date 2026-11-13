@@ -1,11 +1,17 @@
 #include <z13_launcher/z13_launcher.h>
 
+#include <expected>
+#include <filesystem>
+#include <format>
 #include <iostream>
+#include <memory>
 
 #include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_snapshot_history.h>
 #include <lib_core/time/tick_log.h>
+#include <lib_core/utils/asset_pack.h>
 #include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/file_pack_reader.h>
 #include <lib_core/utils/console_log.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/log.h>
@@ -29,6 +35,21 @@ constexpr spdlog::level::level_enum kLogLevel = spdlog::level::info;
 #else
 constexpr spdlog::level::level_enum kLogLevel = spdlog::level::debug;
 #endif
+
+const std::filesystem::path kAssetsDir = "assets";
+
+// A development build keeps assets/ beside the executable; a package, only the archive.
+std::expected<AssetSource, std::string> OpenInstalledAssets() {
+  const std::filesystem::path install_dir = InstallDir();
+  if (std::filesystem::is_directory(install_dir / kAssetsDir)) {
+    return AssetSource(install_dir);
+  }
+  auto pack = AssetPack::Open(std::make_unique<FilePackReader>(install_dir / kAssetPackFile));
+  if (!pack) {
+    return std::unexpected(std::format("no assets next to the executable: {}", pack.error()));
+  }
+  return AssetSource(std::make_shared<const AssetPack>(*std::move(pack)));
+}
 
 }  // namespace
 
@@ -81,7 +102,12 @@ int Zodiac13Launcher::Run(int argc, char *argv[]) {
     }
   }
 
-  const AssetSource assets(InstallDir());
+  const auto opened = assets_ ? std::expected<AssetSource, std::string>(*assets_) : OpenInstalledAssets();
+  if (!opened) {
+    log_error("{}", opened.error());
+    return 1;
+  }
+  const AssetSource& assets = *opened;
   const Status checked =
       CheckBlockPalette(assets).and_then([&] { return CheckStationScene(core.GetConfig(), assets); });
   if (!checked) {

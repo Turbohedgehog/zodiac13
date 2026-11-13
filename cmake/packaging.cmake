@@ -1,4 +1,4 @@
-# The Linux package: bin/'s runtime layout (exe, z13_core, config/, modules/, assets/) plus
+# The Linux package: bin/'s runtime layout (exe, z13_core, z13.pack, modules/) plus
 # the shared flecs, spdlog and fmt, found through $ORIGIN instead of the build tree's absolute RUNPATH. Only the
 # "runtime" component is packaged; the SDK installs (headers, static libs) stay out.
 
@@ -25,8 +25,7 @@ endforeach()
 install(TARGETS core RUNTIME DESTINATION . COMPONENT runtime LIBRARY DESTINATION . COMPONENT runtime)
 set_target_properties(core PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(IMPORTED_RUNTIME_ARTIFACTS flecs::flecs spdlog::spdlog fmt::fmt DESTINATION . COMPONENT runtime)
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/config/" DESTINATION config COMPONENT runtime)
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/" DESTINATION assets COMPONENT runtime)
+install(FILES "${Z13_ASSET_PACK}" DESTINATION . COMPONENT runtime)
 
 # The .deb's own files outside /opt/zodiac13: the command on PATH and a menu entry.
 # EXCLUDE_FROM_ALL: only CPack asks for them, a plain `cmake --install` must not touch /usr.

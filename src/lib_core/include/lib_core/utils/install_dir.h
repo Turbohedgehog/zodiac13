@@ -20,8 +20,8 @@
 
 namespace z13 {
 
-// Where config/ and assets/ live: next to the executable; on Android, the working
-// directory the app unpacks them into (src/zodiac13/android_main.cpp).
+// Where config/ and assets/ (or z13.pack) live: next to the executable. Android has no such place,
+// its launcher is given the APK's files (src/zodiac13/android_main.cpp).
 std::filesystem::path InstallDir();
 
 // The shared library a module list entry ("modules/x/x") names: next to the executable,

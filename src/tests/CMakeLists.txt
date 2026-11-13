@@ -11,6 +11,7 @@ include(GoogleTest)
 set(MODULES_DIR ${CMAKE_SOURCE_DIR}/src/lib_z13/modules)
 set(
   PROJECT_SOURCE_FILES
+  src/lib_core/asset_pack_test.cpp
   src/lib_core/asset_source_test.cpp
   src/lib_core/camera_pose_test.cpp
   src/lib_core/command_registry_test.cpp
@@ -308,7 +309,9 @@ if(Z13_BUILD_BENCHMARKS)
 endif()
 
 # The palette and blueprint tests read the shipped assets from the source tree.
-target_compile_definitions(${PROJECT_NAME} PRIVATE Z13_SOURCE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  Z13_SOURCE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
+  Z13_ASSET_PACK="${Z13_ASSET_PACK}")
 
 # Windows finds the plugin DLLs only next to the exe; ELF finds them by build-tree RPATH.
 if(WIN32)

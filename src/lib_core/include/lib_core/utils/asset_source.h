@@ -18,19 +18,23 @@
 
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include <lib_core/utils/asset_pack.h>
 
 namespace z13 {
 
 // The game's shipped files, assets/ and config/, read by their path inside either
-// ("station/palette.json") wherever they lie: a directory today, an archive with
-// f/asset-pack (docs/asset-pack-plan.md). Readers never see where.
+// ("station/palette.json") wherever they lie: a directory, or an AssetPack
+// (docs/asset-pack-plan.md). Readers never see where.
 class AssetSource {
  public:
   AssetSource() = default;
   // `root` holds assets/ and config/.
   explicit AssetSource(std::filesystem::path root);
+  explicit AssetSource(std::shared_ptr<const AssetPack> pack);
 
   std::expected<std::string, std::string> ReadAsset(const std::filesystem::path& relative) const;
   std::expected<std::string, std::string> ReadConfig(const std::filesystem::path& relative) const;
@@ -39,6 +43,7 @@ class AssetSource {
 
  private:
   std::filesystem::path root_;
+  std::shared_ptr<const AssetPack> pack_;
 };
 
 // The world's AssetSource, set by Core::CreateWorld before any module loads a file.
