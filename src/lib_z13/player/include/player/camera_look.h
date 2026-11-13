@@ -82,10 +82,12 @@ struct DriftStep {
   // The keys' push, in m/s2, and the most speed it builds up, in m/s.
   float thrust {};
   float max_speed {};
+  // How fast the speed falls with no key pushing, in m/s2; 0 leaves it as it is.
+  float brake {};
 };
 
 // Turns like ApplyCameraMove, but the move axes push by `step.thrust` instead of setting the speed, so the player keeps
-// the speed it has in `motion.drift` with nothing to slow it.
+// the speed it has in `motion.drift` until the brake slows it, with no key pushing.
 void ApplyDriftMove(
     const CameraMoveAxes& axes, const DriftStep& step, LookAngles& look, PlayerMotion& motion,
     Eigen::Matrix4f& transform);

@@ -40,6 +40,8 @@ table PhysicsTuning {
   // fixed speed with the keys.
   drift_thrust: float = 8 (min: "0", max: "100", cli);
   drift_max_speed: float = 10 (min: "0.1", max: "100", cli);
+  // With no key pushing, the jetpack slows the player by this much (m/s2); 0 lets the player drift on.
+  drift_brake: float = 4 (min: "0", max: "100", cli);
   // A gravity generator pulls the rooms whose boxes lie within this many cells of its block.
   generator_radius_cells: uint32 = 96 (min: 1, max: 4096, cli);
   // Ticks a generator takes to rise from nothing to its full pull, and to fall back.

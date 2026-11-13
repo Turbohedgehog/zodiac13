@@ -120,11 +120,12 @@ TEST(InputPipelineTest, ForwardMoveFollowsCameraAfterMouseTurnThroughPipeline) {
       Eigen::Vector3f(0.f, z13::PhysicsTuning {}.fly_speed, 0.f), kTestEpsilon));
 }
 
-TEST(InputPipelineTest, InAStationAReleasedKeyLeavesTheWeightlessPlayerDrifting) {
+TEST(InputPipelineTest, InAStationAReleasedKeyLeavesTheWeightlessPlayerDriftingWithoutABrake) {
   z13::testing::Z13TestWorld test_world;
   test_world.World().add<z13::station::StationMode>();
+  test_world.World().get_mut<z13::PhysicsTuning>().drift_brake = 0.f;
   auto player = test_world.Player();
-  const z13::PhysicsTuning tuning;
+  const z13::PhysicsTuning tuning = test_world.World().get<z13::PhysicsTuning>();
 
   test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
   test_world.Tick(1.f);
@@ -133,6 +134,22 @@ TEST(InputPipelineTest, InAStationAReleasedKeyLeavesTheWeightlessPlayerDrifting)
 
   const float speed = tuning.drift_thrust;
   EXPECT_TRUE(Position(player).isApprox(Eigen::Vector3f(2.f * speed, 0.f, 0.f), kTestEpsilon));
+}
+
+TEST(InputPipelineTest, InAStationAReleasedKeyLetsTheJetpackBrakeTheWeightlessPlayer) {
+  z13::testing::Z13TestWorld test_world;
+  test_world.World().add<z13::station::StationMode>();
+  auto player = test_world.Player();
+  const z13::PhysicsTuning tuning = test_world.World().get<z13::PhysicsTuning>();
+
+  test_world.EmitInput(KeyDown(z13::fbs::input::Keycode::KEY_W));
+  test_world.Tick(1.f);
+  test_world.EmitInput(KeyUp(z13::fbs::input::Keycode::KEY_W));
+  test_world.Tick(1.f);
+
+  const float speed = tuning.drift_thrust;
+  const float slowed = speed - tuning.drift_brake;
+  EXPECT_TRUE(Position(player).isApprox(Eigen::Vector3f(speed + slowed, 0.f, 0.f), kTestEpsilon));
 }
 
 }  // namespace

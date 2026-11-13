@@ -126,6 +126,11 @@ void ApplyDriftMove(
   if (push.squaredNorm() > 1.f) {
     push.normalize();
   }
+  if (push.isZero()) {
+    const float speed = motion.drift.norm();
+    const float slowed = std::max(speed - step.brake * step.delta_time, 0.f);
+    motion.drift = speed > 0.f ? motion.drift * (slowed / speed) : motion.drift;
+  }
   motion.drift += push * step.thrust * step.delta_time;
   if (motion.drift.squaredNorm() > step.max_speed * step.max_speed) {
     motion.drift = motion.drift.normalized() * step.max_speed;
