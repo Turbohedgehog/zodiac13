@@ -75,6 +75,20 @@ struct BlueprintConduit {
 // or whose length is not positive.
 std::expected<std::vector<BlueprintConduit>, std::string> ParseBlueprintConduits(std::string_view json);
 
+// A lift of a blueprint, its cabin's primitive still a name.
+struct BlueprintLift {
+  std::string primitive;
+  Eigen::Vector3i size = Eigen::Vector3i::Zero();
+  Eigen::Vector3i lower = Eigen::Vector3i::Zero();
+  Eigen::Vector3i upper = Eigen::Vector3i::Zero();
+  Eigen::Vector3i lower_button = Eigen::Vector3i::Zero();
+  Eigen::Vector3i upper_button = Eigen::Vector3i::Zero();
+  uint32_t trip_ticks {};
+};
+
+// The lifts of a blueprint, naming the first whose trip takes no ticks.
+std::expected<std::vector<BlueprintLift>, std::string> ParseBlueprintLifts(std::string_view json);
+
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
 
 }  // namespace z13::building::primitives

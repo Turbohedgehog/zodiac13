@@ -140,12 +140,25 @@ table BlueprintConduit {
   length: int;
 }
 
+// A z13::station::Lift with its cabin, a box of the named palette primitive `size` cells large; `lower` and `upper` are
+// the cells its lowest corner stands at, the buttons cells of the main grid.
+table BlueprintLift {
+  primitive: string;
+  size: Cell;
+  lower: Cell;
+  upper: Cell;
+  lower_button: Cell;
+  upper_button: Cell;
+  trip_ticks: uint;
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
   grids: [BlueprintGrid];
   docks: [BlueprintDock];
   conduits: [BlueprintConduit];
+  lifts: [BlueprintLift];
   doors_open: bool;
 }
 

@@ -27,6 +27,7 @@
 
 #include <lib_core/state/state_markers.h>
 #include <networks/station_networks.h>
+#include <z13_tests/shipped_station.h>
 #include <power/port_names.h>
 #include <primitives/palette.h>
 #include <z13/components/station/block_changes.h>
@@ -271,7 +272,7 @@ TEST_F(LampSystemTest, LosingTheReactorDimsEveryLampAndTheStationStaysDark) {
 
 // The shipped hub: one reactor in the old wing's tunnel feeds every lamp and door through the cables of the blueprint
 // and the links of its docks.
-constexpr std::string_view kHubScene = "hub";
+using z13::testing::kHubScene;
 constexpr int kHubTicks = 30;  // a few power steps (PowerTuning::step_ticks)
 constexpr size_t kHubConsumersAtLeast = 300;  // its lamps and doors, to catch a blueprint that lost its consumers
 

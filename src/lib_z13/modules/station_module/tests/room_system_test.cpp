@@ -473,7 +473,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::ValuesIn(z13::testing::ShippedScenes()),
     [](const ::testing::TestParamInfo<std::string>& info) { return info.param; });
 
-constexpr std::string_view kHubScene = "hub";
+using z13::testing::kHubScene;
 constexpr int kPowerSettleTicks = 30;  // a few power steps (PowerTuning::step_ticks)
 const Eigen::Vector3i kSpineEndCell {338, 413, 6};
 const Eigen::Vector3i kFreightLobbyCell {348, 414, 6};

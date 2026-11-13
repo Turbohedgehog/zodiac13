@@ -174,6 +174,19 @@ TEST(StationBlueprintTest, ConduitRunOfAnUnknownGridOrWithoutLengthIsRejected) {
                    .has_value());
 }
 
+TEST(StationBlueprintTest, LiftsAreParsedWithTheirStopsAndButtonsAndOneWithoutATripIsRejected) {
+  const auto lifts = z13::building::primitives::ParseBlueprintLifts(
+      R"({"lifts": [{"primitive": "Floor", "size": {"x": 8, "y": 8, "z": 1}, "lower": {"x": 1, "y": 2, "z": 3},
+        "upper": {"x": 1, "y": 2, "z": 15}, "lower_button": {"x": 4, "y": 0, "z": 0}, "upper_button": {"x": 5, "y": 0, "z": 0}, "trip_ticks": 90}]})");
+
+  ASSERT_TRUE(lifts.has_value()) << lifts.error();
+  ASSERT_EQ(lifts->size(), 1u);
+  EXPECT_EQ(lifts->front().primitive, "Floor");
+  EXPECT_EQ(lifts->front().upper, Eigen::Vector3i(1, 2, 15));
+  EXPECT_EQ(lifts->front().trip_ticks, 90u);
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintLifts(R"({"lifts": [{"primitive": "Floor"}]})").has_value());
+}
+
 TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {
   Z13TestWorld test_world(StationArgs(Scene()));
   test_world.Tick();

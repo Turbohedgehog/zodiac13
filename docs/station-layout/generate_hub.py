@@ -16,7 +16,7 @@ from typing import NamedTuple
 from hub_wiring import wire_hub
 from station_blueprint import (
     CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
-    block_kinds, door_boxes, dock_entry, grid_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
+    block_kinds, door_boxes, dock_entry, grid_entry, lift_entry, LAMP, LAMP_CELLS, lamp_blocks, min_wall_thickness, mask_blocks, render_plan, spawn_blocks, wall_blocks, wall_panel_block,
     wall_opening, wall_segment, write_blueprint)
 
 # ----- Output -------------------------------------------------------------------------------
@@ -169,6 +169,11 @@ TECH_ATMOS_HALL = (6, TECH_TRUNK[1] - 5, 22, TECH_TRUNK[1])
 TECH_POWER_HALL = (6, TECH_TRUNK[3], 22, TECH_TRUNK[3] + 5)
 TECH_FLIGHT_X = 60  # cells; the flight climbs towards +x
 TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the trunk's 12
+TECH_LIFT_X = 96  # cells, west edge of the cabin
+TECH_LIFT_CABIN = (8, 8, 1)  # cells; a slab the riders step up onto
+TECH_LIFT_SIDE_CELLS = 2  # from the trunk's south wall to the cabin
+TECH_LIFT_BUTTON_GAP_CELLS = 3  # between a button and the cabin's west edge
+TECH_LIFT_TRIP_TICKS = 180  # three seconds for the deck's 3 m
 TECH_VENT_CELL = (28, (TECH_TRUNK[1] + 1) * CELLS_PER_M + 4)  # on the trunk's floor, west of the flight
 
 
@@ -182,6 +187,18 @@ def tech_flight():
               wall_panel_block((x + FLIGHT_LIP_RUN_CELLS, y, z0), (x + FLIGHT_LENGTH_CELLS, y, top),
                                FLIGHT_PLATE_THICKNESS_CELLS, TECH_FLIGHT_WIDTH_CELLS, 1)]
     return blocks, (x, y, x + FLIGHT_LENGTH_CELLS, y + TECH_FLIGHT_WIDTH_CELLS)
+
+
+def tech_lift():
+    """The lift between the trunk's floor and the spine corridor's, near the trunk's east end: its blueprint entry, the
+    buttons' Switch blocks (one beside the shaft on each floor) and the footprint it opens in the slab above."""
+    x = TECH_LIFT_X
+    y = (TECH_TRUNK[1] + 1) * CELLS_PER_M + TECH_LIFT_SIDE_CELLS
+    lower_z, upper_z = deck_floor_z(TECH_DECK), deck_floor_z(TECH_DECK + 1)
+    button_x = x - TECH_LIFT_BUTTON_GAP_CELLS
+    buttons = [(button_x, y, lower_z), (button_x, y, upper_z)]
+    entry = lift_entry(FLOOR, TECH_LIFT_CABIN, (x, y, lower_z), (x, y, upper_z), *buttons, TECH_LIFT_TRIP_TICKS)
+    return entry, [block("Switch", cell, (1, 1, 2)) for cell in buttons], (x, y, x + TECH_LIFT_CABIN[0], y + TECH_LIFT_CABIN[1])
 
 
 def tech_floor_blocks():
@@ -1447,10 +1464,11 @@ def slab_mask(index):
     for x, y in ring_cells():
         mask[y][x] = False
     if index == 0:
-        hx0, hy0, hx1, hy1 = tech_flight()[1]
-        for y in range(hy0, hy1):
-            for x in range(hx0, hx1):
-                mask[y][x] = False
+        for box in (tech_flight()[1], tech_lift()[2]):
+            hx0, hy0, hx1, hy1 = box
+            for y in range(hy0, hy1):
+                for x in range(hx0, hx1):
+                    mask[y][x] = False
     return mask
 
 
@@ -1482,7 +1500,7 @@ def podium_blocks():
 
 
 def station_blocks(decks):
-    blocks = slab_blocks() + podium_blocks() + tech_floor_blocks() + tech_ceiling_blocks() + tech_flight()[0] + tech_equipment()
+    blocks = slab_blocks() + podium_blocks() + tech_floor_blocks() + tech_ceiling_blocks() + tech_flight()[0] + tech_lift()[1] + tech_equipment()
     for _, flight_blocks, _ in flights():
         blocks += flight_blocks
     for deck in decks:
@@ -1533,7 +1551,7 @@ def main():
              dock_entry(0, OLD_TECH_LOBBY_CELL, OLD_GRID, OLD_TECH_HALL_CELL),
              dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)]
     blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, grids=grids, docks=docks,
-                             conduits=wire_hub(blocks, walls, grids, docks))
+                             conduits=wire_hub(blocks, walls, grids, docks), lifts=[tech_lift()[0]])
     lines.append("")
     lines.append(STATS_BLOCKS.format(file=BLUEPRINT_FILE.name, total=len(blocks), kinds=block_kinds(blocks)))
     (OUT / STATS_FILE).write_text("\n".join(lines) + "\n", encoding="ascii", newline="\n")
