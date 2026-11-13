@@ -34,6 +34,7 @@
 #include <raylib_module/raylib_components.h>
 
 #include "../platform/sdl_platform.h"
+#include "render_components.h"
 #include "station_props.h"
 
 namespace z13::raylib {
@@ -88,9 +89,18 @@ std::string ProfileReport(flecs::world world) {
     input.header.emplace_back("Scene", *choice->scene);
   }
   if (const auto* tuning = world.try_get<z13::RenderTuning>(); tuning != nullptr) {
+    input.header.emplace_back("Render scale", std::format("{:.2f}", tuning->resolution_scale));
     input.header.emplace_back(
         "Lamp shadows", std::format("{} slots of {} px, {} updates a frame", tuning->shadow_lights,
                                     tuning->shadow_map_size, tuning->shadow_updates_per_frame));
+  }
+  if (const auto* lighting = world.try_get<Lighting>(); lighting != nullptr && lighting->res &&
+                                                         !lighting->res->defines.empty()) {
+    std::string defines;
+    for (const std::string& name : lighting->res->defines) {
+      defines += defines.empty() ? name : ", " + name;
+    }
+    input.header.emplace_back("Lighting shader defines", defines);
   }
   if (const auto* stats = world.try_get<RenderStats>(); stats != nullptr) {
     const z13::CameraPose& camera = stats->camera;

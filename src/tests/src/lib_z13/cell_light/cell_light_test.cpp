@@ -259,5 +259,65 @@ TEST(CellLightTest, GlassEditsEndWhereAFullBuildDoes) {
                   CellLight(With(Hall(), {Partition(30)}), std::vector {Pane(14, 0.5f)}, std::vector {kOtherLamp}));
 }
 
+// A wall cell beside the hall's free cells borrows the nearest one, here the next cell along x.
+TEST(CellLightTest, AnOpaqueCellBorrowsTheNearestFreeCell) {
+  const CellLight light(Hall(), std::vector {kLampInA});
+  constexpr int kShiftAlongX = 1;
+  constexpr uint8_t kBorrowOneAlongX = (kBorrowReach * kBorrowSpan) + kBorrowReach + kShiftAlongX;
+
+  const std::vector<CellTexel> wall = light.CellTexels({.min = {0, 8, 5}, .extent = {1, 1, 1}});
+  const std::vector<CellTexel> inside = light.CellTexels({.min = {1, 8, 5}, .extent = {1, 1, 1}});
+
+  ASSERT_EQ(wall.size(), 1u);
+  EXPECT_EQ(wall[0].label, kOpaqueLabel);
+  EXPECT_EQ(wall[0].borrow, kBorrowOneAlongX);
+  ASSERT_EQ(inside.size(), 1u);
+  EXPECT_LT(inside[0].label, kPiecesPerNode);
+  EXPECT_EQ(inside[0].borrow, kNoBorrow);
+}
+
+// What the renderer holds after the edits' `cell_texels` regions equals a full build's texels.
+TEST(CellLightTest, TheChangedTexelRegionsKeepTheBorrowsOfAFullBuild) {
+  CellLight edited(Hall(), std::vector {kLampInA});
+  const CellBox hall {.min = {0, 0, 0}, .extent = {kLength + 2, kWidth + 2, kHeight + 2}};
+  std::vector<CellTexel> held = edited.CellTexels(edited.Layout().CellBounds());
+  const auto apply = [&](const LightEdits& edits) {
+    const LightChanges changes = edited.Apply(edits);
+    ASSERT_FALSE(changes.resized);
+    if (!changes.cell_texels) {
+      return;
+    }
+    const CellBox& region = *changes.cell_texels;
+    const std::vector<CellTexel> fresh = edited.CellTexels(region);
+    size_t next = 0;
+    for (int z = region.min.z(); z < region.End().z(); ++z) {
+      for (int y = region.min.y(); y < region.End().y(); ++y) {
+        for (int x = region.min.x(); x < region.End().x(); ++x) {
+          held[edited.Layout().CellIndex({x, y, z})] = fresh[next++];
+        }
+      }
+    }
+  };
+
+  apply({.opaque_added = {Partition(20)}, .lamps_added = {kOtherLamp}});
+  apply({.opaque_added = {{.min = {5, 4, 1}, .extent = {3, 3, 3}}}});
+  apply({.lamps_removed = {kLampInA}});
+  apply({.opaque_removed = {Partition(20)}});
+
+  const std::vector<CellTexel> full = edited.CellTexels(edited.Layout().CellBounds());
+  ASSERT_EQ(held.size(), full.size());
+  for (size_t cell = 0; cell < full.size(); ++cell) {
+    ASSERT_EQ(held[cell].label, full[cell].label) << cell;
+    ASSERT_EQ(held[cell].borrow, full[cell].borrow) << cell;
+  }
+  const CellLight rebuilt(With(Hall(), {{.min = {5, 4, 1}, .extent = {3, 3, 3}}}), std::vector {kOtherLamp});
+  const std::vector<CellTexel> edited_hall = edited.CellTexels(hall);
+  const std::vector<CellTexel> rebuilt_hall = rebuilt.CellTexels(hall);
+  for (size_t cell = 0; cell < edited_hall.size(); ++cell) {
+    ASSERT_EQ(edited_hall[cell].label, rebuilt_hall[cell].label) << cell;
+    ASSERT_EQ(edited_hall[cell].borrow, rebuilt_hall[cell].borrow) << cell;
+  }
+}
+
 }  // namespace
 }  // namespace z13::station::light

@@ -16,9 +16,13 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <flecs.h>
 
 #include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/status.h>
 #include <z13_settings/settings.h>
 
 #include "render_components.h"
@@ -27,6 +31,11 @@ namespace z13::raylib {
 
 // The lighting shader and the models drawn with it: the avatar, the ordinary scene's spaceship, a station's props.
 Lighting LoadLighting(const AssetSource& assets);
+
+// Rebuilds the lighting shader in place with `defines` (or the overriding text) and finds its uniforms again.
+// On failure the old shader keeps drawing.
+z13::Status ReloadLighting(const Lighting& lighting, const AssetSource& assets, std::vector<std::string> defines,
+                           const ShaderTextOverride& text);
 
 AvatarModel LoadAvatar(const Lighting& lighting, const z13::RenderTuning& tuning);
 

@@ -16,16 +16,30 @@
 
 #include "profile_teleport.h"
 
+#include <cmath>
 #include <optional>
 
+#include <lib_core/utils/camera_pose.h>
 #include <lib_core/utils/math.h>
 #include <z13/components/gameplay/net.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/gameplay/player_parts.h>
+#include <z13/components/input/input_state.h>
 
 namespace z13::raylib::gui {
 
-z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& position_m) {
+namespace {
+
+// The way round of at most half a turn.
+float WrapDegrees(float degrees) {
+  constexpr float kTurn = 360.f;
+  return degrees - (kTurn * std::round(degrees / kTurn));
+}
+
+}  // namespace
+
+z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& position_m,
+                                std::optional<float> height_m, const LookTarget& look) {
   const auto* local = world.try_get<z13::gameplay::LocalPlayer>();
   if (local == nullptr || !local->id) {
     return std::unexpected("there is no local player");
@@ -50,9 +64,17 @@ z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& posit
     return std::unexpected("other players are in the game");
   }
   Eigen::Matrix4f transform = own->get<Eigen::Matrix4f>();
-  const float height = z13::math::ExtractTranslation<float>(transform).z();
+  const float height = height_m.value_or(z13::math::ExtractTranslation<float>(transform).z());
   z13::math::SetTranslation(Eigen::Vector3f(position_m.x(), position_m.y(), height), transform);
   own->set(transform);
+  if (look.yaw_deg || look.pitch_deg) {
+    // Turned as the mouse does, so the look reaches the simulation by the input path.
+    const z13::LookAngles current = own->has<z13::LookAngles>() ? own->get<z13::LookAngles>() : z13::LookAngles {};
+    auto& input = world.get_mut<z13::input::InputState>();
+    input.mouse_yaw_delta_deg += WrapDegrees(look.yaw_deg.value_or(current.yaw_deg) - current.yaw_deg);
+    // TurnLook subtracts the pitch delta.
+    input.mouse_pitch_delta_deg += current.pitch_deg - look.pitch_deg.value_or(current.pitch_deg);
+  }
   z13::gameplay::PlayerMotion motion = own->get<z13::gameplay::PlayerMotion>();
   motion.fall_speed = 0.f;
   own->set(motion);

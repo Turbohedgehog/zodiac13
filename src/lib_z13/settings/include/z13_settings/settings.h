@@ -18,12 +18,15 @@
 
 #include <expected>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <flatbuffers/flatbuffers.h>
 #include <flecs.h>
 
 #include <lib_core/settings/config.h>
 #include <lib_core/settings/core_settings.h>
+#include <lib_core/settings/schema_attributes.h>
 #include <lib_core/utils/status.h>
 #include <settings_generated.h>
 
@@ -148,5 +151,24 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 // Sets the world's NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
 // RenderTuning, TouchLayout, LanDiscoverySettings and McpServerSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
+
+// The settings the world runs on, read back from its singletons (a table with no singleton keeps its defaults).
+Settings SettingsOf(flecs::world world);
+
+// One setting as text, by its dotted path ("render.shadow_lights").
+struct SettingEntry {
+  std::string path;
+  std::string value;
+};
+
+// Every number, flag and text of `settings` whose path starts with `prefix`, in schema order.
+std::vector<SettingEntry> ListSettings(const Settings& settings, std::string_view prefix = {});
+
+// The bounds of the number at `path` (the schema's min and max), for a control that edits it.
+std::expected<schema::ScalarRange, std::string> RangeOfSetting(std::string_view path);
+
+// Changes the number or flag at `path` on the world's singletons for this run (the file is not touched), checked
+// as a command line is. The singletons of the tables that changed are set again; core settings can't change.
+Status ChangeSetting(flecs::world world, std::string_view path, std::string_view text);
 
 }  // namespace z13

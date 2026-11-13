@@ -17,6 +17,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <raylib.h>
 
@@ -72,6 +74,8 @@ struct LightingResources {
   LightUniforms lights;
   LightClusters clusters;
   int debug_view {};
+  // The #defines of the last debug reload (reload_shaders), for the frame report.
+  std::vector<std::string> defines;
 };
 
 struct Lighting {

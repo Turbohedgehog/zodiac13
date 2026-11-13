@@ -1,5 +1,10 @@
 #version 330
 
+// Parts the reload_shaders debug command can leave out by defining them (docs/debug-server-plan.md): Z13_NO_LIGHTING,
+// Z13_NO_CELL_LIGHT, Z13_NO_PLAYER_SHADOWS, Z13_NO_CLUSTER_LIGHTS, Z13_NO_SUN, Z13_NO_FILL, Z13_NO_BUMP;
+// inside them: Z13_CLUSTER_INDEX_ONLY, Z13_CLUSTER_HEADER_ONLY (the loop left out), Z13_NO_SUN_SHADOW, Z13_NO_FILL_SHADOW, Z13_FILL_CONST;
+// inside the baked light: Z13_NO_BORROW, Z13_NO_SURFACE_STEPS, Z13_NO_GATEWAY, Z13_NO_DIRECTION.
+
 in vec3 fragPosition;
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -30,8 +35,9 @@ uniform sampler2D shadowAtlas;
 uniform int shadowTileSize;
 uniform int shadowColumns;
 
-// The lamps' light baked into cells (cell_light/cell_light.h): per cell of the layout the piece
-// of its meter cube it belongs to (255 for an opaque cell), and per piece of each cube its light,
+// The lamps' light baked into cells (cell_light/cell_light.h): per cell of the layout a CellTexel,
+// r the piece of its meter cube it belongs to (255 for an opaque cell), g the borrow of an opaque
+// one, and per piece of each cube its light,
 // then its direction toward its lamps, in kPieces stacks of the cubes along z each.
 uniform int cellLightEnabled;
 uniform usampler3D cellLabels;
@@ -121,11 +127,15 @@ const float kBakedFloor = 0.35;
 const float kSeamNudge = 0.005;
 // A slope's face lies inside its block's opaque box: its light is sought this many cells along
 // the normal, and taken unchecked for walls if none is free there (a flight of slopes).
+#ifdef Z13_NO_SURFACE_STEPS
+const int kSurfaceSteps = 0;
+#else
 const int kSurfaceSteps = kNodeCells;
-// How far, in cells, a face in an opaque cell looks sideways for a free one to take its light from.
+#endif
+// light_layout.h: how far an opaque cell's borrow reaches, and the texel's "none".
 const int kBorrowReach = 3;
-// What a free cell the lamps' light never reached adds to its distance, so a lit one a bit farther wins.
-const int kUnlitPenalty = 100;
+const int kBorrowSpan = 2*kBorrowReach + 1;
+const int kNoBorrow = 255;
 
 // shadow_maps_state.cpp: kCubeFaceViews, the way each face looks and its up.
 const vec3 kFaceForward[CUBE_FACES] = vec3[](vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 1, 0), vec3(0, -1, 0),
@@ -235,40 +245,21 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
     if (ownPiece >= uint(kPieces))
     {
         // A floor beside an oblique wall lies in cells the wall's centre test makes opaque, up the whole
-        // wall: borrow the cell of the nearest free neighbour, beside it first, then above.
+        // wall: such a cell holds the shift to the free cell it borrows its light from.
         point = surface;
-        ivec3 own = ivec3(floor(point)) - cellOrigin;
-        int nearestDistance = 0;
-        for (int dz = 0; dz <= 1; dz++)
+        cell = ivec3(floor(point)) - cellOrigin;
+        if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
+#ifndef Z13_NO_BORROW
+        int borrow = int(texelFetch(cellLabels, cell, 0).g);
+        if (borrow != kNoBorrow)
         {
-            for (int dy = -kBorrowReach; dy <= kBorrowReach; dy++)
-            {
-                for (int dx = -kBorrowReach; dx <= kBorrowReach; dx++)
-                {
-                    ivec3 shift = ivec3(dx, dy, dz);
-                    ivec3 neighbour = own + shift;
-                    if (any(lessThan(neighbour, ivec3(0))) || any(greaterThanEqual(neighbour, cellCubes*kNodeCells))) continue;
-                    uint label = texelFetch(cellLabels, neighbour, 0).r;
-                    if (label >= uint(kPieces)) continue;
-                    ivec3 nodeCube = neighbour/kNodeCells;
-                    vec3 nodeLight = texelFetch(cellLight, ivec3(nodeCube.xy, nodeCube.z + int(label)*cellCubes.z), 0).rgb;
-                    int distance = shift.x*shift.x + shift.y*shift.y + shift.z*shift.z
-                                   + (nodeLight.r + nodeLight.g + nodeLight.b > 0.0 ? 0 : kUnlitPenalty);
-                    if (ownPiece >= uint(kPieces) || distance < nearestDistance)
-                    {
-                        ownPiece = label;
-                        cell = neighbour;
-                        nearestDistance = distance;
-                        point = vec3(cellOrigin + neighbour) + 0.5;
-                    }
-                }
-            }
+            ivec3 shift = ivec3(borrow%kBorrowSpan - kBorrowReach, (borrow/kBorrowSpan)%kBorrowSpan - kBorrowReach,
+                                borrow/(kBorrowSpan*kBorrowSpan));
+            cell += shift;
+            ownPiece = texelFetch(cellLabels, cell, 0).r;
+            point = vec3(cellOrigin + cell) + 0.5;
         }
-        if (ownPiece >= uint(kPieces))
-        {
-            cell = own;
-            if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, cellCubes*kNodeCells))) return vec3(0.0);
-        }
+#endif
     }
     ivec3 ownCube = cell/kNodeCells;
     vec3 cubePoint = (point - vec3(cellOrigin))/float(kNodeCells) - 0.5;
@@ -286,12 +277,16 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
         uint piece = texelFetch(cellLabels, nearest, 0).r;
         if (piece >= uint(kPieces)) continue;
         ivec3 gateway = clamp(nearest, ownCube*kNodeCells, ownCube*kNodeCells + kNodeCells - 1);
+#ifndef Z13_NO_GATEWAY
         if (ownPiece < uint(kPieces) && texelFetch(cellLabels, gateway, 0).r != ownPiece) continue;
+#endif
         vec3 shares = mix(1.0 - along, along, vec3(offset));
         float weight = shares.x*shares.y*shares.z;
         ivec3 texel = ivec3(cube.xy, cube.z + int(piece)*cellCubes.z);
         light += weight*texelFetch(cellLight, texel, 0).rgb;
+#ifndef Z13_NO_DIRECTION
         direction += weight*texelFetch(cellLight, texel + ivec3(0, 0, kPieces*cellCubes.z), 0).xyz;
+#endif
         weights += weight;
     }
     if (weights <= 0.0) return vec3(0.0);
@@ -424,24 +419,51 @@ void main()
             return;
         }
     }
+#ifdef Z13_NO_LIGHTING
+    // Measuring: the cost of drawing the pixels without any light (reload_shaders defines).
+    finalColor = vec4(texelColor.rgb*colDiffuse.rgb, texelColor.a*colDiffuse.a);
+    return;
+#endif
     bool twoSided = texelColor.a < 1.0;
     vec3 toView = normalize(viewPos - fragPosition);
     vec3 offset = fragPosition + normal*kNormalOffset;
     // In the free cell the face looks into: a wall between two rooms shows each its own side.
     vec3 facing = fragPosition + normal*cellSize*0.5 + toView*kSeamNudge;
+#ifdef Z13_NO_BUMP
+    vec3 shineNormal = normal;
+#else
     vec3 shineNormal = (checkerEnabled == 1 && checkerTextured == 1) ? BumpedNormal(fragPosition, normal) : normal;
+#endif
     vec3 sheen = vec3(0.0);
     vec3 light = vec3(0.0);
+#ifndef Z13_NO_CELL_LIGHT
     if (cellLightEnabled == 1)
     {
         vec3 baked = CellLight(facing/cellSize, normal, shineNormal, toView, sheen);
+#ifdef Z13_NO_PLAYER_SHADOWS
+        light += baked;
+#else
         light += max(baked - PlayerShadows(normal, twoSided, offset), vec3(0.0));
+#endif
     }
+#endif
 
     vec3 bakedEnd = light;
+#ifndef Z13_NO_CLUSTER_LIGHTS
+#if defined(Z13_CLUSTER_INDEX_ONLY)
+    if (ClusterOf(fragPosition) == -12345) light += vec3(1.0);
+    int first = 0;
+    int count = 0;
+#elif defined(Z13_CLUSTER_HEADER_ONLY)
+    vec4 header = TableTexel(clusterHeaders + ClusterOf(fragPosition));
+    if (header.y > 100000.0) light += vec3(1.0);
+    int first = 0;
+    int count = 0;
+#else
     vec4 header = TableTexel(clusterHeaders + ClusterOf(fragPosition));
     int first = int(header.x);
     int count = int(header.y);
+#endif
     for (int n = first; n < first + count; n++)
     {
         int base = int(TableTexel(clusterIndices + n/4)[n % 4])*kLightTexels;
@@ -466,20 +488,37 @@ void main()
         light += shaded*lit;
         sheen += gloss*lit;
     }
+#endif
     vec3 clusterEnd = light;
+#ifndef Z13_NO_SUN
     if (sunEnabled == 1)
     {
         vec3 gloss;
+#ifdef Z13_NO_SUN_SHADOW
+        float sunLit = 1.0;
+#else
         float sunLit = DirectionalShadow(sunShadowEnabled == 1, sunViewProjection, sunShadow, offset);
+#endif
         light += Shade(normal, shineNormal, twoSided, -sunDirection, toView, sunColor, gloss)*sunLit;
         sheen += gloss*sunLit;
     }
+#endif
     vec3 sunEnd = light;
+#ifndef Z13_NO_FILL
     if (fillEnabled == 1)
     {
-        light += Fill(normal, twoSided, -fillDirection, fillColor)*
-                 DirectionalShadow(fillShadowEnabled == 1, fillViewProjection, fillShadow, offset);
+#ifdef Z13_NO_FILL_SHADOW
+        float fillLit = 1.0;
+#else
+        float fillLit = DirectionalShadow(fillShadowEnabled == 1, fillViewProjection, fillShadow, offset);
+#endif
+#ifdef Z13_FILL_CONST
+        light += fillColor*0.5*fillLit;
+#else
+        light += Fill(normal, twoSided, -fillDirection, fillColor)*fillLit;
+#endif
     }
+#endif
     vec3 fillEnd = light;
     vec3 hemisphere = mix(ambientGround, ambient, normal.z*0.5 + 0.5);
 

@@ -33,6 +33,20 @@ inline constexpr int kPiecesPerNode = 3;
 // The label of a cell light doesn't pass; free cells are labelled with their piece.
 inline constexpr uint8_t kOpaqueLabel = 0xFF;
 
+// How far, in cells, an opaque cell looks for a free one to take its light from: kBorrowReach
+// each way along x and y, and up to kBorrowLayers - 1 above. A cell texel's borrow is the
+// shift's index in that box (x fastest), or kNoBorrow; lighting.fs mirrors these.
+inline constexpr int kBorrowReach = 3;
+inline constexpr int kBorrowSpan = (2 * kBorrowReach) + 1;
+inline constexpr int kBorrowLayers = 2;
+inline constexpr uint8_t kNoBorrow = 0xFF;
+
+// What a cell texel holds: the cell's label, and where it borrows light from when opaque.
+struct CellTexel {
+  uint8_t label {};
+  uint8_t borrow = kNoBorrow;
+};
+
 // What a node texel holds: its light, or the direction toward its lamps (CellLight::DirectionAt).
 enum class NodeTexel : uint8_t { kLight, kDirection };
 

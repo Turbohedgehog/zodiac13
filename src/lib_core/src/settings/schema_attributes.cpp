@@ -271,6 +271,36 @@ std::expected<std::vector<CliOption>, std::string> CollectCliOptions(
   return options;
 }
 
+std::expected<ScalarRange, std::string> RangeOfField(
+    const reflection::Schema& schema, const reflection::Object& root, std::string_view path) {
+  const reflection::Object* object = &root;
+  std::string_view rest = path;
+  while (true) {
+    const size_t separator = rest.find(kPathSeparator);
+    const std::string_view name = rest.substr(0, separator);
+    const reflection::Field* field = object->fields()->LookupByKey(std::string(name).c_str());
+    if (field == nullptr) {
+      return std::unexpected(std::format("no field '{}' in '{}'", name, path));
+    }
+    if (separator != std::string_view::npos) {
+      if (!IsNestedTable(schema, *field)) {
+        return std::unexpected(std::format("'{}' in '{}' is not a table", name, path));
+      }
+      object = &NestedObject(schema, *field);
+      rest = rest.substr(separator + 1);
+      continue;
+    }
+    if (!flatbuffers::IsScalar(field->type()->base_type())) {
+      return std::unexpected(std::format("'{}' is not a numeric or bool field", path));
+    }
+    const auto bound = [&field](std::string_view key) {
+      const auto text = Attribute(*field, key);
+      return text ? ParseDouble(*text) : std::nullopt;
+    };
+    return ScalarRange {.min = bound(kMinAttribute), .max = bound(kMaxAttribute)};
+  }
+}
+
 Status SetFieldFromText(
     const reflection::Schema& schema, const reflection::Object& root, flatbuffers::Table& table,
     std::string_view path, std::string_view text) {

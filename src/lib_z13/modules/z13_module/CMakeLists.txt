@@ -9,6 +9,7 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/bootstrap/bootstrap_system.cpp
+  src/debug/settings_commands.cpp
   src/gameplay/block_change_system.cpp
   src/gameplay/flashlight_system.cpp
   src/gameplay/gameplay_system.cpp

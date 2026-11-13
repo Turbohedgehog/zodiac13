@@ -19,6 +19,10 @@
 #include <filesystem>
 #include <string>
 
+#include <flecs.h>
+
+#include <flecs.h>
+
 #include <lib_core/settings/config.h>
 #include <lib_core/utils/file_io.h>
 #include <lib_core/world/core.h>
@@ -201,6 +205,61 @@ TEST(SettingsLoaderTest, APlatformsOwnDefaultsApplyOverTheSchemas) {
   const auto desktop = z13::PlatformSettings("linux");
   ASSERT_TRUE(desktop.has_value()) << desktop.error();
   EXPECT_EQ(desktop->render->shadow_lights, z13::SchemaDefaults<z13::fbs::settings::RenderTuningT>().shadow_lights);
+}
+
+class ChangeSettingTest : public ::testing::Test {
+ protected:
+  void SetUp() override { InstallSettings(world_, MakeSettings()); }
+
+  flecs::world world_;
+};
+
+TEST_F(ChangeSettingTest, SetsTheSingletonOfTheChangedTableOnly) {
+  constexpr int kOtherInterest = 2;
+  auto net = world_.get<NetTuning>();
+  net.interest_radius_sectors = kOtherInterest;
+  world_.set(net);
+
+  ASSERT_TRUE(ChangeSetting(world_, "render.shadow_lights", "7"));
+
+  EXPECT_EQ(world_.get<RenderTuning>().shadow_lights, 7);
+  EXPECT_EQ(world_.get<NetTuning>().interest_radius_sectors, kOtherInterest);
+}
+
+TEST_F(ChangeSettingTest, RefusesWhatTheSchemaRefusesAndChangesNothing) {
+  const int before = world_.get<RenderTuning>().shadow_lights;
+
+  EXPECT_FALSE(ChangeSetting(world_, "render.shadow_lights", "999"));
+  EXPECT_FALSE(ChangeSetting(world_, "render.no_such_field", "1"));
+  EXPECT_FALSE(ChangeSetting(world_, "core.fps", "30"));
+  EXPECT_EQ(world_.get<RenderTuning>().shadow_lights, before);
+}
+
+TEST_F(ChangeSettingTest, TheRenderScaleStaysWithinWhatTheSceneTargetCanBe) {
+  constexpr float kHalf = 0.5f;
+
+  ASSERT_TRUE(ChangeSetting(world_, "render.resolution_scale", "0.5"));
+  EXPECT_EQ(world_.get<RenderTuning>().resolution_scale, kHalf);
+  EXPECT_FALSE(ChangeSetting(world_, "render.resolution_scale", "0.1"));
+  EXPECT_FALSE(ChangeSetting(world_, "render.resolution_scale", "1.5"));
+  EXPECT_EQ(world_.get<RenderTuning>().resolution_scale, kHalf);
+}
+
+TEST_F(ChangeSettingTest, GivesTheRangeOfANumberFromTheSchema) {
+  const auto range = RangeOfSetting("render.resolution_scale");
+
+  ASSERT_TRUE(range);
+  EXPECT_EQ(range->min, 0.25);
+  EXPECT_EQ(range->max, 1.0);
+  EXPECT_FALSE(RangeOfSetting("render.no_such_field"));
+}
+
+TEST_F(ChangeSettingTest, ListsTheSettingsUnderAPrefix) {
+  const auto entries = ListSettings(SettingsOf(world_), "mcp_server.");
+
+  ASSERT_EQ(entries.size(), 3U);
+  EXPECT_EQ(entries.front().path, "mcp_server.enabled");
+  EXPECT_EQ(entries[1].value, std::to_string(SchemaDefaults<fbs::settings::McpServerT>().port));
 }
 
 }  // namespace

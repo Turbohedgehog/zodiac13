@@ -47,6 +47,8 @@ class CellLight {
   const LightLayout& Layout() const;
   // Per cell of the layout (CellIndex).
   const std::vector<uint8_t>& Labels() const;
+  // The texels of `cells`, inside the layout, x fastest.
+  std::vector<CellTexel> CellTexels(const z13::building::primitives::CellBox& cells) const;
   // The node of a cell; nothing for an opaque cell or one outside the layout.
   std::optional<size_t> NodeAt(const Eigen::Vector3i& cell) const;
   // Per node (NodeIndex), what its lamps give it.

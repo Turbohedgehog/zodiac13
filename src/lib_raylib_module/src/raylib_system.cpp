@@ -41,6 +41,7 @@
 #include "render/block_meshes.h"
 #include "render/frame_profile.h"
 #include "render/render_components.h"
+#include "render/scene_target.h"
 
 namespace z13::raylib {
 
@@ -153,7 +154,6 @@ void RegisterSystems(flecs::world world) {
       .each([](const RaylibData&, WindowSize& size, SdlPlatformData& platform_data) {
         SdlPlatform& platform = *platform_data.platform;
         size.size = platform.Size();
-        static constexpr std::array<unsigned char, 3> kClearColor = {28, 28, 38};
         platform.BeginFrame(kClearColor[0], kClearColor[1], kClearColor[2]);
       });
 

@@ -16,17 +16,20 @@
 
 #include "lights.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <rlgl.h>
 #include <spdlog/spdlog.h>
 
 #include "../tools/shader_asset.h"
 #include "../tools/math_convert.h"
 #include "render_resources.h"
+#include "shader_gl.h"
 
 namespace z13::raylib {
 
@@ -110,13 +113,10 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
 
 }  // namespace
 
-::Shader LoadLightingShader(const AssetSource& assets) {
-  ::Shader shader = LoadShaderAsset(assets, kLightingVertexShaderPath, kLightingFragmentShaderPath);
-  if (Location(shader, kViewPosUniform) < 0) {
-    spdlog::error("[raylib] lighting shader failed to compile");
-    SafeUnloadShader(shader);
-    return {};
-  }
+namespace {
+
+// What a linked lighting shader needs once: where the view position is, each sampler on a unit of its own.
+void InitLightingShader(::Shader& shader) {
   shader.locs[SHADER_LOC_VECTOR_VIEW] = Location(shader, kViewPosUniform);
   // Each sampler on a unit of its own, away from the texture raylib binds on unit 0.
   SetInt(shader, Location(shader, kSunPrefix, kShadowSuffix), kSunShadowUnit);
@@ -126,7 +126,52 @@ void UploadDirectional(const ::Shader& shader, const DirectionalUniforms& unifor
   SetInt(shader, Location(shader, kLightTableWidthUniform), kLightTableWidth);
   SetInt(shader, Location(shader, kCellLabelsUniform), kCellLabelsUnit);
   SetInt(shader, Location(shader, kCellLightUniform), kCellLightUnit);
+}
+
+}  // namespace
+
+std::expected<::Shader, std::string> CompileLightingShader(const AssetSource& assets,
+                                                           std::span<const std::string> defines,
+                                                           const ShaderTextOverride& text) {
+  const auto sources = ReadShaderSources(assets, kLightingVertexShaderPath, kLightingFragmentShaderPath, defines, text);
+  if (!sources) {
+    return std::unexpected(sources.error());
+  }
+  ::Shader shader = LoadShaderFromMemory(sources->vertex.c_str(), sources->fragment.c_str());
+  // raylib answers a failed build with its default shader; an unused uniform (viewPos, with no lighting) is no failure.
+  if (shader.id == 0 || shader.id == rlGetShaderIdDefault()) {
+    std::string log = ShaderBuildLog(sources->vertex, sources->fragment);
+    SafeUnloadShader(shader);
+    return std::unexpected(log.empty() ? std::string("the shader did not build") : std::move(log));
+  }
+  InitLightingShader(shader);
   return shader;
+}
+
+::Shader LoadLightingShader(const AssetSource& assets) {
+  auto shader = CompileLightingShader(assets, {}, {});
+  if (!shader) {
+    spdlog::error("[raylib] lighting shader failed to compile: {}", shader.error());
+    return {};
+  }
+  return *shader;
+}
+
+z13::Status ReplaceLightingShader(::Shader& shader, const AssetSource& assets, std::span<const std::string> defines,
+                                  const ShaderTextOverride& text) {
+  auto fresh = CompileLightingShader(assets, defines, text);
+  if (!fresh) {
+    return std::unexpected(fresh.error());
+  }
+  const z13::Status copied = CopyProgram(shader.id, fresh->id);
+  if (copied) {
+    std::copy_n(fresh->locs, RL_MAX_SHADER_LOCATIONS, shader.locs);
+  }
+  SafeUnloadShader(*fresh);
+  if (copied) {
+    InitLightingShader(shader);
+  }
+  return copied;
 }
 
 LightUniforms FindLightUniforms(const ::Shader& shader) {

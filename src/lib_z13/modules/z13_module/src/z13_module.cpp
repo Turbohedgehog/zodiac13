@@ -44,6 +44,7 @@
 #include <flecs.h>
 
 #include "bootstrap/bootstrap_system.h"
+#include "debug/settings_commands.h"
 #include "gameplay/block_change_system.h"
 #include "gameplay/flashlight_system.h"
 #include "gameplay/inventory_system.h"
@@ -101,6 +102,7 @@ Z13Module::Z13Module(flecs::world& world) {
   OnInitWorldData(world, OnCreateDefaults);
 
   z13::bootstrap::BootstrapSystem::Register(world);
+  z13::SettingsCommands::Register(world);
   z13::gameplay::GameplaySystem::Register(world);
   z13::gameplay::BlockChangeSystem::Register(world);
   z13::gameplay::input::GameplayInputSystem::Register(world);

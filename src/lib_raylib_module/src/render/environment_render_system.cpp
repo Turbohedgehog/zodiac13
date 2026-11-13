@@ -80,6 +80,7 @@
 #include "scene_models.h"
 #include "scene_overlay.h"
 #include "scene_queries.h"
+#include "scene_target.h"
 #include "scene_view.h"
 #include "shadow_maps.h"
 #include "skybox.h"
@@ -97,7 +98,7 @@ constexpr std::chrono::seconds kFrameLogInterval {1};
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
                                          BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour, StationProps,
-                                         FrameProfile, z13::VisualSmoothing, z13::RenderTuning>(world);
+                                         FrameProfile, SceneTarget, z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
 void StartProfiledFrame(flecs::world& world, z13::flecs_tools::FrameKind) {
@@ -235,6 +236,7 @@ void RegisterSystems(flecs::world world) {
   world.set<z13::VisualSmoothing>({});
   world.set<z13::RenderTuning>({});
   world.set<RenderStats>({});
+  world.set<SceneTarget>({});
   world.set<FrameProfile>({});
   // The frame report names the heaviest systems.
   ecs_measure_system_time(world, true);
@@ -427,8 +429,8 @@ void RegisterSystems(flecs::world world) {
       });
 
   // Render phase: 3D scene between FrameBegin (PreRender) and FrameEnd (FinalizeRender).
-  world.system<const RaylibCamera, const WindowSize, RenderStats, FrameProfile, z13::station::RoomOverlay*,
-               const RenderTour*, const z13::RenderTuning, const CellLighting*, ShadowMaps*>(
+  world.system<const RaylibCamera, const WindowSize, RenderStats, FrameProfile, SceneTarget,
+               z13::station::RoomOverlay*, const RenderTour*, const z13::RenderTuning, const CellLighting*, ShadowMaps*>(
            "EnvironmentRenderSystem::Draw")
       .kind<Render>()
       .tick_source<RenderGate>()
@@ -438,14 +440,26 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::DockLinks>()
       .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, grid_rooms_query, drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
-                FrameProfile& profile, z13::station::RoomOverlay* overlay, const RenderTour* tour,
-                const z13::RenderTuning& tuning, const CellLighting* cell_lighting, ShadowMaps* shadows) {
+                FrameProfile& profile, SceneTarget& scene_target, z13::station::RoomOverlay* overlay,
+                const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
+                ShadowMaps* shadows) {
         flecs::world world = it.world();
         const auto main_rooms = z13::station::MainGridData<z13::station::rooms::RoomCache>(world);
         const z13::station::rooms::RoomCache* rooms = main_rooms ? &main_rooms->get() : nullptr;
         profile.timeline.MarkDrawStart(FrameProfile::Clock::now());
         double background_ms = MsOf([&] { SetViewPosition(world, raylib_camera.camera.position); });
-        BeginScene3D(raylib_camera.camera, size.size);
+        const Eigen::Vector2i scaled_size = ScaledSize(size.size, tuning.resolution_scale);
+        if (scaled_size != size.size) {
+          if (const Status fitted = FitSceneTarget(scene_target, scaled_size); !fitted) {
+            log_error("[raylib] {}", fitted.error());
+          }
+        }
+        const bool offscreen = scaled_size != size.size && scene_target.Ready();
+        const Eigen::Vector2i view_size = offscreen ? scaled_size : size.size;
+        if (offscreen) {
+          ClearSceneTarget(scene_target);
+        }
+        BeginScene3D(raylib_camera.camera, view_size);
 
         const ::Vector3& eye = raylib_camera.camera.position;
         const auto culling_start = std::chrono::steady_clock::now();
@@ -459,7 +473,7 @@ void RegisterSystems(flecs::world world) {
         const CameraView camera {
             .view_projection = CurrentViewProjection(),
             .eye = Eigen::Vector3f(eye.x, eye.y, eye.z),
-            .min_portal_extent = PixelsInNdc(tuning.min_portal_pixels, size.size),
+            .min_portal_extent = PixelsInNdc(tuning.min_portal_pixels, view_size),
             .opened = opened,
             .docked = docked,
         };
@@ -481,11 +495,15 @@ void RegisterSystems(flecs::world world) {
           lit = LightScene(world, FlashlightsOf(flashlight_query, drawing->poses, view.culling, camera.eye, tuning),
                            cell_lighting, shadows, casters, tuning);
           // The shadow passes drew elsewhere, with their own viewport and matrices.
-          rlViewport(0, 0, size.size.x(), size.size.y());
-          BeginScene3D(raylib_camera.camera, size.size);
+          if (offscreen) {
+            EnterSceneTarget(scene_target);
+          } else {
+            rlViewport(0, 0, view_size.x(), view_size.y());
+          }
+          BeginScene3D(raylib_camera.camera, view_size);
         });
         background_ms += MsOf([&] {
-          UploadLighting(world, lit, shadows, CurrentClusterView(size.size), tuning);
+          UploadLighting(world, lit, shadows, CurrentClusterView(view_size), tuning);
           DrawBackground(world);
         });
 
@@ -504,6 +522,9 @@ void RegisterSystems(flecs::world world) {
         PublishSeenRooms(view.culling, rooms, stats, overlay);
 
         stats.times.flush_ms = MsOf(EndScene3D);
+        if (offscreen) {
+          PresentSceneTarget(scene_target, size.size);
+        }
       });
 }
 

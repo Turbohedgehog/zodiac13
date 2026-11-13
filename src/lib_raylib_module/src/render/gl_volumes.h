@@ -23,6 +23,7 @@
 
 #include <Eigen/Dense>
 
+#include <cell_light/light_layout.h>
 #include <primitives/cell_box.h>
 
 namespace z13::raylib {
@@ -30,7 +31,7 @@ namespace z13::raylib {
 struct GlVolumeFunctions;
 
 enum class VolumeFormat : uint8_t {
-  // A byte per texel, read as an unsigned integer.
+  // Two bytes per texel (CellTexel), read as unsigned integers.
   kLabels,
   // Four half floats per texel, uploaded as floats.
   kColors,
@@ -51,9 +52,9 @@ class GlVolumes {
 
   // Nothing if the driver refused it.
   std::optional<Volume> Create(VolumeFormat format, const Eigen::Vector3i& size) const;
-  // `region` of a kLabels volume from `labels`, which spans all of it.
+  // `region` of a kLabels volume from `texels`, which holds just that region, x fastest.
   void UploadLabels(const Volume& volume, const z13::building::primitives::CellBox& region,
-                    std::span<const uint8_t> labels) const;
+                    std::span<const z13::station::light::CellTexel> texels) const;
   // `region` of a kColors volume from `texels`, which holds just that region, x fastest.
   void UploadColors(const Volume& volume, const z13::building::primitives::CellBox& region,
                     std::span<const Eigen::Vector4f> texels) const;

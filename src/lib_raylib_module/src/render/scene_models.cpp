@@ -139,6 +139,21 @@ Lighting LoadLighting(const AssetSource& assets) {
   return Lighting{.res = std::move(res)};
 }
 
+z13::Status ReloadLighting(const Lighting& lighting, const AssetSource& assets, std::vector<std::string> defines,
+                           const ShaderTextOverride& text) {
+  if (!lighting.res) {
+    return std::unexpected("there is no lighting shader (no window, or it failed to load)");
+  }
+  LightingResources& res = *lighting.res;
+  if (const z13::Status replaced = ReplaceLightingShader(*res.shader, assets, defines, text); !replaced) {
+    return replaced;
+  }
+  res.checker = SetupCheckerUniforms(*res.shader);
+  res.lights = FindLightUniforms(*res.shader);
+  res.defines = std::move(defines);
+  return {};
+}
+
 // Waits out a pending restore: a joining client has Gameplay a frame before Welcome's mode.
 void ReconcileSpaceship(flecs::world world, const Lighting& lighting, const AssetSource& assets,
                         const z13::RenderTuning& tuning) {

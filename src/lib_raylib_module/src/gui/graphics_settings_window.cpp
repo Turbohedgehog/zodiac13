@@ -17,6 +17,7 @@
 #include "graphics_settings_window.h"
 
 #include <memory>
+#include <string_view>
 
 #include <imgui.h>
 
@@ -28,6 +29,12 @@
 #include "gui_widgets.h"
 
 namespace z13::raylib::gui {
+
+namespace {
+
+constexpr std::string_view kRenderScalePath = "render.resolution_scale";
+
+}  // namespace
 
 GraphicsSettingsWindow::GraphicsSettingsWindow(flecs::world world) : Window(world, "Graphics") {}
 
@@ -49,6 +56,15 @@ void GraphicsSettingsWindow::DrawBody() {
     dirty_ = true;
   }
 
+  if (const auto range = z13::RangeOfSetting(kRenderScalePath); range && range->min && range->max) {
+    float scale = tuning->resolution_scale;
+    if (ImGui::SliderFloat("Render scale", &scale, static_cast<float>(*range->min), static_cast<float>(*range->max),
+                           "%.2f")) {
+      tuning->resolution_scale = scale;
+      dirty_ = true;
+    }
+  }
+
   ImGui::Separator();
   if (ImGui::Button("Back", ButtonSize())) {
     SaveIfDirty();
@@ -67,7 +83,9 @@ void GraphicsSettingsWindow::SaveIfDirty() {
     log_error("Graphics settings: not saved: {}", settings.error());
     return;
   }
-  settings->render->shadow_lights = World().get<z13::RenderTuning>().shadow_lights;
+  const z13::RenderTuning& tuning = World().get<z13::RenderTuning>();
+  settings->render->shadow_lights = tuning.shadow_lights;
+  settings->render->resolution_scale = tuning.resolution_scale;
   if (const auto written = z13::WriteSettings(path, *settings); !written) {
     log_error("Graphics settings: not saved: {}", written.error());
   }
