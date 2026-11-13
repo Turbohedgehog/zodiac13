@@ -84,7 +84,7 @@ struct Contact {
 Contact ContactOf(const Interactions& interactions, flecs::entity_t door) {
   Contact contact;
   for (const Interaction& interaction : interactions.list) {
-    if (interaction.target != door) {
+    if (interaction.target != door || !interaction.permitted) {
       continue;
     }
     contact.presence = contact.presence || interaction.method == Methods::Presence;

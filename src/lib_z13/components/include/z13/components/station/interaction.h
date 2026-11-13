@@ -34,6 +34,9 @@ struct Interaction {
   flecs::entity_t actor {};
   flecs::entity_t target {};
   fbs::station::InteractionMethods method {};
+  // False when the target asks for accesses the actor's passes lack (z13/components/gameplay/access.h): the owner of
+  // the target leaves the interaction without effect.
+  bool permitted = true;
 };
 
 // This tick's interactions, ordered by the actors' player ids. Not state: a replayed tick

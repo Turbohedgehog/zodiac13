@@ -25,11 +25,13 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_json_store.h>
 #include <lib_core/utils/math.h>
 
 #include <net_module/in_memory_transport.h>
 
+#include <z13/components/gameplay/access.h>
 #include <z13/components/station/block.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/interaction.h>
@@ -185,6 +187,57 @@ TEST_F(InteractionSystemTest, PresenceLastsWhileThePlayerIsInTheDoorsSensor) {
   player.set(At(far_away));
   world_.Tick();
   EXPECT_TRUE(Found(world_, Methods::Presence).empty());
+}
+
+// Access (docs/station-systems-plan.md, "Доступ"): a block with a requirement answers only to a pass in a hotbar cell.
+constexpr uint8_t kPassCell = 2;
+constexpr uint8_t kOutsideTheHotbarCell = z13::inventory::kHotbarCells;
+const z13::inventory::AccessSet kArmoryAccess = z13::inventory::AccessBit(z13::inventory::Access::kArmory);
+const z13::inventory::AccessSet kBrigAccess = z13::inventory::AccessBit(z13::inventory::Access::kBrig);
+
+TEST(AccessTest, ARequirementNeedsAllOfItsListAndOneOfItsAlternatives) {
+  using z13::inventory::AccessRequirement;
+  using z13::inventory::Covers;
+  const AccessRequirement all {.required_all = kArmoryAccess | kBrigAccess};
+  const AccessRequirement either {.required_any = kArmoryAccess | kBrigAccess};
+
+  EXPECT_TRUE(Covers(kArmoryAccess | kBrigAccess, all));
+  EXPECT_FALSE(Covers(kArmoryAccess, all));
+  EXPECT_TRUE(Covers(kBrigAccess, either));
+  EXPECT_FALSE(Covers(0, either));
+  EXPECT_TRUE(Covers(0, AccessRequirement {})) << "an empty requirement is open to everyone";
+}
+
+flecs::entity GivePass(Z13TestWorld& world, flecs::entity player, z13::inventory::AccessSet access, uint8_t cell) {
+  return world.World()
+      .entity()
+      .add<z13::flecs_tools::StateEntity>()
+      .set(z13::inventory::Item {.kind = z13::inventory::ItemKind::kPass})
+      .set(z13::inventory::Pass {.access = access})
+      .set(z13::inventory::CarriedBy {.player_id = player.get<z13::gameplay::Player>().id, .cell = cell});
+}
+
+TEST_F(InteractionSystemTest, ASwitchAskingForAnAccessAnswersToAPassInTheHotbarOnly) {
+  const flecs::entity player = StandAt(kBeforeTheSwitch);
+  const flecs::entity switch_block = AddSwitchAhead(player, kSwitchCellsAhead);
+  switch_block.set(z13::inventory::AccessRequirement {.required_all = kArmoryAccess});
+
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_FALSE(IsOn(switch_block)) << "no pass";
+  const auto refused = Found(world_, Methods::Use);
+  EXPECT_TRUE(refused.empty() || !refused.front().permitted);
+
+  GivePass(world_, player, kBrigAccess, kPassCell);
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_FALSE(IsOn(switch_block)) << "a pass of another zone";
+
+  GivePass(world_, player, kArmoryAccess, kOutsideTheHotbarCell);
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_FALSE(IsOn(switch_block)) << "a pass outside the hotbar";
+
+  GivePass(world_, player, kArmoryAccess, kPassCell + 1);
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_TRUE(IsOn(switch_block));
 }
 
 std::string Checkpoint(Z13TestWorld& test_world) {
