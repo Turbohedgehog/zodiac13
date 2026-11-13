@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include <z13/components/gameplay/access.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/conduit.h>
 #include <z13/components/station/dock.h>
@@ -88,6 +89,9 @@ struct BlueprintLift {
 
 // The lifts of a blueprint, naming the first whose trip takes no ticks.
 std::expected<std::vector<BlueprintLift>, std::string> ParseBlueprintLifts(std::string_view json);
+
+// The locks of the blueprint (`locks`); a name that is no access is an error.
+std::expected<std::vector<z13::inventory::AccessLock>, std::string> ParseBlueprintLocks(std::string_view json);
 
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json);
 

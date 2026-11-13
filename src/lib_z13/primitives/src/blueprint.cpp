@@ -256,6 +256,45 @@ std::expected<std::vector<BlueprintLift>, std::string> ParseBlueprintLifts(std::
   return lifts;
 }
 
+namespace {
+
+std::expected<z13::inventory::AccessSet, std::string> AccessSetOf(
+    const std::vector<std::string>& names, size_t lock) {
+  z13::inventory::AccessSet set {};
+  for (const std::string& name : names) {
+    const auto access = z13::inventory::ParseAccess(name);
+    if (!access) {
+      return std::unexpected(std::format("blueprint: lock {}: no access '{}'", lock, name));
+    }
+    set |= z13::inventory::AccessBit(*access);
+  }
+  return set;
+}
+
+}  // namespace
+
+std::expected<std::vector<z13::inventory::AccessLock>, std::string> ParseBlueprintLocks(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  std::vector<z13::inventory::AccessLock> locks;
+  for (size_t i = 0; i < parsed->locks.size(); ++i) {
+    const fbs_station::BlueprintLockT& entry = *parsed->locks[i];
+    const auto all = AccessSetOf(entry.required_all, i);
+    const auto any = AccessSetOf(entry.required_any, i);
+    if (!all || !any) {
+      return std::unexpected(all ? any.error() : all.error());
+    }
+    locks.push_back({.grid = entry.grid,
+                     .cell = entry.cell ? Eigen::Vector3i(entry.cell->x(), entry.cell->y(), entry.cell->z())
+                                        : Eigen::Vector3i::Zero().eval(),
+                     .required_all = *all,
+                     .required_any = *any});
+  }
+  return locks;
+}
+
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {
   const auto parsed = ParseSource(json);
   if (!parsed) {

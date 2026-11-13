@@ -185,6 +185,20 @@ TEST(StationBlueprintTest, LiftsAreParsedWithTheirStopsAndButtonsAndOneWithoutAT
   EXPECT_EQ(lifts->front().upper, Eigen::Vector3i(1, 2, 15));
   EXPECT_EQ(lifts->front().trip_ticks, 90u);
   EXPECT_FALSE(z13::building::primitives::ParseBlueprintLifts(R"({"lifts": [{"primitive": "Floor"}]})").has_value());
+
+  const auto locks = z13::building::primitives::ParseBlueprintLocks(
+      R"({"locks": [{"grid": 2, "cell": {"x": 1, "y": 2, "z": 3}, "required_all": ["bridge"],
+                     "required_any": ["armory", "brig"]}]})");
+  ASSERT_TRUE(locks.has_value()) << locks.error();
+  ASSERT_EQ(locks->size(), 1u);
+  EXPECT_EQ(locks->front().grid, 2u);
+  EXPECT_EQ(locks->front().cell, Eigen::Vector3i(1, 2, 3));
+  EXPECT_EQ(locks->front().required_all, z13::inventory::AccessBit(z13::inventory::Access::kBridge));
+  EXPECT_EQ(locks->front().required_any, z13::inventory::AccessBit(z13::inventory::Access::kArmory) |
+                                             z13::inventory::AccessBit(z13::inventory::Access::kBrig));
+  EXPECT_FALSE(z13::building::primitives::ParseBlueprintLocks(
+                   R"({"locks": [{"cell": {"x": 0, "y": 0, "z": 0}, "required_all": ["wizardry"]}]})")
+                   .has_value());
 }
 
 TEST_P(TestStationTest, SceneBuildsTheStationAndSpawnsThePlayerOnAMarker) {

@@ -31,6 +31,7 @@
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/gameplay/access.h>
 #include <z13/components/station/conduit.h>
 #include <z13/components/station/dock.h>
 #include <z13/components/gameplay/kinematic_body.h>
@@ -136,6 +137,7 @@ void PopulateStationScene(
   const auto docks = json.and_then(z13::building::primitives::ParseBlueprintDocks);
   const auto conduit_runs = json.and_then(z13::building::primitives::ParseBlueprintConduits);
   const auto lift_entries = json.and_then(z13::building::primitives::ParseBlueprintLifts);
+  const auto locks = json.and_then(z13::building::primitives::ParseBlueprintLocks);
   const auto panels = walls.and_then([&](const auto& parsed) {
     return openings.and_then([&](const auto& cut) { return BlueprintPanels(parsed, palette.palette, tuning, cut); });
   });
@@ -159,6 +161,9 @@ void PopulateStationScene(
     }
     if (!lift_entries) {
       return std::unexpected(lift_entries.error());
+    }
+    if (!locks) {
+      return std::unexpected(locks.error());
     }
     if (const Status lifts_ok = ResolveLifts(*lift_entries, palette.palette, lifts, cabins); !lifts_ok) {
       return lifts_ok;
@@ -204,6 +209,9 @@ void PopulateStationScene(
         .add<z13::flecs_tools::StateEntity>()
         .set(lifts[i])
         .set(cabins[i]);
+  }
+  for (size_t i = 0; i < locks->size(); ++i) {
+    world.entity(std::format("BlueprintLock_{}", i).c_str()).add<z13::flecs_tools::StateEntity>().set((*locks)[i]);
   }
   if (json.and_then(z13::building::primitives::ParseBlueprintDoorsOpen).value_or(false)) {
     world.set(z13::station::DoorsStartOpen {.open = true});
