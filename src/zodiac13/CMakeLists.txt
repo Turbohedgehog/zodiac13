@@ -5,7 +5,7 @@ find_package(flecs CONFIG REQUIRED)
 if(ANDROID)
   find_package(SDL3 CONFIG REQUIRED)
   find_package(spdlog CONFIG REQUIRED)
-  add_library(${PROJECT_NAME} SHARED android_main.cpp)
+  add_library(${PROJECT_NAME} SHARED android_main.cpp apk_pack_reader.cpp)
   set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME main)
   target_link_libraries(
     ${PROJECT_NAME}

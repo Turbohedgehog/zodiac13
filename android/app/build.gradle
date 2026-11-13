@@ -35,6 +35,11 @@ android {
         assets.srcDirs = [new File(stageDir, 'assets')]
     }
 
+    // The asset pack is read in place from the APK (ApkPackReader), which a compressed entry can't.
+    androidResources {
+        noCompress 'pack'
+    }
+
     // Plugins are found as files in nativeLibraryDir (ModuleLibraryPath), so they're unpacked
     // at install instead of being loaded straight from the APK.
     packaging {

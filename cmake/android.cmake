@@ -31,8 +31,8 @@ add_custom_target(z13_android_stage
     COMMAND ${CMAKE_COMMAND} -E copy ${z13_app_libs} ${z13_vcpkg_shared_libs} "${z13_cxx_runtime}"
             "${Z13_ANDROID_LIBS_DIR}"
     COMMAND ${CMAKE_STRIP} --strip-debug ${z13_staged_libs}
-    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DOUTPUT_DIR=${Z13_ANDROID_STAGE_DIR}/assets
-            -P ${CMAKE_SOURCE_DIR}/cmake/android_assets.cmake
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/pack_assets.py ${CMAKE_SOURCE_DIR}
+            ${Z13_ANDROID_STAGE_DIR}/assets/z13.pack
     COMMENT "Staging the APK's libraries and files in ${Z13_ANDROID_STAGE_DIR}"
     VERBATIM
 )

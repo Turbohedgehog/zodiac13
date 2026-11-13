@@ -81,6 +81,7 @@ if(ANDROID AND NOT Z13_BUILD_RENDER)
 endif()
 # One per build directory, so a Release build (make.py -br: bin-release/) doesn't overwrite Debug.
 set(Z13_BIN_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE PATH "Where the executable, plugins, tests, config/ and assets/ go")
+set(Z13_ASSET_PACK "${Z13_BIN_DIR}/z13.pack")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
@@ -159,12 +160,22 @@ add_custom_target(z13_assets ALL
     COMMENT "Copying assets/ -> bin/assets/"
     VERBATIM
 )
+# The archive of both, what a package and the APK carry instead of the directories; the script
+# skips the rewrite when nothing changed.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+if(NOT ANDROID)
+    add_custom_target(z13_asset_pack ALL
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/pack_assets.py ${CMAKE_SOURCE_DIR} ${Z13_ASSET_PACK}
+        COMMENT "Packing config/ and assets/ -> bin/z13.pack"
+        VERBATIM
+    )
+endif()
 add_dependencies(building_module z13_assets)
 if(Z13_BUILD_RENDER)
     add_dependencies(raylib_module z13_assets)
 endif()
 if(NOT ANDROID)
-    add_dependencies(z13_tests z13_assets)
+    add_dependencies(z13_tests z13_assets z13_asset_pack)
     add_dependencies(z13_plugin_smoke z13_assets)
 endif()
 

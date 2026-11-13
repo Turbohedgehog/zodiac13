@@ -62,8 +62,10 @@ z13_add_library(
   src/utils/drawn_poses.cpp
   src/utils/endpoint.cpp
   src/utils/file_io.cpp
+  src/utils/file_pack_reader.cpp
   src/utils/flecs_utils.cpp
   src/utils/frustum.cpp
+  src/utils/asset_pack.cpp
   src/utils/asset_source.cpp
   src/utils/install_dir.cpp
   src/utils/pose_smoothing.cpp
