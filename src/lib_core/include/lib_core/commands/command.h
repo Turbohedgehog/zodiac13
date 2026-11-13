@@ -46,6 +46,9 @@ struct Tags {
 // The tag settings.fbs lists as the debug channel's default (a test keeps the two equal).
 inline constexpr FixedText kDebugTag("debug");
 
+// Edits the station: lays, builds or removes (the commands of building_module and conduit_module).
+inline constexpr FixedText kBuildTag("build");
+
 template <FixedText kText>
 struct CommandName {
   static constexpr std::string_view kValue = kText.View();

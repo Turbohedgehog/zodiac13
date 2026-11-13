@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/door_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/door_commands.cpp
   src/door_module.cpp
   src/door_module_factory.cpp
   src/door_system.cpp
@@ -17,6 +18,7 @@ z13_add_plugin(
   zodiac13::core
   zodiac13::components
   zodiac13::primitives
+  zodiac13::grid
   zodiac13::rooms
   zodiac13::settings
   Boost::dll

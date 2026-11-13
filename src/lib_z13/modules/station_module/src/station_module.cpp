@@ -18,8 +18,11 @@
 
 #include <flecs.h>
 
+#include <lib_core/world/lifecycle.h>
+
 #include "dock_system.h"
 #include "interaction_system.h"
+#include "room_commands.h"
 #include "room_overlay_system.h"
 #include "room_system.h"
 #include "switch_system.h"
@@ -32,6 +35,8 @@ StationModule::StationModule(flecs::world& world) {
   RoomOverlaySystem::Register(world);
   InteractionSystem::Register(world);
   SwitchSystem::Register(world);
+  z13::OnRegisterComponents(world, RegisterRoomCommandComponents);
+  z13::OnInitSystems(world, RegisterRoomCommandSystems);
 }
 
 }  // namespace z13::station

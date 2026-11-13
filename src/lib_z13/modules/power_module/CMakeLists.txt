@@ -8,6 +8,7 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/lamp_system.cpp
+  src/power_commands.cpp
   src/power_module.cpp
   src/power_module_factory.cpp
   src/power_overlay_system.cpp
