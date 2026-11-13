@@ -34,6 +34,7 @@
 
 #include <lib_core/state/rollback.h>
 #include <lib_core/utils/asset_source.h>
+#include <lib_core/utils/console_log.h>
 #include <lib_core/utils/install_dir.h>
 #include <lib_core/utils/thread_pool.h>
 #include <lib_core/utils/status.h>
@@ -56,6 +57,9 @@ class Core {
   // Where worlds created afterwards read the game's files (the Assets singleton);
   // InstallDir() until set.
   void SetAssetSource(AssetSource source);
+  // The log the console shows, which worlds created afterwards get as a singleton; the launcher fills it
+  // from spdlog (ConsoleLog::Sink).
+  void SetConsoleLog(ConsoleLog log);
   // Fails if the modules' phases form a cycle or a State component can't be encoded.
   std::expected<WorldRef, std::string> CreateWorld();
 
@@ -82,6 +86,7 @@ class Core {
   Config config_;
   std::optional<std::string> config_error_;
   AssetSource asset_source_ {InstallDir()};
+  ConsoleLog console_log_;
   // Made by the first CreateWorld, once the settings are final; every world shares it.
   std::optional<ThreadPool> thread_pool_;
 

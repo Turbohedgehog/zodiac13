@@ -38,6 +38,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/enum_cycle.h>
 #include <lib_core/utils/flecs_utils.h>
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
@@ -51,6 +52,8 @@
 #include <raylib_module/raylib_components.h>
 
 #include "build_info.h"
+#include "console_state.h"
+#include "console_window.h"
 #include "gui_widgets.h"
 #include "gui_windows.h"
 #include "hotbar_hud.h"
@@ -68,6 +71,7 @@
 #include "render/render_stats.h"
 #include "room_label.h"
 #include "stats_overlay.h"
+#include "ui_font.h"
 #include "touch_hud.h"
 
 namespace z13::raylib {
@@ -78,11 +82,14 @@ namespace {
 struct GuiState {
   using Singleton = void;
   bool imgui_ready {};
+  // The interface font's file, which ImGui reads from for as long as it lives.
+  std::string font_data;
   // The display scale the style was last sized for.
   std::optional<float> display_scale;
 };
 
 constexpr std::string_view kJoinLoadingLabel = "Loading the station...";
+
 
 void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
                        const gui::Window::StackRequest& request) {
@@ -105,18 +112,21 @@ void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay, gui::PendingTransition>(world);
+  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay, gui::PendingTransition, gui::ConsoleState>(world);
 }
 
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
 // / GL context (same trigger EnvironmentRenderSystem uses to load GPU resources).
-void InitImGui(const SdlPlatform& platform, GuiState& state) {
+void InitImGui(const SdlPlatform& platform, const z13::Assets& assets, GuiState& state) {
   if (state.imgui_ready || !platform.IsReady()) {
     return;
   }
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGui::GetIO().IniFilename = nullptr;
+  if (const Status font = gui::AddUiFont(assets.source, state.font_data); !font) {
+    log_warn("[gui] interface font: {}; the default one has no Cyrillic", font.error());
+  }
   ImGui_ImplSDL3_InitForOpenGL(platform.Window(), platform.GlContext());
   ImGui_ImplOpenGL3_Init(kGlslVersion.data());
   state.imgui_ready = true;
@@ -139,10 +149,14 @@ void ApplyDisplayScale(const SdlPlatform& platform, GuiState& state) {
   log_info("[gui] display scale {}", scale);
 }
 
-void ForwardImGuiEvents(const SdlPlatform& platform) {
+void ForwardImGuiEvents(const SdlPlatform& platform, gui::ConsoleState& console) {
   for (const SDL_Event& event : platform.FrameEvents()) {
+    if (event.type == SDL_EVENT_TEXT_INPUT && console.ignore_text) {
+      continue;
+    }
     ImGui_ImplSDL3_ProcessEvent(&event);
   }
+  console.ignore_text = false;
 }
 
 void BeginImGuiFrame() {
@@ -163,23 +177,25 @@ void RegisterSystems(flecs::world world) {
   world.set<gui::WindowStack>({});
   world.set<GuiState>({});
   world.set<gui::StatsOverlay>({});
+  world.set<gui::ConsoleState>({});
 
   // Bring up ImGui once the SDL window / GL context exists (RaylibData is set at
   // the tail of RaylibSystem::CreateDefaults).
-  world.observer<const RaylibData, const SdlPlatformData, GuiState>("GuiSystem::InitImGui")
+  world.observer<const RaylibData, const SdlPlatformData, const z13::Assets, GuiState>("GuiSystem::InitImGui")
       .event(flecs::OnAdd)
       .yield_existing()
-      .each([](const RaylibData&, const SdlPlatformData& platform_data, GuiState& state) {
-        InitImGui(*platform_data.platform, state);
+      .each([](const RaylibData&, const SdlPlatformData& platform_data, const z13::Assets& assets, GuiState& state) {
+        InitImGui(*platform_data.platform, assets, state);
       });
 
   // Every tick, drawn or not: ImGui queues the events until its next NewFrame. Runs in
   // ConsumeEvents, not ReadEvents, to guarantee it's after PumpEvents.
-  world.system<const RaylibData, const SdlPlatformData, const GuiState>("GuiSystem::ForwardEvents")
+  world.system<const RaylibData, const SdlPlatformData, const GuiState, gui::ConsoleState>("GuiSystem::ForwardEvents")
       .kind<ConsumeEvents>()
-      .each([](const RaylibData&, const SdlPlatformData& platform_data, const GuiState& state) {
+      .each([](const RaylibData&, const SdlPlatformData& platform_data, const GuiState& state,
+               gui::ConsoleState& console) {
         if (state.imgui_ready) {
-          ForwardImGuiEvents(*platform_data.platform);
+          ForwardImGuiEvents(*platform_data.platform, console);
         }
       });
 
@@ -198,14 +214,14 @@ void RegisterSystems(flecs::world world) {
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
                z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*,
                const z13::net::ConnectionStatus*,
-               gui::PendingTransition*>("GuiSystem::Draw")
+               gui::PendingTransition*, gui::ConsoleState, const SdlPlatformData>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
                const RenderStats* render, z13::station::RoomOverlay* rooms, z13::station::OverlayLayers* layers,
                z13::input::TouchControls* touch,
                const z13::TouchLayout* touch_layout, const z13::net::ConnectionStatus* connection,
-               gui::PendingTransition* pending) {
+               gui::PendingTransition* pending, gui::ConsoleState& console, const SdlPlatformData& platform_data) {
         flecs::world world = it.world();
         if (!state.imgui_ready) {
           return;
@@ -287,6 +303,7 @@ void RegisterSystems(flecs::world world) {
           gui::DrawLoadingScreen(std::string(kJoinLoadingLabel));
         }
         gui::DrawBuildInfo();
+        gui::DrawConsole(world, console, platform_data.platform->Window(), gui::IsTouchScreen(touch));
         EndImGuiFrame();
       });
 

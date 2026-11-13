@@ -37,6 +37,9 @@ struct McpRequest {
 
 std::expected<McpRequest, std::string> ParseRequest(std::string_view line);
 
+// A line the server sends on its own to the clients that subscribed: {"event": "say", "text": "..."}.
+std::string FormatEvent(std::string_view event, std::string_view text);
+
 // The reply line: {"id": 1, "ok": true, "result": ...} or {"id": 1, "ok": false, "error": "..."}.
 std::string FormatReply(std::int64_t id, const CommandResult& result);
 

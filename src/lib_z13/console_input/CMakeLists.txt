@@ -5,6 +5,7 @@ z13_add_library(
   ${PROJECT_NAME} STATIC
   SOURCES
   src/console_input.cpp
+  src/console_session.cpp
   PUBLIC
   zodiac13::core
 )

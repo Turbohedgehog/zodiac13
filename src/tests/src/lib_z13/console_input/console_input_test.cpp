@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <format>
 #include <optional>
 #include <string>
 
@@ -47,12 +48,22 @@ struct ScaleCommand {
   std::string label;
 };
 
+struct ShowCommand {
+  using Command = z13::Command<std::string, "Shows what it is given.", Tags<"debug">>;
+
+  std::optional<std::string> name;
+  std::optional<int> count;
+};
+
 class ConsoleInputTest : public testing::Test {
  protected:
   void SetUp() override {
-    flecs_tools::RegisterComponents<AddCommand, ScaleCommand>(world_);
+    flecs_tools::RegisterComponents<AddCommand, ScaleCommand, ShowCommand>(world_);
     z13::CommandSystem<AddCommand>(world_, "Add", [](const AddCommand& request, ReplyOf<AddCommand>& reply) {
       reply.Succeed(std::to_string(request.a + request.b));
+    });
+    z13::CommandSystem<ShowCommand>(world_, "Show", [](const ShowCommand& request, ReplyOf<ShowCommand>& reply) {
+      reply.Succeed(std::format("{} {}", request.name.value_or("-"), request.count.value_or(0)));
     });
     z13::CommandSystem<ScaleCommand>(world_, "Scale", [](const ScaleCommand& request, ReplyOf<ScaleCommand>& reply) {
       reply.Succeed(request.flip ? -request.factor : request.factor);
@@ -96,6 +107,13 @@ TEST_F(ConsoleInputTest, EachWordIsValuedByTheKindOfItsField) {
   EXPECT_EQ(Text("scale 2 true \"a b\""), "-2.0");
   EXPECT_EQ(Text("scale 3"), "3.0");
   EXPECT_EQ(Text("scale 3 false"), "3.0");
+}
+
+TEST_F(ConsoleInputTest, AnOptionalArgumentIsSpelledAsItsValueAndMayBeLeftOut) {
+  EXPECT_EQ(Text("show"), "- 0");
+  EXPECT_EQ(Text("show echo"), "echo 0");
+  EXPECT_EQ(Text("show echo 3"), "echo 3");
+  EXPECT_NE(Text("show echo x").find("not an integer"), std::string::npos);
 }
 
 TEST_F(ConsoleInputTest, SaysWhatIsWrongWithALine) {

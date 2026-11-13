@@ -190,6 +190,9 @@ Status InputConfigLoader::LoadConfigFromJson(
       explicitly_unbound.insert(it->id);
       continue;
     }
+    if (key_code == z13::input::kConsoleKeycode) {
+      continue;  // not the player's to bind; the action gets its default
+    }
 
     bindings.push_back(
       z13::input::KeyCodeAction {

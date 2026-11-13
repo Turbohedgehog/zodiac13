@@ -57,6 +57,8 @@ z13_add_library(
   src/time/tick_log.cpp
   src/time/tick_pacer.cpp
   src/utils/camera_pose.cpp
+  src/utils/console_log.cpp
+  src/utils/console_log_sink.cpp
   src/utils/drawn_poses.cpp
   src/utils/endpoint.cpp
   src/utils/file_io.cpp

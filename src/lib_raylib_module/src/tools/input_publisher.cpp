@@ -41,6 +41,8 @@
 
 #include <raylib_module/raylib_components.h>
 
+#include "gui/console_state.h"
+#include "gui/console_window.h"
 #include "platform/sdl_platform.h"
 
 namespace z13::raylib {
@@ -166,9 +168,18 @@ zkey::Keycode MouseButtonToKeycode(Uint8 sdl_button) {
   }
 }
 
-// Relative-mouse look during gameplay; a free cursor while paused or while the GUI wants it.
-bool CursorShown(flecs::world world) {
-  return world.has<z13::gameplay::Pause>() || world.has<z13::gameplay::FreeCursor>();
+// Relative-mouse look during gameplay; a free cursor while paused, while the GUI wants it or while the console is down.
+bool CursorShown(flecs::world world, const gui::ConsoleState* console) {
+  return world.has<z13::gameplay::Pause>() || world.has<z13::gameplay::FreeCursor>() ||
+         (console != nullptr && console->open);
+}
+
+// The console's key by position, so it is the same one on any layout (the ё key of a Russian one).
+constexpr SDL_Scancode kConsoleScancode = SDL_SCANCODE_GRAVE;
+
+// A touch on the console's button is the console's, not the game's.
+bool OnConsoleButton(const gui::ConsoleState& console, const SDL_TouchFingerEvent& finger) {
+  return console.button_area && console.button_area->contains(Eigen::Vector2f(finger.x, finger.y));
 }
 
 // SDL gives a finger's position as a fraction of the window.
@@ -181,7 +192,7 @@ z13::input::TouchEvent ToTouchEvent(const SDL_TouchFingerEvent& finger, const Sd
   };
 }
 
-void ReadInput(flecs::world world, SdlPlatform& platform) {
+void ReadInput(flecs::world world, SdlPlatform& platform, gui::ConsoleState* console) {
   // Pump here rather than in a separate system: same-phase order isn't
   // guaranteed, and a separate PumpEvents could run after this, one tick late.
   platform.PumpEvents();
@@ -189,11 +200,25 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
   flecs::entity source = world.entity(kInputSourceName.data());
 
   const std::vector<SDL_Event>& events = platform.FrameEvents();
+  const bool touch_screen = gui::IsTouchScreen(world.try_get<z13::input::TouchControls>());
   for (const SDL_Event& event : events) {
+    // The console takes the keyboard and the pointer while it is down; releases still reach the game, so no
+    // key or finger stays held.
+    const bool console_down = console != nullptr && console->open;
     switch (event.type) {
       case SDL_EVENT_KEY_DOWN:
         [[fallthrough]];
       case SDL_EVENT_KEY_UP: {
+        if (event.key.scancode == kConsoleScancode) {
+          if (console != nullptr && event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
+            gui::ToggleConsole(*console, touch_screen);
+            console->ignore_text = true;
+          }
+          break;
+        }
+        if (console_down && event.type == SDL_EVENT_KEY_DOWN) {
+          break;
+        }
         const auto code = ToKeycode(event.key.key);
         if (!code) {
           break;
@@ -213,7 +238,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
         [[fallthrough]];
       case SDL_EVENT_MOUSE_BUTTON_UP: {
-        if (event.button.which == SDL_TOUCH_MOUSEID) {
+        if (event.button.which == SDL_TOUCH_MOUSEID || (console_down && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)) {
           break;
         }
         z13::input::MouseButtonEvent button{};
@@ -230,6 +255,9 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         break;
       }
       case SDL_EVENT_MOUSE_WHEEL: {
+        if (console_down) {
+          break;
+        }
         // Whole notches (SDL sums a touchpad's fractions), each a press and a release.
         const zkey::Keycode notch =
             event.wheel.integer_y > 0 ? zkey::Keycode::MOUSE_WHEEL_UP : zkey::Keycode::MOUSE_WHEEL_DOWN;
@@ -243,7 +271,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         break;
       }
       case SDL_EVENT_MOUSE_MOTION: {
-        if (event.motion.which == SDL_TOUCH_MOUSEID) {
+        if (event.motion.which == SDL_TOUCH_MOUSEID || console_down) {
           break;
         }
         z13::input::EmitInputEvent(
@@ -256,9 +284,15 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
         break;
       }
       case SDL_EVENT_FINGER_DOWN:
+        if (console_down || (console != nullptr && OnConsoleButton(*console, event.tfinger))) {
+          break;
+        }
         z13::input::EmitInputEvent(world, source, z13::input::TouchDownEvent {ToTouchEvent(event.tfinger, platform)});
         break;
       case SDL_EVENT_FINGER_MOTION:
+        if (console_down) {
+          break;
+        }
         z13::input::EmitInputEvent(world, source, z13::input::TouchMoveEvent {ToTouchEvent(event.tfinger, platform)});
         break;
       case SDL_EVENT_FINGER_UP:
@@ -277,18 +311,17 @@ void ReadInput(flecs::world world, SdlPlatform& platform) {
     }
   }
 
-  platform.SetRelativeMouse(!CursorShown(world));
+  platform.SetRelativeMouse(!CursorShown(world, console));
 }
 
 void RegisterSystems(flecs::world world) {
   // .immediate(): ReadInput emits events synchronously (WorldNoDeferGuard), which
   // is only legal from a non-deferred system.
-  world.system<const RaylibData, SdlPlatformData>("InputPublisher::ReadInput")
+  world.system<const RaylibData, SdlPlatformData, gui::ConsoleState*>("InputPublisher::ReadInput")
       .kind<ReadEvents>()
       .immediate()
-      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data) {
-        ReadInput(it.world(), *platform_data.platform);
-      });
+      .each([](flecs::iter& it, size_t, const RaylibData&, SdlPlatformData& platform_data,
+               gui::ConsoleState* console) { ReadInput(it.world(), *platform_data.platform, console); });
 }
 
 void CreateDefaults(flecs::world world) {
@@ -299,7 +332,7 @@ void CreateDefaults(flecs::world world) {
   if (!platform.IsReady()) {
     return;
   }
-  platform.SetRelativeMouse(!CursorShown(world));
+  platform.SetRelativeMouse(!CursorShown(world, world.try_get<gui::ConsoleState>()));
 }
 
 }  // namespace

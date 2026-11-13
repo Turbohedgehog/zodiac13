@@ -132,6 +132,25 @@ TEST_F(InputConfigDefaultsTest, AnActionSavedAsUnknownStaysUnboundAndBindsNoKey)
   EXPECT_EQ(KeyOf(config, Action::SAVE_SCENE), Keycode::KEY_F5);
 }
 
+TEST_F(InputConfigDefaultsTest, TheConsoleKeyIsNotBoundToAnAction) {
+  z13::input::InputConfig config;
+  const std::string json = Config(Binding("MOVE_FORWARD", "KEY_BACKQUOTE"));
+
+  ASSERT_TRUE(InputConfigLoader::LoadConfigFromJson(json, config, ActionMap()));
+
+  const auto& by_key = config.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();
+  EXPECT_EQ(by_key.count(z13::input::kConsoleKeycode), 0u);
+  EXPECT_TRUE(KeyOf(config, Action::MOVE_FORWARD).has_value());
+}
+
+TEST_F(InputConfigDefaultsTest, NoActionTakesTheConsoleKeyByDefault) {
+  z13::input::InputConfig defaults;
+  InputConfigLoader::SetDefaults(defaults, ActionMap());
+
+  const auto& by_key = defaults.keycode_binding.get<z13::input::InputConfig::KeycodeIdTag>();
+  EXPECT_EQ(by_key.count(z13::input::kConsoleKeycode), 0u);
+}
+
 TEST_F(InputConfigDefaultsTest, DefaultsSurviveASaveAndLoadRoundTrip) {
   z13::input::InputConfig defaults;
   InputConfigLoader::SetDefaults(defaults, ActionMap());

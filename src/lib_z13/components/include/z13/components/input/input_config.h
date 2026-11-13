@@ -37,6 +37,9 @@ inline bool IsTouchKeycode(z13::fbs::input::Keycode code) {
   return code >= z13::fbs::input::Keycode::TOUCH_STICK_UP && code <= z13::fbs::input::Keycode::TOUCH_FLASHLIGHT;
 }
 
+// The console's key: the GUI opens the console with it before any binding is looked at, so no action takes it.
+inline constexpr z13::fbs::input::Keycode kConsoleKeycode = z13::fbs::input::Keycode::KEY_BACKQUOTE;
+
 struct ActionBinding {
   z13::fbs::actions::Action action;
   std::vector<z13::fbs::input::Keycode> keys;

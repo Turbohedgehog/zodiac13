@@ -27,7 +27,8 @@ namespace z13::raylib::gui {
 
 namespace {
 
-constexpr std::string_view kBoxId = "##report";
+// How near the bottom still counts as the end.
+constexpr float kEndTolerance = 1.f;
 constexpr float kLongPressSeconds = 0.45f;
 // A finger near the top or bottom edge scrolls the box, so a selection can reach lines out of view.
 constexpr float kEdgeEm = 2.f;
@@ -37,9 +38,18 @@ constexpr ImU32 kSelectionColor = IM_COL32(70, 110, 200, 140);
 }  // namespace
 
 void ReportView::SetText(const std::string& text) {
-  lines_ = z13::SplitLines(text);
+  SetLines(z13::SplitLines(text));
+}
+
+void ReportView::SetLines(std::vector<std::string> lines, std::vector<ImU32> colors) {
+  lines_ = std::move(lines);
+  colors_ = std::move(colors);
   selection_.reset();
   gesture_ = Gesture::kNone;
+}
+
+std::string ReportView::AllText() const {
+  return lines_.empty() ? std::string() : z13::JoinLines(lines_, 0, lines_.size() - 1);
 }
 
 std::string ReportView::Selection() const {
@@ -103,7 +113,8 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
 }
 
 void ReportView::Draw(const ImVec2& size) {
-  if (ImGui::BeginChild(kBoxId.data(), size, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+  if (ImGui::BeginChild(id_.c_str(), size, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+    at_end_ = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - kEndTolerance;
     // Lines touch, so a line's place is its index times the text height.
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.f});
     const float line_height = ImGui::GetTextLineHeight();
@@ -118,7 +129,18 @@ void ReportView::Draw(const ImVec2& size) {
         draw->AddRectFilled({left, top}, {right, top + line_height}, kSelectionColor);
       }
       const std::string& line = lines_[i];
+      const bool coloured = i < colors_.size();
+      if (coloured) {
+        ImGui::PushStyleColor(ImGuiCol_Text, colors_[i]);
+      }
       ImGui::TextUnformatted(line.c_str(), line.c_str() + line.size());
+      if (coloured) {
+        ImGui::PopStyleColor();
+      }
+    }
+    if (scroll_to_end_) {
+      ImGui::SetScrollHereY(1.f);
+      scroll_to_end_ = false;
     }
     ImGui::PopStyleVar();
   }

@@ -18,6 +18,7 @@ z13_add_plugin(
   src/mcp_system.cpp
   PRIVATE
   zodiac13::core
+  zodiac13::components
   zodiac13::settings
   Boost::dll
   Threads::Threads

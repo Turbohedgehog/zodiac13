@@ -16,6 +16,7 @@ z13_add_plugin(
   SOURCES
   src/debug/debug_commands.cpp
   src/gui/build_info.cpp
+  src/gui/console_window.cpp
   src/gui/game_scenes.cpp
   src/gui/game_transitions.cpp
   src/gui/gui_keybindings.cpp
@@ -39,6 +40,7 @@ z13_add_plugin(
   src/gui/start_server_window.cpp
   src/gui/stats_overlay.cpp
   src/gui/touch_hud.cpp
+  src/gui/ui_font.cpp
   src/platform/gl_info.cpp
   src/platform/sdl_platform.cpp
   src/raylib_module.cpp
@@ -86,6 +88,7 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::console_input
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::cell_light
