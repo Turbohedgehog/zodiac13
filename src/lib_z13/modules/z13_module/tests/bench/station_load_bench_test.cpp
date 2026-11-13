@@ -70,27 +70,9 @@
 #include <z13_tests/shipped_station.h>
 
 #include "../support/building_test_helpers.h"
+#include "../support/item_bodies.h"
 #include "../support/test_network.h"
 #include "../support/z13_test_world.h"
-
-namespace z13::testing::bench {
-
-// What an item will carry as state (docs/dynamic-objects-plan.md): a pose and both velocities, 13 floats; the awake
-// ones also move every tick.
-struct ItemBody {
-  using State = void;
-  Eigen::Vector3f position = Eigen::Vector3f::Zero();
-  Eigen::Vector3f orientation_vector = Eigen::Vector3f::Zero();
-  float orientation_w = 1.f;
-  Eigen::Vector3f linear_velocity = Eigen::Vector3f::Zero();
-  Eigen::Vector3f angular_velocity = Eigen::Vector3f::Zero();
-};
-
-struct ItemAwake {
-  using State = void;
-};
-
-}  // namespace z13::testing::bench
 
 namespace z13::testing {
 namespace {
@@ -219,10 +201,7 @@ void SpawnItems(Z13TestWorld& world, const ItemLoad& load) {
     return;
   }
   flecs::world w = world.World();
-  ft::RegisterComponents<bench::ItemBody, bench::ItemAwake>(w);
-  w.system<bench::ItemBody>("BenchItems::Move").with<bench::ItemAwake>().each([](bench::ItemBody& body) {
-    body.position += body.linear_velocity * kNetTestDeltaTime;
-  });
+  bench::RegisterItemBodies(w, kNetTestDeltaTime);
   for (int i = 0; i < load.total; ++i) {
     bench::ItemBody body {.position = {static_cast<float>(i % kItemsPerRow) * kItemSpacing,
                                        static_cast<float>(i / kItemsPerRow) * kItemSpacing, 0.f}};

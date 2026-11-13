@@ -336,12 +336,11 @@ struct FrameStats {
   double update_ms {};
   double pick_ms {};
   double worst_ms {};
+  double picked {};
 };
 
-TEST(PropsCullingBench, DISABLED_DynamicProps) {
-  const auto octant = LoadOctantProps();
-  ASSERT_TRUE(octant.has_value());
-  const std::vector<Stop> stops = OctantRoute(octant->graph, octant->blocks);
+void RunDynamicCases(const OctantProps& octant, std::span<const DynamicCase> cases) {
+  const std::vector<Stop> stops = OctantRoute(octant.graph, octant.blocks);
   std::vector<const Stop*> views;
   for (const Stop& stop : stops) {
     if (std::ranges::contains(kDynamicStops, stop.label)) {
@@ -350,8 +349,8 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
   }
   ASSERT_EQ(views.size(), kDynamicStops.size());
 
-  for (const DynamicCase& dynamic : kDynamicCases) {
-    const std::vector<Eigen::AlignedBox3f> base = Repeated(octant->props, dynamic.times);
+  for (const DynamicCase& dynamic : cases) {
+    const std::vector<Eigen::AlignedBox3f> base = Repeated(octant.props, dynamic.times);
     std::vector<Eigen::AlignedBox3f> boxes = base;
     std::mt19937 random(11);
     std::uniform_real_distribution<float> unit(0.f, 1.f);
@@ -383,7 +382,7 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
       const Stop& stop = *views[static_cast<size_t>(frame) % views.size()];
       const rooms::CameraView view =
           CameraViewFrom(stop.eye * z13::station::kCellSize, stop.target * z13::station::kCellSize);
-      const rooms::ViewCulling culling(view, std::cref(octant->graph));
+      const rooms::ViewCulling culling(view, std::cref(octant.graph));
       const std::vector<uint32_t> expected = LinearPick(boxes, culling);
       for (size_t s = 0; s < strategies.size(); ++s) {
         const auto update_start = std::chrono::steady_clock::now();
@@ -394,6 +393,7 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
         stats[s].update_ms += Ms(pick_start - update_start);
         stats[s].pick_ms += Ms(end - pick_start);
         stats[s].worst_ms = std::max(stats[s].worst_ms, Ms(end - update_start));
+        stats[s].picked += static_cast<double>(picked.size());
         if (frame % kCheckEvery == 0) {
           std::ranges::sort(picked);
           EXPECT_EQ(picked, expected) << strategies[s]->Name() << " frame " << frame;
@@ -403,12 +403,42 @@ TEST(PropsCullingBench, DISABLED_DynamicProps) {
     const auto frames = static_cast<double>(dynamic.frames);
     for (size_t s = 0; s < strategies.size(); ++s) {
       std::cout << std::format(
-          "[ bench ]   {:<20} update {:9.3f}  pick {:8.3f}  frame {:9.3f} ms (worst {:9.3f}), {} rebuilds\n",
+          "[ bench ]   {:<20} update {:9.3f}  pick {:8.3f}  frame {:9.3f} ms (worst {:9.3f}), {} rebuilds, {:.0f} in view\n",
           strategies[s]->Name(), stats[s].update_ms / frames, stats[s].pick_ms / frames,
-          (stats[s].update_ms + stats[s].pick_ms) / frames, stats[s].worst_ms, strategies[s]->Rebuilds())
+          (stats[s].update_ms + stats[s].pick_ms) / frames, stats[s].worst_ms, strategies[s]->Rebuilds(),
+          stats[s].picked / frames)
                 << std::flush;
     }
   }
+}
+
+TEST(PropsCullingBench, DISABLED_DynamicProps) {
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  RunDynamicCases(*octant, kDynamicCases);
+}
+
+// Each item in view is one draw call until instancing (docs/dynamic-objects-plan.md, stage 0): the loads of
+// StationLoadBench.Items spread over the octant like repeated props, a tenth of them moving.
+struct ItemsCase {
+  int total {};
+  int awake {};
+};
+constexpr std::array kItemCases {ItemsCase {1000, 100}, ItemsCase {5000, 500}, ItemsCase {20000, 2000}};
+constexpr int kItemFrames = 100;
+
+TEST(PropsCullingBench, DISABLED_Items) {
+  const auto octant = LoadOctantProps();
+  ASSERT_TRUE(octant.has_value());
+  std::vector<DynamicCase> cases;
+  for (const ItemsCase& load : kItemCases) {
+    const int times = (load.total + static_cast<int>(octant->props.size()) - 1) / static_cast<int>(octant->props.size());
+    cases.push_back({.times = times,
+                     .share = static_cast<float>(load.awake) / static_cast<float>(load.total),
+                     .travel_m = kNudgeM,
+                     .frames = kItemFrames});
+  }
+  RunDynamicCases(*octant, cases);
 }
 
 }  // namespace
