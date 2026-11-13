@@ -171,6 +171,7 @@ set(
   ${MODULES_DIR}/station_module/tests/utility_phases_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/hotbar_test.cpp
+  ${MODULES_DIR}/z13_module/tests/gameplay/roles_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/main_menu_test.cpp
   ${MODULES_DIR}/z13_module/tests/console/console_commands_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/pause_test.cpp

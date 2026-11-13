@@ -167,6 +167,12 @@ table McpServer {
   tags: string = "debug" (non_empty);
 }
 
+// The posts a player asks for, best first, comma-separated (assets/station/roles.json); the server decides which
+// one the player gets (docs/station-systems-plan.md, "Доступ"). Client only; a menu will set it.
+table CrewChoice {
+  desired_roles: string = "captain,engineer,assistant";
+}
+
 table Settings {
   core: z13.fbs.core.CoreSettings;
   connect_timeout: ConnectTimeout;
@@ -182,6 +188,7 @@ table Settings {
   touch: TouchLayout;
   lan_discovery: LanDiscovery;
   mcp_server: McpServer;
+  crew_choice: CrewChoice;
   // Write every run's log to the logs directory, as --log does.
   log_to_file: bool = false;
 }

@@ -30,6 +30,8 @@ namespace z13::inventory {
 // The starter kit's build tool goes into the first cell, and players spawn with the next one
 // active: empty-handed, as before the tool was an item.
 inline constexpr uint8_t kStarterToolCell = 0;
+// A pass of the role the player was given, past the empty-hand cell.
+inline constexpr uint8_t kStarterPassCell = 2;
 inline constexpr uint8_t kSpawnActiveCell = 1;
 
 // Where cell selection applies, for every player, before the frame's actions read the hand.

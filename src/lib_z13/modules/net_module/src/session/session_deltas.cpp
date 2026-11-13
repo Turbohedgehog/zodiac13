@@ -32,6 +32,8 @@
 #include <z13/components/gameplay/player.h>
 #include <z13/components/input/player_action.h>
 #include <player/gameplay_entities.h>
+#include <player/roles.h>
+#include <z13/components/gameplay/role.h>
 #include <z13_settings/net_tuning.h>
 
 #include "../sectors/interest_deltas.h"
@@ -110,9 +112,12 @@ void PruneSessionHistory(flecs::world world, uint64_t now, std::vector<Scheduled
 
 void ScheduleSessionDelta(
     NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta, uint32_t player_id,
-    std::optional<Eigen::Vector3f> spawn_position) {
-  world.get_mut<ScheduledSessionDeltas>().pending.push_back(
-      {.apply_tick = apply_tick, .delta = delta, .player_id = player_id, .spawn_position = spawn_position});
+    std::optional<Eigen::Vector3f> spawn_position, std::string role) {
+  world.get_mut<ScheduledSessionDeltas>().pending.push_back({.apply_tick = apply_tick,
+                                                              .delta = delta,
+                                                              .player_id = player_id,
+                                                              .spawn_position = spawn_position,
+                                                              .role = std::move(role)});
 
   Envelope envelope;
   std::visit([&envelope](auto& body) { envelope.body.Set(std::move(body)); }, delta);
@@ -120,29 +125,38 @@ void ScheduleSessionDelta(
 }
 
 // Spawned only to serialize it: like everywhere else, it exists from apply_tick on.
-std::expected<PreparedJoin, std::string> PrepareJoin(flecs::world world, uint32_t player_id) {
+std::expected<PreparedJoin, std::string> PrepareJoin(flecs::world world, uint32_t player_id,
+                                                     std::span<const std::string> desired_roles) {
   std::vector<Eigen::Vector3f> reserved;
+  std::vector<std::string> promised;
   for (const ScheduledSessionDelta& item : world.get<ScheduledSessionDeltas>().pending) {
     if (item.spawn_position) {
       reserved.push_back(*item.spawn_position);
     }
+    if (!item.role.empty()) {
+      promised.push_back(item.role);
+    }
   }
   const flecs::entity player = z13::gameplay::SpawnPlayer(world, player_id, reserved);
+  z13::gameplay::GiveRole(player, desired_roles, promised);
   PreparedJoin join;
   join.spawn_position = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>());
   join.joined.apply_tick = world.get<ft::SimulationClock>().tick + world.get<NetTuning>().session_event_delay_ticks;
   const auto entity_state = ft::CaptureEntityState(world, player);
+  const std::string role = player.has<z13::inventory::PlayerRole>() ? player.get<z13::inventory::PlayerRole>().name : "";
   player.destruct();
   if (!entity_state) {
     return std::unexpected(entity_state.error());
   }
   join.joined.entity_state = ToWire(*entity_state);
+  join.role = role;
   return join;
 }
 
 void ScheduleJoin(NetSession& session, flecs::world world, uint32_t player_id, PreparedJoin join) {
   const uint64_t apply_tick = join.joined.apply_tick;
-  ScheduleSessionDelta(session, world, apply_tick, std::move(join.joined), player_id, join.spawn_position);
+  ScheduleSessionDelta(session, world, apply_tick, std::move(join.joined), player_id, join.spawn_position,
+                       std::move(join.role));
 }
 
 uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id) {

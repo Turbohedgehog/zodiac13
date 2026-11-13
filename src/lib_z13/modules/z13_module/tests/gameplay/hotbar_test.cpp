@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -31,6 +32,7 @@
 #include <z13/components/input/input_events.h>
 #include <z13/components/gameplay/inventory.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/role.h>
 #include <player/gameplay_entities.h>
 #include <z13_settings/settings.h>
 
@@ -84,15 +86,20 @@ void TouchCell(Z13TestWorld& test_world, size_t cell) {
   test_world.Tick();
 }
 
-TEST(HotbarTest, EveryPlayerSpawnsEmptyHandedWithTheBuildToolInTheFirstCell) {
+TEST(HotbarTest, EveryPlayerSpawnsEmptyHandedWithTheBuildToolInTheFirstCellAndThePassOfItsPost) {
   Z13TestWorld test_world;
   test_world.Tick();
   const flecs::entity player = test_world.Player();
 
   const auto items = ItemsOf(test_world.World(), player.get<z13::gameplay::Player>().id);
-  ASSERT_EQ(items.size(), 1u);
-  EXPECT_EQ(items.front().get<Item>().kind, ItemKind::kBuildTool);
-  EXPECT_EQ(items.front().get<CarriedBy>().cell, kStarterToolCell);
+  ASSERT_EQ(items.size(), 2u);
+  const auto tool = std::ranges::find(items, ItemKind::kBuildTool, [](flecs::entity item) { return item.get<Item>().kind; });
+  ASSERT_NE(tool, items.end());
+  EXPECT_EQ(tool->get<CarriedBy>().cell, kStarterToolCell);
+  const auto pass = std::ranges::find(items, ItemKind::kPass, [](flecs::entity item) { return item.get<Item>().kind; });
+  ASSERT_NE(pass, items.end());
+  EXPECT_EQ(pass->get<CarriedBy>().cell, kStarterPassCell);
+  EXPECT_EQ(pass->get<Pass>().access, player.get<PlayerRole>().access);
   EXPECT_EQ(ActiveCell(player), kSpawnActiveCell);
   EXPECT_FALSE(player.has<ActiveItem>());
   EXPECT_FALSE(player.has<z13::building::BuildingTool>());
@@ -158,7 +165,8 @@ TEST(HotbarTest, ALeavingPlayersItemsGoWithThem) {
   test_world.Tick();
 
   EXPECT_TRUE(ItemsOf(test_world.World(), kGuestId).empty());
-  EXPECT_EQ(ItemsOf(test_world.World(), test_world.Player().get<z13::gameplay::Player>().id).size(), 1u);
+  EXPECT_EQ(ItemsOf(test_world.World(), test_world.Player().get<z13::gameplay::Player>().id).size(), 2u)
+      << "the tool and the pass of its post";
 }
 
 std::string Checkpoint(Z13TestWorld& test_world) {

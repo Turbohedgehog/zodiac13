@@ -208,6 +208,17 @@ TEST(AccessTest, ARequirementNeedsAllOfItsListAndOneOfItsAlternatives) {
   EXPECT_TRUE(Covers(0, AccessRequirement {})) << "an empty requirement is open to everyone";
 }
 
+// The player spawns with the pass of its post, which would open what the tests close.
+void DropPasses(Z13TestWorld& world, flecs::entity player) {
+  std::vector<flecs::entity> passes;
+  world.World().each([&](flecs::entity item, const z13::inventory::Pass&, const z13::inventory::CarriedBy& carried) {
+    if (carried.player_id == player.get<z13::gameplay::Player>().id) {
+      passes.push_back(item);
+    }
+  });
+  std::ranges::for_each(passes, [](flecs::entity pass) { pass.destruct(); });
+}
+
 flecs::entity GivePass(Z13TestWorld& world, flecs::entity player, z13::inventory::AccessSet access, uint8_t cell) {
   return world.World()
       .entity()
@@ -219,6 +230,7 @@ flecs::entity GivePass(Z13TestWorld& world, flecs::entity player, z13::inventory
 
 TEST_F(InteractionSystemTest, ASwitchAskingForAnAccessAnswersToAPassInTheHotbarOnly) {
   const flecs::entity player = StandAt(kBeforeTheSwitch);
+  DropPasses(world_, player);
   const flecs::entity switch_block = AddSwitchAhead(player, kSwitchCellsAhead);
   switch_block.set(z13::inventory::AccessRequirement {.required_all = kArmoryAccess});
 
@@ -242,6 +254,7 @@ TEST_F(InteractionSystemTest, ASwitchAskingForAnAccessAnswersToAPassInTheHotbarO
 
 TEST_F(InteractionSystemTest, ALockOnTheSwitchCellAsksForAPassLikeARequirementOnTheBlock) {
   const flecs::entity player = StandAt(kBeforeTheSwitch);
+  DropPasses(world_, player);
   const flecs::entity switch_block = AddSwitchAhead(player, kSwitchCellsAhead);
   const Block& block = switch_block.get<Block>();
   world_.World().entity().add<z13::flecs_tools::StateEntity>().set(

@@ -37,6 +37,8 @@
 #include <z13/components/gameplay/net.h>
 #include <z13/components/input/player_action.h>
 #include <player/gameplay_entities.h>
+#include <player/roles.h>
+#include <z13_settings/settings.h>
 #include <input/action_negotiation.h>
 #include <z13_settings/net_tuning.h>
 
@@ -325,6 +327,9 @@ void SendClientHello(flecs::world world, NetSession& session, ConnectionId serve
     hello.palette_hash = *palette_hash;
   }
   hello.modules = ToWire(UtilityModulesOf(world));
+  if (const auto* crew = world.try_get<CrewChoiceSettings>()) {
+    hello.desired_roles = z13::gameplay::SplitRoleNames(crew->desired_roles);
+  }
   for (const zgi::ActionDescriptor& action : zgi::DescribeActions(world.get<z13::input::ActionMap>())) {
     auto described = std::make_unique<fbn::ActionDescT>();
     described->enum_name = action.enum_name;
