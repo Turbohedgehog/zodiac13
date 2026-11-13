@@ -21,6 +21,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include <flecs.h>
@@ -44,6 +45,7 @@
 #include <z13/components/station/building.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/gameplay_phases.h>
+#include <z13/components/gameplay/kinematic_body.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/gameplay/player_parts.h>
 #include <z13/components/utility/gravity.h>
@@ -76,8 +78,8 @@ constexpr float kFloorProbeSkin = 1e-4f;
 constexpr float kCeilingPush = 1e-3f;
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning, z13::BuildingTuning>(
-      world);
+  z13::flecs_tools::RegisterComponents<PhysicsWorld, RigidBody, SweepOrigin, z13::PhysicsTuning, z13::BuildingTuning,
+                                        z13::kinematic::KinematicBody>(world);
 }
 
 using BlockQuery = flecs::query<const z13::station::Block>;
@@ -98,6 +100,16 @@ btTransform BlockTransform(const z13::station::Block& block, const z13::station:
   return transform;
 }
 
+std::vector<z13::building::primitives::ConvexSolid> ShapeSolids(const BlockShapeKey& shape, OptionalPalette palette) {
+  std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
+  if (!shape.door_leaf) {
+    std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
+      return solid.role == z13::building::primitives::PartRole::kDoorLeaf;
+    });
+  }
+  return z13::building::primitives::Scaled(std::move(solids), z13::station::kCellSize);
+}
+
 void SyncBlockBody(flecs::entity e, const z13::station::Block& block, PhysicsWorld& physics_world,
                    OptionalPalette palette, const z13::station::GridPoses& poses) {
   BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(block.spec);
@@ -105,13 +117,7 @@ void SyncBlockBody(flecs::entity e, const z13::station::Block& block, PhysicsWor
   const auto* door = e.try_get<z13::station::DoorState>();
   shape.door_leaf = door != nullptr && door->leaf_blocks;
   physics_world.SyncBody(e.id(), shape, BlockTransform(block, poses), [&shape, palette]() {
-    std::vector<z13::building::primitives::ConvexSolid> solids = z13::building::primitives::BlockSolids(palette, shape);
-    if (!shape.door_leaf) {
-      std::erase_if(solids, [](const z13::building::primitives::ConvexSolid& solid) {
-        return solid.role == z13::building::primitives::PartRole::kDoorLeaf;
-      });
-    }
-    return z13::building::primitives::Scaled(std::move(solids), z13::station::kCellSize);
+    return ShapeSolids(shape, palette);
   });
   if (!e.has<RigidBody>()) {
     e.add<RigidBody>();
@@ -125,12 +131,46 @@ void ReleaseOrphanBodies(const flecs::world& world, PhysicsWorld& physics_world)
     }
 
     const flecs::entity e = world.entity(id);
-    if (e.has<z13::station::Block>()) {
+    if (e.has<z13::station::Block>() || e.has<z13::kinematic::KinematicBody>()) {
       return false;
     }
     e.remove<RigidBody>();
     return true;
   });
+}
+
+// The body in the pose its path gives at `tick`.
+btTransform KinematicTransform(const z13::kinematic::KinematicBody& body, uint64_t tick) {
+  Eigen::Isometry3f pose = z13::building::primitives::WorldPose(
+      z13::building::primitives::PoseOf({.spec = body.spec}), z13::station::kCellSize);
+  pose.translation() += z13::kinematic::PositionAt(body, tick);
+  return ToBtTransform(pose.matrix());
+}
+
+// Bodies of the kinematic entities still alive, to drop the ones that went; only those few are walked each tick.
+using KinematicIds = std::unordered_set<flecs::entity_t>;
+
+void SyncKinematicBodies(const flecs::world& world, const flecs::query<const z13::kinematic::KinematicBody>& bodies,
+                         PhysicsWorld& physics_world, OptionalPalette palette, uint64_t tick, KinematicIds& known) {
+  KinematicIds present;
+  bodies.each([&](flecs::entity e, const z13::kinematic::KinematicBody& body) {
+    present.insert(e.id());
+    const BlockShapeKey shape = z13::building::primitives::ShapeKeyOf(body.spec);
+    physics_world.SyncBody(e.id(), shape, KinematicTransform(body, tick),
+                           [&shape, palette]() { return ShapeSolids(shape, palette); });
+    if (!e.has<RigidBody>()) {
+      e.add<RigidBody>();
+    }
+  });
+  for (const flecs::entity_t id : known) {
+    if (!present.contains(id)) {
+      physics_world.RemoveBody(id);
+      if (world.is_alive(id)) {
+        world.entity(id).remove<RigidBody>();
+      }
+    }
+  }
+  known = std::move(present);
 }
 
 void SyncBlockTables(const flecs::world& world, const BlockQuery& blocks, PhysicsWorld& physics_world,
@@ -282,6 +322,34 @@ void ResolvePlayerCollision(
   e.set(transform);
 }
 
+// A grounded player stands on a kinematic body's top: it moves with the body by what the body moved this tick.
+void CarryByKinematicFloor(
+    flecs::entity e, const z13::gameplay::PlayerCollider&, Eigen::Matrix4f& transform,
+    const z13::gameplay::PlayerMotion& motion, const z13::gravity::Gravity& gravity, PhysicsWorld& physics_world,
+    const z13::PhysicsTuning& tuning, const z13::flecs_tools::SimulationClock& clock) {
+  if (!motion.grounded || !gravity.Pulls() || clock.tick == 0) {
+    return;
+  }
+  const Eigen::Vector3f head = z13::math::ExtractTranslation<float>(transform);
+  const Eigen::Vector3f down = gravity.acceleration.normalized();
+  const Eigen::Vector3f reach = head + (down * (tuning.eye_height + tuning.step_height));
+  const auto floor = physics_world.RaycastEntity(ToBtVector(head), ToBtVector(reach));
+  if (!floor || !e.world().is_alive(*floor)) {
+    return;
+  }
+  const auto* body = e.world().entity(*floor).try_get<z13::kinematic::KinematicBody>();
+  if (body == nullptr) {
+    return;
+  }
+  const Eigen::Vector3f moved =
+      z13::kinematic::PositionAt(*body, clock.tick) - z13::kinematic::PositionAt(*body, clock.tick - 1);
+  if (moved.isZero()) {
+    return;
+  }
+  z13::math::SetTranslation(Eigen::Vector3f(head + moved), transform);
+  e.set(transform);
+}
+
 void ProcessDestroyBlockRequest(
     flecs::entity player, z13::building::RequestDestroyBlock, const z13::gameplay::Player& owner,
     const Eigen::Matrix4f& transform, PhysicsWorld& physics_world, const z13::BuildingTuning& tuning,
@@ -360,6 +428,29 @@ void RegisterSystems(flecs::world world) {
           SyncBlockBody(e, block, physics_world, optional_palette, poses);
         });
       });
+
+  const auto kinematic_bodies = world.query<const z13::kinematic::KinematicBody>();
+  const auto kinematic_ids = std::make_shared<KinematicIds>();
+  world.system<PhysicsWorld, const z13::flecs_tools::SimulationClock, const BlockPalette*>(
+           "PhysicsSystem::SyncKinematicBodies")
+      .kind<z13::gameplay::PostUpdatePhase>()
+      .read<z13::kinematic::KinematicBody>()
+      .write<RigidBody>()
+      .each([kinematic_bodies, kinematic_ids](flecs::iter& it, size_t, PhysicsWorld& physics_world,
+                                              const z13::flecs_tools::SimulationClock& clock,
+                                              const BlockPalette* palette) {
+        SyncKinematicBodies(it.world(), kinematic_bodies, physics_world,
+                            palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt, clock.tick,
+                            *kinematic_ids);
+      });
+
+  // Before RecordSweepOrigin, so the sweep starts from the carried position.
+  world.system<const z13::gameplay::PlayerCollider, Eigen::Matrix4f, const z13::gameplay::PlayerMotion,
+               const z13::gravity::Gravity, PhysicsWorld, const z13::PhysicsTuning,
+               const z13::flecs_tools::SimulationClock>("PhysicsSystem::CarryByKinematicFloor")
+      .kind<z13::input::ClearActionFramePhase>()
+      .read<z13::kinematic::KinematicBody>()
+      .each(CarryByKinematicFloor);
 
   // Before movement (ApplyActionFramePhase); nothing earlier in the frame moves the player.
   world.system<const z13::gameplay::PlayerCollider, const Eigen::Matrix4f>("PhysicsSystem::RecordSweepOrigin")

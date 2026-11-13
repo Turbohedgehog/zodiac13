@@ -121,6 +121,7 @@ set(
   ${MODULES_DIR}/building_module/tests/wall_merge_test.cpp
   ${MODULES_DIR}/building_module/tests/wall_panel_system_test.cpp
   ${MODULES_DIR}/bullet_module/tests/broadphase_order_test.cpp
+  ${MODULES_DIR}/bullet_module/tests/kinematic_body_test.cpp
   ${MODULES_DIR}/bullet_module/tests/physics_collision_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_index_test.cpp
   ${MODULES_DIR}/conduit_module/tests/conduit_tool_test.cpp
