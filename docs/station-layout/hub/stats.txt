@@ -10,4 +10,4 @@ Deck 7 (Atrium level 7): rooms 4, doors 2, blocks 51
 Deck 8 (Atrium top and bridge): rooms 2, doors 0, blocks 51
 Deck 0 (Tech trunk): rooms 3, doors 3, blocks 33
 
-Blueprint blocks (hub.json): 924 - Floor 191, Slope 11, Panel 11, Battery 2, Breaker 1, Terminal 1, AtmosUnit 1, Vent 1, Wall 358, Window 5, Door 44, SpawnPoint 4, Lamp 294.
+Blueprint blocks (hub.json): 929 - Floor 194, Slope 11, Panel 11, Switch 2, Battery 2, Breaker 1, Terminal 1, AtmosUnit 1, Vent 1, Wall 358, Window 5, Door 44, SpawnPoint 4, Lamp 294.

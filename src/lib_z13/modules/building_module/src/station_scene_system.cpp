@@ -33,7 +33,9 @@
 
 #include <z13/components/station/conduit.h>
 #include <z13/components/station/dock.h>
+#include <z13/components/gameplay/kinematic_body.h>
 #include <z13/components/station/door.h>
+#include <z13/components/station/lift.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/station/station_mode.h>
 #include <primitives/blueprint.h>
@@ -85,6 +87,26 @@ Status ResolveConduits(std::span<const z13::building::primitives::BlueprintCondu
   return {};
 }
 
+// A lift's cabin and the lift on one entity; the cabin starts at the lower stop.
+Status ResolveLifts(std::span<const z13::building::primitives::BlueprintLift> lifts,
+                    const z13::building::primitives::Palette& palette, std::vector<z13::station::Lift>& resolved,
+                    std::vector<z13::kinematic::KinematicBody>& cabins) {
+  for (const z13::building::primitives::BlueprintLift& lift : lifts) {
+    const auto primitive = palette.Find(lift.primitive);
+    if (!primitive) {
+      return std::unexpected(std::format("lift cabin primitive '{}' is unknown", lift.primitive));
+    }
+    const Eigen::Vector3f lower = lift.lower.cast<float>() * z13::station::kCellSize;
+    resolved.push_back({.lower = lower,
+                        .upper = lift.upper.cast<float>() * z13::station::kCellSize,
+                        .lower_button = lift.lower_button,
+                        .upper_button = lift.upper_button,
+                        .trip_ticks = lift.trip_ticks});
+    cabins.push_back({.spec = {.type_id = primitive->get().id, .size = lift.size}, .from = lower, .to = lower});
+  }
+  return {};
+}
+
 void PopulateStationScene(
     flecs::entity e,
     z13::gameplay::PopulateSceneEvent,
@@ -113,11 +135,14 @@ void PopulateStationScene(
   });
   const auto docks = json.and_then(z13::building::primitives::ParseBlueprintDocks);
   const auto conduit_runs = json.and_then(z13::building::primitives::ParseBlueprintConduits);
+  const auto lift_entries = json.and_then(z13::building::primitives::ParseBlueprintLifts);
   const auto panels = walls.and_then([&](const auto& parsed) {
     return openings.and_then([&](const auto& cut) { return BlueprintPanels(parsed, palette.palette, tuning, cut); });
   });
   const auto* kinds = world.try_get<z13::conduit::ConduitKinds>();
   std::vector<z13::conduit::Conduit> conduits;
+  std::vector<z13::station::Lift> lifts;
+  std::vector<z13::kinematic::KinematicBody> cabins;
   // A blueprint that wouldn't build block by block isn't placed at all, rather than in part.
   const Status valid = blocks.and_then([&](const auto& parsed) -> Status {
     if (!panels) {
@@ -131,6 +156,12 @@ void PopulateStationScene(
     }
     if (!conduit_runs) {
       return std::unexpected(conduit_runs.error());
+    }
+    if (!lift_entries) {
+      return std::unexpected(lift_entries.error());
+    }
+    if (const Status lifts_ok = ResolveLifts(*lift_entries, palette.palette, lifts, cabins); !lifts_ok) {
+      return lifts_ok;
     }
     if (kinds != nullptr) {
       if (const Status resolved_ok = ResolveConduits(*conduit_runs, *kinds, conduits); !resolved_ok) {
@@ -167,6 +198,12 @@ void PopulateStationScene(
   }
   for (size_t i = 0; i < conduits.size(); ++i) {
     world.entity(std::format("BlueprintConduit_{}", i).c_str()).add<z13::flecs_tools::StateEntity>().set(conduits[i]);
+  }
+  for (size_t i = 0; i < lifts.size(); ++i) {
+    world.entity(std::format("BlueprintLift_{}", i).c_str())
+        .add<z13::flecs_tools::StateEntity>()
+        .set(lifts[i])
+        .set(cabins[i]);
   }
   if (json.and_then(z13::building::primitives::ParseBlueprintDoorsOpen).value_or(false)) {
     world.set(z13::station::DoorsStartOpen {.open = true});

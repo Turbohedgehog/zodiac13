@@ -24,12 +24,14 @@
 #include <lib_core/utils/math.h>
 
 #include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player_parts.h>
 #include <z13/components/gameplay/kinematic_body.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/lift.h>
 #include <player/camera_look.h>
 #include <z13_settings/physics_tuning.h>
+#include <z13_tests/shipped_station.h>
 
 #include "../../building_module/tests/support/station_builders.h"
 #include "../../station_module/tests/support/room_blocks.h"
@@ -53,6 +55,7 @@ const Eigen::Vector2f kBeforeTheSwitch {3.f, 5.5f};
 // Long enough to fall to the box's floor.
 constexpr int kFallTicks = 120;
 constexpr uint32_t kTripTicks = 20;
+constexpr float kFrameTime = 1.f / 60.f;
 const Eigen::Vector3f kLower {10.f, 10.f, 0.f};
 const Eigen::Vector3f kUpper {10.f, 10.f, 6.f};
 const z13::PhysicsTuning kTuning {};
@@ -122,6 +125,45 @@ TEST_F(LiftSystemTest, AButtonUsedMidTripChangesNothing) {
   const KinematicBody& after = lift_.get<KinematicBody>();
   EXPECT_EQ(after.to, sent.to);
   EXPECT_EQ(after.start_tick, sent.start_tick);
+}
+
+// The lift of the shipped hub (generate_hub.py, tech_lift): its cabin carries a player from the trunk's floor up
+// through the slab's opening to the spine corridor's.
+constexpr int kHubSettleTicks = 60;
+constexpr float kCabinThickness = 1 * kCellSize;
+constexpr float kHeightTolerance = 0.1f;
+
+TEST(HubLiftTest, TheTechLiftCarriesAPlayerUpFromTheTrunkToTheSpineCorridor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(z13::testing::kHubScene)});
+  world.Tick();
+  flecs::entity lift;
+  int lifts = 0;
+  world.World().each([&](flecs::entity e, const Lift&) {
+    lift = e;
+    ++lifts;
+  });
+  ASSERT_EQ(lifts, 1);
+  const Lift stops = lift.get<Lift>();
+  ASSERT_EQ(lift.get<KinematicBody>().to, stops.lower);
+
+  const flecs::entity player = world.Player();
+  const Eigen::Vector3f cabin_centre = stops.lower + Eigen::Vector3f(1.f, 1.f, kCabinThickness + kTuning.eye_height);
+  player.set(At(cabin_centre)).set(z13::gameplay::PlayerMotion {.grounded = true});
+  for (int i = 0; i < kHubSettleTicks; ++i) {
+    world.Tick(kFrameTime);
+  }
+  KinematicBody cabin = lift.get<KinematicBody>();
+  cabin.from = stops.lower;
+  cabin.to = stops.upper;
+  cabin.start_tick = world.World().get<z13::flecs_tools::SimulationClock>().tick;
+  cabin.duration_ticks = stops.trip_ticks;
+  lift.set(cabin);
+  for (int i = 0; i < static_cast<int>(stops.trip_ticks) + kHubSettleTicks; ++i) {
+    world.Tick(kFrameTime);
+  }
+
+  const float height = z13::math::ExtractTranslation<float>(player.get<Eigen::Matrix4f>()).z();
+  EXPECT_NEAR(height, stops.upper.z() + kCabinThickness + kTuning.eye_height, kHeightTolerance);
 }
 
 }  // namespace

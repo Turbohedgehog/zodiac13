@@ -231,6 +231,31 @@ std::expected<std::vector<BlueprintConduit>, std::string> ParseBlueprintConduits
   return conduits;
 }
 
+std::expected<std::vector<BlueprintLift>, std::string> ParseBlueprintLifts(std::string_view json) {
+  const auto parsed = ParseSource(json);
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  const auto cell = [](const auto& value) {
+    return value ? Eigen::Vector3i(value->x(), value->y(), value->z()) : Eigen::Vector3i::Zero().eval();
+  };
+  std::vector<BlueprintLift> lifts;
+  for (size_t i = 0; i < parsed->lifts.size(); ++i) {
+    const fbs_station::BlueprintLiftT& entry = *parsed->lifts[i];
+    if (entry.trip_ticks == 0) {
+      return std::unexpected(std::format("blueprint: lift {}: the trip takes no ticks", i));
+    }
+    lifts.push_back({.primitive = entry.primitive,
+                     .size = cell(entry.size),
+                     .lower = cell(entry.lower),
+                     .upper = cell(entry.upper),
+                     .lower_button = cell(entry.lower_button),
+                     .upper_button = cell(entry.upper_button),
+                     .trip_ticks = entry.trip_ticks});
+  }
+  return lifts;
+}
+
 std::expected<bool, std::string> ParseBlueprintDoorsOpen(std::string_view json) {
   const auto parsed = ParseSource(json);
   if (!parsed) {

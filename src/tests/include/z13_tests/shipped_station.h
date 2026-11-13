@@ -41,6 +41,7 @@ inline constexpr std::string_view kTestScene = "test";
 inline constexpr std::string_view kSpireScene = z13::building::primitives::kFeaturedScene;
 // assets/station/blueprints/shard.json, from docs/station-layout/generate_shard.py.
 inline constexpr std::string_view kShardScene = "shard";
+inline constexpr std::string_view kHubScene = "hub";
 // assets/station/blueprints/octant.json, from docs/station-layout/generate_octant.py.
 inline constexpr std::string_view kOctantScene = z13::building::primitives::kOctantScene;
 

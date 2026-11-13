@@ -758,10 +758,19 @@ def conduit_run(grid, kind, cell, axis, length):
     return {"grid": grid, "kind": kind, "cell": dict(zip("xyz", cell)), "axis": axis, "length": length}
 
 
-def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=(), conduits=()):
+def lift_entry(primitive, size, lower, upper, lower_button, upper_button, trip_ticks):
+    """A lift (blueprint.fbs, BlueprintLift): a cabin box of `primitive` standing with its lowest corner at the cell
+    `lower` or `upper`, called by the Switch blocks at the two button cells."""
+    def cell(c):
+        return {"x": c[0], "y": c[1], "z": c[2]}
+    return {"primitive": primitive, "size": cell(size), "lower": cell(lower), "upper": cell(upper),
+            "lower_button": cell(lower_button), "upper_button": cell(upper_button), "trip_ticks": trip_ticks}
+
+
+def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=(), conduits=(), lifts=()):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
     returns the blocks written, the long ones cut. `doors_open`: the scene's doors stand open at the start. `grids`:
-    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s. `conduits`: `conduit_run`s."""
+    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s. `conduits`: `conduit_run`s. `lifts`: `lift_entry`s."""
     blocks = [piece for entry in blocks for piece in split_long(entry)]
     walls = [piece for wall in walls for piece in split_wall(wall)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
@@ -778,6 +787,9 @@ def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=()
     if conduits:
         conduit_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in conduits]
         text += ",\n  \"conduits\": [\n    " + ",\n    ".join(conduit_lines) + "\n  ]"
+    if lifts:
+        lift_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in lifts]
+        text += ",\n  \"lifts\": [\n    " + ",\n    ".join(lift_lines) + "\n  ]"
     if doors_open:
         text += ',\n  "doors_open": true'
     path.parent.mkdir(parents=True, exist_ok=True)

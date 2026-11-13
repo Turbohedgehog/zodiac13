@@ -348,7 +348,7 @@ set(Z13_HEAVY_TESTS
     ":ActionHintsTest.OnlyTheClientsInTheFilterGetHints"
     ":RoomUpdateTest.MovingCutWallsEndWhereAFullBuildDoes"
     ":HubFreightHangarTest.TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTheSpineByADoor"
-    ":HubDoorsTest.EveryDoorIsPoweredAndShutUntilABodyComes:HubWiringTest.*:HubTechTrunkTest.*:*HubDistrictTechTest.*")
+    ":HubDoorsTest.EveryDoorIsPoweredAndShutUntilABodyComes:HubWiringTest.*:HubTechTrunkTest.*:*HubDistrictTechTest.*:HubLiftTest.*")
 string(CONCAT Z13_HEAVY_TESTS ${Z13_HEAVY_TESTS})
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/z13_suite_tests_include.cmake CONTENT
 "include(\"${CMAKE_SOURCE_DIR}/cmake/z13_gtest_suites.cmake\")

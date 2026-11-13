@@ -172,7 +172,7 @@ TEST(SpaceWalkBench, DISABLED_OctantWalk) {
 }
 
 TEST(SpaceWalkBench, DISABLED_HubAtrium) {
-  constexpr std::string_view kHubScene = "hub";
+  using z13::testing::kHubScene;
   constexpr float kAtriumX = 46.0f;
   constexpr float kAtriumY = 75.0f;
   constexpr float kEyeZ = 1.5f;
