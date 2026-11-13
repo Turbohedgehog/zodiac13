@@ -89,7 +89,7 @@ python3 tools/android/install_run.py            # копия в /sdcard/Download
 python3 tools/android/install_run.py --launch   # запуск установленной игры
 ```
 
-То же делает ярлык Termux:Widget `~/.shortcuts/install-zodiac13` (лежит вне репозитория, работает в Termux и берёт самый новый APK из корня PRoot).
+То же делает ярлык Termux:Widget «Install Zodiac13»: скрипт `tools/android/termux/Install Zodiac13` копируют в `~/.shortcuts/` Termux (это `/data/data/com.termux/files/home/.shortcuts`, из PRoot виден; на втором устройстве положен 2026-11-13 рядом с «Debian (th)» и «Debian Desktop») и делают исполняемым. Он вызывает `install_run.py` внутри PRoot через `proot-distro login debian --user th`, как соседний ярлык «Debian (th)». В виджете запустить из PRoot его нельзя (вложенный `proot` не стартует), поэтому проверена только внутренняя команда; сам ярлык проверяется тапом в Termux:Widget.
 
 Termux сам установить APK не может: у него нет `REQUEST_INSTALL_PACKAGES` (пункта «Установка неизвестных приложений» в настройках нет), и системный установщик, запущенный из него, закрывается без окна и без записи в логе. Не сработали (2026-11-11): `termux-open` (приёмник Termux молча ничего не запускает; с `--chooser` предлагает только сохранить файл), `am start` с `file://` (Termux подхватывает его сам: «open directory / edit / cancel»), `am start -n com.android.packageinstaller/.InstallStart`. Работает открытая папка «Файлы»: у менеджера разрешение на установку есть. APK подписан `android/debug.keystore` из репозитория, как в CI, так что встаёт поверх прежнего. Беспроводной `adb` не нужен: в PRoot демон стартует только как `adb -L tcp:5037 server nodaemon`, но сопряжение настраивается на каждом устройстве.
 
