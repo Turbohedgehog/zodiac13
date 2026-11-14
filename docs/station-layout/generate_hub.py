@@ -1329,8 +1329,6 @@ TECH_BULKHEAD_LAMP_CELLS = 6  # a lamp each side of a bulkhead door
 TECH_BULKHEAD_AT_CELLS = 24  # a branch's first bulkhead door, from the artery
 TECH_BULKHEAD_SPACING_CELLS = 96  # then one every 24 m along the branch
 TECH_BULKHEAD_END_MARGIN_CELLS = 24  # none this close to a leg's end: a corner or the cap
-TECH_ARTERY_BULKHEAD_X = 199  # between the two south branches' walls
-TECH_ARTERY_BULKHEAD_DOOR_CELLS = 8
 TECH_GATE_STEPS = 4  # lattice steps the cap spans
 TECH_GATE_FIRST_STEP = 6  # from the near wall's origin node
 TECH_GATE_DOOR = (1, 2)  # offset and width in steps
@@ -1453,13 +1451,9 @@ def _artery_side(y, thickness, z, x0, links):
     doors = [False] + [flag for _ in edges for flag in (True, False)]
     walls = []
     for (a, b), has_door in zip(zip(xs, xs[1:]), doors):
-        pieces = [a, b]
-        if a < TECH_ARTERY_BULKHEAD_X < b:
-            pieces = [a, TECH_ARTERY_BULKHEAD_X, b]
-        for p, q in zip(pieces, pieces[1:]):
-            openings = [wall_opening((q - p - TECH_TUNNEL_DOOR_CELLS) // 2, TECH_TUNNEL_DOOR_CELLS,
-                                     TECH_TUNNEL_DOOR_HEIGHT_CELLS)] if has_door else []
-            walls.append(wall_segment((p, y, z), (q, y, z), thickness, TECH_TUNNEL_WALL_HEIGHT_CELLS, openings=openings))
+        openings = [wall_opening((b - a - TECH_TUNNEL_DOOR_CELLS) // 2, TECH_TUNNEL_DOOR_CELLS,
+                                 TECH_TUNNEL_DOOR_HEIGHT_CELLS)] if has_door else []
+        walls.append(wall_segment((a, y, z), (b, y, z), thickness, TECH_TUNNEL_WALL_HEIGHT_CELLS, openings=openings))
     return walls
 
 
@@ -1475,17 +1469,11 @@ def tech_artery_parts():
     links = tech_links()
     walls = (_artery_side(north_y, wall, z, x0, [link for link in links if link.path[1][1] > link.path[0][1]]) +
              _artery_side(south_y, -wall, z, x0, [link for link in links if link.path[1][1] < link.path[0][1]]) +
-             [wall_segment((x1, south_y, z), (x1, north_y, z), -wall, TECH_TUNNEL_WALL_HEIGHT_CELLS),
-              wall_segment((TECH_ARTERY_BULKHEAD_X, south_y, z), (TECH_ARTERY_BULKHEAD_X, north_y, z), wall,
-                           TECH_TUNNEL_WALL_HEIGHT_CELLS,
-                           openings=[wall_opening((north_y - south_y - TECH_ARTERY_BULKHEAD_DOOR_CELLS) // 2,
-                                                  TECH_ARTERY_BULKHEAD_DOOR_CELLS, TECH_TUNNEL_DOOR_HEIGHT_CELLS)])])
+             [wall_segment((x1, south_y, z), (x1, north_y, z), -wall, TECH_TUNNEL_WALL_HEIGHT_CELLS)])
     cells = _artery_cells()
     blocks = tunnel_slab_blocks(cells, TECH_FLOOR_Z) + tunnel_slab_blocks(cells, TECH_TUNNEL_CEILING_Z)
     blocks += tunnel_lamps([(x0, TECH_ARTERY_Y), (x1, TECH_ARTERY_Y)], TECH_TUNNEL_CEILING_Z - 1,
-                           TECH_TUNNEL_LAMP_SPACING_CELLS,
-                           extra=[(0, TECH_ARTERY_BULKHEAD_X - x0 - TECH_BULKHEAD_LAMP_CELLS),
-                                  (0, TECH_ARTERY_BULKHEAD_X - x0 + TECH_BULKHEAD_LAMP_CELLS)])
+                           TECH_TUNNEL_LAMP_SPACING_CELLS)
     return blocks, walls
 
 
@@ -1552,7 +1540,7 @@ class HubDeck(Deck):
             self.put(x1, y, " ")
         for y in SPINE_DOOR_ROWS:
             if self.number <= OLD_DOOR_DECKS:
-                self.put(x0, y, DOOR)
+                self.put(x0, y, " ")
         self.label(x0, SPINE_ROW_Y["N"][1], x1, SPINE_ROW_Y["S"][0], Room.CORRIDOR)
 
     def wing(self, wing):
@@ -1624,7 +1612,7 @@ def build_decks():
     trunk.room(*TECH_TRUNK, Room.TECH_TRUNK)
     for y in range(TECH_TRUNK[3], SPINE_OPENING_Y[1] + 2):
         trunk.put(TECH_TRUNK[0], y, WALL)
-    trunk.door_on(*TECH_TRUNK, "W")
+    trunk.door_on(*TECH_TRUNK, "W", ch=" ")
     trunk.door_on(*TECH_TRUNK, "E", TECH_EAST_DOOR_OFFSET_CHARS)
     trunk.room(*TECH_ATMOS_HALL, Room.ATMOS_HALL, ("S", None))
     trunk.room(*TECH_POWER_HALL, Room.POWER_HALL, ("N", None))
