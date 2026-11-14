@@ -40,8 +40,10 @@ class ConduitCells {
   // A run of `network` in `grid` fills `cell` along another axis than `axis`.
   bool Turns(std::string_view network, z13::station::GridId grid, const Eigen::Vector3i& cell,
              z13::conduit::ConduitAxis axis) const;
-  void SetPoses(z13::station::GridPoses poses) { poses_ = std::move(poses); }
+  void SetPoses(z13::station::GridPoses poses);
   Eigen::Matrix4f PoseOf(z13::station::GridId grid) const;
+  // Bumped when the runs or the poses change.
+  uint64_t Generation() const { return generation_; }
 
  private:
   struct Occupant {
@@ -51,6 +53,7 @@ class ConduitCells {
   };
 
   z13::station::GridPoses poses_;
+  uint64_t generation_ {};
   std::vector<z13::conduit::Conduit> built_;
   std::unordered_map<Eigen::Vector3i, std::vector<Occupant>, z13::building::primitives::CellHash> by_cell_;
 };

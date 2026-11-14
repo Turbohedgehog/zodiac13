@@ -20,15 +20,28 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <cell_light/cell_light.h>
 #include <primitives/cell_box.h>
+#include <primitives/geometry.h>
 
 #include "cell_lighting.h"
 #include "gl_volumes.h"
 
 namespace z13::raylib {
+
+struct SealedBoxesKey {
+  z13::building::primitives::BlockShapeKey shape;
+  z13::station::Orientation orientation {};
+
+  bool operator==(const SealedBoxesKey&) const = default;
+};
+
+struct SealedBoxesKeyHash {
+  size_t operator()(const SealedBoxesKey& key) const;
+};
 
 class CellLighting::State {
  public:
@@ -54,6 +67,9 @@ class CellLighting::State {
   void UploadLabels(const z13::building::primitives::CellBox& cells) const;
   void UploadLight(const z13::building::primitives::CellBox& cubes) const;
   void ReleaseVolumes();
+  // Cached by shape and turn, then moved to the block's cell.
+  std::vector<z13::building::primitives::CellBox> SealedBoxesOf(const z13::station::Block& block,
+                                                                z13::building::primitives::OptionalPalette palette);
 
   std::optional<GlVolumes> gl_;
   std::optional<z13::station::light::CellLight> light_;
@@ -65,6 +81,9 @@ class CellLighting::State {
   std::vector<z13::station::light::GlassBox> glass_;
   std::vector<z13::station::light::Lamp> lamps_;
   std::vector<z13::station::light::Lamp> shining_;
+  std::unordered_map<SealedBoxesKey, std::vector<z13::building::primitives::CellBox>, SealedBoxesKeyHash> sealed_;
+  // Sum of the blocks' hashes, so their order doesn't matter.
+  uint64_t blocks_fingerprint_ {};
   std::optional<uint64_t> palette_hash_;
   std::vector<z13::utility::DimmedLamp> dimmed_;
   int emergency_percent_ {};

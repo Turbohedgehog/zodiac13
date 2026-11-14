@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <format>
 #include <iterator>
 #include <ranges>
@@ -40,6 +41,34 @@ using z13::station::light::Lamp;
 using z13::station::light::LightEdits;
 using z13::station::light::NodeTexel;
 using z13::station::light::kPiecesPerNode;
+
+// An odd prime, so the turn spreads the shape's hash instead of adding to it.
+constexpr size_t kOrientationHashStride = 31;
+
+// The usual hash combine's constants.
+constexpr uint64_t kHashCombine = 0x9e3779b97f4a7c15ULL;
+constexpr unsigned kHashShiftLeft = 6;
+constexpr unsigned kHashShiftRight = 2;
+
+void Mix(uint64_t& hash, int64_t value) {
+  hash ^= static_cast<uint64_t>(value) + kHashCombine + (hash << kHashShiftLeft) + (hash >> kHashShiftRight);
+}
+
+uint64_t FingerprintOf(const z13::station::Block& block) {
+  uint64_t hash {};
+  const auto& spec = block.spec;
+  Mix(hash, spec.type_id);
+  Mix(hash, static_cast<int64_t>(spec.orientation));
+  Mix(hash, spec.slant);
+  for (const Eigen::Index axis : {0, 1, 2}) {
+    Mix(hash, spec.size[axis]);
+    Mix(hash, block.cell[axis]);
+  }
+  std::ranges::for_each(spec.corners, [&hash](int value) { Mix(hash, value); });
+  std::ranges::for_each(spec.face_cuts, [&hash](int value) { Mix(hash, value); });
+  Mix(hash, static_cast<int64_t>(block.grid));
+  return hash;
+}
 
 constexpr std::array kNodeTexels {NodeTexel::kLight, NodeTexel::kDirection};
 
@@ -95,17 +124,47 @@ bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette 
   return BuiltFrom(palette) && emergency_percent_ == emergency.percent && std::ranges::equal(dimmed_, emergency.dimmed);
 }
 
+size_t SealedBoxesKeyHash::operator()(const SealedBoxesKey& key) const {
+  return z13::building::primitives::BlockShapeKeyHash {}(key.shape) * kOrientationHashStride +
+         static_cast<size_t>(key.orientation);
+}
+
+std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Block& block,
+                                                        z13::building::primitives::OptionalPalette palette) {
+  const SealedBoxesKey key {.shape = z13::building::primitives::ShapeKeyOf(block.spec),
+                            .orientation = block.spec.orientation};
+  auto found = sealed_.find(key);
+  if (found == sealed_.end()) {
+    found = sealed_.emplace(key, z13::building::primitives::SealedBoxes({.spec = block.spec}, palette)).first;
+  }
+  std::vector<CellBox> boxes = found->second;
+  for (CellBox& box : boxes) {
+    box.min += block.cell;
+  }
+  return boxes;
+}
+
 Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
                                  z13::building::primitives::OptionalPalette palette,
                                  const EmergencyLamps& emergency) {
   if (failure_) {
     return {};
   }
+  // Blocks flagged as changed without differing (a door changing table) must not redo the light.
+  const uint64_t fingerprint = std::ranges::fold_left(
+      blocks | std::views::transform(FingerprintOf), uint64_t {}, std::plus<> {});
+  if (BuiltFrom(palette) && fingerprint == blocks_fingerprint_ && SyncedWith(palette, emergency)) {
+    return {};
+  }
+  blocks_fingerprint_ = fingerprint;
+  if (!BuiltFrom(palette)) {
+    sealed_.clear();
+  }
   std::vector<CellBox> opaque;
   std::vector<GlassBox> glass;
   for (const z13::station::Block& block : blocks) {
     // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
-    const std::vector<CellBox> boxes = z13::building::primitives::SealedBoxes(block, palette);
+    const std::vector<CellBox> boxes = SealedBoxesOf(block, palette);
     if (z13::building::primitives::IsTransparent(block, palette)) {
       const float transmission = palette->get().Find(block.spec.type_id)->get().light_transmission;
       std::ranges::transform(boxes, std::back_inserter(glass), [transmission](const CellBox& cells) {

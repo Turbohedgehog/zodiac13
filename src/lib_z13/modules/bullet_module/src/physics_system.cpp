@@ -18,6 +18,7 @@
 
 #include "physics_world.h"
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -196,10 +197,13 @@ void ApplyBlockChange(const flecs::world& world, const z13::station::BlockChange
   }
 }
 
-// A fresh PhysicsWorld has no bodies, so its count makes the reader resync.
+// A fresh PhysicsWorld has no bodies, so its count makes the reader resync; kinematic bodies (a lift's cabin) are
+// not blocks and would make it resync every tick.
 void SyncBlockBodies(const flecs::world& world, PhysicsWorld& physics_world, z13::station::BlockChangeReader& reader,
-                     uint64_t restores, uint64_t tick, OptionalPalette palette, const GridQuery& grids) {
-  const z13::station::BlockChangeBatch batch = reader.Read(restores, tick, physics_world.BodyCount());
+                     uint64_t restores, uint64_t tick, OptionalPalette palette, const GridQuery& grids,
+                     size_t kinematic_bodies) {
+  const z13::station::BlockChangeBatch batch =
+      reader.Read(restores, tick, physics_world.BodyCount() - std::min(kinematic_bodies, physics_world.BodyCount()));
   // A grid's pose is set once, before its blocks: a body is not moved if the pose changes later.
   const z13::station::GridPoses poses = z13::station::PosesOf(grids);
   if (batch.resync) {
@@ -394,6 +398,7 @@ void RegisterSystems(flecs::world world) {
 
   const auto reader = std::make_shared<z13::station::BlockChangeReader>(world);
   const GridQuery grids = world.query<const z13::station::Grid>();
+  const auto kinematic_ids = std::make_shared<KinematicIds>();
 
   // PostUpdate runs after the building phase, so a block placed this frame gets its
   // body this frame; systems in one phase run in registration order.
@@ -404,11 +409,12 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::BlockChange>()
       .read<z13::station::Grid>()
       .write<RigidBody>()
-      .each([reader, grids](flecs::iter& it, size_t, PhysicsWorld& physics_world,
+      .each([reader, grids, kinematic_ids](flecs::iter& it, size_t, PhysicsWorld& physics_world,
                      const z13::flecs_tools::WorldRestores& restores, const z13::flecs_tools::SimulationClock& clock,
                      const BlockPalette* palette) {
         SyncBlockBodies(it.world(), physics_world, *reader, restores.count, clock.tick,
-                        palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt, grids);
+                        palette != nullptr ? OptionalPalette(palette->palette) : std::nullopt, grids,
+                        kinematic_ids->size());
       });
 
   // A door's leaf blocks while the door is shut enough (DoorState::leaf_blocks); SyncBody leaves a body alone that
@@ -430,7 +436,6 @@ void RegisterSystems(flecs::world world) {
       });
 
   const auto kinematic_bodies = world.query<const z13::kinematic::KinematicBody>();
-  const auto kinematic_ids = std::make_shared<KinematicIds>();
   world.system<PhysicsWorld, const z13::flecs_tools::SimulationClock, const BlockPalette*>(
            "PhysicsSystem::SyncKinematicBodies")
       .kind<z13::gameplay::PostUpdatePhase>()
