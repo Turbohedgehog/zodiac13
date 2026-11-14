@@ -3,7 +3,7 @@
 // Parts the reload_shaders debug command can leave out by defining them (docs/debug-server-plan.md): Z13_NO_LIGHTING,
 // Z13_NO_CELL_LIGHT, Z13_NO_PLAYER_SHADOWS, Z13_NO_CLUSTER_LIGHTS, Z13_NO_SUN, Z13_NO_FILL, Z13_NO_BUMP;
 // inside them: Z13_CLUSTER_INDEX_ONLY, Z13_CLUSTER_HEADER_ONLY (the loop left out), Z13_NO_SUN_SHADOW, Z13_NO_FILL_SHADOW, Z13_FILL_CONST;
-// inside the baked light: Z13_NO_BORROW, Z13_NO_SURFACE_STEPS, Z13_NO_GATEWAY, Z13_NO_DIRECTION.
+// inside the baked light: Z13_NO_BORROW, Z13_NO_SURFACE_STEPS, Z13_NO_GATEWAY, Z13_NO_DIRECTION, Z13_NO_SOFT_PIECES.
 
 in vec3 fragPosition;
 in vec2 fragTexCoord;
@@ -44,6 +44,8 @@ uniform usampler3D cellLabels;
 uniform sampler3D cellLight;
 uniform ivec3 cellOrigin;
 uniform ivec3 cellCubes;
+// The grid the light was baked for, as the world's meters to its own: identity for the main grid.
+uniform mat4 cellFromWorld;
 
 // Lamps near players, with their shadow slot in the color's w: a lamp's light is baked, so
 // where a player stands between it and a face, its share is taken back.
@@ -120,6 +122,8 @@ const int kPlayersLayer = 1;
 // light_layout.h: a node spans kNodeCells cells a side, a cube keeps kPieces pieces apart.
 const int kNodeCells = 4;
 const int kPieces = 3;
+// Cells over which the light is mixed across the border of two pieces of a cube.
+const float kSoftCells = 1.0;
 // The share of baked light a face turned away from its lamps still gets.
 const float kBakedFloor = 0.35;
 // Meters the baked light's sample moves toward the viewer: a pixel on a seam rasterized a hair
@@ -225,6 +229,43 @@ int ClusterOf(vec3 position)
     return (slice*clusterCounts.y + tile.y)*clusterCounts.x + tile.x;
 }
 
+// The nodes' light at `point` as the piece `ownPiece` of the cube holding `cell` sees it, weighed by distance, and
+// the direction toward its lamps in `direction`; zero where no node reaches.
+vec3 NodeLight(vec3 point, ivec3 cell, uint ownPiece, out vec3 direction)
+{
+    ivec3 ownCube = cell/kNodeCells;
+    vec3 cubePoint = (point - vec3(cellOrigin))/float(kNodeCells) - 0.5;
+    ivec3 base = ivec3(floor(cubePoint));
+    vec3 along = cubePoint - vec3(base);
+    vec3 light = vec3(0.0);
+    direction = vec3(0.0);
+    float weights = 0.0;
+    for (int corner = 0; corner < 8; corner++)
+    {
+        ivec3 offset = ivec3(corner & 1, (corner >> 1) & 1, (corner >> 2) & 1);
+        ivec3 cube = base + offset;
+        if (any(lessThan(cube, ivec3(0))) || any(greaterThanEqual(cube, cellCubes))) continue;
+        ivec3 nearest = clamp(cell, cube*kNodeCells, cube*kNodeCells + kNodeCells - 1);
+        uint piece = texelFetch(cellLabels, nearest, 0).r;
+        if (piece >= uint(kPieces)) continue;
+        ivec3 gateway = clamp(nearest, ownCube*kNodeCells, ownCube*kNodeCells + kNodeCells - 1);
+#ifndef Z13_NO_GATEWAY
+        if (ownPiece < uint(kPieces) && texelFetch(cellLabels, gateway, 0).r != ownPiece) continue;
+#endif
+        vec3 shares = mix(1.0 - along, along, vec3(offset));
+        float weight = shares.x*shares.y*shares.z;
+        ivec3 texel = ivec3(cube.xy, cube.z + int(piece)*cellCubes.z);
+        light += weight*texelFetch(cellLight, texel, 0).rgb;
+#ifndef Z13_NO_DIRECTION
+        direction += weight*texelFetch(cellLight, texel + ivec3(0, 0, kPieces*cellCubes.z), 0).xyz;
+#endif
+        weights += weight;
+    }
+    if (weights <= 0.0) return vec3(0.0);
+    direction /= weights;
+    return light/weights;
+}
+
 // The baked light at `point` (in cells) on a face turned to `normal`: the eight nearest nodes,
 // weighed by distance, each through the cell of its cube nearest the point's cell. A node adds
 // nothing when that cell is opaque, or when the point's own cube is cut off from it on the way:
@@ -261,37 +302,34 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
         }
 #endif
     }
-    ivec3 ownCube = cell/kNodeCells;
-    vec3 cubePoint = (point - vec3(cellOrigin))/float(kNodeCells) - 0.5;
-    ivec3 base = ivec3(floor(cubePoint));
-    vec3 along = cubePoint - vec3(base);
-    vec3 light = vec3(0.0);
-    vec3 direction = vec3(0.0);
-    float weights = 0.0;
-    for (int corner = 0; corner < 8; corner++)
+    vec3 direction;
+    vec3 light = NodeLight(point, cell, ownPiece, direction);
+#ifndef Z13_NO_SOFT_PIECES
+    // Where the cell's neighbour belongs to another piece of the cube (a wall between them cuts the nodes' reach),
+    // the light jumps along the border: within kSoftCells of it the neighbour's light is mixed in, to half at it.
+    if (ownPiece < uint(kPieces))
     {
-        ivec3 offset = ivec3(corner & 1, (corner >> 1) & 1, (corner >> 2) & 1);
-        ivec3 cube = base + offset;
-        if (any(lessThan(cube, ivec3(0))) || any(greaterThanEqual(cube, cellCubes))) continue;
-        ivec3 nearest = clamp(cell, cube*kNodeCells, cube*kNodeCells + kNodeCells - 1);
-        uint piece = texelFetch(cellLabels, nearest, 0).r;
-        if (piece >= uint(kPieces)) continue;
-        ivec3 gateway = clamp(nearest, ownCube*kNodeCells, ownCube*kNodeCells + kNodeCells - 1);
-#ifndef Z13_NO_GATEWAY
-        if (ownPiece < uint(kPieces) && texelFetch(cellLabels, gateway, 0).r != ownPiece) continue;
-#endif
-        vec3 shares = mix(1.0 - along, along, vec3(offset));
-        float weight = shares.x*shares.y*shares.z;
-        ivec3 texel = ivec3(cube.xy, cube.z + int(piece)*cellCubes.z);
-        light += weight*texelFetch(cellLight, texel, 0).rgb;
-#ifndef Z13_NO_DIRECTION
-        direction += weight*texelFetch(cellLight, texel + ivec3(0, 0, kPieces*cellCubes.z), 0).xyz;
-#endif
-        weights += weight;
+        int across = abs(normal.x) >= abs(normal.y) && abs(normal.x) >= abs(normal.z) ? 0 : (abs(normal.y) >= abs(normal.z) ? 1 : 2);
+        for (int side = 0; side < 4; side++)
+        {
+            int axis = (across + 1 + (side >> 1))%3;
+            int way = (side & 1) == 0 ? 1 : -1;
+            ivec3 next = cell;
+            next[axis] += way;
+            if (any(lessThan(next, ivec3(0))) || any(greaterThanEqual(next, cellCubes*kNodeCells))) continue;
+            if (next/kNodeCells != cell/kNodeCells) continue;
+            uint nextPiece = texelFetch(cellLabels, next, 0).r;
+            if (nextPiece == ownPiece || nextPiece >= uint(kPieces)) continue;
+            float toBorder = way > 0 ? 1.0 - fract(point[axis]) : fract(point[axis]);
+            float share = 0.5*max(1.0 - toBorder/kSoftCells, 0.0);
+            if (share <= 0.0) continue;
+            vec3 nextDirection;
+            vec3 nextLight = NodeLight(point, next, nextPiece, nextDirection);
+            light = mix(light, nextLight, share);
+            direction = mix(direction, nextDirection, share);
+        }
     }
-    if (weights <= 0.0) return vec3(0.0);
-    light /= weights;
-    direction /= weights;
+#endif
     // Many lamps add up past 1, and the sheen sits above the compressed light: it follows no more than a full one.
     vec3 shineLight = min(light, vec3(1.0));
     float oneSided = length(direction);
@@ -303,6 +341,14 @@ vec3 CellLight(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 
     }
     sheen += shineLight*kRim*pow(1.0 - max(dot(shineNormal, toView), 0.0), kRimPower);
     return light*mix(1.0, kBakedFloor + (1.0 - kBakedFloor)*facing, oneSided)*kMetalDiffuse;
+}
+
+// CellLight for a point, normals and view direction in the world, which the grid's light is baked in the frame of.
+vec3 CellLightOf(vec3 point, vec3 normal, vec3 shineNormal, vec3 toView, out vec3 sheen)
+{
+    mat3 rotation = mat3(cellFromWorld);
+    vec3 inGrid = (cellFromWorld*vec4(point, 1.0)).xyz/cellSize;
+    return CellLight(inGrid, rotation*normal, rotation*shineNormal, rotation*toView, sheen);
 }
 
 // What the lamps' baked light loses where players stand between them and the face: blocks
@@ -439,7 +485,7 @@ void main()
 #ifndef Z13_NO_CELL_LIGHT
     if (cellLightEnabled == 1)
     {
-        vec3 baked = CellLight(facing/cellSize, normal, shineNormal, toView, sheen);
+        vec3 baked = CellLightOf(facing, normal, shineNormal, toView, sheen);
 #ifdef Z13_NO_PLAYER_SHADOWS
         light += baked;
 #else
@@ -529,7 +575,7 @@ void main()
     if (debugView == 2 && cellLightEnabled == 1)
     {
         vec3 unused;
-        finalColor = vec4(Compress(CellLight(facing/cellSize, normal, shineNormal, toView, unused)), 1.0);
+        finalColor = vec4(Compress(CellLightOf(facing, normal, shineNormal, toView, unused)), 1.0);
         return;
     }
     if (debugView == 4)
@@ -550,7 +596,7 @@ void main()
     }
     if (debugView == 3)
     {
-        ivec3 cube = (ivec3(floor(facing/cellSize)) - cellOrigin)/kNodeCells;
+        ivec3 cube = (ivec3(floor((cellFromWorld*vec4(facing, 1.0)).xyz/cellSize)) - cellOrigin)/kNodeCells;
         uint hash = uint(cube.x)*73856093u ^ uint(cube.y)*19349663u ^ uint(cube.z)*83492791u;
         finalColor = vec4(float(hash & 255u), float((hash >> 8) & 255u), float((hash >> 16) & 255u), 255.0)/255.0;
         return;

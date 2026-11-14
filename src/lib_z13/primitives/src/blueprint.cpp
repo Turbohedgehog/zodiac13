@@ -39,7 +39,7 @@ static_assert(static_cast<size_t>(fbs_station::WallAxis::MAX) == static_cast<siz
 static_assert(static_cast<size_t>(fbs_station::WallDiagonal::MAX) ==
               static_cast<size_t>(z13::station::WallDiagonal::kTipToBase));
 static_assert(static_cast<size_t>(fbs_station::OpeningKind::MAX) ==
-              static_cast<size_t>(z13::station::OpeningKind::kWindow));
+              static_cast<size_t>(z13::station::OpeningKind::kPassage));
 
 std::expected<fbs_station::BlueprintT, std::string> ParseSource(std::string_view json) {
   flatbuffers::Parser parser;

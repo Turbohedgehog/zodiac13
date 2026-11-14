@@ -35,6 +35,7 @@
 #include <z13/components/station/building.h>
 #include <z13/components/gameplay/inventory.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/scan.h>
 #include <z13/components/station/tool_mode_info.h>
 
 #include "gui_widgets.h"
@@ -94,6 +95,10 @@ std::string_view ItemLabel(flecs::entity item, flecs::entity player, bool active
                                : tool->mode;
   return z13::building::ToolModeInfoOf(mode).label;
 }
+
+constexpr float kScanCrosshairRadius = 4.f;
+constexpr float kBackdropPadding = 4.f;
+constexpr ImU32 kBackdropColor = IM_COL32(0, 0, 0, 170);  // dark enough for the white label over a white wall
 
 void DrawCentered(ImDrawList& draw, const Eigen::Vector2f& center, std::string_view text) {
   const std::string label(text);
@@ -226,6 +231,19 @@ void DrawHotbar(flecs::world world, const z13::TouchLayout& layout) {
     DrawCentered(draw, z13::input::touch::CellRect(layout, carried.cell, screen).center(), label);
     if (active && item.has<z13::building::BuildTool>()) {
       DrawCentered(draw, screen / 2.f + Eigen::Vector2f(0.f, screen.y() * kModeLineOffset), label);
+    }
+    const auto* report = player->try_get<z13::inventory::ScanReport>();
+    if (active && item.has<z13::inventory::ScannerTool>() && report != nullptr) {
+      const Eigen::Vector2f middle = screen / 2.f;
+      draw.AddCircle({middle.x(), middle.y()}, kScanCrosshairRadius, kLabelColor);
+      Eigen::Vector2f at = middle + Eigen::Vector2f(0.f, screen.y() * kModeLineOffset);
+      for (const std::string& line : report->lines) {
+        at.y() += ImGui::GetTextLineHeight();
+        const ImVec2 half = ImVec2(ImGui::CalcTextSize(line.c_str()).x / 2.f + kBackdropPadding,
+                                   ImGui::GetTextLineHeight() / 2.f);
+        draw.AddRectFilled({at.x() - half.x, at.y() - half.y}, {at.x() + half.x, at.y() + half.y}, kBackdropColor);
+        DrawCentered(draw, at, line);
+      }
     }
   });
 }

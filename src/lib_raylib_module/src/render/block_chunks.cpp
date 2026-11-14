@@ -54,13 +54,15 @@ void BlockChunks::DrawShadowCasters(const std::function<bool(const Eigen::Aligne
   state_->DrawShadowCasters(keep, material);
 }
 
-void BlockChunks::DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const {
-  state_->DrawOpaque(culling, lighting, stats);
+void BlockChunks::DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats,
+                             const GridDrawHook& before_grid) const {
+  state_->DrawOpaque(culling, lighting, stats, before_grid);
 }
 
 void BlockChunks::DrawTransparent(
-    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const {
-  state_->DrawTransparent(culling, eye, lighting, stats);
+    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats,
+    const GridDrawHook& before_grid) const {
+  state_->DrawTransparent(culling, eye, lighting, stats, before_grid);
 }
 
 }  // namespace z13::raylib

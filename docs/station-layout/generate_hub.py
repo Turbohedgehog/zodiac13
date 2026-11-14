@@ -13,6 +13,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
+from hub_tech_links import Leg, footprint, lamps as tunnel_lamps, slab_blocks as tunnel_slab_blocks, tunnel_walls
 from hub_wiring import wire_hub
 from station_blueprint import (
     CELLS_PER_M, COUNTER, COUNTER_HEIGHT_CELLS, DOOR, DOOR_HEIGHT_CELLS, FLOOR, WALL_BLOCK, line_blocks, MASS, SLAB_CELLS, SLOPE, TO_NEG_Y, TO_POS_Y, WALL, WINDOW, Deck, block,
@@ -168,8 +169,9 @@ TECH_TRUNK = (SPINE[0], SPINE_OPENING_Y[0] - 1, SPINE[2], SPINE_OPENING_Y[0] + 3
 TECH_ATMOS_HALL = (6, TECH_TRUNK[1] - 5, 22, TECH_TRUNK[1])
 TECH_POWER_HALL = (6, TECH_TRUNK[3], 22, TECH_TRUNK[3] + 5)
 TECH_FLIGHT_X = 60  # cells; the flight climbs towards +x
-TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the trunk's 12
-TECH_LIFT_X = 96  # cells, west edge of the cabin
+TECH_FLIGHT_WIDTH_CELLS = 7  # leaves a 5-cell pass beside it, so the trunk runs through
+TECH_LIFT_X = 94  # cells, west edge of the cabin, more than a door's sensor from the trunk's east door
+TECH_EAST_DOOR_OFFSET_CHARS = 1  # of the trunk's east door, from its north wall
 TECH_LIFT_CABIN = (8, 8, 1)  # cells; a slab the riders step up onto
 TECH_LIFT_SIDE_CELLS = 2  # from the trunk's south wall to the cabin
 TECH_LIFT_BUTTON_GAP_CELLS = 3  # between a button and the cabin's west edge
@@ -516,6 +518,7 @@ STUB_SIDE = 1
 SPINE_B_DECKS = SPINE_DECKS
 SPINE_B_OPENING_OFFSET_STEPS = 4  # wall steps from the atrium side's first node
 SPINE_B_OPENING_STEPS = 11
+SPINE_B_JAMB_STEPS = 1  # wall steps of jamb either side of the door in the atrium side's piece
 STUB_LENGTH_CELLS = 32  # along x and y each
 STUB_STEP = (1, 1)
 SPINE_B_STEP = (5, 2)
@@ -664,10 +667,16 @@ def spine_b_walls_of_deck(number):
     z, height = deck_floor_z(number), wall_height(number)
     a, b, _, thickness = g.side
     wall = SPINE_B_WALL_CELLS
-    door = wall_opening(SPINE_B_OPENING_OFFSET_STEPS, SPINE_B_OPENING_STEPS, DOOR_HEIGHT_CELLS)
-    walls = [wall_segment((*a, z), (*b, z), thickness, height, openings=[door])]
+    # The side's pieces end on the stub walls' nodes, where their inner lines cross, and the door has a step of jamb at
+    # either end of the piece between them.
+    ne_edge = _along(a, SPINE_B_OPENING_OFFSET_STEPS, (-1, 1))
+    sw_edge = _along(ne_edge, SPINE_B_OPENING_STEPS, (-1, 1))
+    door = wall_opening(SPINE_B_JAMB_STEPS, SPINE_B_OPENING_STEPS - 2 * SPINE_B_JAMB_STEPS, DOOR_HEIGHT_CELLS)
+    walls = [wall_segment((*a, z), (*ne_edge, z), thickness, height),
+             wall_segment((*ne_edge, z), (*sw_edge, z), thickness, height, openings=[door]),
+             wall_segment((*sw_edge, z), (*b, z), thickness, height)]
     ne_doors, sw_doors = spine_b_doors()
-    for nodes, sign, doors in ((g.ne, -wall, ne_doors), (g.sw, wall, sw_doors)):
+    for nodes, sign, doors in ((((ne_edge, *g.ne[1:])), -wall, ne_doors), ((sw_edge, *g.sw[1:]), wall, sw_doors)):
         walls += [wall_segment((*nodes[i], z), (*nodes[i + 1], z), sign, height, openings=doors if i else ())
                   for i in range(2)]
     return walls + spine_b_room_walls_of_deck(number)
@@ -752,9 +761,11 @@ ARRIVALS_DOOR_CELLS = 16
 ARRIVALS_NECK_LAMP_CELLS = (16, 39)  # along the neck, from the near wall
 ARRIVALS_HALL_LAMP_CELLS_ALONG = (23, 55, 86)  # from the hall's near face
 ARRIVALS_HALL_LAMP_CELLS_ACROSS = (-23, 0, 23)  # from the hall's middle line
-ARRIVALS_TECH_X = 30  # where the lower deck's corridor starts, from the hall's near face
+ARRIVALS_TECH_X = 30  # where the lower deck's corridor's flight starts, from the hall's near face
+ARRIVALS_TECH_Y = 14  # the corridor's middle across the grid
+ARRIVALS_TECH_WEST = -1  # its end wall, with the gate's door, flush with the tunnel cap
 ARRIVALS_ATRIUM_CELL = (231, 254, 6)  # in the atrium, inside the side's opening
-ARRIVALS_HALL_CELL = (100, 16, 12)  # in the hall, in the grid's own cells
+ARRIVALS_HALL_CELL = (4, 8, 6)  # in the hall beside its gate door, in the grid's own cells
 
 
 @functools.cache
@@ -797,7 +808,7 @@ def arrivals_grid():
              wall_segment((neck_x, hall0, z), (hall_x, hall0, z), -wall, height),
              wall_segment((neck_x, hall1, z), (hall_x, hall1, z), wall, height),
              wall_segment((hall_x, hall0, z), (hall_x, hall1, z), wall, height)]
-    tech_blocks, tech_walls, hole = district_tech_deck(neck_x + ARRIVALS_TECH_X, (hall0 + hall1) // 2)
+    tech_blocks, tech_walls, hole = district_tech_deck(neck_x + ARRIVALS_TECH_X, ARRIVALS_TECH_Y, ARRIVALS_TECH_WEST, True)
     blocks = [piece for layer in (0, ARRIVALS_DECKS)
               for x, y, length, width in ((0, neck0, neck_x, neck1 - neck0),
                                           (neck_x, hall0, hall_x - neck_x, hall1 - hall0))
@@ -805,6 +816,9 @@ def arrivals_grid():
                                         hole if layer == 0 else None)]
     blocks += tech_blocks
     walls += tech_walls
+    corridor0, corridor1 = ARRIVALS_TECH_Y - DISTRICT_TECH_WIDTH_CELLS // 2 - wall, ARRIVALS_TECH_Y + DISTRICT_TECH_WIDTH_CELLS // 2 + wall
+    blocks += [block(FLOOR, (ARRIVALS_TECH_WEST - wall, y, 0), (neck_x - ARRIVALS_TECH_WEST + wall, y1 - y, SLAB_CELLS))
+               for y, y1 in ((corridor0, neck0), (neck1, corridor1))]  # the corridor's ceiling where the neck is narrower
     lamp_z = z + height - 1
     neck_middle, hall_middle = (neck0 + neck1) // 2, (hall0 + hall1) // 2
     spots = [(along, neck_middle) for along in ARRIVALS_NECK_LAMP_CELLS]
@@ -820,6 +834,7 @@ def arrivals_grid():
 # stand, then the abandoned hall. A grid of its own like the freight hangar's, docked to a lobby wedge of the main
 # grid; the grid's x runs away from the spine, its y north.
 OLD_DECKS = 3
+OLD_DOOR_DECKS = 2  # decks whose near wall has a door; the spine's end wall is shut above them
 OLD_GRID = 3
 OLD_STEP = (-6, -1)
 OLD_ACROSS = (-1, 6)
@@ -834,12 +849,14 @@ OLD_DOOR_OFFSET_STEPS = 1  # along the main near wall from its north end
 OLD_DOOR_STEPS = 2
 OLD_DOOR_OFFSET_CELLS = 6  # along the grid's near wall, from its south end
 OLD_DOOR_CELLS = 12
-OLD_TECH_LOBBY_CELL = (-1, 296, -6)  # in the trunk's lobby, west of the trunk's end wall
+OLD_TECH_LOBBY_CELL = (-2, 299, -6)  # in the trunk's lobby, west of the trunk's end wall
 OLD_TECH_LOBBY_LAMP = (-3, 303, -1)
 OLD_TECH_HALL_CELL = (10, 12, -6)  # in the tunnel's lower deck, in the grid's own cells
 OLD_TECH_FLIGHT = (6, 17, 6)  # x, y and width, in cells: up from the lower deck beside the north wall
 OLD_LOBBY_CELL = (-3, 302, 6)  # in the lobby, beside the near wall's door rather than the corridor's
-OLD_HALL_CELL = (30, 12, 12)  # in the tunnel, in the grid's own cells
+OLD_HALL_CELL = (30, 12, 6)  # in the tunnel, in the grid's own cells
+OLD_LANDING_LOBBY_CELL = (OLD_LOBBY_CELL[0], OLD_LOBBY_CELL[1], OLD_LOBBY_CELL[2] + DECK_PITCH_CELLS)
+OLD_LANDING_CELL = (OLD_HALL_CELL[0] - 20, OLD_HALL_CELL[1], OLD_LOBBY_CELL[2] + DECK_PITCH_CELLS)  # on the second deck's landing
 OLD_TUNNEL_LAMP_CELLS = (12, 30, 49, 67)  # along the tunnel's middle line
 OLD_HALL_LAMP_CELLS_ALONG = (24, 61, 97)  # from the hall's near face, on the ceiling
 OLD_HALL_LAMP_CELLS_ACROSS = (-24, 24)  # from the hall's middle line
@@ -852,6 +869,8 @@ OLD_FLIGHT_START_CELLS = 4  # along the tunnel from the near wall's inner face t
 OLD_FLIGHT_WIDTH_CELLS = 6
 OLD_GALLERY_WIDTH_CELLS = 8  # the gallery's slab: 6 to walk on and the railing's 2 over its edge
 OLD_BRIDGE_DEPTH_CELLS = 8
+OLD_LANDING_WELL_CELLS = 8  # of the shaft's length filled at the galleries' start, joining the landing to the flight's head
+OLD_LANDING_LAMP_CELLS = (14, 14)  # on the landing's floor: along from the near wall's inner face, across
 OLD_PEDESTAL_CELLS = (12, 8)  # two slabs thick
 OLD_FLOOR_LAMP_ACROSS_CELLS = (4, 20)  # beside the pedestal
 
@@ -868,7 +887,11 @@ def old_wing_walls():
     z = deck_floor_z(1)
     height = OLD_DECKS * DECK_PITCH_CELLS - SLAB_CELLS
     door = wall_opening(OLD_DOOR_OFFSET_STEPS, OLD_DOOR_STEPS, DOOR_HEIGHT_CELLS)
-    return [wall_segment((*north, z), (*south, z), HALL_WALL_CELLS, height, openings=[door]),
+    near = [wall_segment((*north, deck_floor_z(deck)), (*south, deck_floor_z(deck)), HALL_WALL_CELLS, WALL_HEIGHT_CELLS,
+                         openings=[door] if deck <= OLD_DOOR_DECKS else ()) for deck in range(1, OLD_DECKS + 1)]
+    near += [wall_segment((*north, layer * DECK_PITCH_CELLS), (*south, layer * DECK_PITCH_CELLS), HALL_WALL_CELLS,
+                          SLAB_CELLS) for layer in range(1, OLD_DECKS)]  # the slabs' levels between the decks' walls
+    return near + [
             wall_segment((OLD_END_X, north[1], z), (*north, z), -HALL_WALL_CELLS, height),
             wall_segment((OLD_END_X, south[1], z), (*south, z), HALL_WALL_CELLS, height)]
 
@@ -879,7 +902,9 @@ def old_wing_blocks():
     wedge = [(OLD_END_X, north[1]), north, south, (OLD_END_X, south[1])]
     return (wedge_floor_blocks(wedge, OLD_DECKS)
             + wedge_floor_blocks(wedge, OLD_DECKS, (TECH_DECK - 1,))
-            + [block(LAMP, OLD_TECH_LOBBY_LAMP, (LAMP_CELLS, LAMP_CELLS, 1))])
+            + [block(LAMP, OLD_TECH_LOBBY_LAMP, (LAMP_CELLS, LAMP_CELLS, 1))]
+            + [block(LAMP, (OLD_TECH_LOBBY_LAMP[0], OLD_TECH_LOBBY_LAMP[1], deck_floor_z(deck) + wall_height(deck) - 1),
+                     (LAMP_CELLS, LAMP_CELLS, 1)) for deck in range(1, OLD_DECKS + 1)])
 
 
 def old_wing_tech_walls():
@@ -906,13 +931,19 @@ def old_reactor_flight(x, width):
 def old_reactor_shaft(tunnel_x, width):
     """The shaft's blocks and railings in the wing grid's cells: the flight, the second deck's galleries and bridge,
     the pedestal, the core and the lamps beside it. The tunnel's walls and ceiling are the wing's own."""
-    flight_x = HALL_WALL_CELLS + OLD_FLIGHT_START_CELLS
+    wall_x = HALL_WALL_CELLS
+    flight_x = wall_x + OLD_FLIGHT_START_CELLS
     gallery_x = flight_x + FLIGHT_LENGTH_CELLS
     bridge_x = tunnel_x - OLD_BRIDGE_DEPTH_CELLS
     rail_x = bridge_x + RAIL_THICKNESS_CELLS
     south, north = OLD_GALLERY_WIDTH_CELLS, width - OLD_GALLERY_WIDTH_CELLS
     slab_z = DECK_PITCH_CELLS
     blocks = old_reactor_flight(flight_x, OLD_FLIGHT_WIDTH_CELLS)
+    # The second deck's landing behind the near wall's upper door: it runs to the galleries, with a slab across the
+    # shaft's first cells joining it to the flight's head.
+    well_x = gallery_x + OLD_LANDING_WELL_CELLS
+    blocks += [block(FLOOR, (wall_x, OLD_FLIGHT_WIDTH_CELLS, slab_z), (gallery_x - wall_x, width - OLD_FLIGHT_WIDTH_CELLS, SLAB_CELLS)),
+               block(FLOOR, (gallery_x, south, slab_z), (OLD_LANDING_WELL_CELLS, north - south, SLAB_CELLS))]
     blocks += [block(FLOOR, (gallery_x, 0, slab_z), (bridge_x - gallery_x, south, SLAB_CELLS)),
                block(FLOOR, (gallery_x, north, slab_z), (bridge_x - gallery_x, width - north, SLAB_CELLS)),
                block(FLOOR, (bridge_x, 0, slab_z), (tunnel_x - bridge_x, width, SLAB_CELLS))]
@@ -927,25 +958,36 @@ def old_reactor_shaft(tunnel_x, width):
     # The railings stand on the slabs' inner edges, their bodies towards the shaft; they share the corners' nodes.
     rail_z = deck_floor_z(2)
     south_rail, north_rail = south - RAIL_THICKNESS_CELLS, north + RAIL_THICKNESS_CELLS
-    corners = [(gallery_x, south_rail, rail_z), (rail_x, south_rail, rail_z), (rail_x, north_rail, rail_z),
-               (gallery_x, north_rail, rail_z)]
+    corners = [(well_x, south_rail, rail_z), (rail_x, south_rail, rail_z), (rail_x, north_rail, rail_z),
+               (well_x, north_rail, rail_z)]
     walls = [wall_segment(a, b, RAIL_THICKNESS_CELLS, COUNTER_HEIGHT_CELLS) for a, b in zip(corners, corners[1:])]
+    walls += [wall_segment((well_x, south, rail_z), (well_x, north, rail_z), RAIL_THICKNESS_CELLS, COUNTER_HEIGHT_CELLS),
+              wall_segment((wall_x, OLD_FLIGHT_WIDTH_CELLS, rail_z), (gallery_x, OLD_FLIGHT_WIDTH_CELLS, rail_z),
+                           RAIL_THICKNESS_CELLS, COUNTER_HEIGHT_CELLS)]
+    landing_lamps = [(wall_x + OLD_LANDING_LAMP_CELLS[0], OLD_LANDING_LAMP_CELLS[1]),
+                     (gallery_x + (bridge_x - gallery_x) * 3 // 4, south // 2),
+                     (gallery_x + (bridge_x - gallery_x) * 3 // 4, width - south // 2 + 1)]
+    blocks += [block(LAMP, (x - 1, y - 1, slab_z + SLAB_CELLS), (LAMP_CELLS, LAMP_CELLS, 1)) for x, y in landing_lamps]
     return blocks, walls
 
 
 # A district's lower deck: a corridor under its hall's floor, entered by a flight down from the hall (docs/hub-station-plan.md,
 # "Техсеть"). The flight climbs towards +x from the corridor's floor, its head at the hall floor; the corridor runs on
 # either side of it.
-DISTRICT_TECH_WIDTH_CELLS = 12
+DISTRICT_TECH_WIDTH_CELLS = 24  # four lattice steps, so the gate to a tunnel of the main grid fits a slanted cap with a door
 DISTRICT_TECH_BEFORE_FLIGHT_CELLS = 12  # corridor west of the flight's foot, inside its end wall
 DISTRICT_TECH_AFTER_FLIGHT_CELLS = 18  # corridor east of the flight's head
-DISTRICT_TECH_FLIGHT_WIDTH_CELLS = 11  # a cell short of the corridor's width
+DISTRICT_TECH_FLIGHT_WIDTH_CELLS = 15  # the widest slope a block can be, less a cell
+DISTRICT_TECH_DOOR_CELLS = 12
+DISTRICT_TECH_LAMP_SPACING_CELLS = 56
 
 
-def district_tech_deck(x0, y_middle):
-    """A district's lower deck in its grid's cells, starting at x `x0` with the corridor centred on y `y_middle`:
-    its blocks, its walls and the footprint the flight opens in the hall's floor slab."""
+def district_tech_deck(x0, y_middle, west=None, door=False):
+    """A district's lower deck in its grid's cells: the flight's corridor from x `x0` (and from `west`, further west,
+    when given, with a door in its end wall if `door`) centred on y `y_middle`: its blocks, its walls and the
+    footprint the flight opens in the hall's floor slab."""
     wall = HALL_WALL_CELLS
+    start = x0 if west is None else west
     z = deck_floor_z(TECH_DECK)
     y0 = y_middle - DISTRICT_TECH_WIDTH_CELLS // 2
     y1 = y0 + DISTRICT_TECH_WIDTH_CELLS
@@ -953,17 +995,19 @@ def district_tech_deck(x0, y_middle):
     head = foot + FLIGHT_LENGTH_CELLS
     x1 = head + DISTRICT_TECH_AFTER_FLIGHT_CELLS + wall
     top = z + DECK_PITCH_CELLS - FLIGHT_LIP_RISE_CELLS
-    walls = [wall_segment((x0, y0, z), (x1, y0, z), -wall, WALL_HEIGHT_CELLS),
-             wall_segment((x0, y1, z), (x1, y1, z), wall, WALL_HEIGHT_CELLS),
-             wall_segment((x0, y0, z), (x0, y1, z), wall, WALL_HEIGHT_CELLS),
+    gate = [wall_opening((y1 - y0 - DISTRICT_TECH_DOOR_CELLS) // 2, DISTRICT_TECH_DOOR_CELLS, DOOR_HEIGHT_CELLS)] if door else ()
+    walls = [wall_segment((start, y0, z), (x1, y0, z), -wall, WALL_HEIGHT_CELLS),
+             wall_segment((start, y1, z), (x1, y1, z), wall, WALL_HEIGHT_CELLS),
+             wall_segment((start, y0, z), (start, y1, z), wall, WALL_HEIGHT_CELLS, openings=gate),
              wall_segment((x1, y0, z), (x1, y1, z), -wall, WALL_HEIGHT_CELLS)]
-    blocks = [block(FLOOR, (x0, y0 - wall, slab_z(TECH_DECK - 1)), (x1 - x0, y1 - y0 + 2 * wall, SLAB_CELLS)),
+    blocks = [block(FLOOR, (start, y0 - wall, slab_z(TECH_DECK - 1)), (x1 - start, y1 - y0 + 2 * wall, SLAB_CELLS)),
               block(SLOPE, (foot, y0, z), (FLIGHT_LIP_RUN_CELLS, DISTRICT_TECH_FLIGHT_WIDTH_CELLS, FLIGHT_LIP_RISE_CELLS)),
               wall_panel_block((foot + FLIGHT_LIP_RUN_CELLS, y0, z), (head, y0, top), FLIGHT_PLATE_THICKNESS_CELLS,
                                DISTRICT_TECH_FLIGHT_WIDTH_CELLS, 1)]
     ceiling = z + WALL_HEIGHT_CELLS - 1
-    blocks += [block(LAMP, (x - 1, y_middle - 1, ceiling), (LAMP_CELLS, LAMP_CELLS, 1))
-               for x in (x0 + wall + DISTRICT_TECH_BEFORE_FLIGHT_CELLS // 2, head + DISTRICT_TECH_AFTER_FLIGHT_CELLS // 2)]
+    lamp_x = [x0 + wall + DISTRICT_TECH_BEFORE_FLIGHT_CELLS // 2, head + DISTRICT_TECH_AFTER_FLIGHT_CELLS // 2]
+    lamp_x += range(x0 - DISTRICT_TECH_LAMP_SPACING_CELLS // 2, start + wall, -DISTRICT_TECH_LAMP_SPACING_CELLS)
+    blocks += [block(LAMP, (x - 1, y_middle - 1, ceiling), (LAMP_CELLS, LAMP_CELLS, 1)) for x in lamp_x]
     return blocks, walls, (foot, y0, head, y0 + DISTRICT_TECH_FLIGHT_WIDTH_CELLS)
 
 
@@ -1020,7 +1064,11 @@ def old_wing_grid():
     width = OLD_TUNNEL_WIDTH_CELLS
     hall0, hall1 = OLD_HALL_Y
     door = wall_opening(OLD_DOOR_OFFSET_CELLS, OLD_DOOR_CELLS, DOOR_HEIGHT_CELLS)
-    walls = [wall_segment((wall, 0, z), (wall, width, z), -wall, height, openings=[door]),
+    near = [wall_segment((wall, 0, deck_floor_z(deck)), (wall, width, deck_floor_z(deck)), -wall, WALL_HEIGHT_CELLS,
+                         openings=[door] if deck <= OLD_DOOR_DECKS else ()) for deck in range(1, OLD_DECKS + 1)]
+    near += [wall_segment((wall, 0, layer * DECK_PITCH_CELLS), (wall, width, layer * DECK_PITCH_CELLS), -wall,
+                          SLAB_CELLS) for layer in range(1, OLD_DECKS)]
+    walls = near + [
              wall_segment((wall, 0, z), (tunnel_x, 0, z), -wall, height),
              wall_segment((wall, width, z), (tunnel_x, width, z), wall, height),
              wall_segment((tunnel_x, hall0, z), (tunnel_x, 0, z), -wall, height),
@@ -1078,7 +1126,9 @@ FREIGHT_LOBBY_CELL = (348, 414, 6)  # in the main grid's lobby wedge, which the 
 FREIGHT_HALL_CELL = (60, 48, 12)  # in the hall's own cells
 FREIGHT_LAMP_CELLS_ALONG = (30, 67, 104)  # along the hall's middle line
 FREIGHT_LAMP_CELLS_ACROSS = (-30, 0, 30)  # across it
-FREIGHT_TECH_X = 30  # where the lower deck's corridor starts, along the hall
+FREIGHT_TECH_X = 30  # where the lower deck's corridor's flight starts, along the hall
+FREIGHT_TECH_Y = 49  # the corridor's middle across the hall
+FREIGHT_TECH_WEST = 0  # its end wall, with the gate's door, on the near wall's plane
 
 
 class FreightGeometry(NamedTuple):
@@ -1122,9 +1172,9 @@ def freight_walls():
     walls = [wall_segment((*a, z), (*b, z), thickness, h.hall.height, openings=openings)
              for (a, b, thickness), openings in ((near, hall_door), (north, ()))]
     x, y0, y1 = spine_b().cap
-    door = wall_opening(FREIGHT_DOOR_OFFSET_STEPS, FREIGHT_DOOR_STEPS, DOOR_HEIGHT_CELLS)
-    walls.append(wall_segment((x, y0, z), (x, y1, z), 1, wall_height(1), openings=[door]))
-    return walls
+    passage = wall_opening(FREIGHT_DOOR_OFFSET_STEPS, FREIGHT_DOOR_STEPS, DOOR_HEIGHT_CELLS, kind="Passage")
+    walls.append(wall_segment((x, y0, z), (x, y1, z), 1, wall_height(1), openings=[passage]))
+    return walls  # the lobby is the spine's end: the hall's door is the only one
 
 
 def wedge_floor_blocks(wedge, decks=FREIGHT_DECKS, layers=None):
@@ -1148,7 +1198,9 @@ def freight_blocks():
     z = deck_floor_z(1)
     near_x = spine_b().cap[0]
     blocks = [entry for first, length in h.near for entry in line_blocks(WALL_BLOCK, 1, first, near_x, z, length, h.hall.height)]
-    return blocks + wedge_floor_blocks(h.hall.polygons[1])
+    _, y0, _ = spine_b().cap
+    doorway_floor = block(FLOOR, (near_x, y0 + FREIGHT_DOOR_OFFSET_STEPS, 0), (1, FREIGHT_DOOR_STEPS, SLAB_CELLS))
+    return blocks + [doorway_floor] + wedge_floor_blocks(h.hall.polygons[1])
 
 
 def freight_grid():
@@ -1163,7 +1215,7 @@ def freight_grid():
              wall_segment((0, 0, z), (length, 0, z), -2, height),
              wall_segment((0, width, z), (length, width, z), 2, height),
              wall_segment((length, 0, z), (length, width, z), -2, height)]
-    tech_blocks, tech_walls, hole = district_tech_deck(FREIGHT_TECH_X, width // 2)
+    tech_blocks, tech_walls, hole = district_tech_deck(FREIGHT_TECH_X, FREIGHT_TECH_Y, FREIGHT_TECH_WEST, True)
     blocks = [piece for layer in (0, FREIGHT_DECKS)
               for piece in floor_around(block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS)),
                                         hole if layer == 0 else None)]
@@ -1187,13 +1239,17 @@ MINING_STEP = (1, -6)
 MINING_ACROSS = (-6, -1)  # from the near wall's east end to its west end
 MINING_ACROSS_STEPS = FREIGHT_ACROSS_STEPS
 MINING_END_Y = DEPARTURE[1] * CELLS_PER_M  # the hangar's south wall, whose far face is where the lobby begins
-MINING_GAP_CELLS = 3  # from the hangar's wall to the near wall's east end: its thickness and a cell
+MINING_GAP_CELLS = 43  # from the hangar's wall to the near wall's east end: the lobby is 10 m deep, so the hangar's window looks into it
 MINING_DOOR_OFFSET_STEPS = FREIGHT_HALL_DOOR_OFFSET_STEPS  # along the main near wall from its east end
 MINING_DOOR_STEPS = FREIGHT_HALL_DOOR_STEPS
 MINING_HANGAR_DOOR_OFFSET_CHARS = 13  # from the hangar's west wall: 2 characters centred on the near wall's middle
-MINING_LOBBY_CELL = (184, 8, 6)  # in the lobby, beside the near wall's door rather than the hangar's
-MINING_HALL_CELL = FREIGHT_HALL_CELL  # in the hall, in the grid's own cells
-MINING_TECH_X = 40  # where the lower deck's corridor starts, along the hall
+MINING_LOBBY_CELL = (184, -29, 6)  # in the lobby, beside the near wall's door rather than the hangar's
+MINING_HALL_CELL = (4, 46, 6)  # in the hall beside its gate door, in the grid's own cells
+MINING_TECH_X = 40  # where the lower deck's corridor's flight starts, along the hall
+MINING_TECH_Y = 49  # the corridor's middle across the hall
+MINING_TECH_WEST = 4  # its end wall, with the gate's door, behind the near wall's
+MINING_LOBBY_LAMP_X = (160, 184, 208)
+MINING_LOBBY_LAMP_Y = 0
 
 
 def mining_nodes():
@@ -1225,9 +1281,12 @@ def mining_cap_wall(west_x, east_x):
 
 
 def mining_blocks():
-    """The lobby's floor and ceiling."""
+    """The lobby's floor and ceiling, and its lamps under the ceiling."""
     east, west = mining_nodes()
-    return wedge_floor_blocks([(east[0], MINING_END_Y), east, west, (west[0], MINING_END_Y)], MINING_DECKS)
+    lamp_z = deck_floor_z(1) + MINING_DECKS * DECK_PITCH_CELLS - SLAB_CELLS - 1
+    lamps = [block(LAMP, (x - 1, MINING_LOBBY_LAMP_Y - 1, lamp_z), (LAMP_CELLS, LAMP_CELLS, 1))
+             for x in MINING_LOBBY_LAMP_X]
+    return wedge_floor_blocks([(east[0], MINING_END_Y), east, west, (west[0], MINING_END_Y)], MINING_DECKS) + lamps
 
 
 def mining_grid():
@@ -1241,7 +1300,7 @@ def mining_grid():
              wall_segment((wall, 0, z), (length, 0, z), -wall, height),
              wall_segment((wall, width, z), (length, width, z), wall, height),
              wall_segment((length, 0, z), (length, width, z), wall, height)]
-    tech_blocks, tech_walls, hole = district_tech_deck(MINING_TECH_X, width // 2)
+    tech_blocks, tech_walls, hole = district_tech_deck(MINING_TECH_X, MINING_TECH_Y, MINING_TECH_WEST, True)
     blocks = [piece for layer in (0, MINING_DECKS)
               for piece in floor_around(block(FLOOR, (0, 0, layer * DECK_PITCH_CELLS), (length, width, SLAB_CELLS)),
                                         hole if layer == 0 else None)]
@@ -1252,6 +1311,182 @@ def mining_grid():
                for along in FREIGHT_LAMP_CELLS_ALONG for across in FREIGHT_LAMP_CELLS_ACROSS]
     yaw = math.degrees(math.atan2(MINING_STEP[1], MINING_STEP[0]))
     return grid_entry(MINING_GRID, blocks, walls, (*mining_nodes()[1], 0), yaw)
+
+
+# ----- The tech tunnels ---------------------------------------------------------------------
+
+# An artery of the main grid runs east from the trunk's east door under the atrium; a branch leaves it through a door
+# in a wall for each district, a tunnel of straight legs ending at a slanted cap on the plane of the district's near
+# wall, where the corridor of its lower deck has its end wall: both have a door, joined by a dock.
+TECH_TUNNEL_WIDTH_CELLS = 12
+TECH_TUNNEL_DOOR_CELLS = 12
+TECH_TUNNEL_DOOR_HEIGHT_CELLS = DOOR_HEIGHT_CELLS - 1  # a cell lower than the trunk's, under the lower ceiling
+TECH_ARTERY_Y = 292  # the middle, in the trunk's east door
+TECH_ARTERY_END_X = 226
+TECH_TUNNEL_LAMP_SPACING_CELLS = 56  # sparse, for a dim corridor
+TECH_DOCK_CELLS_FROM_GATE = 8  # a branch's dock cell is this near its gate door, so no other door is nearer
+TECH_BULKHEAD_LAMP_CELLS = 6  # a lamp each side of a bulkhead door
+TECH_BULKHEAD_AT_CELLS = 24  # a branch's first bulkhead door, from the artery
+TECH_BULKHEAD_SPACING_CELLS = 96  # then one every 24 m along the branch
+TECH_BULKHEAD_END_MARGIN_CELLS = 24  # none this close to a leg's end: a corner or the cap
+TECH_GATE_STEPS = 4  # lattice steps the cap spans
+TECH_GATE_FIRST_STEP = 6  # from the near wall's origin node
+TECH_GATE_DOOR = (1, 2)  # offset and width in steps
+ARRIVALS_GATE_STEPS = (1, 18)  # along the atrium's side, in its 1.4-cell steps
+ARRIVALS_GATE_DOOR = (4, 9)
+TECH_FLOOR_Z = slab_z(TECH_DECK - 1)
+# The tunnels are a cell lower than the trunk's deck, so their ceiling doesn't meet the floors and ring above.
+TECH_TUNNEL_WALL_HEIGHT_CELLS = WALL_HEIGHT_CELLS - 1
+TECH_TUNNEL_CEILING_Z = deck_floor_z(TECH_DECK) + TECH_TUNNEL_WALL_HEIGHT_CELLS
+
+
+class TechLink(NamedTuple):
+    path: tuple
+    legs: tuple
+    ends: tuple  # the last node of the left wall and of the right wall
+    cap: tuple  # node a, node b, thickness, door offset and width in steps
+    main_cell: tuple
+    grid: int
+    grid_cell: tuple
+
+
+def tech_links():
+    """The three branches: freight (north, then east to the near wall of the hangar), arrivals (south, then east to the
+    atrium's north-east side) and mining (south to the near wall under the departure hangar)."""
+    wall = HALL_WALL_CELLS
+    half = TECH_TUNNEL_WIDTH_CELLS
+    freight_origin = freight().hall.left_near
+    f0 = _along(freight_origin, TECH_GATE_FIRST_STEP, FREIGHT_ACROSS)
+    f1 = _along(freight_origin, TECH_GATE_FIRST_STEP + TECH_GATE_STEPS, FREIGHT_ACROSS)
+    _, mining_west = mining_nodes()
+    along = (-MINING_ACROSS[0], -MINING_ACROSS[1])
+    m0 = _along(mining_west, TECH_GATE_FIRST_STEP, along)
+    m1 = _along(mining_west, TECH_GATE_FIRST_STEP + TECH_GATE_STEPS, along)
+    side_a, _, side_thickness = arrivals_side()
+    a0 = _along(side_a, ARRIVALS_GATE_STEPS[0], (1, 1))
+    a1 = _along(side_a, ARRIVALS_GATE_STEPS[1], (1, 1))
+    north_wall = TECH_ARTERY_Y + TECH_TUNNEL_WIDTH_CELLS // 2
+    south_wall = TECH_ARTERY_Y - TECH_TUNNEL_WIDTH_CELLS // 2
+    a_middle = (a0[1] + a1[1]) // 2
+    return [
+        TechLink(path=((168, north_wall), (168, f0[1] + half), (f0[0], f0[1] + half)),
+                 legs=(Leg(half, half), Leg(half, half)), ends=(f1, f0),
+                 cap=(f0, f1, -wall, *TECH_GATE_DOOR),
+                 main_cell=(f0[0] - TECH_DOCK_CELLS_FROM_GATE, f0[1] + half, -6), grid=FREIGHT_GRID, grid_cell=(10, FREIGHT_TECH_Y, -6)),
+        TechLink(path=((210, south_wall), (210, a_middle), (a0[0], a_middle)),
+                 legs=(Leg(9, 8), Leg(9, 8)), ends=(a1, a0),
+                 cap=(a0, a1, side_thickness, *ARRIVALS_GATE_DOOR),
+                 main_cell=(a0[0] - TECH_DOCK_CELLS_FROM_GATE + 2, a_middle, -6), grid=ARRIVALS_GRID, grid_cell=(10, ARRIVALS_TECH_Y, -6)),
+        TechLink(path=((184, south_wall), (184, (m0[1] + m1[1]) // 2)),
+                 legs=(Leg(half, half),), ends=(m1, m0),
+                 cap=(m1, m0, wall, *TECH_GATE_DOOR),
+                 main_cell=(184, m0[1] + TECH_DOCK_CELLS_FROM_GATE, -6), grid=MINING_GRID, grid_cell=(10, MINING_TECH_Y, -6))]
+
+
+def bulkhead_stops(link):
+    """The (leg, distance) of a branch's bulkheads: the first near the artery, then one every spacing along the path."""
+    stops = []
+    first = TECH_BULKHEAD_AT_CELLS
+    for leg, (a, b) in enumerate(zip(link.path, link.path[1:])):
+        length = abs(b[0] - a[0]) + abs(b[1] - a[1])
+        distance = first if leg == 0 else TECH_BULKHEAD_SPACING_CELLS // 2
+        while distance <= length - TECH_BULKHEAD_END_MARGIN_CELLS:
+            stops.append((leg, distance))
+            distance += TECH_BULKHEAD_SPACING_CELLS
+    return stops
+
+
+def tech_link_parts(link):
+    """A branch's walls, its slab (floor and ceiling) and its lamps, clipped at its cap."""
+    z = deck_floor_z(TECH_DECK)
+    span = link.legs[0].left + link.legs[0].right
+    gate = ((span - TECH_TUNNEL_DOOR_CELLS) // 2, TECH_TUNNEL_DOOR_CELLS, TECH_TUNNEL_DOOR_HEIGHT_CELLS)
+    walls = tunnel_walls(list(link.path), list(link.legs), z, TECH_TUNNEL_WALL_HEIGHT_CELLS, HALL_WALL_CELLS,
+                         ends=link.ends, bulkheads=bulkhead_stops(link), door=gate)
+    a, b, thickness, door_offset, door_width = link.cap
+    walls.append(wall_segment((*a, z), (*b, z), thickness, TECH_TUNNEL_WALL_HEIGHT_CELLS,
+                              openings=[wall_opening(door_offset, door_width, TECH_TUNNEL_DOOR_HEIGHT_CELLS)]))
+    last, previous = link.path[-1], link.path[-2]
+    direction = ((last[0] > previous[0]) - (last[0] < previous[0]), (last[1] > previous[1]) - (last[1] < previous[1]))
+    # A slanted cap lies beyond the path's end: reach the farthest point of it, the clip below trims the rest.
+    reach = max((p[0] - last[0]) * direction[0] + (p[1] - last[1]) * direction[1] for p in (a, b))
+    path = list(link.path[:-1]) + [(last[0] + direction[0] * max(reach, 0), last[1] + direction[1] * max(reach, 0))]
+    cells = footprint(path, list(link.legs), HALL_WALL_CELLS)
+    inside = link.path[-2]
+    span = (b[0] - a[0], b[1] - a[1])
+    length = math.hypot(*span)
+
+    def side(x, y):
+        return span[0] * (y - a[1]) - span[1] * (x - a[0])
+
+    keep_sign = 1 if side(*inside) > 0 else -1
+    cells = {(x, y) for x, y in cells
+             if side(x + 0.5, y + 0.5) * keep_sign > 0 or abs(side(x + 0.5, y + 0.5)) / length <= HALL_WALL_CELLS}
+    artery = _artery_cells()
+    blocks = (tunnel_slab_blocks(cells, TECH_FLOOR_Z, artery) + tunnel_slab_blocks(cells, TECH_TUNNEL_CEILING_Z, artery))
+    blocks += tunnel_lamps(list(link.path), TECH_TUNNEL_CEILING_Z - 1, TECH_TUNNEL_LAMP_SPACING_CELLS,
+                           extra=[(leg, distance + side * TECH_BULKHEAD_LAMP_CELLS)
+                                  for leg, distance in bulkhead_stops(link) for side in (-1, 1)])
+    return blocks, walls
+
+
+def _artery_cells():
+    wall = HALL_WALL_CELLS
+    half = TECH_TUNNEL_WIDTH_CELLS // 2
+    return {(x, y) for x in range(outer_box(TECH_TRUNK)[2], TECH_ARTERY_END_X + wall)
+            for y in range(TECH_ARTERY_Y - half - wall, TECH_ARTERY_Y + half + wall)}
+
+
+def _artery_side(y, thickness, z, x0, links):
+    """A side of the artery as pieces ending on the nodes of the branches' walls and of the bulkhead, a door in each
+    piece between a branch's walls."""
+    edges = []
+    for link in links:
+        (x, _), (_, second) = link.path[0], link.path[1]
+        normal = -((second > link.path[0][1]) - (second < link.path[0][1]))
+        edges.append(sorted((x + normal * link.legs[0].left, x - normal * link.legs[0].right)))
+    edges.sort()
+    cuts = [(x0, False)] + [(edge, door) for pair in edges for edge, door in ((pair[0], False), (pair[1], True))]
+    xs = [x0] + [edge for pair in edges for edge in pair] + [TECH_ARTERY_END_X]
+    doors = [False] + [flag for _ in edges for flag in (True, False)]
+    walls = []
+    for (a, b), has_door in zip(zip(xs, xs[1:]), doors):
+        openings = [wall_opening((b - a - TECH_TUNNEL_DOOR_CELLS) // 2, TECH_TUNNEL_DOOR_CELLS,
+                                 TECH_TUNNEL_DOOR_HEIGHT_CELLS)] if has_door else []
+        walls.append(wall_segment((a, y, z), (b, y, z), thickness, TECH_TUNNEL_WALL_HEIGHT_CELLS, openings=openings))
+    return walls
+
+
+def tech_artery_parts():
+    """The artery along y = `TECH_ARTERY_Y` from the trunk's east wall: its walls in pieces that end on the branches'
+    walls, with a door where each branch leaves, an end wall, slab and lamps."""
+    z = deck_floor_z(TECH_DECK)
+    wall = HALL_WALL_CELLS
+    x0 = outer_box(TECH_TRUNK)[2]
+    x1 = TECH_ARTERY_END_X
+    half = TECH_TUNNEL_WIDTH_CELLS // 2
+    north_y, south_y = TECH_ARTERY_Y + half, TECH_ARTERY_Y - half
+    links = tech_links()
+    walls = (_artery_side(north_y, wall, z, x0, [link for link in links if link.path[1][1] > link.path[0][1]]) +
+             _artery_side(south_y, -wall, z, x0, [link for link in links if link.path[1][1] < link.path[0][1]]) +
+             [wall_segment((x1, south_y, z), (x1, north_y, z), -wall, TECH_TUNNEL_WALL_HEIGHT_CELLS)])
+    cells = _artery_cells()
+    blocks = tunnel_slab_blocks(cells, TECH_FLOOR_Z) + tunnel_slab_blocks(cells, TECH_TUNNEL_CEILING_Z)
+    blocks += tunnel_lamps([(x0, TECH_ARTERY_Y), (x1, TECH_ARTERY_Y)], TECH_TUNNEL_CEILING_Z - 1,
+                           TECH_TUNNEL_LAMP_SPACING_CELLS)
+    return blocks, walls
+
+
+def tech_links_parts():
+    """Blocks, walls and docks of the artery and the three branches."""
+    link_blocks, link_walls = tech_artery_parts()
+    docks = []
+    for link in tech_links():
+        more_blocks, more_walls = tech_link_parts(link)
+        link_blocks += more_blocks
+        link_walls += more_walls
+        docks.append(dock_entry(0, link.main_cell, link.grid, link.grid_cell))
+    return link_blocks, link_walls, docks
 
 
 # ----- Drawing ------------------------------------------------------------------------------
@@ -1304,7 +1539,8 @@ class HubDeck(Deck):
             self.put(x0, y, WALL)
             self.put(x1, y, " ")
         for y in SPINE_DOOR_ROWS:
-            self.put(x0, y, DOOR)
+            if self.number <= OLD_DOOR_DECKS:
+                self.put(x0, y, " ")
         self.label(x0, SPINE_ROW_Y["N"][1], x1, SPINE_ROW_Y["S"][0], Room.CORRIDOR)
 
     def wing(self, wing):
@@ -1376,7 +1612,8 @@ def build_decks():
     trunk.room(*TECH_TRUNK, Room.TECH_TRUNK)
     for y in range(TECH_TRUNK[3], SPINE_OPENING_Y[1] + 2):
         trunk.put(TECH_TRUNK[0], y, WALL)
-    trunk.door_on(*TECH_TRUNK, "W")
+    trunk.door_on(*TECH_TRUNK, "W", ch=" ")
+    trunk.door_on(*TECH_TRUNK, "E", TECH_EAST_DOOR_OFFSET_CHARS)
     trunk.room(*TECH_ATMOS_HALL, Room.ATMOS_HALL, ("S", None))
     trunk.room(*TECH_POWER_HALL, Room.POWER_HALL, ("N", None))
     return decks + [trunk]
@@ -1544,12 +1781,16 @@ def main():
         lines.append(STATS_DECK.format(number=deck.number, name=deck.name, rooms=len(deck.rooms),
                                        doors=len(door_boxes(deck.grid)), blocks=len(deck.blocks)))
     walls = ring_walls() + spine_b_walls() + freight_walls() + [arrivals_atrium_wall(1)] + old_wing_walls() + old_wing_tech_walls() + mining_walls()
+    link_blocks, link_walls, link_docks = tech_links_parts()
+    blocks += link_blocks
+    walls += link_walls
     grids = [freight_grid(), arrivals_grid(), old_wing_grid(), mining_grid()]
     docks = [dock_entry(0, FREIGHT_LOBBY_CELL, FREIGHT_GRID, FREIGHT_HALL_CELL),
              dock_entry(0, ARRIVALS_ATRIUM_CELL, ARRIVALS_GRID, ARRIVALS_HALL_CELL),
              dock_entry(0, OLD_LOBBY_CELL, OLD_GRID, OLD_HALL_CELL),
+             dock_entry(0, OLD_LANDING_LOBBY_CELL, OLD_GRID, OLD_LANDING_CELL),
              dock_entry(0, OLD_TECH_LOBBY_CELL, OLD_GRID, OLD_TECH_HALL_CELL),
-             dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)]
+             dock_entry(0, MINING_LOBBY_CELL, MINING_GRID, MINING_HALL_CELL)] + link_docks
     blocks = write_blueprint(BLUEPRINT_FILE, blocks, walls, grids=grids, docks=docks,
                              conduits=wire_hub(blocks, walls, grids, docks), lifts=[tech_lift()[0]])
     lines.append("")

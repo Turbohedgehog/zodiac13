@@ -25,6 +25,7 @@
 #include "build_commands.h"
 #include "brush_system.h"
 #include "building_input_system.h"
+#include "scanner_system.h"
 #include "building_system.h"
 #include "palette_system.h"
 #include "station_scene_system.h"
@@ -35,6 +36,7 @@ namespace z13::building {
 BuildingModule::BuildingModule(flecs::world& world) {
   BuildingSystem::Register(world);
   BuildingInputSystem::Register(world);
+  ScannerSystem::Register(world);
   PaletteSystem::Register(world);
   BlockSnapshotSystem::Register(world);
   StationSceneSystem::Register(world);

@@ -67,6 +67,7 @@ constexpr ImVec4 kInfoColor {0.9f, 0.9f, 0.9f, 1.f};
 constexpr ImVec4 kWarningColor {1.f, 0.85f, 0.4f, 1.f};
 constexpr ImVec4 kPlayerColor {0.6f, 0.85f, 1.f, 1.f};
 constexpr ImVec4 kAssistantColor {0.7f, 1.f, 0.7f, 1.f};
+constexpr ImVec4 kSeenColor {0.55f, 0.6f, 0.7f, 1.f};
 
 struct Context {
   flecs::world world;
@@ -95,20 +96,19 @@ void ReplaceText(ImGuiInputTextCallbackData& data, std::string_view text) {
   data.InsertChars(0, text.data(), text.data() + text.size());
 }
 
-void StepHistory(ImGuiInputTextCallbackData& data, ConsoleState& console) {
-  const std::vector<std::string>& history = console.history;
+void StepHistory(ImGuiInputTextCallbackData& data, const std::vector<std::string>& history,
+                 std::optional<std::size_t>& position) {
   if (history.empty()) {
     return;
   }
   if (data.EventKey == ImGuiKey_UpArrow) {
-    console.history_position = console.history_position ? std::max<std::size_t>(*console.history_position, 1) - 1
-                                                        : history.size() - 1;
-  } else if (console.history_position && *console.history_position + 1 < history.size()) {
-    ++*console.history_position;
+    position = position ? std::max<std::size_t>(*position, 1) - 1 : history.size() - 1;
+  } else if (position && *position + 1 < history.size()) {
+    ++*position;
   } else {
-    console.history_position.reset();
+    position.reset();
   }
-  ReplaceText(data, console.history_position ? std::string_view(history[*console.history_position]) : "");
+  ReplaceText(data, position ? std::string_view(history[*position]) : "");
 }
 
 // Tab: the one candidate, or the start all share and the list of them; with the list open, the chosen one.
@@ -186,7 +186,7 @@ int EditCommand(ImGuiInputTextCallbackData* data) {
       if (context.console.suggestions) {
         StepSuggestion(*data, context.console);
       } else {
-        StepHistory(*data, context.console);
+        StepHistory(*data, context.console.history, context.console.history_position);
         ResetLine(*data, context.console);
       }
       break;
@@ -204,7 +204,12 @@ int EditCommand(ImGuiInputTextCallbackData* data) {
   return 0;
 }
 
-int FilterConsoleCharacter(ImGuiInputTextCallbackData* data) {
+int EditChat(ImGuiInputTextCallbackData* data) {
+  auto& console = static_cast<Context*>(data->UserData)->console;
+  if (data->EventFlag == ImGuiInputTextFlags_CallbackHistory) {
+    StepHistory(*data, console.chat_history, console.chat_history_position);
+    return 0;
+  }
   return data->EventChar == kConsoleCharacter ? 1 : 0;
 }
 
@@ -214,7 +219,7 @@ void SubmitTyped(const Context& context) {
     console.history.push_back(console.command_input);
   }
   console.history_position.reset();
-  console_input::RunConsoleLine(context.world, console.command_input);
+  console.queued_lines.push_back(console.command_input);
   console.command_input.clear();
 }
 
@@ -375,6 +380,21 @@ void DrawLogTab(Context& context) {
   }
 }
 
+constexpr std::string_view kNotDeliveredText = "not delivered";
+
+// Said: warning; given to the assistant: the player's colour; looked at: dimmed, like a read message.
+const ImVec4& LineColor(z13::console::Delivery delivery) {
+  switch (delivery) {
+    case z13::console::Delivery::kSent:
+      return kWarningColor;
+    case z13::console::Delivery::kDelivered:
+      return kPlayerColor;
+    case z13::console::Delivery::kSeen:
+      return kSeenColor;
+  }
+  return kPlayerColor;
+}
+
 void DrawAssistantTab(Context& context) {
   ConsoleState& console = context.console;
   if (!context.world.has<z13::console::AssistantChat>()) {
@@ -387,8 +407,10 @@ void DrawAssistantTab(Context& context) {
   Refresh(console.chat_view, console.chat_revision, chat.revision, [&chat] {
     ColouredLines out;
     for (const z13::console::ChatLine& line : chat.lines) {
-      AddLines(out, line.from_player ? kYouPrefix : kAssistantPrefix, line.text,
-               ImGui::ColorConvertFloat4ToU32(line.from_player ? kPlayerColor : kAssistantColor));
+      const bool unsent = line.from_player && line.delivery == z13::console::Delivery::kSent;
+      AddLines(out, line.from_player ? kYouPrefix : kAssistantPrefix,
+               unsent ? std::format("{}  [{}]", line.text, kNotDeliveredText) : line.text,
+               ImGui::ColorConvertFloat4ToU32(line.from_player ? LineColor(line.delivery) : kAssistantColor));
     }
     return out;
   });
@@ -396,12 +418,17 @@ void DrawAssistantTab(Context& context) {
   ImGui::SetNextItemWidth(-1.f);
   FocusIfAsked(console);
   constexpr ImGuiInputTextFlags kFlags =
-      ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter;
+      ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCharFilter |
+      ImGuiInputTextFlags_CallbackHistory;
   const bool entered =
-      ImGui::InputText(kChatField.data(), &console.chat_input, kFlags, FilterConsoleCharacter);
+      ImGui::InputText(kChatField.data(), &console.chat_input, kFlags, EditChat, &context);
   NoteKeyboardRequest(console);
   if (entered) {
+    console.chat_history_position.reset();
     if (!console.chat_input.empty()) {
+      if (console.chat_history.empty() || console.chat_history.back() != console.chat_input) {
+        console.chat_history.push_back(console.chat_input);
+      }
       z13::console::SayToAssistant(chat, std::move(console.chat_input));
     }
     console.chat_input.clear();
@@ -424,8 +451,12 @@ void DrawTabs(Context& context) {
   if (!ImGui::BeginTabBar(kTabsId.data())) {
     return;
   }
-  for (const TabSpec& tab : kTabs) {
-    if (ImGui::BeginTabItem(tab.name.data())) {
+  const bool next = ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Tab, false);
+  for (size_t i = 0; i < kTabs.size(); ++i) {
+    const TabSpec& tab = kTabs[i];
+    const bool after_current = kTabs[(i + kTabs.size() - 1) % kTabs.size()].id == context.console.tab;
+    const ImGuiTabItemFlags flags = next && after_current ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+    if (ImGui::BeginTabItem(tab.name.data(), nullptr, flags)) {
       context.console.tab = tab.id;
       tab.draw(context);
       ImGui::EndTabItem();

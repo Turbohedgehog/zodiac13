@@ -43,8 +43,11 @@ struct ConsoleState {
   float slide {};
   ConsoleTab tab = ConsoleTab::kLog;
   std::string command_input;
+  // Typed lines the world has not run yet: a command writes entities, which a drawing system may not.
+  std::vector<std::string> queued_lines;
   std::string chat_input;
   std::vector<std::string> history;
+  std::vector<std::string> chat_history;
   // The list over the field: the choices for the line `suggestions_line`, and the one the arrows are on.
   std::optional<console_input::Completion> suggestions;
   std::string suggestions_line;
@@ -54,6 +57,7 @@ struct ConsoleState {
   bool suggestions_dragged {};
   // The history entry the arrows show; none while a new line is being typed.
   std::optional<std::size_t> history_position;
+  std::optional<std::size_t> chat_history_position;
   // The log and the talk as drawn: long press selects lines to copy (ReportView). A view with a selection is not
   // redrawn until the selection goes, so it does not slip away under the finger.
   ReportView log_view {"##console_log"};

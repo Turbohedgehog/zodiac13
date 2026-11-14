@@ -131,7 +131,13 @@ void ApplyMoveActionListener(
       .max_pitch_deg = tuning.max_pitch_deg,
   };
 
-  if (motion != nullptr && gravity != nullptr && gravity->Pulls()) {
+  const bool noclip = e.has<z13::gameplay::NoClip>();
+  if (noclip) {
+    if (motion != nullptr) {
+      *motion = {};
+    }
+    z13::gameplay::ApplyCameraMove(axes, delta_time, look, transform);
+  } else if (motion != nullptr && gravity != nullptr && gravity->Pulls()) {
     const z13::gameplay::WalkStep step {
         .delta_time = delta_time,
         .gravity = gravity->acceleration,

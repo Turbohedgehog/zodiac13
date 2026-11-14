@@ -24,6 +24,7 @@
 #include <utility>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -38,7 +39,11 @@
 #include <z13/components/station/block.h>
 #include <z13/components/station/spawn_point.h>
 #include <z13/components/utility/utilities.h>
+#include <map>
+#include <z13/components/station/grid_pose.h>
+#include <grid/block_index.h>
 #include <primitives/palette.h>
+#include <primitives/placement.h>
 #include <primitives/station_assets.h>
 #include <rooms/room_cache.h>
 #include <z13_tests/shipped_station.h>
@@ -493,7 +498,7 @@ bool Joined(const RoomGraph& graph, std::optional<rooms::RoomId> a, std::optiona
   });
 }
 
-TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTheSpineByADoor) {
+TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyThatIsTheSpinesEnd) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
 
@@ -502,8 +507,7 @@ TEST(HubFreightHangarTest, TheHangarIsAGridWithASealedRoomBehindALobbyJoinedToTh
   const auto lobby = graph.RoomAt(kFreightLobbyCell);
   ASSERT_TRUE(spine.has_value() && *spine != rooms::kVacuumRoom) << "spine";
   ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
-  EXPECT_NE(spine, lobby);
-  EXPECT_TRUE(Joined(graph, spine, lobby));
+  EXPECT_EQ(spine, lobby);
 
   const flecs::entity hangar_grid = world.World().lookup(std::format("Grid_{}", kFreightGrid).c_str());
   ASSERT_TRUE(hangar_grid.is_valid() && hangar_grid.has<RoomCache>());
@@ -547,7 +551,7 @@ const Eigen::Vector3i kWestCorridorCell {8, 304, 6};
 const Eigen::Vector3i kOldLobbyCell {-3, 302, 6};
 constexpr z13::station::GridId kOldWingGrid = 3;
 // In the old wing's grid, in its own cells.
-const Eigen::Vector3i kOldTunnelCell {30, 12, 12};
+const Eigen::Vector3i kOldTunnelCell {30, 12, 6};
 const Eigen::Vector3i kOldHallCell {150, 12, 12};
 
 TEST(HubOldWingTest, TheTunnelAndTheHallAreOneSealedRoomOfAGridBehindALobbyJoinedToTheCorridorByADoor) {
@@ -651,7 +655,7 @@ TEST(HubTechTrunkTest, TheAtmosphereAndPowerHallsAreRoomsBehindDoorsInTheTrunksW
   }
 }
 
-// The trunk's lobby under the old wing's, joined to the trunk by a door and by a dock to the wing's lower deck, which a
+// The trunk's lobby under the old wing's, the trunk's end, joined by a dock to the wing's lower deck, which a
 // flight joins to the reactor's tunnel.
 const Eigen::Vector3i kTrunkLobbyCell {-1, 296, -6};
 const Eigen::Vector3i kWingLowerDeckCell {10, 12, -6};
@@ -666,8 +670,7 @@ TEST(HubTechTrunkTest, TheTrunkReachesTheReactorsTunnelThroughALobbyADockAndAFli
   const auto lobby = graph.RoomAt(kTrunkLobbyCell);
   ASSERT_TRUE(trunk.has_value() && *trunk != rooms::kVacuumRoom) << "trunk";
   ASSERT_TRUE(lobby.has_value() && *lobby != rooms::kVacuumRoom) << "lobby";
-  EXPECT_NE(trunk, lobby);
-  EXPECT_TRUE(Joined(graph, trunk, lobby)) << "the trunk's end door";
+  EXPECT_EQ(trunk, lobby) << "the trunk's end is open into the lobby";
 
   const flecs::entity wing_grid = world.World().lookup(std::format("Grid_{}", kOldWingGrid).c_str());
   ASSERT_TRUE(wing_grid.is_valid() && wing_grid.has<RoomCache>());
@@ -678,7 +681,7 @@ TEST(HubTechTrunkTest, TheTrunkReachesTheReactorsTunnelThroughALobbyADockAndAFli
 
   const auto& links = world.World().get<DockLinks>().list;
   const RoomRef lobby_ref {.grid = z13::station::kMainGrid, .room = *lobby};
-  const auto link = std::ranges::find_if(links, [&](const auto& found) { return found.a == lobby_ref; });
+  const auto link = std::ranges::find_if(links, [&](const auto& found) { return found.a == lobby_ref && found.b.grid == kOldWingGrid; });
   ASSERT_NE(link, links.end()) << "the dock";
   EXPECT_EQ(link->b, (RoomRef {.grid = kOldWingGrid, .room = *lower}));
   EXPECT_NE(link->door_a.door, 0u) << "the near wall's door a deck down";
@@ -715,11 +718,68 @@ INSTANTIATE_TEST_SUITE_P(
                       DistrictTechCase {2, {100, 16, 12}, {93, 16, -6}, {139, 16, -6}},
                       DistrictTechCase {4, {60, 48, 12}, {48, 48, -6}, {94, 48, -6}}));
 
+// The tunnels from the trunk's east door: an artery under the atrium and a branch to each district, whose lower deck the
+// branch's end reaches through a dock.
+const Eigen::Vector3i kArteryCell {150, 292, -6};
+
+struct TechLinkCase {
+  z13::station::GridId grid {};
+  Eigen::Vector3i artery;       // the artery's room the branch's door opens into
+  Eigen::Vector3i near_branch;  // between the artery and the branch's bulkhead
+  Eigen::Vector3i branch;       // at the dock, beyond the branch's bulkheads
+  Eigen::Vector3i corridor;  // in the district grid's own cells
+};
+
+class HubTechLinkTest : public ::testing::TestWithParam<TechLinkCase> {};
+
+TEST_P(HubTechLinkTest, TheTrunkReachesTheDistrictsLowerDeckByTheArteryABranchAndADock) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();  // the doors get their state in the first tick, after the docks were linked
+
+  const TechLinkCase& link = GetParam();
+  const RoomGraph& graph = Graph(world);
+  const auto trunk = graph.RoomAt(kTrunkEastCell);
+  const auto artery = graph.RoomAt(link.artery);
+  const auto artery_west = graph.RoomAt(kArteryCell);
+  const auto near_branch = graph.RoomAt(link.near_branch);
+  const auto branch = graph.RoomAt(link.branch);
+  const std::array<std::pair<std::string_view, std::optional<rooms::RoomId>>, 4> named {
+      {{"trunk", trunk}, {"artery", artery}, {"near branch", near_branch}, {"branch", branch}}};
+  for (const auto& [name, room] : named) {
+    ASSERT_TRUE(room.has_value() && *room != rooms::kVacuumRoom) << name;
+  }
+  EXPECT_NE(trunk, artery_west);
+  EXPECT_NE(artery, near_branch);
+  EXPECT_TRUE(Joined(graph, trunk, artery_west)) << "the trunk's east door";
+  EXPECT_TRUE(artery == artery_west || Joined(graph, artery_west, artery)) << "the artery's bulkhead door";
+  EXPECT_TRUE(Joined(graph, artery, near_branch)) << "the branch's door in the artery";
+
+  const flecs::entity district = world.World().lookup(std::format("Grid_{}", link.grid).c_str());
+  ASSERT_TRUE(district.is_valid() && district.has<RoomCache>());
+  const auto corridor = district.get<RoomCache>().Current()->get().RoomAt(link.corridor);
+  ASSERT_TRUE(corridor.has_value() && *corridor != rooms::kVacuumRoom);
+
+  const auto& links = world.World().get<DockLinks>().list;
+  const auto dock = std::ranges::find_if(links, [&](const auto& found) {
+    return found.a == RoomRef {.grid = z13::station::kMainGrid, .room = *branch};
+  });
+  ASSERT_NE(dock, links.end()) << "the branch's dock";
+  EXPECT_EQ(dock->b, (RoomRef {.grid = link.grid, .room = *corridor}));
+  EXPECT_NE(dock->door_a.door, 0u);
+  EXPECT_NE(dock->door_b.door, 0u);
+}
+
+INSTANTIATE_TEST_SUITE_P(Districts, HubTechLinkTest,
+                         ::testing::Values(TechLinkCase {1, kArteryCell, {168, 310, -6}, {348, 414, -6}, {10, 49, -6}},
+                                           TechLinkCase {2, {210, 292, -6}, {210, 282, -6}, {221, 249, -6}, {10, 14, -6}},
+                                           TechLinkCase {4, kArteryCell, {184, 278, -6}, {184, -29, -6}, {10, 49, -6}}));
+
 // The mining district's hall is a grid south of the departure hangar, behind a lobby wedge joined to the hangar by a door.
 constexpr int kMiningGrid = 4;
 constexpr int kHangarWallCellY = 16;
 const Eigen::Vector3i kHangarCell {184, 70, 6};
-const Eigen::Vector3i kMiningLobbyCell {184, 8, 6};
+const Eigen::Vector3i kMiningLobbyCell {184, -29, 6};
 const Eigen::Vector3i kMiningHallCell {60, 48, 12};
 
 TEST(HubMiningTest, TheHallIsASealedRoomOfAGridBehindALobbyJoinedToTheHangarByADoor) {
@@ -929,6 +989,200 @@ TEST_F(DockedDoorsTest, AWishToOpenOneDoorOfThePairOpensTheOtherToo) {
   EXPECT_TRUE(follower.get<DoorState>().open_wanted);
   EXPECT_EQ(lead.get<DoorState>().position, follower.get<DoorState>().position);
   EXPECT_GT(follower.get<DoorState>().position, 0);
+}
+
+// The dock cells sit beside the gate doors, so each dock pairs the two doors of one gateway; a door left out would be
+// between its room and the vacuum beyond its grid's frame, and held shut by pressure.
+TEST(HubDocksTest, NoDoorIsHeldShutByPressureAtTheStart) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  constexpr int kTicksForAtmosphere = 200;
+  z13::testing::Ticks(world, kTicksForAtmosphere);
+
+  std::vector<std::string> held;
+  world.World().query<const z13::station::Block, const z13::station::DoorState>().each(
+      [&held](flecs::entity door, const z13::station::Block& block, const z13::station::DoorState&) {
+        if (door.has<z13::station::DoorInterlock>()) {
+          held.push_back(std::format("grid {} cell {}", block.grid, std::string_view(door.name().c_str())));
+        }
+      });
+  EXPECT_TRUE(held.empty()) << held.size() << " doors held shut, first: " << (held.empty() ? "" : held.front());
+}
+
+// A seam detector: a floor with a ceiling above it whose air belongs to no room of any grid is a covered walkway open
+// to space, such as the gap where two grids' end walls stand apart. Floors under a hull's overhang would show here too:
+// the hub has none.
+struct GridSurface {
+  z13::station::GridId id {};
+  Eigen::Isometry3f pose = Eigen::Isometry3f::Identity();
+  flecs::entity entity;
+};
+
+bool InsideAnyGrid(const std::vector<GridSurface>& grids, const GridSurface& own, const Eigen::Vector3f& world_cell_centre) {
+  const Eigen::Vector3f world_meters = world_cell_centre * z13::station::kCellSize;
+  return std::ranges::any_of(grids, [&](const GridSurface& other) {
+    if (other.id == own.id) {
+      return false;
+    }
+    const Eigen::Vector3i cell =
+        ((other.pose.inverse() * world_meters) / z13::station::kCellSize).array().floor().cast<int>();
+    const auto& index = other.entity.get<z13::building::grid::BlockIndex>();
+    if (index.At(cell)) {
+      return true;
+    }
+    const auto room = other.entity.get<RoomCache>().Current()->get().RoomAt(cell);
+    return room.has_value() && *room != rooms::kVacuumRoom;
+  });
+}
+
+TEST(HubSeamTest, NoCoveredFloorIsOpenToSpace) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();
+  constexpr int kMaxCeilingCells = 12;  // a deck's clear height plus its slab
+
+  std::vector<GridSurface> grids;
+  world.World().query<const z13::station::Grid>().each([&](flecs::entity entity, const z13::station::Grid& grid) {
+    if (entity.has<z13::building::grid::BlockIndex>() && entity.has<RoomCache>() && entity.get<RoomCache>().Current()) {
+      grids.push_back({.id = grid.id, .pose = z13::station::GridToWorld(grid), .entity = entity});
+    }
+  });
+  ASSERT_FALSE(grids.empty());
+  const auto* palette = world.World().try_get<z13::building::primitives::BlockPalette>();
+  ASSERT_NE(palette, nullptr);
+
+  std::map<std::string, int> found;
+  world.World().query<const z13::station::Block>().each([&](const z13::station::Block& block) {
+    const auto primitive = palette->palette.Find(block.spec.type_id);
+    if (!primitive || primitive->get().name != "Floor") {
+      return;
+    }
+    const auto own = std::ranges::find(grids, block.grid, &GridSurface::id);
+    if (own == grids.end()) {
+      return;
+    }
+    const auto& index = own->entity.get<z13::building::grid::BlockIndex>();
+    const auto& graph = own->entity.get<RoomCache>().Current()->get();
+    const auto cells = z13::building::primitives::OccupiedCells(block);
+    const int above = cells.End().z();  // the first cell over the floor
+    for (int x = cells.min.x(); x < cells.End().x(); ++x) {
+      for (int y = cells.min.y(); y < cells.End().y(); ++y) {
+        const Eigen::Vector3i cell(x, y, above);
+        const auto room = graph.RoomAt(cell);
+        if (index.At(cell) || (room.has_value() && *room != rooms::kVacuumRoom)) {
+          continue;
+        }
+        const bool covered = [&] {
+          for (int up = 2; up <= kMaxCeilingCells; ++up) {
+            if (index.At(Eigen::Vector3i(x, y, above + up))) {
+              return true;
+            }
+          }
+          return false;
+        }();
+        const Eigen::Vector3f world_cell = (own->pose * (cell.cast<float>().array() + 0.5f).matrix() * z13::station::kCellSize) /
+                                           z13::station::kCellSize;
+        if (covered && !InsideAnyGrid(grids, *own, world_cell)) {
+          constexpr int kBucketCells = 8;
+          found[std::format("grid {} near ({}, {}, {})", block.grid, x / kBucketCells * kBucketCells,
+                            y / kBucketCells * kBucketCells, above)]++;
+        }
+      }
+    }
+  });
+  for (const auto& [place, cells] : found) {
+    ADD_FAILURE() << cells << " covered floor cells open to space " << place;
+  }
+}
+
+// A door detector: every door joins two rooms, or is a dock door joined to the room across its grid's frame. A door that
+// opens onto a wall or another door has no room on that side and shows up here.
+TEST(HubDoorsTest, EveryDoorJoinsTwoRoomsOrIsADockDoor) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();
+
+  std::unordered_set<flecs::entity_t> joining;
+  for (const DockLink& link : world.World().get<DockLinks>().list) {
+    joining.insert(link.door_a.door);
+    joining.insert(link.door_b.door);
+  }
+  world.World().query<const z13::station::Grid, const RoomCache, const z13::building::grid::BlockIndex>().each(
+      [&](const z13::station::Grid&, const RoomCache& cache, const z13::building::grid::BlockIndex& index) {
+        if (!cache.Current()) {
+          return;
+        }
+        for (const rooms::Portal& portal : cache.Current()->get().portals) {
+          if (portal.a == rooms::kVacuumRoom || portal.b == rooms::kVacuumRoom) {
+            continue;
+          }
+          for (const auto block : index.Overlapping(portal.opening)) {
+            if (world.World().entity(block).has<z13::station::DoorState>()) {
+              joining.insert(block);
+            }
+          }
+        }
+      });
+
+  std::vector<std::string> lonely;
+  world.World().query<const z13::station::Block, const z13::station::DoorState>().each(
+      [&](flecs::entity door, const z13::station::Block& block, const z13::station::DoorState&) {
+        if (!joining.contains(door.id())) {
+          lonely.push_back(std::format("grid {} cell ({}, {}, {})", block.grid, block.cell.x(), block.cell.y(), block.cell.z()));
+        }
+      });
+  std::ranges::sort(lonely);
+  for (const std::string& door : lonely) {
+    ADD_FAILURE() << "door joins no two rooms: " << door;
+  }
+}
+
+// Two doors of one room that stand close are doors in series: a vestibule where one wall and one door would do.
+TEST(HubDoorsTest, NoRoomIsAVestibuleBetweenTwoDoorsInSeries) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();
+  constexpr int kSeriesCells = 8;  // two metres: a vestibule; the 3 m gangways and tunnel bulkheads are corridors
+
+  std::vector<std::string> series;
+  world.World().query<const z13::station::Grid, const RoomCache, const z13::building::grid::BlockIndex>().each(
+      [&](const z13::station::Grid& grid, const RoomCache& cache, const z13::building::grid::BlockIndex& index) {
+        if (!cache.Current()) {
+          return;
+        }
+        const RoomGraph& graph = cache.Current()->get();
+        for (const auto& [id, room] : graph.rooms) {
+          if (id == rooms::kVacuumRoom) {
+            continue;
+          }
+          std::set<flecs::entity_t> doors;
+          for (const rooms::Portal& portal : graph.portals) {
+            if ((portal.a != id && portal.b != id) || portal.visible) {
+              continue;
+            }
+            for (const auto block : index.Overlapping(portal.opening)) {
+              if (world.World().entity(block).has<z13::station::DoorState>()) {
+                doors.insert(block);
+              }
+            }
+          }
+          for (auto first = doors.begin(); first != doors.end(); ++first) {
+            for (auto second = std::next(first); second != doors.end(); ++second) {
+              const auto a = z13::building::primitives::OccupiedCells(world.World().entity(*first).get<z13::station::Block>());
+              const auto b = z13::building::primitives::OccupiedCells(world.World().entity(*second).get<z13::station::Block>());
+              const Eigen::Vector3i gap = (b.min - a.End()).cwiseMax(a.min - b.End()).cwiseMax(0);
+              if (gap.z() == 0 && gap.maxCoeff() <= kSeriesCells) {
+                series.push_back(std::format("grid {} room {}: doors at ({}, {}, {}) and ({}, {}, {}), {} cells apart", grid.id,
+                                             id, a.min.x(), a.min.y(), a.min.z(), b.min.x(), b.min.y(), b.min.z(),
+                                             gap.maxCoeff()));
+              }
+            }
+          }
+        }
+      });
+  std::ranges::sort(series);
+  for (const std::string& pair : series) {
+    ADD_FAILURE() << "doors in series: " << pair;
+  }
 }
 
 }  // namespace

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <iterator>
 #include <map>
+#include <set>
 #include <utility>
 
 #include <raymath.h>
@@ -220,20 +221,34 @@ ChunkModels BlockChunks::State::Build(
   return chunk;
 }
 
-void BlockChunks::State::DrawOpaque(
-    const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const {
+void BlockChunks::State::DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats,
+                                    const GridDrawHook& before_grid) const {
   stats.chunks = opaque_.size();
+  std::set<z13::station::GridId> grids;
   for (const auto& [key, chunk] : opaque_) {
-    if (InView(culling, key.grid, chunk.bounds)) {
-      ++stats.chunks_drawn;
-      DrawChunk(chunk, lighting, stats);
+    grids.insert(key.grid);
+  }
+  // Grid by grid, the main one last, so what is drawn after the chunks keeps the main grid's light.
+  const auto main = grids.extract(z13::station::kMainGrid);
+  const auto draw_grid = [&](z13::station::GridId grid) {
+    before_grid(grid);
+    for (const auto& [key, chunk] : opaque_) {
+      if (key.grid == grid && InView(culling, key.grid, chunk.bounds)) {
+        ++stats.chunks_drawn;
+        DrawChunk(chunk, lighting, stats);
+      }
     }
+  };
+  std::ranges::for_each(grids, draw_grid);
+  if (!main.empty()) {
+    draw_grid(z13::station::kMainGrid);
   }
 }
 
 // Whole chunks go from the farthest; panes within one rarely overlap (flat windows).
-void BlockChunks::State::DrawTransparent(
-    const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) {
+void BlockChunks::State::DrawTransparent(const ViewCulling& culling, const Eigen::Vector3f& eye,
+                                         const Lighting& lighting, RenderStats& stats,
+                                         const GridDrawHook& before_grid) {
   stats.glass_chunks = transparent_.size();
   visible_transparent_.clear();
   for (const auto& [key, chunk] : transparent_) {
@@ -243,7 +258,12 @@ void BlockChunks::State::DrawTransparent(
   }
   z13::building::primitives::SortFarthestFirst(visible_transparent_, eye);
   stats.glass_chunks_drawn = visible_transparent_.size();
+  std::optional<z13::station::GridId> current;
   for (const z13::building::primitives::ChunkBounds& visible : visible_transparent_) {
+    if (current != visible.grid) {
+      before_grid(visible.grid);
+      current = visible.grid;
+    }
     DrawChunk(transparent_.at({.grid = visible.grid, .chunk = visible.key}), lighting, stats);
   }
 }

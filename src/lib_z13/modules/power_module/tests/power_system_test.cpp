@@ -110,7 +110,7 @@ TEST_F(PowerSystemTest, TheOverlayFillsItsLayerOnlyWhileItIsShown) {
   const z13::station::OverlayLayer& layer = *layers.Find("power");
   // The cable, the reactor and the terminal.
   EXPECT_EQ(layer.boxes.size(), 3u);
-  EXPECT_NE(layer.label.find("12000 W produced"), std::string::npos) << layer.label;
+  EXPECT_NE(layer.label.find("16000 W produced"), std::string::npos) << layer.label;
 
   layers.shown.reset();
   Run();

@@ -171,6 +171,19 @@ TEST_F(McpServerWorldTest, ASubscriberGetsWhatThePlayerSaidToTheAssistant) {
   EXPECT_EQ(ReadLine(client), R"({"event":"say","text":"where am I?"})");
   EXPECT_TRUE(world_.get<console::AssistantChat>().unsent.empty());
   EXPECT_TRUE(world_.get<console::AssistantChat>().listening);
+  EXPECT_EQ(world_.get<console::AssistantChat>().lines.back().delivery, console::Delivery::kDelivered);
+}
+
+TEST(AssistantChatTest, AnAnswerMarksWhatWasDeliveredAsSeenAndLeavesTheRestAlone) {
+  console::AssistantChat chat;
+  console::SayToAssistant(chat, "first");
+  console::SayToAssistant(chat, "second");
+  console::MarkDelivered(chat, chat.lines.front().id);
+
+  console::AssistantSays(chat, "ok");
+
+  EXPECT_EQ(chat.lines[0].delivery, console::Delivery::kSeen);
+  EXPECT_EQ(chat.lines[1].delivery, console::Delivery::kSent);
 }
 
 TEST_F(McpServerWorldTest, WhatWasSaidBeforeAnyoneListenedWaitsForTheFirstSubscriber) {

@@ -35,7 +35,7 @@ inline constexpr uint8_t kSpawnActiveCell = 1;
 // Where cell selection applies, for every player, before the frame's actions read the hand.
 struct InventoryPhase {};
 
-enum class ItemKind : uint8_t { kBuildTool, kConduitTool, kPass };
+enum class ItemKind : uint8_t { kBuildTool, kConduitTool, kPass, kScanner };
 
 struct Item {
   using State = void;
