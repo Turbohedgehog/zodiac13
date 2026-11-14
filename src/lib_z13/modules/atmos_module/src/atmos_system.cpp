@@ -411,12 +411,13 @@ RoomAirBasis& BasisOf(flecs::entity grid) {
 }
 
 RoomsNow RoomsNowOf(const std::vector<RoomsOfAGrid>& grids, const AtmosQueries& queries,
-                    const BlockPalette& palette, flecs::world& world) {
+                    const BlockPalette& palette, DoorOpeningsCache& door_cache, flecs::world& world) {
+  std::erase_if(door_cache, [&world](const auto& entry) { return !world.is_alive(entry.first); });
   RoomsNow now;
   size_t first = 0;
   for (const RoomsOfAGrid& rooms : grids) {
     GridAir grid {.grid = rooms.id, .graph = rooms.graph, .index = IndexOf(rooms.graph), .first = first};
-    grid.doors = DoorsOf(queries.doors, palette, rooms.id);
+    grid.doors = DoorsOf(queries.doors, palette, rooms.id, door_cache);
     if (rooms.id != kMainGrid) {
       grid.from_world = GridToWorld(rooms.entity.get<Grid>()).inverse();
     }
@@ -428,7 +429,7 @@ RoomsNow RoomsNowOf(const std::vector<RoomsOfAGrid>& grids, const AtmosQueries& 
   return now;
 }
 
-void Update(flecs::iter& it, const AtmosQueries& queries, const StationNetworks& stations, const BlockPalette& palette,
+void Update(flecs::iter& it, const AtmosQueries& queries, DoorOpeningsCache& door_cache, const StationNetworks& stations, const BlockPalette& palette,
             const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
             const z13::station::Interactions& interactions, const DockLinks& docks,
             const z13::flecs_tools::SimulationClock& clock) {
@@ -448,7 +449,7 @@ void Update(flecs::iter& it, const AtmosQueries& queries, const StationNetworks&
   const bool step = BasisOf(grids.front().entity).seeded && clock.tick % tuning.step_ticks == 0;
   RoomsNow now;
   if (!follows || step) {
-    now = RoomsNowOf(grids, queries, palette, world);
+    now = RoomsNowOf(grids, queries, palette, door_cache, world);
   }
   // Every tick, so that a use of an airlock's door is never missed between two steps of the air.
   const std::unordered_set<flecs::entity_t> held =
@@ -527,6 +528,7 @@ void RegisterSystems(flecs::world world) {
                               .airlocks = world.query<const AirlockCycle, const Block>(),
                               .interlocks = world.query<const DoorInterlock>()};
   const auto reader = std::make_shared<BlockChangeReader>(world);
+  const auto door_cache = std::make_shared<DoorOpeningsCache>();
   world
       .system<const BlockPalette, const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
           "AtmosSystem::AddAirlocks")
@@ -557,11 +559,11 @@ void RegisterSystems(flecs::world world) {
       .write<DoorState>()
       .write<AirlockCycle>()
       .write<AirlockDoors>()
-      .each([queries](flecs::iter& it, size_t, const StationNetworks& stations, const BlockPalette& palette,
+      .each([queries, door_cache](flecs::iter& it, size_t, const StationNetworks& stations, const BlockPalette& palette,
                       const z13::AtmosTuning& tuning, const z13::DoorTuning& door_tuning,
                       const z13::station::Interactions& interactions, const DockLinks& docks,
                       const z13::flecs_tools::SimulationClock& clock) {
-        Update(it, queries, stations, palette, tuning, door_tuning, interactions, docks, clock);
+        Update(it, queries, *door_cache, stations, palette, tuning, door_tuning, interactions, docks, clock);
       });
 }
 

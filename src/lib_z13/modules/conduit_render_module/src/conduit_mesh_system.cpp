@@ -80,6 +80,10 @@ void SetInWorld(SceneMesh& mesh, const Eigen::Matrix4f& pose) {
 
 // A conduit whose kind the file lacks has no mesh.
 void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds& kinds, const ConduitCells& cells) {
+  const auto* built = entity.try_get<ConduitLook>();
+  if (built != nullptr && built->generation == cells.Generation()) {
+    return;
+  }
   const auto kind = kinds.Find(conduit.kind);
   if (!kind) {
     entity.remove<SceneMesh>();
@@ -90,9 +94,10 @@ void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds
                           .corners = CornersOf(conduit, *kind, cells),
                           .color = kind->color,
                           .thickness_cells = kind->thickness_cells,
-                          .pose = cells.PoseOf(conduit.grid)};
-  const auto* built = entity.try_get<ConduitLook>();
-  if (built != nullptr && *built == look) {
+                          .pose = cells.PoseOf(conduit.grid),
+                          .generation = cells.Generation()};
+  if (built != nullptr && built->SameLook(look)) {
+    entity.set(look);
     return;
   }
   SceneMesh mesh = BuildConduitMesh(conduit, *kind, look.corners);
@@ -106,7 +111,7 @@ void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds
 void RegisterSystems(flecs::world world) {
   // Set here, not next to `.add(flecs::Singleton)` (see PhysicsSystem::RegisterSystems).
   world.set(ConduitCells {});
-  const auto conduits = world.query<const Conduit>();
+  const auto conduits = world.query_builder<const Conduit>().detect_changes().build();
   const auto grids = world.query<const z13::station::Grid>();
   world.system<ConduitCells, const ConduitKinds>("ConduitMeshSystem::UpdateCells")
       .kind<SceneMeshPhase>()
@@ -114,7 +119,9 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::Grid>()
       .each([conduits, grids](ConduitCells& cells, const ConduitKinds& kinds) {
         cells.SetPoses(z13::station::PosesOf(grids));
-        cells.Rebuild(SortedConduits(conduits), kinds);
+        if (conduits.changed()) {
+          cells.Rebuild(SortedConduits(conduits), kinds);
+        }
       });
 
   world.system<const Conduit, const ConduitKinds, const ConduitCells>("ConduitMeshSystem::DeriveMesh")

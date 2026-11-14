@@ -188,6 +188,7 @@ void ApplyNodeMerge(flecs::world world, z13::gameplay::SpawnNamer& namer, const 
   }
   if (const auto node = FindWallNode(world, merge.keep)) {
     node->get_mut<WallNode>().cell = merge.cell;
+    node->modified<WallNode>();
     z13::gameplay::RecordStateChange(*node, z13::gameplay::StateChangeKind::kSet);
   }
   if (const auto node = FindWallNode(world, merge.drop)) {

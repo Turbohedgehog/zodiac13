@@ -28,6 +28,7 @@
 
 #include <flecs.h>
 
+#include <lib_core/state/world_serializer.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
 #include <lib_core/utils/log.h>
@@ -82,6 +83,7 @@ struct PanelKey {
 struct PanelCache {
   std::optional<PanelInputs> inputs;
   std::map<PanelKey, Block> expected;
+  uint64_t restores {};
 };
 
 // The grids' poses count only where held sectors filter the panels (KeepHeld).
@@ -196,7 +198,14 @@ void SyncPanels(
     const flecs::query<const z13::station::WallOpening>& openings,
     const flecs::query<const WallPanelOf, const Block>& panels, const flecs::query<const z13::station::Grid>& grids,
     const flecs::query<const Block>& blocks, const BlockPalette& palette, const BuildingTuning& tuning, const z13::station::HeldSectors& held,
-    PanelCache& cache) {
+    uint64_t restores, PanelCache& cache) {
+  const bool touched = nodes.changed() || segments.changed() || openings.changed() || panels.changed() ||
+                       grids.changed();
+  if (cache.inputs && !touched && cache.restores == restores && cache.inputs->held == held &&
+      cache.inputs->joint_reach == tuning.wall_joint_max_reach_cells) {
+    return;
+  }
+  cache.restores = restores;
   // Deriving every panel costs tens of ms in Debug, so it waits for a change in what they derive from; the panels
   // there are among the inputs, so one that is missing or changed by anyone else is derived again.
   PanelInputs inputs = InputsOf(nodes, segments, openings, panels, grids, held, tuning.wall_joint_max_reach_cells);
@@ -242,14 +251,16 @@ void SyncPanels(
 }
 
 void RegisterSystems(flecs::world world) {
-  const auto nodes = world.query<const WallNode>("WallPanelSystem::Nodes");
-  const auto segments = world.query<const WallSegment>("WallPanelSystem::Segments");
-  const auto openings = world.query<const z13::station::WallOpening>("WallPanelSystem::Openings");
-  const auto panels = world.query<const WallPanelOf, const Block>("WallPanelSystem::Panels");
-  const auto grids = world.query<const z13::station::Grid>("WallPanelSystem::Grids");
+  const auto nodes = world.query_builder<const WallNode>("WallPanelSystem::Nodes").detect_changes().build();
+  const auto segments = world.query_builder<const WallSegment>("WallPanelSystem::Segments").detect_changes().build();
+  const auto openings =
+      world.query_builder<const z13::station::WallOpening>("WallPanelSystem::Openings").detect_changes().build();
+  const auto panels = world.query_builder<const WallPanelOf, const Block>("WallPanelSystem::Panels").detect_changes().build();
+  const auto grids = world.query_builder<const z13::station::Grid>("WallPanelSystem::Grids").detect_changes().build();
   const auto blocks = world.query<const Block>("WallPanelSystem::Blocks");
   const auto cache = std::make_shared<PanelCache>();
-  world.system<const BlockPalette, const BuildingTuning, const z13::station::HeldSectors>("WallPanelSystem::SyncPanels")
+  world.system<const BlockPalette, const BuildingTuning, const z13::station::HeldSectors,
+               const z13::flecs_tools::WorldRestores>("WallPanelSystem::SyncPanels")
       .kind<WallPanelPhase>()
       .with<StationMode>()
       .read<WallNode>()
@@ -262,8 +273,10 @@ void RegisterSystems(flecs::world world) {
       .write<z13::station::BlockChange>()
       .each([nodes, segments, openings, panels, grids, blocks, cache](flecs::iter& it, size_t, const BlockPalette& palette,
                                                                 const BuildingTuning& tuning,
-                                                                const z13::station::HeldSectors& held) {
-        SyncPanels(it.world(), nodes, segments, openings, panels, grids, blocks, palette, tuning, held, *cache);
+                                                                const z13::station::HeldSectors& held,
+                                                                const z13::flecs_tools::WorldRestores& restores) {
+        SyncPanels(it.world(), nodes, segments, openings, panels, grids, blocks, palette, tuning, held, restores.count,
+                   *cache);
       });
 }
 

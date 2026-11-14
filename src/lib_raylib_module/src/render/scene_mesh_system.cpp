@@ -48,12 +48,16 @@ void RegisterPhases(flecs::world world) {
 }
 
 void RegisterSystems(flecs::world world) {
-  const auto meshes = world.query_builder<const SceneMesh>("SceneMeshSystem::Meshes").build();
+  const auto meshes = world.query_builder<const SceneMesh>("SceneMeshSystem::Meshes").detect_changes().build();
   world.system<SceneMeshes, const Lighting>("SceneMeshSystem::Sync")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<SceneMesh>()
       .each([meshes](SceneMeshes& scene_meshes, const Lighting& lighting) {
+        // Nothing uploaded yet (a fresh state) syncs whatever the flag says.
+        if (!meshes.changed() && scene_meshes.Count() > 0) {
+          return;
+        }
         std::vector<SceneMeshEntry> entries;
         meshes.each([&entries](flecs::entity entity, const SceneMesh& mesh) {
           entries.push_back({.entity = entity.id(), .mesh = mesh});

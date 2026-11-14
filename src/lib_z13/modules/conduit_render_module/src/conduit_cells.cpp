@@ -26,6 +26,7 @@ bool ConduitCells::Rebuild(std::vector<z13::conduit::Conduit> conduits, const z1
     return false;
   }
   built_ = std::move(conduits);
+  ++generation_;
   by_cell_.clear();
   for (const z13::conduit::Conduit& conduit : built_) {
     const auto kind = kinds.Find(conduit.kind);
@@ -48,6 +49,17 @@ bool ConduitCells::Turns(std::string_view network, z13::station::GridId grid, co
   return found != by_cell_.end() && std::ranges::any_of(found->second, [&](const Occupant& occupant) {
            return occupant.network == network && occupant.grid == grid && occupant.axis != axis;
          });
+}
+
+void ConduitCells::SetPoses(z13::station::GridPoses poses) {
+  const auto same = [this](const auto& entry) {
+    const auto found = poses_.find(entry.first);
+    return found != poses_.end() && found->second.matrix() == entry.second.matrix();
+  };
+  if (poses.size() != poses_.size() || !std::ranges::all_of(poses, same)) {
+    ++generation_;
+  }
+  poses_ = std::move(poses);
 }
 
 Eigen::Matrix4f ConduitCells::PoseOf(z13::station::GridId grid) const {

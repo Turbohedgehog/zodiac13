@@ -33,18 +33,22 @@ using z13::station::DoorState;
 
 }  // namespace
 
-std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const BlockPalette& palette, z13::station::GridId grid) {
+std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const BlockPalette& palette, z13::station::GridId grid,
+                            DoorOpeningsCache& cache) {
   std::vector<DoorAt> found;
   doors.each([&](flecs::entity entity, const DoorState& state, const Block& block) {
     const auto primitive = block.grid == grid ? palette.palette.Find(block.spec.type_id) : std::nullopt;
     if (!primitive) {
       return;
     }
-    DoorAt door {.entity = entity, .position = state.position};
-    for (const auto& source : z13::station::rooms::PortalsOf(block, primitive->get(), palette.palette)) {
-      door.openings.push_back(source.opening);
+    auto& cached = cache[entity.id()];
+    if (cached.block != block || cached.openings.empty()) {
+      cached = {.block = block, .openings = {}};
+      for (const auto& source : z13::station::rooms::PortalsOf(block, primitive->get(), palette.palette)) {
+        cached.openings.push_back(source.opening);
+      }
     }
-    found.push_back(std::move(door));
+    found.push_back({.entity = entity, .openings = cached.openings, .position = state.position});
   });
   return found;
 }

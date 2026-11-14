@@ -19,6 +19,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <flecs.h>
@@ -39,8 +40,15 @@ struct DoorAt {
   z13::station::DoorPosition position {};
 };
 
+// Kept while the block is as it was: working the openings out was most of an atmosphere step.
+struct DoorOpenings {
+  z13::station::Block block;
+  std::vector<z13::building::primitives::CellBox> openings;
+};
+using DoorOpeningsCache = std::unordered_map<flecs::entity_t, DoorOpenings>;
+
 std::vector<DoorAt> DoorsOf(const DoorQuery& doors, const z13::building::primitives::BlockPalette& palette,
-                            z13::station::GridId grid);
+                            z13::station::GridId grid, DoorOpeningsCache& cache);
 
 bool Overlaps(const DoorAt& door, const z13::building::primitives::CellBox& opening);
 
