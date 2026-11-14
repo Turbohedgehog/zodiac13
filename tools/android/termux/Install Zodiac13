@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Termux:Widget shortcut: copies the newest APK of the repo in PRoot to Downloads and opens the file manager.
+# Copy to ~/.shortcuts/ in Termux (docs/android-local-toolchain.md, "Установка на телефон").
+exec proot-distro login debian --user th -- bash -lc 'cd ~/zodiac13 && python3 tools/android/install_run.py'
