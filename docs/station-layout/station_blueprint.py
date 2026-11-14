@@ -767,10 +767,17 @@ def lift_entry(primitive, size, lower, upper, lower_button, upper_button, trip_t
             "lower_button": cell(lower_button), "upper_button": cell(upper_button), "trip_ticks": trip_ticks}
 
 
-def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=(), conduits=(), lifts=()):
+def lock_entry(cell, required_all=(), required_any=(), grid=0):
+    """A lock (blueprint.fbs, BlueprintLock): the block at `cell` of `grid` (0: the main grid) asks for all of the
+    accesses named in `required_all` and one of `required_any` (names as z13::inventory::AccessName)."""
+    return {"grid": grid, "cell": {"x": cell[0], "y": cell[1], "z": cell[2]}, "required_all": list(required_all),
+            "required_any": list(required_any)}
+
+
+def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=(), conduits=(), lifts=(), locks=()):
     """One block per line, in FlatBuffers JSON (src/lib_z13/primitives/fbs/blueprint.fbs), then the wall segments;
     returns the blocks written, the long ones cut. `doors_open`: the scene's doors stand open at the start. `grids`:
-    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s. `conduits`: `conduit_run`s. `lifts`: `lift_entry`s."""
+    `grid_entry`s, written after the main grid's walls. `docks`: `dock_entry`s. `conduits`: `conduit_run`s. `lifts`: `lift_entry`s. `locks`: `lock_entry`s."""
     blocks = [piece for entry in blocks for piece in split_long(entry)]
     walls = [piece for wall in walls for piece in split_wall(wall)]
     lines = [json.dumps(entry, separators=(", ", ": ")) for entry in blocks]
@@ -790,6 +797,9 @@ def write_blueprint(path, blocks, walls=(), doors_open=False, grids=(), docks=()
     if lifts:
         lift_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in lifts]
         text += ",\n  \"lifts\": [\n    " + ",\n    ".join(lift_lines) + "\n  ]"
+    if locks:
+        lock_lines = [json.dumps(entry, separators=(", ", ": ")) for entry in locks]
+        text += ",\n  \"locks\": [\n    " + ",\n    ".join(lock_lines) + "\n  ]"
     if doors_open:
         text += ',\n  "doors_open": true'
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -152,6 +152,15 @@ table BlueprintLift {
   trip_ticks: uint;
 }
 
+// A z13::inventory::AccessLock: the block at `cell` of grid `grid` (0 is the main grid's) needs all of the accesses
+// in `required_all` and, when `required_any` names any, one of them. The names are z13::inventory::AccessName's.
+table BlueprintLock {
+  grid: uint;
+  cell: Cell;
+  required_all: [string];
+  required_any: [string];
+}
+
 table Blueprint {
   blocks: [BlueprintBlock];
   walls: [BlueprintWall];
@@ -159,6 +168,7 @@ table Blueprint {
   docks: [BlueprintDock];
   conduits: [BlueprintConduit];
   lifts: [BlueprintLift];
+  locks: [BlueprintLock];
   doors_open: bool;
 }
 

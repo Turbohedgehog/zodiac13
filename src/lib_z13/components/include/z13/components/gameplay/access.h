@@ -16,8 +16,14 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
+#include <optional>
+#include <span>
+#include <string_view>
 
+#include <Eigen/Dense>
 #include <flecs.h>
 
 #include <z13/components/gameplay/inventory.h>
@@ -62,6 +68,22 @@ struct AccessRequirement {
   AccessSet required_any {};
 };
 
+// A requirement on whatever block stands at `cell` of `grid`, from a blueprint: wall panels are derived and replaced,
+// so the door they make can't hold the requirement itself.
+struct AccessLock {
+  using State = void;
+  uint32_t grid {};
+  Eigen::Vector3i cell {Eigen::Vector3i::Zero()};
+  AccessSet required_all {};
+  AccessSet required_any {};
+};
+
+constexpr std::string_view AccessName(Access access) {
+  constexpr std::array kNames {"bridge", "armory", "brig", "security", "engineering", "atmospherics", "medical",
+                               "science", "cargo", "tech_tunnels", "eva"};
+  return kNames[static_cast<uint8_t>(access)];
+}
+
 constexpr bool Covers(AccessSet held, const AccessRequirement& requirement) {
   return (held & requirement.required_all) == requirement.required_all &&
          (requirement.required_any == 0 || (held & requirement.required_any) != 0);
@@ -78,14 +100,35 @@ inline AccessSet HeldAccess(const flecs::world& world, uint32_t player_id) {
   return held;
 }
 
-// Whether `player` may use what `target` is: a block without a requirement is open.
-inline bool MayUse(const flecs::world& world, flecs::entity_t player, flecs::entity_t target) {
+inline std::optional<Access> ParseAccess(std::string_view name) {
+  for (uint8_t i = 0; i <= static_cast<uint8_t>(Access::kEva); ++i) {
+    if (AccessName(static_cast<Access>(i)) == name) {
+      return static_cast<Access>(i);
+    }
+  }
+  return std::nullopt;
+}
+
+// Whether `player` may use what `target` is, given the `locks` on the cells it stands at: a block without a
+// requirement is open.
+inline bool MayUse(const flecs::world& world, flecs::entity_t player, flecs::entity_t target,
+                   std::span<const AccessLock> locks = {}) {
   if (!world.is_alive(target) || !world.is_alive(player)) {
     return true;
   }
   const auto* requirement = world.entity(target).try_get<AccessRequirement>();
+  if (requirement == nullptr && locks.empty()) {
+    return true;
+  }
   const auto* owner = world.entity(player).try_get<z13::gameplay::Player>();
-  return requirement == nullptr || (owner != nullptr && Covers(HeldAccess(world, owner->id), *requirement));
+  if (owner == nullptr) {
+    return false;
+  }
+  const AccessSet held = HeldAccess(world, owner->id);
+  return (requirement == nullptr || Covers(held, *requirement)) &&
+         std::ranges::all_of(locks, [held](const AccessLock& lock) {
+           return Covers(held, {.required_all = lock.required_all, .required_any = lock.required_any});
+         });
 }
 
 }  // namespace z13::inventory

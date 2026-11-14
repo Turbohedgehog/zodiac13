@@ -93,6 +93,19 @@ Methods RequestedMethods(const ActionListener& listener, const UseActionId& id) 
   return (value->IsSwitchedOn() ? Methods::Use : Methods::NONE) | (held ? Methods::Hold : Methods::NONE);
 }
 
+// The block's own requirement and the locks a blueprint put on the cells it stands at.
+bool Permitted(flecs::entity player, flecs::entity block) {
+  const Block& spec = block.get<Block>();
+  const CellBox cells = OccupiedCells(spec);
+  std::vector<z13::inventory::AccessLock> locks;
+  player.world().each([&](const z13::inventory::AccessLock& lock) {
+    if (lock.grid == spec.grid && cells.Contains(lock.cell)) {
+      locks.push_back(lock);
+    }
+  });
+  return z13::inventory::MayUse(player.world(), player.id(), block.id(), locks);
+}
+
 void AddUses(flecs::entity player, const Eigen::Matrix4f& transform, Methods requested, const BlockIndex& index,
              const BlockPalette& palette, float reach, std::vector<Interaction>& found) {
   const Eigen::Vector3f eye = z13::math::ExtractTranslation<float>(transform) / kCellSize;
@@ -105,8 +118,8 @@ void AddUses(flecs::entity player, const Eigen::Matrix4f& transform, Methods req
   }
   for (const Methods method : {Methods::Use, Methods::Hold}) {
     if ((requested & method) == method && interaction->Accepts(method)) {
-      found.push_back({.actor = player.id(), .target = block->id(), .method = method,
-                       .permitted = z13::inventory::MayUse(player.world(), player.id(), block->id())});
+      found.push_back(
+          {.actor = player.id(), .target = block->id(), .method = method, .permitted = Permitted(player, *block)});
     }
   }
 }
@@ -148,8 +161,8 @@ void AddPresence(flecs::entity player, const Eigen::Matrix4f& transform, const B
   }
   std::ranges::sort(sensing, CellBefore);
   for (const flecs::entity& block : sensing) {
-    found.push_back({.actor = player.id(), .target = block.id(), .method = Methods::Presence,
-                     .permitted = z13::inventory::MayUse(player.world(), player.id(), block.id())});
+    found.push_back(
+        {.actor = player.id(), .target = block.id(), .method = Methods::Presence, .permitted = Permitted(player, block)});
   }
 }
 

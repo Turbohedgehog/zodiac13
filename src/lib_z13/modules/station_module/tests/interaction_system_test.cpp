@@ -240,6 +240,21 @@ TEST_F(InteractionSystemTest, ASwitchAskingForAnAccessAnswersToAPassInTheHotbarO
   EXPECT_TRUE(IsOn(switch_block));
 }
 
+TEST_F(InteractionSystemTest, ALockOnTheSwitchCellAsksForAPassLikeARequirementOnTheBlock) {
+  const flecs::entity player = StandAt(kBeforeTheSwitch);
+  const flecs::entity switch_block = AddSwitchAhead(player, kSwitchCellsAhead);
+  const Block& block = switch_block.get<Block>();
+  world_.World().entity().add<z13::flecs_tools::StateEntity>().set(
+      z13::inventory::AccessLock {.grid = block.grid, .cell = block.cell, .required_all = kArmoryAccess});
+
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_FALSE(IsOn(switch_block)) << "no pass";
+
+  GivePass(world_, player, kArmoryAccess, kPassCell);
+  z13::testing::Tap(world_, kUseKey, TickOnly(world_));
+  EXPECT_TRUE(IsOn(switch_block));
+}
+
 std::string Checkpoint(Z13TestWorld& test_world) {
   const auto json = z13::flecs_tools::WorldJsonStore::Save(test_world.World());
   EXPECT_TRUE(json.has_value()) << (json ? "" : json.error());
