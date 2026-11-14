@@ -25,6 +25,9 @@
 
 #include <Eigen/Geometry>
 
+#include <console_input/console_completion.h>
+#include <console_input/line_completion.h>
+
 #include "report_view.h"
 
 namespace z13::raylib::gui {
@@ -42,6 +45,13 @@ struct ConsoleState {
   std::string command_input;
   std::string chat_input;
   std::vector<std::string> history;
+  // The list over the field: the choices for the line `suggestions_line`, and the one the arrows are on.
+  std::optional<console_input::Completion> suggestions;
+  std::string suggestions_line;
+  std::size_t suggestion {};
+  bool suggestion_moved {};
+  // A finger is dragging the list: it scrolls, and lifting it chooses nothing.
+  bool suggestions_dragged {};
   // The history entry the arrows show; none while a new line is being typed.
   std::optional<std::size_t> history_position;
   // The log and the talk as drawn: long press selects lines to copy (ReportView). A view with a selection is not
@@ -51,6 +61,9 @@ struct ConsoleState {
   std::uint64_t log_revision {};
   std::uint64_t chat_revision {};
   bool focus_input {};
+  // The field got the focus back: the cursor goes to the end of its text, because ImGui selects all of it.
+  bool cursor_to_end {};
+  console_input::LineCompletionState line_completion;
   // The console's key was pressed this frame: the character it types (the ё of a Russian layout) is not for any field.
   bool ignore_text {};
   // The soft keyboard is wanted (touch screens only).
