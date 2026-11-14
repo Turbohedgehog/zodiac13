@@ -192,8 +192,9 @@ class SessionChurnTest : public ::testing::TestWithParam<std::string_view> {
     world.World().each([&carried](const z13::inventory::Item& item, const z13::inventory::CarriedBy& by) {
       carried[by.player_id].insert(item.kind);
     });
-    // Station scenes also hand out conduit_module's tool.
-    const std::multiset kit {z13::inventory::ItemKind::kBuildTool, z13::inventory::ItemKind::kConduitTool};
+    // Station scenes also hand out conduit_module's tool and building_module's scanner.
+    const std::multiset kit {z13::inventory::ItemKind::kBuildTool, z13::inventory::ItemKind::kConduitTool,
+                             z13::inventory::ItemKind::kScanner};
     std::map<uint32_t, std::multiset<z13::inventory::ItemKind>> expected;
     for (const uint32_t id : players) {
       expected[id] = kit;

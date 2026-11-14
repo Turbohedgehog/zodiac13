@@ -73,6 +73,8 @@ struct RoomOverlayShown {
   uint64_t fingerprint {};
   std::optional<uint32_t> player_room;
   std::optional<std::vector<uint32_t>> seen_rooms;
+  // The other grids' room graphs in kAll, which are drawn as lines in the main grid's cells.
+  std::vector<uint64_t> district_fingerprints;
 
   bool operator==(const RoomOverlayShown&) const = default;
 };

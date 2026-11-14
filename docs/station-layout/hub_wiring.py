@@ -1,7 +1,9 @@
-"""The hub's power cables (blueprint.fbs, BlueprintConduit): in each grid a minimum spanning tree over the grid's
-consumers, the reactor and the cells its docks open at, every edge laid as an L of straight runs (along x, then y, then
-z). Overlapping legs are merged into maximal runs; a bend is the cell two runs of different axes share. The docks'
-links stitch the grids' trees into one network (docs/station-systems-plan.md, "Проводка районов")."""
+"""The hub's cables and pipes (blueprint.fbs, BlueprintConduit). The power cables go by deck: the terminals of one deck
+(a lamp under the ceiling, a door, the reactor, a dock's cell) hang off a trunk laid as a spanning tree of L-shaped runs
+at the height of the deck's highest terminal (the ceiling, where there are lamps), each by a vertical drop at its own
+column; adjacent decks are joined by one riser at the columns of their nearest terminals. The pipes are a plain
+spanning tree. Overlapping runs are merged into maximal runs; a bend is the cell two runs of different axes share. The
+docks' links stitch the grids' networks into one (docs/station-systems-plan.md, "Проводка районов")."""
 
 from math import gcd
 
@@ -14,6 +16,7 @@ PIPE = "Pipe"
 POWER_BLOCKS = ("Lamp", "Door", "Reactor", "Battery", "Breaker", "Terminal", "AtmosUnit")
 GAS_BLOCKS = ("AtmosUnit", "Vent")
 AXES = "XYZ"
+DECK_PITCH_CELLS = 12  # a deck's height; its floor's top is at z = 1 + 12 k (generate_hub.py, deck_floor_z)
 MAIN_GRID = 0
 
 
@@ -109,8 +112,38 @@ def wire_network(grid, kind, blocks, primitives, extra_cells=()):
     return runs_of(cells, grid, kind)
 
 
+def column(x, y, z0, z1):
+    """The cells of a vertical run between z0 and z1."""
+    low, high = sorted((z0, z1))
+    return {((x, y, z), 2) for z in range(low, high + 1)}
+
+
+def wire_by_deck(grid, blocks, primitives, extra_cells=()):
+    """A trunk per deck at the height of its highest terminal, a drop from each terminal to it, a riser between
+    adjacent decks's nearest columns."""
+    decks = {}
+    for point in terminals(blocks, primitives, extra_cells):
+        decks.setdefault((point[2] - 1) // DECK_PITCH_CELLS, []).append(point)
+    level = {deck: max(point[2] for point in points) for deck, points in decks.items()}
+    cells = set()
+    for deck, points in decks.items():
+        columns = sorted({point[:2] for point in points})
+        for a, b in spanning_edges([(*xy, level[deck]) for xy in columns]):
+            cells |= legs(a, b)
+        for x, y, z in points:
+            cells |= column(x, y, z, level[deck])
+    order = sorted(decks)
+    for lower, upper in zip(order, order[1:]):
+        distance = lambda a, b: abs(a[0] - b[0]) + abs(a[1] - b[1])
+        a, b = min(((a, b) for a in sorted({q[:2] for q in decks[lower]}) for b in sorted({q[:2] for q in decks[upper]})),
+                   key=lambda pair: (distance(*pair), pair))
+        cells |= legs((*a, level[lower]), (*b, level[lower]))
+        cells |= column(*b, level[lower], level[upper])
+    return runs_of(cells, grid, CABLE)
+
+
 def wire_grid(grid, blocks, extra_cells):
-    return (wire_network(grid, CABLE, blocks, POWER_BLOCKS, extra_cells)
+    return (wire_by_deck(grid, blocks, POWER_BLOCKS, extra_cells)
             + wire_network(grid, PIPE, blocks, GAS_BLOCKS))
 
 

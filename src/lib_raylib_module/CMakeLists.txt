@@ -55,6 +55,7 @@ z13_add_plugin(
   src/render/block_textures.cpp
   src/render/cell_lighting.cpp
   src/render/cell_lighting_state.cpp
+    src/render/grid_cell_lights.cpp
   src/render/debug_view.cpp
   src/render/environment_render_system.cpp
   src/render/frame_profile.cpp

@@ -53,5 +53,16 @@ TEST(RoomCommandsTest, ASealedBoxIsOneRoomThatDoesNotLeak) {
   EXPECT_EQ(text.find(kLeaks), std::string::npos) << text;
 }
 
+TEST(RoomCommandsTest, ASealedBoxHasNoOpeningToTheVacuum) {
+  Z13TestWorld test_world(z13::testing::SiteArgs());
+  AddBlocks(test_world, SealedBox());
+  z13::testing::Ticks(test_world, kSettleFrames);
+
+  const auto openings = AskCommand(test_world, "vacuum_openings");
+
+  ASSERT_TRUE(openings) << openings.error();
+  EXPECT_EQ(rfl::json::write(*openings), "[]");
+}
+
 }  // namespace
 }  // namespace z13::station

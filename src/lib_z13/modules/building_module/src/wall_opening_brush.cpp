@@ -143,7 +143,7 @@ std::optional<AimedOpening> AimOpening(
       z13::building::primitives::WallHeightAt(geometry, hit->steps, opening.offset),
       z13::building::primitives::WallHeightAt(geometry, hit->steps, opening.offset + width));
   const int headroom = std::max(1, length - kMinLintelCells);
-  if (tool.opening_kind == OpeningKind::kDoor) {
+  if (tool.opening_kind != OpeningKind::kWindow) {
     opening.height = std::clamp(tuning.opening_door_height_cells, 1, headroom);
   } else {
     opening.sill = std::clamp(tuning.opening_window_sill_cells, 1, std::max(1, headroom - 1));

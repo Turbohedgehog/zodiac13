@@ -39,6 +39,9 @@ struct Lighting;
 struct RenderStats;
 using z13::station::rooms::ViewCulling;
 
+// Called before the chunks of a grid are drawn, to set what depends on the grid (its baked light).
+using GridDrawHook = std::function<void(z13::station::GridId)>;
+
 // Blocks merged into one model per render chunk and material (primitives/chunk_mesh.h),
 // opaque and transparent ones apart. Singleton exempt from the "no pointers" rule (see
 // CLAUDE.md); never state.
@@ -62,7 +65,8 @@ class BlockChunks {
             int chunk_cells);
 
   // Counts the chunks and meshes drawn in `stats`.
-  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
+  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats,
+                  const GridDrawHook& before_grid) const;
 
   // Changes whenever the opaque chunks do.
   uint64_t Version() const;
@@ -77,7 +81,8 @@ class BlockChunks {
   // The glass in view from the farthest chunk, `eye` in meters; counts its chunks drawn in
   // `stats`.
   void DrawTransparent(
-      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats) const;
+      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats,
+      const GridDrawHook& before_grid) const;
 
  private:
   class State;

@@ -22,6 +22,7 @@
 #include <Eigen/Dense>
 
 #include <z13/components/gameplay/color.h>
+#include <z13/components/station/grid_id.h>
 
 // The render API for modules that draw their own things (conduit_render_module): they put a SceneMesh on an
 // entity, raylib_module uploads it and draws it with the scene's light. Nothing here is state.
@@ -36,6 +37,10 @@ struct SceneMesh {
   std::vector<Eigen::Vector3f> positions;
   std::vector<Eigen::Vector3f> normals;
   z13::Rgba color {};
+  // The grid the mesh sits in: raylib_module lights it with that grid's baked light.
+  z13::station::GridId grid = z13::station::kMainGrid;
+  // Drawn in its own colour whatever the light.
+  bool emissive {};
   // Bumped by the owner whenever the triangles change; raylib_module re-uploads on a new value.
   uint64_t revision {};
 };

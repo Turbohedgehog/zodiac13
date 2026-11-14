@@ -27,8 +27,8 @@ void SceneMeshes::Sync(std::span<const SceneMeshEntry> entries, ::Shader lightin
   state_->Sync(entries, lighting_shader);
 }
 
-size_t SceneMeshes::Draw(const ViewCulling& culling, const Lighting& lighting) const {
-  return state_->Draw(culling, lighting);
+size_t SceneMeshes::Draw(const ViewCulling& culling, const Lighting& lighting, const GridDrawHook& before_grid) const {
+  return state_->Draw(culling, lighting, before_grid);
 }
 
 size_t SceneMeshes::Count() const {

@@ -30,6 +30,7 @@ namespace z13::raylib::gui {
 
 // A drag scrolls (ImGui reads a finger as a mouse, so a text field would select); a long press
 // selects lines, later taps grow, narrow and clear the selection (z13::SelectionAfterTap).
+// A long line wraps at the box's width, so nothing needs scrolling sideways.
 class ReportView {
  public:
   // `id` tells two views of one window apart.
@@ -50,13 +51,20 @@ class ReportView {
  private:
   enum class Gesture { kNone, kPressed, kScrolling, kSelecting };
 
-  void HandleGesture(const ImVec2& origin, float line_height);
-  size_t LineAt(float y, const ImVec2& origin, float line_height) const;
+  // Where each line starts, from the top of the text, with the wrapped height of every line; remade when the lines or
+  // the width change.
+  void Layout(float wrap_width, float line_height);
+  void HandleGesture(const ImVec2& origin);
+  size_t LineAt(float y, const ImVec2& origin) const;
+  float TextHeight() const { return tops_.empty() ? 0.f : tops_.back(); }
   void ScrollNearTheEdge(float y);
 
   std::string id_;
   std::vector<std::string> lines_;
   std::vector<ImU32> colors_;
+  // lines_.size() + 1 offsets: the start of each line and the end of the last.
+  std::vector<float> tops_;
+  std::optional<float> laid_width_;
   bool at_end_ = true;
   bool scroll_to_end_ {};
   std::optional<z13::LineSelection> selection_;

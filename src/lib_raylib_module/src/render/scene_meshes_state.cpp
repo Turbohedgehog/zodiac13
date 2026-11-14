@@ -17,6 +17,7 @@
 #include "scene_meshes_state.h"
 
 #include <algorithm>
+#include <set>
 #include <unordered_set>
 #include <vector>
 
@@ -30,6 +31,9 @@ namespace z13::raylib {
 namespace {
 
 constexpr size_t kTexcoordsPerVertex = 2;
+
+// White squares and no light: the model's own colour comes out as it is.
+const z13::building::primitives::Checker kEmissiveChecker {.first = {255, 255, 255, 255}, .second = {255, 255, 255, 255}, .emissive = true};
 
 ::Color ToRaylibColor(const z13::Rgba& color) {
   return {color[0], color[1], color[2], color[3]};
@@ -92,19 +96,40 @@ void SceneMeshes::State::Sync(std::span<const SceneMeshEntry> entries, ::Shader 
     uploaded_.insert_or_assign(
         entry.entity, UploadedSceneMesh {.model = Upload(source, lighting_shader),
                                          .revision = source.revision,
+                                         .grid = source.grid,
+                                         .emissive = source.emissive,
                                          .bounds = BoundsOf(source)});
   }
   std::erase_if(uploaded_, [&listed](const auto& item) { return !listed.contains(item.first); });
 }
 
-size_t SceneMeshes::State::Draw(const ViewCulling& culling, const Lighting& lighting) const {
+size_t SceneMeshes::State::Draw(const ViewCulling& culling, const Lighting& lighting,
+                                const GridDrawHook& before_grid) const {
   StopChecker(lighting);
-  size_t drawn = 0;
+  std::set<z13::station::GridId> grids;
   for (const auto& [entity, uploaded] : uploaded_) {
-    if (culling.Visible(uploaded.bounds)) {
-      DrawModel(*uploaded.model, Vector3Zero(), 1.f, WHITE);
-      ++drawn;
+    grids.insert(uploaded.grid);
+  }
+  // The main grid last, so what is drawn after keeps its light.
+  const auto main = grids.extract(z13::station::kMainGrid);
+  size_t drawn = 0;
+  const auto draw_grid = [&](z13::station::GridId grid) {
+    before_grid(grid);
+    for (const auto& [entity, uploaded] : uploaded_) {
+      if (uploaded.grid == grid && culling.Visible(uploaded.bounds)) {
+        if (uploaded.emissive) {
+          UseChecker(lighting, kEmissiveChecker);
+        } else {
+          StopChecker(lighting);
+        }
+        DrawModel(*uploaded.model, Vector3Zero(), 1.f, WHITE);
+        ++drawn;
+      }
     }
+  };
+  std::ranges::for_each(grids, draw_grid);
+  if (!main.empty()) {
+    draw_grid(z13::station::kMainGrid);
   }
   return drawn;
 }

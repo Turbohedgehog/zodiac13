@@ -17,8 +17,14 @@
 
 #pragma once
 
+#include <Eigen/Dense>
+
+#include <flecs.h>
+
 #include <z13/components/station/block.h>
 #include <z13/components/station/door.h>
+
+#include "door_lamp.h"
 
 namespace z13::door_render {
 
@@ -26,8 +32,24 @@ namespace z13::door_render {
 struct DoorLeafLook {
   z13::station::Block block;
   int position {};
+  // Of the door's grid: the leaf is built in its meters and moved into the world.
+  Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
 
   bool operator==(const DoorLeafLook&) const = default;
+};
+
+// What a door's lamp mesh was built from; derived, never state.
+struct DoorLampLook {
+  z13::station::Block block;
+  DoorSignal signal {};
+  Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+
+  bool operator==(const DoorLampLook&) const = default;
+};
+
+// On the lamp entity of a door.
+struct DoorLampOf {
+  flecs::entity_t door {};
 };
 
 }  // namespace z13::door_render

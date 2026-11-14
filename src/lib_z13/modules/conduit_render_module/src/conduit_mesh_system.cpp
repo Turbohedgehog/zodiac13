@@ -102,6 +102,7 @@ void DeriveMesh(flecs::entity entity, const Conduit& conduit, const ConduitKinds
   }
   SceneMesh mesh = BuildConduitMesh(conduit, *kind, look.corners);
   SetInWorld(mesh, look.pose);
+  mesh.grid = conduit.grid;
   const auto* old = entity.try_get<SceneMesh>();
   mesh.revision = old != nullptr ? old->revision + 1 : 1;
   entity.set(look);

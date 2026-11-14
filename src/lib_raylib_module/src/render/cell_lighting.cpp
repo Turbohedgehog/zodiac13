@@ -43,8 +43,9 @@ const std::vector<z13::station::light::Lamp>& CellLighting::ShiningLamps() const
   return state_->ShiningLamps();
 }
 
-void CellLighting::Upload(const ::Shader& shader, const LightUniforms& uniforms) const {
-  state_->Upload(shader, uniforms);
+void CellLighting::Upload(const ::Shader& shader, const LightUniforms& uniforms,
+                          const Eigen::Matrix4f& from_world) const {
+  state_->Upload(shader, uniforms, from_world);
 }
 
 void CellLighting::Bind() const {

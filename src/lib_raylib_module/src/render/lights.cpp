@@ -67,6 +67,7 @@ constexpr std::string_view kCellLabelsUniform = "cellLabels";
 constexpr std::string_view kCellLightUniform = "cellLight";
 constexpr std::string_view kCellOriginUniform = "cellOrigin";
 constexpr std::string_view kCellCubesUniform = "cellCubes";
+constexpr std::string_view kCellFromWorldUniform = "cellFromWorld";
 constexpr std::string_view kPlayerShadowCountUniform = "playerShadowCount";
 constexpr std::string_view kPlayerShadowLampsUniform = "playerShadowLamps";
 constexpr std::string_view kPlayerShadowColorsUniform = "playerShadowColors";
@@ -191,6 +192,7 @@ LightUniforms FindLightUniforms(const ::Shader& shader) {
       .cell_light_enabled = Location(shader, kCellLightEnabledUniform),
       .cell_origin = Location(shader, kCellOriginUniform),
       .cell_cubes = Location(shader, kCellCubesUniform),
+      .cell_from_world = Location(shader, kCellFromWorldUniform),
       .player_shadow_count = Location(shader, kPlayerShadowCountUniform),
       .player_shadow_lamps = Location(shader, kPlayerShadowLampsUniform),
       .player_shadow_colors = Location(shader, kPlayerShadowColorsUniform),

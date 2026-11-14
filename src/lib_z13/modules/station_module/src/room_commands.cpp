@@ -55,6 +55,23 @@ struct RoomsCommand {
   int unused {};
 };
 
+struct OpeningInfo {
+  uint32_t room {};  // the room that leaks
+  CellInfo min;      // the opening's box, in cells
+  CellInfo size;
+  int area_cells {};
+  bool passable {};
+};
+
+struct VacuumOpeningsCommand {
+  using Command = z13::Command<
+      std::vector<OpeningInfo>,
+      "Lists the openings of the main grid's rooms that lead to the vacuum, where the station leaks: the room, the "
+      "opening's box in cells, its area and whether a body can pass.",
+      Tags<kDebugTag>>;
+  int unused {};
+};
+
 void ListRooms(flecs::world world, ReplyOf<RoomsCommand>& reply) {
   const auto cache = MainGridData<rooms::RoomCache>(world);
   if (!cache || !cache->get().Current()) {
@@ -80,10 +97,31 @@ void ListRooms(flecs::world world, ReplyOf<RoomsCommand>& reply) {
   reply.Succeed(std::move(listed));
 }
 
+void ListVacuumOpenings(flecs::world world, ReplyOf<VacuumOpeningsCommand>& reply) {
+  const auto cache = MainGridData<rooms::RoomCache>(world);
+  if (!cache || !cache->get().Current()) {
+    reply.Succeed({});
+    return;
+  }
+  std::vector<OpeningInfo> listed;
+  for (const rooms::Portal& portal : cache->get().Current()->get().portals) {
+    if (portal.a != rooms::kVacuumRoom && portal.b != rooms::kVacuumRoom) {
+      continue;
+    }
+    const auto& box = portal.opening;
+    listed.push_back({.room = portal.a == rooms::kVacuumRoom ? portal.b : portal.a,
+                      .min = {box.min.x(), box.min.y(), box.min.z()},
+                      .size = {box.extent.x(), box.extent.y(), box.extent.z()},
+                      .area_cells = portal.area_cells,
+                      .passable = portal.passable});
+  }
+  reply.Succeed(std::move(listed));
+}
+
 }  // namespace
 
 void RegisterRoomCommandComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<RoomsCommand>(world);
+  z13::flecs_tools::RegisterComponents<RoomsCommand, VacuumOpeningsCommand>(world);
 }
 
 void RegisterRoomCommandSystems(flecs::world world) {
@@ -91,6 +129,11 @@ void RegisterRoomCommandSystems(flecs::world world) {
                               [](flecs::iter& it, size_t, const RoomsCommand&, ReplyOf<RoomsCommand>& reply) {
                                 ListRooms(it.world(), reply);
                               });
+  CommandSystem<VacuumOpeningsCommand>(
+      world, "RoomCommands::VacuumOpenings",
+      [](flecs::iter& it, size_t, const VacuumOpeningsCommand&, ReplyOf<VacuumOpeningsCommand>& reply) {
+        ListVacuumOpenings(it.world(), reply);
+      });
 }
 
 }  // namespace z13::station

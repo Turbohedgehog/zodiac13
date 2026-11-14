@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -35,8 +36,11 @@ BlockMeshes::OptionalPalette PaletteOf(const flecs::world& world);
 
 std::vector<z13::station::Block> CollectBlocks(const BlockQuery& query);
 
-// The baked light is the main grid's; the other grids get the lamps' own light only.
+// The main grid's blocks, which CellLighting bakes.
 std::vector<z13::station::Block> CollectMainGridBlocks(const BlockQuery& query);
+
+// The blocks of each grid but the main one, whose baked light is CellLighting's.
+std::map<z13::station::GridId, std::vector<z13::station::Block>> CollectDistrictBlocks(const BlockQuery& query);
 
 // Rebuilds the chunks only when blocks, the chunk size, the palette or the replaced primitives
 // changed; `synced_replaced` is what the last rebuild left out.

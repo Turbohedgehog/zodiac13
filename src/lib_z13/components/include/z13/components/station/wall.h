@@ -103,7 +103,8 @@ struct WallBridgeDraft {
 };
 
 // A door's opening reaches the floor; a window's holds a pane of glass.
-enum class OpeningKind : uint8_t { kDoor, kWindow };
+// A passage is a plain hole: no door, no glass.
+enum class OpeningKind : uint8_t { kDoor, kWindow, kPassage };
 
 // A gap in a segment's panel: `offset` and `width` in WallSteps from node a, `sill` and `height`
 // in cells up the stick.

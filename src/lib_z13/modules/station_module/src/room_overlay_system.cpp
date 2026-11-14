@@ -18,6 +18,9 @@
 #include "room_overlay_system.h"
 
 #include <algorithm>
+#include <array>
+#include <memory>
+#include <unordered_map>
 #include <format>
 #include <iterator>
 #include <optional>
@@ -35,6 +38,7 @@
 #include <z13/components/station/rooms.h>
 #include <z13/components/station/block.h>
 #include <z13/components/station/grid.h>
+#include <z13/components/station/grid_pose.h>
 #include <z13/components/station/station_mode.h>
 #include <grid/block_index.h>
 #include <primitives/palette.h>
@@ -164,6 +168,52 @@ OverlayLines Boxes(const RoomCache& cache, const RoomOverlayShown& shown, RoomBo
   return lines;
 }
 
+using DistrictCaches = std::unordered_map<GridId, RoomBoxCache>;
+
+// The corners of a box, joined by the edges of a cube.
+constexpr std::array<std::array<int, 2>, 12> kCubeEdges {{{0, 1}, {2, 3}, {4, 5}, {6, 7}, {0, 2}, {1, 3},
+                                                          {4, 6}, {5, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}}};
+
+Eigen::Vector3f ToMainCells(const Eigen::Isometry3f& pose, const Eigen::Vector3f& cells) {
+  return (pose * (cells * kCellSize)) / kCellSize;
+}
+
+// A district's box has no place among the main grid's axis-aligned ones, so it is drawn as the edges of its cube.
+void AddBoxEdges(const OverlayBox& box, const Eigen::Isometry3f& pose, std::vector<OverlaySegment>& segments) {
+  std::array<Eigen::Vector3f, 8> corners;
+  for (int i = 0; i < 8; ++i) {
+    const Eigen::Vector3f offset((i & 1) != 0 ? 1.f : 0.f, (i & 2) != 0 ? 1.f : 0.f, (i & 4) != 0 ? 1.f : 0.f);
+    corners[i] = ToMainCells(pose, box.min.cast<float>() + offset.cwiseProduct(box.extent.cast<float>()));
+  }
+  for (const auto& [from, to] : kCubeEdges) {
+    segments.push_back({.a = corners[from], .b = corners[to], .color = box.color});
+  }
+}
+
+// Every other grid's rooms and portals, as lines in the main grid's cells.
+void AddDistrictLines(const flecs::world& world, const BlockPalette& palette, DistrictCaches& caches,
+                      OverlayLines& lines) {
+  world.query<const Grid, const RoomCache, const BlockIndex>().each(
+      [&](const Grid& grid, const RoomCache& cache, const BlockIndex& index) {
+        if (grid.id == kMainGrid || !cache.Current()) {
+          return;
+        }
+        const WallSource source {.index = index, .palette = palette.palette, .block_of = [world](BlockId id) {
+                                   return BlockOf(world, id);
+                                 }};
+        const Eigen::Isometry3f pose = GridToWorld(grid);
+        OverlayLines local = Boxes(cache, {.mode = RoomOverlayMode::kAll}, caches[grid.id], source);
+        for (const OverlayBox& box : local.boxes) {
+          AddBoxEdges(box, pose, lines.segments);
+        }
+        for (OverlaySegment segment : local.segments) {
+          segment.a = ToMainCells(pose, segment.a);
+          segment.b = ToMainCells(pose, segment.b);
+          lines.segments.push_back(segment);
+        }
+      });
+}
+
 // Rooms drawn against an older graph are numbered differently, so they wait for the renderer.
 std::optional<std::vector<uint32_t>> DrawnRooms(const RoomOverlay& overlay, uint64_t fingerprint) {
   if (overlay.mode != RoomOverlayMode::kSeen || !overlay.drawn || overlay.drawn->fingerprint != fingerprint) {
@@ -173,7 +223,8 @@ std::optional<std::vector<uint32_t>> DrawnRooms(const RoomOverlay& overlay, uint
 }
 
 void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCache& cache,
-                   const z13::gameplay::LocalPlayer& local, const PlayerQuery& players, const WallSource& source) {
+                   const z13::gameplay::LocalPlayer& local, const PlayerQuery& players, const WallSource& source,
+                   const flecs::world& world, const BlockPalette& palette, DistrictCaches& districts) {
   const auto fingerprint = cache.CurrentFingerprint();
   if (overlay.mode == RoomOverlayMode::kOff || !cache.Current() || !fingerprint) {
     overlay = {.mode = overlay.mode, .drawn = std::move(overlay.drawn)};
@@ -188,10 +239,20 @@ void UpdateOverlay(RoomOverlay& overlay, RoomBoxCache& box_cache, const RoomCach
       .player_room = room,
       .seen_rooms = DrawnRooms(overlay, *fingerprint),
   };
+  if (overlay.mode == RoomOverlayMode::kAll) {
+    world.query<const Grid, const RoomCache>().each([&](const Grid& grid, const RoomCache& other) {
+      if (grid.id != kMainGrid) {
+        wanted.district_fingerprints.push_back(other.CurrentFingerprint().value_or(0));
+      }
+    });
+  }
   if (overlay.shown == wanted) {
     return;
   }
   OverlayLines lines = Boxes(cache, wanted, box_cache, source);
+  if (overlay.mode == RoomOverlayMode::kAll) {
+    AddDistrictLines(world, palette, districts, lines);
+  }
   overlay.boxes = std::move(lines.boxes);
   overlay.segments = std::move(lines.segments);
   overlay.outlined_rooms = std::move(lines.outlined_rooms);
@@ -207,6 +268,7 @@ void RegisterSystems(flecs::world world) {
   world.set(RoomOverlay {});
   world.set(RoomBoxCache {});
   world.set(OverlayLayers {});
+  const auto districts = std::make_shared<DistrictCaches>();
   const PlayerQuery players =
       world.query_builder<const z13::gameplay::Player, const Eigen::Matrix4f>("RoomOverlaySystem::Players").build();
   world.system<RoomOverlay, RoomBoxCache, const z13::gameplay::LocalPlayer, const BlockPalette>(
@@ -216,7 +278,7 @@ void RegisterSystems(flecs::world world) {
       .read<Block>()
       .read<BlockIndex>()
       .read<RoomCache>()
-      .each([players](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache,
+      .each([players, districts](flecs::iter& it, size_t, RoomOverlay& overlay, RoomBoxCache& box_cache,
                       const z13::gameplay::LocalPlayer& local, const BlockPalette& palette) {
         const flecs::world world = it.world();
         const auto main_index = MainGridData<BlockIndex>(world);
@@ -228,7 +290,7 @@ void RegisterSystems(flecs::world world) {
         const WallSource source {.index = *main_index, .palette = palette.palette, .block_of = [world](BlockId id) {
                                    return BlockOf(world, id);
                                  }};
-        UpdateOverlay(overlay, box_cache, cache, local, players, source);
+        UpdateOverlay(overlay, box_cache, cache, local, players, source, world, palette, *districts);
       });
 }
 
