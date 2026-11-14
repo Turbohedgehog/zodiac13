@@ -445,6 +445,46 @@ TEST(DriftMove, AnOppositePushBrakes) {
   EXPECT_LT(motion.drift.x(), kDrift.max_speed);
 }
 
+TEST(DriftMove, WithNoKeyTheBrakeSlowsTheSpeedAndStopsItAtZero) {
+  constexpr DriftStep kBraking {.delta_time = 0.1f, .thrust = 4.f, .max_speed = 1.f, .brake = 2.f};
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion {.drift = Eigen::Vector3f(kBraking.max_speed, 0.f, 0.f)};
+
+  ApplyDriftMove({}, kBraking, look, motion, transform);
+  EXPECT_NEAR(motion.drift.x(), kBraking.max_speed - kBraking.brake * kBraking.delta_time, kTolerance);
+
+  for (int i = 0; i < kManySteps; ++i) {
+    ApplyDriftMove({}, kBraking, look, motion, transform);
+  }
+  EXPECT_TRUE(motion.drift.isZero()) << "the brake stops the player and doesn't push back";
+}
+
+TEST(DriftMove, TheBrakeKeepsTheDirection) {
+  constexpr DriftStep kBraking {.delta_time = 0.1f, .thrust = 4.f, .max_speed = 1.f, .brake = 2.f};
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  const Eigen::Vector3f start = Eigen::Vector3f(1.f, 2.f, -2.f).normalized() * kBraking.max_speed;
+  PlayerMotion motion {.drift = start};
+
+  ApplyDriftMove({}, kBraking, look, motion, transform);
+
+  EXPECT_TRUE(motion.drift.normalized().isApprox(start.normalized(), kTolerance));
+}
+
+TEST(DriftMove, AKeyPushingIsNotBraked) {
+  constexpr DriftStep kBraking {.delta_time = 0.1f, .thrust = 4.f, .max_speed = 1.f, .brake = 2.f};
+  LookAngles look;
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  PlayerMotion motion;
+  CameraMoveAxes pushing = NewAxes();
+  pushing.forward = 1.f;
+
+  ApplyDriftMove(pushing, kBraking, look, motion, transform);
+
+  EXPECT_NEAR(motion.drift.x(), kBraking.thrust * kBraking.delta_time, kTolerance);
+}
+
 TEST(DriftMove, DiagonalKeysDontPushHarder) {
   LookAngles look;
   Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();

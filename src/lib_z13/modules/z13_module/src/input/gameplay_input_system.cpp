@@ -144,7 +144,10 @@ void ApplyMoveActionListener(
   } else if (motion != nullptr && e.world().has<z13::station::StationMode>() && tuning.drift_thrust > 0.f) {
     *motion = {.drift = motion->drift};
     z13::gameplay::ApplyDriftMove(
-        axes, {.delta_time = delta_time, .thrust = tuning.drift_thrust, .max_speed = tuning.drift_max_speed}, look,
+        axes, {.delta_time = delta_time,
+         .thrust = tuning.drift_thrust,
+         .max_speed = tuning.drift_max_speed,
+         .brake = tuning.drift_brake}, look,
         *motion, transform);
   } else {
     if (motion != nullptr) {
