@@ -1008,9 +1008,6 @@ TEST(HubDocksTest, NoDoorIsHeldShutByPressureAtTheStart) {
   EXPECT_TRUE(held.empty()) << held.size() << " doors held shut, first: " << (held.empty() ? "" : held.front());
 }
 
-// A seam detector: a floor with a ceiling above it whose air belongs to no room of any grid is a covered walkway open
-// to space, such as the gap where two grids' end walls stand apart. Floors under a hull's overhang would show here too:
-// the hub has none.
 struct GridSurface {
   z13::station::GridId id {};
   Eigen::Isometry3f pose = Eigen::Isometry3f::Identity();
@@ -1034,7 +1031,8 @@ bool InsideAnyGrid(const std::vector<GridSurface>& grids, const GridSurface& own
   });
 }
 
-// Disabled until the hub's open floor seams are fixed (docs/hub-wiring-notes.md).
+// A covered floor whose air belongs to no room of any grid is a walkway open to space (a gap between two grids' end
+// walls). Disabled until the hub's seams are fixed (docs/hub-wiring-notes.md).
 TEST(HubSeamTest, DISABLED_NoCoveredFloorIsOpenToSpace) {
   Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
   world.Tick();
