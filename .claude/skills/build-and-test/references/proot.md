@@ -34,6 +34,12 @@ Measured 2026-11-10, in this order:
 - Suspected mechanism, not proven: the child walks the descriptors up to `ulimit -n` (32768 here, ~3 s at 90 µs a syscall) between fork and exec.
 - Workaround: start it with a low limit, `claude() { ( ulimit -n 1024; command claude "$@" ); }` in `~/.bashrc` (only claude gets it; builds keep 32768). The user reported it "seems better"; clone-to-exec under an active turn was not measured afterwards. If the stalls come back, rerun the poll (children of the claude pid, log exe/argv changes) and compare with 7-8 s.
 
+### Reading the tablet over adb (Huawei MatePad 11.5 S, HarmonyOS 4.3 / Android 12)
+
+- Android does not throttle Termux (2026-11-10): Doze-whitelisted, standby bucket EXEMPTED, thermal status 0, battery saver off, about 470 % of 600 % CPU idle while typing in Claude. Switching off the phantom-process killer changed nothing; it was done with `device_config set_sync_disabled_for_tests persistent`, `device_config put activity_manager max_phantom_processes 2147483647` and `settings put global settings_enable_monitor_phantom_procs false` (harmless, kept).
+- `adb` is in `%LOCALAPPDATA%\Android\Sdk\platform-tools`; the tablet needs USB debugging and the USB mode "Transfer files". This HarmonyOS has no wireless debugging.
+- `adb devices` empty while Windows lists "Android Composite ADB Interface": Huawei HiSuite (`HuaweiHiSuiteService64`, runs as administrator) holds the interface (`ADB_TRACE=usb` shows `AdbCreateInterfaceByName failed ... (5)`). Stop the service as administrator and replug; reboot the PC if it stays empty.
+
 ## Timings to expect (Debug, ARM, -j3)
 
 - An edit to a header most objects depend on: about an hour (check with perf-measure's `header_width.py`).
