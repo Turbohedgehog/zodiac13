@@ -457,6 +457,7 @@ void DrawTabs(Context& context) {
     const bool after_current = kTabs[(i + kTabs.size() - 1) % kTabs.size()].id == context.console.tab;
     const ImGuiTabItemFlags flags = next && after_current ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
     if (ImGui::BeginTabItem(tab.name.data(), nullptr, flags)) {
+      context.console.focus_input = context.console.focus_input || context.console.tab != tab.id;
       context.console.tab = tab.id;
       tab.draw(context);
       ImGui::EndTabItem();

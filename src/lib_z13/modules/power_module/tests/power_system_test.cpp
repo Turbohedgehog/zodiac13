@@ -18,6 +18,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,12 +28,15 @@
 #include <Eigen/Dense>
 
 #include <lib_core/state/state_markers.h>
+#include <grid/block_index.h>
 #include <networks/station_networks.h>
 #include <z13_tests/shipped_station.h>
 #include <power/port_names.h>
+#include <primitives/cell_box.h>
 #include <primitives/palette.h>
 #include <z13/components/station/block_changes.h>
 #include <z13/components/station/conduit.h>
+#include <z13/components/station/grid.h>
 #include <z13/components/utility/lamps.h>
 #include <z13/components/station/overlay_layers.h>
 #include <z13/components/utility/power.h>
@@ -295,6 +300,60 @@ TEST(HubWiringTest, TheReactorSuppliesEveryLampAndDoorOfTheHub) {
   EXPECT_GE(consumers, kHubConsumersAtLeast);
   EXPECT_TRUE(unsupplied.empty()) << unsupplied.size() << " unsupplied, the first " << unsupplied.front();
   EXPECT_TRUE(world.World().get<z13::utility::DimmedLamps>().list.empty());
+}
+
+// A cable or pipe is laid along a wall, a floor or a ceiling: every cell of a run has a block in it or next to it.
+constexpr int kHangingReportedRuns = 20;
+
+TEST(HubWiringTest, NoConduitHangsInTheAir) {
+  Z13TestWorld world({std::string(z13::testing::kStationSceneArg), std::string(kHubScene)});
+  world.Tick();
+  world.Tick();
+
+  const auto supported = [](const z13::building::grid::BlockIndex& index, const Eigen::Vector3i& cell) {
+    const std::array kReach {Eigen::Vector3i {0, 0, 0}, Eigen::Vector3i {1, 0, 0},
+                                                      Eigen::Vector3i {-1, 0, 0}, Eigen::Vector3i {0, 1, 0},
+                                                      Eigen::Vector3i {0, -1, 0}, Eigen::Vector3i {0, 0, 1},
+                                                      Eigen::Vector3i {0, 0, -1}};
+    return std::ranges::any_of(kReach, [&](const Eigen::Vector3i& step) {
+      return !index.Overlapping({.min = cell + step, .extent = Eigen::Vector3i::Ones()}).empty();
+    });
+  };
+
+  std::vector<std::string> hanging;
+  size_t runs = 0;
+  world.World().query<const z13::station::Grid, const z13::building::grid::BlockIndex>().each(
+      [&](const z13::station::Grid& grid, const z13::building::grid::BlockIndex& index) {
+        world.World().query<const z13::conduit::Conduit>().each([&](const z13::conduit::Conduit& run) {
+          if (run.grid != grid.id) {
+            return;
+          }
+          ++runs;
+          const int axis = static_cast<int>(run.axis);
+          int loose = 0;
+          std::optional<Eigen::Vector3i> first;
+          for (int step = 0; step < run.length; ++step) {
+            Eigen::Vector3i cell = run.cell;
+            cell[axis] += step;
+            if (!supported(index, cell)) {
+              ++loose;
+              first = first.value_or(cell);
+            }
+          }
+          if (loose > 0) {
+            hanging.push_back(std::format("grid {} run from ({}, {}, {}) along {} of {}: {} cells hang, the first at ({}, {}, {})",
+                                          run.grid, run.cell.x(), run.cell.y(), run.cell.z(), "XYZ"[axis], run.length, loose,
+                                          first->x(), first->y(), first->z()));
+          }
+        });
+      });
+
+  EXPECT_GT(runs, 0U);
+  std::ranges::sort(hanging);
+  for (size_t i = 0; i < hanging.size() && i < kHangingReportedRuns; ++i) {
+    ADD_FAILURE() << "conduit hangs in the air: " << hanging[i];
+  }
+  EXPECT_TRUE(hanging.empty()) << hanging.size() << " of " << runs << " runs have cells without a block beside them";
 }
 
 // The tech trunk's halls: batteries charge from the reactor's surplus, and the atmosphere unit's pipe reaches its vent.

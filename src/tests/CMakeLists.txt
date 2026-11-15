@@ -236,6 +236,7 @@ if(Z13_BUILD_BENCHMARKS)
     ${MODULES_DIR}/z13_module/tests/bench/frame_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/net_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/snapshot_cost_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/space_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp
