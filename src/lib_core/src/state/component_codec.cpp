@@ -17,6 +17,7 @@
 #include <lib_core/state/component_codec.h>
 #include <lib_core/utils/status.h>
 
+#include <algorithm>
 #include <format>
 
 #include "component_codec/meta_access.h"
@@ -71,6 +72,66 @@ std::expected<std::span<const std::byte>, std::string> ComponentBytes(
     const flecs::world& world, flecs::entity_t type, const void* value) {
   return codec::ViewValue(world, type, value);
 }
+
+namespace {
+
+// An Eigen type or std::array: an opaque array of scalars that fills the value's memory exactly.
+bool IsFlatArrayOpaque(const flecs::world& world, flecs::entity_t type);
+
+}  // namespace
+
+bool IsFlatValue(const flecs::world& world, flecs::entity_t type) {
+  const auto meta = codec::Meta<EcsType>(world, type);
+  if (!meta) {
+    return false;
+  }
+  switch (meta->get().kind) {
+    case EcsPrimitiveType:
+      return codec::Meta<EcsPrimitive>(world, type).transform([](const EcsPrimitive& primitive) {
+        return primitive.kind != EcsString && primitive.kind != EcsEntity;
+      }).value_or(false);
+    case EcsEnumType:
+    case EcsBitmaskType:
+      return true;
+    case EcsStructType: {
+      const auto struct_meta = codec::Meta<EcsStruct>(world, type);
+      if (!struct_meta) {
+        return false;
+      }
+      const std::span members(
+          static_cast<const ecs_member_t*>(ecs_vec_first(&struct_meta->get().members)),
+          static_cast<size_t>(ecs_vec_count(&struct_meta->get().members)));
+      return std::ranges::all_of(members, [&](const ecs_member_t& member) { return IsFlatValue(world, member.type); });
+    }
+    case EcsArrayType:
+      return codec::Meta<EcsArray>(world, type).transform([&](const EcsArray& array) {
+        return IsFlatValue(world, array.type);
+      }).value_or(false);
+    case EcsOpaqueType:
+      return IsFlatArrayOpaque(world, type);
+    default:
+      return false;
+  }
+}
+
+namespace {
+
+bool IsFlatArrayOpaque(const flecs::world& world, flecs::entity_t type) {
+  const auto opaque = codec::Meta<EcsOpaque>(world, type);
+  if (!opaque) {
+    return false;
+  }
+  const auto as_type = codec::Meta<EcsType>(world, opaque->get().as_type);
+  const auto array = codec::Meta<EcsArray>(world, opaque->get().as_type);
+  if (!as_type || as_type->get().kind != EcsArrayType || !array || !IsFlatValue(world, array->get().type)) {
+    return false;
+  }
+  const auto value_size = codec::TypeSize(world, type);
+  const auto element_size = codec::TypeSize(world, array->get().type);
+  return value_size && element_size && *value_size == *element_size * static_cast<size_t>(array->get().count);
+}
+
+}  // namespace
 
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type) {
   return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {

@@ -20,6 +20,7 @@
 #include <iterator>
 #include <format>
 #include <string>
+#include <utility>
 
 #include <lib_core/state/state_markers.h>
 #include <lib_core/utils/flecs_utils.h>
@@ -65,6 +66,7 @@ void StoreRoomAir(flecs::world world, const RoomAirQuery& query, const std::vect
   const z13::ImmediateScope immediate(world);
   std::vector<bool> held(rooms.size());
   std::vector<flecs::entity> stale;
+  std::vector<std::pair<flecs::entity, RoomAirEntry>> changed;  // written after the walk: its table is locked
   query.each([&](flecs::entity entity, const RoomAirEntry& entry) {
     if (!std::ranges::contains(grids, entry.grid)) {
       return;
@@ -76,9 +78,12 @@ void StoreRoomAir(flecs::world world, const RoomAirQuery& query, const std::vect
     }
     held[static_cast<size_t>(found - rooms.begin())] = true;
     if (!(*found == entry)) {
-      entity.set(*found);
+      changed.emplace_back(entity, *found);
     }
   });
+  for (const auto& [entity, entry] : changed) {
+    entity.set(entry);
+  }
   std::ranges::for_each(stale, [](flecs::entity entity) { entity.destruct(); });
   for (size_t i = 0; i < rooms.size(); ++i) {
     if (!held[i]) {

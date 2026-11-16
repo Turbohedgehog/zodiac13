@@ -19,25 +19,45 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <unordered_map>
+#include <unordered_set>
 
+#include <lib_core/state/state_watch.h>
 #include <lib_core/state/world_serializer.h>
 
 namespace z13::flecs_tools {
 
 struct CachedEntity {
-  uint64_t hash {};
+  std::optional<uint64_t> hash;  // none for an entity FingerprintOf can't cover
+  TableKey table {};
   SharedEntity snapshot;
-  bool member {};  // has one of SnapshotGrouping::hashed_members
+  uint64_t seen {};  // the capture that last found it
 };
 
-// What the last CaptureState made, kept to reuse: block groups and fingerprinted ungrouped entities.
+struct GroupedEntity {
+  SnapshotGroupId group {};
+  uint64_t fingerprint {};
+  TableKey table {};
+  uint64_t seen {};  // the update that last found it
+};
+
+struct GroupIndexEntry {
+  uint64_t sum {};  // of their mixed fingerprints, so the order they are found in doesn't matter
+  std::unordered_set<flecs::entity_t> members;
+};
+
+// What the last CaptureState made, kept to reuse.
 struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
-  // Every entity with a hashed member was fingerprinted in the last capture, so the next may take them all from it.
-  bool members_cached {};
-  SharedEntities sorted_members;  // their records by name, valid while members_cached
+  std::unordered_map<flecs::entity_t, GroupedEntity> grouped;
+  std::map<SnapshotGroupId, GroupIndexEntry> index;
+  uint64_t update {};  // of the group index
+  uint64_t ungrouped_update {};
+  uint64_t layout_key {};  // of the GroupLayout the index was filed by
+  uint64_t fingerprints_made {};  // grouped entities fingerprinted, for tests and benches
+  StateWatch watch;
 };
 
 }  // namespace z13::flecs_tools

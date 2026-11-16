@@ -45,6 +45,9 @@ std::expected<std::span<std::byte>, std::string> ComponentBytes(
 std::expected<std::span<const std::byte>, std::string> ComponentBytes(
     const flecs::world& world, flecs::entity_t type, const void* value);
 
+// True when equal bytes of a `type` value mean equal encodings: no strings, entity references or opaque members.
+bool IsFlatValue(const flecs::world& world, flecs::entity_t type);
+
 // Encodes a default value of `type`, to catch member types the codec can't write.
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type);
 

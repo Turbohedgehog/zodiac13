@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <functional>
@@ -35,20 +36,11 @@ constexpr float kInFourthGroup = 35.f;
 void InstallGrouping(flecs::world& world) {
   world.set(ft::SnapshotGrouping {
       .member = world.component<Position>().id(),
-      .make_group_of =
+      .make_layout =
           [](flecs::world) {
-            return ft::GroupOf([](flecs::entity e) {
+            return ft::GroupLayout {.group_of = [](flecs::entity e) {
               return static_cast<ft::SnapshotGroupId>(e.get<Position>().x / kGroupWidth);
-            });
-          },
-      .hash_of =
-          [](flecs::entity e) {
-            const Position& position = e.get<Position>();
-            uint64_t hash = ft::HashName(std::string_view(e.name().c_str(), e.name().length()));
-            for (const float value : {position.x, position.y, position.z}) {
-              hash = ft::MixHash(hash ^ std::bit_cast<uint32_t>(value));
-            }
-            return hash;
+            }};
           },
   });
 }
@@ -67,11 +59,17 @@ StateByName Flatten(const ft::WorldSnapshot& snapshot) {
   return state;
 }
 
+ft::SharedEntity
+SharedEntityOf(const ft::WorldSnapshot& snapshot, std::string_view name) {
+  const auto found = std::ranges::find_if(snapshot.entities, [&](const ft::SharedEntity& e) { return e->name == name; });
+  return found == snapshot.entities.end() ? nullptr : *found;
+}
+
 class SnapshotGroupingTest : public ::testing::Test {
  protected:
   void SetUp() override {
     ft::RegisterStateMeta(world_);
-    ft::RegisterComponents<Position, Health>(world_);
+    ft::RegisterComponents<Position, Health, z13::tests::Label>(world_);
     InstallGrouping(world_);
     world_.observer<const Position>().event(flecs::OnSet).each([this](flecs::entity e, const Position&) {
       ++sets_[e.name().c_str()];
@@ -85,6 +83,8 @@ class SnapshotGroupingTest : public ::testing::Test {
   float XOf(std::string_view name) { return world_.lookup(std::string(name).c_str()).get<Position>().x; }
 
   ft::WorldSnapshot Capture() { return ft::CaptureState(world_).value(); }
+
+  uint64_t GroupScans() { return world_.get<ft::SnapshotGrouping>().state_->fingerprints_made; }
 
   flecs::world world_;
   std::map<std::string, int> sets_;
@@ -114,9 +114,9 @@ TEST_F(SnapshotGroupingTest, HoldsTheSameStateAsAnUngroupedCapture) {
   world_.entity("hero").add<ft::StateEntity>().set(Health {5, 5});
 
   const StateByName grouped = Flatten(Capture());
-  const auto make_group_of = std::exchange(world_.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
+  const auto make_layout = std::exchange(world_.get_mut<ft::SnapshotGrouping>().make_layout, nullptr);
   const ft::WorldSnapshot ungrouped = Capture();
-  world_.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
+  world_.get_mut<ft::SnapshotGrouping>().make_layout = make_layout;
 
   EXPECT_TRUE(ungrouped.groups.empty());
   EXPECT_EQ(grouped, Flatten(ungrouped));
@@ -141,63 +141,34 @@ TEST_F(SnapshotGroupingTest, AnUnchangedGroupIsSharedWithThePreviousCapture) {
   EXPECT_NE(second.groups[1], first.groups[1]);
 }
 
-TEST_F(SnapshotGroupingTest, AnUnchangedWorldIsNotFingerprintedAgain) {
-  int hashed = 0;
-  bool unchanged = false;
-  auto& grouping = world_.get_mut<ft::SnapshotGrouping>();
-  const auto hash_of = grouping.hash_of;
-  grouping.hash_of = [&hashed, hash_of](flecs::entity e) {
-    ++hashed;
-    return hash_of(e);
-  };
-  grouping.unchanged = [&unchanged](flecs::world) { return unchanged; };
+TEST_F(SnapshotGroupingTest, AnUnchangedWorldIsNotScannedAgain) {
   Spawn("a", kInFirstGroup);
   const ft::WorldSnapshot first = Capture();
+  const uint64_t scans = GroupScans();
 
-  hashed = 0;
-  unchanged = true;
   const ft::WorldSnapshot second = Capture();
-  EXPECT_EQ(hashed, 0);
+  EXPECT_EQ(GroupScans(), scans);
   EXPECT_EQ(second.groups, first.groups);
 
-  unchanged = false;
+  world_.lookup("a").set(Position {kAlsoInFirstGroup, 0.f, 0.f});
   Capture();
-  EXPECT_EQ(hashed, 1);
-  world_.get_mut<ft::SnapshotGrouping>().unchanged = nullptr;
+  EXPECT_EQ(GroupScans(), scans + 1);
 }
 
-// A world `unchanged` calls quiet, restored from an older snapshot: the groups of the last capture stand in for
-// a scan of the world.
-class CurrentCaptureTest : public SnapshotGroupingTest {
- protected:
-  void SetUp() override {
-    SnapshotGroupingTest::SetUp();
-    auto& grouping = world_.get_mut<ft::SnapshotGrouping>();
-    const auto hash_of = grouping.hash_of;
-    grouping.hash_of = [this, hash_of](flecs::entity e) {
-      ++hashed_;
-      return hash_of(e);
-    };
-    grouping.unchanged = [this](flecs::world) { return quiet_; };
-  }
+// Restored from an older snapshot while nothing was written since the last capture: the groups of that capture
+// stand in for a scan of the world.
+using CurrentCaptureTest = SnapshotGroupingTest;
 
-  void TearDown() override { world_.get_mut<ft::SnapshotGrouping>().unchanged = nullptr; }
-
-  int hashed_ {};
-  bool quiet_ {};
-};
-
-TEST_F(CurrentCaptureTest, RestoringAQuietWorldDoesNotFingerprintIt) {
+TEST_F(CurrentCaptureTest, RestoringAQuietWorldDoesNotScanIt) {
   Spawn("a", kInFirstGroup);
   Spawn("c", kInSecondGroup);
   const ft::WorldSnapshot snapshot = Capture();
-  quiet_ = true;
-  hashed_ = 0;
+  const uint64_t scans = GroupScans();
   sets_.clear();
 
   ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
 
-  EXPECT_EQ(hashed_, 0);
+  EXPECT_EQ(GroupScans(), scans);
   EXPECT_EQ(sets_["a"], 0);
   EXPECT_EQ(sets_["c"], 0);
 }
@@ -211,13 +182,12 @@ TEST_F(CurrentCaptureTest, RestoringAQuietWorldStillFixesTheGroupsThatDiffer) {
   world_.lookup("c").set(Position {kMovedInSecondGroup, 0.f, 0.f});
   Spawn("far", kInThirdGroup);
   Capture();
-  quiet_ = true;
-  hashed_ = 0;
+  const uint64_t scans = GroupScans();
   sets_.clear();
 
   ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
 
-  EXPECT_EQ(hashed_, 0);
+  EXPECT_EQ(GroupScans(), scans);
   EXPECT_EQ(sets_["d"], 0);
   EXPECT_FALSE(world_.lookup("b"));
   EXPECT_FALSE(world_.lookup("far"));
@@ -229,13 +199,12 @@ TEST_F(CurrentCaptureTest, RestoringAChangedWorldScansItAndTheNextCaptureEncodes
   Spawn("c", kInSecondGroup);
   const ft::WorldSnapshot snapshot = Capture();
   world_.lookup("c").set(Position {kMovedInSecondGroup, 0.f, 0.f});
-  hashed_ = 0;
+  const uint64_t scans = GroupScans();
 
   ASSERT_TRUE(ft::RestoreWorld(world_, snapshot).has_value());
-  EXPECT_GT(hashed_, 0);
+  EXPECT_GT(GroupScans(), scans);
   EXPECT_EQ(XOf("c"), kInSecondGroup);
 
-  quiet_ = true;
   EXPECT_EQ(Flatten(Capture()), Flatten(snapshot));
 }
 
@@ -286,6 +255,58 @@ TEST_F(SnapshotGroupingTest, RestoreBringsBackWhatWasRemovedFromAGroup) {
 
   ASSERT_TRUE(world_.lookup("b"));
   EXPECT_EQ(XOf("b"), kAlsoInFirstGroup);
+}
+
+TEST_F(SnapshotGroupingTest, AnUnchangedFlatUngroupedEntityIsSharedWithThePreviousCapture) {
+  world_.entity("hero").add<ft::StateEntity>().set(Health {5, 5});
+  world_.entity("other").add<ft::StateEntity>().set(Health {7, 7});
+  const ft::WorldSnapshot first = Capture();
+
+  world_.lookup("other").set(Health {6, 7});
+  const ft::WorldSnapshot second = Capture();
+
+  EXPECT_EQ(SharedEntityOf(second, "hero"), SharedEntityOf(first, "hero"));
+  EXPECT_NE(SharedEntityOf(second, "other"), SharedEntityOf(first, "other"));
+  EXPECT_EQ(Flatten(second), Flatten(ft::CaptureState(world_).value()));
+}
+
+TEST_F(SnapshotGroupingTest, AChangedValueOfAnUngroupedEntityIsCaptured) {
+  world_.entity("hero").add<ft::StateEntity>().set(Health {5, 5});
+  Capture();
+
+  world_.lookup("hero").set(Health {4, 5});
+  const ft::WorldSnapshot second = Capture();
+
+  const auto cached = Flatten(second);
+  const auto make_layout = std::exchange(world_.get_mut<ft::SnapshotGrouping>().make_layout, nullptr);
+  const auto fresh = Flatten(Capture());
+  world_.get_mut<ft::SnapshotGrouping>().make_layout = make_layout;
+  EXPECT_EQ(cached, fresh);
+  EXPECT_EQ(world_.lookup("hero").get<Health>().hp, 4);
+}
+
+TEST_F(SnapshotGroupingTest, AnUngroupedEntityWithAStringStaysCurrent) {
+  world_.entity("sign").add<ft::StateEntity>().set(z13::tests::Label {"one"});
+  const ft::WorldSnapshot first = Capture();
+
+  EXPECT_EQ(SharedEntityOf(Capture(), "sign"), SharedEntityOf(first, "sign"));
+
+  world_.lookup("sign").set(z13::tests::Label {"two"});
+  const ft::SharedEntity changed = SharedEntityOf(Capture(), "sign");
+  ASSERT_TRUE(changed);
+  EXPECT_NE(changed, SharedEntityOf(first, "sign"));
+  EXPECT_NE(changed->components, SharedEntityOf(first, "sign")->components);
+}
+
+TEST_F(SnapshotGroupingTest, AnEntityGainingAComponentIsCaptured) {
+  world_.entity("hero").add<ft::StateEntity>().set(Health {5, 5});
+  Capture();
+
+  world_.lookup("hero").set(Position {kInFirstGroup, 0.f, 0.f});
+  const ft::WorldSnapshot second = Capture();
+
+  EXPECT_EQ(SharedEntityOf(second, "hero"), nullptr);
+  ASSERT_EQ(second.groups.size(), 1u);
 }
 
 }  // namespace

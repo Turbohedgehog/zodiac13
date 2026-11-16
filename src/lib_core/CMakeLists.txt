@@ -43,11 +43,11 @@ z13_add_library(
   src/state/component_codec/value_decoder.cpp
   src/state/component_codec/value_encoder.cpp
   src/state/component_meta.cpp
-  src/state/group_bucket.cpp
   src/state/player_bound.cpp
   src/state/rollback.cpp
   src/state/snapshot_grouping.cpp
   src/state/snapshot_hash.cpp
+  src/state/state_watch.cpp
   src/state/world_json_store.cpp
   src/state/world_serializer.cpp
   src/state/world_snapshot_history.cpp

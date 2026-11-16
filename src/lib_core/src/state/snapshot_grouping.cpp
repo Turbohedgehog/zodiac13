@@ -51,4 +51,8 @@ void RegisterSnapshotGrouping(flecs::world& world) {
   world.set<SnapshotGrouping>({});
 }
 
+void PrimeSnapshotGrouping(flecs::world& world) {
+  world.get<SnapshotGrouping>().state_->watch.Refresh(world);
+}
+
 }  // namespace z13::flecs_tools
