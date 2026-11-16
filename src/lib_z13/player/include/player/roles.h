@@ -44,7 +44,10 @@ std::expected<z13::inventory::Roles, std::string> ParseRoles(std::string_view js
 z13::inventory::PlayerRole AssignRole(const z13::inventory::Roles& roles, std::span<const std::string> desired,
                                       std::span<const std::string> taken);
 
-// A comma-separated list of post names (the CrewChoice setting), blanks dropped.
+// What an empty CrewChoice asks for; not a schema default, as GCC 13 flags a long one as an overread.
+inline constexpr std::string_view kDefaultDesiredRoles = "captain,engineer,assistant";
+
+// A comma-separated list of post names (the CrewChoice setting), blanks dropped; kDefaultDesiredRoles when none is left.
 std::vector<std::string> SplitRoleNames(std::string_view list);
 
 // Gives `player` the post AssignRole picks among the posts of the players in the world and of `also_taken` (joins

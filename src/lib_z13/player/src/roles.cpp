@@ -102,7 +102,7 @@ std::vector<std::string> SplitRoleNames(std::string_view list) {
       names.push_back(std::move(name));
     }
   }
-  return names;
+  return names.empty() ? SplitRoleNames(kDefaultDesiredRoles) : names;
 }
 
 void GiveRole(flecs::entity player, std::span<const std::string> desired, std::span<const std::string> also_taken) {

@@ -76,5 +76,11 @@ TEST(RolesTest, ANamesListIsSplitByCommas) {
   EXPECT_EQ(SplitRoleNames(" captain, engineer ,,"), expected);
 }
 
+TEST(RolesTest, AnEmptyListAsksForTheDefaultPosts) {
+  const std::vector<std::string> expected {"captain", "engineer", "assistant"};
+  EXPECT_EQ(SplitRoleNames(""), expected);
+  EXPECT_EQ(SplitRoleNames(" , "), expected);
+}
+
 }  // namespace
 }  // namespace z13::gameplay

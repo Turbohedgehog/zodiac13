@@ -167,10 +167,10 @@ table McpServer {
   tags: string = "debug" (non_empty);
 }
 
-// The posts a player asks for, best first, comma-separated (assets/station/roles.json); the server decides which
+// The posts a player asks for, best first, comma-separated (assets/station/roles.json), empty for kDefaultDesiredRoles; the server decides which
 // one the player gets (docs/station-systems-plan.md, "Доступ"). Client only; a menu will set it.
 table CrewChoice {
-  desired_roles: string = "captain,engineer,assistant";
+  desired_roles: string;
 }
 
 table Settings {
