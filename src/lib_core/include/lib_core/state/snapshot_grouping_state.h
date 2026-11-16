@@ -50,6 +50,7 @@ struct GroupIndexEntry {
 // What the last CaptureState made, kept to reuse.
 struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
+  std::map<SnapshotGroupId, uint64_t> captured_keys;  // each group's index key when it was encoded
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
   std::unordered_map<flecs::entity_t, GroupedEntity> grouped;
   std::map<SnapshotGroupId, GroupIndexEntry> index;

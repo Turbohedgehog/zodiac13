@@ -229,6 +229,9 @@ void UpdateRooms(RoomMemory& memory, const GridQuery& grids, const BlockQuery& b
     const bool updated =
         UpdateGridRooms(inputs, id, resync, is_main ? memory.applied_cut : no_cut, is_main ? main_cut : no_cut,
                         is_main && cut_changed, grid.get_mut<TopologyVersion>(), cache);
+    if (updated) {
+      grid.modified<TopologyVersion>();
+    }
     if (is_main && updated) {
       memory.applied_cut = main_cut;
       // A cut world's walls would read as blocks.

@@ -287,6 +287,7 @@ void UseTool(const ToolContext& context, flecs::entity player, uint32_t player_i
   if (IsSwitchedOn(listener, context.ids.toggle_depth)) {
     state.depth = state.depth == ConduitDepth::kInside ? ConduitDepth::kOnSurface : ConduitDepth::kInside;
   }
+  tool->modified<ConduitTool>();
   if (!player.has<z13::station::BuildPermission>()) {
     return;
   }

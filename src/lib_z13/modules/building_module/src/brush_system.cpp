@@ -139,6 +139,7 @@ void ApplyBrushActions(
   }
 
   brush.spec = spec;
+  tool->modified<BlockBrush>();
 }
 
 void RegisterSystems(flecs::world world) {

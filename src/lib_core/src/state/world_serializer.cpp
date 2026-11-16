@@ -20,6 +20,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <unordered_map>
 #include <string>
@@ -268,6 +269,15 @@ uint64_t GroupFingerprintOf(const flecs::world& world, flecs::entity e, Componen
   return encoded ? HashEntitySnapshot(*encoded) : 0;
 }
 
+// What a group publishes: from the encoded values, as raw bytes of two worlds' equal components may differ (padding).
+uint64_t EncodedFingerprintOf(const std::vector<EntitySnapshot>& entities) {
+  const uint64_t sum = std::accumulate(entities.begin(), entities.end(), uint64_t {}, [](uint64_t total, const auto& e) {
+    return total + MixHash(HashEntitySnapshot(e));
+  });
+  return MixHash(sum ^ MixHash(entities.size()));
+}
+
+// What the group's members add up to in the index, to tell whether it changed since it was encoded.
 uint64_t FingerprintOfGroup(const GroupIndexEntry& group) {
   return MixHash(group.sum ^ MixHash(group.members.size()));
 }
@@ -349,15 +359,17 @@ Status EncodeGroups(
   SnapshotGroupingState& state = *grouping.state_;
   flecs::world mutable_world = world;
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
+  std::map<SnapshotGroupId, uint64_t> keys;
   for (const auto& [id, entry] : state.index) {
-    const uint64_t fingerprint = FingerprintOfGroup(entry);
+    const uint64_t key = FingerprintOfGroup(entry);
+    keys.emplace(id, key);
     if (const auto same = state.captured.find(id);
-        same != state.captured.end() && same->second->fingerprint == fingerprint) {
+        same != state.captured.end() && state.captured_keys.contains(id) && state.captured_keys.at(id) == key) {
       captured.emplace(id, same->second);
       continue;
     }
 
-    GroupSnapshot group {.id = id, .fingerprint = fingerprint};
+    GroupSnapshot group {.id = id};
     for (const flecs::entity_t member : entry.members) {
       auto entity = CaptureEntity(world, mutable_world.entity(member), components, accept_target);
       if (!entity) {
@@ -366,9 +378,11 @@ Status EncodeGroups(
       group.entities.push_back(std::move(*entity));
     }
     SortByName(group.entities);
+    group.fingerprint = EncodedFingerprintOf(group.entities);
     captured.emplace(id, std::make_shared<const GroupSnapshot>(std::move(group)));
   }
   state.captured = std::move(captured);
+  state.captured_keys = std::move(keys);
   return {};
 }
 
@@ -678,10 +692,13 @@ GroupIds MatchingGroups(const WorldSnapshot& snapshot, OptionalGrouping grouping
   if (!grouping) {
     return matching;
   }
-  const auto& index = grouping->get().state_->index;
+  const SnapshotGroupingState& state = *grouping->get().state_;
   for (const auto& group : snapshot.groups) {
-    if (const auto found = index.find(group->id);
-        found != index.end() && FingerprintOfGroup(found->second) == group->fingerprint) {
+    const auto found = state.index.find(group->id);
+    const auto mine = state.captured.find(group->id);
+    const auto key = state.captured_keys.find(group->id);
+    if (found != state.index.end() && mine != state.captured.end() && key != state.captured_keys.end() &&
+        key->second == FingerprintOfGroup(found->second) && mine->second->fingerprint == group->fingerprint) {
       matching.insert(group->id);
     }
   }
