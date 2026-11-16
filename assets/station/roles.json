@@ -1,0 +1,10 @@
+{
+  "roles": [
+    {"name": "captain", "title": "Captain", "slots": 1,
+     "access": ["bridge", "armory", "brig", "security", "engineering", "atmospherics", "medical", "science", "cargo", "tech_tunnels", "eva"]},
+    {"name": "engineer", "title": "Station engineer", "slots": 3, "access": ["engineering", "atmospherics", "tech_tunnels", "eva"]},
+    {"name": "security", "title": "Security officer", "slots": 2, "access": ["security", "brig", "armory"]},
+    {"name": "doctor", "title": "Medical doctor", "slots": 2, "access": ["medical"]},
+    {"name": "assistant", "title": "Assistant", "slots": 0, "access": []}
+  ]
+}

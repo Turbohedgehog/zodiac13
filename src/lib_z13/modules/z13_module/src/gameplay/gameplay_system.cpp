@@ -31,6 +31,8 @@
 #include <z13/components/gameplay/net.h>
 
 #include <player/gameplay_entities.h>
+#include <player/roles.h>
+#include <z13_settings/settings.h>
 
 
 namespace z13::gameplay {
@@ -64,7 +66,10 @@ void OnInit(flecs::iter it, size_t /*i*/, const gameplay::Gameplay&) {
   // Single-player and the server both play as id 0.
   gameplay::IdCounters counters = world.get<gameplay::IdCounters>();
   const uint32_t local_id = counters.last_player_id++;
-  SpawnPlayer(world, local_id);
+  const flecs::entity local_player = SpawnPlayer(world, local_id);
+  if (const auto* crew = world.try_get<CrewChoiceSettings>()) {
+    GiveRole(local_player, SplitRoleNames(crew->desired_roles));
+  }
   world.set<gameplay::IdCounters>(counters);
   world.set<gameplay::LocalPlayer>({.id = local_id});
   // Callers expect the local player ready right after this observer runs, before any

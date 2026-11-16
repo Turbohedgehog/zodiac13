@@ -49,6 +49,8 @@ struct ScheduledSessionDelta {
   std::optional<uint32_t> recipient;
   // Server-side: reserved for this join, so later joins spawn elsewhere.
   std::optional<Eigen::Vector3f> spawn_position;
+  // Server-side: the post the joiner was given, so later joins count it before it is in the world.
+  std::string role;
 };
 
 // `history` lets a rollback replay applied deltas and a joiner catch up on them.
@@ -62,14 +64,16 @@ struct ScheduledSessionDeltas {
 // The delta is sent to the clients that have `player_id` (SendToKnowing).
 void ScheduleSessionDelta(
     NetSession& session, flecs::world world, uint64_t apply_tick, SessionDelta delta, uint32_t player_id,
-    std::optional<Eigen::Vector3f> spawn_position = std::nullopt);
+    std::optional<Eigen::Vector3f> spawn_position = std::nullopt, std::string role = {});
 // A join worked out ahead: where the player will stand, so the Welcome can be made for that place.
 struct PreparedJoin {
   fbs::net::PlayerJoinedT joined;
   Eigen::Vector3f spawn_position = Eigen::Vector3f::Zero();
+  std::string role;
 };
 
-std::expected<PreparedJoin, std::string> PrepareJoin(flecs::world world, uint32_t player_id);
+std::expected<PreparedJoin, std::string> PrepareJoin(flecs::world world, uint32_t player_id,
+                                                     std::span<const std::string> desired_roles);
 void ScheduleJoin(NetSession& session, flecs::world world, uint32_t player_id, PreparedJoin join);
 // Deltas apply before same-tick commands, so the leave waits past the player's last one.
 uint64_t LeaveApplyTick(flecs::world world, uint32_t player_id);

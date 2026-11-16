@@ -38,6 +38,7 @@
 #include <z13/components/station/building.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/role.h>
 #include <z13/components/input/action_listener.h>
 #include <z13/components/input/action_map.h>
 #include <z13/components/input/input_events.h>
@@ -301,6 +302,31 @@ TEST(NetSessionTest, ThreeClientsGetSequentialIdsServerIsZero) {
   EXPECT_EQ(client_b.World().get<LocalPlayer>().id, 2u);
   EXPECT_EQ(client_c.World().get<LocalPlayer>().id, 3u);
   EXPECT_EQ(PlayerIds(server.World()), expected);
+}
+
+// The default wish is "captain,engineer,assistant" against the posts' places (1, 3, any): the server's own player holds
+// the captain's, so the first three clients get the engineers' and the fourth is left with the assistant's.
+TEST(NetSessionTest, TheServerGivesEachJoinerTheBestPostWithAPlaceLeft) {
+  auto network = std::make_shared<InMemoryNetwork>();
+  Z13TestWorld server = MakeServer(network);
+  Z13TestWorld client_a = MakeClient(network);
+  Z13TestWorld client_b = MakeClient(network);
+  Z13TestWorld client_c = MakeClient(network);
+  Z13TestWorld client_d = MakeClient(network);
+
+  const auto roles_of = [](flecs::world world) {
+    std::vector<std::string> names;
+    world.each([&names](const z13::inventory::PlayerRole& role) { names.push_back(role.name); });
+    std::ranges::sort(names);
+    return names;
+  };
+  const std::vector<std::string> expected {"assistant", "captain", "engineer", "engineer", "engineer"};
+  ASSERT_TRUE(RunNetworkUntil(
+      *network, {server, client_a, client_b, client_c, client_d}, kNetTestDeltaTime, kMaxNetTestTicks, [&] {
+        return IsConnected(client_a) && IsConnected(client_b) && IsConnected(client_c) && IsConnected(client_d) &&
+               roles_of(client_a.World()) == expected;
+      }));
+  EXPECT_EQ(roles_of(server.World()), expected);
 }
 
 TEST(NetSessionTest, ClientHasExactlyOneLocalPlayerOthersHaveNoInputListener) {

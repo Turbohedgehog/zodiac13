@@ -105,6 +105,13 @@ struct McpServerSettings : fbs::settings::McpServerT {
   explicit McpServerSettings(const fbs::settings::McpServerT& values) : fbs::settings::McpServerT(values) {}
 };
 
+struct CrewChoiceSettings : fbs::settings::CrewChoiceT {
+  using Singleton = void;
+
+  CrewChoiceSettings() : CrewChoiceSettings(SchemaDefaults<fbs::settings::CrewChoiceT>()) {}
+  explicit CrewChoiceSettings(const fbs::settings::CrewChoiceT& values) : fbs::settings::CrewChoiceT(values) {}
+};
+
 // The part of Settings a client takes from the server it joins: peers must tick alike.
 struct SessionSettings {
   double fps {};
@@ -149,7 +156,7 @@ Status AddSettingsOptions(Config& config);
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
 // Sets the world's NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-// RenderTuning, TouchLayout, LanDiscoverySettings and McpServerSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
+// RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings and CrewChoiceSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 // The settings the world runs on, read back from its singletons (a table with no singleton keeps its defaults).

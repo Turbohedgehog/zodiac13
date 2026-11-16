@@ -132,6 +132,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.mcp_server) {
     settings.mcp_server = NewDefaults<fbs::settings::McpServerT>();
   }
+  if (!settings.crew_choice) {
+    settings.crew_choice = NewDefaults<fbs::settings::CrewChoiceT>();
+  }
 }
 
 Settings WithSession(Settings settings, const SessionSettings& session) {
@@ -151,7 +154,8 @@ namespace {
 bool HasAllNestedTables(const Settings& settings) {
   return settings.core && settings.connect_timeout && settings.session_timeout && settings.net && settings.physics &&
          settings.building && settings.power && settings.door && settings.atmos && settings.visual_smoothing && settings.render &&
-         settings.touch && settings.lan_discovery && settings.mcp_server;
+         settings.touch && settings.lan_discovery && settings.mcp_server &&
+         settings.crew_choice;
 }
 
 }  // namespace
@@ -276,7 +280,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 
 void InstallSettings(flecs::world world, const Settings& settings) {
   flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-                                  RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings>(world);
+                                  RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings, CrewChoiceSettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
   }
@@ -315,6 +319,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.mcp_server) {
     world.set(McpServerSettings(*settings.mcp_server));
+  }
+  if (settings.crew_choice) {
+    world.set(CrewChoiceSettings(*settings.crew_choice));
   }
 }
 
@@ -364,6 +371,7 @@ Settings SettingsOf(flecs::world world) {
   TakeFrom<TouchLayout>(world, settings.touch);
   TakeFrom<LanDiscoverySettings>(world, settings.lan_discovery);
   TakeFrom<McpServerSettings>(world, settings.mcp_server);
+  TakeFrom<CrewChoiceSettings>(world, settings.crew_choice);
   return settings;
 }
 
@@ -416,6 +424,7 @@ Status ChangeSetting(flecs::world world, std::string_view path, std::string_view
   keep_changed(after.touch, before.touch, changed.touch);
   keep_changed(after.lan_discovery, before.lan_discovery, changed.lan_discovery);
   keep_changed(after.mcp_server, before.mcp_server, changed.mcp_server);
+  keep_changed(after.crew_choice, before.crew_choice, changed.crew_choice);
   InstallSettings(world, changed);
   return {};
 }

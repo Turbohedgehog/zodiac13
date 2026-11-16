@@ -28,6 +28,7 @@
 #include <lib_core/state/state_markers.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/time/simulation_clock.h>
+#include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/log.h>
 #include <lib_core/world/lifecycle.h>
 #include <z13/components/input/action_listener.h>
@@ -38,8 +39,10 @@
 #include <z13/components/input/input_events.h>
 #include <z13/components/input/input_phases.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/role.h>
 #include <z13/components/station/spawn_stamp.h>
 #include <input/input_config_loader.h>
+#include <player/roles.h>
 
 namespace z13::inventory {
 
@@ -78,6 +81,7 @@ bool IsSwitchedOn(const z13::input::ActionListener& listener, const std::optiona
 
 // The one item a player is given in the tick it joins.
 constexpr uint32_t kStarterToolIndex = 0;
+constexpr uint32_t kStarterPassIndex = 1;
 
 void GiveStarterKit(flecs::entity player, const Player& owner) {
   flecs::world world = player.world();
@@ -88,6 +92,13 @@ void GiveStarterKit(flecs::entity player, const Player& owner) {
       .set(Item {.kind = ItemKind::kBuildTool})
       .set(CarriedBy {.player_id = owner.id, .cell = kStarterToolCell})
       .set(z13::building::BuildTool {});
+  if (const auto* role = player.try_get<PlayerRole>()) {
+    world.entity(z13::gameplay::SpawnName("Item", stamp, kStarterPassIndex).c_str())
+        .add<z13::flecs_tools::StateEntity>()
+        .set(Item {.kind = ItemKind::kPass})
+        .set(CarriedBy {.player_id = owner.id, .cell = kStarterPassCell})
+        .set(Pass {.access = role->access});
+  }
   player.add<StarterKitGiven>();
   // SpawnPlayer gives every player one; a player made otherwise (an older save) gets it here.
   if (!player.has<Hotbar>()) {
@@ -170,12 +181,22 @@ void DropItemsOfLeftPlayers(flecs::iter& it) {
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<
       Item, ItemCaption, CarriedBy, Hotbar, StarterKitGiven, ActiveItem, InventoryActionIds, Pass,
-      AccessRequirement, AccessLock>(world);
+      AccessRequirement, AccessLock, PlayerRole, Roles>(world);
 }
 
 void RegisterPhases(flecs::world world) {
   world.component<InventoryPhase>().add(flecs::Phase).depends_on<z13::input::RemoteActionFramePhase>();
   world.component<z13::input::ApplyActionFramePhase>().depends_on<InventoryPhase>();
+}
+
+void LoadRoles(flecs::world world) {
+  const auto json = world.get<z13::Assets>().source.ReadAsset(z13::gameplay::RolesFile());
+  auto roles = json.and_then(z13::gameplay::ParseRoles);
+  if (!roles) {
+    log_error("station: no posts for the crew: {}", roles.error());
+    return;
+  }
+  world.set(std::move(*roles));
 }
 
 // One phase, in this order: the kit, then the picks (the tool key needs the kit's tool), then
@@ -232,6 +253,7 @@ void InventorySystem::Register(flecs::world& world) {
   OnRegisterComponents(world, RegisterComponents);
   OnInitPhases(world, RegisterPhases);
   OnInitSystems(world, RegisterSystems);
+  OnInitSystems(world, LoadRoles);
 }
 
 }  // namespace z13::inventory

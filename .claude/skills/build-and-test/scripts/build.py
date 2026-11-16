@@ -60,7 +60,7 @@ def run(args: argparse.Namespace) -> int:
     repo = repo_root()
     if in_proot():
         # A new vcpkg port built in parallel during a configure has hung PRoot sessions.
-        os.environ.setdefault("VCPKG_MAX_CONCURRENCY", "1")
+        os.environ.setdefault("VCPKG_MAX_CONCURRENCY", "2")
     if configure_if_needed(args, repo) != 0:
         return 0
     build = ["cmake", "--build", args.build_dir, f"-j{jobs()}"]

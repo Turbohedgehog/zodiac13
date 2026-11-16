@@ -181,7 +181,7 @@ Status HandleClientHello(
 
   session.BindPlayer(connection, player_id);
   log_info("NetSession(server): connection {} joins as player {}", connection, player_id);
-  auto join = PrepareJoin(world, player_id);
+  auto join = PrepareJoin(world, player_id, hello.desired_roles);
   if (!join) {
     return std::unexpected(join.error());
   }
