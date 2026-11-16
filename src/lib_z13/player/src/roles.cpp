@@ -22,23 +22,14 @@
 #include <unordered_set>
 #include <vector>
 
-#include <rfl.hpp>
-#include <rfl/json.hpp>
+#include <flatbuffers/idl.h>
+#include <flatbuffers/reflection.h>
+
+#include <roles_generated.h>
 
 namespace z13::gameplay {
 
 namespace {
-
-struct RoleJson {
-  std::string name;
-  std::string title;
-  std::vector<std::string> access;
-  uint32_t slots {};
-};
-
-struct RolesJson {
-  std::vector<RoleJson> roles;
-};
 
 std::unexpected<std::string> Error(std::string message) {
   return std::unexpected(std::format("roles: {}", message));
@@ -55,13 +46,19 @@ std::filesystem::path RolesFile() {
 }
 
 std::expected<z13::inventory::Roles, std::string> ParseRoles(std::string_view json) {
-  const auto parsed = rfl::json::read<RolesJson, rfl::DefaultIfMissing>(std::string(json));
-  if (!parsed) {
-    return Error(parsed.error().what());
+  flatbuffers::Parser parser;
+  if (!parser.Deserialize(reflection::GetSchema(fbs::roles::RolesBinarySchema::data()))) {
+    return Error("failed to deserialize the binary schema");
   }
+  if (!parser.Parse(std::string(json).c_str())) {
+    return Error(parser.error_);
+  }
+  fbs::roles::RolesT parsed;
+  fbs::roles::GetRoles(parser.builder_.GetBufferPointer())->UnPackTo(&parsed);
   z13::inventory::Roles roles;
   std::unordered_set<std::string> names;
-  for (const RoleJson& entry : parsed->roles) {
+  for (const auto& entry_ptr : parsed.roles) {
+    const fbs::roles::RoleT& entry = *entry_ptr;
     if (entry.name.empty() || !names.insert(entry.name).second) {
       return Error(std::format("'{}' is nameless or repeats", entry.name));
     }
