@@ -44,6 +44,7 @@ void ReportView::SetText(const std::string& text) {
 void ReportView::SetLines(std::vector<std::string> lines, std::vector<ImU32> colors) {
   lines_ = std::move(lines);
   colors_ = std::move(colors);
+  laid_width_.reset();
   selection_.reset();
   gesture_ = Gesture::kNone;
 }
@@ -56,10 +57,26 @@ std::string ReportView::Selection() const {
   return selection_ ? z13::JoinLines(lines_, selection_->first, selection_->last) : std::string();
 }
 
-size_t ReportView::LineAt(float y, const ImVec2& origin, float line_height) const {
-  const auto last = static_cast<float>(std::max<size_t>(lines_.size(), 1) - 1);
-  const float line = std::clamp((y - origin.y) / line_height, 0.f, last);
-  return static_cast<size_t>(line);
+void ReportView::Layout(float wrap_width, float line_height) {
+  if (laid_width_ == wrap_width) {
+    return;
+  }
+  tops_.assign(1, 0.f);
+  for (const std::string& line : lines_) {
+    const float height =
+        ImGui::CalcTextSize(line.c_str(), line.c_str() + line.size(), false, wrap_width).y;
+    tops_.push_back(tops_.back() + std::max(height, line_height));
+  }
+  laid_width_ = wrap_width;
+}
+
+size_t ReportView::LineAt(float y, const ImVec2& origin) const {
+  if (lines_.empty()) {
+    return 0;
+  }
+  const auto after = std::upper_bound(tops_.begin(), tops_.end(), y - origin.y);
+  const auto index = static_cast<size_t>(std::distance(tops_.begin(), after));
+  return std::clamp<size_t>(index == 0 ? 0 : index - 1, 0, lines_.size() - 1);
 }
 
 void ReportView::ScrollNearTheEdge(float y) {
@@ -73,7 +90,7 @@ void ReportView::ScrollNearTheEdge(float y) {
   }
 }
 
-void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
+void ReportView::HandleGesture(const ImVec2& origin) {
   const ImGuiIO& io = ImGui::GetIO();
   if (gesture_ == Gesture::kNone && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
     gesture_ = Gesture::kPressed;
@@ -85,14 +102,14 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
   switch (gesture_) {
     case Gesture::kPressed:
       if (!down) {
-        const bool on_text = io.MousePos.y < origin.y + static_cast<float>(lines_.size()) * line_height;
-        selection_ = on_text ? z13::SelectionAfterTap(selection_, LineAt(io.MousePos.y, origin, line_height))
+        const bool on_text = io.MousePos.y < origin.y + TextHeight();
+        selection_ = on_text ? z13::SelectionAfterTap(selection_, LineAt(io.MousePos.y, origin))
                              : std::nullopt;
         gesture_ = Gesture::kNone;
       } else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         gesture_ = Gesture::kScrolling;
       } else if (io.MouseDownDuration[ImGuiMouseButton_Left] >= kLongPressSeconds) {
-        anchor_ = LineAt(io.MousePos.y, origin, line_height);
+        anchor_ = LineAt(io.MousePos.y, origin);
         selection_ = z13::LineSelection {.first = anchor_, .last = anchor_};
         gesture_ = Gesture::kSelecting;
       }
@@ -103,7 +120,7 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
       gesture_ = down ? Gesture::kScrolling : Gesture::kNone;
       break;
     case Gesture::kSelecting:
-      selection_ = z13::LineSelection {.first = anchor_, .last = LineAt(io.MousePos.y, origin, line_height)};
+      selection_ = z13::LineSelection {.first = anchor_, .last = LineAt(io.MousePos.y, origin)};
       ScrollNearTheEdge(io.MousePos.y);
       gesture_ = down ? Gesture::kSelecting : Gesture::kNone;
       break;
@@ -113,27 +130,29 @@ void ReportView::HandleGesture(const ImVec2& origin, float line_height) {
 }
 
 void ReportView::Draw(const ImVec2& size) {
-  if (ImGui::BeginChild(id_.c_str(), size, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar)) {
+  if (ImGui::BeginChild(id_.c_str(), size, ImGuiChildFlags_Borders)) {
     at_end_ = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - kEndTolerance;
-    // Lines touch, so a line's place is its index times the text height.
+    // Lines touch, so a line's place is its offset in tops_.
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.f});
     const float line_height = ImGui::GetTextLineHeight();
+    Layout(ImGui::GetContentRegionAvail().x, line_height);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    HandleGesture(origin, line_height);
+    HandleGesture(origin);
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const float left = ImGui::GetWindowPos().x;
     const float right = left + ImGui::GetWindowWidth();
     for (size_t i = 0; i < lines_.size(); ++i) {
       if (selection_ && i >= selection_->Low() && i <= selection_->High()) {
-        const float top = origin.y + static_cast<float>(i) * line_height;
-        draw->AddRectFilled({left, top}, {right, top + line_height}, kSelectionColor);
+        draw->AddRectFilled({left, origin.y + tops_[i]}, {right, origin.y + tops_[i + 1]}, kSelectionColor);
       }
       const std::string& line = lines_[i];
       const bool coloured = i < colors_.size();
       if (coloured) {
         ImGui::PushStyleColor(ImGuiCol_Text, colors_[i]);
       }
+      ImGui::PushTextWrapPos(0.f);
       ImGui::TextUnformatted(line.c_str(), line.c_str() + line.size());
+      ImGui::PopTextWrapPos();
       if (coloured) {
         ImGui::PopStyleColor();
       }

@@ -29,6 +29,8 @@ namespace z13::raylib {
 struct UploadedSceneMesh {
   std::shared_ptr<::Model> model;
   uint64_t revision {};
+  z13::station::GridId grid = z13::station::kMainGrid;
+  bool emissive {};
   // In meters.
   Eigen::AlignedBox3f bounds;
 };
@@ -36,7 +38,7 @@ struct UploadedSceneMesh {
 class SceneMeshes::State {
  public:
   void Sync(std::span<const SceneMeshEntry> entries, ::Shader lighting_shader);
-  size_t Draw(const ViewCulling& culling, const Lighting& lighting) const;
+  size_t Draw(const ViewCulling& culling, const Lighting& lighting, const GridDrawHook& before_grid) const;
   size_t Count() const { return uploaded_.size(); }
 
  private:

@@ -39,8 +39,13 @@ struct ConduitLook {
   float thickness_cells {};
   // The pose of the run's grid the mesh was set in the world by.
   Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+  // The ConduitCells generation it was built for; not compared.
+  uint64_t generation {};
 
-  bool operator==(const ConduitLook&) const = default;
+  bool SameLook(const ConduitLook& other) const {
+    return conduit == other.conduit && corners == other.corners && color == other.color &&
+           thickness_cells == other.thickness_cells && pose == other.pose;
+  }
 };
 
 }  // namespace z13::conduit_render

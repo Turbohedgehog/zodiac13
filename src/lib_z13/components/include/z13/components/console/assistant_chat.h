@@ -26,8 +26,18 @@
 
 namespace z13::console {
 
+// How far a line of the player's got: said, given to a client that follows the chat, looked at by the assistant.
+enum class Delivery : std::uint8_t { kSent, kDelivered, kSeen };
+
 struct ChatLine {
   bool from_player {};
+  std::string text;
+  std::uint64_t id {};
+  Delivery delivery {};
+};
+
+struct UnsentLine {
+  std::uint64_t id {};
   std::string text;
 };
 
@@ -39,7 +49,8 @@ struct AssistantChat {
   std::deque<ChatLine> lines;
   // Grows with every line: a reader redraws only when it changed (the lines stop growing at kChatCapacity).
   std::uint64_t revision {};
-  std::vector<std::string> unsent;
+  std::vector<UnsentLine> unsent;
+  std::uint64_t next_id {};
   bool listening {};  // someone follows the chat; set every frame by the debug server
 };
 
@@ -47,6 +58,7 @@ struct AssistantChat {
 inline constexpr std::size_t kChatCapacity = 200;
 
 inline void AddChatLine(AssistantChat& chat, ChatLine line) {
+  line.id = chat.next_id++;
   chat.lines.push_back(std::move(line));
   ++chat.revision;
   if (chat.lines.size() > kChatCapacity) {
@@ -56,11 +68,32 @@ inline void AddChatLine(AssistantChat& chat, ChatLine line) {
 
 // The player's line: shown now, given to the assistant when one follows the chat.
 inline void SayToAssistant(AssistantChat& chat, std::string text) {
-  chat.unsent.push_back(text);
+  chat.unsent.push_back({.id = chat.next_id, .text = text});
   AddChatLine(chat, {.from_player = true, .text = std::move(text)});
 }
 
+// The line was given to a client; a line already scrolled out of the chat is ignored.
+inline void MarkDelivered(AssistantChat& chat, std::uint64_t id) {
+  for (ChatLine& line : chat.lines) {
+    if (line.id == id && line.delivery == Delivery::kSent) {
+      line.delivery = Delivery::kDelivered;
+      ++chat.revision;
+    }
+  }
+}
+
+inline void MarkSeen(AssistantChat& chat) {
+  for (ChatLine& line : chat.lines) {
+    if (line.from_player && line.delivery == Delivery::kDelivered) {
+      line.delivery = Delivery::kSeen;
+      ++chat.revision;
+    }
+  }
+}
+
+// An answer shows the assistant read what came before it.
 inline void AssistantSays(AssistantChat& chat, std::string text) {
+  MarkSeen(chat);
   AddChatLine(chat, {.from_player = false, .text = std::move(text)});
 }
 

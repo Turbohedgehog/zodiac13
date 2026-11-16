@@ -66,6 +66,16 @@ std::vector<z13::station::Block> CollectMainGridBlocks(const BlockQuery& query) 
   return blocks;
 }
 
+std::map<z13::station::GridId, std::vector<z13::station::Block>> CollectDistrictBlocks(const BlockQuery& query) {
+  std::map<z13::station::GridId, std::vector<z13::station::Block>> by_grid;
+  query.each([&by_grid](const z13::station::Block& block) {
+    if (block.grid != z13::station::kMainGrid) {
+      by_grid[block.grid].push_back(block);
+    }
+  });
+  return by_grid;
+}
+
 void SyncBlockChunks(BlockChunks& chunks, const BlockQuery& blocks, const z13::station::GridPoses& poses,
                      const z13::RenderTuning& tuning, BlockMeshes::OptionalPalette palette,
                      const std::vector<std::string>& replaced, std::vector<std::string>& synced_replaced) {

@@ -61,26 +61,28 @@ void DrawBlock(const SingleBlockDrawing& drawing, const z13::station::Block& blo
 constexpr std::array kAxisBits {1, 2, 4};
 constexpr int kBoxCorners = 1 << kAxisBits.size();
 
+// Plain floats, not Eigen: a Debug build keeps every Eigen temporary, and a station has thousands of boxes.
+struct Corner {
+  float x {};
+  float y {};
+  float z {};
+};
+
 // The 12 edges of a box in world coordinates, straight into the line batch: no matrix
 // stack, whose state this renderer sets by hand (BeginScene3D).
-void AddBoxEdges(const Eigen::Vector3f& low, const Eigen::Vector3f& high) {
+void AddBoxEdges(const Corner& low, const Corner& high) {
   const auto corner = [&](int index) {
-    Eigen::Vector3f point = low;
-    for (size_t axis = 0; axis < kAxisBits.size(); ++axis) {
-      if ((index & kAxisBits[axis]) != 0) {
-        point[static_cast<Eigen::Index>(axis)] = high[static_cast<Eigen::Index>(axis)];
-      }
-    }
-    return point;
+    return Corner {(index & kAxisBits[0]) != 0 ? high.x : low.x, (index & kAxisBits[1]) != 0 ? high.y : low.y,
+                   (index & kAxisBits[2]) != 0 ? high.z : low.z};
   };
   // Corners differing in exactly one bit are joined.
   for (int index = 0; index < kBoxCorners; ++index) {
     for (const int bit : kAxisBits) {
       if ((index & bit) == 0) {
-        const Eigen::Vector3f from = corner(index);
-        const Eigen::Vector3f to = corner(index | bit);
-        rlVertex3f(from.x(), from.y(), from.z());
-        rlVertex3f(to.x(), to.y(), to.z());
+        const Corner from = corner(index);
+        const Corner to = corner(index | bit);
+        rlVertex3f(from.x, from.y, from.z);
+        rlVertex3f(to.x, to.y, to.z);
       }
     }
   }
@@ -96,17 +98,20 @@ void DrawOverlayLines(std::span<const z13::station::OverlayBox> boxes,
   rlSetTexture(rlGetTextureIdDefault());
   rlDisableDepthTest();
   rlBegin(RL_LINES);
+  constexpr float kCell = z13::station::kCellSize;
   for (const z13::station::OverlayBox& box : boxes) {
     rlColor4ub(box.color[0], box.color[1], box.color[2], box.color[3]);
-    AddBoxEdges(box.min.cast<float>() * z13::station::kCellSize,
-                (box.min + box.extent).cast<float>() * z13::station::kCellSize);
+    const Corner low {static_cast<float>(box.min.x()) * kCell, static_cast<float>(box.min.y()) * kCell,
+                      static_cast<float>(box.min.z()) * kCell};
+    const Corner high {static_cast<float>(box.min.x() + box.extent.x()) * kCell,
+                       static_cast<float>(box.min.y() + box.extent.y()) * kCell,
+                       static_cast<float>(box.min.z() + box.extent.z()) * kCell};
+    AddBoxEdges(low, high);
   }
   for (const z13::station::OverlaySegment& segment : segments) {
     rlColor4ub(segment.color[0], segment.color[1], segment.color[2], segment.color[3]);
-    const Eigen::Vector3f from = segment.a * z13::station::kCellSize;
-    const Eigen::Vector3f to = segment.b * z13::station::kCellSize;
-    rlVertex3f(from.x(), from.y(), from.z());
-    rlVertex3f(to.x(), to.y(), to.z());
+    rlVertex3f(segment.a.x() * kCell, segment.a.y() * kCell, segment.a.z() * kCell);
+    rlVertex3f(segment.b.x() * kCell, segment.b.y() * kCell, segment.b.z() * kCell);
   }
   rlEnd();
   rlDrawRenderBatchActive();

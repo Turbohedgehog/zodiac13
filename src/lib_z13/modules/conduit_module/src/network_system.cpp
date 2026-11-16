@@ -54,6 +54,7 @@ struct BuildInputs {
   std::vector<z13::station::Dock> docks;
   // The switches that were on.
   std::vector<flecs::entity_t> closed;
+  uint64_t restores {};
   bool built {};
 };
 
@@ -151,9 +152,9 @@ void RegisterSystems(flecs::world world) {
 
   const auto reader = std::make_shared<BlockChangeReader>(world);
   const auto inputs = std::make_shared<BuildInputs>();
-  const auto conduits = world.query<const Conduit>();
-  const auto switches = world.query<const z13::station::SwitchState>();
-  const auto docks = world.query<const z13::station::Dock>();
+  const auto conduits = world.query_builder<const Conduit>().detect_changes().build();
+  const auto switches = world.query_builder<const z13::station::SwitchState>().detect_changes().build();
+  const auto docks = world.query_builder<const z13::station::Dock>().detect_changes().build();
   world.system<StationNetworks, const ConduitKinds, const z13::building::primitives::BlockPalette,
                const z13::flecs_tools::WorldRestores, const z13::flecs_tools::SimulationClock>(
            "NetworkSystem::Update")
@@ -174,16 +175,22 @@ void RegisterSystems(flecs::world world) {
             batch.resync || std::ranges::any_of(batch.changes, [&palette](const z13::station::BlockChange& change) {
               return HasPort(palette, change.block);
             });
+        const bool inputs_touched = conduits.changed() || switches.changed() || docks.changed();
+        if (inputs->built && !port_changed && !inputs_touched && inputs->restores == restores.count) {
+          return;
+        }
         std::vector<Conduit> sorted = SortedConduits(conduits);
         std::vector<z13::station::Dock> sorted_docks = SortedDocks(docks);
         std::vector<flecs::entity_t> closed = ClosedSwitches(switches);
         if (inputs->built && !port_changed && sorted == inputs->conduits && sorted_docks == inputs->docks &&
             closed == inputs->closed) {
+          inputs->restores = restores.count;
           return;
         }
         *inputs = {.conduits = std::move(sorted),
                    .docks = std::move(sorted_docks),
                    .closed = std::move(closed),
+                   .restores = restores.count,
                    .built = true};
         stations.networks = Build(conduits, reader->Blocks(), inputs->docks, kinds, palette);
         ++stations.generation;

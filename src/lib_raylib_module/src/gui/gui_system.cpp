@@ -35,6 +35,7 @@
 #include <raylib.h>
 #include <rlgl.h>
 
+#include <console_input/console_session.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/enum_cycle.h>
 #include <lib_core/utils/flecs_utils.h>
@@ -124,6 +125,8 @@ void InitImGui(const SdlPlatform& platform, const z13::Assets& assets, GuiState&
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGui::GetIO().IniFilename = nullptr;
+  // Ctrl+Tab switches the console's tabs; ImGui's window switcher on the same keys comes with keyboard navigation.
+  ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
   if (const Status font = gui::AddUiFont(assets.source, state.font_data); !font) {
     log_warn("[gui] interface font: {}; the default one has no Cyrillic", font.error());
   }
@@ -305,6 +308,17 @@ void RegisterSystems(flecs::world world) {
         gui::DrawBuildInfo();
         gui::DrawConsole(world, console, platform_data.platform->Window(), gui::IsTouchScreen(touch));
         EndImGuiFrame();
+      });
+
+  // Immediate, so the commands the console typed (which make entities) don't write inside a drawing system.
+  world.system<gui::ConsoleState>("GuiSystem::RunConsoleLines")
+      .kind(flecs::PreFrame)
+      .immediate()
+      .each([](flecs::iter& it, size_t, gui::ConsoleState& console) {
+        const std::vector<std::string> lines = std::exchange(console.queued_lines, {});
+        for (const std::string& line : lines) {
+          console_input::RunConsoleLine(it.world(), line);
+        }
       });
 
   // The action blocks its frame, so it waits for one that showed the loading screen.

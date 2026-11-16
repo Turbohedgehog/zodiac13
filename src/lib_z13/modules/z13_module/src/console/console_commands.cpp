@@ -76,6 +76,14 @@ struct ConsoleSayCommand {
   std::string text;
 };
 
+struct ConsoleSeenCommand {
+  using Command = z13::Command<std::string,
+                               "Marks what the player said in the assistant tab as seen, without an answer.",
+                               Tags<kDebugTag>>;
+
+  int unused {};
+};
+
 std::string UsageOf(const std::string& name, const CommandEntry& entry) {
   std::string usage = name;
   for (const CommandField& field : entry.fields) {
@@ -94,7 +102,7 @@ std::string FieldsOf(const CommandEntry& entry) {
 
 void RegisterComponents(flecs::world world) {
   flecs_tools::RegisterComponents<console::AssistantChat, HelpCommand, ClearCommand, QuitCommand, ExitCommand,
-                                  EchoCommand, ConsoleSayCommand>(world);
+                                  EchoCommand, ConsoleSayCommand, ConsoleSeenCommand>(world);
 }
 
 void RegisterSystems(flecs::world world) {
@@ -132,6 +140,12 @@ void RegisterSystems(flecs::world world) {
       world, "ConsoleCommands::Say", [](auto& builder) { builder.template write<console::AssistantChat>(); },
       [](flecs::iter& it, size_t, const ConsoleSayCommand& command, ReplyOf<ConsoleSayCommand>& reply) {
         console::AssistantSays(it.world().get_mut<console::AssistantChat>(), command.text);
+        reply.Succeed("");
+      });
+  CommandSystem<ConsoleSeenCommand>(
+      world, "ConsoleCommands::Seen", [](auto& builder) { builder.template write<console::AssistantChat>(); },
+      [](flecs::iter& it, size_t, const ConsoleSeenCommand&, ReplyOf<ConsoleSeenCommand>& reply) {
+        console::MarkSeen(it.world().get_mut<console::AssistantChat>());
         reply.Succeed("");
       });
   CommandSystem<QuitCommand>(world, "ConsoleCommands::Quit",

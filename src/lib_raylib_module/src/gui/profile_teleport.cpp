@@ -36,10 +36,7 @@ float WrapDegrees(float degrees) {
   return degrees - (kTurn * std::round(degrees / kTurn));
 }
 
-}  // namespace
-
-z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& position_m,
-                                std::optional<float> height_m, const LookTarget& look) {
+std::expected<flecs::entity, std::string> OwnPlayer(flecs::world world) {
   const auto* local = world.try_get<z13::gameplay::LocalPlayer>();
   if (local == nullptr || !local->id) {
     return std::unexpected("there is no local player");
@@ -63,6 +60,18 @@ z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& posit
   if (players > 1) {
     return std::unexpected("other players are in the game");
   }
+  return *own;
+}
+
+}  // namespace
+
+z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& position_m,
+                                std::optional<float> height_m, const LookTarget& look) {
+  const auto found = OwnPlayer(world);
+  if (!found) {
+    return std::unexpected(found.error());
+  }
+  const std::optional<flecs::entity> own = *found;
   Eigen::Matrix4f transform = own->get<Eigen::Matrix4f>();
   const float height = height_m.value_or(z13::math::ExtractTranslation<float>(transform).z());
   z13::math::SetTranslation(Eigen::Vector3f(position_m.x(), position_m.y(), height), transform);
@@ -79,6 +88,20 @@ z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& posit
   motion.fall_speed = 0.f;
   own->set(motion);
   return {};
+}
+
+std::expected<bool, std::string> SetNoClip(flecs::world world, std::optional<bool> enabled) {
+  const auto own = OwnPlayer(world);
+  if (!own) {
+    return std::unexpected(own.error());
+  }
+  const bool on = enabled.value_or(!own->has<z13::gameplay::NoClip>());
+  if (on) {
+    own->add<z13::gameplay::NoClip>();
+  } else {
+    own->remove<z13::gameplay::NoClip>();
+  }
+  return on;
 }
 
 }  // namespace z13::raylib::gui

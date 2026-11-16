@@ -1,7 +1,8 @@
 """Prints what the player says in the game console's Assistant tab, one line per message.
 
 Run it under Monitor, so each line reaches the assistant's session as a notification; the answer goes back with
-the `console_say` command (docs/console-plan.md). It subscribes to the debug channel and reconnects when the game
+the `console_say` command, which also marks the lines as seen; `console_seen` marks them without an answer
+(docs/console-plan.md). It subscribes to the debug channel and reconnects when the game
 restarts.
 
     python3 tools/mcp/console_listen.py [--port 28123]

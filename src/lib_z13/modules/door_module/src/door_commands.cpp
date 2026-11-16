@@ -59,10 +59,10 @@ struct DoorInfo {
 
 struct DoorsCommand {
   using Command = z13::Command<std::vector<DoorInfo>,
-                               "Lists the main grid's doors: name, cell, mode, how far open (0..1), whether it is "
+                               "Lists the doors of grid `grid` (0, the main grid, by default): name, cell, mode, how far open (0..1), whether it is "
                                "asked to open and what interlock holds it, if any.",
                                Tags<kDebugTag>>;
-  int unused {};
+  int grid {};
 };
 
 struct SetDoorCommand {
@@ -91,11 +91,11 @@ std::expected<flecs::entity, std::string> MainGrid(flecs::world world) {
   return main_grid;
 }
 
-void ListDoors(flecs::world world, ReplyOf<DoorsCommand>& reply) {
+void ListDoors(flecs::world world, const DoorsCommand& request, ReplyOf<DoorsCommand>& reply) {
   std::vector<DoorInfo> listed;
   world.query<const z13::station::Block, const DoorState>().each(
-      [&listed, &world](flecs::entity entity, const z13::station::Block& block, const DoorState& state) {
-        if (block.grid != z13::station::kMainGrid) {
+      [&listed, &request](flecs::entity entity, const z13::station::Block& block, const DoorState& state) {
+        if (block.grid != static_cast<z13::station::GridId>(request.grid)) {
           return;
         }
         listed.push_back({.name = std::string(entity.name().c_str()),
@@ -147,8 +147,8 @@ void RegisterDoorCommandComponents(flecs::world world) {
 
 void RegisterDoorCommandSystems(flecs::world world) {
   CommandSystem<DoorsCommand>(world, "DoorCommands::List",
-                              [](flecs::iter& it, size_t, const DoorsCommand&, ReplyOf<DoorsCommand>& reply) {
-                                ListDoors(it.world(), reply);
+                              [](flecs::iter& it, size_t, const DoorsCommand& request, ReplyOf<DoorsCommand>& reply) {
+                                ListDoors(it.world(), request, reply);
                               });
   CommandSystem<SetDoorCommand>(
       world, "DoorCommands::Set", [](auto& builder) { builder.immediate(); },

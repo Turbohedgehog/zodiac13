@@ -84,6 +84,7 @@ enum WallDiagonal : ubyte {
 enum OpeningKind : ubyte {
   Door,
   Window,
+  Passage,
 }
 
 // A gap in a wall (z13::station::WallOpening): `offset` and `width` in wall steps from node a, `sill`

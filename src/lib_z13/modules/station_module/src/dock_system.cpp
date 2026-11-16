@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -107,7 +108,33 @@ std::optional<EndRoom> RoomOf(const GridQuery& grids, const DockEnd& end) {
   return found;
 }
 
-void LinkDocks(DockLinks& links, const GridQuery& grids, const DockQuery& docks) {
+using LinkBasis = std::vector<std::pair<GridId, std::optional<uint64_t>>>;
+
+LinkBasis BasisOf(const GridQuery& grids) {
+  LinkBasis basis;
+  grids.each([&basis](const Grid& grid, const RoomCache& cache) {
+    basis.emplace_back(grid.id, cache.CurrentFingerprint());
+  });
+  std::ranges::sort(basis);
+  return basis;
+}
+
+// A link without both doors may be one whose door block has no DoorState yet, so it is made again.
+bool HasLiveDoors(const flecs::world& world, const std::vector<DockLink>& list) {
+  return std::ranges::all_of(list, [&world](const DockLink& link) {
+    return link.door_a.door != 0 && link.door_b.door != 0 && world.is_alive(link.door_a.door) &&
+           world.is_alive(link.door_b.door);
+  });
+}
+
+void LinkDocks(const flecs::world& world, DockLinks& links, const GridQuery& grids, const DockQuery& docks, std::optional<LinkBasis>& made_from) {
+  // Finding each end's nearest door walks the portals, which a quiet frame has no need of.
+  LinkBasis basis = BasisOf(grids);
+  const bool docks_changed = docks.changed();
+  if (!docks_changed && made_from == basis && HasLiveDoors(world, links.list)) {
+    return;
+  }
+  made_from = std::move(basis);
   std::vector<DockLink> list;
   docks.each([&](flecs::entity dock, const Dock& ends) {
     const auto a = RoomOf(grids, ends.a);
@@ -135,7 +162,8 @@ void RegisterPipeline(flecs::world world) {
 void RegisterSystems(flecs::world world) {
   world.set(DockLinks {});
   const GridQuery grids = world.query<const Grid, const RoomCache>();
-  const DockQuery docks = world.query<const Dock>();
+  const DockQuery docks = world.query_builder<const Dock>().detect_changes().build();
+  const auto made_from = std::make_shared<std::optional<LinkBasis>>();
   world.system<DockLinks>("DockSystem::Link")
       .kind<DockPhase>()
       .read<Grid>()
@@ -143,7 +171,9 @@ void RegisterSystems(flecs::world world) {
       .read<Dock>()
       .read<BlockIndex>()
       .read<DoorState>()
-      .each([grids, docks](DockLinks& links) { LinkDocks(links, grids, docks); });
+      .each([grids, docks, made_from](flecs::iter& it, size_t, DockLinks& links) {
+        LinkDocks(it.world(), links, grids, docks, *made_from);
+      });
 }
 
 }  // namespace

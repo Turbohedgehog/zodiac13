@@ -19,9 +19,11 @@
 #include <chrono>
 #include <iterator>
 #include <memory>
+#include <set>
 #include <optional>
 #include <string>
 #include <utility>
+#include <tuple>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -67,6 +69,7 @@
 #include "block_chunks.h"
 #include "block_meshes.h"
 #include "cell_lighting.h"
+#include "grid_cell_lights.h"
 #include "chunk_sync.h"
 #include "frame_lighting.h"
 #include "frame_profile.h"
@@ -97,7 +100,7 @@ constexpr std::chrono::seconds kFrameLogInterval {1};
 
 void RegisterComponents(flecs::world world) {
   z13::flecs_tools::RegisterComponents<RaylibCamera, Skybox, RenderModel, AvatarModel, Lighting, BlockMeshes,
-                                         BlockChunks, ShadowMaps, CellLighting, RenderStats, RenderTour, StationProps,
+                                         BlockChunks, ShadowMaps, CellLighting, GridCellLights, RenderStats, RenderTour, StationProps,
                                          FrameProfile, SceneTarget, z13::VisualSmoothing, z13::RenderTuning>(world);
 }
 
@@ -184,11 +187,26 @@ void DrawBackground(const flecs::world& world) {
   }
 }
 
+// Sets the light the chunks of `grid` are lit by: the main grid's, or the grid's own baked in its cells.
+GridDrawHook LightOfGrid(const flecs::world& world, const Lighting& lighting, const z13::station::GridPoses& poses) {
+  const auto* main = world.try_get<CellLighting>();
+  const auto* districts = world.try_get<GridCellLights>();
+  if (main == nullptr || districts == nullptr || !world.has<z13::station::StationMode>() || !lighting.res) {
+    return [](z13::station::GridId) {};
+  }
+  return [main, districts, &lighting, &poses](z13::station::GridId grid) {
+    const CellLighting& light = grid == z13::station::kMainGrid ? *main : districts->Of(grid);
+    const Eigen::Matrix4f from_world = z13::station::PoseOfGrid(poses, grid).inverse().matrix();
+    light.Upload(*lighting.res->shader, lighting.res->lights, from_world);
+    light.Bind();
+  };
+}
+
 // Players and opaque chunks first; then glass from the farthest and previews, blended over
 // them and without writing depth, so nothing behind them is hidden.
 void DrawScene(const flecs::world& world, const BrushQuery& brushes, const RemotePlayerQuery& remote_players,
                const GhostQuery& ghosts, const z13::DrawnPoses& drawn, const SceneView& view,
-               const z13::RenderTuning& tuning, RenderStats& stats) {
+               const z13::RenderTuning& tuning, const z13::station::GridPoses& grid_poses, RenderStats& stats) {
   stats = {};
   stats.times.players_ms = MsOf([&] { DrawRemotePlayers(world, remote_players, ghosts, drawn, view.culling, tuning.avatar_radius_m); });
   if (!world.has<BlockMeshes>() || !world.has<BlockChunks>() || !world.has<Lighting>()) {
@@ -198,22 +216,24 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   const SingleBlockDrawing drawing {
       .meshes = world.get_mut<BlockMeshes>(), .lighting = lighting, .palette = PaletteOf(world)};
   const BlockChunks& chunks = world.get<BlockChunks>();
+  const GridDrawHook before_grid = LightOfGrid(world, lighting, grid_poses);
   stats.times.opaque_ms = MsOf([&] {
-    chunks.DrawOpaque(view.culling, lighting, stats);
+    chunks.DrawOpaque(view.culling, lighting, stats, before_grid);
     if (const auto* props = world.try_get<StationProps>()) {
       // The blocks leave the checker on, which replaces every texture.
       StopChecker(lighting);
       props->Draw(view.culling);
     }
     if (const auto* scene_meshes = world.try_get<SceneMeshes>()) {
-      scene_meshes->Draw(view.culling, lighting);
+      scene_meshes->Draw(view.culling, lighting, before_grid);
     }
     rlDrawRenderBatchActive();
   });
 
   rlDisableDepthMask();
   stats.times.glass_ms = MsOf([&] {
-    chunks.DrawTransparent(view.culling, Eigen::Vector3f(view.eye.x, view.eye.y, view.eye.z), lighting, stats);
+    chunks.DrawTransparent(view.culling, Eigen::Vector3f(view.eye.x, view.eye.y, view.eye.z), lighting, stats,
+                          before_grid);
   });
   stats.times.previews_ms = MsOf([&] {
     brushes.each([&world, &drawing](flecs::entity brush, const z13::building::Brush&, const Eigen::Matrix4f& transform) {
@@ -229,6 +249,29 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
     DrawBrushLines(brushes);
   });
   stats.times.release_ms = MsOf([&] { drawing.meshes.get().ReleaseUnused(); });
+}
+
+using DoorQuery = flecs::query<const z13::station::Block, const z13::station::DoorState>;
+
+// The doors the baked light passes through: open at least half way. They are left out of the lit blocks, so the
+// light follows a door opening and shutting (the leaf itself is drawn by door_render_module).
+std::vector<z13::station::Block> OpenDoorBlocks(const DoorQuery& doors) {
+  std::vector<z13::station::Block> open;
+  doors.each([&open](const z13::station::Block& block, const z13::station::DoorState& state) {
+    if (state.position >= z13::station::kDoorOpen / 2) {
+      open.push_back(block);
+    }
+  });
+  std::ranges::sort(open, [](const z13::station::Block& a, const z13::station::Block& b) {
+    return std::tuple(a.grid, a.cell.x(), a.cell.y(), a.cell.z()) < std::tuple(b.grid, b.cell.x(), b.cell.y(), b.cell.z());
+  });
+  return open;
+}
+
+void RemoveBlocks(std::vector<z13::station::Block>& blocks, const std::vector<z13::station::Block>& removed) {
+  std::erase_if(blocks, [&removed](const z13::station::Block& block) {
+    return std::ranges::find(removed, block) != removed.end();
+  });
 }
 
 void RegisterSystems(flecs::world world) {
@@ -263,6 +306,7 @@ void RegisterSystems(flecs::world world) {
         }
         world.set<ShadowMaps>(ShadowMaps(shadow_shader));
         world.set<CellLighting>({});
+        world.set<GridCellLights>({});
         world.set<SceneMeshes>({});
         world.set<Lighting>(std::move(lighting));
         world.set<Skybox>(LoadSkybox(assets.source));
@@ -380,20 +424,25 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::LightBlockQuery")
           .detect_changes()
           .build();
+  const DoorQuery door_query = world.query<const z13::station::Block, const z13::station::DoorState>();
   world.system<CellLighting, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
                const z13::PowerTuning*>("EnvironmentRenderSystem::SyncCellLighting")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([light_block_query](CellLighting& lighting, const z13::building::primitives::BlockPalette* palette,
-                                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
+      .each([light_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
+                CellLighting& lighting, const z13::building::primitives::BlockPalette* palette,
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
         const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
                                                                       : std::span<const z13::utility::DimmedLamp>(),
                                         .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
-        if (light_block_query.changed() || !lighting.SyncedWith(shown, emergency)) {
-          const auto blocks = CollectMainGridBlocks(light_block_query);
+        const std::vector<z13::station::Block> open = OpenDoorBlocks(door_query);
+        if (light_block_query.changed() || open != *last_open || !lighting.SyncedWith(shown, emergency)) {
+          *last_open = open;
+          auto blocks = CollectMainGridBlocks(light_block_query);
+          RemoveBlocks(blocks, open);
           const auto start = std::chrono::steady_clock::now();
           const Status synced = lighting.Sync(blocks, shown, emergency);
           log_info("[raylib] cell light: {} blocks, {} lamps shine, synced in {:.0f} ms", blocks.size(),
@@ -403,6 +452,40 @@ void RegisterSystems(flecs::world world) {
             log_error("[raylib] lamps: {}", synced.error());
           }
         }
+      });
+
+  const BlockQuery district_block_query =
+      world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::DistrictBlockQuery")
+          .detect_changes()
+          .build();
+  world.system<GridCellLights, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
+               const z13::PowerTuning*>("EnvironmentRenderSystem::SyncGridCellLights")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .read<z13::station::Block>()
+      .each([district_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
+                GridCellLights& lights, const z13::building::primitives::BlockPalette* palette,
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
+        const BlockMeshes::OptionalPalette shown =
+            palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
+        const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
+                                                                      : std::span<const z13::utility::DimmedLamp>(),
+                                        .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
+        const std::vector<z13::station::Block> open = OpenDoorBlocks(door_query);
+        if (!district_block_query.changed() && open == *last_open && lights.SyncedWith(shown, emergency)) {
+          return;
+        }
+        *last_open = open;
+        auto by_grid = CollectDistrictBlocks(district_block_query);
+        std::set<z13::station::GridId> grids;
+        for (auto& [grid, blocks] : by_grid) {
+          RemoveBlocks(blocks, open);
+          grids.insert(grid);
+          if (const Status synced = lights.Make(grid).Sync(blocks, shown, emergency); !synced) {
+            log_error("[raylib] lamps of grid {}: {}", grid, synced.error());
+          }
+        }
+        lights.Keep(grids);
       });
 
   // After SyncRaylibCamera, so the tour's camera wins.
@@ -438,7 +521,8 @@ void RegisterSystems(flecs::world world) {
       .read<z13::station::rooms::RoomCache>()
       .read<z13::station::Grid>()
       .read<z13::station::DockLinks>()
-      .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, grid_rooms_query, drawing](
+      .each([brush_query, remote_player_query, ghost_query, drawn_query, flashlight_query, grid_rooms_query, grid_query,
+             drawing](
                 flecs::iter& it, size_t, const RaylibCamera& raylib_camera, const WindowSize& size, RenderStats& stats,
                 FrameProfile& profile, SceneTarget& scene_target, z13::station::RoomOverlay* overlay,
                 const RenderTour* tour, const z13::RenderTuning& tuning, const CellLighting* cell_lighting,
@@ -507,7 +591,7 @@ void RegisterSystems(flecs::world world) {
           DrawBackground(world);
         });
 
-        DrawScene(world, brush_query, remote_player_query, ghost_query, drawing->poses, view, tuning, stats);
+        DrawScene(world, brush_query, remote_player_query, ghost_query, drawing->poses, view, tuning, z13::station::PosesOf(grid_query), stats);
         LogRemotePlayers(world, remote_player_query, *drawing, view, tuning.avatar_radius_m);
         stats.culling_us = culling_us;
         stats.times.background_ms = background_ms;

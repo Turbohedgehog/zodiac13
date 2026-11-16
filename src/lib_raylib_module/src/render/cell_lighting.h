@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include <Eigen/Core>
 #include <raylib.h>
 
 #include <cell_light/lamp.h>
@@ -59,7 +60,8 @@ class CellLighting {
   // In cells, where each shines from (CellLight::ShiningLamps).
   const std::vector<z13::station::light::Lamp>& ShiningLamps() const;
 
-  void Upload(const ::Shader& shader, const LightUniforms& uniforms) const;
+  // `from_world` takes the world's meters to the meters of the grid this light was baked for.
+  void Upload(const ::Shader& shader, const LightUniforms& uniforms, const Eigen::Matrix4f& from_world) const;
   // On kCellLabelsUnit and kCellLightUnit (lights.h), for the lighting shader.
   void Bind() const;
 

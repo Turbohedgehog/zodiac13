@@ -553,6 +553,8 @@ LAMP = "Lamp"
 LAMP_CELLS = 2
 # One lamp per this many meters of a free area along each axis, at least one per area.
 LAMP_SPACING_M = 6
+MAX_OPENING_BORDER_CELLS = 4  # a room opened to the next grid touches the deck's edge in this many cells at most
+LAMP_COVER_M = 5  # no cell of a free area is further than this from a lamp's spot
 AXES = {"X": 0, "Y": 1, "Z": 2}
 
 
@@ -588,7 +590,8 @@ def overlaps(box, low, high):
 
 
 def free_areas(grid):
-    """The deck's free areas at 1 m, walls and doors apart; the one around the hull is left out."""
+    """The deck's free areas at 1 m, walls and doors apart; the one around the hull is left out: it touches the
+    deck's edge along many cells, where a room opened to the next grid touches it in a doorway's width."""
     depth, width = len(grid), len(grid[0])
     seen = set()
     areas = []
@@ -596,17 +599,17 @@ def free_areas(grid):
         for x in range(width):
             if grid[y][x] in BLOCKED or (x, y) in seen:
                 continue
-            cells, stack, outside = set(), [(x, y)], False
+            cells, stack, border = set(), [(x, y)], 0
             while stack:
                 cx, cy = stack.pop()
                 if (cx, cy) in seen or grid[cy][cx] in BLOCKED:
                     continue
                 seen.add((cx, cy))
                 cells.add((cx, cy))
-                outside = outside or cx in (0, width - 1) or cy in (0, depth - 1)
+                border += cx in (0, width - 1) or cy in (0, depth - 1)
                 stack += [(nx, ny) for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1))
                           if 0 <= nx < width and 0 <= ny < depth]
-            if not outside:
+            if border <= MAX_OPENING_BORDER_CELLS:
                 areas.append(cells)
     return areas
 
@@ -621,10 +624,15 @@ def lamp_spots(area):
     spots = [(x0 + (x1 - x0 + 1) * (2 * i + 1) // (2 * columns), y0 + (y1 - y0 + 1) * (2 * j + 1) // (2 * rows))
              for j in range(rows) for i in range(columns)]
     inside = [spot for spot in spots if spot in area]
-    if inside:
-        return inside
-    centre = ((x0 + x1) / 2, (y0 + y1) / 2)
-    return [min(sorted(area), key=lambda c: (c[0] - centre[0]) ** 2 + (c[1] - centre[1]) ** 2)]
+    if not inside:
+        centre = ((x0 + x1) / 2, (y0 + y1) / 2)
+        return [min(sorted(area), key=lambda c: (c[0] - centre[0]) ** 2 + (c[1] - centre[1]) ** 2)]
+    # An area that is not a rectangle (a ring corridor) loses lattice spots to its walls: lamps are added where a
+    # cell is left further than LAMP_COVER_M from every spot.
+    for cell in sorted(area):
+        if all((cell[0] - x) ** 2 + (cell[1] - y) ** 2 > LAMP_COVER_M ** 2 for x, y in inside):
+            inside.append(cell)
+    return inside
 
 
 def lamp_blocks(deck, z, blocks, wall_height=WALL_HEIGHT_CELLS):
