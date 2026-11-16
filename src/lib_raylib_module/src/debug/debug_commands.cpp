@@ -30,6 +30,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <lib_core/utils/asset_source.h>
 #include <z13/components/gameplay/player.h>
+#include <z13/components/gameplay/player_parts.h>
 #include <z13/components/input/input_state.h>
 
 #include "gui/game_scenes.h"
@@ -114,6 +115,15 @@ struct TeleportCommand {
   std::optional<double> pitch_deg;
 };
 
+struct NoclipCommand {
+  using Command = z13::Command<std::string,
+                               "Turns noclip of the local player on or off (the opposite of now without `enabled`): "
+                               "they fly through blocks, with no gravity. Only in a game of one player.",
+                               Tags<kDebugTag, "cheat">>;
+
+  std::optional<bool> enabled;
+};
+
 struct ScenesCommand {
   using Command = z13::Command<std::vector<std::string>, "The scenes a game can start in: the names start_game takes.",
                                Tags<kDebugTag>>;
@@ -177,7 +187,7 @@ RenderStatsInfo InfoOf(const RenderStats& stats) {
 }
 
 void RegisterComponents(flecs::world world) {
-  flecs_tools::RegisterComponents<FrameReportCommand, RenderStatsCommand, TeleportCommand, ReloadShadersCommand, ScenesCommand,
+  flecs_tools::RegisterComponents<FrameReportCommand, RenderStatsCommand, TeleportCommand, NoclipCommand, ReloadShadersCommand, ScenesCommand,
                                   StartGameCommand, LeaveGameCommand>(world);
 }
 
@@ -253,6 +263,16 @@ void RegisterSystems(flecs::world world) {
           return;
         }
         reply.Succeed(std::format("lighting shader rebuilt with {} defines", command.defines.size()));
+      });
+  CommandSystem<NoclipCommand>(
+      world, "DebugCommands::NoClip", [](auto& builder) { builder.template write<z13::gameplay::NoClip>(); },
+      [](flecs::iter& it, size_t, const NoclipCommand& command, ReplyOf<NoclipCommand>& reply) {
+        const auto on = gui::SetNoClip(it.world(), command.enabled);
+        if (!on) {
+          reply.Fail(on.error());
+          return;
+        }
+        reply.Succeed(*on ? "noclip on" : "noclip off");
       });
   CommandSystem<TeleportCommand>(
       world, "DebugCommands::Teleport", [](auto& builder) { builder.template write<z13::input::InputState>(); },

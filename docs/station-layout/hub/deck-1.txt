@@ -78,8 +78,8 @@ The atrium is a 16-gon of oblique panels (drawn as @ outside it); the spine is s
  72 #                                                               #
  73 #                                                               #
  74 #                                                               #
- 75 D          CORRIDOR                         AGORA               #
- 76 D                                                               #
+ 75            CORRIDOR                         AGORA               #
+ 76                                                                 #
  77 #                                                               #
  78 #                                                               #
  79 ####DD#######DD#######DD#####                                  @#

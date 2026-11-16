@@ -29,6 +29,7 @@
 #include <primitives/occupancy.h>
 
 #include "../platform/sdl_platform.h"
+#include "../tools/math_convert.h"
 
 namespace z13::raylib {
 
@@ -280,7 +281,8 @@ void CellLighting::State::ReleaseVolumes() {
   release(colors_);
 }
 
-void CellLighting::State::Upload(const ::Shader& shader, const LightUniforms& uniforms) const {
+void CellLighting::State::Upload(const ::Shader& shader, const LightUniforms& uniforms,
+                                 const Eigen::Matrix4f& from_world) const {
   const int enabled = labels_ && colors_ ? 1 : 0;
   SetShaderValue(shader, uniforms.cell_light_enabled, &enabled, SHADER_UNIFORM_INT);
   if (enabled == 0) {
@@ -289,6 +291,7 @@ void CellLighting::State::Upload(const ::Shader& shader, const LightUniforms& un
   const z13::station::light::LightLayout& layout = light_->Layout();
   SetShaderValue(shader, uniforms.cell_origin, layout.origin.data(), SHADER_UNIFORM_IVEC3);
   SetShaderValue(shader, uniforms.cell_cubes, layout.cubes.data(), SHADER_UNIFORM_IVEC3);
+  SetShaderValueMatrix(shader, uniforms.cell_from_world, EigenToRaylibMatrix(from_world));
 }
 
 void CellLighting::State::Bind() const {

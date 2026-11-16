@@ -56,7 +56,7 @@ class CellLighting::State {
   const std::optional<std::string>& Failure() const { return failure_; }
   const std::vector<z13::station::light::Lamp>& ShiningLamps() const { return shining_; }
 
-  void Upload(const ::Shader& shader, const LightUniforms& uniforms) const;
+  void Upload(const ::Shader& shader, const LightUniforms& uniforms, const Eigen::Matrix4f& from_world) const;
   void Bind() const;
 
  private:

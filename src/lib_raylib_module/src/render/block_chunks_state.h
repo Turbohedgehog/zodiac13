@@ -86,9 +86,11 @@ class BlockChunks::State {
   std::optional<Eigen::AlignedBox3f> OpaqueBounds() const;
   void DrawShadowCasters(const std::function<bool(const Eigen::AlignedBox3f&)>& keep,
                          const ::Material& material) const;
-  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats) const;
+  void DrawOpaque(const ViewCulling& culling, const Lighting& lighting, RenderStats& stats,
+                  const GridDrawHook& before_grid) const;
   void DrawTransparent(
-      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats);
+      const ViewCulling& culling, const Eigen::Vector3f& eye, const Lighting& lighting, RenderStats& stats,
+      const GridDrawHook& before_grid);
 
  private:
   // The bounds of the chunks rebuilt or dropped, before and after.

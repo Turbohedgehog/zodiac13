@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -92,9 +93,11 @@ struct PaletteCommand {
 
 struct BlocksCommand {
   using Command = z13::Command<std::vector<BlockInfo>,
-                               "Lists the main grid's blocks that touch the box from cell (x, y, z) of size_x * size_y * "
-                               "size_z cells, at most `limit`. X and Y run along the floor, Z up.",
+                               "Lists the blocks of `grid` (the main grid without it; ids from `grids`) that touch the "
+                               "box from cell (x, y, z) of size_x * size_y * size_z cells of that grid, at most `limit`. "
+                               "X and Y run along the floor, Z up.",
                                Tags<kDebugTag>>;
+  std::optional<uint32_t> grid;
   int x {};
   int y {};
   int z {};
@@ -102,6 +105,22 @@ struct BlocksCommand {
   int size_y = 1;
   int size_z = 1;
   int limit = kDefaultBlocksLimit;
+};
+
+struct GridInfo {
+  uint32_t id {};
+  CellInfo origin;
+  double yaw_degrees {};
+  double pitch_degrees {};
+  size_t blocks {};
+};
+
+struct GridsCommand {
+  using Command = z13::Command<std::vector<GridInfo>,
+                               "Lists the grids: id, where the cell (0, 0, 0) stands in the world's cells, the turn "
+                               "about Z and the tilt in degrees (a grid's cells are in its own axes), its block count.",
+                               Tags<kDebugTag>>;
+  int unused {};
 };
 
 struct BuildBlockCommand {
@@ -187,8 +206,39 @@ void ListPalette(flecs::world world, ReplyOf<PaletteCommand>& reply) {
   reply.Succeed(std::move(listed));
 }
 
+std::optional<flecs::entity> GridById(flecs::world world, uint32_t id) {
+  std::optional<flecs::entity> found;
+  world.query<const z13::station::Grid>().each([&](flecs::entity entity, const z13::station::Grid& grid) {
+    if (grid.id == id) {
+      found = entity;
+    }
+  });
+  return found;
+}
+
+void ListGrids(flecs::world world, ReplyOf<GridsCommand>& reply) {
+  std::vector<GridInfo> listed;
+  world.query<const z13::station::Grid>().each([&](flecs::entity entity, const z13::station::Grid& grid) {
+    listed.push_back({.id = grid.id,
+                      .origin = CellInfoOf(grid.origin),
+                      .yaw_degrees = grid.yaw_degrees,
+                      .pitch_degrees = grid.pitch_degrees,
+                      .blocks = entity.has<grid::BlockIndex>() ? entity.get<grid::BlockIndex>().Size() : 0});
+  });
+  std::ranges::sort(listed, {}, &GridInfo::id);
+  reply.Succeed(std::move(listed));
+}
+
 void ListBlocks(flecs::world world, const BlocksCommand& request, ReplyOf<BlocksCommand>& reply) {
-  const auto grid = EditableGrid(world);
+  auto grid = EditableGrid(world);
+  if (grid && request.grid) {
+    const auto chosen = GridById(world, *request.grid);
+    if (!chosen || !chosen->has<grid::BlockIndex>()) {
+      reply.Fail(std::format("no grid {}", *request.grid));
+      return;
+    }
+    grid = *chosen;
+  }
   if (!grid) {
     reply.Fail(grid.error());
     return;
@@ -286,8 +336,8 @@ void DestroyBlockAt(flecs::world world, const DestroyBlockCommand& request, Repl
 }  // namespace
 
 void RegisterBuildCommandComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<McpBlockCounter, PaletteCommand, BlocksCommand, BuildBlockCommand,
-                                       DestroyBlockCommand>(world);
+  z13::flecs_tools::RegisterComponents<McpBlockCounter, PaletteCommand, BlocksCommand, GridsCommand,
+                                       BuildBlockCommand, DestroyBlockCommand>(world);
 }
 
 void RegisterBuildCommandSystems(flecs::world world) {
@@ -304,6 +354,10 @@ void RegisterBuildCommandSystems(flecs::world world) {
   CommandSystem<BlocksCommand>(world, "BuildCommands::Blocks",
                                [](flecs::iter& it, size_t, const BlocksCommand& request,
                                   ReplyOf<BlocksCommand>& reply) { ListBlocks(it.world(), request, reply); });
+  CommandSystem<GridsCommand>(world, "BuildCommands::Grids",
+                              [](flecs::iter& it, size_t, const GridsCommand&, ReplyOf<GridsCommand>& reply) {
+                                ListGrids(it.world(), reply);
+                              });
   CommandSystem<BuildBlockCommand>(world, "BuildCommands::Build", edits,
                                    [](flecs::iter& it, size_t, const BuildBlockCommand& request,
                                       ReplyOf<BuildBlockCommand>& reply) { BuildBlock(it.world(), request, reply); });

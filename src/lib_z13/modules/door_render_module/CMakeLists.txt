@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/door_render_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/door_lamp.cpp
   src/door_leaf_mesh.cpp
   src/door_leaf_system.cpp
   src/door_render_module.cpp

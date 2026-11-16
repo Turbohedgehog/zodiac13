@@ -26,6 +26,8 @@
 #include <raylib.h>
 
 #include <rooms/view_culling.h>
+
+#include "block_chunks.h"
 #include <z13/components/gameplay/scene_mesh.h>
 
 namespace z13::raylib {
@@ -50,7 +52,7 @@ class SceneMeshes {
   // every material, id 0 keeps raylib's default.
   void Sync(std::span<const SceneMeshEntry> entries, ::Shader lighting_shader);
 
-  size_t Draw(const ViewCulling& culling, const Lighting& lighting) const;
+  size_t Draw(const ViewCulling& culling, const Lighting& lighting, const GridDrawHook& before_grid) const;
 
   size_t Count() const;
 

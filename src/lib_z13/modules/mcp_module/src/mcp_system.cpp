@@ -48,8 +48,9 @@ void ServeChat(McpServer& server, console::AssistantChat& chat) {
   if (!chat.listening) {
     return;
   }
-  for (const std::string& text : chat.unsent) {
-    server.Publish(FormatEvent(kSayEvent, text));
+  for (const console::UnsentLine& line : chat.unsent) {
+    server.Publish(FormatEvent(kSayEvent, line.text));
+    console::MarkDelivered(chat, line.id);
   }
   chat.unsent.clear();
 }

@@ -127,6 +127,7 @@ struct LightUniforms {
   int cell_light_enabled {};
   int cell_origin {};
   int cell_cubes {};
+  int cell_from_world {};
   int player_shadow_count {};
   int player_shadow_lamps {};
   int player_shadow_colors {};

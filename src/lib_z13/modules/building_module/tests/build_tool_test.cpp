@@ -289,6 +289,8 @@ TEST(BuildToolTest, TheOpeningLayersButtonsSetTheWidthAndTheKind) {
   TapButton(test_world, z13::input::TouchControl::kOpeningKind);
   EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kWindow);
   TapButton(test_world, z13::input::TouchControl::kOpeningKind);
+  EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kPassage);
+  TapButton(test_world, z13::input::TouchControl::kOpeningKind);
   EXPECT_EQ(BuildToolOf(player).get<BuildTool>().opening_kind, z13::station::OpeningKind::kDoor);
 }
 

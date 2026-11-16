@@ -100,6 +100,7 @@ set(
   ${MODULES_DIR}/building_module/tests/block_building_test.cpp
   ${MODULES_DIR}/building_module/tests/block_snapshot_test.cpp
   ${MODULES_DIR}/building_module/tests/blueprint_walls_test.cpp
+  ${MODULES_DIR}/building_module/tests/scanner_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_aim_test.cpp
   ${MODULES_DIR}/building_module/tests/brush_test.cpp
   ${MODULES_DIR}/building_module/tests/build_tool_test.cpp
@@ -235,6 +236,7 @@ if(Z13_BUILD_BENCHMARKS)
     ${MODULES_DIR}/z13_module/tests/bench/frame_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/net_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/render_chunk_bench_test.cpp
+    ${MODULES_DIR}/z13_module/tests/bench/snapshot_cost_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/space_walk_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/station_load_bench_test.cpp
     ${MODULES_DIR}/z13_module/tests/bench/sync_bench_test.cpp

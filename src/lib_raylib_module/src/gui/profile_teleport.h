@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include <expected>
 #include <optional>
+#include <string>
 
 #include <Eigen/Dense>
 #include <flecs.h>
@@ -37,5 +39,9 @@ struct LookTarget {
 z13::Status TeleportLocalPlayer(flecs::world world, const Eigen::Vector2f& position_m,
                                 std::optional<float> height_m = std::nullopt,
                                 const LookTarget& look = {});
+
+// The noclip debug command: the local player flies through blocks while it is on (`enabled`, or the opposite of now);
+// refused for the same reasons as a teleport. Answers whether it is on.
+std::expected<bool, std::string> SetNoClip(flecs::world world, std::optional<bool> enabled);
 
 }  // namespace z13::raylib::gui

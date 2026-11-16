@@ -467,6 +467,7 @@ void RegisterSystems(flecs::world world) {
                const z13::gravity::Gravity*, PhysicsWorld, const z13::PhysicsTuning>(
            "PhysicsSystem::ResolvePlayerCollision")
       .kind<z13::gameplay::PostUpdatePhase>()
+      .without<z13::gameplay::NoClip>()
       .each(ResolvePlayerCollision);
 
   // After ResolvePlayerCollision in the same phase, so the raycast sees the final player

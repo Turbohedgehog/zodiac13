@@ -244,7 +244,7 @@ void UploadLighting(const flecs::world& world, const LitScene& lit, const Shadow
   const auto* cell_lighting = world.try_get<CellLighting>();
   const int cell_light_off = 0;
   if (cell_lighting != nullptr && world.has<z13::station::StationMode>()) {
-    cell_lighting->Upload(*lighting.res->shader, lighting.res->lights);
+    cell_lighting->Upload(*lighting.res->shader, lighting.res->lights, Eigen::Matrix4f::Identity());
     cell_lighting->Bind();
   } else {
     SetShaderValue(*lighting.res->shader, lighting.res->lights.cell_light_enabled, &cell_light_off,

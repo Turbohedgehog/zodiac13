@@ -38,6 +38,11 @@ struct Flashlight {
   bool on {};
 };
 
+// A player that flies through blocks, with no gravity or drift (the noclip debug command).
+struct NoClip {
+  using State = void;
+};
+
 // A player under gravity (z13/components/utility/gravity.h) walks; without it, flies freely.
 struct PlayerMotion {
   using State = void;
