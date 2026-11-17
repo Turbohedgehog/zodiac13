@@ -70,6 +70,8 @@
 
 Ещё ступень (хэш сущности один раз в `ShareEntity`, имена digest из снимка, игроки `SplitBySector` по имени, захват ungrouped по таблицам, запомненный порядок сортировки): `SnapshotCostBench` на хабе, `CaptureState` 22 → 11 мс, `ComputeStateDigest` 25 → 5 мс, `HashSnapshot` 4 → 0,2 мс; хэши снимков те же. `ServerClient` на `hub`: клиент p95 / максимум 22 / 50 → 16 / 35, сервер 23 / 66 → 18 / 32, кадров сверх бюджета 20 → 14-18, `CaptureSnapshot` за тик 1,3 → 0,8 мс; на `spire` и `test` кадр определяют `DeriveLeaf` (7,7-8), `PowerSystem::Balance` (2,4-2,5), `AtmosSystem::Update`, их числа между прогонами гуляют на ±10 мс p95. Остаток захвата хаба: индекс блочных групп ~3 мс и сборка групп ~3 мс.
 
+`DoorLeafSystem::DeriveLeaf` (дверь, створка и лампа каждый тик): лампа ищется по таблице дверь → лампа, а не по имени `DoorLamp_<id>`, доступ игрока считается раз за тик, список замков на дверь не строится. `ServerClient` (мс за тик, `DeriveLeaf`): `spire` 7,9 → 2,9, `test` 7,7 → 2,7, `hub` 1,3 → 0,5; p95 клиента на `hub` 16 → 14, `spire` 47 → 37, `test` 41 → 30, медиана `spire`/`test` 13 → 7.
+
 ## Единая схема (сделано, `f/snapshot-cache`)
 
 Решение пользователя (2026-11-16): без исключительной логики по видам сущностей, правило в `CLAUDE.md`. Ручные `HashOf` блоков, `HashOfWallEntity`, `WallWatch` и `BlockWatch` удалены; `SnapshotGrouping` несёт только `member` и `make_layout`.

@@ -22,9 +22,11 @@
 #include <functional>
 #include <iterator>
 #include <string>
-#include <vector>
 #include <memory>
+#include <optional>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <flecs.h>
 
@@ -101,14 +103,16 @@ struct LampContext {
   uint64_t tick {};
   bool fresh {};
   flecs::entity player;
+  std::optional<z13::inventory::AccessSet> held;  // the player's, taken when a door first asks
   std::vector<z13::inventory::AccessLock> locks;
+  std::unordered_map<flecs::entity_t, flecs::entity_t> lamps;  // by door: a lookup by name per door costs a tick
 };
 
 void RefreshContext(const flecs::world& world, uint64_t tick, LampContext& context) {
   if (context.fresh && context.tick == tick) {
     return;
   }
-  context = {.tick = tick, .fresh = true};
+  context = {.tick = tick, .fresh = true, .lamps = std::move(context.lamps)};
   const auto* local = world.try_get<z13::gameplay::LocalPlayer>();
   if (local != nullptr && local->id) {
     world.each([&](flecs::entity entity, const z13::gameplay::Player& player) {
@@ -120,20 +124,48 @@ void RefreshContext(const flecs::world& world, uint64_t tick, LampContext& conte
   world.each([&](const z13::inventory::AccessLock& lock) { context.locks.push_back(lock); });
 }
 
-DoorSignal SignalFor(const flecs::world& world, flecs::entity door, const Block& block, const LampContext& context) {
-  std::vector<z13::inventory::AccessLock> locks;
-  std::ranges::copy_if(context.locks, std::back_inserter(locks), [&block](const z13::inventory::AccessLock& lock) {
+// As MayUse, but the player's access is worked out once a tick and no list is built per door.
+DoorSignal SignalFor(const flecs::world& world, flecs::entity door, const Block& block, LampContext& context) {
+  const auto at_door = [&block](const z13::inventory::AccessLock& lock) {
     return lock.grid == block.grid && lock.cell == block.cell;
-  });
-  const bool may_use = !context.player.is_valid() || z13::inventory::MayUse(world, context.player, door, locks);
+  };
+  const auto* requirement = door.try_get<z13::inventory::AccessRequirement>();
+  const bool locked = std::ranges::any_of(context.locks, at_door);
+  bool may_use = true;
+  if (context.player.is_valid() && (requirement != nullptr || locked)) {
+    const auto* owner = context.player.try_get<z13::gameplay::Player>();
+    if (owner == nullptr) {
+      may_use = false;
+    } else {
+      if (!context.held) {
+        context.held = z13::inventory::HeldAccess(world, owner->id);
+      }
+      const z13::inventory::AccessSet held = *context.held;
+      may_use = (requirement == nullptr || z13::inventory::Covers(held, *requirement)) &&
+                std::ranges::all_of(context.locks, [&](const z13::inventory::AccessLock& lock) {
+                  return !at_door(lock) || z13::inventory::Covers(
+                                               held, {.required_all = lock.required_all, .required_any = lock.required_any});
+                });
+    }
+  }
   return SignalOf(door.has<z13::station::DoorInterlock>(), may_use);
 }
 
-void DeriveLamp(flecs::entity door, const Block& block, const BlockPalette& palette, const Eigen::Matrix4f& pose,
-                DoorSignal signal) {
+flecs::entity LampOf(flecs::entity door, LampContext& context) {
   const flecs::world world = door.world();
+  const auto known = context.lamps.find(door.id());
+  if (known != context.lamps.end() && world.is_alive(known->second)) {
+    return world.entity(known->second);
+  }
   const std::string name = std::format("DoorLamp_{}", door.id());
   const flecs::entity lamp = world.entity(name.c_str());
+  context.lamps.insert_or_assign(door.id(), lamp.id());
+  return lamp;
+}
+
+void DeriveLamp(flecs::entity door, const Block& block, const BlockPalette& palette, const Eigen::Matrix4f& pose,
+                DoorSignal signal, LampContext& context) {
+  const flecs::entity lamp = LampOf(door, context);
   const DoorLampLook look {.block = block, .signal = signal, .pose = pose};
   const auto* built = lamp.try_get<DoorLampLook>();
   if (built != nullptr && *built == look) {
@@ -171,7 +203,7 @@ void RegisterSystems(flecs::world world) {
         DeriveLeaf(door, state, block, palette, pose);
         const flecs::world world = door.world();
         RefreshContext(world, world.get<z13::flecs_tools::SimulationClock>().tick, *context);
-        DeriveLamp(door, block, palette, pose, SignalFor(world, door, block, *context));
+        DeriveLamp(door, block, palette, pose, SignalFor(world, door, block, *context), *context);
       });
   world.system<const DoorLampOf>("DoorLeafSystem::DropLamps")
       .kind<SceneMeshPhase>()
