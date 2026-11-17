@@ -241,15 +241,11 @@ void SendDigest(flecs::world world, NetSession& session, const fbn::StateDigestT
 
 fbn::StateDigestT ComputeStateDigest(flecs::world world, const ft::TimestampedSnapshot& snapshot) {
   Z13_PROFILE_ZONE("ComputeStateDigest");
-  // The names of grouped entities (blocks) are in their groups' fingerprints, so only the rest are listed.
-  const auto* grouping = world.try_get<ft::SnapshotGrouping>();
-  auto named = world.query_builder().with<ft::StateEntity>();
-  if (grouping != nullptr && grouping->member) {
-    named.without(*grouping->member);
-  }
+  // The names of grouped entities (blocks) are in their groups' fingerprints; the rest come sorted in the snapshot.
   std::vector<std::string> names;
-  named.build().each([&names](flecs::entity e) { names.emplace_back(e.path().c_str()); });
-  std::ranges::sort(names);
+  names.reserve(snapshot.snapshot.entities.size());
+  std::ranges::transform(snapshot.snapshot.entities, std::back_inserter(names),
+                         [](const ft::SharedEntity& entity) { return entity->name; });
 
   fbn::StateDigestT digest;
   digest.tick = snapshot.tick;

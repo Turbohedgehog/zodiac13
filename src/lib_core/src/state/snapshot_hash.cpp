@@ -68,7 +68,7 @@ uint64_t HashEntitySnapshot(const EntitySnapshot& entity) {
 uint64_t HashSnapshot(const WorldSnapshot& snapshot) {
   uint64_t hash = Mix(kFnvOffsetBasis, snapshot.entities.size());
   for (const SharedEntity& entity : snapshot.entities) {
-    hash = Mix(hash, *entity);
+    hash = Mix(hash, HashEntitySnapshot(entity));
   }
   hash = Mix(hash, snapshot.groups.size());
   for (const std::shared_ptr<const GroupSnapshot>& group : snapshot.groups) {

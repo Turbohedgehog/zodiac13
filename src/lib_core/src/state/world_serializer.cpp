@@ -44,7 +44,6 @@
 namespace z13::flecs_tools {
 
 namespace {
-
 // Relation name used for the parent (ChildOf) pair in a snapshot.
 constexpr std::string_view kChildOf = "ChildOf";
 // Leading separator flecs puts on rooted paths ("::a::b").
@@ -208,6 +207,15 @@ void CountRestore(flecs::world& world) {
 }
 
 }  // namespace
+
+SharedEntity ShareEntity(EntitySnapshot entity) {
+  entity.hash.value = HashEntitySnapshot(entity);
+  return std::make_shared<const EntitySnapshot>(std::move(entity));
+}
+
+std::string SnapshotNameOf(flecs::entity e) {
+  return PathOf(e);
+}
 
 bool DefaultEntityFilter(flecs::entity e) {
   if (!e.is_alive()) {
@@ -400,8 +408,44 @@ Status CaptureGroups(
   return {};
 }
 
-// The named entities outside the groups. One whose table was not written since the last capture is taken from it
-// as it was; the others are fingerprinted, and encoded again only when the fingerprint differs.
+// Entities in the order of `collected` sorted by name; the sort of the last capture is reused while the names
+// come in the same order.
+SharedEntities SortedByName(SharedEntities collected, SortMemory* memory) {
+  const auto same_name = [](const SharedEntity& a, const SharedEntity& b) { return a == b || a->name == b->name; };
+  SharedEntities sorted;
+  sorted.reserve(collected.size());
+  if (memory != nullptr && std::ranges::equal(collected, memory->collected, same_name)) {
+    std::ranges::transform(memory->order, std::back_inserter(sorted),
+                           [&collected](size_t index) { return collected[index]; });
+    memory->collected = std::move(collected);
+    return sorted;
+  }
+  std::vector<size_t> order(collected.size());
+  std::iota(order.begin(), order.end(), size_t {});
+  std::ranges::sort(order, [&collected](size_t a, size_t b) { return collected[a]->name < collected[b]->name; });
+  std::ranges::transform(order, std::back_inserter(sorted), [&collected](size_t index) { return collected[index]; });
+  if (memory != nullptr) {
+    memory->collected = std::move(collected);
+    memory->order = std::move(order);
+  }
+  return sorted;
+}
+
+// Drops what a table cached about entities that left it.
+void ForgetLeft(SnapshotGroupingState& state, TableKey table, const UngroupedTable& before,
+                const std::vector<flecs::entity_t>& after) {
+  for (const flecs::entity_t id : before.ids) {
+    if (std::ranges::contains(after, id)) {
+      continue;
+    }
+    if (const auto known = state.ungrouped.find(id); known != state.ungrouped.end() && known->second.table == table) {
+      state.ungrouped.erase(known);
+    }
+  }
+}
+
+// The named entities outside the groups, table by table. A table not written since the last capture gives what it
+// gave then; in one that was, each entity is fingerprinted, and encoded again only when the fingerprint differs.
 Status CaptureUngrouped(
     flecs::world world, const EntityFilter& accept, ComponentScope& components,
     const EntityFilter& accept_target, OptionalGrouping grouping, bool state_only, WorldSnapshot& snapshot) {
@@ -417,55 +461,77 @@ Status CaptureUngrouped(
   SnapshotGroupingState* const cache = grouping ? grouping->get().state_.get() : nullptr;
 
   const uint64_t update = cache ? ++cache->ungrouped_update : 0;
-  TableKey last_table {};  // entities come table by table, so the watch is asked once per table
-  bool last_changed {};
+  SharedEntities collected;
   Status captured;
-  ungrouped.build().each([&](flecs::entity e) {
-    if (!captured || (accept && !accept(e))) {
-      return;
-    }
+  ungrouped.build().run([&](flecs::iter& it) {
+    while (it.next()) {
+      if (!captured) {
+        continue;
+      }
+      const TableKey table = cache ? TableKeyOf(it.table()) : TableKey {};
+      UngroupedTable* kept = nullptr;
+      if (cache) {
+        kept = &cache->ungrouped_tables[table];
+        if (kept->seen != 0 && kept->count == static_cast<int>(it.count()) && !cache->watch.TableChanged(table)) {
+          kept->seen = update;
+          std::ranges::copy(kept->snapshots, std::back_inserter(collected));
+          continue;
+        }
+      }
 
-    const TableKey table = cache ? TableKeyOf(e) : TableKey {};
-    std::optional<uint64_t> hash;
-    if (cache) {
-      if (table != last_table) {
-        last_table = table;
-        last_changed = cache->watch.TableChanged(table);
+      UngroupedTable rebuilt {.count = static_cast<int>(it.count()), .seen = update};
+      for (const auto row : it) {
+        const flecs::entity e = it.entity(row);
+        if (accept && !accept(e)) {
+          continue;
+        }
+        std::optional<uint64_t> hash;
+        if (cache) {
+          hash = FingerprintOf(world, e, components);
+          const auto known = cache->ungrouped.find(e.id());
+          if (known != cache->ungrouped.end() && hash && known->second.hash == hash) {
+            known->second.table = table;
+            rebuilt.ids.push_back(e.id());
+            rebuilt.snapshots.push_back(known->second.snapshot);
+            continue;
+          }
+        }
+        auto entity = CaptureEntity(world, e, components, accept_target);
+        if (!entity) {
+          captured = std::unexpected(std::move(entity.error()));
+          break;
+        }
+        SharedEntity shared = ShareEntity(std::move(*entity));
+        if (cache) {
+          cache->ungrouped.insert_or_assign(e.id(), CachedEntity {.hash = hash, .table = table, .snapshot = shared});
+        }
+        rebuilt.ids.push_back(e.id());
+        rebuilt.snapshots.push_back(std::move(shared));
       }
-      const auto known = cache->ungrouped.find(e.id());
-      const bool have = known != cache->ungrouped.end();
-      if (have && known->second.table == table && !last_changed) {
-        known->second.seen = update;
-        snapshot.entities.push_back(known->second.snapshot);
-        return;
-      }
-      hash = FingerprintOf(world, e, components);
-      if (have && hash && known->second.hash == hash) {
-        known->second.table = table;
-        known->second.seen = update;
-        snapshot.entities.push_back(known->second.snapshot);
-        return;
+      std::ranges::copy(rebuilt.snapshots, std::back_inserter(collected));
+      if (kept != nullptr) {
+        ForgetLeft(*cache, table, *kept, rebuilt.ids);
+        *kept = std::move(rebuilt);
       }
     }
-    auto entity = CaptureEntity(world, e, components, accept_target);
-    if (!entity) {
-      captured = std::unexpected(std::move(entity.error()));
-      return;
-    }
-    SharedEntity shared = ShareEntity(std::move(*entity));
-    if (cache) {
-      cache->ungrouped.insert_or_assign(
-          e.id(), CachedEntity {.hash = hash, .table = table, .snapshot = shared, .seen = update});
-    }
-    snapshot.entities.push_back(std::move(shared));
   });
-  SortByName(snapshot.entities);
   if (cache) {
     if (captured) {
-      std::erase_if(cache->ungrouped, [update](const auto& entry) { return entry.second.seen != update; });
+      std::erase_if(cache->ungrouped_tables, [&](const auto& entry) {
+        if (entry.second.seen == update) {
+          return false;
+        }
+        ForgetLeft(*cache, entry.first, entry.second, {});
+        return true;
+      });
     } else {
       cache->ungrouped.clear();
+      cache->ungrouped_tables.clear();
+      cache->ungrouped_order = {};
     }
+  }
+  if (captured) {
+    snapshot.entities = SortedByName(std::move(collected), cache ? &cache->ungrouped_order : nullptr);
   }
   return captured;
 }

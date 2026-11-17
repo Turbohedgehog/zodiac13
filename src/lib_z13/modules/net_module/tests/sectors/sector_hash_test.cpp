@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <numeric>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -186,7 +187,10 @@ TEST(SectorHashTest, ADigestCountsTheGroupedBlocksAmongItsEntities) {
 
   const fbs::net::StateDigestT digest = ComputeStateDigest(w, {.tick = 1, .snapshot = *snapshot});
 
-  EXPECT_EQ(digest.entity_count, w.query_builder().with<z13::flecs_tools::StateEntity>().build().count());
+  const size_t grouped = std::accumulate(snapshot->groups.begin(), snapshot->groups.end(), size_t {},
+                                         [](size_t total, const auto& group) { return total + group->entities.size(); });
+  EXPECT_GT(grouped, 0u);
+  EXPECT_EQ(digest.entity_count, snapshot->entities.size() + grouped);
 }
 
 }  // namespace

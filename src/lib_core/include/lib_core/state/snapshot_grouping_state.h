@@ -22,6 +22,7 @@
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <lib_core/state/state_watch.h>
 #include <lib_core/state/world_serializer.h>
@@ -32,7 +33,20 @@ struct CachedEntity {
   std::optional<uint64_t> hash;  // none for an entity FingerprintOf can't cover
   TableKey table {};
   SharedEntity snapshot;
+};
+
+// What a table of ungrouped entities gave the last capture, taken as it was while the table is not written.
+struct UngroupedTable {
+  int count {};
   uint64_t seen {};  // the capture that last found it
+  std::vector<flecs::entity_t> ids;
+  SharedEntities snapshots;
+};
+
+// The order the last capture sorted its entities in, reused while their names come in the same order.
+struct SortMemory {
+  SharedEntities collected;
+  std::vector<size_t> order;  // the collected index of each sorted entity
 };
 
 struct GroupedEntity {
@@ -52,6 +66,8 @@ struct SnapshotGroupingState {
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
   std::map<SnapshotGroupId, uint64_t> captured_keys;  // each group's index key when it was encoded
   std::unordered_map<flecs::entity_t, CachedEntity> ungrouped;
+  std::unordered_map<TableKey, UngroupedTable> ungrouped_tables;
+  SortMemory ungrouped_order;
   std::unordered_map<flecs::entity_t, GroupedEntity> grouped;
   std::map<SnapshotGroupId, GroupIndexEntry> index;
   uint64_t update {};  // of the group index

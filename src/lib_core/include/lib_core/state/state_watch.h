@@ -63,5 +63,6 @@ class StateWatch {
 };
 
 TableKey TableKeyOf(flecs::entity e);
+TableKey TableKeyOf(flecs::table table);
 
 }  // namespace z13::flecs_tools

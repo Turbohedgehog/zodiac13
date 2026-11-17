@@ -33,6 +33,10 @@ TableKey TableKeyOf(flecs::entity e) {
   return KeyOf(e.table());
 }
 
+TableKey TableKeyOf(flecs::table table) {
+  return KeyOf(table);
+}
+
 void StateWatch::RebuildQueries(flecs::world world) {
   queries_.clear();
   singletons_.clear();

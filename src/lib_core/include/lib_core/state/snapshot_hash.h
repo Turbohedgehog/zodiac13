@@ -29,4 +29,9 @@ uint64_t HashSnapshot(const WorldSnapshot& snapshot);
 // One entity's part of that hash, so a caller can total the entities of a region by itself.
 uint64_t HashEntitySnapshot(const EntitySnapshot& entity);
 
+// The same, made once when the entity was shared.
+inline uint64_t HashEntitySnapshot(const SharedEntity& entity) {
+  return entity->hash.value;
+}
+
 }  // namespace z13::flecs_tools
