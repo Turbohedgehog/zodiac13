@@ -82,7 +82,6 @@ using SharedEntities = std::vector<SharedEntity>;
 
 SharedEntity ShareEntity(EntitySnapshot entity);
 
-// The `name` a snapshot gives an entity.
 std::string SnapshotNameOf(flecs::entity e);
 
 // Equal by value: the pointers of two captures differ.

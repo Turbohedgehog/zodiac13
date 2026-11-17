@@ -187,6 +187,7 @@ void DeriveLamp(flecs::entity door, const Block& block, const BlockPalette& pale
 
 void RegisterSystems(flecs::world world) {
   const auto grids = world.query_builder<const z13::station::Grid>().detect_changes().build();
+  const auto context = std::make_shared<LampContext>();
   world.system<const DoorState, const Block, const BlockPalette>("DoorLeafSystem::DeriveLeaf")
       .kind<SceneMeshPhase>()
       .read<z13::station::Grid>()
@@ -194,7 +195,7 @@ void RegisterSystems(flecs::world world) {
       .read<z13::inventory::AccessLock>()
       .write<SceneMesh>()
       .write<DoorLeafLook>()
-      .each([grids, poses = std::make_shared<z13::station::GridPoses>(), context = std::make_shared<LampContext>()](
+      .each([grids, poses = std::make_shared<z13::station::GridPoses>(), context](
                 flecs::entity door, const DoorState& state, const Block& block, const BlockPalette& palette) {
         if (grids.changed()) {
           *poses = z13::station::PosesOf(grids);
@@ -207,8 +208,9 @@ void RegisterSystems(flecs::world world) {
       });
   world.system<const DoorLampOf>("DoorLeafSystem::DropLamps")
       .kind<SceneMeshPhase>()
-      .each([](flecs::entity lamp, const DoorLampOf& of) {
+      .each([context](flecs::entity lamp, const DoorLampOf& of) {
         if (!lamp.world().is_alive(of.door)) {
+          context->lamps.erase(of.door);
           lamp.destruct();
         }
       });

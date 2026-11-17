@@ -431,7 +431,6 @@ SharedEntities SortedByName(SharedEntities collected, SortMemory* memory) {
   return sorted;
 }
 
-// Drops what a table cached about entities that left it.
 void ForgetLeft(SnapshotGroupingState& state, TableKey table, const UngroupedTable& before,
                 const std::vector<flecs::entity_t>& after) {
   for (const flecs::entity_t id : before.ids) {
