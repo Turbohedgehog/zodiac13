@@ -48,15 +48,18 @@ struct LocatedPlayer {
   std::optional<sectors::SectorKey> sector;
 };
 
-std::optional<LocatedPlayer> PlayerOfEntity(
-    flecs::world world, const ft::EntitySnapshot& entity, const sectors::SectorIndex& index) {
-  const flecs::entity found = world.lookup(entity.name.c_str());
-  const auto* player = found ? found.try_get<z13::gameplay::Player>() : nullptr;
-  if (!player) {
-    return std::nullopt;
-  }
-  return LocatedPlayer {
-      .player_id = player->id, .sector = index.Locate({.kind = sectors::MemberKind::kPlayer, .id = player->id})};
+// By snapshot name: a lookup of each of thousands of entities by path costs more than a walk over the few players.
+using PlayersByName = std::unordered_map<std::string, LocatedPlayer>;
+
+PlayersByName PlayersOf(flecs::world world, const sectors::SectorIndex& index) {
+  PlayersByName players;
+  world.query_builder<const z13::gameplay::Player>().build().each([&](flecs::entity e, const z13::gameplay::Player& player) {
+    players.emplace(
+        ft::SnapshotNameOf(e),
+        LocatedPlayer {
+            .player_id = player.id, .sector = index.Locate({.kind = sectors::MemberKind::kPlayer, .id = player.id})});
+  });
+  return players;
 }
 
 }  // namespace
@@ -64,13 +67,14 @@ std::optional<LocatedPlayer> PlayerOfEntity(
 SplitHashes SplitBySector(flecs::world world, const ft::WorldSnapshot& snapshot, const sectors::SectorIndex& index,
                           int chunk_cells) {
   SplitHashes result;
+  const PlayersByName players = PlayersOf(world, index);
   // Entities come sorted by name and groups by id, so both peers add them in the same order.
   for (const ft::SharedEntity& shared : snapshot.entities) {
     const ft::EntitySnapshot& entity = *shared;
-    const uint64_t hash = ft::HashEntitySnapshot(entity);
-    const auto player = PlayerOfEntity(world, entity, index);
-    if (player && player->sector) {
-      result.by_sector[*player->sector].players.push_back({.player_id = player->player_id, .hash = hash});
+    const uint64_t hash = ft::HashEntitySnapshot(shared);
+    const auto player = players.find(entity.name);
+    if (player != players.end() && player->second.sector) {
+      result.by_sector[*player->second.sector].players.push_back({.player_id = player->second.player_id, .hash = hash});
     } else {
       result.global = Add(result.global, hash);
     }

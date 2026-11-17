@@ -20,6 +20,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <unordered_map>
 #include <string>
@@ -32,16 +33,17 @@
 
 #include <lib_core/state/component_codec.h>
 #include <lib_core/state/snapshot_grouping.h>
+#include <lib_core/state/snapshot_hash.h>
+#include <lib_core/state/state_watch.h>
 #include <lib_core/state/world_state.h>
+#include <lib_core/utils/fnv_hash.h>
 #include <lib_core/utils/status.h>
 #include <lib_profile/profile.h>
 
-#include "group_bucket.h"
 
 namespace z13::flecs_tools {
 
 namespace {
-
 // Relation name used for the parent (ChildOf) pair in a snapshot.
 constexpr std::string_view kChildOf = "ChildOf";
 // Leading separator flecs puts on rooted paths ("::a::b").
@@ -71,6 +73,7 @@ struct ComponentInfo {
   std::string path;
   bool accepted {};
   bool has_meta {};
+  bool flat {};  // IsFlatValue: the raw bytes of a value stand for its encoding
 };
 
 struct ComponentScope {
@@ -85,7 +88,41 @@ const ComponentInfo& InfoOf(ComponentScope& components, flecs::entity component)
   std::string path = PathOf(component);
   const bool accepted = !IsUnderFlecs(path) && (!components.accept || components.accept(component));
   const bool has_meta = component.has(ecs_id(EcsType));
-  return components.infos.emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta}).first->second;
+  const bool flat = accepted && has_meta && IsFlatValue(component.world(), component.id());
+  return components.infos.emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta, flat})
+      .first->second;
+}
+
+// A cheap stand-in for encoding an entity: the raw bytes of its components, so equal fingerprints mean equal
+// encodings. None when a component isn't flat. A pair's target is taken by id, so renaming a target is not noticed.
+std::optional<uint64_t> FingerprintOf(const flecs::world& world, flecs::entity e, ComponentScope& components) {
+  uint64_t hash = HashName(e.parent() ? PathOf(e) : std::string_view {e.name().c_str()});
+  bool flat = true;
+  e.each([&](flecs::id id) {
+    if (!flat) {
+      return;
+    }
+    if (id.is_pair()) {
+      hash = MixHash(hash ^ id.raw_id());
+      return;
+    }
+    const ComponentInfo& info = InfoOf(components, id.entity());
+    if (!info.accepted) {
+      return;
+    }
+    hash = MixHash(hash ^ id.raw_id());
+    const ecs_type_info_t* type_info = ecs_get_type_info(world, id.raw_id());
+    if (type_info == nullptr || type_info->size == 0 || !info.has_meta) {
+      return;
+    }
+    const void* value = e.try_get(id.raw_id());
+    if (value == nullptr) {
+      return;
+    }
+    flat = info.flat;
+    hash = FnvHash(std::span(static_cast<const std::byte*>(value), static_cast<size_t>(type_info->size)), hash);
+  });
+  return flat ? std::optional {hash} : std::nullopt;
 }
 
 Status CaptureComponentsAndTags(
@@ -171,6 +208,15 @@ void CountRestore(flecs::world& world) {
 
 }  // namespace
 
+SharedEntity ShareEntity(EntitySnapshot entity) {
+  entity.hash.value = HashEntitySnapshot(entity);
+  return std::make_shared<const EntitySnapshot>(std::move(entity));
+}
+
+std::string SnapshotNameOf(flecs::entity e) {
+  return PathOf(e);
+}
+
 bool DefaultEntityFilter(flecs::entity e) {
   if (!e.is_alive()) {
     return false;
@@ -215,82 +261,190 @@ EntityRefs RefsOf(const SharedEntities& entities) {
   return refs;
 }
 
-using GroupBuckets = std::map<SnapshotGroupId, GroupBucket>;
-
 OptionalGrouping ActiveGrouping(const SnapshotGrouping* grouping) {
-  if (grouping == nullptr || !grouping->member || !grouping->make_group_of || !grouping->hash_of) {
+  if (grouping == nullptr || !grouping->member || !grouping->make_layout) {
     return std::nullopt;
   }
   return std::cref(*grouping);
 }
 
-// The member term is read only: an inout one would mark the component changed on every scan.
-GroupBuckets ScanGroups(flecs::world world, const SnapshotGrouping& grouping) {
-  GroupBuckets buckets;
-  const GroupOf group_of = grouping.make_group_of(world);
+// The fingerprint of an entity FingerprintOf can't cover is the hash of its encoding.
+uint64_t GroupFingerprintOf(const flecs::world& world, flecs::entity e, ComponentScope& components) {
+  if (const std::optional<uint64_t> fingerprint = FingerprintOf(world, e, components)) {
+    return *fingerprint;
+  }
+  const auto encoded = CaptureEntity(world, e, components, {});
+  return encoded ? HashEntitySnapshot(*encoded) : 0;
+}
+
+// What a group publishes: from the encoded values, as raw bytes of two worlds' equal components may differ (padding).
+uint64_t EncodedFingerprintOf(const std::vector<EntitySnapshot>& entities) {
+  const uint64_t sum = std::accumulate(entities.begin(), entities.end(), uint64_t {}, [](uint64_t total, const auto& e) {
+    return total + MixHash(HashEntitySnapshot(e));
+  });
+  return MixHash(sum ^ MixHash(entities.size()));
+}
+
+// What the group's members add up to in the index, to tell whether it changed since it was encoded.
+uint64_t FingerprintOfGroup(const GroupIndexEntry& group) {
+  return MixHash(group.sum ^ MixHash(group.members.size()));
+}
+
+void AddToIndex(SnapshotGroupingState& state, flecs::entity_t entity, const GroupedEntity& grouped) {
+  GroupIndexEntry& group = state.index[grouped.group];
+  group.sum += MixHash(grouped.fingerprint);
+  group.members.insert(entity);
+}
+
+void RemoveFromIndex(SnapshotGroupingState& state, flecs::entity_t entity, const GroupedEntity& grouped) {
+  const auto found = state.index.find(grouped.group);
+  GroupIndexEntry& group = found->second;
+  group.sum -= MixHash(grouped.fingerprint);
+  group.members.erase(entity);
+  if (group.members.empty()) {
+    state.index.erase(found);
+  }
+}
+
+// Only an entity whose table was written (or a new one) is fingerprinted again, a missing one is dropped. The member
+// term is read only: an inout one would mark the component changed on every scan.
+void UpdateGroupIndex(flecs::world world, const SnapshotGrouping& grouping, ComponentScope& components) {
+  SnapshotGroupingState& state = *grouping.state_;
+  const GroupLayout layout = grouping.make_layout(world);
+  if (layout.key != state.layout_key) {
+    state.grouped.clear();
+    state.index.clear();
+    state.layout_key = layout.key;
+  }
+  ++state.update;
+  TableKey last_table {};
+  bool last_changed {};
   world.query_builder()
       .with<StateEntity>()
       .with<flecs::Identifier>(flecs::Name)
       .with(*grouping.member).in()
       .build()
       .each([&](flecs::entity e) {
-        if (StateEntityFilter(e)) {
-          buckets[group_of(e)].Add(e, grouping.hash_of(e));
+        if (!StateEntityFilter(e)) {
+          return;
         }
+        const TableKey table = TableKeyOf(e);
+        if (table != last_table) {
+          last_table = table;
+          last_changed = state.watch.TableChanged(table);
+        }
+        const auto known = state.grouped.find(e.id());
+        if (known != state.grouped.end() && known->second.table == table && !last_changed) {
+          known->second.seen = state.update;
+          return;
+        }
+        ++state.fingerprints_made;
+        const GroupedEntity now {
+            .group = layout.group_of(e),
+            .fingerprint = GroupFingerprintOf(world, e, components),
+            .table = table,
+            .seen = state.update,
+        };
+        if (known != state.grouped.end()) {
+          RemoveFromIndex(state, e.id(), known->second);
+        }
+        AddToIndex(state, e.id(), now);
+        state.grouped.insert_or_assign(e.id(), now);
       });
-  return buckets;
+  std::erase_if(state.grouped, [&state](const auto& entry) {
+    if (entry.second.seen == state.update) {
+      return false;
+    }
+    RemoveFromIndex(state, entry.first, entry.second);
+    return true;
+  });
 }
 
+// The groups of the index, each encoded again only when its fingerprint differs from the last capture's.
 Status EncodeGroups(
     const flecs::world& world, const SnapshotGrouping& grouping, ComponentScope& components,
     const EntityFilter& accept_target) {
-  auto& previous = grouping.state_->captured;
+  SnapshotGroupingState& state = *grouping.state_;
+  flecs::world mutable_world = world;
   std::map<SnapshotGroupId, std::shared_ptr<const GroupSnapshot>> captured;
-  for (const auto& [id, bucket] : ScanGroups(world, grouping)) {
-    const uint64_t fingerprint = bucket.Fingerprint();
-    if (const auto same = previous.find(id); same != previous.end() && same->second->fingerprint == fingerprint) {
+  std::map<SnapshotGroupId, uint64_t> keys;
+  for (const auto& [id, entry] : state.index) {
+    const uint64_t key = FingerprintOfGroup(entry);
+    keys.emplace(id, key);
+    if (const auto same = state.captured.find(id);
+        same != state.captured.end() && state.captured_keys.contains(id) && state.captured_keys.at(id) == key) {
       captured.emplace(id, same->second);
       continue;
     }
 
-    GroupSnapshot group {.id = id, .fingerprint = fingerprint};
-    for (const flecs::entity member : bucket.Members()) {
-      auto entity = CaptureEntity(world, member, components, accept_target);
+    GroupSnapshot group {.id = id};
+    for (const flecs::entity_t member : entry.members) {
+      auto entity = CaptureEntity(world, mutable_world.entity(member), components, accept_target);
       if (!entity) {
         return std::unexpected(std::move(entity.error()));
       }
       group.entities.push_back(std::move(*entity));
     }
     SortByName(group.entities);
+    group.fingerprint = EncodedFingerprintOf(group.entities);
     captured.emplace(id, std::make_shared<const GroupSnapshot>(std::move(group)));
   }
-  previous = std::move(captured);
+  state.captured = std::move(captured);
+  state.captured_keys = std::move(keys);
   return {};
 }
 
 Status CaptureGroups(
-    const flecs::world& world, const SnapshotGrouping& grouping, ComponentScope& components,
+    flecs::world world, const SnapshotGrouping& grouping, ComponentScope& components,
     const EntityFilter& accept_target, WorldSnapshot& snapshot) {
-  auto& captured = grouping.state_->captured;
-  const bool unchanged = grouping.unchanged && grouping.unchanged(world);
-  if (!unchanged || captured.empty()) {
-    if (auto encoded = EncodeGroups(world, grouping, components, accept_target); !encoded) {
-      captured.clear();  // `unchanged` already moved on
-      return encoded;
-    }
+  UpdateGroupIndex(world, grouping, components);
+  if (auto encoded = EncodeGroups(world, grouping, components, accept_target); !encoded) {
+    grouping.state_->captured.clear();
+    return encoded;
   }
-  for (const auto& [id, group] : captured) {
+  for (const auto& [id, group] : grouping.state_->captured) {
     snapshot.groups.push_back(group);
   }
   return {};
 }
 
-bool HasHashedMember(flecs::entity e, const SnapshotGrouping& grouping) {
-  return std::ranges::any_of(grouping.hashed_members, [&e](flecs::entity_t member) { return e.has(member); });
+// Entities in the order of `collected` sorted by name; the sort of the last capture is reused while the names
+// come in the same order.
+SharedEntities SortedByName(SharedEntities collected, SortMemory* memory) {
+  const auto same_name = [](const SharedEntity& a, const SharedEntity& b) { return a == b || a->name == b->name; };
+  SharedEntities sorted;
+  sorted.reserve(collected.size());
+  if (memory != nullptr && std::ranges::equal(collected, memory->collected, same_name)) {
+    std::ranges::transform(memory->order, std::back_inserter(sorted),
+                           [&collected](size_t index) { return collected[index]; });
+    memory->collected = std::move(collected);
+    return sorted;
+  }
+  std::vector<size_t> order(collected.size());
+  std::iota(order.begin(), order.end(), size_t {});
+  std::ranges::sort(order, [&collected](size_t a, size_t b) { return collected[a]->name < collected[b]->name; });
+  std::ranges::transform(order, std::back_inserter(sorted), [&collected](size_t index) { return collected[index]; });
+  if (memory != nullptr) {
+    memory->collected = std::move(collected);
+    memory->order = std::move(order);
+  }
+  return sorted;
 }
 
-// The named entities outside the groups. The fingerprinted ones are encoded again only when their fingerprint
-// differs from the last capture's, and when no hashed member changed they are not even visited.
+void ForgetLeft(SnapshotGroupingState& state, TableKey table, const UngroupedTable& before,
+                const std::vector<flecs::entity_t>& after) {
+  for (const flecs::entity_t id : before.ids) {
+    if (std::ranges::contains(after, id)) {
+      continue;
+    }
+    if (const auto known = state.ungrouped.find(id); known != state.ungrouped.end() && known->second.table == table) {
+      state.ungrouped.erase(known);
+    }
+  }
+}
+
+// The named entities outside the groups, table by table. A table not written since the last capture gives what it
+// gave then; in one that was, each entity is fingerprinted, and encoded again only when the fingerprint differs.
 Status CaptureUngrouped(
     flecs::world world, const EntityFilter& accept, ComponentScope& components,
     const EntityFilter& accept_target, OptionalGrouping grouping, bool state_only, WorldSnapshot& snapshot) {
@@ -303,75 +457,80 @@ Status CaptureUngrouped(
   if (grouping) {
     ungrouped.without(*grouping->get().member);
   }
-  const auto hash_ungrouped = grouping ? grouping->get().hash_ungrouped : nullptr;
-  SnapshotGroupingState* const cache = hash_ungrouped ? grouping->get().state_.get() : nullptr;
-  // The watch is asked on every capture: asking consumes the change.
-  const bool members_unchanged = cache && grouping->get().hashed_unchanged && grouping->get().hashed_unchanged(world);
-  const bool reuse_members = members_unchanged && cache->members_cached;
+  SnapshotGroupingState* const cache = grouping ? grouping->get().state_.get() : nullptr;
 
-  std::unordered_map<flecs::entity_t, CachedEntity> kept;
-  SharedEntities visited;  // what the scan found; the members come ready in the cache when they are reused
-  SharedEntities members;  // the fingerprinted members among them, to be kept sorted
-  if (reuse_members) {
-    for (const flecs::entity_t member : grouping->get().hashed_members) {
-      ungrouped.without(member);
-    }
-  }
-
+  const uint64_t update = cache ? ++cache->ungrouped_update : 0;
+  SharedEntities collected;
   Status captured;
-  bool members_complete = true;
-  ungrouped.build().each([&](flecs::entity e) {
-    if (!captured || (accept && !accept(e))) {
-      return;
-    }
-
-    const std::optional<uint64_t> hash = hash_ungrouped ? hash_ungrouped(e) : std::nullopt;
-    const bool member = cache && HasHashedMember(e, *grouping);
-    members_complete = members_complete && (hash || !member);
-    if (hash) {
-      const auto same = cache->ungrouped.find(e.id());
-      if (same != cache->ungrouped.end() && same->second.hash == *hash) {
-        visited.push_back(same->second.snapshot);
-        if (member) {
-          members.push_back(same->second.snapshot);
+  ungrouped.build().run([&](flecs::iter& it) {
+    while (it.next()) {
+      if (!captured) {
+        continue;
+      }
+      const TableKey table = cache ? TableKeyOf(it.table()) : TableKey {};
+      UngroupedTable* kept = nullptr;
+      if (cache) {
+        kept = &cache->ungrouped_tables[table];
+        if (kept->seen != 0 && kept->count == static_cast<int>(it.count()) && !cache->watch.TableChanged(table)) {
+          kept->seen = update;
+          std::ranges::copy(kept->snapshots, std::back_inserter(collected));
+          continue;
         }
-        kept.emplace(e.id(), std::move(same->second));
-        return;
+      }
+
+      UngroupedTable rebuilt {.count = static_cast<int>(it.count()), .seen = update};
+      for (const auto row : it) {
+        const flecs::entity e = it.entity(row);
+        if (accept && !accept(e)) {
+          continue;
+        }
+        std::optional<uint64_t> hash;
+        if (cache) {
+          hash = FingerprintOf(world, e, components);
+          const auto known = cache->ungrouped.find(e.id());
+          if (known != cache->ungrouped.end() && hash && known->second.hash == hash) {
+            known->second.table = table;
+            rebuilt.ids.push_back(e.id());
+            rebuilt.snapshots.push_back(known->second.snapshot);
+            continue;
+          }
+        }
+        auto entity = CaptureEntity(world, e, components, accept_target);
+        if (!entity) {
+          captured = std::unexpected(std::move(entity.error()));
+          break;
+        }
+        SharedEntity shared = ShareEntity(std::move(*entity));
+        if (cache) {
+          cache->ungrouped.insert_or_assign(e.id(), CachedEntity {.hash = hash, .table = table, .snapshot = shared});
+        }
+        rebuilt.ids.push_back(e.id());
+        rebuilt.snapshots.push_back(std::move(shared));
+      }
+      std::ranges::copy(rebuilt.snapshots, std::back_inserter(collected));
+      if (kept != nullptr) {
+        ForgetLeft(*cache, table, *kept, rebuilt.ids);
+        *kept = std::move(rebuilt);
       }
     }
-    auto entity = CaptureEntity(world, e, components, accept_target);
-    if (!entity) {
-      captured = std::unexpected(std::move(entity.error()));
-      return;
-    }
-    SharedEntity shared = ShareEntity(std::move(*entity));
-    if (hash) {
-      kept.emplace(e.id(), CachedEntity {.hash = *hash, .snapshot = shared, .member = member});
-      if (member) {
-        members.push_back(shared);
-      }
-    }
-    visited.push_back(std::move(shared));
   });
-  SortByName(visited);
-  if (reuse_members) {
-    std::ranges::merge(cache->sorted_members, visited, std::back_inserter(snapshot.entities), ByName);
-  } else {
-    snapshot.entities = std::move(visited);
-  }
   if (cache) {
-    // The entries taken from the cache were moved out of it; after a failure it starts over.
-    if (reuse_members && captured) {
-      std::erase_if(cache->ungrouped, [](const auto& entry) { return !entry.second.member; });
-      cache->ungrouped.merge(kept);
+    if (captured) {
+      std::erase_if(cache->ungrouped_tables, [&](const auto& entry) {
+        if (entry.second.seen == update) {
+          return false;
+        }
+        ForgetLeft(*cache, entry.first, entry.second, {});
+        return true;
+      });
     } else {
-      cache->ungrouped = captured ? std::move(kept) : decltype(kept) {};
+      cache->ungrouped.clear();
+      cache->ungrouped_tables.clear();
+      cache->ungrouped_order = {};
     }
-    cache->members_cached = captured && (reuse_members || members_complete);
-    if (!reuse_members) {
-      SortByName(members);
-      cache->sorted_members = captured && members_complete ? std::move(members) : SharedEntities {};
-    }
+  }
+  if (captured) {
+    snapshot.entities = SortedByName(std::move(collected), cache ? &cache->ungrouped_order : nullptr);
   }
   return captured;
 }
@@ -382,9 +541,15 @@ std::expected<WorldSnapshot, std::string> CaptureImpl(
   WorldSnapshot snapshot;
   flecs::world w = world;
   ComponentScope components {.accept = accept_component};
+  if (grouping) {
+    grouping->get().state_->watch.Refresh(w);
+  }
   Status captured = CaptureUngrouped(w, accept, components, accept_target, grouping, state_only, snapshot);
   if (captured && grouping) {
     captured = CaptureGroups(w, *grouping, components, accept_target, snapshot);
+  }
+  if (captured && grouping) {
+    grouping->get().state_->watch.MarkCaptured();
   }
 
   return captured.transform([&snapshot] { return std::move(snapshot); });
@@ -587,79 +752,54 @@ void PruneToSnapshot(flecs::entity e, const EntitySnapshot& s) {
 
 using GroupIds = std::unordered_set<SnapshotGroupId>;
 
-// Whether the groups of the last capture are the world's groups now. The check consumes the
-// change `unchanged` reports, so a world it finds changed drops them: the next capture re-encodes.
-bool CapturedIsCurrent(flecs::world& world, const SnapshotGrouping& grouping) {
-  auto& captured = grouping.state_->captured;
-  const bool current = grouping.unchanged && grouping.unchanged(world) && !captured.empty();
-  if (!current) {
-    captured.clear();
-  }
-  return current;
-}
-
-GroupIds MatchingGroups(
-    flecs::world& world, const WorldSnapshot& snapshot, OptionalGrouping grouping, bool captured_is_current) {
+GroupIds MatchingGroups(const WorldSnapshot& snapshot, OptionalGrouping grouping) {
   GroupIds matching;
-  if (snapshot.groups.empty() || !grouping) {
+  if (!grouping) {
     return matching;
   }
-  if (captured_is_current) {
-    const auto& captured = grouping->get().state_->captured;
-    for (const auto& group : snapshot.groups) {
-      if (const auto same = captured.find(group->id);
-          same != captured.end() && same->second->fingerprint == group->fingerprint) {
-        matching.insert(group->id);
-      }
-    }
-    return matching;
-  }
-  const GroupBuckets buckets = ScanGroups(world, *grouping);
+  const SnapshotGroupingState& state = *grouping->get().state_;
   for (const auto& group : snapshot.groups) {
-    if (const auto bucket = buckets.find(group->id);
-        bucket != buckets.end() && bucket->second.Fingerprint() == group->fingerprint) {
+    const auto found = state.index.find(group->id);
+    const auto mine = state.captured.find(group->id);
+    const auto key = state.captured_keys.find(group->id);
+    if (found != state.index.end() && mine != state.captured.end() && key != state.captured_keys.end() &&
+        key->second == FingerprintOfGroup(found->second) && mine->second->fingerprint == group->fingerprint) {
       matching.insert(group->id);
     }
   }
   return matching;
 }
 
-// The state entities the snapshot lacks. With the captured groups current, the entities of the
-// matching groups are skipped without being visited and the others are listed from the capture.
+// The state entities the snapshot lacks: the ungrouped ones are visited, the grouped ones come from the index, and
+// the matching groups are skipped.
 std::vector<flecs::entity> StaleEntities(flecs::world& world, OptionalGrouping grouping, const GroupIds& matching,
-                                         const std::unordered_set<std::string>& names, bool captured_is_current) {
+                                         const std::unordered_set<std::string>& names) {
   std::vector<flecs::entity> stale;
   const auto is_stale = [&names](flecs::entity e) {
     return StateEntityFilter(e) && e.name().length() > 0 && !names.contains(PathOf(e));
   };
-  if (captured_is_current && grouping) {
-    world.query_builder().with<StateEntity>().without(*grouping->get().member).build().each([&](flecs::entity e) {
-      if (is_stale(e)) {
-        stale.push_back(e);
-      }
-    });
-    for (const auto& [id, group] : grouping->get().state_->captured) {
+  auto visited = world.query_builder();
+  visited.with<StateEntity>();
+  if (grouping) {
+    visited.without(*grouping->get().member);
+  }
+  visited.build().each([&](flecs::entity e) {
+    if (is_stale(e)) {
+      stale.push_back(e);
+    }
+  });
+  if (grouping) {
+    for (const auto& [id, group] : grouping->get().state_->index) {
       if (matching.contains(id)) {
         continue;
       }
-      for (const EntitySnapshot& member : group->entities) {
-        if (const flecs::entity e = world.lookup(member.name.c_str()); e && is_stale(e)) {
+      for (const flecs::entity_t member : group.members) {
+        if (const flecs::entity e = world.entity(member); e.is_alive() && is_stale(e)) {
           stale.push_back(e);
         }
       }
     }
-    return stale;
   }
-
-  const GroupOf group_of = matching.empty() ? GroupOf {} : grouping->get().make_group_of(world);
-  const auto in_matching_group = [&](flecs::entity e) {
-    return group_of && e.has(*grouping->get().member) && matching.contains(group_of(e));
-  };
-  world.query_builder().with<StateEntity>().build().each([&](flecs::entity e) {
-    if (!in_matching_group(e) && is_stale(e)) {
-      stale.push_back(e);
-    }
-  });
   return stale;
 }
 
@@ -678,8 +818,12 @@ EntityRefs EntitiesToApply(const WorldSnapshot& snapshot, const GroupIds& matchi
 Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
   Z13_PROFILE_ZONE("RestoreWorld");
   const OptionalGrouping grouping = ActiveGrouping(world.try_get<SnapshotGrouping>());
-  const bool captured_is_current = grouping && CapturedIsCurrent(world, *grouping);
-  const GroupIds matching = MatchingGroups(world, snapshot, grouping, captured_is_current);
+  if (grouping) {
+    ComponentScope components {.accept = StateComponentFilter};
+    grouping->get().state_->watch.Refresh(world);
+    UpdateGroupIndex(world, *grouping, components);
+  }
+  const GroupIds matching = MatchingGroups(snapshot, grouping);
   const EntityRefs entities = EntitiesToApply(snapshot, matching);
   if (auto valid = ValidateEntities(world, entities); !valid) {
     return valid;
@@ -690,7 +834,7 @@ Status RestoreWorld(flecs::world& world, const WorldSnapshot& snapshot) {
     names.insert(s.name);
   }
 
-  const std::vector<flecs::entity> stale_entities = StaleEntities(world, grouping, matching, names, captured_is_current);
+  const std::vector<flecs::entity> stale_entities = StaleEntities(world, grouping, matching, names);
   for (const flecs::entity e : stale_entities) {
     e.destruct();
   }

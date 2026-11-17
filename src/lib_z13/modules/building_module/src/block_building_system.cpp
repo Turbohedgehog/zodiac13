@@ -529,6 +529,7 @@ void ProcessBuildRequest(flecs::entity player, BuildRun& run, const BuildGrids& 
   }
   if (drag) {
     brush.spec = block.spec;
+    tool->modified<BlockBrush>();
   }
 }
 

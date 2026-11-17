@@ -424,11 +424,9 @@ UnchangedRow MeasureUnchanged(const std::string& label, const std::vector<z13::s
     if (!snapshot) {
       return row;
     }
-    // Without `unchanged` every capture scans the blocks and compares the groups' fingerprints.
-    auto unchanged = std::move(w.get_mut<ft::SnapshotGrouping>().unchanged);
-    w.get_mut<ft::SnapshotGrouping>().unchanged = nullptr;
+    // A changed layout key makes the capture scan the blocks and compare the groups' fingerprints.
+    ++w.get<ft::SnapshotGrouping>().state_->layout_key;
     scan.push_back(Ms([&] { snapshot = ft::CaptureState(w); }));
-    w.get_mut<ft::SnapshotGrouping>().unchanged = std::move(unchanged);
     restore.push_back(Ms([&] { EXPECT_TRUE(ft::RestoreWorld(w, *snapshot).has_value()); }));
     const ft::TimestampedSnapshot timestamped {.tick = 1, .snapshot = *snapshot};
     digest.push_back(Ms([&] { z13::net::ComputeStateDigest(w, timestamped); }));
@@ -630,12 +628,8 @@ void PrintSides(const std::string& scene, size_t blocks, const std::vector<SideR
 
 // A client walks inside a station its server holds.
 void MeasureServerClient(const std::string& scene) {
-  const auto blocks = ReadStation(scene);
-  ASSERT_TRUE(blocks.has_value()) << blocks.error();
   auto network = std::make_shared<z13::net::InMemoryNetwork>();
-  Z13TestWorld server({std::string(kServerArg)}, network);
-  server.Tick();
-  PlaceStation(server, *blocks, 1, LayoutOf(*blocks));
+  Z13TestWorld server({std::string(kServerArg), std::string(kStationSceneArg), scene}, network);
   server.Tick();
   Z13TestWorld client({std::string(kConnectArg), std::string(kTestServerEndpoint)}, network);
   const auto connected = [&] {

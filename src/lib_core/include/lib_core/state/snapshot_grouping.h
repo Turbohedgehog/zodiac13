@@ -32,23 +32,20 @@ namespace z13::flecs_tools {
 
 using GroupOf = std::function<SnapshotGroupId(flecs::entity)>;
 
-// Files many rarely changing state entities (the station's blocks) into snapshot groups.
-// `hash_of` must cover the entity's name and every state value it has; a 64-bit
-// fingerprint is trusted not to collide.
+// How members are filed: `key` changes with whatever the filing depends on (a chunk size), so the groups of an
+// earlier capture are not reused under another layout.
+struct GroupLayout {
+  GroupOf group_of;
+  uint64_t key {};
+};
+
+// Files many rarely changing state entities (the station's blocks) into snapshot groups. Entities are fingerprinted
+// like any other (FingerprintOf), and a group is encoded again only when its fingerprint differs.
 struct SnapshotGrouping {
   using Singleton = void;
   std::optional<flecs::entity_t> member;  // a component every grouped entity has
   // Called once per scan; what it returns files each member entity.
-  std::function<GroupOf(flecs::world)> make_group_of;
-  std::function<uint64_t(flecs::entity)> hash_of;
-  // Optional: no grouped entity changed since the previous call, so fingerprinting is skipped.
-  std::function<bool(flecs::world)> unchanged;
-  // Fingerprint of an ungrouped entity (name and all state), none if it can't say; an unchanged one is not re-encoded.
-  std::function<std::optional<uint64_t>(flecs::entity)> hash_ungrouped;
-  // Optional, with hash_ungrouped: the components of the entities it fingerprints, and whether none of them changed
-  // since the previous call. Then those entities come from the last capture without being visited.
-  std::vector<flecs::entity_t> hashed_members;
-  std::function<bool(flecs::world)> hashed_unchanged;
+  std::function<GroupLayout(flecs::world)> make_layout;
   std::shared_ptr<SnapshotGroupingState> state_ = std::make_shared<SnapshotGroupingState>();
 };
 
@@ -61,5 +58,8 @@ uint64_t MixHash(uint64_t value);
 uint64_t HashName(std::string_view name);
 
 void RegisterSnapshotGrouping(flecs::world& world);
+
+// Builds the grouping's change queries once its state components are registered; outside a frame.
+void PrimeSnapshotGrouping(flecs::world& world);
 
 }  // namespace z13::flecs_tools

@@ -50,11 +50,19 @@ struct Relationship {
   bool operator==(const Relationship&) const = default;
 };
 
+// The hash ShareEntity gives an entity, so a snapshot reused by many captures is hashed once; never part of equality.
+struct EntityHashMemo {
+  uint64_t value {};
+
+  bool operator==(const EntityHashMemo&) const { return true; }
+};
+
 struct EntitySnapshot {
   std::string name;                         // full "::"-separated path, no root
   std::vector<std::string> tags;            // zero-size components, sorted
   std::vector<ComponentValue> components;   // data components with meta, sorted by type
   std::vector<Relationship> relationships;  // sorted by (relation, target)
+  EntityHashMemo hash;
 
   bool operator==(const EntitySnapshot&) const = default;
 };
@@ -72,9 +80,9 @@ struct GroupSnapshot {
 using SharedEntity = std::shared_ptr<const EntitySnapshot>;
 using SharedEntities = std::vector<SharedEntity>;
 
-inline SharedEntity ShareEntity(EntitySnapshot entity) {
-  return std::make_shared<const EntitySnapshot>(std::move(entity));
-}
+SharedEntity ShareEntity(EntitySnapshot entity);
+
+std::string SnapshotNameOf(flecs::entity e);
 
 // Equal by value: the pointers of two captures differ.
 bool SameEntities(const SharedEntities& a, const SharedEntities& b);

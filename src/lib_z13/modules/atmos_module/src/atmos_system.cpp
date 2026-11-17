@@ -464,6 +464,7 @@ void Update(flecs::iter& it, const AtmosQueries& queries, DoorOpeningsCache& doo
     std::vector<RoomAirEntry> of_grid = RoomsOfGrid(stored, grid.id);
     if (!follows) {
       FollowRooms(BasisOf(grid.entity), of_grid, grid.cache, grid.graph);
+      grid.entity.modified<RoomAirBasis>();
       std::ranges::for_each(of_grid, [&grid](RoomAirEntry& room) { room.grid = grid.id; });
     }
     std::ranges::move(of_grid, std::back_inserter(rooms));

@@ -121,9 +121,9 @@ TEST(BlockSnapshotTest, GroupingDoesNotChangeWhatTheSnapshotHolds) {
   PlaceBlock(world, "TestBlock_2", kThirdChunkCell);
 
   const ft::WorldSnapshot grouped = ft::CaptureState(world).value();
-  const auto make_group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
+  const auto make_layout = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_layout, nullptr);
   const ft::WorldSnapshot ungrouped = ft::CaptureState(world).value();
-  world.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
+  world.get_mut<ft::SnapshotGrouping>().make_layout = make_layout;
 
   EXPECT_FALSE(grouped.groups.empty());
   EXPECT_TRUE(ungrouped.groups.empty());
@@ -169,9 +169,9 @@ TEST(BlockSnapshotTest, ACachedChunkNeverGoesStale) {
 
   const auto matches_ungrouped = [&world] {
     const StateByName grouped = Flatten(ft::CaptureState(world).value());
-    const auto make_group_of = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_group_of, nullptr);
+    const auto make_layout = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_layout, nullptr);
     const StateByName ungrouped = Flatten(ft::CaptureState(world).value());
-    world.get_mut<ft::SnapshotGrouping>().make_group_of = make_group_of;
+    world.get_mut<ft::SnapshotGrouping>().make_layout = make_layout;
     return grouped == ungrouped;
   };
 
@@ -193,25 +193,6 @@ flecs::entity PlaceWallEntity(flecs::world world, std::string_view name) {
   return world.entity(std::string(name).c_str()).add<ft::StateEntity>();
 }
 
-// The wall hash (HashOfWallEntity) covers the wall components; an entity holding anything else is not cached.
-TEST(BlockSnapshotTest, AWallEntityHoldsOnlyWhatItsHashCovers) {
-  Z13TestWorld test_world = StationWorld();
-  flecs::world world = test_world.World();
-  const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
-  const flecs::entity segment = PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
-  const flecs::entity opening = PlaceWallEntity(world, "TestWallOpening").set(z13::station::WallOpening {.id = 3});
-
-  for (const flecs::entity e : {node, segment, opening}) {
-    const auto snapshot = ft::CaptureEntityState(world, e);
-    ASSERT_TRUE(snapshot.has_value()) << snapshot.error();
-    ASSERT_EQ(snapshot->entities.size(), 1u);
-    EXPECT_EQ(snapshot->entities[0]->components.size(), 1u) << e.name();
-    EXPECT_TRUE(snapshot->entities[0]->tags.empty()) << e.name();
-    EXPECT_TRUE(snapshot->entities[0]->relationships.empty()) << e.name();
-    EXPECT_TRUE(world.get<ft::SnapshotGrouping>().hash_ungrouped(e).has_value()) << e.name();
-  }
-}
-
 TEST(BlockSnapshotTest, ACachedWallNeverGoesStale) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
@@ -222,9 +203,9 @@ TEST(BlockSnapshotTest, ACachedWallNeverGoesStale) {
 
   const auto matches_uncached = [&world] {
     const StateByName cached = Flatten(ft::CaptureState(world).value());
-    const auto hash_ungrouped = std::exchange(world.get_mut<ft::SnapshotGrouping>().hash_ungrouped, nullptr);
+    const auto make_layout = std::exchange(world.get_mut<ft::SnapshotGrouping>().make_layout, nullptr);
     const StateByName uncached = Flatten(ft::CaptureState(world).value());
-    world.get_mut<ft::SnapshotGrouping>().hash_ungrouped = hash_ungrouped;
+    world.get_mut<ft::SnapshotGrouping>().make_layout = make_layout;
     return cached == uncached;
   };
 
@@ -247,37 +228,18 @@ TEST(BlockSnapshotTest, ACachedWallNeverGoesStale) {
   EXPECT_TRUE(matches_uncached());
 }
 
-// Counts the fingerprints given while `capture` runs (an entity that can't be fingerprinted gets none).
-int HashesTakenBy(flecs::world world, const std::function<void()>& capture) {
-  int taken = 0;
-  auto& grouping = world.get_mut<ft::SnapshotGrouping>();
-  const auto hash_ungrouped = grouping.hash_ungrouped;
-  grouping.hash_ungrouped = [&taken, &hash_ungrouped](flecs::entity e) {
-    const auto hash = hash_ungrouped(e);
-    taken += hash.has_value() ? 1 : 0;
-    return hash;
-  };
-  capture();
-  world.get_mut<ft::SnapshotGrouping>().hash_ungrouped = hash_ungrouped;
-  return taken;
-}
-
-TEST(BlockSnapshotTest, QuietWallsAreNotVisitedAgain) {
+TEST(BlockSnapshotTest, QuietWallsKeepTheirRecords) {
   Z13TestWorld test_world = StationWorld();
   flecs::world world = test_world.World();
   const flecs::entity node = PlaceWallEntity(world, "TestWallNode").set(z13::station::WallNode {.id = 1});
   PlaceWallEntity(world, "TestWallSegment").set(z13::station::WallSegment {.id = 2});
-  const StateByName first = Flatten(ft::CaptureState(world).value());
-  ft::CaptureState(world).value();
+  const ft::WorldSnapshot first = ft::CaptureState(world).value();
 
-  StateByName quiet;
-  EXPECT_EQ(HashesTakenBy(world, [&] { quiet = Flatten(ft::CaptureState(world).value()); }), 0);
-  EXPECT_EQ(quiet, first);
+  const ft::WorldSnapshot quiet = ft::CaptureState(world).value();
+  EXPECT_EQ(quiet.entities, first.entities);
 
   node.set(z13::station::WallNode {.id = 1, .cell = Eigen::Vector3i(1, 0, 0)});
-  StateByName moved;
-  EXPECT_GT(HashesTakenBy(world, [&] { moved = Flatten(ft::CaptureState(world).value()); }), 0);
-  EXPECT_NE(moved, first);
+  EXPECT_NE(Flatten(ft::CaptureState(world).value()), Flatten(first));
 }
 
 TEST(BlockSnapshotTest, AnUnchangedWallIsTheSameRecordInTheNextSnapshot) {

@@ -166,6 +166,7 @@ ToolMode ApplyModeKey(flecs::entity tool, const z13::input::ActionListener& list
   BuildTool& state = tool.get_mut<BuildTool>();
   if (IsSwitchedOn(listener, ids.cycle_tool_mode)) {
     state.mode = z13::NextEnumerator(state.mode);
+    tool.modified<BuildTool>();
   }
   return EffectiveToolMode(state.mode, IsHeld(listener, ids.cut_modifier), IsHeld(listener, ids.cut_in_modifier));
 }
@@ -177,6 +178,7 @@ void TurnDraft(flecs::entity e, ToolMode mode, const z13::input::ActionListener&
   if (mode == ToolMode::kBridge && e.has<z13::station::WallBridgeDraft>() && flip) {
     z13::station::WallBridgeDraft& draft = e.get_mut<z13::station::WallBridgeDraft>();
     draft.flipped = !draft.flipped;
+    e.modified<z13::station::WallBridgeDraft>();
   }
   if (mode != ToolMode::kWall || !e.has<z13::station::WallDraft>()) {
     return;
@@ -191,6 +193,7 @@ void TurnDraft(flecs::entity e, ToolMode mode, const z13::input::ActionListener&
       draft.stage = z13::station::WallDraft::Stage::kHeight;
     }
   }
+  e.modified<z13::station::WallDraft>();
 }
 
 // A click lays the next point of a wall, bridge or merge, or cuts an opening; the wheel sets the
@@ -213,6 +216,7 @@ void ApplyWallTool(
   } else if (wheel != 0) {
     state.merge_at = z13::NextEnumerator(state.merge_at);
   }
+  tool.modified<BuildTool>();
   TurnDraft(e, mode, listener, ids);
   if (IsSwitchedOn(listener, ids.build_block)) {
     e.add<RequestBuildBlock>();

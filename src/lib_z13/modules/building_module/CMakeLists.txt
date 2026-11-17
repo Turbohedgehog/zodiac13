@@ -18,7 +18,6 @@ z13_add_plugin(
   src/block_cutting.cpp
   src/block_entities.cpp
   src/block_snapshot_system.cpp
-  src/block_watch.cpp
   src/blueprint_walls.cpp
   src/brush_aim.cpp
   src/brush_system.cpp
@@ -43,7 +42,6 @@ z13_add_plugin(
   src/wall_merge.cpp
   src/wall_opening_brush.cpp
   src/wall_panel_system.cpp
-  src/wall_watch.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE

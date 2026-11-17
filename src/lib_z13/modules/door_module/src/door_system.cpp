@@ -129,6 +129,7 @@ void PairDoors(const flecs::world& world, const DockLinks& docks) {
       DoorState& follower = second.get_mut<DoorState>();
       follower.open_wanted = lead.open_wanted;
       follower.hold_ticks = lead.hold_ticks;
+      second.modified<DoorState>();
     }
   }
 }
