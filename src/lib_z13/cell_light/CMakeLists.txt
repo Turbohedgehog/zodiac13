@@ -18,4 +18,5 @@ z13_add_library(
   Eigen3::Eigen
   zodiac13::fbs_schemas
   zodiac13::primitives
+  zodiac13::rooms
 )

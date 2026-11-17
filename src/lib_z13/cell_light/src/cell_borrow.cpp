@@ -16,6 +16,7 @@
 
 #include "cell_borrow.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -28,6 +29,8 @@ using z13::building::primitives::CellBox;
 
 // What a lit node's cell adds to the distance of an unlit one's: any lit cell within reach wins.
 constexpr int kUnlitPenalty = 100;
+// Fewer cells than this are worked out on the caller: handing them to threads costs more.
+constexpr size_t kParallelCells = 1 << 16;
 
 // Plain numbers: this runs over every opaque cell of the layout, where Eigen's temporaries
 // cost many times more in Debug.
@@ -72,22 +75,24 @@ uint8_t BorrowOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light
 }  // namespace
 
 std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light,
-                                    const CellBox& cells) {
+                                    const CellBox& cells, const z13::station::rooms::ParallelFor& parallel) {
   const LightLayout& layout = nodes.Layout();
-  std::vector<CellTexel> texels;
-  texels.reserve(static_cast<size_t>(cells.extent.cast<int64_t>().prod()));
+  const size_t layer_cells = static_cast<size_t>(cells.extent.x()) * static_cast<size_t>(cells.extent.y());
+  std::vector<CellTexel> texels(layer_cells * static_cast<size_t>(std::max(cells.extent.z(), 0)));
   const Eigen::Vector3i end = cells.End();
-  for (int z = cells.min.z(); z < end.z(); ++z) {
+  const z13::station::rooms::ParallelFor& run = texels.size() >= kParallelCells ? parallel : z13::station::rooms::Serial;
+  run(static_cast<size_t>(std::max(cells.extent.z(), 0)), [&](size_t layer) {
+    const int z = cells.min.z() + static_cast<int>(layer);
+    CellTexel* out = texels.data() + (layer * layer_cells);
     for (int y = cells.min.y(); y < end.y(); ++y) {
       for (int x = cells.min.x(); x < end.x(); ++x) {
         const Eigen::Vector3i local = Eigen::Vector3i(x, y, z) - layout.origin;
         const uint8_t label = nodes.Labels()[layout.CellIndex({x, y, z})];
-        texels.push_back({.label = label,
-                          .borrow = label == kOpaqueLabel ? BorrowOf(nodes, light, {local.x(), local.y(), local.z()})
-                                                          : kNoBorrow});
+        *out++ = {.label = label,
+                  .borrow = label == kOpaqueLabel ? BorrowOf(nodes, light, {local.x(), local.y(), local.z()}) : kNoBorrow};
       }
     }
-  }
+  });
   return texels;
 }
 

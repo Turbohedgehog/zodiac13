@@ -22,6 +22,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/cell_box.h>
+#include <rooms/parallel_for.h>
 
 #include <cell_light/light_layout.h>
 
@@ -31,7 +32,9 @@ namespace z13::station::light {
 
 // The texels of `cells`, which lie inside the layout. An opaque cell borrows the free cell
 // nearest to it within reach, a lit node's before any unlit one's (`light` per node).
+// The layers of `cells` are worked out side by side through `parallel`.
 std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light,
-                                    const z13::building::primitives::CellBox& cells);
+                                    const z13::building::primitives::CellBox& cells,
+                                    const z13::station::rooms::ParallelFor& parallel);
 
 }  // namespace z13::station::light

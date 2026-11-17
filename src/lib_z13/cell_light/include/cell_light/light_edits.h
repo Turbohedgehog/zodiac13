@@ -47,13 +47,15 @@ struct LightEdits {
   bool Empty() const;
 };
 
-// What an update changed, for the renderer to upload: cell texels in cells, light in cubes from
-// the layout's origin.
+// What an update changed, for the renderer to upload: the light in cubes and the cell texels in cells, from the
+// layout's origin; whatever lies outside the tiles stands as uploaded.
 struct LightChanges {
   // The layout itself changed: everything did.
   bool resized {};
-  std::optional<z13::building::primitives::CellBox> cell_texels;
-  std::optional<z13::building::primitives::CellBox> light;
+  // The tiles (cubes) where a node's light changed.
+  std::vector<z13::building::primitives::CellBox> light_tiles;
+  // The cells whose texels changed, around those tiles: the labels borrow from the light beside them.
+  std::vector<z13::building::primitives::CellBox> cell_tiles;
 };
 
 }  // namespace z13::station::light

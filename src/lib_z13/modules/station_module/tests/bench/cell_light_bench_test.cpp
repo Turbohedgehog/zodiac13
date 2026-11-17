@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <tuple>
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -72,9 +74,8 @@ void TimePanel(light::CellLight& cell_light, const std::string& label, const Eig
   std::optional<light::LightChanges> built;
   const double build_ms = Ms([&] { built = cell_light.Apply({.opaque_added = {panel}}); });
   const double destroy_ms = Ms([&] { cell_light.Apply({.opaque_removed = {panel}}); });
-  const Eigen::Vector3i lit = built->light ? built->light->extent : Eigen::Vector3i::Zero();
-  std::cout << std::format("[ bench ]   panel {}: build {:.1f} ms, destroy {:.1f} ms, light changed in {}x{}x{} cubes\n",
-                           label, build_ms, destroy_ms, lit.x(), lit.y(), lit.z())
+  std::cout << std::format("[ bench ]   panel {}: build {:.1f} ms, destroy {:.1f} ms, light changed in {} tiles\n",
+                           label, build_ms, destroy_ms, built->light_tiles.size())
             << std::flush;
 }
 
@@ -138,6 +139,43 @@ SealedParts SealedPartsOf(const std::vector<z13::station::Block>& blocks, const 
     }
   }
   return parts;
+}
+
+// Opening and shutting each door of a scene on the flooded light, as SyncCellLighting does (the doors left out of the
+// lit blocks).
+TEST(CellLightBench, DISABLED_Doors) {
+  const primitives::Palette palette = ShippedPalette().value();
+  for (const std::string& scene : ShippedScenes()) {
+    const auto blocks = ShippedBlueprint(scene, palette);
+    ASSERT_TRUE(blocks.has_value()) << blocks.error();
+    const SealedParts parts = SealedPartsOf(*blocks, palette);
+    std::vector<light::Lamp> lamps;
+    for (const auto& point : primitives::LightsOf(*blocks, primitives::OptionalPalette(palette))) {
+      lamps.push_back(light::LampOf(point));
+    }
+    const double parts_ms = Ms([&] { std::ignore = SealedPartsOf(*blocks, palette); });
+    light::CellLight cell_light(parts.opaque, parts.glass, lamps);
+    std::vector<double> opens;
+    std::vector<double> shuts;
+    for (const z13::station::Block& block : *blocks) {
+      const auto primitive = palette.Find(block.spec.type_id);
+      if (!primitive || !primitive->get().IsDoor() || opens.size() >= 40) {
+        continue;
+      }
+      const std::vector<primitives::CellBox> boxes = primitives::SealedBoxes(block, primitives::OptionalPalette(palette));
+      opens.push_back(Ms([&] { cell_light.Apply({.opaque_removed = boxes}); }));
+      shuts.push_back(Ms([&] { cell_light.Apply({.opaque_added = boxes}); }));
+    }
+    std::ranges::sort(opens);
+    std::ranges::sort(shuts);
+    if (opens.empty()) {
+      continue;
+    }
+    std::cout << std::format("[ bench ] '{}': {} doors, open median {:.1f} max {:.1f} ms, shut median {:.1f} max {:.1f} ms; sealed parts of all {} blocks {:.1f} ms\n",
+                             scene, opens.size(), opens[opens.size() / 2], opens.back(), shuts[shuts.size() / 2],
+                             shuts.back(), blocks->size(), parts_ms)
+              << std::flush;
+  }
 }
 
 // The blueprint's blocks flooded first and its wall panels (spawned in the first tick) applied after, against all of

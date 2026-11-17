@@ -30,6 +30,7 @@
 #include <z13/components/utility/lamps.h>
 #include <lib_core/utils/status.h>
 #include <primitives/geometry.h>
+#include <rooms/parallel_for.h>
 #include <z13/components/station/block.h>
 
 #include "lights.h"
@@ -40,6 +41,13 @@ namespace z13::raylib {
 struct EmergencyLamps {
   std::span<const z13::utility::DimmedLamp> dimmed;
   int percent {};
+};
+
+// What a sync needs besides the blocks: where the floods may run side by side, and where the player is, in cells, so
+// the lamps around them are lit first.
+struct SyncContext {
+  z13::station::rooms::ParallelFor parallel = z13::station::rooms::Serial;
+  Eigen::Vector3f focus = Eigen::Vector3f::Zero();
 };
 
 // The station's lamps baked into its free cells (cell_light/cell_light.h) and handed to the
@@ -53,8 +61,9 @@ class CellLighting {
 
   bool SyncedWith(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
   // Needs the GL context. Fails once when the textures can't be made; the lamps then light nothing.
+  // Lights a few lamps a call, the nearest to `context.focus` first, until SyncedWith.
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette,
-              const EmergencyLamps& emergency);
+              const EmergencyLamps& emergency, const SyncContext& context);
   // Why the textures couldn't be made, for the pause menu's diagnostics.
   std::optional<std::string> Failure() const;
   // In cells, where each shines from (CellLight::ShiningLamps).

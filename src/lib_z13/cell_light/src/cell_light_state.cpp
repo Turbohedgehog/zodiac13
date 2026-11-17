@@ -21,7 +21,9 @@
 #include <climits>
 #include <cmath>
 #include <iterator>
+#include <numeric>
 #include <optional>
+#include <set>
 #include <utility>
 
 #include "cell_borrow.h"
@@ -39,6 +41,10 @@ constexpr float kAdded = 1.f;
 constexpr int kOuterMargin = 1;
 constexpr int kGrowthMargin = 8;
 constexpr float kTakenBack = -1.f;
+// In cubes: the side of the pieces the renderer uploads, a balance between the calls and the texels sent.
+constexpr int kUploadTile = 4;
+// Lamps are measured in this many chunks, each with its own marks: enough to keep every thread busy.
+constexpr size_t kFloodChunks = 16;
 
 int FloorDiv(int value, int divisor) {
   return value >= 0 ? value / divisor : -((-value + divisor - 1) / divisor);
@@ -110,7 +116,9 @@ bool LightEdits::Empty() const {
          lamps_added.empty() && lamps_removed.empty();
 }
 
-CellLight::State::State(std::span<const CellBox> opaque, std::span<const GlassBox> glass, std::span<const Lamp> lamps) {
+CellLight::State::State(std::span<const CellBox> opaque, std::span<const GlassBox> glass, std::span<const Lamp> lamps,
+                        z13::station::rooms::ParallelFor parallel)
+    : parallel_(std::move(parallel)) {
   const LightEdits all {.opaque_added = {opaque.begin(), opaque.end()},
                         .glass_added = {glass.begin(), glass.end()},
                         .lamps_added = {lamps.begin(), lamps.end()}};
@@ -138,13 +146,20 @@ void CellLight::State::Rebuild(
   light_.assign(node_count, Eigen::Vector3f::Zero());
   directions_.assign(node_count, Eigen::Vector3f::Zero());
   luminance_.assign(node_count, 0.f);
-  marks_ = {};
+  touched_.assign(layout.CubeCount(), 0);
+  marks_.assign(kFloodChunks, {});
   std::erase_if(lamps, [&edits](const Lamp& lamp) { return std::ranges::contains(edits.lamps_removed, lamp); });
   lamps.insert(lamps.end(), edits.lamps_added.begin(), edits.lamps_added.end());
   lamps_.clear();
   for (const Lamp& lamp : lamps) {
-    Flood(lamps_.emplace_back(LampState {.lamp = lamp}));
+    lamps_.push_back({.lamp = lamp});
   }
+  std::vector<size_t> all(lamps_.size());
+  std::iota(all.begin(), all.end(), size_t {});
+  Flood(all);
+  std::ranges::fill(touched_, uint8_t {});
+  lit_.resize(light_.size());
+  std::ranges::transform(light_, lit_.begin(), [](const Eigen::Vector3f& light) { return light.maxCoeff() > 0.f; });
 }
 
 LightChanges CellLight::State::Apply(const LightEdits& edits) {
@@ -200,7 +215,7 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
       Extend(lit, lamp.reached);
       continue;
     }
-    if (changed_cells && lamp.reached.Overlaps(reaching)) {
+    if (changed_cells && lamp.reached.Overlaps(reaching) && ReachesCubes(lamp, reaching)) {
       TakeBack(lamp, relabelled);
       reflooded.push_back(kept.size());
       Extend(lit, lamp.reached);
@@ -209,33 +224,129 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
   }
   lamps_ = std::move(kept);
   ClearCubes(relabelled);
+  for (const Lamp& lamp : edits.lamps_added) {
+    reflooded.push_back(lamps_.size());
+    lamps_.push_back({.lamp = lamp});
+  }
+  Flood(reflooded);
   for (const size_t index : reflooded) {
-    Flood(lamps_[index]);
     Extend(lit, lamps_[index].reached);
   }
-  for (const Lamp& lamp : edits.lamps_added) {
-    Flood(lamps_.emplace_back(LampState {.lamp = lamp}));
-    Extend(lit, lamps_.back().reached);
-  }
   // A borrowed cell follows both the labels and the light around it.
-  std::optional<CellBox> texels;
-  if (changed_cells) {
-    Extend(texels, CellsOfCubes(layout, relabelled));
-  }
+  std::vector<CellBox> tiles;
   if (lit) {
-    Extend(texels, CellsOfCubes(layout, *lit));
+    tiles = TakeTouchedTiles(*lit);
+  }
+  std::vector<CellBox> cell_tiles;
+  if (changed_cells) {
+    cell_tiles.push_back(CellsOfCubes(layout, relabelled));
+  }
+  if (changed_cells) {
+    cell_tiles.back() = cell_tiles.back().Grown(Eigen::Vector3i::Constant(kBorrowReach)).Intersection(layout.CellBounds());
+  }
+  for (const CellBox& flips : LitFlips(tiles)) {
+    cell_tiles.push_back(CellsOfCubes(layout, flips));
   }
   return {
-      .cell_texels = texels ? std::optional(texels->Grown(Eigen::Vector3i::Constant(kBorrowReach)).Intersection(layout.CellBounds()))
-                       : std::nullopt,
-      .light = lit,
+      .light_tiles = std::move(tiles),
+      .cell_tiles = std::move(cell_tiles),
   };
 }
 
-void CellLight::State::Flood(LampState& lamp) {
+std::vector<CellBox> CellLight::State::LitFlips(std::span<const CellBox> tiles) {
+  const LightLayout& layout = nodes_.Layout();
+  const CellBox all {.min = Eigen::Vector3i::Zero(), .extent = layout.cubes};
+  // The upload tiles, aligned to the layout, that hold a cube a flip is next to: a borrow reaches less than a cube.
+  std::set<std::array<int, 3>> aligned;
+  for (const CellBox& tile : tiles) {
+    for (int z = tile.min.z(); z < tile.End().z(); ++z) {
+      for (int y = tile.min.y(); y < tile.End().y(); ++y) {
+        for (int x = tile.min.x(); x < tile.End().x(); ++x) {
+          const size_t cube = layout.CubeIndex({x, y, z});
+          bool flipped = false;
+          for (uint8_t piece = 0; piece < kPiecesPerNode; ++piece) {
+            const size_t node = LightLayout::NodeIndex(cube, piece);
+            const uint8_t now = light_[node].maxCoeff() > 0.f;
+            flipped = flipped || lit_[node] != now;
+            lit_[node] = now;
+          }
+          if (!flipped) {
+            continue;
+          }
+          const Eigen::Vector3i low = Eigen::Vector3i(x - 1, y - 1, z - 1).cwiseMax(0);
+          const Eigen::Vector3i high = Eigen::Vector3i(x + 1, y + 1, z + 1).cwiseMin(layout.cubes - Eigen::Vector3i::Ones());
+          for (int tz = FloorDiv(low.z(), kUploadTile); tz <= FloorDiv(high.z(), kUploadTile); ++tz) {
+            for (int ty = FloorDiv(low.y(), kUploadTile); ty <= FloorDiv(high.y(), kUploadTile); ++ty) {
+              for (int tx = FloorDiv(low.x(), kUploadTile); tx <= FloorDiv(high.x(), kUploadTile); ++tx) {
+                aligned.insert({tx, ty, tz});
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  std::vector<CellBox> flips;
+  std::ranges::transform(aligned, std::back_inserter(flips), [&all](const std::array<int, 3>& tile) {
+    const Eigen::Vector3i min(tile[0] * kUploadTile, tile[1] * kUploadTile, tile[2] * kUploadTile);
+    return CellBox {.min = min, .extent = Eigen::Vector3i::Constant(kUploadTile)}.Intersection(all);
+  });
+  return flips;
+}
+
+std::vector<CellBox> CellLight::State::TakeTouchedTiles(const CellBox& cubes) {
+  const LightLayout& layout = nodes_.Layout();
+  std::vector<CellBox> tiles;
+  const Eigen::Vector3i tile_size = Eigen::Vector3i::Constant(kUploadTile);
+  for (int z = cubes.min.z(); z < cubes.End().z(); z += kUploadTile) {
+    for (int y = cubes.min.y(); y < cubes.End().y(); y += kUploadTile) {
+      for (int x = cubes.min.x(); x < cubes.End().x(); x += kUploadTile) {
+        const CellBox tile = CellBox {.min = {x, y, z}, .extent = tile_size}.Intersection(cubes);
+        bool touched = false;
+        for (int tz = tile.min.z(); tz < tile.End().z(); ++tz) {
+          for (int ty = tile.min.y(); ty < tile.End().y(); ++ty) {
+            const size_t row = layout.CubeIndex({tile.min.x(), ty, tz});
+            const auto first = touched_.begin() + static_cast<std::ptrdiff_t>(row);
+            const auto last = first + tile.extent.x();
+            touched = touched || std::any_of(first, last, [](uint8_t mark) { return mark != 0; });
+            std::fill(first, last, uint8_t {});
+          }
+        }
+        if (touched) {
+          tiles.push_back(tile);
+        }
+      }
+    }
+  }
+  return tiles;
+}
+
+// Light only gets past an edit through the nodes beside it, so a lamp that reaches none of them is untouched, however
+// far its box reaches.
+bool CellLight::State::ReachesCubes(const LampState& lamp, const CellBox& cubes) const {
+  return std::ranges::any_of(lamp.contributions,
+                             [this, &cubes](const Contribution& reached) { return nodes_.InCubes(reached.node, cubes); });
+}
+
+void CellLight::State::Flood(std::span<const size_t> indices) {
+  if (marks_.empty()) {
+    marks_.resize(kFloodChunks);
+  }
+  const size_t chunks = std::min(indices.size(), marks_.size());
+  parallel_(chunks, [this, indices, chunks](size_t chunk) {
+    for (size_t next = chunk; next < indices.size(); next += chunks) {
+      Measure(lamps_[indices[next]], marks_[chunk]);
+    }
+  });
+  for (const size_t index : indices) {
+    Add(lamps_[index], kAdded, {});
+  }
+}
+
+void CellLight::State::Measure(LampState& lamp, FloodMarks& marks) const {
   lamp.emitter = EmitterOf(nodes_, lamp.lamp);
   lamp.contributions =
-      lamp.emitter ? FloodLamp(nodes_, bridges_, lamp.lamp, *lamp.emitter, marks_) : std::vector<Contribution> {};
+      lamp.emitter ? FloodLamp(nodes_, bridges_, lamp.lamp, *lamp.emitter, marks) : std::vector<Contribution> {};
   std::array low {INT_MAX, INT_MAX, INT_MAX};
   std::array high {INT_MIN, INT_MIN, INT_MIN};
   for (const Contribution& reached : lamp.contributions) {
@@ -249,7 +360,6 @@ void CellLight::State::Flood(LampState& lamp) {
                      ? CellBox {}
                      : CellBox {.min = {low[0], low[1], low[2]},
                                 .extent = {high[0] - low[0], high[1] - low[1], high[2] - low[2]}};
-  Add(lamp, kAdded, {});
 }
 
 void CellLight::State::TakeBack(const LampState& lamp, const CellBox& kept_cubes) {
@@ -269,6 +379,7 @@ void CellLight::State::Add(const LampState& lamp, float sign, const CellBox& kep
       continue;
     }
     const float weight = sign * reached.weight;
+    touched_[reached.node / kPiecesPerNode] = 1;
     Eigen::Vector3f& light = light_[reached.node];
     light.x() += color.x() * weight;
     light.y() += color.y() * weight;
@@ -295,6 +406,7 @@ void CellLight::State::ClearCubes(const CellBox& cubes) {
     for (int y = cubes.min.y(); y < cubes.End().y(); ++y) {
       for (int x = cubes.min.x(); x < cubes.End().x(); ++x) {
         const size_t cube = layout.CubeIndex({x, y, z});
+        touched_[cube] = 1;
         for (uint8_t piece = 0; piece < kPiecesPerNode; ++piece) {
           const size_t node = LightLayout::NodeIndex(cube, piece);
           light_[node] = Eigen::Vector3f::Zero();
@@ -315,7 +427,7 @@ Eigen::Vector3f CellLight::State::DirectionAt(size_t node) const {
 }
 
 std::vector<CellTexel> CellLight::State::CellTexels(const CellBox& cells) const {
-  return CellTexelsOf(nodes_, light_, cells);
+  return CellTexelsOf(nodes_, light_, cells, parallel_);
 }
 
 std::vector<Eigen::Vector4f> CellLight::State::Texels(const CellBox& cubes, uint8_t piece, NodeTexel texel) const {

@@ -30,9 +30,10 @@ bool CellLighting::SyncedWith(z13::building::primitives::OptionalPalette palette
 }
 
 Status CellLighting::Sync(std::span<const z13::station::Block> blocks,
-                          z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) {
+                          z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency,
+                          const SyncContext& context) {
   Z13_PROFILE_ZONE("CellLighting::Sync");
-  return state_->Sync(blocks, palette, emergency);
+  return state_->Sync(blocks, palette, emergency, context);
 }
 
 std::optional<std::string> CellLighting::Failure() const {
