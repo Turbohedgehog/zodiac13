@@ -31,6 +31,9 @@
 #include <primitives/station_assets.h>
 #include <rooms/portal_source.h>
 #include <rooms/room_sources.h>
+#include <station_graph/graph_assets.h>
+#include <station_graph/graph_json.h>
+#include <station_graph/property_schema.h>
 
 namespace z13::testing {
 
@@ -44,10 +47,25 @@ inline constexpr std::string_view kShardScene = "shard";
 inline constexpr std::string_view kHubScene = "hub";
 // assets/station/blueprints/octant.json, from docs/station-layout/generate_octant.py.
 inline constexpr std::string_view kOctantScene = z13::building::primitives::kOctantScene;
+// assets/station/graph/prototype.json, the graph the editor's first stage builds (docs/station-editor-plan.md).
+inline constexpr std::string_view kPrototypeGraph = "prototype";
 
 // The source tree's assets/ and config/ (Z13_SOURCE_ASSETS_DIR, set for the test runner).
 inline z13::AssetSource SourceAssets() {
   return z13::AssetSource(std::filesystem::path(Z13_SOURCE_ASSETS_DIR).parent_path());
+}
+
+// The properties a station graph's nodes and edges may have, and a graph file.
+inline std::expected<z13::editor::graph::PropertySchema, std::string> ShippedPropertySchema() {
+  return SourceAssets().ReadAsset(z13::editor::graph::PropertiesFile()).and_then([](const std::string& json) {
+    return z13::editor::graph::ParsePropertySchema(json);
+  });
+}
+
+inline std::expected<z13::editor::graph::Graph, std::string> ShippedGraph(std::string_view name) {
+  return SourceAssets().ReadAsset(z13::editor::graph::GraphFile(name)).and_then([](const std::string& json) {
+    return z13::editor::graph::ParseGraph(json);
+  });
 }
 
 inline std::vector<std::string> ShippedScenes() {

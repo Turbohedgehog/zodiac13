@@ -1,0 +1,32 @@
+{
+  "blocks": [
+    {"primitive": "Lamp", "cell": {"x": 19, "y": 11, "z": 14}, "size": {"x": 2, "y": 2, "z": 1}},
+    {"primitive": "SpawnPoint", "cell": {"x": 18, "y": 10, "z": 1}, "size": {"x": 4, "y": 4, "z": 1}},
+    {"primitive": "Lamp", "cell": {"x": 58, "y": 11, "z": 12}, "size": {"x": 2, "y": 2, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 0, "y": 0, "z": 0}, "size": {"x": 40, "y": 6, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 79, "y": 0, "z": 0}, "size": {"x": 28, "y": 6, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 0, "y": 6, "z": 0}, "size": {"x": 64, "y": 12, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 64, "y": 6, "z": 0}, "size": {"x": 43, "y": 12, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 0, "y": 18, "z": 0}, "size": {"x": 40, "y": 6, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 79, "y": 18, "z": 0}, "size": {"x": 28, "y": 6, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 40, "y": 6, "z": 13}, "size": {"x": 39, "y": 12, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 0, "y": 0, "z": 15}, "size": {"x": 40, "y": 24, "z": 1}},
+    {"primitive": "Floor", "cell": {"x": 79, "y": 0, "z": 15}, "size": {"x": 28, "y": 24, "z": 1}}
+  ],
+  "walls": [
+    {"node_a": {"x": 1, "y": 1, "z": 1}, "node_b": {"x": 33, "y": 1, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": -1},
+    {"node_a": {"x": 33, "y": 1, "z": 1}, "node_b": {"x": 39, "y": 1, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": -1},
+    {"node_a": {"x": 1, "y": 23, "z": 1}, "node_b": {"x": 33, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": 1},
+    {"node_a": {"x": 33, "y": 23, "z": 1}, "node_b": {"x": 39, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": 1},
+    {"node_a": {"x": 1, "y": 1, "z": 1}, "node_b": {"x": 1, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": -1},
+    {"node_a": {"x": 39, "y": 1, "z": 1}, "node_b": {"x": 39, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": 1, "openings": [{"kind": "Door", "offset": 8, "width": 6, "sill": 0, "height": 10}]},
+    {"node_a": {"x": 40, "y": 7, "z": 1}, "node_b": {"x": 72, "y": 7, "z": 1}, "axis_a": "Z", "length_a": 12, "axis_b": "Z", "length_b": 12, "thickness": -1},
+    {"node_a": {"x": 72, "y": 7, "z": 1}, "node_b": {"x": 79, "y": 7, "z": 1}, "axis_a": "Z", "length_a": 12, "axis_b": "Z", "length_b": 12, "thickness": -1},
+    {"node_a": {"x": 40, "y": 17, "z": 1}, "node_b": {"x": 72, "y": 17, "z": 1}, "axis_a": "Z", "length_a": 12, "axis_b": "Z", "length_b": 12, "thickness": 1},
+    {"node_a": {"x": 72, "y": 17, "z": 1}, "node_b": {"x": 79, "y": 17, "z": 1}, "axis_a": "Z", "length_a": 12, "axis_b": "Z", "length_b": 12, "thickness": 1},
+    {"node_a": {"x": 80, "y": 1, "z": 1}, "node_b": {"x": 106, "y": 1, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": -1},
+    {"node_a": {"x": 80, "y": 23, "z": 1}, "node_b": {"x": 106, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": 1},
+    {"node_a": {"x": 80, "y": 1, "z": 1}, "node_b": {"x": 80, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": -1, "openings": [{"kind": "Passage", "offset": 8, "width": 6, "sill": 0, "height": 10}]},
+    {"node_a": {"x": 106, "y": 1, "z": 1}, "node_b": {"x": 106, "y": 23, "z": 1}, "axis_a": "Z", "length_a": 14, "axis_b": "Z", "length_b": 14, "thickness": 1}
+  ]
+}
