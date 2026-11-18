@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <numeric>
 #include <tuple>
 #include <array>
 #include <chrono>
@@ -198,6 +199,8 @@ TEST(CellLightBench, DISABLED_BlocksThenWallPanels) {
     }
     const SealedParts first = SealedPartsOf(blocks, palette);
     const SealedParts panel_parts = SealedPartsOf(panels, palette);
+    const double panel_parts_ms = Ms([&] { std::ignore = SealedPartsOf(panels, palette); });
+    const double block_parts_ms = Ms([&] { std::ignore = SealedPartsOf(blocks, palette); });
     const SealedParts everything = SealedPartsOf(all, palette);
 
     std::optional<light::CellLight> at_once;
@@ -209,11 +212,76 @@ TEST(CellLightBench, DISABLED_BlocksThenWallPanels) {
     });
     std::cout << std::format(
                      "[ bench ] '{}': {} blocks + {} panels ({} opaque boxes, {} glass), {} lamps; all at once "
-                     "{:.0f} ms; blocks {:.0f} ms, then the panels {:.0f} ms (together {:.0f})\n",
+                     "{:.0f} ms; blocks {:.0f} ms, then the panels {:.0f} ms (together {:.0f}); "
+                     "sealed boxes of the blocks {:.0f} ms, of the panels {:.0f} ms\n",
                      scene, blocks.size(), panels.size(), panel_parts.opaque.size(), panel_parts.glass.size(),
-                     lamps.size(), once_ms, blocks_ms, panels_ms, blocks_ms + panels_ms)
+                     lamps.size(), once_ms, blocks_ms, panels_ms, blocks_ms + panels_ms, block_parts_ms, panel_parts_ms)
               << std::flush;
   }
+}
+
+// What lighting the lamps of the hub batch by batch costs, as CellLighting does it: the flood of a batch, then the
+// texels the renderer uploads for it (labels of the cell tiles, light of the light tiles).
+TEST(CellLightBench, DISABLED_LampBatches) {
+  constexpr size_t kFirstBatch = 48;
+  constexpr size_t kBatch = 6;
+  constexpr int kBatches = 20;
+  const z13::ThreadPool pool(4);
+  const primitives::Palette palette = ShippedPalette().value();
+  const auto blocks = ShippedBlueprint("hub", palette).value();
+  const auto walls = ShippedBlueprintWalls("hub").value();
+  const auto openings = ShippedBlueprintOpenings("hub").value();
+  const auto panels = z13::building::BlueprintPanels(walls, palette, z13::BuildingTuning {}, openings).value();
+  std::vector<z13::station::Block> all = blocks;
+  all.insert(all.end(), panels.begin(), panels.end());
+  const SealedParts parts = SealedPartsOf(all, palette);
+  std::vector<light::Lamp> lamps;
+  for (const auto& point : primitives::LightsOf(all, primitives::OptionalPalette(palette))) {
+    lamps.push_back(light::LampOf(point));
+  }
+  ASSERT_GT(lamps.size(), kFirstBatch + (kBatch * kBatches));
+  const std::span<const light::Lamp> first(lamps.data(), kFirstBatch);
+  light::CellLight cell_light(parts.opaque, parts.glass, first);
+  double apply_ms = 0;
+  double labels_ms = 0;
+  double light_ms = 0;
+  size_t label_texels = 0;
+  size_t tiles_total = 0;
+  size_t biggest = 0;
+  size_t light_texels = 0;
+  for (int batch = 0; batch < kBatches; ++batch) {
+    light::LightEdits edits;
+    const size_t begin = kFirstBatch + (batch * kBatch);
+    edits.lamps_added.assign(lamps.begin() + static_cast<std::ptrdiff_t>(begin),
+                             lamps.begin() + static_cast<std::ptrdiff_t>(begin + kBatch));
+    light::LightChanges changes;
+    apply_ms += Ms([&] { changes = cell_light.Apply(edits); });
+    labels_ms += Ms([&] {
+      std::vector<size_t> counts(changes.cell_tiles.size());
+      pool.ForEachIndex(changes.cell_tiles.size(),
+                        [&](size_t tile) { counts[tile] = cell_light.CellTexels(changes.cell_tiles[tile]).size(); });
+      label_texels += std::accumulate(counts.begin(), counts.end(), size_t {});
+      tiles_total += counts.size();
+      biggest = std::max(biggest, *std::ranges::max_element(counts));
+    });
+    light_ms += Ms([&] {
+      for (const primitives::CellBox& tile : changes.light_tiles) {
+        for (uint8_t piece = 0; piece < light::kPiecesPerNode; ++piece) {
+          light_texels += cell_light.Texels(tile, piece, light::NodeTexel::kLight).size();
+          light_texels += cell_light.Texels(tile, piece, light::NodeTexel::kDirection).size();
+        }
+      }
+    });
+  }
+  std::cout << std::format(
+                   "[ bench ] hub lamp batches of {}, per batch: flood {:.1f} ms, label texels {:.1f} ms ({} texels), "
+                   "light texels {:.1f} ms ({} texels)\n",
+                   kBatch, apply_ms / kBatches, labels_ms / kBatches, label_texels / kBatches, light_ms / kBatches,
+                   light_texels / kBatches)
+            << std::flush;
+  std::cout << std::format("[ bench ] {} cell tiles per batch, the biggest {} texels, {} threads\n",
+                           tiles_total / kBatches, biggest, pool.Threads())
+            << std::flush;
 }
 
 }  // namespace

@@ -18,7 +18,10 @@
 #include <lib_core/utils/status.h>
 
 #include <algorithm>
+#include <cstring>
 #include <format>
+#include <numeric>
+#include <optional>
 
 #include "component_codec/meta_access.h"
 #include "component_codec/scratch_value.h"
@@ -179,6 +182,119 @@ std::vector<ByteRange> FlatRanges(const flecs::world& world, flecs::entity_t typ
   std::vector<ByteRange> ranges;
   AppendFlatRanges(world, type, 0, ranges);
   return ranges;
+}
+
+namespace {
+
+// False for what EncodeValue writes differently from the memory (strings, entities, pointer-wide scalars) or walks.
+bool AppendPlan(const flecs::world& world, flecs::entity_t type, size_t base, std::vector<EncodeStep>& plan) {
+  const auto meta = codec::Meta<EcsType>(world, type);
+  const auto size = codec::TypeSize(world, type);
+  if (!meta || !size) {
+    return false;
+  }
+  const auto repeat = [&](flecs::entity_t element_type, size_t count, size_t first) {
+    const auto element_size = codec::TypeSize(world, element_type);
+    if (!element_size) {
+      return false;
+    }
+    for (size_t index = 0; index < count; ++index) {
+      if (!AppendPlan(world, element_type, first + (index * *element_size), plan)) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto plain = [&](size_t bytes) {
+    if (!plan.empty() && !plan.back().has_count && plan.back().offset + plan.back().size == base) {
+      plan.back().size += bytes;
+    } else {
+      plan.push_back({.offset = base, .size = bytes});
+    }
+    return true;
+  };
+  switch (meta->get().kind) {
+    case EcsPrimitiveType: {
+      const auto primitive = codec::Meta<EcsPrimitive>(world, type);
+      if (!primitive) {
+        return false;
+      }
+      const std::optional<size_t> fixed = codec::FixedSize(primitive->get().kind);
+      return fixed && *fixed == *size && primitive->get().kind != EcsUPtr && primitive->get().kind != EcsIPtr &&
+             plain(*size);
+    }
+    case EcsEnumType:
+      return codec::Meta<EcsEnum>(world, type).transform([&](const EcsEnum& enum_meta) {
+        return AppendPlan(world, enum_meta.underlying_type, base, plan);
+      }).value_or(false);
+    case EcsBitmaskType:
+      return *size == sizeof(uint32_t) && plain(*size);
+    case EcsStructType: {
+      const auto members = codec::Meta<EcsStruct>(world, type);
+      if (!members) {
+        return false;
+      }
+      const std::span all(static_cast<const ecs_member_t*>(ecs_vec_first(&members->get().members)),
+                          static_cast<size_t>(ecs_vec_count(&members->get().members)));
+      return std::ranges::all_of(all, [&](const ecs_member_t& member) {
+        return repeat(member.type, std::max<size_t>(static_cast<size_t>(member.count), 1),
+                      base + static_cast<size_t>(member.offset));
+      });
+    }
+    case EcsArrayType:
+      return codec::Meta<EcsArray>(world, type).transform([&](const EcsArray& array) {
+        return repeat(array.type, static_cast<size_t>(array.count), base);
+      }).value_or(false);
+    case EcsOpaqueType: {
+      // An Eigen type or std::array: its elements are its memory, written after their count.
+      const auto opaque = codec::Meta<EcsOpaque>(world, type);
+      if (!opaque || !IsFlatArrayOpaque(world, type)) {
+        return false;
+      }
+      const auto array = codec::Meta<EcsArray>(world, opaque->get().as_type);
+      if (!array) {
+        return false;
+      }
+      std::vector<EncodeStep> element;
+      if (!AppendPlan(world, array->get().type, 0, element) || element.size() != 1) {
+        return false;
+      }
+      plan.push_back({.offset = base,
+                      .size = *size,
+                      .has_count = true,
+                      .count = static_cast<uint32_t>(array->get().count)});
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+}  // namespace
+
+std::vector<EncodeStep> EncodePlanOf(const flecs::world& world, flecs::entity_t type) {
+  std::vector<EncodeStep> plan;
+  if (!AppendPlan(world, type, 0, plan)) {
+    plan.clear();
+  }
+  return plan;
+}
+
+std::vector<uint8_t> EncodeWithPlan(std::span<const EncodeStep> plan, std::span<const std::byte> value) {
+  const size_t total = std::accumulate(plan.begin(), plan.end(), size_t {}, [](size_t sum, const EncodeStep& step) {
+    return sum + step.size + (step.has_count ? sizeof(uint32_t) : size_t {});
+  });
+  std::vector<uint8_t> bytes(total);
+  size_t at = 0;
+  for (const EncodeStep& step : plan) {
+    if (step.has_count) {
+      std::memcpy(&bytes[at], &step.count, sizeof(step.count));
+      at += sizeof(step.count);
+    }
+    std::memcpy(&bytes[at], value.data() + step.offset, step.size);
+    at += step.size;
+  }
+  return bytes;
 }
 
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type) {

@@ -61,6 +61,22 @@ struct ByteRange {
 // memory held, and changes when flecs moves the value.
 std::vector<ByteRange> FlatRanges(const flecs::world& world, flecs::entity_t type);
 
+// One piece of a planned encoding: `size` bytes at `offset` of the value, after a 32-bit element count when
+// `has_count` (an opaque array).
+struct EncodeStep {
+  size_t offset {};
+  size_t size {};
+  bool has_count {};
+  uint32_t count {};
+};
+
+// What EncodeValue writes for a flat `type` as steps over its memory, so a value is encoded by copying; empty for a
+// type EncodeValue has to walk (strings, entity references, pointers, opaque collections).
+std::vector<EncodeStep> EncodePlanOf(const flecs::world& world, flecs::entity_t type);
+
+// The bytes EncodeValue gives for `value` of the type `plan` was made for.
+std::vector<uint8_t> EncodeWithPlan(std::span<const EncodeStep> plan, std::span<const std::byte> value);
+
 // Encodes a default value of `type`, to catch member types the codec can't write.
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type);
 

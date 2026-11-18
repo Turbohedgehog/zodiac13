@@ -38,6 +38,9 @@ class GridCellLights {
   // Drops the light of every grid not among `grids`.
   void Keep(const std::set<z13::station::GridId>& grids);
   bool SyncedWith(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  // Whether each grid is synced or waits for lamps only (CellLighting::OnlyLampsPending).
+  bool OnlyLampsPending(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  Status LightLamps(const SyncContext& context);
 
  private:
   std::map<z13::station::GridId, CellLighting> lights_;

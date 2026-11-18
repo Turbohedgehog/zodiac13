@@ -34,4 +34,21 @@ bool GridCellLights::SyncedWith(z13::building::primitives::OptionalPalette palet
   return std::ranges::all_of(lights_, [&](const auto& entry) { return entry.second.SyncedWith(palette, emergency); });
 }
 
+bool GridCellLights::OnlyLampsPending(z13::building::primitives::OptionalPalette palette,
+                                      const EmergencyLamps& emergency) const {
+  return std::ranges::all_of(lights_, [&](const auto& entry) {
+    return entry.second.SyncedWith(palette, emergency) || entry.second.OnlyLampsPending(palette, emergency);
+  });
+}
+
+Status GridCellLights::LightLamps(const SyncContext& context) {
+  Status result;
+  for (auto& entry : lights_) {
+    if (Status lit = entry.second.LightLamps(context); !lit && result) {
+      result = std::move(lit);
+    }
+  }
+  return result;
+}
+
 }  // namespace z13::raylib

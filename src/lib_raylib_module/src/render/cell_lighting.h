@@ -64,6 +64,9 @@ class CellLighting {
   // Lights a few lamps a call, the nearest to `context.focus` first, until SyncedWith.
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette,
               const EmergencyLamps& emergency, const SyncContext& context);
+  // Whether only lamps are left to light: LightLamps then does what Sync would, without collecting the blocks.
+  bool OnlyLampsPending(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  Status LightLamps(const SyncContext& context);
   // Why the textures couldn't be made, for the pause menu's diagnostics.
   std::optional<std::string> Failure() const;
   // In cells, where each shines from (CellLight::ShiningLamps).

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -31,9 +32,9 @@
 namespace z13::station::light {
 
 // The texels of `cells`, which lie inside the layout. An opaque cell borrows the free cell
-// nearest to it within reach, a lit node's before any unlit one's (`light` per node).
+// nearest to it within reach, a lit node's before any unlit one's (`lit` per node: whether it has light).
 // The layers of `cells` are worked out side by side through `parallel`.
-std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light,
+std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const uint8_t> lit,
                                     const z13::building::primitives::CellBox& cells,
                                     const z13::station::rooms::ParallelFor& parallel);
 

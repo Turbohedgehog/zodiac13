@@ -75,7 +75,13 @@ uint64_t FingerprintOf(const z13::station::Block& block) {
 // Lamps lit by the first build, and by each sync after it: a flood costs a few milliseconds, so the rest wait for the
 // next frames instead of holding up one.
 constexpr size_t kFirstLampBatch = 48;
+// The lamps a sync lights at first, and at most per call after (a call takes fewer when lamps cost much).
 constexpr size_t kLampBatch = 6;
+constexpr size_t kMaxLampBatch = 24;
+// What lighting lamps may take of a frame: a lamp costs about a millisecond in Release and six in Debug.
+constexpr double kLampBudgetMs = 6.0;
+constexpr double kLampCostSmoothing = 0.5;
+constexpr double kMinLampCostMs = 1e-3;
 
 constexpr std::array kNodeTexels {NodeTexel::kLight, NodeTexel::kDirection};
 
@@ -140,6 +146,12 @@ bool CellLighting::State::BuiltFrom(z13::building::primitives::OptionalPalette p
 bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette palette,
                                      const EmergencyLamps& emergency) const {
   return BuiltFrom(palette) && !lamps_pending_ && emergency_percent_ == emergency.percent &&
+         std::ranges::equal(dimmed_, emergency.dimmed);
+}
+
+bool CellLighting::State::OnlyLampsPending(z13::building::primitives::OptionalPalette palette,
+                                           const EmergencyLamps& emergency) const {
+  return BuiltFrom(palette) && lamps_pending_ && emergency_percent_ == emergency.percent &&
          std::ranges::equal(dimmed_, emergency.dimmed);
 }
 
@@ -222,6 +234,7 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   std::ranges::transform(z13::building::primitives::LightsOf(blocks, palette, dimmed, emergency.percent),
                          std::back_inserter(lamps), z13::station::light::LampOf);
   std::ranges::sort(lamps, LampBefore);
+  wanted_lamps_ = lamps;
 
   dimmed_ = dimmed;
   emergency_percent_ = emergency.percent;
@@ -250,19 +263,50 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   edits.lamps_removed = Missing(lamps_, lamps, LampBefore);
   // A lamp that changed colour comes back as it goes, whatever the batch.
   edits.lamps_added =
-      NearestLamps(Missing(lamps, lamps_, LampBefore), context.focus, edits.lamps_removed.size() + kLampBatch);
+      NearestLamps(Missing(lamps, lamps_, LampBefore), context.focus, edits.lamps_removed.size() + lamp_batch_);
   blocks_ = std::move(keyed);
   std::vector<Lamp> lit = Missing(lamps_, edits.lamps_removed, LampBefore);
   lit.insert(lit.end(), edits.lamps_added.begin(), edits.lamps_added.end());
   std::ranges::sort(lit, LampBefore);
   lamps_pending_ = lit.size() < lamps.size();
   lamps_ = std::move(lit);
-  const z13::station::light::LightChanges changes = light_->Apply(edits);
+  return Present(light_->Apply(edits), context);
+}
+
+Status CellLighting::State::LightLamps(const SyncContext& context) {
+  if (failure_ || !light_) {
+    return {};
+  }
+  const auto start = std::chrono::steady_clock::now();
+  LightEdits edits;
+  edits.lamps_added = NearestLamps(Missing(wanted_lamps_, lamps_, LampBefore), context.focus, lamp_batch_);
+  std::vector<Lamp> lit = lamps_;
+  lit.insert(lit.end(), edits.lamps_added.begin(), edits.lamps_added.end());
+  std::ranges::sort(lit, LampBefore);
+  lamps_pending_ = lit.size() < wanted_lamps_.size();
+  lamps_ = std::move(lit);
+  const Status presented = Present(light_->Apply(edits), context);
+  if (!edits.lamps_added.empty()) {
+    TuneLampBatch(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(),
+                  edits.lamps_added.size());
+  }
+  return presented;
+}
+
+void CellLighting::State::TuneLampBatch(double batch_ms, size_t lamps) {
+  const double per_lamp = batch_ms / static_cast<double>(lamps);
+  lamp_cost_ms_ =
+      lamp_cost_ms_ ? (kLampCostSmoothing * per_lamp) + ((1 - kLampCostSmoothing) * *lamp_cost_ms_) : per_lamp;
+  lamp_batch_ = std::clamp(static_cast<size_t>(kLampBudgetMs / std::max(*lamp_cost_ms_, kMinLampCostMs)), size_t {1},
+                           kMaxLampBatch);
+}
+
+Status CellLighting::State::Present(const z13::station::light::LightChanges& changes, const SyncContext& context) {
   shining_ = light_->ShiningLamps();
   if (changes.resized) {
     return Remake();
   }
-  std::ranges::for_each(changes.cell_tiles, [this](const CellBox& tile) { UploadLabels(tile); });
+  UploadLabels(changes.cell_tiles, context.parallel);
   std::ranges::for_each(changes.light_tiles, [this](const CellBox& tile) { UploadLight(tile); });
   return {};
 }
@@ -303,6 +347,19 @@ void CellLighting::State::UploadLabels(const CellBox& cells) const {
   const z13::station::light::LightLayout& layout = light_->Layout();
   const CellBox local {.min = cells.min - layout.origin, .extent = cells.extent};
   gl_->UploadLabels(*labels_, local, light_->CellTexels(cells));
+}
+
+void CellLighting::State::UploadLabels(std::span<const CellBox> tiles,
+                                       const z13::station::rooms::ParallelFor& parallel) const {
+  if (!labels_) {
+    return;
+  }
+  std::vector<std::vector<z13::station::light::CellTexel>> texels(tiles.size());
+  parallel(tiles.size(), [&](size_t tile) { texels[tile] = light_->CellTexels(tiles[tile]); });
+  const z13::station::light::LightLayout& layout = light_->Layout();
+  for (size_t tile = 0; tile < tiles.size(); ++tile) {
+    gl_->UploadLabels(*labels_, {.min = tiles[tile].min - layout.origin, .extent = tiles[tile].extent}, texels[tile]);
+  }
 }
 
 void CellLighting::State::UploadLight(const CellBox& cubes) const {
