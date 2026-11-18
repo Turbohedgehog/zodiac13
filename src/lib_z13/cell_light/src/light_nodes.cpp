@@ -104,7 +104,7 @@ void LightNodes::SetOpaque(const CellBox& cells, bool opaque) {
   }
 }
 
-void LightNodes::Relabel(const CellBox& cubes) {
+void LightNodes::Relabel(const CellBox& cubes, const z13::station::rooms::ParallelFor& parallel) {
   const CellBox all {.min = Eigen::Vector3i::Zero(), .extent = layout_.cubes};
   const CellBox labelled = cubes.Intersection(all);
   if (Empty(labelled)) {
@@ -115,18 +115,20 @@ void LightNodes::Relabel(const CellBox& cubes) {
     const CellBox& box = linking ? linked : labelled;
     const std::array low {box.min.x(), box.min.y(), box.min.z()};
     const std::array high {box.End().x(), box.End().y(), box.End().z()};
-    for (int z = low[2]; z < high[2]; ++z) {
-      for (int y = low[1]; y < high[1]; ++y) {
-        for (int x = low[0]; x < high[0]; ++x) {
-          const std::array cube {x, y, z};
-          if (linking) {
-            LinkCube(cube);
-          } else {
-            LabelCube(cube);
-          }
+    // A row of cubes along x per task: a plain slab of z is too few tasks in a flat station.
+    const auto rows = static_cast<size_t>(high[1] - low[1]);
+    parallel(rows * static_cast<size_t>(high[2] - low[2]), [&](size_t row) {
+      const int y = low[1] + static_cast<int>(row % rows);
+      const int z = low[2] + static_cast<int>(row / rows);
+      for (int x = low[0]; x < high[0]; ++x) {
+        const std::array cube {x, y, z};
+        if (linking) {
+          LinkCube(cube);
+        } else {
+          LabelCube(cube);
         }
       }
-    }
+    });
   }
 }
 

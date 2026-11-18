@@ -25,6 +25,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/cell_box.h>
+#include <rooms/parallel_for.h>
 
 #include <cell_light/light_layout.h>
 
@@ -51,7 +52,9 @@ class LightNodes {
   // The part of `cells` inside the layout.
   void SetOpaque(const z13::building::primitives::CellBox& cells, bool opaque);
   // Finds the pieces of `cubes` again, and the links of those and of the cubes around them.
-  void Relabel(const z13::building::primitives::CellBox& cubes);
+  // The rows of cubes along x are done side by side by `parallel`: a cube's labels and links are its own.
+  void Relabel(const z13::building::primitives::CellBox& cubes,
+               const z13::station::rooms::ParallelFor& parallel = z13::station::rooms::Serial);
 
   std::optional<size_t> NodeAt(const Eigen::Vector3i& cell) const;
   bool InCubes(size_t node, const z13::building::primitives::CellBox& cubes) const;

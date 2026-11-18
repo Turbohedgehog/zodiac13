@@ -18,10 +18,11 @@
 
 #include <algorithm>
 #include <array>
-#include <functional>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <ranges>
+#include <unordered_set>
 #include <utility>
 
 #include <primitives/draw_order.h>
@@ -147,15 +148,12 @@ size_t SealedBoxesKeyHash::operator()(const SealedBoxesKey& key) const {
          static_cast<size_t>(key.orientation);
 }
 
-std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Block& block,
-                                                        z13::building::primitives::OptionalPalette palette) {
-  const SealedBoxesKey key {.shape = z13::building::primitives::ShapeKeyOf(block.spec),
-                            .orientation = block.spec.orientation};
-  auto found = sealed_.find(key);
-  if (found == sealed_.end()) {
-    found = sealed_.emplace(key, z13::building::primitives::SealedBoxes({.spec = block.spec}, palette)).first;
-  }
-  std::vector<CellBox> boxes = found->second;
+SealedBoxesKey CellLighting::State::SealedKeyOf(const z13::station::Block& block) {
+  return {.shape = z13::building::primitives::ShapeKeyOf(block.spec), .orientation = block.spec.orientation};
+}
+
+std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Block& block) const {
+  std::vector<CellBox> boxes = sealed_.at(SealedKeyOf(block));
   for (CellBox& box : boxes) {
     box.min += block.cell;
   }
@@ -163,12 +161,28 @@ std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Bloc
 }
 
 void CellLighting::State::BoxesOf(std::span<const KeyedBlock> blocks,
-                                  z13::building::primitives::OptionalPalette palette, std::vector<CellBox>& opaque,
+                                  z13::building::primitives::OptionalPalette palette,
+                                  const z13::station::rooms::ParallelFor& parallel, std::vector<CellBox>& opaque,
                                   std::vector<GlassBox>& glass) {
+  std::unordered_set<SealedBoxesKey, SealedBoxesKeyHash> missing;
+  std::vector<size_t> samples;
+  for (size_t index = 0; index < blocks.size(); ++index) {
+    const SealedBoxesKey key = SealedKeyOf(blocks[index].block);
+    if (!sealed_.contains(key) && missing.insert(key).second) {
+      samples.push_back(index);
+    }
+  }
+  std::vector<std::vector<CellBox>> shapes(samples.size());
+  parallel(samples.size(), [&](size_t sample) {
+    shapes[sample] = z13::building::primitives::SealedBoxes({.spec = blocks[samples[sample]].block.spec}, palette);
+  });
+  for (size_t sample = 0; sample < samples.size(); ++sample) {
+    sealed_.emplace(SealedKeyOf(blocks[samples[sample]].block), std::move(shapes[sample]));
+  }
   for (const KeyedBlock& keyed : blocks) {
     const z13::station::Block& block = keyed.block;
     // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
-    const std::vector<CellBox> boxes = SealedBoxesOf(block, palette);
+    const std::vector<CellBox> boxes = SealedBoxesOf(block);
     if (z13::building::primitives::IsTransparent(block, palette)) {
       const float transmission = palette->get().Find(block.spec.type_id)->get().light_transmission;
       std::ranges::transform(boxes, std::back_inserter(glass), [transmission](const CellBox& cells) {
@@ -214,7 +228,7 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   if (!BuiltFrom(palette)) {
     std::vector<CellBox> opaque;
     std::vector<GlassBox> glass;
-    BoxesOf(keyed, palette, opaque, glass);
+    BoxesOf(keyed, palette, context.parallel, opaque, glass);
     std::ranges::sort(glass, GlassBefore);
       std::vector<Lamp> first = NearestLamps(lamps, context.focus, kFirstLampBatch);
     light_.emplace(opaque, glass, first, context.parallel);
@@ -231,8 +245,8 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   std::ranges::set_difference(keyed, blocks_, std::back_inserter(added), by_fingerprint);
   std::ranges::set_difference(blocks_, keyed, std::back_inserter(removed), by_fingerprint);
   LightEdits edits;
-  BoxesOf(added, palette, edits.opaque_added, edits.glass_added);
-  BoxesOf(removed, palette, edits.opaque_removed, edits.glass_removed);
+  BoxesOf(added, palette, context.parallel, edits.opaque_added, edits.glass_added);
+  BoxesOf(removed, palette, context.parallel, edits.opaque_removed, edits.glass_removed);
   edits.lamps_removed = Missing(lamps_, lamps, LampBefore);
   // A lamp that changed colour comes back as it goes, whatever the batch.
   edits.lamps_added =

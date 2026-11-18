@@ -27,6 +27,8 @@
 
 #include <cell_light/light_edits.h>
 
+#include <rooms/parallel_for.h>
+
 #include "light_nodes.h"
 
 namespace z13::station::light {
@@ -48,7 +50,9 @@ class GlassBridges {
   void Remove(const GlassBox& glass);
   // Finds the bridges again of every pane next to `cells`, after those cells were labelled.
   void Refresh(const LightNodes& nodes, const z13::building::primitives::CellBox& cells);
-  void RefreshAll(const LightNodes& nodes);
+  // Crossings are found by `parallel` (they only read the nodes), then linked in order.
+  void RefreshAll(const LightNodes& nodes,
+                  const z13::station::rooms::ParallelFor& parallel = z13::station::rooms::Serial);
 
   std::span<const Bridge> From(size_t node) const;
 
@@ -60,10 +64,14 @@ class GlassBridges {
   };
 
   void Rebuild(const LightNodes& nodes, Pane& pane);
+  static void FindCrossings(const LightNodes& nodes, Pane& pane);
+  void Link(const Pane& pane);
   void Forget(const Pane& pane);
 
   std::vector<Pane> panes_;
   std::unordered_map<uint32_t, std::vector<Bridge>> bridges_;
+  // Per node, whether it has bridges: the flood asks at every node it visits, and a map lookup is dear in Debug.
+  std::vector<uint8_t> bridged_;
   uint32_t last_pane_ {};
 };
 

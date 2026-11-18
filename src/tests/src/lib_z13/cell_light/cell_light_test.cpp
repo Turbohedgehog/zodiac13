@@ -18,8 +18,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <future>
 #include <optional>
 #include <random>
+#include <span>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -132,6 +135,21 @@ TEST(CellLightTest, TheLightLeansTowardItsLamp) {
   const auto node = light.NodeAt(kCellInA);
   ASSERT_TRUE(node);
   EXPECT_GT(light.DirectionAt(*node).z(), 0.9f);
+}
+
+// Each index on a thread of its own, so the build's parallel steps really overlap.
+void OnThreads(size_t count, const std::function<void(size_t)>& body) {
+  std::vector<std::future<void>> tasks;
+  for (size_t index = 0; index < count; ++index) {
+    tasks.push_back(std::async(std::launch::async, [&body, index] { body(index); }));
+  }
+  std::ranges::for_each(tasks, [](std::future<void>& task) { task.get(); });
+}
+
+TEST(CellLightTest, ABuildOnThreadsEndsWhereASerialBuildDoes) {
+  const std::vector blocks = With(With(Hall(), PartitionWithDoorway(22)), {Partition(30)});
+  const std::vector lamps {kLampInA, kOtherLamp};
+  ExpectSameLight(CellLight(blocks, std::span<const GlassBox> {}, lamps, OnThreads), CellLight(blocks, lamps));
 }
 
 TEST(CellLightTest, EditsEndWhereAFullBuildDoes) {

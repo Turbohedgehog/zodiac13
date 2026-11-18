@@ -76,11 +76,12 @@ class CellLighting::State {
   void ReleaseVolumes();
   // Cached by shape and turn, then moved to the block's cell.
   // The light's boxes of `blocks`, opaque and glass.
+  // The shapes `sealed_` lacks are worked out first, each once, by `parallel`.
   void BoxesOf(std::span<const KeyedBlock> blocks, z13::building::primitives::OptionalPalette palette,
-               std::vector<z13::building::primitives::CellBox>& opaque,
+               const z13::station::rooms::ParallelFor& parallel, std::vector<z13::building::primitives::CellBox>& opaque,
                std::vector<z13::station::light::GlassBox>& glass);
-  std::vector<z13::building::primitives::CellBox> SealedBoxesOf(const z13::station::Block& block,
-                                                                z13::building::primitives::OptionalPalette palette);
+  std::vector<z13::building::primitives::CellBox> SealedBoxesOf(const z13::station::Block& block) const;
+  static SealedBoxesKey SealedKeyOf(const z13::station::Block& block);
 
   std::optional<GlVolumes> gl_;
   std::optional<z13::station::light::CellLight> light_;

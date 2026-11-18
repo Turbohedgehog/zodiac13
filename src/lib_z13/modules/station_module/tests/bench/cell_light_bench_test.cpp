@@ -22,7 +22,9 @@
 
 #include <algorithm>
 #include <tuple>
+#include <array>
 #include <chrono>
+#include <functional>
 #include <format>
 #include <iostream>
 #include <optional>
@@ -38,6 +40,7 @@
 #include <primitives/occupancy.h>
 #include <primitives/placement.h>
 #include <z13_tests/shipped_station.h>
+#include <lib_core/utils/thread_pool.h>
 #include <z13/components/station/block.h>
 #include <z13_settings/building_tuning.h>
 
@@ -214,4 +217,29 @@ TEST(CellLightBench, DISABLED_BlocksThenWallPanels) {
 }
 
 }  // namespace
+
+// The first build of each scene's light on the process's pool, as the game builds it, by the size of the pool.
+TEST(CellLightBench, DISABLED_FirstBuildOnPool) {
+  constexpr std::array kPoolSizes {1, 2, 4, 8};
+  const primitives::Palette palette = ShippedPalette().value();
+  for (const std::string scene : {"hub", "octant", "spire"}) {
+    const auto blocks = ShippedBlueprint(scene, palette).value();
+    const SealedParts parts = SealedPartsOf(blocks, palette);
+    std::vector<light::Lamp> lamps;
+    for (const auto& point : primitives::LightsOf(blocks, primitives::OptionalPalette(palette))) {
+      lamps.push_back(light::LampOf(point));
+    }
+    for (const int threads : kPoolSizes) {
+      const z13::ThreadPool pool(static_cast<size_t>(threads));
+      std::optional<light::CellLight> built;
+      const double ms = Ms([&] {
+        built.emplace(parts.opaque, parts.glass, lamps, [&pool](size_t count, const std::function<void(size_t)>& body) {
+          pool.ForEachIndex(count, body);
+        });
+      });
+      std::cout << std::format("[ bench ] '{}': first build on {} threads {:.0f} ms\n", scene, threads, ms) << std::flush;
+    }
+  }
+}
+
 }  // namespace z13::testing
