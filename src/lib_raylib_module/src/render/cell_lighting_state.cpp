@@ -75,8 +75,7 @@ uint64_t FingerprintOf(const z13::station::Block& block) {
 // Lamps lit by the first build, and by each sync after it: a flood costs a few milliseconds, so the rest wait for the
 // next frames instead of holding up one.
 constexpr size_t kFirstLampBatch = 48;
-// The lamps a sync lights at first, and at most per call after (a call takes fewer when lamps cost much).
-constexpr size_t kLampBatch = 6;
+// The most lamps a call lights; it takes fewer when lamps cost much.
 constexpr size_t kMaxLampBatch = 24;
 // What lighting lamps may take of a frame: a lamp costs about a millisecond in Release and six in Debug.
 constexpr double kLampBudgetMs = 6.0;
@@ -286,14 +285,15 @@ Status CellLighting::State::LightLamps(const SyncContext& context) {
   lamps_pending_ = lit.size() < wanted_lamps_.size();
   lamps_ = std::move(lit);
   const Status presented = Present(light_->Apply(edits), context);
-  if (!edits.lamps_added.empty()) {
-    TuneLampBatch(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(),
-                  edits.lamps_added.size());
-  }
+  TuneLampBatch(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(),
+                edits.lamps_added.size());
   return presented;
 }
 
 void CellLighting::State::TuneLampBatch(double batch_ms, size_t lamps) {
+  if (lamps == 0) {
+    return;
+  }
   const double per_lamp = batch_ms / static_cast<double>(lamps);
   lamp_cost_ms_ =
       lamp_cost_ms_ ? (kLampCostSmoothing * per_lamp) + ((1 - kLampCostSmoothing) * *lamp_cost_ms_) : per_lamp;

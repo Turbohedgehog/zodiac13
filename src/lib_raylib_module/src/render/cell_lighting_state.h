@@ -101,7 +101,9 @@ class CellLighting::State {
   std::vector<z13::station::light::Lamp> lamps_;
   // Every lamp the last Sync wanted lit, in lamp order: `lamps_` is what is lit of them.
   std::vector<z13::station::light::Lamp> wanted_lamps_;
-  size_t lamp_batch_ {6};
+  // The lamps a call lights until a batch has been timed (TuneLampBatch); a flood costs a few milliseconds.
+  static constexpr size_t kInitialLampBatch {6};
+  size_t lamp_batch_ {kInitialLampBatch};
   std::optional<double> lamp_cost_ms_;
   std::vector<z13::station::light::Lamp> shining_;
   std::unordered_map<SealedBoxesKey, std::vector<z13::building::primitives::CellBox>, SealedBoxesKeyHash> sealed_;
