@@ -58,6 +58,9 @@ class CellLighting::State {
   State& operator=(const State&) = delete;
 
   bool SyncedWith(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  // Waiting for more lamps only: the blocks and emergency lamps are those of the last Sync.
+  bool OnlyLampsPending(z13::building::primitives::OptionalPalette palette, const EmergencyLamps& emergency) const;
+  Status LightLamps(const SyncContext& context);
   Status Sync(std::span<const z13::station::Block> blocks, z13::building::primitives::OptionalPalette palette,
               const EmergencyLamps& emergency, const SyncContext& context);
   const std::optional<std::string>& Failure() const { return failure_; }
@@ -71,7 +74,12 @@ class CellLighting::State {
   bool BuiltFrom(z13::building::primitives::OptionalPalette palette) const;
   // New textures for the light's layout, filled whole.
   Status Remake();
+  Status Present(const z13::station::light::LightChanges& changes, const SyncContext& context);
+  void TuneLampBatch(double batch_ms, size_t lamps);
   void UploadLabels(const z13::building::primitives::CellBox& cells) const;
+  // The tiles' texels are worked out side by side through `parallel`, then uploaded in order.
+  void UploadLabels(std::span<const z13::building::primitives::CellBox> tiles,
+                    const z13::station::rooms::ParallelFor& parallel) const;
   void UploadLight(const z13::building::primitives::CellBox& cubes) const;
   void ReleaseVolumes();
   // Cached by shape and turn, then moved to the block's cell.
@@ -91,6 +99,12 @@ class CellLighting::State {
   // The blocks the light was built from, by fingerprint, to tell which changed.
   std::vector<KeyedBlock> blocks_;
   std::vector<z13::station::light::Lamp> lamps_;
+  // Every lamp the last Sync wanted lit, in lamp order: `lamps_` is what is lit of them.
+  std::vector<z13::station::light::Lamp> wanted_lamps_;
+  // The lamps a call lights until a batch has been timed (TuneLampBatch); a flood costs a few milliseconds.
+  static constexpr size_t kInitialLampBatch {6};
+  size_t lamp_batch_ {kInitialLampBatch};
+  std::optional<double> lamp_cost_ms_;
   std::vector<z13::station::light::Lamp> shining_;
   std::unordered_map<SealedBoxesKey, std::vector<z13::building::primitives::CellBox>, SealedBoxesKeyHash> sealed_;
   // Sum of the blocks' hashes, so their order doesn't matter.

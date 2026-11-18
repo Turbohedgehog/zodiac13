@@ -51,6 +51,12 @@ constexpr uint32_t kFlagB = 2;
 constexpr uint32_t kUnknownFlag = 4;
 constexpr int32_t kUnknownMood = 7;
 
+struct Padded {
+  int8_t tiny {};
+  Mood mood {};
+  int64_t wide {};
+};
+
 struct Link {
   flecs::entity_t target {};
 };
@@ -80,6 +86,7 @@ class ComponentCodecTest : public ::testing::Test {
     ft::RegisterComponentMeta<Everything>(world_);
     // Beyond RegisterComponentMeta: a bitmask, an entity member (it would become u64) and an inline array.
     world_.component<Flags>().bit("kFlagA", kFlagA).bit("kFlagB", kFlagB);
+    ft::RegisterComponentMeta<Padded>(world_);
     world_.component<Link>().member(flecs::Entity, "target");
     world_.component<Cells>().member<int32_t>("values", kCellCount, offsetof(Cells, values));
     target_ = world_.entity("some::target");
@@ -144,6 +151,31 @@ TEST_F(ComponentCodecTest, InlineArrayMemberRoundTrips) {
   Cells restored;
   ASSERT_TRUE(ft::DecodeValue(world_, world_.component<Cells>(), MutableBytesOf(restored), bytes));
   EXPECT_EQ(restored.values, original.values);
+}
+
+TEST_F(ComponentCodecTest, AnEncodePlanWritesWhatTheWalkWrites) {
+  const Everything sample = Sample();
+  const Padded padded {.tiny = 3, .mood = Mood::kAngry, .wide = -9};
+  const Flags flags {.bits = kFlagA | kFlagB};
+  const Cells cells {.values = {1, -2, 3}};
+  const Eigen::Matrix4f matrix = sample.transform;
+  const Eigen::Vector3f vector(1.5f, -2.f, 3.25f);
+
+  const auto expect_same = [&](flecs::entity_t type, std::span<const std::byte> value) {
+    const std::vector<ft::EncodeStep> plan = ft::EncodePlanOf(world_, type);
+    ASSERT_FALSE(plan.empty());
+    EXPECT_EQ(ft::EncodeWithPlan(plan, value), ft::EncodeValue(world_, type, value).value());
+  };
+  expect_same(world_.component<Padded>(), BytesOf(padded));
+  expect_same(world_.component<Flags>(), BytesOf(flags));
+  expect_same(world_.component<Cells>(), BytesOf(cells));
+  expect_same(world_.component<Eigen::Matrix4f>(), BytesOf(matrix));
+  expect_same(world_.component<Eigen::Vector3f>(), BytesOf(vector));
+}
+
+TEST_F(ComponentCodecTest, ATypeTheWalkMustReadHasNoEncodePlan) {
+  EXPECT_TRUE(ft::EncodePlanOf(world_, world_.component<Everything>()).empty());  // a string, a pointer-wide scalar
+  EXPECT_TRUE(ft::EncodePlanOf(world_, world_.component<Link>()).empty());        // an entity
 }
 
 TEST_F(ComponentCodecTest, AgreesWithTheJsonPath) {

@@ -23,7 +23,7 @@
 #include <iterator>
 #include <numeric>
 #include <optional>
-#include <set>
+#include <map>
 #include <utility>
 
 #include "cell_borrow.h"
@@ -266,8 +266,10 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
   if (changed_cells) {
     cell_tiles.back() = cell_tiles.back().Grown(Eigen::Vector3i::Constant(kBorrowReach)).Intersection(layout.CellBounds());
   }
+  // A flip changes the borrow of the cells within reach of its cube, which is less than a cube away.
   for (const CellBox& flips : LitFlips(tiles)) {
-    cell_tiles.push_back(CellsOfCubes(layout, flips));
+    cell_tiles.push_back(
+        CellsOfCubes(layout, flips).Grown(Eigen::Vector3i::Constant(kBorrowReach)).Intersection(layout.CellBounds()));
   }
   return {
       .light_tiles = std::move(tiles),
@@ -277,31 +279,26 @@ LightChanges CellLight::State::Apply(const LightEdits& edits) {
 
 std::vector<CellBox> CellLight::State::LitFlips(std::span<const CellBox> tiles) {
   const LightLayout& layout = nodes_.Layout();
-  const CellBox all {.min = Eigen::Vector3i::Zero(), .extent = layout.cubes};
-  // The upload tiles, aligned to the layout, that hold a cube a flip is next to: a borrow reaches less than a cube.
-  std::set<std::array<int, 3>> aligned;
+  // Per upload tile, the box of its cubes where a node's light came or went.
+  std::map<std::array<int, 3>, CellBox> flipped;
   for (const CellBox& tile : tiles) {
     for (int z = tile.min.z(); z < tile.End().z(); ++z) {
       for (int y = tile.min.y(); y < tile.End().y(); ++y) {
         for (int x = tile.min.x(); x < tile.End().x(); ++x) {
           const size_t cube = layout.CubeIndex({x, y, z});
-          bool flipped = false;
+          bool changed = false;
           for (uint8_t piece = 0; piece < kPiecesPerNode; ++piece) {
             const size_t node = LightLayout::NodeIndex(cube, piece);
             const uint8_t now = light_[node].maxCoeff() > 0.f;
-            flipped = flipped || lit_[node] != now;
+            changed = changed || lit_[node] != now;
             lit_[node] = now;
           }
-          if (!flipped) {
-            continue;
-          }
-          const Eigen::Vector3i low = Eigen::Vector3i(x - 1, y - 1, z - 1).cwiseMax(0);
-          const Eigen::Vector3i high = Eigen::Vector3i(x + 1, y + 1, z + 1).cwiseMin(layout.cubes - Eigen::Vector3i::Ones());
-          for (int tz = FloorDiv(low.z(), kUploadTile); tz <= FloorDiv(high.z(), kUploadTile); ++tz) {
-            for (int ty = FloorDiv(low.y(), kUploadTile); ty <= FloorDiv(high.y(), kUploadTile); ++ty) {
-              for (int tx = FloorDiv(low.x(), kUploadTile); tx <= FloorDiv(high.x(), kUploadTile); ++tx) {
-                aligned.insert({tx, ty, tz});
-              }
+          if (changed) {
+            const CellBox here {.min = {x, y, z}, .extent = Eigen::Vector3i::Ones()};
+            const auto [at, added] = flipped.try_emplace(
+                {FloorDiv(x, kUploadTile), FloorDiv(y, kUploadTile), FloorDiv(z, kUploadTile)}, here);
+            if (!added) {
+              at->second = Union(at->second, here);
             }
           }
         }
@@ -309,10 +306,7 @@ std::vector<CellBox> CellLight::State::LitFlips(std::span<const CellBox> tiles) 
     }
   }
   std::vector<CellBox> flips;
-  std::ranges::transform(aligned, std::back_inserter(flips), [&all](const std::array<int, 3>& tile) {
-    const Eigen::Vector3i min(tile[0] * kUploadTile, tile[1] * kUploadTile, tile[2] * kUploadTile);
-    return CellBox {.min = min, .extent = Eigen::Vector3i::Constant(kUploadTile)}.Intersection(all);
-  });
+  std::ranges::transform(flipped, std::back_inserter(flips), [](const auto& entry) { return entry.second; });
   return flips;
 }
 
@@ -515,7 +509,7 @@ Eigen::Vector3f CellLight::State::DirectionAt(size_t node) const {
 }
 
 std::vector<CellTexel> CellLight::State::CellTexels(const CellBox& cells) const {
-  return CellTexelsOf(nodes_, light_, cells, parallel_);
+  return CellTexelsOf(nodes_, lit_, cells, parallel_);
 }
 
 std::vector<Eigen::Vector4f> CellLight::State::Texels(const CellBox& cubes, uint8_t piece, NodeTexel texel) const {

@@ -72,7 +72,7 @@ class CellLight::State {
   void ClearCubes(const z13::building::primitives::CellBox& cubes);
   // The tiles of `cubes` holding a cube touched since the last call, which forgets them.
   std::vector<z13::building::primitives::CellBox> TakeTouchedTiles(const z13::building::primitives::CellBox& cubes);
-  // The aligned upload tiles next to a cube where a node started or stopped being lit; remembers the lit nodes.
+  // Per upload tile, the box of cubes where a node started or stopped being lit; remembers the lit nodes.
   std::vector<z13::building::primitives::CellBox> LitFlips(
       std::span<const z13::building::primitives::CellBox> tiles);
 

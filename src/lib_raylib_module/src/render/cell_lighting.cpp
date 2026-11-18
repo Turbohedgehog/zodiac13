@@ -36,6 +36,16 @@ Status CellLighting::Sync(std::span<const z13::station::Block> blocks,
   return state_->Sync(blocks, palette, emergency, context);
 }
 
+bool CellLighting::OnlyLampsPending(z13::building::primitives::OptionalPalette palette,
+                                    const EmergencyLamps& emergency) const {
+  return state_->OnlyLampsPending(palette, emergency);
+}
+
+Status CellLighting::LightLamps(const SyncContext& context) {
+  Z13_PROFILE_ZONE("CellLighting::LightLamps");
+  return state_->LightLamps(context);
+}
+
 std::optional<std::string> CellLighting::Failure() const {
   return state_->Failure();
 }

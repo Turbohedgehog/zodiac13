@@ -40,7 +40,7 @@ struct Scan {
   int z {};
 };
 
-uint8_t BorrowOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light, const Scan& cell) {
+uint8_t BorrowOf(const LightNodes& nodes, std::span<const uint8_t> lit, const Scan& cell) {
   const LightLayout& layout = nodes.Layout();
   const Eigen::Vector3i size = layout.Cells();
   const std::vector<uint8_t>& labels = nodes.Labels();
@@ -61,7 +61,7 @@ uint8_t BorrowOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light
         }
         const Eigen::Vector3i cube(other.x / kNodeCells, other.y / kNodeCells, other.z / kNodeCells);
         const size_t node = LightLayout::NodeIndex(layout.CubeIndex(cube), label);
-        const int distance = (dx * dx) + (dy * dy) + (dz * dz) + (light[node].maxCoeff() > 0.f ? 0 : kUnlitPenalty);
+        const int distance = (dx * dx) + (dy * dy) + (dz * dz) + (lit[node] != 0 ? 0 : kUnlitPenalty);
         if (!nearest || distance < *nearest) {
           nearest = distance;
           borrow = static_cast<uint8_t>((((dz * kBorrowSpan) + dy + kBorrowReach) * kBorrowSpan) + dx + kBorrowReach);
@@ -74,7 +74,7 @@ uint8_t BorrowOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light
 
 }  // namespace
 
-std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const Eigen::Vector3f> light,
+std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const uint8_t> lit,
                                     const CellBox& cells, const z13::station::rooms::ParallelFor& parallel) {
   const LightLayout& layout = nodes.Layout();
   const size_t layer_cells = static_cast<size_t>(cells.extent.x()) * static_cast<size_t>(cells.extent.y());
@@ -89,7 +89,7 @@ std::vector<CellTexel> CellTexelsOf(const LightNodes& nodes, std::span<const Eig
         const Eigen::Vector3i local = Eigen::Vector3i(x, y, z) - layout.origin;
         const uint8_t label = nodes.Labels()[layout.CellIndex({x, y, z})];
         *out++ = {.label = label,
-                  .borrow = label == kOpaqueLabel ? BorrowOf(nodes, light, {local.x(), local.y(), local.z()}) : kNoBorrow};
+                  .borrow = label == kOpaqueLabel ? BorrowOf(nodes, lit, {local.x(), local.y(), local.z()}) : kNoBorrow};
       }
     }
   });

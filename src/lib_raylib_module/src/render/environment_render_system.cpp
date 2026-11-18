@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <tuple>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -252,23 +251,6 @@ void DrawScene(const flecs::world& world, const BrushQuery& brushes, const Remot
   stats.times.release_ms = MsOf([&] { drawing.meshes.get().ReleaseUnused(); });
 }
 
-using DoorQuery = flecs::query<const z13::station::Block, const z13::station::DoorState>;
-
-// The doors the baked light passes through: open at least half way. They are left out of the lit blocks, so the
-// light follows a door opening and shutting (the leaf itself is drawn by door_render_module).
-std::vector<z13::station::Block> OpenDoorBlocks(const DoorQuery& doors) {
-  std::vector<z13::station::Block> open;
-  doors.each([&open](const z13::station::Block& block, const z13::station::DoorState& state) {
-    if (state.position >= z13::station::kDoorOpen / 2) {
-      open.push_back(block);
-    }
-  });
-  std::ranges::sort(open, [](const z13::station::Block& a, const z13::station::Block& b) {
-    return std::tuple(a.grid, a.cell.x(), a.cell.y(), a.cell.z()) < std::tuple(b.grid, b.cell.x(), b.cell.y(), b.cell.z());
-  });
-  return open;
-}
-
 // The floods of the lamps run on the process's pool, if the world has one; the lamps near the camera are lit first.
 SyncContext SyncContextOf(const z13::ThreadPool* pool, const RaylibCamera* camera) {
   SyncContext context;
@@ -282,12 +264,6 @@ SyncContext SyncContextOf(const z13::ThreadPool* pool, const RaylibCamera* camer
                     z13::station::kCellSize;
   }
   return context;
-}
-
-void RemoveBlocks(std::vector<z13::station::Block>& blocks, const std::vector<z13::station::Block>& removed) {
-  std::erase_if(blocks, [&removed](const z13::station::Block& block) {
-    return std::ranges::find(removed, block) != removed.end();
-  });
 }
 
 void RegisterSystems(flecs::world world) {
@@ -440,27 +416,31 @@ void RegisterSystems(flecs::world world) {
       world.query_builder<const z13::station::Block>("EnvironmentRenderSystem::LightBlockQuery")
           .detect_changes()
           .build();
-  const DoorQuery door_query = world.query<const z13::station::Block, const z13::station::DoorState>();
+  // Not a system term: an optional per-entity term would run the system once for every entity of the world.
+  const auto camera_query = world.query<const RaylibCamera>();
   world.system<CellLighting, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
-               const z13::PowerTuning*, const z13::ThreadPool*, const RaylibCamera*>(
+               const z13::PowerTuning*, const z13::ThreadPool*>(
       "EnvironmentRenderSystem::SyncCellLighting")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([light_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
+      .each([light_block_query, camera_query](
                 CellLighting& lighting, const z13::building::primitives::BlockPalette* palette,
-                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool,
-                const RaylibCamera* camera) {
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool) {
+        const auto* camera = camera_query.first().try_get<RaylibCamera>();
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
         const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
                                                                       : std::span<const z13::utility::DimmedLamp>(),
                                         .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
-        const std::vector<z13::station::Block> open = OpenDoorBlocks(door_query);
-        if (light_block_query.changed() || open != *last_open || !lighting.SyncedWith(shown, emergency)) {
-          *last_open = open;
+        if (!light_block_query.changed() && lighting.OnlyLampsPending(shown, emergency)) {
+          if (const Status lit = lighting.LightLamps(SyncContextOf(pool, camera)); !lit) {
+            log_error("[raylib] lamps: {}", lit.error());
+          }
+          return;
+        }
+        if (light_block_query.changed() || !lighting.SyncedWith(shown, emergency)) {
           auto blocks = CollectMainGridBlocks(light_block_query);
-          RemoveBlocks(blocks, open);
           const auto start = std::chrono::steady_clock::now();
           const Status synced = lighting.Sync(blocks, shown, emergency, SyncContextOf(pool, camera));
           log_info("[raylib] cell light: {} blocks, {} lamps shine, synced in {:.0f} ms", blocks.size(),
@@ -477,29 +457,32 @@ void RegisterSystems(flecs::world world) {
           .detect_changes()
           .build();
   world.system<GridCellLights, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
-               const z13::PowerTuning*, const z13::ThreadPool*, const RaylibCamera*>(
+               const z13::PowerTuning*, const z13::ThreadPool*>(
       "EnvironmentRenderSystem::SyncGridCellLights")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
-      .each([district_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
+      .each([district_block_query, camera_query](
                 GridCellLights& lights, const z13::building::primitives::BlockPalette* palette,
-                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool,
-                const RaylibCamera* camera) {
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool) {
+        const auto* camera = camera_query.first().try_get<RaylibCamera>();
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
         const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
                                                                       : std::span<const z13::utility::DimmedLamp>(),
                                         .percent = power != nullptr ? static_cast<int>(power->emergency_light_percent) : 0};
-        const std::vector<z13::station::Block> open = OpenDoorBlocks(door_query);
-        if (!district_block_query.changed() && open == *last_open && lights.SyncedWith(shown, emergency)) {
+        if (!district_block_query.changed() && lights.SyncedWith(shown, emergency)) {
           return;
         }
-        *last_open = open;
+        if (!district_block_query.changed() && lights.OnlyLampsPending(shown, emergency)) {
+          if (const Status lit = lights.LightLamps(SyncContextOf(pool, camera)); !lit) {
+            log_error("[raylib] lamps of the grids: {}", lit.error());
+          }
+          return;
+        }
         auto by_grid = CollectDistrictBlocks(district_block_query);
         std::set<z13::station::GridId> grids;
         for (auto& [grid, blocks] : by_grid) {
-          RemoveBlocks(blocks, open);
           grids.insert(grid);
           if (const Status synced = lights.Make(grid).Sync(blocks, shown, emergency, SyncContextOf(pool, camera)); !synced) {
             log_error("[raylib] lamps of grid {}: {}", grid, synced.error());
