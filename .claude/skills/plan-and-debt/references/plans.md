@@ -31,4 +31,5 @@
 | `asset-pack-plan.md` | packing assets/ and config/ into one archive read on every platform (release packages, APK without unpacking) | stages `f/asset-source` → `f/asset-pack`, "Открытые вопросы" |
 | `ss13-reference.md` | Space Station 13 as the gameplay reference: what is repeated, and each difference with its reason | table "Отличия", grows with every gameplay decision |
 | `station-editor-plan.md` | web editor and the station graph pipeline: graph with properties (rooms, corridors, atria, shafts, ramps) → walls, networks, hull; frames with blended gravity | "Порядок работ" (`f/frame-field` first), "Открытые вопросы" |
+| `codebase-map.md` | the per-module description of the codebase (CLAUDE.md keeps one line per group) | update when a module is added, moved or split |
 | `station-layout/` | generators of the shipped station blueprints (`generate_layout.py`, `generate_spire.py`, `generate_shard.py`, `generate_octant.py` — the Blender station `octant` from `blender/export/station_map.json`) | scripts, deck plans |
