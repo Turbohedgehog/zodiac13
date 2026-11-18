@@ -73,7 +73,8 @@ struct ComponentInfo {
   std::string path;
   bool accepted {};
   bool has_meta {};
-  bool flat {};  // IsFlatValue: the raw bytes of a value stand for its encoding
+  bool flat {};  // IsFlatValue: the data bytes of a value stand for its encoding
+  std::vector<ByteRange> ranges;  // FlatRanges of a flat value
 };
 
 struct ComponentScope {
@@ -89,12 +90,16 @@ const ComponentInfo& InfoOf(ComponentScope& components, flecs::entity component)
   const bool accepted = !IsUnderFlecs(path) && (!components.accept || components.accept(component));
   const bool has_meta = component.has(ecs_id(EcsType));
   const bool flat = accepted && has_meta && IsFlatValue(component.world(), component.id());
-  return components.infos.emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta, flat})
+  std::vector<ByteRange> ranges;
+  if (flat) {
+    ranges = FlatRanges(component.world(), component.id());
+  }
+  return components.infos.emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta, flat, std::move(ranges)})
       .first->second;
 }
 
-// A cheap stand-in for encoding an entity: the raw bytes of its components, so equal fingerprints mean equal
-// encodings. None when a component isn't flat. A pair's target is taken by id, so renaming a target is not noticed.
+// A cheap stand-in for encoding an entity: the data bytes of its components (not their padding), so equal fingerprints
+// mean equal encodings. None when a component isn't flat. A pair's target is taken by id, so renaming a target is not noticed.
 std::optional<uint64_t> FingerprintOf(const flecs::world& world, flecs::entity e, ComponentScope& components) {
   uint64_t hash = HashName(e.parent() ? PathOf(e) : std::string_view {e.name().c_str()});
   bool flat = true;
@@ -120,7 +125,10 @@ std::optional<uint64_t> FingerprintOf(const flecs::world& world, flecs::entity e
       return;
     }
     flat = info.flat;
-    hash = FnvHash(std::span(static_cast<const std::byte*>(value), static_cast<size_t>(type_info->size)), hash);
+    const auto* bytes = static_cast<const std::byte*>(value);
+    for (const ByteRange& range : info.ranges) {
+      hash = FnvHash(std::span(bytes + range.offset, range.size), hash);
+    }
   });
   return flat ? std::optional {hash} : std::nullopt;
 }

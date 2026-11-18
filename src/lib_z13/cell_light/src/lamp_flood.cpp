@@ -55,7 +55,10 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const GlassBridges&
   const uint32_t flood = ++marks.last_flood;
   const float radius_squared = lamp.radius * lamp.radius;
   std::vector<Contribution> reached;
-  std::vector<QueuedNode> queue {{.node = static_cast<uint32_t>(*seed)}};
+  std::vector<QueuedNode> queue;
+  queue.reserve(marks.reached_hint);
+  reached.reserve(marks.reached_hint);
+  queue.push_back({.node = static_cast<uint32_t>(*seed)});
   marks.flood_of_node[*seed] = flood;
   // Past a pane the flood waits until the open ways are used up, so a lit room's nodes
   // never take their light through its window from the dimmer side.
@@ -117,6 +120,7 @@ std::vector<Contribution> FloodLamp(const LightNodes& nodes, const GlassBridges&
       }
     }
   }
+  marks.reached_hint = std::max(marks.reached_hint, reached.size());
   return reached;
 }
 

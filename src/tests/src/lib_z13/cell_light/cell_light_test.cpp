@@ -18,8 +18,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <future>
 #include <optional>
 #include <random>
+#include <span>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -132,6 +135,21 @@ TEST(CellLightTest, TheLightLeansTowardItsLamp) {
   const auto node = light.NodeAt(kCellInA);
   ASSERT_TRUE(node);
   EXPECT_GT(light.DirectionAt(*node).z(), 0.9f);
+}
+
+// Each index on a thread of its own, so the build's parallel steps really overlap.
+void OnThreads(size_t count, const std::function<void(size_t)>& body) {
+  std::vector<std::future<void>> tasks;
+  for (size_t index = 0; index < count; ++index) {
+    tasks.push_back(std::async(std::launch::async, [&body, index] { body(index); }));
+  }
+  std::ranges::for_each(tasks, [](std::future<void>& task) { task.get(); });
+}
+
+TEST(CellLightTest, ABuildOnThreadsEndsWhereASerialBuildDoes) {
+  const std::vector blocks = With(With(Hall(), PartitionWithDoorway(22)), {Partition(30)});
+  const std::vector lamps {kLampInA, kOtherLamp};
+  ExpectSameLight(CellLight(blocks, std::span<const GlassBox> {}, lamps, OnThreads), CellLight(blocks, lamps));
 }
 
 TEST(CellLightTest, EditsEndWhereAFullBuildDoes) {
@@ -276,7 +294,7 @@ TEST(CellLightTest, AnOpaqueCellBorrowsTheNearestFreeCell) {
   EXPECT_EQ(inside[0].borrow, kNoBorrow);
 }
 
-// What the renderer holds after the edits' `cell_texels` regions equals a full build's texels.
+// What the renderer holds after the edits' `cell_tiles` equals a full build's texels.
 TEST(CellLightTest, TheChangedTexelRegionsKeepTheBorrowsOfAFullBuild) {
   CellLight edited(Hall(), std::vector {kLampInA});
   const CellBox hall {.min = {0, 0, 0}, .extent = {kLength + 2, kWidth + 2, kHeight + 2}};
@@ -284,16 +302,14 @@ TEST(CellLightTest, TheChangedTexelRegionsKeepTheBorrowsOfAFullBuild) {
   const auto apply = [&](const LightEdits& edits) {
     const LightChanges changes = edited.Apply(edits);
     ASSERT_FALSE(changes.resized);
-    if (!changes.cell_texels) {
-      return;
-    }
-    const CellBox& region = *changes.cell_texels;
-    const std::vector<CellTexel> fresh = edited.CellTexels(region);
-    size_t next = 0;
-    for (int z = region.min.z(); z < region.End().z(); ++z) {
-      for (int y = region.min.y(); y < region.End().y(); ++y) {
-        for (int x = region.min.x(); x < region.End().x(); ++x) {
-          held[edited.Layout().CellIndex({x, y, z})] = fresh[next++];
+    for (const CellBox& region : changes.cell_tiles) {
+      const std::vector<CellTexel> fresh = edited.CellTexels(region);
+      size_t next = 0;
+      for (int z = region.min.z(); z < region.End().z(); ++z) {
+        for (int y = region.min.y(); y < region.End().y(); ++y) {
+          for (int x = region.min.x(); x < region.End().x(); ++x) {
+            held[edited.Layout().CellIndex({x, y, z})] = fresh[next++];
+          }
         }
       }
     }
@@ -316,6 +332,51 @@ TEST(CellLightTest, TheChangedTexelRegionsKeepTheBorrowsOfAFullBuild) {
   for (size_t cell = 0; cell < edited_hall.size(); ++cell) {
     ASSERT_EQ(edited_hall[cell].label, rebuilt_hall[cell].label) << cell;
     ASSERT_EQ(edited_hall[cell].borrow, rebuilt_hall[cell].borrow) << cell;
+  }
+}
+
+// What the renderer holds after the edits' `light_tiles` equals a full build's light, direction included.
+TEST(CellLightTest, TheChangedLightTilesKeepTheLightOfAFullBuild) {
+  CellLight edited(Hall(), std::vector {kLampInA});
+  const auto texels_of = [&edited](const CellBox& cubes) {
+    std::vector<std::vector<Eigen::Vector4f>> all;
+    for (const NodeTexel kind : {NodeTexel::kLight, NodeTexel::kDirection}) {
+      for (uint8_t piece = 0; piece < kPiecesPerNode; ++piece) {
+        all.push_back(edited.Texels(cubes, piece, kind));
+      }
+    }
+    return all;
+  };
+  const CellBox all_cubes {.min = Eigen::Vector3i::Zero(), .extent = edited.Layout().cubes};
+  auto held = texels_of(all_cubes);
+  const auto apply = [&](const LightEdits& edits) {
+    const LightChanges changes = edited.Apply(edits);
+    ASSERT_FALSE(changes.resized);
+    for (const CellBox& tile : changes.light_tiles) {
+      const auto fresh = texels_of(tile);
+      for (size_t kind = 0; kind < held.size(); ++kind) {
+        size_t next = 0;
+        for (int z = tile.min.z(); z < tile.End().z(); ++z) {
+          for (int y = tile.min.y(); y < tile.End().y(); ++y) {
+            for (int x = tile.min.x(); x < tile.End().x(); ++x) {
+              held[kind][edited.Layout().CubeIndex({x, y, z})] = fresh[kind][next++];
+            }
+          }
+        }
+      }
+    }
+  };
+
+  apply({.opaque_added = {Partition(20)}, .lamps_added = {kOtherLamp}});
+  apply({.opaque_added = {Partition(30)}});
+  apply({.lamps_removed = {kLampInA}});
+  apply({.opaque_removed = {Partition(20)}});
+
+  const auto full = texels_of(all_cubes);
+  for (size_t kind = 0; kind < full.size(); ++kind) {
+    for (size_t cube = 0; cube < full[kind].size(); ++cube) {
+      ASSERT_TRUE(held[kind][cube].isApprox(full[kind][cube], kTolerance)) << kind << " " << cube;
+    }
   }
 }
 

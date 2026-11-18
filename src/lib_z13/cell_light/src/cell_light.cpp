@@ -26,8 +26,8 @@ CellLight::CellLight(std::span<const z13::building::primitives::CellBox> opaque,
     : CellLight(opaque, {}, lamps) {}
 
 CellLight::CellLight(std::span<const z13::building::primitives::CellBox> opaque, std::span<const GlassBox> glass,
-                     std::span<const Lamp> lamps)
-    : state_(std::make_shared<State>(opaque, glass, lamps)) {}
+                     std::span<const Lamp> lamps, z13::station::rooms::ParallelFor parallel)
+    : state_(std::make_shared<State>(opaque, glass, lamps, std::move(parallel))) {}
 
 LightChanges CellLight::Apply(const LightEdits& edits) {
   return state_->Apply(edits);

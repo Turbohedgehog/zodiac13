@@ -48,21 +48,28 @@ void GlassBridges::Refresh(const LightNodes& nodes, const CellBox& cells) {
   }
 }
 
-void GlassBridges::RefreshAll(const LightNodes& nodes) {
+void GlassBridges::RefreshAll(const LightNodes& nodes, const z13::station::rooms::ParallelFor& parallel) {
   bridges_.clear();
-  for (Pane& pane : panes_) {
-    pane.crossings.clear();
-    Rebuild(nodes, pane);
-  }
+  bridged_.clear();
+  parallel(panes_.size(), [this, &nodes](size_t pane) { FindCrossings(nodes, panes_[pane]); });
+  std::ranges::for_each(panes_, [this](const Pane& pane) { Link(pane); });
 }
 
 std::span<const Bridge> GlassBridges::From(size_t node) const {
+  if (node >= bridged_.size() || bridged_[node] == 0) {
+    return {};
+  }
   const auto found = bridges_.find(static_cast<uint32_t>(node));
   return found == bridges_.end() ? std::span<const Bridge> {} : std::span<const Bridge>(found->second);
 }
 
 void GlassBridges::Rebuild(const LightNodes& nodes, Pane& pane) {
   Forget(pane);
+  FindCrossings(nodes, pane);
+  Link(pane);
+}
+
+void GlassBridges::FindCrossings(const LightNodes& nodes, Pane& pane) {
   pane.crossings.clear();
   const CellBox& cells = pane.glass.cells;
   const int thinnest = cells.extent.minCoeff();
@@ -90,9 +97,17 @@ void GlassBridges::Rebuild(const LightNodes& nodes, Pane& pane) {
   }
   std::ranges::sort(pane.crossings);
   pane.crossings.erase(std::ranges::unique(pane.crossings).begin(), pane.crossings.end());
+}
+
+void GlassBridges::Link(const Pane& pane) {
   for (const auto& [a, b] : pane.crossings) {
     bridges_[a].push_back({.node = b, .transmission = pane.glass.transmission, .pane = pane.id});
     bridges_[b].push_back({.node = a, .transmission = pane.glass.transmission, .pane = pane.id});
+    if (bridged_.size() <= std::max(a, b)) {
+      bridged_.resize(std::max<size_t>(std::max(a, b) + 1, bridged_.size() * 2));
+    }
+    bridged_[a] = 1;
+    bridged_[b] = 1;
   }
 }
 
@@ -103,6 +118,7 @@ void GlassBridges::Forget(const Pane& pane) {
         std::erase_if(found->second, [&pane](const Bridge& bridge) { return bridge.pane == pane.id; });
         if (found->second.empty()) {
           bridges_.erase(found);
+          bridged_[node] = 0;
         }
       }
     }

@@ -38,6 +38,7 @@
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/utils/log.h>
+#include <lib_core/utils/thread_pool.h>
 #include <lib_core/utils/drawn_poses.h>
 #include <lib_core/utils/system_times.h>
 #include <lib_core/world/components.h>
@@ -268,6 +269,21 @@ std::vector<z13::station::Block> OpenDoorBlocks(const DoorQuery& doors) {
   return open;
 }
 
+// The floods of the lamps run on the process's pool, if the world has one; the lamps near the camera are lit first.
+SyncContext SyncContextOf(const z13::ThreadPool* pool, const RaylibCamera* camera) {
+  SyncContext context;
+  if (pool != nullptr) {
+    context.parallel = [pool = *pool](size_t count, const std::function<void(size_t)>& body) {
+      pool.ForEachIndex(count, body);
+    };
+  }
+  if (camera != nullptr) {
+    context.focus = Eigen::Vector3f(camera->camera.position.x, camera->camera.position.y, camera->camera.position.z) /
+                    z13::station::kCellSize;
+  }
+  return context;
+}
+
 void RemoveBlocks(std::vector<z13::station::Block>& blocks, const std::vector<z13::station::Block>& removed) {
   std::erase_if(blocks, [&removed](const z13::station::Block& block) {
     return std::ranges::find(removed, block) != removed.end();
@@ -426,13 +442,15 @@ void RegisterSystems(flecs::world world) {
           .build();
   const DoorQuery door_query = world.query<const z13::station::Block, const z13::station::DoorState>();
   world.system<CellLighting, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
-               const z13::PowerTuning*>("EnvironmentRenderSystem::SyncCellLighting")
+               const z13::PowerTuning*, const z13::ThreadPool*, const RaylibCamera*>(
+      "EnvironmentRenderSystem::SyncCellLighting")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
       .each([light_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
                 CellLighting& lighting, const z13::building::primitives::BlockPalette* palette,
-                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool,
+                const RaylibCamera* camera) {
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
         const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
@@ -444,7 +462,7 @@ void RegisterSystems(flecs::world world) {
           auto blocks = CollectMainGridBlocks(light_block_query);
           RemoveBlocks(blocks, open);
           const auto start = std::chrono::steady_clock::now();
-          const Status synced = lighting.Sync(blocks, shown, emergency);
+          const Status synced = lighting.Sync(blocks, shown, emergency, SyncContextOf(pool, camera));
           log_info("[raylib] cell light: {} blocks, {} lamps shine, synced in {:.0f} ms", blocks.size(),
                    lighting.ShiningLamps().size(),
                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
@@ -459,13 +477,15 @@ void RegisterSystems(flecs::world world) {
           .detect_changes()
           .build();
   world.system<GridCellLights, const z13::building::primitives::BlockPalette*, const z13::utility::DimmedLamps*,
-               const z13::PowerTuning*>("EnvironmentRenderSystem::SyncGridCellLights")
+               const z13::PowerTuning*, const z13::ThreadPool*, const RaylibCamera*>(
+      "EnvironmentRenderSystem::SyncGridCellLights")
       .kind<Render>()
       .tick_source<RenderGate>()
       .read<z13::station::Block>()
       .each([district_block_query, door_query, last_open = std::make_shared<std::vector<z13::station::Block>>()](
                 GridCellLights& lights, const z13::building::primitives::BlockPalette* palette,
-                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power) {
+                const z13::utility::DimmedLamps* dimmed, const z13::PowerTuning* power, const z13::ThreadPool* pool,
+                const RaylibCamera* camera) {
         const BlockMeshes::OptionalPalette shown =
             palette != nullptr ? BlockMeshes::OptionalPalette(palette->palette) : std::nullopt;
         const EmergencyLamps emergency {.dimmed = dimmed != nullptr ? std::span<const z13::utility::DimmedLamp>(dimmed->list)
@@ -481,7 +501,7 @@ void RegisterSystems(flecs::world world) {
         for (auto& [grid, blocks] : by_grid) {
           RemoveBlocks(blocks, open);
           grids.insert(grid);
-          if (const Status synced = lights.Make(grid).Sync(blocks, shown, emergency); !synced) {
+          if (const Status synced = lights.Make(grid).Sync(blocks, shown, emergency, SyncContextOf(pool, camera)); !synced) {
             log_error("[raylib] lamps of grid {}: {}", grid, synced.error());
           }
         }

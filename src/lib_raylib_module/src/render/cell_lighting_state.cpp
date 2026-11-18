@@ -18,10 +18,11 @@
 
 #include <algorithm>
 #include <array>
-#include <functional>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <ranges>
+#include <unordered_set>
 #include <utility>
 
 #include <primitives/draw_order.h>
@@ -71,6 +72,11 @@ uint64_t FingerprintOf(const z13::station::Block& block) {
   return hash;
 }
 
+// Lamps lit by the first build, and by each sync after it: a flood costs a few milliseconds, so the rest wait for the
+// next frames instead of holding up one.
+constexpr size_t kFirstLampBatch = 48;
+constexpr size_t kLampBatch = 6;
+
 constexpr std::array kNodeTexels {NodeTexel::kLight, NodeTexel::kDirection};
 
 bool BoxBefore(const CellBox& a, const CellBox& b) {
@@ -91,6 +97,17 @@ bool LampBefore(const Lamp& a, const Lamp& b) {
                        lamp.color.z(),    lamp.radius};
   };
   return key(a) < key(b);
+}
+
+// At most `count` of the lamps, the nearest to `focus` (a lamp stands where it shines from, in cells), in lamp order.
+std::vector<Lamp> NearestLamps(std::vector<Lamp> lamps, const Eigen::Vector3f& focus, size_t count) {
+  if (lamps.size() > count) {
+    const auto distance = [&focus](const Lamp& lamp) { return (lamp.position - focus).squaredNorm(); };
+    std::ranges::nth_element(lamps, lamps.begin() + static_cast<std::ptrdiff_t>(count), {}, distance);
+    lamps.resize(count);
+  }
+  std::ranges::sort(lamps, LampBefore);
+  return lamps;
 }
 
 // What `after` has that `before` lacks; both sorted by `before_order`.
@@ -122,7 +139,8 @@ bool CellLighting::State::BuiltFrom(z13::building::primitives::OptionalPalette p
 
 bool CellLighting::State::SyncedWith(z13::building::primitives::OptionalPalette palette,
                                      const EmergencyLamps& emergency) const {
-  return BuiltFrom(palette) && emergency_percent_ == emergency.percent && std::ranges::equal(dimmed_, emergency.dimmed);
+  return BuiltFrom(palette) && !lamps_pending_ && emergency_percent_ == emergency.percent &&
+         std::ranges::equal(dimmed_, emergency.dimmed);
 }
 
 size_t SealedBoxesKeyHash::operator()(const SealedBoxesKey& key) const {
@@ -130,42 +148,41 @@ size_t SealedBoxesKeyHash::operator()(const SealedBoxesKey& key) const {
          static_cast<size_t>(key.orientation);
 }
 
-std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Block& block,
-                                                        z13::building::primitives::OptionalPalette palette) {
-  const SealedBoxesKey key {.shape = z13::building::primitives::ShapeKeyOf(block.spec),
-                            .orientation = block.spec.orientation};
-  auto found = sealed_.find(key);
-  if (found == sealed_.end()) {
-    found = sealed_.emplace(key, z13::building::primitives::SealedBoxes({.spec = block.spec}, palette)).first;
-  }
-  std::vector<CellBox> boxes = found->second;
+SealedBoxesKey CellLighting::State::SealedKeyOf(const z13::station::Block& block) {
+  return {.shape = z13::building::primitives::ShapeKeyOf(block.spec), .orientation = block.spec.orientation};
+}
+
+std::vector<CellBox> CellLighting::State::SealedBoxesOf(const z13::station::Block& block) const {
+  std::vector<CellBox> boxes = sealed_.at(SealedKeyOf(block));
   for (CellBox& box : boxes) {
     box.min += block.cell;
   }
   return boxes;
 }
 
-Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
-                                 z13::building::primitives::OptionalPalette palette,
-                                 const EmergencyLamps& emergency) {
-  if (failure_) {
-    return {};
+void CellLighting::State::BoxesOf(std::span<const KeyedBlock> blocks,
+                                  z13::building::primitives::OptionalPalette palette,
+                                  const z13::station::rooms::ParallelFor& parallel, std::vector<CellBox>& opaque,
+                                  std::vector<GlassBox>& glass) {
+  std::unordered_set<SealedBoxesKey, SealedBoxesKeyHash> missing;
+  std::vector<size_t> samples;
+  for (size_t index = 0; index < blocks.size(); ++index) {
+    const SealedBoxesKey key = SealedKeyOf(blocks[index].block);
+    if (!sealed_.contains(key) && missing.insert(key).second) {
+      samples.push_back(index);
+    }
   }
-  // Blocks flagged as changed without differing (a door changing table) must not redo the light.
-  const uint64_t fingerprint = std::ranges::fold_left(
-      blocks | std::views::transform(FingerprintOf), uint64_t {}, std::plus<> {});
-  if (BuiltFrom(palette) && fingerprint == blocks_fingerprint_ && SyncedWith(palette, emergency)) {
-    return {};
+  std::vector<std::vector<CellBox>> shapes(samples.size());
+  parallel(samples.size(), [&](size_t sample) {
+    shapes[sample] = z13::building::primitives::SealedBoxes({.spec = blocks[samples[sample]].block.spec}, palette);
+  });
+  for (size_t sample = 0; sample < samples.size(); ++sample) {
+    sealed_.emplace(SealedKeyOf(blocks[samples[sample]].block), std::move(shapes[sample]));
   }
-  blocks_fingerprint_ = fingerprint;
-  if (!BuiltFrom(palette)) {
-    sealed_.clear();
-  }
-  std::vector<CellBox> opaque;
-  std::vector<GlassBox> glass;
-  for (const z13::station::Block& block : blocks) {
+  for (const KeyedBlock& keyed : blocks) {
+    const z13::station::Block& block = keyed.block;
     // The cells its solids hold, not its box: a slope or a leaning panel leaves the rest to others.
-    const std::vector<CellBox> boxes = SealedBoxesOf(block, palette);
+    const std::vector<CellBox> boxes = SealedBoxesOf(block);
     if (z13::building::primitives::IsTransparent(block, palette)) {
       const float transmission = palette->get().Find(block.spec.type_id)->get().light_transmission;
       std::ranges::transform(boxes, std::back_inserter(glass), [transmission](const CellBox& cells) {
@@ -175,8 +192,31 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
       opaque.insert(opaque.end(), boxes.begin(), boxes.end());
     }
   }
-  std::ranges::sort(opaque, BoxBefore);
-  std::ranges::sort(glass, GlassBefore);
+}
+
+Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
+                                 z13::building::primitives::OptionalPalette palette,
+                                 const EmergencyLamps& emergency, const SyncContext& context) {
+  if (failure_) {
+    return {};
+  }
+  std::vector<KeyedBlock> keyed;
+  keyed.reserve(blocks.size());
+  std::ranges::transform(blocks, std::back_inserter(keyed), [](const z13::station::Block& block) {
+    return KeyedBlock {.fingerprint = FingerprintOf(block), .block = block};
+  });
+  // Blocks flagged as changed without differing (a door changing table) must not redo the light.
+  const uint64_t fingerprint = std::ranges::fold_left(
+      keyed | std::views::transform(&KeyedBlock::fingerprint), uint64_t {}, std::plus<> {});
+  if (BuiltFrom(palette) && fingerprint == blocks_fingerprint_ && SyncedWith(palette, emergency)) {
+    return {};
+  }
+  blocks_fingerprint_ = fingerprint;
+  if (!BuiltFrom(palette)) {
+    sealed_.clear();
+  }
+  const auto by_fingerprint = [](const KeyedBlock& a, const KeyedBlock& b) { return a.fingerprint < b.fingerprint; };
+  std::ranges::sort(keyed, by_fingerprint);
   std::vector<Lamp> lamps;
   const std::vector<z13::utility::DimmedLamp> dimmed(emergency.dimmed.begin(), emergency.dimmed.end());
   std::ranges::transform(z13::building::primitives::LightsOf(blocks, palette, dimmed, emergency.percent),
@@ -186,36 +226,44 @@ Status CellLighting::State::Sync(std::span<const z13::station::Block> blocks,
   dimmed_ = dimmed;
   emergency_percent_ = emergency.percent;
   if (!BuiltFrom(palette)) {
-    light_.emplace(opaque, glass, lamps);
+    std::vector<CellBox> opaque;
+    std::vector<GlassBox> glass;
+    BoxesOf(keyed, palette, context.parallel, opaque, glass);
+    std::ranges::sort(glass, GlassBefore);
+      std::vector<Lamp> first = NearestLamps(lamps, context.focus, kFirstLampBatch);
+    light_.emplace(opaque, glass, first, context.parallel);
     palette_hash_ = palette ? std::optional(palette->get().hash) : std::nullopt;
-    opaque_ = std::move(opaque);
-    glass_ = std::move(glass);
-    lamps_ = std::move(lamps);
+    blocks_ = std::move(keyed);
+    lamps_pending_ = first.size() < lamps.size();
+    lamps_ = std::move(first);
     shining_ = light_->ShiningLamps();
     return Remake();
   }
-  const LightEdits edits {
-      .opaque_added = Missing(opaque, opaque_, BoxBefore),
-      .opaque_removed = Missing(opaque_, opaque, BoxBefore),
-      .glass_added = Missing(glass, glass_, GlassBefore),
-      .glass_removed = Missing(glass_, glass, GlassBefore),
-      .lamps_added = Missing(lamps, lamps_, LampBefore),
-      .lamps_removed = Missing(lamps_, lamps, LampBefore),
-  };
-  opaque_ = std::move(opaque);
-  glass_ = std::move(glass);
-  lamps_ = std::move(lamps);
+  // Only the blocks that came or went are measured: the rest of the light's boxes stand as they are.
+  std::vector<KeyedBlock> added;
+  std::vector<KeyedBlock> removed;
+  std::ranges::set_difference(keyed, blocks_, std::back_inserter(added), by_fingerprint);
+  std::ranges::set_difference(blocks_, keyed, std::back_inserter(removed), by_fingerprint);
+  LightEdits edits;
+  BoxesOf(added, palette, context.parallel, edits.opaque_added, edits.glass_added);
+  BoxesOf(removed, palette, context.parallel, edits.opaque_removed, edits.glass_removed);
+  edits.lamps_removed = Missing(lamps_, lamps, LampBefore);
+  // A lamp that changed colour comes back as it goes, whatever the batch.
+  edits.lamps_added =
+      NearestLamps(Missing(lamps, lamps_, LampBefore), context.focus, edits.lamps_removed.size() + kLampBatch);
+  blocks_ = std::move(keyed);
+  std::vector<Lamp> lit = Missing(lamps_, edits.lamps_removed, LampBefore);
+  lit.insert(lit.end(), edits.lamps_added.begin(), edits.lamps_added.end());
+  std::ranges::sort(lit, LampBefore);
+  lamps_pending_ = lit.size() < lamps.size();
+  lamps_ = std::move(lit);
   const z13::station::light::LightChanges changes = light_->Apply(edits);
   shining_ = light_->ShiningLamps();
   if (changes.resized) {
     return Remake();
   }
-  if (changes.cell_texels) {
-    UploadLabels(*changes.cell_texels);
-  }
-  if (changes.light) {
-    UploadLight(*changes.light);
-  }
+  std::ranges::for_each(changes.cell_tiles, [this](const CellBox& tile) { UploadLabels(tile); });
+  std::ranges::for_each(changes.light_tiles, [this](const CellBox& tile) { UploadLight(tile); });
   return {};
 }
 

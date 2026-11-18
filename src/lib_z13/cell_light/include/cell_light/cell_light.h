@@ -26,6 +26,7 @@
 #include <Eigen/Dense>
 
 #include <primitives/cell_box.h>
+#include <rooms/parallel_for.h>
 
 #include <cell_light/lamp.h>
 #include <cell_light/light_edits.h>
@@ -39,8 +40,9 @@ class CellLight {
  public:
   CellLight();
   CellLight(std::span<const z13::building::primitives::CellBox> opaque, std::span<const Lamp> lamps);
+  // `parallel` spreads the lamps' floods over threads; the light is the same without it.
   CellLight(std::span<const z13::building::primitives::CellBox> opaque, std::span<const GlassBox> glass,
-            std::span<const Lamp> lamps);
+            std::span<const Lamp> lamps, z13::station::rooms::ParallelFor parallel = z13::station::rooms::Serial);
 
   LightChanges Apply(const LightEdits& edits);
 

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -36,11 +37,16 @@ struct Contribution {
 };
 
 // A lamp and what it adds to each node it reaches, to take back when it changes.
+// The ranges of cubes the sums are added in side by side: a lamp's contributions are kept grouped by range.
+inline constexpr size_t kAddRanges = 32;
+
 struct LampState {
   Lamp lamp;
   // Where its light starts (EmitterOf); nothing while it is walled in.
   std::optional<Eigen::Vector3f> emitter;
+  // Grouped by range: range r is [range_starts[r], range_starts[r + 1]).
   std::vector<Contribution> contributions;
+  std::array<uint32_t, kAddRanges + 1> range_starts {};
   // The cubes holding those nodes: an edit elsewhere can't change its light.
   z13::building::primitives::CellBox reached;
 };
@@ -49,6 +55,8 @@ struct LampState {
 struct FloodMarks {
   std::vector<uint32_t> flood_of_node;
   uint32_t last_flood {};
+  // The most nodes one flood reached: the next reserves that much.
+  size_t reached_hint {};
 };
 
 // Where the lamp's light starts: its position, or behind it when that lies in a block.
