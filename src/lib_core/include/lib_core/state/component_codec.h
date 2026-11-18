@@ -45,8 +45,21 @@ std::expected<std::span<std::byte>, std::string> ComponentBytes(
 std::expected<std::span<const std::byte>, std::string> ComponentBytes(
     const flecs::world& world, flecs::entity_t type, const void* value);
 
-// True when equal bytes of a `type` value mean equal encodings: no strings, entity references or opaque members.
+// True when equal bytes of a `type` value mean equal encodings, padding aside (FlatRanges): no strings, entity
+// references or opaque members.
 bool IsFlatValue(const flecs::world& world, flecs::entity_t type);
+
+// A run of bytes of a value.
+struct ByteRange {
+  size_t offset {};
+  size_t size {};
+
+  bool operator==(const ByteRange&) const = default;
+};
+
+// The bytes of a flat `type` value that hold data, in order and merged. Padding is left out: it is whatever the
+// memory held, and changes when flecs moves the value.
+std::vector<ByteRange> FlatRanges(const flecs::world& world, flecs::entity_t type);
 
 // Encodes a default value of `type`, to catch member types the codec can't write.
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type);

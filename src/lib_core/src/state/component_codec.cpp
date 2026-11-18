@@ -116,6 +116,48 @@ bool IsFlatValue(const flecs::world& world, flecs::entity_t type) {
 
 namespace {
 
+void AppendRange(std::vector<ByteRange>& ranges, size_t offset, size_t size) {
+  if (!ranges.empty() && ranges.back().offset + ranges.back().size == offset) {
+    ranges.back().size += size;
+  } else {
+    ranges.push_back({.offset = offset, .size = size});
+  }
+}
+
+void AppendFlatRanges(const flecs::world& world, flecs::entity_t type, size_t base, std::vector<ByteRange>& ranges) {
+  const auto meta = codec::Meta<EcsType>(world, type);
+  const auto size = codec::TypeSize(world, type);
+  if (!meta || !size) {
+    return;
+  }
+  const auto repeat = [&](flecs::entity_t element_type, size_t count, size_t first) {
+    const size_t element_size = codec::TypeSize(world, element_type).value_or(0);
+    for (size_t index = 0; index < count; ++index) {
+      AppendFlatRanges(world, element_type, first + (index * element_size), ranges);
+    }
+  };
+  switch (meta->get().kind) {
+    case EcsStructType:
+      if (const auto members = codec::Meta<EcsStruct>(world, type)) {
+        const std::span all(static_cast<const ecs_member_t*>(ecs_vec_first(&members->get().members)),
+                            static_cast<size_t>(ecs_vec_count(&members->get().members)));
+        for (const ecs_member_t& member : all) {
+          repeat(member.type, std::max<size_t>(static_cast<size_t>(member.count), 1),
+                 base + static_cast<size_t>(member.offset));
+        }
+      }
+      break;
+    case EcsArrayType:
+      if (const auto array = codec::Meta<EcsArray>(world, type)) {
+        repeat(array->get().type, static_cast<size_t>(array->get().count), base);
+      }
+      break;
+    default:
+      AppendRange(ranges, base, *size);
+      break;
+  }
+}
+
 bool IsFlatArrayOpaque(const flecs::world& world, flecs::entity_t type) {
   const auto opaque = codec::Meta<EcsOpaque>(world, type);
   if (!opaque) {
@@ -132,6 +174,12 @@ bool IsFlatArrayOpaque(const flecs::world& world, flecs::entity_t type) {
 }
 
 }  // namespace
+
+std::vector<ByteRange> FlatRanges(const flecs::world& world, flecs::entity_t type) {
+  std::vector<ByteRange> ranges;
+  AppendFlatRanges(world, type, 0, ranges);
+  return ranges;
+}
 
 Status CheckEncodable(const flecs::world& world, flecs::entity_t type) {
   return codec::ScratchValue::Create(world, type).and_then([&](const codec::ScratchValue& scratch) {

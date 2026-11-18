@@ -30,6 +30,7 @@
 
 #include <Eigen/Dense>
 
+#include <lib_core/state/component_codec.h>
 #include <lib_core/state/snapshot_grouping.h>
 #include <lib_core/state/world_serializer.h>
 #include <lib_core/state/state_markers.h>
@@ -146,6 +147,29 @@ TEST(BlockSnapshotTest, OnlyTheChunkThatChangedIsEncodedAgain) {
     return std::ranges::find(before.groups, group) != before.groups.end();
   });
   EXPECT_EQ(static_cast<size_t>(shared), before.groups.size() - 1);
+}
+
+// A value's padding is whatever the memory held and changes when flecs moves it: it must not make a chunk be encoded again.
+TEST(BlockSnapshotTest, PaddingBytesDoNotMakeAChunkEncodedAgain) {
+  constexpr unsigned char kScribble = 0xA5;
+  Z13TestWorld test_world = StationWorld();
+  flecs::world world = test_world.World();
+  const flecs::entity block = PlaceBlock(world, "TestBlock_0", kFirstChunkCell);
+  PlaceBlock(world, "TestBlock_1", kSecondChunkCell);
+  const ft::WorldSnapshot before = ft::CaptureState(world).value();
+
+  std::vector<bool> is_data(sizeof(Block), false);
+  for (const ft::ByteRange& range : ft::FlatRanges(world, world.component<Block>().id())) {
+    std::fill_n(is_data.begin() + static_cast<std::ptrdiff_t>(range.offset), range.size, true);
+  }
+  ASSERT_NE(std::ranges::count(is_data, false), 0) << "Block has no padding to scribble in";
+  auto* bytes = reinterpret_cast<unsigned char*>(const_cast<Block*>(block.try_get<Block>()));
+  for (size_t index = 0; index < is_data.size(); ++index) {
+    bytes[index] = is_data[index] ? bytes[index] : kScribble;
+  }
+  block.modified<Block>();
+
+  EXPECT_EQ(ft::CaptureState(world).value().groups, before.groups);
 }
 
 TEST(BlockSnapshotTest, NothingChangedSharesEveryChunk) {
