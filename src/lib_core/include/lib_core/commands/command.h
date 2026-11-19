@@ -63,6 +63,8 @@ struct CommandName {
 //     float x {};
 //     float y {};
 //   };
+//
+// A command without arguments is an empty struct.
 template <class ResultType, FixedText kDescription, class TagList = Tags<>, class Name = void>
 struct Command {
   using Result = ResultType;

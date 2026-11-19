@@ -77,7 +77,6 @@ struct ConduitKindsCommand {
                                "Lists the conduit kinds: id, name and the network each carries (a cell holds one "
                                "conduit of each network).",
                                Tags<kDebugTag>>;
-  int unused {};
 };
 
 struct ConduitsCommand {

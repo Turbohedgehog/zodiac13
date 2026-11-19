@@ -150,7 +150,7 @@ TEST_F(McpServerWorldTest, ListsTheCommandsOfTheChannel) {
   const std::string reply = Ask(client, R"({"id":2,"command":"commands"})");
   EXPECT_NE(reply.find(R"("name":"ping")"), std::string::npos) << reply;
   EXPECT_NE(reply.find(R"("name":"commands")"), std::string::npos) << reply;
-  EXPECT_NE(reply.find(R"("kind":"integer")"), std::string::npos) << reply;
+  EXPECT_NE(reply.find(R"("tags":["debug"],"fields":[])"), std::string::npos) << "commands without arguments list no fields: " << reply;
 }
 
 TEST_F(McpServerWorldTest, ServerStatusCountsThePumpsOfTheGameThread) {

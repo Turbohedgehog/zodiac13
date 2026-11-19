@@ -32,7 +32,6 @@ namespace {
 struct PingCommand {
   using Command = z13::Command<std::string, "Answers pong: checks the connection.", Tags<kDebugTag>>;
 
-  int unused {};  // a command takes its arguments from fields; this one takes none
 };
 
 struct CommandFieldInfo {
@@ -52,7 +51,6 @@ struct CommandsCommand {
       z13::Command<std::vector<CommandInfo>, "Lists the commands this channel shows: name, description, tags, fields.",
                    Tags<kDebugTag>>;
 
-  int unused {};
 };
 
 std::vector<CommandInfo> Listed(flecs::world world) {

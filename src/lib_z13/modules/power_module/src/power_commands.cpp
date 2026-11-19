@@ -71,7 +71,6 @@ struct PowerNetworksCommand {
       "asked for and served, the energy stored in batteries (watt-ticks, 1 W for one tick) and each block with its "
       "role and whether it is supplied. A network without a producer or charged battery serves nothing.",
       Tags<kDebugTag>>;
-  int unused {};
 };
 
 void ListNetworks(flecs::world world, ReplyOf<PowerNetworksCommand>& reply) {

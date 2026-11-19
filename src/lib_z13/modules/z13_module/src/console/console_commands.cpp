@@ -47,19 +47,16 @@ struct HelpCommand {
 struct ClearCommand {
   using Command = z13::Command<std::string, "Empties the log the console shows.", Tags<console_input::kConsoleTag>>;
 
-  int unused {};
 };
 
 struct QuitCommand {
   using Command = z13::Command<std::string, "Closes the game.", Tags<console_input::kConsoleTag>>;
 
-  int unused {};
 };
 
 struct ExitCommand {
   using Command = z13::Command<std::string, "Closes the game, like quit.", Tags<console_input::kConsoleTag>>;
 
-  int unused {};
 };
 
 struct EchoCommand {
@@ -81,7 +78,6 @@ struct ConsoleSeenCommand {
                                "Marks what the player said in the assistant tab as seen, without an answer.",
                                Tags<kDebugTag>>;
 
-  int unused {};
 };
 
 std::string UsageOf(const std::string& name, const CommandEntry& entry) {

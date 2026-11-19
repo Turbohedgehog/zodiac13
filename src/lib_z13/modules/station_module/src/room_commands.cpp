@@ -52,7 +52,6 @@ struct RoomsCommand {
       "cells, how many openings it has and whether one of them leads to open space. An empty list means no room "
       "is closed yet.",
       Tags<kDebugTag>>;
-  int unused {};
 };
 
 struct OpeningInfo {
@@ -69,7 +68,6 @@ struct VacuumOpeningsCommand {
       "Lists the openings of the main grid's rooms that lead to the vacuum, where the station leaks: the room, the "
       "opening's box in cells, its area and whether a body can pass.",
       Tags<kDebugTag>>;
-  int unused {};
 };
 
 void ListRooms(flecs::world world, ReplyOf<RoomsCommand>& reply) {
