@@ -140,6 +140,7 @@ set(
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_display_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_panel_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_selection_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/station_editor_command_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/scene_reload_test.cpp

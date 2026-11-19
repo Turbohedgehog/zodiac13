@@ -16,6 +16,7 @@
 
 #include "editor_view_system.h"
 
+#include <algorithm>
 #include <format>
 #include <string>
 #include <utility>
@@ -28,8 +29,10 @@
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
 #include <z13/components/editor/editor_view.h>
+#include <z13/components/gui/gui_panels.h>
 
 #include "editor_graph.h"
+#include "editor_panel.h"
 
 namespace z13::station_editor {
 
@@ -98,25 +101,49 @@ EditorView ViewOf(const graph::GraphEditor& editor, bool open) {
   return view;
 }
 
+void PublishPanel(z13::gui::GuiPanels& panels, z13::gui::Panel panel) {
+  const auto known = std::ranges::find(panels.panels, panel.id, &z13::gui::Panel::id);
+  if (known != panels.panels.end()) {
+    *known = std::move(panel);
+  } else {
+    panels.panels.push_back(std::move(panel));
+  }
+}
+
 void RegisterSystems(flecs::world world) {
-  world.system<EditorView, const EditorGraph>("EditorViewSystem::Update")
+  world.system<EditorView, const EditorGraph, z13::gui::GuiPanels*>("EditorViewSystem::Update")
       .kind(flecs::PreFrame)
-      .each([](EditorView& view, const EditorGraph& graph) {
-        if (!view.open) {
+      .each([](EditorView& view, const EditorGraph& graph, z13::gui::GuiPanels* panels) {
+        const bool was_open = view.open;
+        if (was_open) {
+          auto selected = std::move(view.selected);
+          view = graph.editor ? ViewOf(*graph.editor, view.open) : EditorView {.open = view.open};
+          view.selected = std::move(selected);
+        }
+        if (panels == nullptr) {
           return;
         }
-        auto selected = std::move(view.selected);
-        view = graph.editor ? ViewOf(*graph.editor, view.open) : EditorView {.open = view.open};
-        view.selected = std::move(selected);
+        if (was_open) {
+          PublishPanel(*panels, BuildEditorPanel(view));
+        } else if (const auto shown = std::ranges::find(panels->panels, kEditorPanelId, &z13::gui::Panel::id);
+                   shown != panels->panels.end()) {
+          shown->open = false;
+        }
       });
 }
 
 }  // namespace
 
 void EditorViewSystem::Register(flecs::world& world) {
-  z13::OnRegisterComponents(world, [](flecs::world& w) { flecs_tools::RegisterComponent<EditorView>(w); });
+  z13::OnRegisterComponents(world, [](flecs::world& w) {
+    flecs_tools::RegisterComponent<EditorView>(w);
+    flecs_tools::RegisterComponent<z13::gui::GuiPanels>(w);
+  });
   z13::OnInitSystems(world, [](flecs::world& w) {
     w.set(EditorView {});
+    if (!w.has<z13::gui::GuiPanels>()) {
+      w.set(z13::gui::GuiPanels {});
+    }
     RegisterSystems(w);
   });
 }
