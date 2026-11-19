@@ -17,10 +17,12 @@
 #pragma once
 
 #include <lib_core/commands/command.h>
+#include <z13/components/editor/editor_view.h>
 
 namespace z13::station_editor {
 
 // The commands that edit the station graph (docs/station-editor-plan.md).
 inline constexpr z13::FixedText kEditorTag("editor");
+static_assert(kEditorTag.View() == z13::editor::kEditorTagName);
 
 }  // namespace z13::station_editor

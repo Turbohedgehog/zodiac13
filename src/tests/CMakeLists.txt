@@ -77,6 +77,7 @@ set(
   src/lib_z13/networks/networks_test.cpp
   src/lib_z13/station_graph/graph_diagnosis_test.cpp
   src/lib_z13/station_graph/graph_editor_test.cpp
+  src/lib_z13/station_graph/graph_geometry_test.cpp
   src/lib_z13/station_graph/graph_json_test.cpp
   src/lib_z13/station_graph/property_schema_test.cpp
   src/lib_z13/power/balance_test.cpp
@@ -138,6 +139,8 @@ set(
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_display_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_selection_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/station_editor_command_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/scene_reload_test.cpp
   ${MODULES_DIR}/power_module/tests/power_commands_test.cpp

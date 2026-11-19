@@ -23,6 +23,9 @@
 
 #include "editor_commands.h"
 #include "editor_graph.h"
+#include "editor_overlay_system.h"
+#include "editor_selection_commands.h"
+#include "editor_view_system.h"
 #include "scene_reload_system.h"
 
 namespace z13::station_editor {
@@ -31,11 +34,15 @@ StationEditorModule::StationEditorModule(flecs::world& world) {
   z13::OnRegisterComponents(world, [](flecs::world& w) {
     flecs_tools::RegisterComponent<EditorGraph>(w);
     RegisterEditorCommandComponents(w);
+    RegisterEditorSelectionComponents(w);
   });
   z13::OnInitSystems(world, [](flecs::world& w) {
     w.set(EditorGraph {});
     RegisterEditorCommandSystems(w);
+    RegisterEditorSelectionSystems(w);
   });
+  EditorOverlaySystem::Register(world);
+  EditorViewSystem::Register(world);
   SceneReloadSystem::Register(world);
 }
 

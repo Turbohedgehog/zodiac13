@@ -29,10 +29,9 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/status.h>
+#include <z13/components/editor/editor_view.h>
 #include <z13/components/gameplay/gameplay.h>
-#include <z13/components/gameplay/player.h>
 #include <z13/components/station/station_mode.h>
-#include <player/gameplay_entities.h>
 #include <station_graph/graph_assets.h>
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
@@ -41,6 +40,7 @@
 
 #include "editor_graph.h"
 #include "editor_tag.h"
+#include "editor_world.h"
 #include "scene_reload.h"
 
 namespace z13::station_editor {
@@ -51,7 +51,6 @@ namespace graph = z13::editor::graph;
 
 constexpr std::string_view kNodeTarget = "node";
 constexpr std::string_view kEdgeTarget = "edge";
-constexpr std::string_view kNoGraph = "no graph loaded: call editor_load first";
 
 struct EditorLoadCommand {
   using Command = z13::Command<std::string,
@@ -128,6 +127,11 @@ struct EditorReloadSceneCommand {
   std::string scene;
 };
 
+struct EditorWindowCommand {
+  using Command = z13::Command<std::string, "Opens the editor's window, or closes it when it is open.",
+                               Tags<kDebugTag, kEditorTag>>;
+};
+
 struct EditorUndoCommand {
   using Command = z13::Command<std::string, "Takes back the last edit.", Tags<kDebugTag, kEditorTag>>;
 };
@@ -145,14 +149,6 @@ struct EditorDiagnoseCommand {
 
 std::string SummaryOf(const graph::Graph& graph) {
   return std::format("{} rooms, {} edges", graph.nodes.size(), graph.edges.size());
-}
-
-std::expected<std::reference_wrapper<graph::GraphEditor>, std::string> LoadedEditor(flecs::world world) {
-  auto& loaded = world.get_mut<EditorGraph>().editor;
-  if (!loaded) {
-    return std::unexpected(std::string(kNoGraph));
-  }
-  return std::ref(*loaded);
 }
 
 // Runs `edit` on the loaded editor and answers the graph's size, or the reason the edit was refused.
@@ -249,12 +245,7 @@ void ReloadScene(flecs::world world, const EditorReloadSceneCommand& request, Re
   }
   auto& reload = world.get_mut<SceneReload>();
   reload = {.pending = true};
-  if (const auto* local = world.try_get<z13::gameplay::LocalPlayer>(); local != nullptr && local->id) {
-    const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(*local->id).c_str());
-    if (player.is_valid() && player.has<Eigen::Matrix4f>()) {
-      reload.pose = player.get<Eigen::Matrix4f>();
-    }
-  }
+  reload.pose = LocalPlayerPose(world);
   choice.scene = scene;
   world.remove<z13::gameplay::Gameplay>();
   reply.Succeed(scene);
@@ -265,7 +256,8 @@ void ReloadScene(flecs::world world, const EditorReloadSceneCommand& request, Re
 void RegisterEditorCommandComponents(flecs::world world) {
   flecs_tools::RegisterComponents<EditorLoadCommand, EditorShowCommand, EditorSaveCommand, EditorSetRoomCommand,
                                   EditorRemoveRoomCommand, EditorAddEdgeCommand, EditorRemoveEdgeCommand,
-                                  EditorSetPropertyCommand, EditorReloadSceneCommand, EditorUndoCommand,
+                                  EditorSetPropertyCommand, EditorReloadSceneCommand, EditorWindowCommand,
+                                  EditorUndoCommand,
                                   EditorRedoCommand, EditorDiagnoseCommand>(world);
 }
 
@@ -320,6 +312,13 @@ void RegisterEditorCommandSystems(flecs::world world) {
       [](flecs::iter& it, size_t, const EditorReloadSceneCommand& request, ReplyOf<EditorReloadSceneCommand>& reply) {
         ReloadScene(it.world(), request, reply);
       });
+  CommandSystem<EditorWindowCommand>(
+      world, "EditorCommands::Window",
+      [](flecs::iter& it, size_t, const EditorWindowCommand&, ReplyOf<EditorWindowCommand>& reply) {
+        auto& view = it.world().get_mut<z13::editor::EditorView>();
+        view.open = !view.open;
+        reply.Succeed(view.open ? "the editor's window is open" : "the editor's window is closed");
+      });
   CommandSystem<EditorUndoCommand>(
       world, "EditorCommands::Undo", writes,
       [](flecs::iter& it, size_t, const EditorUndoCommand&, ReplyOf<EditorUndoCommand>& reply) {
@@ -335,7 +334,7 @@ void RegisterEditorCommandSystems(flecs::world world) {
       [](flecs::iter& it, size_t, const EditorDiagnoseCommand&, ReplyOf<EditorDiagnoseCommand>& reply) {
         const auto editor = LoadedEditor(it.world());
         if (editor) {
-          reply.Succeed(graph::Diagnose(editor->get().graph()));
+          reply.Succeed(graph::Diagnose(editor->get().graph(), editor->get().schema()));
         } else {
           reply.Fail(editor.error());
         }

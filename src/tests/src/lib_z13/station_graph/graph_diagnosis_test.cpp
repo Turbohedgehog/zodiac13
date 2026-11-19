@@ -30,24 +30,30 @@ Node RoomAt(std::string id, int x, int y) {
   return {.id = std::move(id), .box = {.origin = {x, y, 0}, .size = {kRoomCells, kRoomCells}}};
 }
 
+PropertySchema Schema() {
+  const auto schema = z13::testing::ShippedPropertySchema();
+  EXPECT_TRUE(schema) << schema.error();
+  return schema.value_or(PropertySchema {});
+}
+
 TEST(GraphDiagnosisTest, TheShippedPrototypeGraphHasNoProblems) {
   const auto graph = z13::testing::ShippedGraph(z13::testing::kPrototypeGraph);
   ASSERT_TRUE(graph) << graph.error();
 
-  EXPECT_TRUE(Diagnose(*graph).empty());
+  EXPECT_TRUE(Diagnose(*graph, Schema()).empty());
 }
 
 TEST(GraphDiagnosisTest, RoomsMeetingByOneWallAreFine) {
   const Graph graph {.nodes = {RoomAt("a", 0, 0), RoomAt("b", kRoomCells - 1, 0)},
                      .edges = {{.id = "a-b", .from = "a", .to = "b"}}};
 
-  EXPECT_TRUE(Diagnose(graph).empty());
+  EXPECT_TRUE(Diagnose(graph, Schema()).empty());
 }
 
 TEST(GraphDiagnosisTest, RoomsOverlappingByMoreThanAWallAreReported) {
   const Graph graph {.nodes = {RoomAt("a", 0, 0), RoomAt("b", kRoomCells - 2, 0)}};
 
-  const std::vector<std::string> problems = Diagnose(graph);
+  const std::vector<std::string> problems = Diagnose(graph, Schema());
 
   ASSERT_EQ(problems.size(), 1U);
   EXPECT_NE(problems.front().find("overlap"), std::string::npos);
@@ -57,7 +63,7 @@ TEST(GraphDiagnosisTest, AnEdgeBetweenRoomsThatShareNoWallIsReported) {
   const Graph graph {.nodes = {RoomAt("a", 0, 0), RoomAt("far", kRoomCells * 3, 0)},
                      .edges = {{.id = "a-far", .from = "a", .to = "far"}}};
 
-  const std::vector<std::string> problems = Diagnose(graph);
+  const std::vector<std::string> problems = Diagnose(graph, Schema());
 
   ASSERT_EQ(problems.size(), 1U);
   EXPECT_NE(problems.front().find("a-far"), std::string::npos);
@@ -68,7 +74,7 @@ TEST(GraphDiagnosisTest, RoomsOnDifferentLevelsDoNotCollide) {
   upper.box.origin.z() = kRoomCells;
   const Graph graph {.nodes = {RoomAt("a", 0, 0), upper}};
 
-  EXPECT_TRUE(Diagnose(graph).empty());
+  EXPECT_TRUE(Diagnose(graph, Schema()).empty());
 }
 
 }  // namespace

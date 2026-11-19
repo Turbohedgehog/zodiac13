@@ -10,7 +10,9 @@ z13_add_library(
   src/graph_assets.cpp
   src/graph_diagnosis.cpp
   src/graph_editor.cpp
+  src/graph_geometry.cpp
   src/graph_json.cpp
+  src/graph_pick.cpp
   src/property_schema.cpp
   PUBLIC
   Eigen3::Eigen
