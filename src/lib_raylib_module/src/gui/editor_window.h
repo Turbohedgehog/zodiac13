@@ -17,7 +17,6 @@
 #pragma once
 
 #include <map>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -36,14 +35,6 @@ struct EditorRequest {
 // Asks the editor's command, logging a refusal like the console does.
 void RunEditorRequest(flecs::world world, const EditorRequest& request);
 
-// The room or edge picked in the list.
-struct EditorSelection {
-  bool edge {};
-  std::string id;
-
-  bool operator==(const EditorSelection&) const = default;
-};
-
 // The station editor's window (docs/station-editor-plan.md): the graph's rooms and edges, and the properties of the
 // one picked, built from the schema. It only shows `EditorView` and asks for commands. Singleton; never state.
 class EditorWindow {
@@ -57,10 +48,9 @@ class EditorWindow {
  private:
   void DrawList(const z13::editor::EditorView& view);
   void DrawProperties(const z13::editor::EditorView& view);
-  void DrawProperty(const z13::editor::EditorItemView& item, const z13::editor::EditorPropertyView& property);
+  void DrawProperty(const z13::editor::EditorItemView& item, bool edge, const z13::editor::EditorPropertyView& property);
   void Ask(std::string command, std::map<std::string, std::string> arguments = {});
 
-  std::optional<EditorSelection> selection_;
   std::vector<EditorRequest> requests_;
 };
 

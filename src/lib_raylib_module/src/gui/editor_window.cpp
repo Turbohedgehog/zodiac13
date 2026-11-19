@@ -35,11 +35,15 @@ namespace {
 
 using z13::editor::EditorItemView;
 using z13::editor::EditorPropertyKind;
+using z13::editor::EditorSelection;
+using z13::editor::EditorTarget;
 using z13::editor::EditorPropertyView;
 
 constexpr std::string_view kTitle = "Station editor";
 constexpr std::string_view kWindowCommand = "editor_window";
 constexpr std::string_view kSetPropertyCommand = "editor_set_property";
+constexpr std::string_view kSelectCommand = "editor_select";
+constexpr std::string_view kPickCommand = "editor_pick";
 constexpr std::string_view kUndoCommand = "editor_undo";
 constexpr std::string_view kRedoCommand = "editor_redo";
 constexpr std::string_view kNodeTarget = "node";
@@ -80,6 +84,10 @@ void EditorWindow::Draw(const z13::editor::EditorView& view) {
       if (ImGui::Button("Redo")) {
         Ask(std::string(kRedoCommand));
       }
+      ImGui::SameLine();
+      if (ImGui::Button("Pick aimed")) {
+        Ask(std::string(kPickCommand));
+      }
       for (const std::string& problem : view.problems) {
         ImGui::TextColored(kErrorColor, "%s", problem.c_str());
       }
@@ -99,29 +107,31 @@ std::vector<EditorRequest> EditorWindow::TakeRequests() {
 
 void EditorWindow::DrawList(const z13::editor::EditorView& view) {
   if (ImGui::BeginChild("##editor_list", {0.f, Em(kListHeightEm)}, ImGuiChildFlags_Borders)) {
-    const auto draw = [this](const std::vector<EditorItemView>& items, bool edge, std::string_view heading) {
+    const auto draw = [this, &view](const std::vector<EditorItemView>& items, EditorTarget target,
+                                    std::string_view heading) {
       ImGui::TextUnformatted(heading.data());
       for (const EditorItemView& item : items) {
-        const EditorSelection entry {.edge = edge, .id = item.id};
-        if (ImGui::Selectable(Labeled(item.label, edge ? "edge_" + item.id : "room_" + item.id).c_str(),
-                              selection_ == entry, ImGuiSelectableFlags_None, {0.f, Em(kRowHeightEm)})) {
-          selection_ = entry;
+        const EditorSelection entry {.target = target, .id = item.id};
+        const std::string_view prefix = target == EditorTarget::kEdge ? kEdgeTarget : kNodeTarget;
+        if (ImGui::Selectable(Labeled(item.label, std::format("{}_{}", prefix, item.id)).c_str(),
+                              view.selected == entry, ImGuiSelectableFlags_None, {0.f, Em(kRowHeightEm)})) {
+          Ask(std::string(kSelectCommand), {{"target", std::string(prefix)}, {"id", item.id}});
         }
       }
     };
-    draw(view.rooms, false, "Rooms");
-    draw(view.edges, true, "Edges");
+    draw(view.rooms, EditorTarget::kRoom, "Rooms");
+    draw(view.edges, EditorTarget::kEdge, "Edges");
   }
   ImGui::EndChild();
 }
 
 void EditorWindow::DrawProperties(const z13::editor::EditorView& view) {
-  if (!selection_) {
+  if (!view.selected) {
     return;
   }
-  const EditorItemView* item = Find(selection_->edge ? view.edges : view.rooms, selection_->id);
+  const bool edge = view.selected->target == EditorTarget::kEdge;
+  const EditorItemView* item = Find(edge ? view.edges : view.rooms, view.selected->id);
   if (item == nullptr) {
-    selection_.reset();
     return;
   }
   ImGui::SeparatorText(item->label.c_str());
@@ -129,15 +139,15 @@ void EditorWindow::DrawProperties(const z13::editor::EditorView& view) {
     ImGui::TextUnformatted(item->detail.c_str());
   }
   for (const EditorPropertyView& property : item->properties) {
-    DrawProperty(*item, property);
+    DrawProperty(*item, edge, property);
   }
 }
 
-void EditorWindow::DrawProperty(const EditorItemView& item, const EditorPropertyView& property) {
+void EditorWindow::DrawProperty(const EditorItemView& item, bool edge, const EditorPropertyView& property) {
   const std::string label = Labeled(property.unit.empty() ? property.title : std::format("{}, {}", property.title, property.unit),
                                     item.id + "_" + property.name);
-  const auto set = [this, &item, &property](std::string_view value) {
-    Ask(std::string(kSetPropertyCommand), {{"target", std::string(selection_->edge ? kEdgeTarget : kNodeTarget)},
+  const auto set = [this, &item, &property, edge](std::string_view value) {
+    Ask(std::string(kSetPropertyCommand), {{"target", std::string(edge ? kEdgeTarget : kNodeTarget)},
                                            {"id", item.id},
                                            {"name", property.name},
                                            {"value", std::string(value)}});

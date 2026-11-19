@@ -19,6 +19,7 @@
 #include <string>
 
 #include <station_graph/graph_geometry.h>
+#include <station_graph/graph_pick.h>
 #include <z13_tests/shipped_station.h>
 
 namespace z13::editor::graph {
@@ -71,6 +72,41 @@ TEST(GraphGeometryTest, RoomsApartTouchingByACornerOrOnAnotherLevelShareNoWall) 
   EXPECT_FALSE(SharedWall(RoomAt("a", 0, 0), RoomAt("far", kRoomCells * 3, 0), schema));
   EXPECT_FALSE(SharedWall(RoomAt("a", 0, 0), RoomAt("corner", kRoomCells - 1, kRoomCells - 1), schema));
   EXPECT_FALSE(SharedWall(RoomAt("a", 0, 0), upper, schema));
+}
+
+Graph TwoRoomsWithADoor() {
+  return {.nodes = {RoomAt("a", 0, 0), RoomAt("b", kRoomCells - 1, 0)}, .edges = {{.id = "door", .from = "a", .to = "b"}}};
+}
+
+TEST(GraphPickTest, ARayFromOutsideMeetsTheRoomItEnters) {
+  const auto pick = PickAlong(TwoRoomsWithADoor(), Schema(), Eigen::Vector3f(-5.f, 6.f, 2.f), Eigen::Vector3f::UnitX());
+
+  ASSERT_TRUE(pick);
+  EXPECT_EQ(pick->kind, PickKind::kRoom);
+  EXPECT_EQ(pick->id, "a");
+  EXPECT_FLOAT_EQ(pick->distance, 5.f);
+}
+
+TEST(GraphPickTest, ARayThatCrossesAnOpeningsWallBeforeLeavingTheRoomPicksTheOpening) {
+  const auto pick = PickAlong(TwoRoomsWithADoor(), Schema(), Eigen::Vector3f(5.f, 6.f, 2.f), Eigen::Vector3f::UnitX());
+
+  ASSERT_TRUE(pick);
+  EXPECT_EQ(pick->kind, PickKind::kEdge);
+  EXPECT_EQ(pick->id, "door");
+}
+
+TEST(GraphPickTest, ARayAwayFromTheOpeningPicksTheRoomItStartsIn) {
+  const auto pick = PickAlong(TwoRoomsWithADoor(), Schema(), Eigen::Vector3f(5.f, 6.f, 2.f), Eigen::Vector3f::UnitY());
+
+  ASSERT_TRUE(pick);
+  EXPECT_EQ(pick->kind, PickKind::kRoom);
+  EXPECT_EQ(pick->id, "a");
+  EXPECT_FLOAT_EQ(pick->distance, 0.f);
+}
+
+TEST(GraphPickTest, ARayThatMeetsNothingPicksNothing) {
+  EXPECT_FALSE(PickAlong(TwoRoomsWithADoor(), Schema(), Eigen::Vector3f(-5.f, 100.f, 2.f), Eigen::Vector3f::UnitX()));
+  EXPECT_FALSE(PickAlong(TwoRoomsWithADoor(), Schema(), Eigen::Vector3f(-5.f, 6.f, 2.f), -Eigen::Vector3f::UnitX()));
 }
 
 }  // namespace

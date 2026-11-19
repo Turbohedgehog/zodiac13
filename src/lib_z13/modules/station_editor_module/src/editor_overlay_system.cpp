@@ -30,6 +30,7 @@
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
 #include <station_graph/graph_geometry.h>
+#include <z13/components/editor/editor_view.h>
 #include <z13/components/station/overlay_layers.h>
 
 #include "editor_graph.h"
@@ -39,6 +40,7 @@ namespace z13::station_editor {
 namespace {
 
 namespace graph = z13::editor::graph;
+using z13::editor::EditorTarget;
 using z13::station::OverlayBox;
 using z13::station::OverlayLayers;
 
@@ -50,6 +52,7 @@ constexpr z13::Rgba kDoorColor {90, 220, 110, 255};
 constexpr z13::Rgba kWindowColor {110, 220, 230, 255};
 constexpr z13::Rgba kPassageColor {240, 220, 70, 255};
 constexpr z13::Rgba kUnknownKindColor {220, 70, 60, 255};
+constexpr z13::Rgba kSelectedColor {255, 255, 255, 255};
 
 struct KindColor {
   std::string_view kind;
@@ -74,19 +77,22 @@ z13::Rgba ColorOfKind(const graph::Edge& edge, const graph::PropertySchema& sche
   return color != kKindColors.end() ? color->color : kUnknownKindColor;
 }
 
-void Fill(z13::station::OverlayLayer& layer, const graph::GraphEditor& editor) {
+void Fill(z13::station::OverlayLayer& layer, const graph::GraphEditor& editor,
+          const std::optional<z13::editor::EditorSelection>& selected) {
   const graph::Graph& graph = editor.graph();
   const graph::PropertySchema& schema = editor.schema();
   layer.boxes.clear();
   for (const graph::Node& node : graph.nodes) {
-    layer.boxes.push_back(BoxOf(graph::CellsOfRoom(node, schema), kRoomColor));
+    const bool picked = selected && selected->target == EditorTarget::kRoom && selected->id == node.id;
+    layer.boxes.push_back(BoxOf(graph::CellsOfRoom(node, schema), picked ? kSelectedColor : kRoomColor));
   }
   for (const graph::Edge& edge : graph.edges) {
     const auto from = graph::FindNode(graph, edge.from);
     const auto to = graph::FindNode(graph, edge.to);
     const auto wall = from && to ? graph::SharedWall(graph.nodes[*from], graph.nodes[*to], schema) : std::nullopt;
     if (wall) {
-      layer.boxes.push_back(BoxOf(*wall, ColorOfKind(edge, schema)));
+      const bool picked = selected && selected->target == EditorTarget::kEdge && selected->id == edge.id;
+      layer.boxes.push_back(BoxOf(*wall, picked ? kSelectedColor : ColorOfKind(edge, schema)));
     }
   }
   layer.label = std::format("Station graph: {} rooms, {} edges, {} problems", graph.nodes.size(), graph.edges.size(),
@@ -98,9 +104,9 @@ void RegisterSystems(flecs::world world) {
   if (auto* layers = world.try_get_mut<OverlayLayers>()) {
     layers->layers.push_back({.name = std::string(kLayerName)});
   }
-  world.system<OverlayLayers, const EditorGraph>("EditorOverlaySystem::Update")
+  world.system<OverlayLayers, const EditorGraph, const z13::editor::EditorView>("EditorOverlaySystem::Update")
       .kind(flecs::PreFrame)  // a frame phase: the editor works in the menu and on pause as well
-      .each([](flecs::iter&, size_t, OverlayLayers& layers, const EditorGraph& graph) {
+      .each([](flecs::iter&, size_t, OverlayLayers& layers, const EditorGraph& graph, const z13::editor::EditorView& view) {
         z13::station::OverlayLayer* layer = layers.Find(std::string(kLayerName));
         if (layer == nullptr) {
           return;
@@ -109,7 +115,7 @@ void RegisterSystems(flecs::world world) {
           *layer = {.name = layer->name};
           return;
         }
-        Fill(*layer, *graph.editor);
+        Fill(*layer, *graph.editor, view.selected);
       });
 }
 

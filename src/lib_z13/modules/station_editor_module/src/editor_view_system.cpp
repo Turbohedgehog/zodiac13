@@ -18,6 +18,7 @@
 
 #include <format>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include <flecs.h>
@@ -103,7 +104,9 @@ void RegisterSystems(flecs::world world) {
         if (!view.open) {
           return;
         }
+        auto selected = std::move(view.selected);
         view = graph.editor ? ViewOf(*graph.editor, view.open) : EditorView {.open = view.open};
+        view.selected = std::move(selected);
       });
 }
 

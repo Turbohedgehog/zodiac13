@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +41,16 @@ struct EditorPropertyView {
   std::string value;
 };
 
+enum class EditorTarget : std::uint8_t { kRoom, kEdge };
+
+// The room or edge the player picked, by the aim or in the window's list.
+struct EditorSelection {
+  EditorTarget target {};
+  std::string id;
+
+  bool operator==(const EditorSelection&) const = default;
+};
+
 struct EditorItemView {
   std::string id;
   std::string label;
@@ -53,6 +64,8 @@ struct EditorView {
 
   bool open {};
   bool loaded {};
+  // Kept while the window is closed too: the overlay highlights it.
+  std::optional<EditorSelection> selected;
   std::vector<EditorItemView> rooms;
   std::vector<EditorItemView> edges;
   std::vector<std::string> problems;

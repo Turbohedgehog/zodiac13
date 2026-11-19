@@ -24,35 +24,17 @@
 #include <z13/components/editor/editor_view.h>
 #include <z13/components/station/overlay_layers.h>
 
-#include "../../z13_module/tests/support/z13_test_world.h"
+#include "editor_test_support.h"
 
 namespace z13::station_editor {
 namespace {
 
 using z13::testing::Z13TestWorld;
 
-constexpr std::string_view kEditorTagName = "editor";
 constexpr std::string_view kLayerName = "graph";
 constexpr std::string_view kPrototype = "prototype";
 constexpr std::size_t kPrototypeRooms = 3;
 constexpr std::size_t kPrototypeEdges = 2;
-
-CommandResult RunCommand(Z13TestWorld& test_world, std::string_view name,
-                  std::initializer_list<std::pair<std::string, rfl::Generic>> fields = {}) {
-  rfl::Generic::Object arguments;
-  for (const auto& [field, value] : fields) {
-    arguments[field] = value;
-  }
-  std::optional<CommandResult> reply;
-  const Status submitted = SubmitCommand(test_world.World(), {.tags = {std::string(kEditorTagName)}}, name,
-                                         rfl::Generic(std::move(arguments)),
-                                         [&reply](CommandResult result) { reply = std::move(result); });
-  if (!submitted) {
-    return std::unexpected(submitted.error());
-  }
-  test_world.Tick();
-  return reply.value_or(std::unexpected("no reply"));
-}
 
 const z13::station::OverlayLayer& GraphLayer(Z13TestWorld& test_world) {
   return *test_world.World().get<z13::station::OverlayLayers>().Find(std::string(kLayerName));
