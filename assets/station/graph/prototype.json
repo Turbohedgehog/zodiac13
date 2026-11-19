@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "hall",
+      "name": "Hall",
+      "box": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "w": 40,
+        "d": 24
+      },
+      "properties": {
+        "spawn": true
+      }
+    },
+    {
+      "id": "corridor",
+      "name": "Corridor",
+      "box": {
+        "x": 39,
+        "y": 6,
+        "z": 0,
+        "w": 41,
+        "d": 12
+      },
+      "properties": {
+        "height": 12
+      }
+    },
+    {
+      "id": "lab",
+      "name": "Lab",
+      "box": {
+        "x": 79,
+        "y": 0,
+        "z": 0,
+        "w": 28,
+        "d": 24
+      },
+      "properties": {
+        "lamp": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "hall-corridor",
+      "from": "hall",
+      "to": "corridor",
+      "properties": {
+        "kind": "Door"
+      }
+    },
+    {
+      "id": "corridor-lab",
+      "from": "corridor",
+      "to": "lab",
+      "properties": {
+        "kind": "Passage",
+        "width": 6
+      }
+    }
+  ]
+}

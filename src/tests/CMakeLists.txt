@@ -75,6 +75,10 @@ set(
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/primitives/station_viewpoints_test.cpp
   src/lib_z13/networks/networks_test.cpp
+  src/lib_z13/station_graph/graph_diagnosis_test.cpp
+  src/lib_z13/station_graph/graph_editor_test.cpp
+  src/lib_z13/station_graph/graph_json_test.cpp
+  src/lib_z13/station_graph/property_schema_test.cpp
   src/lib_z13/power/balance_test.cpp
   src/lib_z13/rooms/oblique_rooms_test.cpp
   src/lib_z13/rooms/box_tree_test.cpp
@@ -168,6 +172,7 @@ set(
   ${MODULES_DIR}/station_module/tests/octant_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/room_commands_test.cpp
   ${MODULES_DIR}/station_module/tests/room_system_test.cpp
+  ${MODULES_DIR}/station_module/tests/prototype_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/shard_rooms_test.cpp
   ${MODULES_DIR}/station_module/tests/utility_phases_test.cpp
   ${MODULES_DIR}/z13_module/tests/gameplay/camera_look_test.cpp
@@ -295,6 +300,7 @@ target_link_libraries(
   zodiac13::cell_light
   zodiac13::rooms
   zodiac13::networks
+  zodiac13::station_graph
   zodiac13::power
   zodiac13::atmos
   zodiac13::touch
