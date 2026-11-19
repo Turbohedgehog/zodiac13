@@ -25,6 +25,8 @@
 #include <utility>
 #include <vector>
 
+#include <rfl.hpp>
+
 #include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/asset_source.h>
@@ -68,12 +70,8 @@ struct EditorSaveCommand {
   std::string path;
 };
 
-struct EditorAddRoomCommand {
-  using Command = z13::Command<std::string,
-                               "Adds the room `id` with its box in cells, the wall ring included: lowest corner "
-                               "(x, y, z), w by d across. Rooms that meet share one wall cell line.",
-                               Tags<kDebugTag, kEditorTag>>;
-  std::string id;
+// A room's box in cells, the wall ring included: lowest corner (x, y, z), w by d across.
+struct RoomCells {
   int x {};
   int y {};
   int z {};
@@ -81,15 +79,26 @@ struct EditorAddRoomCommand {
   int d {};
 };
 
+// A property by name and by the text of its value.
+struct PropertyText {
+  std::string name;
+  std::string value;
+};
+
+struct EditorAddRoomCommand {
+  using Command = z13::Command<std::string,
+                               "Adds the room `id` with its box in cells, the wall ring included: lowest corner "
+                               "(x, y, z), w by d across. Rooms that meet share one wall cell line.",
+                               Tags<kDebugTag, kEditorTag>>;
+  std::string id;
+  rfl::Flatten<RoomCells> box;
+};
+
 struct EditorSetRoomBoxCommand {
   using Command = z13::Command<std::string, "Moves and resizes the room `id`, as editor_add_room places one.",
                                Tags<kDebugTag, kEditorTag>>;
   std::string id;
-  int x {};
-  int y {};
-  int z {};
-  int w {};
-  int d {};
+  rfl::Flatten<RoomCells> box;
 };
 
 struct EditorRemoveRoomCommand {
@@ -117,16 +126,14 @@ struct EditorSetNodeCommand {
                                "name); a value outside the schema is refused with the allowed ones.",
                                Tags<kDebugTag, kEditorTag>>;
   std::string id;
-  std::string name;
-  std::string value;
+  rfl::Flatten<PropertyText> property;
 };
 
 struct EditorSetEdgeCommand {
   using Command = z13::Command<std::string, "Sets the property `name` of the edge `id`, as editor_set_node does.",
                                Tags<kDebugTag, kEditorTag>>;
   std::string id;
-  std::string name;
-  std::string value;
+  rfl::Flatten<PropertyText> property;
 };
 
 struct EditorUndoCommand {
@@ -147,8 +154,8 @@ struct EditorDiagnoseCommand {
   int unused {};
 };
 
-graph::RoomBox BoxOf(const auto& request) {
-  return {.origin = {request.x, request.y, request.z}, .size = {request.w, request.d}};
+graph::RoomBox BoxOf(const RoomCells& cells) {
+  return {.origin = {cells.x, cells.y, cells.z}, .size = {cells.w, cells.d}};
 }
 
 std::string SummaryOf(const graph::Graph& graph) {
@@ -179,17 +186,16 @@ void Edited(flecs::world world, Reply& reply, Edit&& edit) {
 }
 
 template <class Reply, class Set>
-void PropertySet(flecs::world world, Reply& reply, bool node, const std::string& name, const std::string& text,
-                 Set&& set) {
+void PropertySet(flecs::world world, Reply& reply, bool node, const PropertyText& property, Set&& set) {
   Edited(world, reply, [&](graph::GraphEditor& editor) -> z13::Status {
     const graph::PropertySpecs& specs = node ? editor.schema().node : editor.schema().edge;
-    const auto spec = specs.find(name);
+    const auto spec = specs.find(property.name);
     if (spec == specs.end()) {
-      return std::unexpected(std::format("unknown property '{}'", name));
+      return std::unexpected(std::format("unknown property '{}'", property.name));
     }
-    const auto value = graph::ParsePropertyValue(spec->second, text);
+    const auto value = graph::ParsePropertyValue(spec->second, property.value);
     if (!value) {
-      return std::unexpected(std::format("'{}' {}", name, value.error()));
+      return std::unexpected(std::format("'{}' {}", property.name, value.error()));
     }
     return set(editor, *value);
   });
@@ -263,14 +269,14 @@ void RegisterEditorCommandSystems(flecs::world world) {
       world, "EditorCommands::AddRoom", writes,
       [](flecs::iter& it, size_t, const EditorAddRoomCommand& request, ReplyOf<EditorAddRoomCommand>& reply) {
         Edited(it.world(), reply, [&](graph::GraphEditor& editor) {
-          return editor.AddRoom({.id = request.id, .box = BoxOf(request)});
+          return editor.AddRoom({.id = request.id, .box = BoxOf(request.box.get())});
         });
       });
   CommandSystem<EditorSetRoomBoxCommand>(
       world, "EditorCommands::SetRoomBox", writes,
       [](flecs::iter& it, size_t, const EditorSetRoomBoxCommand& request, ReplyOf<EditorSetRoomBoxCommand>& reply) {
         Edited(it.world(), reply,
-               [&](graph::GraphEditor& editor) { return editor.SetRoomBox(request.id, BoxOf(request)); });
+               [&](graph::GraphEditor& editor) { return editor.SetRoomBox(request.id, BoxOf(request.box.get())); });
       });
   CommandSystem<EditorRemoveRoomCommand>(
       world, "EditorCommands::RemoveRoom", writes,
@@ -292,17 +298,17 @@ void RegisterEditorCommandSystems(flecs::world world) {
   CommandSystem<EditorSetNodeCommand>(
       world, "EditorCommands::SetNode", writes,
       [](flecs::iter& it, size_t, const EditorSetNodeCommand& request, ReplyOf<EditorSetNodeCommand>& reply) {
-        PropertySet(it.world(), reply, true, request.name, request.value,
+        PropertySet(it.world(), reply, true, request.property.get(),
                     [&](graph::GraphEditor& editor, const graph::PropertyValue& value) {
-                      return editor.SetNodeProperty(request.id, request.name, value);
+                      return editor.SetNodeProperty(request.id, request.property.get().name, value);
                     });
       });
   CommandSystem<EditorSetEdgeCommand>(
       world, "EditorCommands::SetEdge", writes,
       [](flecs::iter& it, size_t, const EditorSetEdgeCommand& request, ReplyOf<EditorSetEdgeCommand>& reply) {
-        PropertySet(it.world(), reply, false, request.name, request.value,
+        PropertySet(it.world(), reply, false, request.property.get(),
                     [&](graph::GraphEditor& editor, const graph::PropertyValue& value) {
-                      return editor.SetEdgeProperty(request.id, request.name, value);
+                      return editor.SetEdgeProperty(request.id, request.property.get().name, value);
                     });
       });
   CommandSystem<EditorUndoCommand>(
