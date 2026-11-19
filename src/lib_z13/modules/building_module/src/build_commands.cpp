@@ -88,7 +88,6 @@ struct PaletteCommand {
   using Command = z13::Command<std::vector<PrimitiveInfo>,
                                "Lists the block types: id, name, shape and the size limits in cells (a cell is 0.25 m).",
                                Tags<kDebugTag>>;
-  int unused {};
 };
 
 struct BlocksCommand {
@@ -120,7 +119,6 @@ struct GridsCommand {
                                "Lists the grids: id, where the cell (0, 0, 0) stands in the world's cells, the turn "
                                "about Z and the tilt in degrees (a grid's cells are in its own axes), its block count.",
                                Tags<kDebugTag>>;
-  int unused {};
 };
 
 struct BuildBlockCommand {

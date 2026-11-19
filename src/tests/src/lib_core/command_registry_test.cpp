@@ -52,6 +52,10 @@ struct WherePoint {
   int x {};
 };
 
+struct Ping {
+  using Command = z13::Command<std::string, "Takes no arguments.", Tags<"debug">>;
+};
+
 struct Orphan {
   using Command = z13::Command<std::string, "Nothing handles it.", Tags<"debug">>;
 
@@ -61,7 +65,7 @@ struct Orphan {
 class CommandRegistryTest : public testing::Test {
  protected:
   void SetUp() override {
-    flecs_tools::RegisterComponents<AddCommand, Shout, WherePoint, Orphan>(world_);
+    flecs_tools::RegisterComponents<AddCommand, Shout, WherePoint, Ping, Orphan>(world_);
     z13::CommandSystem<AddCommand>(world_, "Add", [](const AddCommand& request, ReplyOf<AddCommand>& reply) {
       reply.Succeed(std::to_string(request.a + request.b));
     });
@@ -72,6 +76,7 @@ class CommandRegistryTest : public testing::Test {
         reply.Succeed(request.word + "!");
       }
     });
+    z13::CommandSystem<Ping>(world_, "Ping", [](const Ping&, ReplyOf<Ping>& reply) { reply.Succeed("pong"); });
     z13::CommandSystem<WherePoint>(world_, "WherePoint", [](const WherePoint& request, ReplyOf<WherePoint>& reply) {
       reply.Succeed(Point {.x = request.x, .y = 2});
     });
@@ -111,6 +116,11 @@ TEST(CommandNameTest, TakesTheTypeNameWithoutTheSuffixInSnakeCase) {
 TEST_F(CommandRegistryTest, AHandlerAnswersAndAMissingArgumentKeepsItsDefault) {
   EXPECT_EQ(Json(Run(debug_, "add", {{"a", rfl::Generic(std::int64_t {2})}, {"b", rfl::Generic(std::int64_t {3})}})), "\"5\"");
   EXPECT_EQ(Json(Run(debug_, "add", {{"a", rfl::Generic(std::int64_t {4})}})), "\"4\"");
+}
+
+TEST_F(CommandRegistryTest, ACommandWithoutArgumentsIsAnEmptyStruct) {
+  EXPECT_EQ(Json(Run(debug_, "ping")), "\"pong\"");
+  EXPECT_EQ(Json(Run(debug_, "ping")), "\"pong\"") << "a second request is answered as well";
 }
 
 TEST_F(CommandRegistryTest, ExplicitNameReplacesTheTypesAndAHandlerCanFail) {

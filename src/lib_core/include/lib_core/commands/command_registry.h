@@ -156,7 +156,11 @@ void RegisterCommand(flecs::world& world) {
           return std::unexpected(std::string(arguments.error().what()));
         }
         flecs::entity request = create_world.entity();
-        request.set<T>(*arguments);
+        if constexpr (std::is_empty_v<T>) {
+          request.add<T>();  // a command without arguments is a tag; each hands its handler a default T
+        } else {
+          request.set<T>(*arguments);
+        }
         request.add<ReplyOf<T>>();
         return request;
       },

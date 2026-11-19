@@ -97,7 +97,6 @@ struct RenderStatsCommand {
                                "time of each part of the drawing.",
                                Tags<kDebugTag>>;
 
-  int unused {};
 };
 
 struct TeleportCommand {
@@ -128,7 +127,6 @@ struct ScenesCommand {
   using Command = z13::Command<std::vector<std::string>, "The scenes a game can start in: the names start_game takes.",
                                Tags<kDebugTag>>;
 
-  int unused {};
 };
 
 struct StartGameCommand {
@@ -143,7 +141,6 @@ struct StartGameCommand {
 struct LeaveGameCommand {
   using Command = z13::Command<std::string, "Leaves the game for the main menu.", Tags<kDebugTag, "cheat">>;
 
-  int unused {};
 };
 
 struct ReloadShadersCommand {
