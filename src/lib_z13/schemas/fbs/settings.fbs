@@ -108,6 +108,20 @@ table RenderTuning {
   ship_yaw_deg: float = -90 (min: "-360", max: "360", cli: "--render-ship-yaw");
 }
 
+// The station editor's orbit camera (client only, never sent; docs/station-editor-plan.md).
+table EditorCameraTuning {
+  // The turn of an orbit drag, per pixel the pointer moves.
+  orbit_degrees_per_pixel: float = 0.3 (min: "0.01", max: "5", cli: "--editor-orbit-degrees");
+  // How far a pan drag moves the view per pixel, as a part of the camera's distance.
+  pan_per_pixel: float = 0.0015 (min: "0.0001", max: "0.05", cli: "--editor-pan");
+  // The distance a wheel notch changes by (1.15: 15% farther or nearer).
+  zoom_per_notch: float = 1.15 (min: "1.01", max: "2", cli: "--editor-zoom");
+  // How near and how far the camera may be from what it looks at, in cells.
+  min_distance_cells: float = 4 (min: "1", max: "100", cli: "--editor-min-distance");
+  max_distance_cells: float = 800 (min: "50", max: "5000", cli: "--editor-max-distance");
+  fov_degrees: float = 60 (min: "20", max: "120", cli: "--editor-fov");
+}
+
 // The touch controls' layout (client only, never sent; docs/android-plan.md). Sizes are fractions
 // of the screen's height, positions fractions of its width (x) and height (y, from the top).
 table TouchLayout {
@@ -186,6 +200,7 @@ table Settings {
   visual_smoothing: VisualSmoothing;
   render: RenderTuning;
   touch: TouchLayout;
+  editor_camera: EditorCameraTuning;
   lan_discovery: LanDiscovery;
   mcp_server: McpServer;
   crew_choice: CrewChoice;

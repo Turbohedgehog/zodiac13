@@ -126,6 +126,9 @@ void EnsureNestedSettings(Settings& settings) {
   if (!settings.touch) {
     settings.touch = NewDefaults<fbs::settings::TouchLayoutT>();
   }
+  if (!settings.editor_camera) {
+    settings.editor_camera = NewDefaults<fbs::settings::EditorCameraTuningT>();
+  }
   if (!settings.lan_discovery) {
     settings.lan_discovery = NewDefaults<fbs::settings::LanDiscoveryT>();
   }
@@ -154,7 +157,7 @@ namespace {
 bool HasAllNestedTables(const Settings& settings) {
   return settings.core && settings.connect_timeout && settings.session_timeout && settings.net && settings.physics &&
          settings.building && settings.power && settings.door && settings.atmos && settings.visual_smoothing && settings.render &&
-         settings.touch && settings.lan_discovery && settings.mcp_server &&
+         settings.touch && settings.editor_camera && settings.lan_discovery && settings.mcp_server &&
          settings.crew_choice;
 }
 
@@ -179,6 +182,9 @@ Status ValidateSettings(const Settings& settings) {
   const fbs::building::BuildingTuningT& building = *settings.building;
   if (static_cast<float>(building.spawn_clearance_cells) * station::kCellSize <= building.spawn_height_above_marker) {
     return Invalid("building.spawn_clearance_cells", "must reach above building.spawn_height_above_marker");
+  }
+  if (settings.editor_camera->min_distance_cells >= settings.editor_camera->max_distance_cells) {
+    return Invalid("editor_camera.min_distance_cells", "must be below editor_camera.max_distance_cells");
   }
   const fbs::physics::PhysicsTuningT& physics = *settings.physics;
   if (physics.eye_height <= physics.player_collider_radius) {
@@ -280,7 +286,7 @@ std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, con
 
 void InstallSettings(flecs::world world, const Settings& settings) {
   flecs_tools::RegisterComponents<NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-                                  RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings, CrewChoiceSettings>(world);
+                                  RenderTuning, TouchLayout, EditorCameraTuning, LanDiscoverySettings, McpServerSettings, CrewChoiceSettings>(world);
   if (settings.net) {
     world.set(NetTuning(*settings.net));
   }
@@ -313,6 +319,9 @@ void InstallSettings(flecs::world world, const Settings& settings) {
   }
   if (settings.touch) {
     world.set(TouchLayout(*settings.touch));
+  }
+  if (settings.editor_camera) {
+    world.set(EditorCameraTuning(*settings.editor_camera));
   }
   if (settings.lan_discovery) {
     world.set(LanDiscoverySettings(*settings.lan_discovery));
@@ -369,6 +378,7 @@ Settings SettingsOf(flecs::world world) {
   TakeFrom<VisualSmoothing>(world, settings.visual_smoothing);
   TakeFrom<RenderTuning>(world, settings.render);
   TakeFrom<TouchLayout>(world, settings.touch);
+  TakeFrom<EditorCameraTuning>(world, settings.editor_camera);
   TakeFrom<LanDiscoverySettings>(world, settings.lan_discovery);
   TakeFrom<McpServerSettings>(world, settings.mcp_server);
   TakeFrom<CrewChoiceSettings>(world, settings.crew_choice);
@@ -422,6 +432,7 @@ Status ChangeSetting(flecs::world world, std::string_view path, std::string_view
   keep_changed(after.visual_smoothing, before.visual_smoothing, changed.visual_smoothing);
   keep_changed(after.render, before.render, changed.render);
   keep_changed(after.touch, before.touch, changed.touch);
+  keep_changed(after.editor_camera, before.editor_camera, changed.editor_camera);
   keep_changed(after.lan_discovery, before.lan_discovery, changed.lan_discovery);
   keep_changed(after.mcp_server, before.mcp_server, changed.mcp_server);
   keep_changed(after.crew_choice, before.crew_choice, changed.crew_choice);

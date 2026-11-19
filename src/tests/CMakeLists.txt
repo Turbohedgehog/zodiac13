@@ -75,6 +75,7 @@ set(
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/primitives/station_viewpoints_test.cpp
   src/lib_z13/networks/networks_test.cpp
+  src/lib_z13/editor_camera/orbit_camera_test.cpp
   src/lib_z13/station_graph/graph_diagnosis_test.cpp
   src/lib_z13/station_graph/graph_editor_test.cpp
   src/lib_z13/station_graph/graph_geometry_test.cpp
@@ -308,6 +309,7 @@ target_link_libraries(
   zodiac13::rooms
   zodiac13::networks
   zodiac13::station_graph
+  zodiac13::editor_camera
   zodiac13::power
   zodiac13::atmos
   zodiac13::touch
