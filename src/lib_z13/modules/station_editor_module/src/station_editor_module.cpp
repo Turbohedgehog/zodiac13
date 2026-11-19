@@ -23,6 +23,7 @@
 
 #include "editor_commands.h"
 #include "editor_graph.h"
+#include "scene_reload_system.h"
 
 namespace z13::station_editor {
 
@@ -35,6 +36,7 @@ StationEditorModule::StationEditorModule(flecs::world& world) {
     w.set(EditorGraph {});
     RegisterEditorCommandSystems(w);
   });
+  SceneReloadSystem::Register(world);
 }
 
 }  // namespace z13::station_editor
