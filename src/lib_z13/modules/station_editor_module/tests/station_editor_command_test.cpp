@@ -38,6 +38,7 @@ namespace {
 constexpr std::string_view kEditorTagName = "editor";
 constexpr std::string_view kPrototype = z13::testing::kPrototypeGraph;
 constexpr std::int64_t kRoomCells = 12;
+constexpr int kWiderLab = 30;  // the prototype's lab is 28 wide
 
 // The module in a headless world over the source tree's assets, and the editor's commands asked as a channel would.
 class StationEditorCommandTest : public ::testing::Test {
@@ -115,8 +116,8 @@ TEST_F(StationEditorCommandTest, LoadsTheGraphAndShowsItAsItsFile) {
 TEST_F(StationEditorCommandTest, EditsTheGraphAndUndoTakesThemBack) {
   LoadPrototype();
 
-  ASSERT_TRUE(Run("editor_add_room", {{"id", Str("annex")}, {"y", Int(24 + kRoomCells)}, {"w", Int(kRoomCells)}, {"d", Int(kRoomCells)}}));
-  ASSERT_TRUE(Run("editor_set_node", {{"id", Str("annex")}, {"name", Str("height")}, {"value", Str("20")}}));
+  ASSERT_TRUE(Run("editor_set_room", {{"id", Str("annex")}, {"y", Int(24 + kRoomCells)}, {"w", Int(kRoomCells)}, {"d", Int(kRoomCells)}}));
+  ASSERT_TRUE(Run("editor_set_property", {{"target", Str("node")}, {"id", Str("annex")}, {"name", Str("height")}, {"value", Str("20")}}));
   EXPECT_NE(Text(Run("editor_show")).find("annex"), std::string::npos);
 
   ASSERT_TRUE(Run("editor_undo"));
@@ -126,19 +127,35 @@ TEST_F(StationEditorCommandTest, EditsTheGraphAndUndoTakesThemBack) {
   EXPECT_NE(Text(Run("editor_show")).find("annex"), std::string::npos);
 }
 
+TEST_F(StationEditorCommandTest, SettingARoomThatExistsMovesIt) {
+  LoadPrototype();
+  const std::string before = Text(Run("editor_show"));
+
+  ASSERT_TRUE(Run("editor_set_room", {{"id", Str("lab")}, {"x", Int(79)}, {"y", Int(0)}, {"z", Int(0)}, {"w", Int(kWiderLab)}, {"d", Int(24)}}));
+
+  EXPECT_NE(Text(Run("editor_show")), before);
+  const auto moved = z13::editor::graph::ParseGraph(ShownText(Run("editor_show")));
+  ASSERT_TRUE(moved) << moved.error();
+  const auto lab = z13::editor::graph::FindNode(*moved, "lab");
+  ASSERT_TRUE(lab);
+  EXPECT_EQ(moved->nodes[*lab].box.size.x(), kWiderLab);
+}
+
 TEST_F(StationEditorCommandTest, ARefusedEditSaysWhyAndChangesNothing) {
   LoadPrototype();
   const std::string before = Text(Run("editor_show"));
 
-  const CommandResult range = Run("editor_set_node", {{"id", Str("hall")}, {"name", Str("height")}, {"value", Str("99")}});
-  const CommandResult unknown = Run("editor_set_node", {{"id", Str("hall")}, {"name", Str("colour")}, {"value", Str("red")}});
-  const CommandResult twice = Run("editor_add_room", {{"id", Str("hall")}, {"w", Int(kRoomCells)}, {"d", Int(kRoomCells)}});
+  const CommandResult range = Run("editor_set_property", {{"target", Str("node")}, {"id", Str("hall")}, {"name", Str("height")}, {"value", Str("99")}});
+  const CommandResult unknown = Run("editor_set_property", {{"target", Str("node")}, {"id", Str("hall")}, {"name", Str("colour")}, {"value", Str("red")}});
+  const CommandResult tiny = Run("editor_set_room", {{"id", Str("tiny")}, {"w", Int(1)}, {"d", Int(1)}});
+  const CommandResult target = Run("editor_set_property", {{"target", Str("wall")}, {"id", Str("hall")}, {"name", Str("height")}, {"value", Str("20")}});
 
   ASSERT_FALSE(range);
   EXPECT_NE(range.error().find("12..40"), std::string::npos) << range.error();
   ASSERT_FALSE(unknown);
   EXPECT_NE(unknown.error().find("colour"), std::string::npos);
-  EXPECT_FALSE(twice);
+  EXPECT_FALSE(tiny);
+  EXPECT_FALSE(target);
   EXPECT_EQ(Text(Run("editor_show")), before);
 }
 
