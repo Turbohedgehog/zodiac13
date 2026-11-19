@@ -10,6 +10,7 @@ z13_add_library(
   src/graph_assets.cpp
   src/graph_diagnosis.cpp
   src/graph_editor.cpp
+  src/graph_geometry.cpp
   src/graph_json.cpp
   src/property_schema.cpp
   PUBLIC

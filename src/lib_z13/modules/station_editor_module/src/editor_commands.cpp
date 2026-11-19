@@ -335,7 +335,7 @@ void RegisterEditorCommandSystems(flecs::world world) {
       [](flecs::iter& it, size_t, const EditorDiagnoseCommand&, ReplyOf<EditorDiagnoseCommand>& reply) {
         const auto editor = LoadedEditor(it.world());
         if (editor) {
-          reply.Succeed(graph::Diagnose(editor->get().graph()));
+          reply.Succeed(graph::Diagnose(editor->get().graph(), editor->get().schema()));
         } else {
           reply.Fail(editor.error());
         }

@@ -8,6 +8,7 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/editor_commands.cpp
+  src/editor_overlay_system.cpp
   src/scene_reload_system.cpp
   src/station_editor_module.cpp
   src/station_editor_module_factory.cpp

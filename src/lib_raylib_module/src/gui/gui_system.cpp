@@ -55,6 +55,7 @@
 #include "build_info.h"
 #include "console_state.h"
 #include "console_window.h"
+#include "layer_button.h"
 #include "gui_widgets.h"
 #include "gui_windows.h"
 #include "hotbar_hud.h"
@@ -240,6 +241,7 @@ void RegisterSystems(flecs::world world) {
           stack = {};
         }
         std::vector<Eigen::AlignedBox2f> brush_areas;
+        std::optional<Eigen::AlignedBox2f> layer_button;
         if (!stack.windows.empty()) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
@@ -250,6 +252,9 @@ void RegisterSystems(flecs::world world) {
           }
           gui::DrawHotbar(world, *touch_layout);
           brush_areas = gui::DrawBrushRow(world, *touch_layout);
+          if (layers != nullptr && !layers->layers.empty() && !console.open) {
+            layer_button = gui::DrawLayerButton(*layers);
+          }
         }
         stats.CountFrame(std::chrono::steady_clock::now());
         if (ImGui::IsKeyPressed(gui::kStatsOverlayKey, false)) {
@@ -268,6 +273,7 @@ void RegisterSystems(flecs::world world) {
             return Eigen::AlignedBox2f(area.min().cwiseQuotient(screen), area.max().cwiseQuotient(screen));
           };
           touch->stats_area = fraction(stats_drawn.area);
+          touch->layer_area = layer_button ? std::optional(fraction(*layer_button)) : std::nullopt;
           touch->brush_areas.clear();
           std::ranges::transform(brush_areas, std::back_inserter(touch->brush_areas), fraction);
         }

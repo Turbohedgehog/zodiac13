@@ -28,6 +28,7 @@
 #include <z13/components/input/input_events.h>
 #include <z13/components/input/input_state.h>
 #include <z13/components/station/block_brush.h>
+#include <z13/components/station/overlay_layers.h>
 #include <z13/components/input/touch_controls.h>
 #include <z13_settings/settings.h>
 #include <touch/touch_mapping.h>
@@ -51,13 +52,22 @@ std::optional<size_t> BrushAt(const TouchControls& controls, const Eigen::Vector
 }
 
 void OnTouchDown(const z13::input::TouchDownEvent& event, TouchControls& controls, const z13::TouchLayout& layout,
-                 z13::input::InputState& input_state, z13::station::PaletteChoice* choice) {
+                 z13::input::InputState& input_state, z13::station::PaletteChoice* choice,
+                 z13::station::OverlayLayers* layers) {
   controls.used = true;
   controls.screen_size = event.screen_size;
   const Eigen::Vector2f on_screen = event.position.cwiseQuotient(event.screen_size);
   if (controls.stats_area && controls.stats_area->contains(on_screen)) {
     controls.stats_shown = !controls.stats_shown;
     controls.fingers.push_back({.finger = event.finger, .control = TouchControl::kStats, .origin = event.position,
+                                .position = event.position});
+    return;
+  }
+  if (controls.layer_area && controls.layer_area->contains(on_screen)) {
+    if (layers != nullptr) {
+      layers->Step();
+    }
+    controls.fingers.push_back({.finger = event.finger, .control = TouchControl::kLayers, .origin = event.position,
                                 .position = event.position});
     return;
   }
@@ -87,7 +97,8 @@ void OnTouchMove(const z13::input::TouchMoveEvent& event, TouchControls& control
   }
   const Eigen::Vector2f delta = event.position - finger->position;
   finger->position = event.position;
-  if (finger->control == TouchControl::kStats || finger->control == TouchControl::kBrush) {
+  if (finger->control == TouchControl::kStats || finger->control == TouchControl::kLayers ||
+      finger->control == TouchControl::kBrush) {
     return;
   }
   if (finger->control == TouchControl::kStick) {
@@ -126,7 +137,7 @@ void RegisterSystems(flecs::world world) {
   // A touch on the pause menu works the menu; moves and releases still land, so nothing
   // stays held once it closes.
   world.observer<const z13::input::TouchDownEvent, TouchControls, const z13::TouchLayout, z13::input::InputState,
-                 z13::station::PaletteChoice*>("TouchInputSystem::OnTouchDown")
+                 z13::station::PaletteChoice*, z13::station::OverlayLayers*>("TouchInputSystem::OnTouchDown")
       .event<z13::input::SystemInputEventType>()
       .without<z13::gameplay::Pause>()
       .without<z13::gameplay::FreeCursor>()

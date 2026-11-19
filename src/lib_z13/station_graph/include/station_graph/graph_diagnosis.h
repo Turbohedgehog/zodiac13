@@ -20,11 +20,12 @@
 #include <vector>
 
 #include "station_graph/graph.h"
+#include "station_graph/property_schema.h"
 
 namespace z13::editor::graph {
 
 // What keeps the graph from being built, one line each: rooms overlapping by more than a shared wall, and edges between
 // rooms that share no wall. The pipeline finds the rest (an opening too wide for its wall, a wall too low).
-std::vector<std::string> Diagnose(const Graph& graph);
+std::vector<std::string> Diagnose(const Graph& graph, const PropertySchema& schema);
 
 }  // namespace z13::editor::graph

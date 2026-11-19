@@ -27,6 +27,7 @@
 #include <z13_settings/settings.h>
 #include <touch/touch_mapping.h>
 #include <z13/components/station/block_brush.h>
+#include <z13/components/station/overlay_layers.h>
 #include <z13_settings/physics_tuning.h>
 
 #include "../support/z13_test_world.h"
@@ -150,6 +151,30 @@ TEST(TouchInputTest, ATapOnTheStatsReadoutOpensThePanelAndAnotherFoldsIt) {
 
   tap();
   EXPECT_FALSE(test_world.World().get<z13::input::TouchControls>().stats_shown);
+}
+
+TEST(TouchInputTest, ATapOnTheLayerButtonStepsTheOverlayAndIsNotTheGames) {
+  z13::testing::Z13TestWorld test_world;
+  auto& layers = test_world.World().get_mut<z13::station::OverlayLayers>();
+  layers.layers = {{.name = "power"}, {.name = "graph"}};
+  // Where the GUI drew the button, in the stick's zone.
+  test_world.World().get_mut<z13::input::TouchControls>().layer_area =
+      Eigen::AlignedBox2f(Eigen::Vector2f(0.f, 0.f), Eigen::Vector2f(0.1f, 0.05f));
+  const Eigen::Vector2f on_button(20.f, 10.f);
+  const auto tap = [&] {
+    test_world.EmitInput(Touch<z13::input::TouchDownEvent>(kStickFinger, on_button));
+    test_world.EmitInput(Touch<z13::input::TouchMoveEvent>(kStickFinger, on_button + Eigen::Vector2f(50.f, 0.f)));
+    test_world.EmitInput(Touch<z13::input::TouchUpEvent>(kStickFinger, on_button));
+  };
+
+  tap();
+  EXPECT_EQ(test_world.World().get<z13::station::OverlayLayers>().shown, "power");
+  tap();
+  EXPECT_EQ(test_world.World().get<z13::station::OverlayLayers>().shown, "graph");
+  tap();
+  EXPECT_FALSE(test_world.World().get<z13::station::OverlayLayers>().shown);
+  EXPECT_TRUE(State(test_world).pending.empty());
+  EXPECT_EQ(State(test_world).mouse_yaw_delta_deg, 0.f);
 }
 
 TEST(TouchInputTest, ATapOnABrushCellPicksItsPrimitive) {
