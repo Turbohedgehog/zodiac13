@@ -29,6 +29,10 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/status.h>
+#include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
+#include <z13/components/station/station_mode.h>
+#include <player/gameplay_entities.h>
 #include <station_graph/graph_assets.h>
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
@@ -37,6 +41,7 @@
 
 #include "editor_graph.h"
 #include "editor_tag.h"
+#include "scene_reload.h"
 
 namespace z13::station_editor {
 
@@ -112,6 +117,15 @@ struct EditorSetPropertyCommand {
   std::string id;
   std::string name;
   std::string value;
+};
+
+struct EditorReloadSceneCommand {
+  using Command = z13::Command<std::string,
+                               "Builds the station scene `scene` (assets/station/blueprints/<scene>.json) again from "
+                               "its file, as the pipeline wrote it, and puts the local player back where it stood. "
+                               "An empty `scene` takes the current one. Station mode only.",
+                               Tags<kDebugTag, kEditorTag>>;
+  std::string scene;
 };
 
 struct EditorUndoCommand {
@@ -222,13 +236,37 @@ void Save(flecs::world world, const EditorSaveCommand& request, ReplyOf<EditorSa
   reply.Succeed(SummaryOf(editor->get().graph()));
 }
 
+void ReloadScene(flecs::world world, const EditorReloadSceneCommand& request, ReplyOf<EditorReloadSceneCommand>& reply) {
+  if (!world.has<z13::station::StationMode>() || !world.has<z13::gameplay::Gameplay>()) {
+    reply.Fail("not in a running station game: start a station scene first");
+    return;
+  }
+  auto& choice = world.get_mut<z13::station::StationSceneChoice>();
+  const std::string scene = request.scene.empty() ? choice.scene.value_or("") : request.scene;
+  if (scene.empty()) {
+    reply.Fail("no scene to reload: name one");
+    return;
+  }
+  auto& reload = world.get_mut<SceneReload>();
+  reload = {.pending = true};
+  if (const auto* local = world.try_get<z13::gameplay::LocalPlayer>(); local != nullptr && local->id) {
+    const flecs::entity player = world.lookup(z13::gameplay::PlayerEntityName(*local->id).c_str());
+    if (player.is_valid() && player.has<Eigen::Matrix4f>()) {
+      reload.pose = player.get<Eigen::Matrix4f>();
+    }
+  }
+  choice.scene = scene;
+  world.remove<z13::gameplay::Gameplay>();
+  reply.Succeed(scene);
+}
+
 }  // namespace
 
 void RegisterEditorCommandComponents(flecs::world world) {
   flecs_tools::RegisterComponents<EditorLoadCommand, EditorShowCommand, EditorSaveCommand, EditorSetRoomCommand,
                                   EditorRemoveRoomCommand, EditorAddEdgeCommand, EditorRemoveEdgeCommand,
-                                  EditorSetPropertyCommand, EditorUndoCommand, EditorRedoCommand,
-                                  EditorDiagnoseCommand>(world);
+                                  EditorSetPropertyCommand, EditorReloadSceneCommand, EditorUndoCommand,
+                                  EditorRedoCommand, EditorDiagnoseCommand>(world);
 }
 
 void RegisterEditorCommandSystems(flecs::world world) {
@@ -275,6 +313,12 @@ void RegisterEditorCommandSystems(flecs::world world) {
       world, "EditorCommands::SetProperty", writes,
       [](flecs::iter& it, size_t, const EditorSetPropertyCommand& request, ReplyOf<EditorSetPropertyCommand>& reply) {
         SetProperty(it.world(), request, reply);
+      });
+  CommandSystem<EditorReloadSceneCommand>(
+      world, "EditorCommands::ReloadScene",
+      [](auto& builder) { builder.template write<SceneReload>().template write<z13::station::StationSceneChoice>(); },
+      [](flecs::iter& it, size_t, const EditorReloadSceneCommand& request, ReplyOf<EditorReloadSceneCommand>& reply) {
+        ReloadScene(it.world(), request, reply);
       });
   CommandSystem<EditorUndoCommand>(
       world, "EditorCommands::Undo", writes,

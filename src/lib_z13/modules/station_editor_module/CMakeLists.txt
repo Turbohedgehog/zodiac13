@@ -8,12 +8,15 @@ z13_add_plugin(
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
   src/editor_commands.cpp
+  src/scene_reload_system.cpp
   src/station_editor_module.cpp
   src/station_editor_module_factory.cpp
   PUBLIC
   Eigen3::Eigen
   PRIVATE
   zodiac13::core
+  zodiac13::components
+  zodiac13::player
   zodiac13::station_graph
   Boost::dll
 )
