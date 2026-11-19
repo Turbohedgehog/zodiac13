@@ -22,6 +22,8 @@
 #include <string_view>
 #include <vector>
 
+#include <Eigen/Dense>
+
 namespace z13::editor {
 
 // The tag of the editor's commands: the window sends them, the plugin answers them.
@@ -51,10 +53,18 @@ struct EditorSelection {
   bool operator==(const EditorSelection&) const = default;
 };
 
+// A room's box in cells, the wall ring included.
+struct EditorBox {
+  Eigen::Vector3i origin = Eigen::Vector3i::Zero();
+  Eigen::Vector2i size = Eigen::Vector2i::Zero();
+};
+
 struct EditorItemView {
   std::string id;
   std::string label;
   std::string detail;
+  // Rooms only.
+  std::optional<EditorBox> box;
   std::vector<EditorPropertyView> properties;
 };
 

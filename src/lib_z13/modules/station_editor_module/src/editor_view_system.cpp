@@ -87,6 +87,7 @@ EditorView ViewOf(const graph::GraphEditor& editor, bool open) {
                           .label = node.name.empty() ? node.id : node.name,
                           .detail = std::format("at {}, {}, {}; {} x {} cells", node.box.origin.x(), node.box.origin.y(),
                                                 node.box.origin.z(), node.box.size.x(), node.box.size.y()),
+                          .box = z13::editor::EditorBox {.origin = node.box.origin, .size = node.box.size},
                           .properties = PropertiesOf(schema.node, node.properties)});
   }
   for (const graph::Edge& edge : graph.edges) {

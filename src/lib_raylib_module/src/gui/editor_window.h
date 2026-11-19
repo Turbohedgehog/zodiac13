@@ -16,8 +16,10 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include <flecs.h>
@@ -27,9 +29,11 @@
 namespace z13::raylib::gui {
 
 // A command the window asks of the editor; run by a system outside the drawing one, which may not write entities.
+using EditorArgument = std::variant<std::string, std::int64_t>;
+
 struct EditorRequest {
   std::string command;
-  std::map<std::string, std::string> arguments;
+  std::map<std::string, EditorArgument> arguments;
 };
 
 // Asks the editor's command, logging a refusal like the console does.
@@ -49,7 +53,8 @@ class EditorWindow {
   void DrawList(const z13::editor::EditorView& view);
   void DrawProperties(const z13::editor::EditorView& view);
   void DrawProperty(const z13::editor::EditorItemView& item, bool edge, const z13::editor::EditorPropertyView& property);
-  void Ask(std::string command, std::map<std::string, std::string> arguments = {});
+  void DrawBox(const z13::editor::EditorItemView& item);
+  void Ask(std::string command, std::map<std::string, EditorArgument> arguments = {});
 
   std::vector<EditorRequest> requests_;
 };

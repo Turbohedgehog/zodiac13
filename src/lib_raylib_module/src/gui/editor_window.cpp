@@ -17,9 +17,11 @@
 #include "editor_window.h"
 
 #include <algorithm>
+#include <array>
 #include <format>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include <imgui.h>
 
@@ -42,6 +44,7 @@ using z13::editor::EditorPropertyView;
 constexpr std::string_view kTitle = "Station editor";
 constexpr std::string_view kWindowCommand = "editor_window";
 constexpr std::string_view kSetPropertyCommand = "editor_set_property";
+constexpr std::string_view kSetRoomCommand = "editor_set_room";
 constexpr std::string_view kSelectCommand = "editor_select";
 constexpr std::string_view kPickCommand = "editor_pick";
 constexpr std::string_view kUndoCommand = "editor_undo";
@@ -138,8 +141,35 @@ void EditorWindow::DrawProperties(const z13::editor::EditorView& view) {
   if (!item->detail.empty()) {
     ImGui::TextUnformatted(item->detail.c_str());
   }
+  if (item->box) {
+    DrawBox(*item);
+  }
   for (const EditorPropertyView& property : item->properties) {
     DrawProperty(*item, edge, property);
+  }
+}
+
+void EditorWindow::DrawBox(const EditorItemView& item) {
+  struct Field {
+    std::string_view label;
+    int value;
+  };
+  const z13::editor::EditorBox& box = *item.box;
+  std::array fields {Field {"X", box.origin.x()}, Field {"Y", box.origin.y()}, Field {"Z", box.origin.z()},
+                     Field {"Width", box.size.x()}, Field {"Depth", box.size.y()}};
+  bool changed = false;
+  for (Field& field : fields) {
+    ImGui::SetNextItemWidth(Em(kFieldWidthEm));
+    changed |= ImGui::InputInt(Labeled(field.label, item.id + "_box_" + std::string(field.label)).c_str(), &field.value,
+                               kStep, kFastStep, ImGuiInputTextFlags_EnterReturnsTrue);
+  }
+  if (changed) {
+    Ask(std::string(kSetRoomCommand), {{"id", item.id},
+                                       {"x", std::int64_t {fields[0].value}},
+                                       {"y", std::int64_t {fields[1].value}},
+                                       {"z", std::int64_t {fields[2].value}},
+                                       {"w", std::int64_t {fields[3].value}},
+                                       {"d", std::int64_t {fields[4].value}}});
   }
 }
 
@@ -184,7 +214,7 @@ void EditorWindow::DrawProperty(const EditorItemView& item, bool edge, const Edi
 void RunEditorRequest(flecs::world world, const EditorRequest& request) {
   rfl::Generic::Object arguments;
   for (const auto& [name, value] : request.arguments) {
-    arguments[name] = rfl::Generic(value);
+    arguments[name] = std::visit([](const auto& argument) { return rfl::Generic(argument); }, value);
   }
   const auto reply = [](z13::CommandResult result) {
     if (!result) {
@@ -199,7 +229,7 @@ void RunEditorRequest(flecs::world world, const EditorRequest& request) {
   }
 }
 
-void EditorWindow::Ask(std::string command, std::map<std::string, std::string> arguments) {
+void EditorWindow::Ask(std::string command, std::map<std::string, EditorArgument> arguments) {
   requests_.push_back({.command = std::move(command), .arguments = std::move(arguments)});
 }
 

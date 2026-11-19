@@ -35,6 +35,8 @@ constexpr std::string_view kLayerName = "graph";
 constexpr std::string_view kPrototype = "prototype";
 constexpr std::size_t kPrototypeRooms = 3;
 constexpr std::size_t kPrototypeEdges = 2;
+constexpr int kHallWidth = 40;  // assets/station/graph/prototype.json
+constexpr int kHallDepth = 24;
 
 const z13::station::OverlayLayer& GraphLayer(Z13TestWorld& test_world) {
   return *test_world.World().get<z13::station::OverlayLayers>().Find(std::string(kLayerName));
@@ -135,6 +137,28 @@ TEST_F(EditorDisplayTest, AnEditChangesTheValueTheViewShowsAndTheWindowCommandCl
   EXPECT_EQ(PropertyOf(RoomOf(test_world_, "hall"), "height").value, std::to_string(taller));
   ASSERT_TRUE(RunCommand(test_world_, "editor_window"));
   EXPECT_FALSE(test_world_.World().get<z13::editor::EditorView>().open);
+}
+
+TEST_F(EditorDisplayTest, ARoomsBoxIsInTheViewAndMovingItChangesIt) {
+  ASSERT_TRUE(RunCommand(test_world_, "editor_window"));
+  test_world_.Tick();
+  const auto before = RoomOf(test_world_, "hall").box;
+  ASSERT_TRUE(before);
+  EXPECT_EQ(before->size, Eigen::Vector2i(kHallWidth, kHallDepth));
+
+  ASSERT_TRUE(RunCommand(test_world_, "editor_set_room",
+                         {{"id", rfl::Generic(std::string("hall"))},
+                          {"x", rfl::Generic(std::int64_t {before->origin.x()})},
+                          {"y", rfl::Generic(std::int64_t {before->origin.y() + 1})},
+                          {"z", rfl::Generic(std::int64_t {before->origin.z()})},
+                          {"w", rfl::Generic(std::int64_t {before->size.x()})},
+                          {"d", rfl::Generic(std::int64_t {before->size.y()})}}));
+  test_world_.Tick();
+
+  const auto after = RoomOf(test_world_, "hall").box;
+  ASSERT_TRUE(after);
+  EXPECT_EQ(after->origin.y(), before->origin.y() + 1);
+  EXPECT_FALSE(RoomOf(test_world_, "corridor").box->origin == after->origin);
 }
 
 }  // namespace
