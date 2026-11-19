@@ -40,6 +40,12 @@ constexpr std::string_view kPrototype = z13::testing::kPrototypeGraph;
 constexpr std::int64_t kRoomCells = 12;
 constexpr int kWiderLab = 30;  // the prototype's lab is 28 wide
 
+// The file closed before it is removed: Windows will not remove an open one.
+std::string ReadFile(const std::filesystem::path& path) {
+  std::ifstream file(path);
+  return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
+
 // The module in a headless world over the source tree's assets, and the editor's commands asked as a channel would.
 class StationEditorCommandTest : public ::testing::Test {
  protected:
@@ -168,8 +174,7 @@ TEST_F(StationEditorCommandTest, DiagnoseListsWhatCannotBeBuiltAndSaveWritesTheF
 
   const std::filesystem::path path = std::filesystem::temp_directory_path() / "z13_station_editor_test.json";
   ASSERT_TRUE(Run("editor_save", {{"path", Str(path.string())}}));
-  std::ifstream file(path);
-  const std::string saved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  const std::string saved = ReadFile(path);
   std::filesystem::remove(path);
   EXPECT_NE(saved.find("hall-lab"), std::string::npos);
 }
