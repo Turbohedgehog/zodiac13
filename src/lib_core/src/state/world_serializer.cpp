@@ -75,6 +75,7 @@ struct ComponentInfo {
   bool has_meta {};
   bool flat {};  // IsFlatValue: the data bytes of a value stand for its encoding
   std::vector<ByteRange> ranges;  // FlatRanges of a flat value
+  std::vector<EncodeStep> plan;  // EncodePlanOf: empty when the value has to be walked
 };
 
 struct ComponentScope {
@@ -91,10 +92,13 @@ const ComponentInfo& InfoOf(ComponentScope& components, flecs::entity component)
   const bool has_meta = component.has(ecs_id(EcsType));
   const bool flat = accepted && has_meta && IsFlatValue(component.world(), component.id());
   std::vector<ByteRange> ranges;
+  std::vector<EncodeStep> plan;
   if (flat) {
     ranges = FlatRanges(component.world(), component.id());
+    plan = EncodePlanOf(component.world(), component.id());
   }
-  return components.infos.emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta, flat, std::move(ranges)})
+  return components.infos
+      .emplace(component.id(), ComponentInfo {std::move(path), accepted, has_meta, flat, std::move(ranges), std::move(plan)})
       .first->second;
 }
 
@@ -160,9 +164,13 @@ Status CaptureComponentsAndTags(
     if (!info.has_meta) {
       return;  // data component without meta: cannot round-trip
     }
-    auto bytes = ComponentBytes(world, id.raw_id(), value).and_then([&](std::span<const std::byte> view) {
-      return EncodeValue(world, id.raw_id(), view);
-    });
+    auto bytes = ComponentBytes(world, id.raw_id(), value)
+                     .and_then([&](std::span<const std::byte> view) -> std::expected<std::vector<uint8_t>, std::string> {
+                       if (!info.plan.empty()) {
+                         return EncodeWithPlan(info.plan, view);
+                       }
+                       return EncodeValue(world, id.raw_id(), view);
+                     });
     if (!bytes) {
       captured = std::unexpected(std::format("'{}' on '{}': {}", info.path, s.name, bytes.error()));
       return;
