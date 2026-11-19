@@ -17,8 +17,10 @@
 #include "station_graph/property_schema.h"
 
 #include <algorithm>
+#include <charconv>
 #include <format>
 #include <optional>
+#include <system_error>
 
 #include <rfl.hpp>
 #include <rfl/json.hpp>
@@ -108,6 +110,34 @@ std::expected<PropertySchema, std::string> ParsePropertySchema(std::string_view 
     return std::unexpected(edge.error());
   }
   return PropertySchema {.node = std::move(*node), .edge = std::move(*edge)};
+}
+
+std::expected<PropertyValue, std::string> ParsePropertyValue(const PropertySpec& spec, std::string_view text) {
+  PropertyValue value;
+  switch (spec.kind) {
+    case PropertyKind::kBool:
+      if (text != "true" && text != "false") {
+        return std::unexpected("must be true or false");
+      }
+      value = text == "true";
+      break;
+    case PropertyKind::kInt: {
+      int number {};
+      const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), number);
+      if (error != std::errc {} || end != text.data() + text.size()) {
+        return std::unexpected("must be a whole number");
+      }
+      value = number;
+      break;
+    }
+    case PropertyKind::kEnum:
+      value = std::string(text);
+      break;
+  }
+  if (const z13::Status valid = CheckProperty(spec, value); !valid) {
+    return std::unexpected(valid.error());
+  }
+  return value;
 }
 
 z13::Status CheckProperty(const PropertySpec& spec, const PropertyValue& value) {

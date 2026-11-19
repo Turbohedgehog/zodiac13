@@ -138,6 +138,8 @@ set(
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/station_editor_command_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/scene_reload_test.cpp
   ${MODULES_DIR}/power_module/tests/power_commands_test.cpp
   ${MODULES_DIR}/power_module/tests/power_system_test.cpp
   ${MODULES_DIR}/atmos_module/tests/atmos_system_test.cpp
@@ -288,6 +290,7 @@ target_link_libraries(
   zodiac13::conduit_render_module
   zodiac13::door_render_module
   zodiac13::mcp_module
+  zodiac13::station_editor_module
   zodiac13::power_module
   zodiac13::atmos_module
   zodiac13::gravity_module
@@ -337,6 +340,7 @@ if(WIN32)
       $<TARGET_FILE:zodiac13::conduit_render_module>
       $<TARGET_FILE:zodiac13::door_render_module>
       $<TARGET_FILE:zodiac13::mcp_module>
+      $<TARGET_FILE:zodiac13::station_editor_module>
       $<TARGET_FILE:zodiac13::power_module>
       $<TARGET_FILE:zodiac13::atmos_module>
       $<TARGET_FILE:zodiac13::gravity_module>
@@ -400,5 +404,5 @@ if(WIN32)
 endif()
 add_dependencies(
     z13_plugin_smoke z13_config z13_module building_module net_module bullet_module station_module door_module lift_module conduit_module
-    conduit_render_module door_render_module power_module atmos_module gravity_module mcp_module)
+    conduit_render_module door_render_module power_module atmos_module gravity_module mcp_module station_editor_module)
 add_test(NAME PluginSmoke COMMAND z13_plugin_smoke)
