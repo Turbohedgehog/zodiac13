@@ -52,6 +52,9 @@ struct PropertySchema {
 
 std::expected<PropertySchema, std::string> ParsePropertySchema(std::string_view json);
 
+// The value a command's text spells for the spec's kind ("true", "14", an enum's name), checked against the spec.
+std::expected<PropertyValue, std::string> ParsePropertyValue(const PropertySpec& spec, std::string_view text);
+
 z13::Status CheckProperty(const PropertySpec& spec, const PropertyValue& value);
 
 z13::Status CheckProperties(const PropertySpecs& specs, const PropertyMap& given);

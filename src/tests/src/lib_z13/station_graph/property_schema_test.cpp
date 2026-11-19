@@ -60,6 +60,21 @@ TEST(PropertySchemaTest, ChecksTheKindTheRangeAndTheValues) {
   EXPECT_FALSE(CheckProperty(kind, std::string("Hatch")));
 }
 
+TEST(PropertySchemaTest, ReadsAValueFromTextByTheKindOfTheSpec) {
+  const PropertySchema schema = Shipped();
+  const PropertySpec& height = schema.node.at(std::string(kHeight));
+  const PropertySpec& kind = schema.edge.at(std::string(kKind));
+  const PropertySpec& lamp = schema.node.at("lamp");
+
+  EXPECT_EQ(std::get<int>(ParsePropertyValue(height, "20").value()), 20);
+  EXPECT_FALSE(ParsePropertyValue(height, "20m"));
+  EXPECT_FALSE(ParsePropertyValue(height, std::to_string(kAboveMaxHeight)));
+  EXPECT_FALSE(ParsePropertyValue(lamp, "yes"));
+  EXPECT_FALSE(std::get<bool>(ParsePropertyValue(lamp, "false").value()));
+  EXPECT_EQ(std::get<std::string>(ParsePropertyValue(kind, "Window").value()), "Window");
+  EXPECT_FALSE(ParsePropertyValue(kind, "Hatch"));
+}
+
 TEST(PropertySchemaTest, UnknownNamesAreErrorsAndDefaultsFillTheRest) {
   const PropertySchema schema = Shipped();
 
