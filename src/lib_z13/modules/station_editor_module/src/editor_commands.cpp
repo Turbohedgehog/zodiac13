@@ -59,7 +59,6 @@ struct EditorLoadCommand {
 struct EditorShowCommand {
   using Command = z13::Command<std::string, "Answers the graph being edited as its file's JSON.",
                                Tags<kDebugTag, kEditorTag>>;
-  int unused {};
 };
 
 struct EditorSaveCommand {
@@ -117,20 +116,17 @@ struct EditorSetPropertyCommand {
 
 struct EditorUndoCommand {
   using Command = z13::Command<std::string, "Takes back the last edit.", Tags<kDebugTag, kEditorTag>>;
-  int unused {};
 };
 
 struct EditorRedoCommand {
   using Command = z13::Command<std::string, "Repeats the edit the last undo took back.",
                                Tags<kDebugTag, kEditorTag>>;
-  int unused {};
 };
 
 struct EditorDiagnoseCommand {
   using Command = z13::Command<std::vector<std::string>,
                                "Lists what keeps the graph from being built, one line each; empty when nothing does.",
                                Tags<kDebugTag, kEditorTag>>;
-  int unused {};
 };
 
 std::string SummaryOf(const graph::Graph& graph) {
