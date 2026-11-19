@@ -55,6 +55,7 @@
 #include "build_info.h"
 #include "console_state.h"
 #include "console_window.h"
+#include "editor_window.h"
 #include "gui_widgets.h"
 #include "gui_windows.h"
 #include "hotbar_hud.h"
@@ -113,7 +114,8 @@ void ApplyStackRequest(flecs::world world, gui::WindowStack& stack,
 }
 
 void RegisterComponents(flecs::world world) {
-  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay, gui::PendingTransition, gui::ConsoleState>(world);
+  z13::flecs_tools::RegisterComponents<gui::WindowStack, GuiState, gui::StatsOverlay, gui::PendingTransition, gui::ConsoleState,
+                                           gui::EditorWindow>(world);
 }
 
 // Runs once RaylibData is set, i.e. after SdlPlatform::Init brought up the window
@@ -181,6 +183,7 @@ void RegisterSystems(flecs::world world) {
   world.set<GuiState>({});
   world.set<gui::StatsOverlay>({});
   world.set<gui::ConsoleState>({});
+  world.set<gui::EditorWindow>({});
 
   // Bring up ImGui once the SDL window / GL context exists (RaylibData is set at
   // the tail of RaylibSystem::CreateDefaults).
@@ -217,14 +220,16 @@ void RegisterSystems(flecs::world world) {
   world.system<gui::WindowStack, const GuiState, gui::StatsOverlay, const RenderStats*, z13::station::RoomOverlay*,
                z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*,
                const z13::net::ConnectionStatus*,
-               gui::PendingTransition*, gui::ConsoleState, const SdlPlatformData>("GuiSystem::Draw")
+               gui::PendingTransition*, gui::ConsoleState, gui::EditorWindow, const z13::editor::EditorView*,
+               const SdlPlatformData>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
                const RenderStats* render, z13::station::RoomOverlay* rooms, z13::station::OverlayLayers* layers,
                z13::input::TouchControls* touch,
                const z13::TouchLayout* touch_layout, const z13::net::ConnectionStatus* connection,
-               gui::PendingTransition* pending, gui::ConsoleState& console, const SdlPlatformData& platform_data) {
+               gui::PendingTransition* pending, gui::ConsoleState& console, gui::EditorWindow& editor,
+               const z13::editor::EditorView* editor_view, const SdlPlatformData& platform_data) {
         flecs::world world = it.world();
         if (!state.imgui_ready) {
           return;
@@ -305,6 +310,9 @@ void RegisterSystems(flecs::world world) {
           // A joined client stays kConnecting while it restores the snapshot.
           gui::DrawLoadingScreen(std::string(kJoinLoadingLabel));
         }
+        if (editor_view != nullptr && editor_view->open) {
+          editor.Draw(*editor_view);
+        }
         gui::DrawBuildInfo();
         gui::DrawConsole(world, console, platform_data.platform->Window(), gui::IsTouchScreen(touch));
         EndImGuiFrame();
@@ -318,6 +326,16 @@ void RegisterSystems(flecs::world world) {
         const std::vector<std::string> lines = std::exchange(console.queued_lines, {});
         for (const std::string& line : lines) {
           console_input::RunConsoleLine(it.world(), line);
+        }
+      });
+
+  // Immediate for the same reason: the editor's commands make entities.
+  world.system<gui::EditorWindow>("GuiSystem::RunEditorRequests")
+      .kind(flecs::PreFrame)
+      .immediate()
+      .each([](flecs::iter& it, size_t, gui::EditorWindow& editor) {
+        for (const gui::EditorRequest& request : editor.TakeRequests()) {
+          gui::RunEditorRequest(it.world(), request);
         }
       });
 

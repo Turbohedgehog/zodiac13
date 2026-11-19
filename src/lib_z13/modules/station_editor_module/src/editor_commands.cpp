@@ -29,6 +29,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/utils/asset_source.h>
 #include <lib_core/utils/status.h>
+#include <z13/components/editor/editor_view.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/station/station_mode.h>
@@ -126,6 +127,11 @@ struct EditorReloadSceneCommand {
                                "An empty `scene` takes the current one. Station mode only.",
                                Tags<kDebugTag, kEditorTag>>;
   std::string scene;
+};
+
+struct EditorWindowCommand {
+  using Command = z13::Command<std::string, "Opens the editor's window, or closes it when it is open.",
+                               Tags<kDebugTag, kEditorTag>>;
 };
 
 struct EditorUndoCommand {
@@ -265,7 +271,8 @@ void ReloadScene(flecs::world world, const EditorReloadSceneCommand& request, Re
 void RegisterEditorCommandComponents(flecs::world world) {
   flecs_tools::RegisterComponents<EditorLoadCommand, EditorShowCommand, EditorSaveCommand, EditorSetRoomCommand,
                                   EditorRemoveRoomCommand, EditorAddEdgeCommand, EditorRemoveEdgeCommand,
-                                  EditorSetPropertyCommand, EditorReloadSceneCommand, EditorUndoCommand,
+                                  EditorSetPropertyCommand, EditorReloadSceneCommand, EditorWindowCommand,
+                                  EditorUndoCommand,
                                   EditorRedoCommand, EditorDiagnoseCommand>(world);
 }
 
@@ -319,6 +326,13 @@ void RegisterEditorCommandSystems(flecs::world world) {
       [](auto& builder) { builder.template write<SceneReload>().template write<z13::station::StationSceneChoice>(); },
       [](flecs::iter& it, size_t, const EditorReloadSceneCommand& request, ReplyOf<EditorReloadSceneCommand>& reply) {
         ReloadScene(it.world(), request, reply);
+      });
+  CommandSystem<EditorWindowCommand>(
+      world, "EditorCommands::Window",
+      [](flecs::iter& it, size_t, const EditorWindowCommand&, ReplyOf<EditorWindowCommand>& reply) {
+        auto& view = it.world().get_mut<z13::editor::EditorView>();
+        view.open = !view.open;
+        reply.Succeed(view.open ? "the editor's window is open" : "the editor's window is closed");
       });
   CommandSystem<EditorUndoCommand>(
       world, "EditorCommands::Undo", writes,

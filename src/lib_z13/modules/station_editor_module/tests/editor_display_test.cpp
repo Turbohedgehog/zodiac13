@@ -16,10 +16,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <optional>
 #include <string>
 
 #include <lib_core/commands/command_registry.h>
+#include <z13/components/editor/editor_view.h>
 #include <z13/components/station/overlay_layers.h>
 
 #include "../../z13_module/tests/support/z13_test_world.h"
@@ -56,7 +58,7 @@ const z13::station::OverlayLayer& GraphLayer(Z13TestWorld& test_world) {
   return *test_world.World().get<z13::station::OverlayLayers>().Find(std::string(kLayerName));
 }
 
-class EditorOverlayTest : public ::testing::Test {
+class EditorDisplayTest : public ::testing::Test {
  protected:
   void SetUp() override {
     test_world_.Tick();
@@ -71,11 +73,11 @@ class EditorOverlayTest : public ::testing::Test {
   Z13TestWorld test_world_;
 };
 
-TEST_F(EditorOverlayTest, TheGraphLayerIsRegisteredAndEmptyWhileNotShown) {
+TEST_F(EditorDisplayTest, TheGraphLayerIsRegisteredAndEmptyWhileNotShown) {
   EXPECT_TRUE(GraphLayer(test_world_).boxes.empty());
 }
 
-TEST_F(EditorOverlayTest, ShownItHoldsABoxPerRoomAndPerEdgeAndSaysHowManyProblemsThereAre) {
+TEST_F(EditorDisplayTest, ShownItHoldsABoxPerRoomAndPerEdgeAndSaysHowManyProblemsThereAre) {
   Show();
 
   const z13::station::OverlayLayer& layer = GraphLayer(test_world_);
@@ -84,7 +86,7 @@ TEST_F(EditorOverlayTest, ShownItHoldsABoxPerRoomAndPerEdgeAndSaysHowManyProblem
   EXPECT_NE(layer.label.find("3 rooms, 2 edges, 0 problems"), std::string::npos) << layer.label;
 }
 
-TEST_F(EditorOverlayTest, AnEditShowsAtOnceAndAnEdgeWithoutAWallHasNoBox) {
+TEST_F(EditorDisplayTest, AnEditShowsAtOnceAndAnEdgeWithoutAWallHasNoBox) {
   ASSERT_TRUE(RunCommand(test_world_, "editor_remove_edge", {{"id", rfl::Generic(std::string("hall-corridor"))}}));
   ASSERT_TRUE(RunCommand(test_world_, "editor_add_edge", {{"id", rfl::Generic(std::string("hall-lab"))},
                                                   {"from", rfl::Generic(std::string("hall"))},
@@ -97,12 +99,60 @@ TEST_F(EditorOverlayTest, AnEditShowsAtOnceAndAnEdgeWithoutAWallHasNoBox) {
   EXPECT_NE(layer.label.find("1 problems"), std::string::npos) << layer.label;
 }
 
-TEST_F(EditorOverlayTest, TheLayerEmptiesWhenItIsSteppedPast) {
+TEST_F(EditorDisplayTest, TheLayerEmptiesWhenItIsSteppedPast) {
   Show();
   test_world_.World().get_mut<z13::station::OverlayLayers>().shown.reset();
   test_world_.Tick();
 
   EXPECT_TRUE(GraphLayer(test_world_).boxes.empty());
+}
+
+const z13::editor::EditorItemView& RoomOf(Z13TestWorld& test_world, std::string_view id) {
+  const auto& rooms = test_world.World().get<z13::editor::EditorView>().rooms;
+  return *std::ranges::find(rooms, id, &z13::editor::EditorItemView::id);
+}
+
+const z13::editor::EditorPropertyView& PropertyOf(const z13::editor::EditorItemView& item, std::string_view name) {
+  return *std::ranges::find(item.properties, name, &z13::editor::EditorPropertyView::name);
+}
+
+TEST_F(EditorDisplayTest, TheViewStaysEmptyWhileTheWindowIsClosed) {
+  EXPECT_FALSE(test_world_.World().get<z13::editor::EditorView>().loaded);
+  EXPECT_TRUE(test_world_.World().get<z13::editor::EditorView>().rooms.empty());
+}
+
+TEST_F(EditorDisplayTest, TheWindowCommandOpensItAndTheViewHoldsTheGraphWithTheSchemasProperties) {
+  ASSERT_TRUE(RunCommand(test_world_, "editor_window"));
+  test_world_.Tick();
+
+  const z13::editor::EditorView& view = test_world_.World().get<z13::editor::EditorView>();
+
+  EXPECT_TRUE(view.open);
+  EXPECT_TRUE(view.loaded);
+  EXPECT_EQ(view.rooms.size(), kPrototypeRooms);
+  EXPECT_EQ(view.edges.size(), kPrototypeEdges);
+  EXPECT_TRUE(view.problems.empty());
+  const auto& height = PropertyOf(RoomOf(test_world_, "hall"), "height");
+  EXPECT_EQ(height.kind, z13::editor::EditorPropertyKind::kInt);
+  EXPECT_LT(height.min, height.max);
+  EXPECT_FALSE(height.value.empty());
+}
+
+TEST_F(EditorDisplayTest, AnEditChangesTheValueTheViewShowsAndTheWindowCommandClosesIt) {
+  ASSERT_TRUE(RunCommand(test_world_, "editor_window"));
+  test_world_.Tick();
+  const int taller = std::stoi(PropertyOf(RoomOf(test_world_, "hall"), "height").value) + 1;
+
+  ASSERT_TRUE(RunCommand(test_world_, "editor_set_property",
+                         {{"target", rfl::Generic(std::string("node"))},
+                          {"id", rfl::Generic(std::string("hall"))},
+                          {"name", rfl::Generic(std::string("height"))},
+                          {"value", rfl::Generic(std::to_string(taller))}}));
+  test_world_.Tick();
+
+  EXPECT_EQ(PropertyOf(RoomOf(test_world_, "hall"), "height").value, std::to_string(taller));
+  ASSERT_TRUE(RunCommand(test_world_, "editor_window"));
+  EXPECT_FALSE(test_world_.World().get<z13::editor::EditorView>().open);
 }
 
 }  // namespace

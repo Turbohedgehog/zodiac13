@@ -17,6 +17,7 @@ z13_add_plugin(
   src/debug/debug_commands.cpp
   src/gui/build_info.cpp
   src/gui/console_window.cpp
+  src/gui/editor_window.cpp
   src/gui/overlays_tab.cpp
   src/gui/game_scenes.cpp
   src/gui/game_transitions.cpp

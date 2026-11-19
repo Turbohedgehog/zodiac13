@@ -139,7 +139,7 @@ set(
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
-  ${MODULES_DIR}/station_editor_module/tests/editor_overlay_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_display_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/station_editor_command_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/scene_reload_test.cpp
   ${MODULES_DIR}/power_module/tests/power_commands_test.cpp
