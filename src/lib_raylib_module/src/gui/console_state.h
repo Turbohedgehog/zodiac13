@@ -32,7 +32,7 @@
 
 namespace z13::raylib::gui {
 
-enum class ConsoleTab { kLog, kAssistant };
+enum class ConsoleTab { kLog, kAssistant, kOverlays };
 
 // The console's own state (docs/console-plan.md): local to this client, never state.
 struct ConsoleState {

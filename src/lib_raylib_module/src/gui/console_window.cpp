@@ -40,6 +40,7 @@
 #include <z13/components/console/assistant_chat.h>
 
 #include "gui_widgets.h"
+#include "overlays_tab.h"
 
 namespace z13::raylib::gui {
 
@@ -436,6 +437,10 @@ void DrawAssistantTab(Context& context) {
   }
 }
 
+void DrawOverlaysTabOf(Context& context) {
+  DrawOverlaysTab(context.world);
+}
+
 struct TabSpec {
   ConsoleTab id;
   std::string_view name;
@@ -445,6 +450,7 @@ struct TabSpec {
 constexpr std::array kTabs {
     TabSpec {ConsoleTab::kLog, "Console", DrawLogTab},
     TabSpec {ConsoleTab::kAssistant, "Assistant", DrawAssistantTab},
+    TabSpec {ConsoleTab::kOverlays, "Overlays", DrawOverlaysTabOf},
 };
 
 void DrawTabs(Context& context) {

@@ -27,7 +27,7 @@ namespace z13::input {
 
 // What a finger works, chosen where it first touched (docs/android-plan.md, "Мультитач").
 enum class TouchControl {
-  kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats, kLayers, kBrush,
+  kStick, kLook, kJump, kCrouch, kUse, kFlashlight, kToolMode, kPrimary, kStats, kBrush,
   kPreviousPrimitive, kNextPrimitive, kTurnZ, kTurnY, kTurnX,
   kThicker, kThinner, kMergeAt, kFlipDiagonal, kBend, kOpeningKind, kDestroy,
   kCell1, kCell2, kCell3, kCell4, kCell5, kCell6, kCell7, kCell8, kCell9,
@@ -64,8 +64,6 @@ struct TouchControls {
   // The brush row's cells as last drawn, by palette slot, in fractions of the screen; empty
   // while no build tool is in hand. A tap picks that primitive, like the palette window.
   std::vector<Eigen::AlignedBox2f> brush_areas;
-  // The button that steps the overlay layers (F6 on PC), as last drawn, in fractions of the screen.
-  std::optional<Eigen::AlignedBox2f> layer_area;
 };
 
 }  // namespace z13::input

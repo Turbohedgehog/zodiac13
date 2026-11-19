@@ -16,14 +16,11 @@
 
 #pragma once
 
-#include <Eigen/Dense>
-
-#include <z13/components/station/overlay_layers.h>
+#include <flecs.h>
 
 namespace z13::raylib::gui {
 
-// The touch screen's stand-in for F6, under the console's button; returns its area in ImGui units. A tap is the touch
-// input's (TouchControls::layer_area).
-Eigen::AlignedBox2f DrawLayerButton(const z13::station::OverlayLayers& layers);
+// The console's third tab: the room overlay's mode (F4) and the overlay layers (F6) as buttons, for a screen with no keys.
+void DrawOverlaysTab(flecs::world world);
 
 }  // namespace z13::raylib::gui
