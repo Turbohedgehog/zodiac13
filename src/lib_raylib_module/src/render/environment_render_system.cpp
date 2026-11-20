@@ -352,7 +352,7 @@ void RegisterSystems(flecs::world world) {
       .each(SyncRaylibCamera);
 
   // After SyncRaylibCamera, so the editor's orbit camera replaces the player's eye; the tour still wins.
-  world.system<RaylibCamera, const z13::editor::EditorCamera, const z13::EditorCameraTuning>(
+  world.system<RaylibCamera, z13::editor::EditorCamera, const z13::EditorCameraTuning, const WindowSize>(
            "EnvironmentRenderSystem::ApplyEditorCamera")
       .kind<Render>()
       .tick_source<RenderGate>()

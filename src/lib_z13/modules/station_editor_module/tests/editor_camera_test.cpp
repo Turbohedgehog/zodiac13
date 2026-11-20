@@ -39,6 +39,10 @@ constexpr std::string_view kScene = "prototype";
 constexpr float kDragPixels = 20.f;
 constexpr float kFingerGapPixels = 40.f;
 constexpr float kFingerSpreadPixels = 80.f;
+constexpr float kScreenWidth = 1000.f;
+constexpr float kScreenHeight = 600.f;
+constexpr int kCenterX = 500;
+constexpr int kCenterY = 300;
 
 rfl::Generic Str(std::string value) {
   return rfl::Generic(std::move(value));
@@ -63,7 +67,16 @@ class EditorCameraTest : public ::testing::Test {
     ASSERT_TRUE(RunCommand(test_world_, "editor_load", {{"name", Str(std::string(kScene))}}));
   }
 
-  void SwitchOn() { ASSERT_TRUE(RunCommand(test_world_, kCommand)); }
+  void SwitchOn() {
+    ASSERT_TRUE(RunCommand(test_world_, kCommand));
+    test_world_.World().get_mut<EditorCamera>().screen_pixels = Eigen::Vector2f(kScreenWidth, kScreenHeight);
+  }
+
+  CommandResult PickAt(int x, int y) {
+    return RunCommand(test_world_, "editor_pick_at", {{"x", rfl::Generic(x)}, {"y", rfl::Generic(y)}});
+  }
+
+  bool Selected() { return test_world_.World().get<z13::editor::EditorView>().selected.has_value(); }
 
   Z13TestWorld test_world_;
 };
@@ -141,6 +154,37 @@ TEST_F(EditorCameraTest, TwoFingersMovingApartZoomIn) {
   test_world_.EmitInput(z13::input::TouchUpEvent {Finger(1, 0.f)});
   test_world_.EmitInput(z13::input::TouchUpEvent {Finger(2, kFingerSpreadPixels)});
   EXPECT_TRUE(Camera(test_world_).fingers.empty());
+}
+
+TEST_F(EditorCameraTest, ThePixelAtTheMiddleOfTheScreenPicksWhatTheCameraLooksAt) {
+  SwitchOn();
+
+  EXPECT_TRUE(PickAt(kCenterX, kCenterY));
+  EXPECT_TRUE(Selected());
+}
+
+TEST_F(EditorCameraTest, APixelOnTheSkyPicksNothingAndTheCameraMustBeOn) {
+  EXPECT_FALSE(PickAt(kCenterX, kCenterY));
+
+  SwitchOn();
+  const auto sky = PickAt(0, 0);
+
+  EXPECT_FALSE(sky);
+  EXPECT_FALSE(Selected());
+}
+
+TEST_F(EditorCameraTest, ALeftClickPicksUnderTheCursorAndOtherButtonsDoNot) {
+  SwitchOn();
+  z13::input::MouseButtonEvent click {.pos = {kCenterX, kCenterY}, .button = Keycode::MOUSE_BUTTON_RIGHT, .clicks = 1};
+
+  test_world_.EmitInput(z13::input::MouseButtonDownEvent {click});
+  test_world_.Tick();
+  EXPECT_FALSE(Selected());
+
+  click.button = Keycode::MOUSE_BUTTON_LEFT;
+  test_world_.EmitInput(z13::input::MouseButtonDownEvent {click});
+  test_world_.Tick();
+  EXPECT_TRUE(Selected());
 }
 
 }  // namespace

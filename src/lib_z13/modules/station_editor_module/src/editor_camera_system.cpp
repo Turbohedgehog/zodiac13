@@ -84,7 +84,9 @@ void Toggle(flecs::world world, ReplyOf<EditorCameraCommand>& reply) {
   auto& state = world.get_mut<EditorCamera>();
   const auto& tuning = world.get<z13::EditorCameraTuning>();
   const bool on = !state.active;
-  state = EditorCamera {.active = on, .orbit = on ? Framing(world, state.orbit, tuning) : state.orbit};
+  state = EditorCamera {.active = on,
+                        .orbit = on ? Framing(world, state.orbit, tuning) : state.orbit,
+                        .screen_pixels = state.screen_pixels};
   if (on) {
     world.add<z13::gameplay::FreeCursor>();
   } else {
