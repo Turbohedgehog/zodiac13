@@ -197,9 +197,7 @@ z13::Status SetRoom(graph::GraphEditor& editor, const EditorSetRoomCommand& requ
 
 void Load(flecs::world world, const EditorLoadCommand& request, ReplyOf<EditorLoadCommand>& reply) {
   const z13::AssetSource& assets = world.get<z13::Assets>().source;
-  auto schema = assets.ReadAsset(graph::PropertiesFile()).and_then([](const std::string& json) {
-    return graph::ParsePropertySchema(json);
-  });
+  auto schema = graph::StationPropertySchema();
   if (!schema) {
     reply.Fail(schema.error());
     return;

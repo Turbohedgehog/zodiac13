@@ -23,11 +23,9 @@ namespace z13::editor::graph {
 
 inline constexpr std::string_view kStationDir = "station";
 inline constexpr std::string_view kGraphDir = "graph";
-inline constexpr std::string_view kPropertiesFileName = "properties.json";
 inline constexpr std::string_view kGraphExtension = ".json";
 
 // Files relative to assets/.
-std::filesystem::path PropertiesFile();
 std::filesystem::path GraphFile(std::string_view name);
 
 }  // namespace z13::editor::graph

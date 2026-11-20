@@ -57,9 +57,7 @@ inline z13::AssetSource SourceAssets() {
 
 // The properties a station graph's nodes and edges may have, and a graph file.
 inline std::expected<z13::editor::graph::PropertySchema, std::string> ShippedPropertySchema() {
-  return SourceAssets().ReadAsset(z13::editor::graph::PropertiesFile()).and_then([](const std::string& json) {
-    return z13::editor::graph::ParsePropertySchema(json);
-  });
+  return z13::editor::graph::StationPropertySchema();
 }
 
 inline std::expected<z13::editor::graph::Graph, std::string> ShippedGraph(std::string_view name) {

@@ -35,15 +35,7 @@ constexpr char kPathSeparator = '.';
 constexpr std::string_view kValuelessAttribute = "0";
 
 std::optional<std::string_view> Attribute(const reflection::Field& field, std::string_view key) {
-  const auto* attributes = field.attributes();
-  if (attributes == nullptr) {
-    return std::nullopt;
-  }
-  const reflection::KeyValue* entry = attributes->LookupByKey(std::string(key).c_str());
-  if (entry == nullptr) {
-    return std::nullopt;
-  }
-  return entry->value() != nullptr ? entry->value()->string_view() : std::string_view {};
+  return FieldAttribute(field, key);
 }
 
 std::optional<double> ParseDouble(std::string_view text) {
@@ -245,6 +237,18 @@ std::optional<T> ParseNumber(std::string_view text) {
 }
 
 }  // namespace
+
+std::optional<std::string_view> FieldAttribute(const reflection::Field& field, std::string_view key) {
+  const auto* attributes = field.attributes();
+  if (attributes == nullptr) {
+    return std::nullopt;
+  }
+  const reflection::KeyValue* entry = attributes->LookupByKey(std::string(key).c_str());
+  if (entry == nullptr) {
+    return std::nullopt;
+  }
+  return entry->value() != nullptr ? entry->value()->string_view() : std::string_view {};
+}
 
 Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table) {

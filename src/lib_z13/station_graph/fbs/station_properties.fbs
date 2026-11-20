@@ -1,0 +1,49 @@
+/*
+ * Copyright 2026 Ivan Kulenko / Zodiac13
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://apache.org
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// The properties a room (node) or an opening (edge) of the station graph can have, with their types, bounds and
+// defaults: the station editor's window, its checks and the Python pipeline are all built from this file, so no
+// property is named anywhere else (docs/station-editor-plan.md). A property is an int (min and max given), a bool or an
+// enum; the graph file stores only what differs from the defaults here.
+
+include "attributes.fbs";
+
+namespace z13.fbs.station_properties;
+
+enum EdgeKind : byte {
+  Door,
+  Passage,
+  Window
+}
+
+table NodeProperties {
+  height: int = 14 (min: 12, max: 40, title: "Room height", unit: "cells");
+  ceiling: bool = true (title: "Ceiling");
+  lamp: bool = true (title: "Lamp");
+  spawn: bool = false (title: "Spawn points");
+}
+
+table EdgeProperties {
+  kind: EdgeKind = Door (title: "Kind");
+  width: int = 6 (min: 4, max: 24, title: "Opening width", unit: "cells");
+}
+
+table StationProperties {
+  node: NodeProperties;
+  edge: EdgeProperties;
+}
+
+root_type StationProperties;
