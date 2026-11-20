@@ -1,13 +1,14 @@
-# Overlay: upstream re-created the v0.3.14 tag, so the archive hash in the registry no longer matches (microsoft/vcpkg#55200).
+# Overlay: upstream re-created the version tag, so the registry's archive hash is stale (microsoft/vcpkg#55200).
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO kuba--/zip
     REF "v${VERSION}"
-    SHA512 626d1dbc67e797b21980019931f098969761d69eea88aed881882a832d10c28e782e9c0c2445dcc8485b84744286a029fd64da25e570e47af19d74135e2919b1
+    SHA512 f445120d03c9d21b91784a12fd2ae33357a7d116270158ff8e5a88eade586a534d69c50de059d4a9399610720b2076a39117721ca6cd16bade60c676197f2e9c
     HEAD_REF master
     PATCHES
         fix-name-conflict.diff
         disable-werror.patch
+        fix-project-version.patch # https://github.com/kuba--/zip/commit/dd80aeab4293d1e11e31af20fabfd538d88625ef
 )
 
 vcpkg_cmake_configure(
@@ -28,4 +29,8 @@ file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 # legacy polyfill
 file(INSTALL "${CURRENT_PORT_DIR}/kubazipConfig.cmake" "${CURRENT_PORT_DIR}/usage" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
 
-vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE.txt")
+vcpkg_install_copyright(
+    FILE_LIST
+        "${SOURCE_PATH}/LICENSE.txt"
+        "${SOURCE_PATH}/src/miniz.h"
+)
