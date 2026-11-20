@@ -21,6 +21,7 @@
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
 
+#include "editor_camera_system.h"
 #include "editor_commands.h"
 #include "editor_graph.h"
 #include "editor_overlay_system.h"
@@ -41,6 +42,7 @@ StationEditorModule::StationEditorModule(flecs::world& world) {
     RegisterEditorCommandSystems(w);
     RegisterEditorSelectionSystems(w);
   });
+  EditorCameraSystem::Register(world);
   EditorOverlaySystem::Register(world);
   EditorViewSystem::Register(world);
   SceneReloadSystem::Register(world);

@@ -94,7 +94,7 @@ struct TouchLayout : fbs::settings::TouchLayoutT {
 struct EditorCameraTuning : fbs::settings::EditorCameraTuningT {
   using Singleton = void;
 
-  EditorCameraTuning() = default;
+  EditorCameraTuning() : EditorCameraTuning(SchemaDefaults<fbs::settings::EditorCameraTuningT>()) {}
   explicit EditorCameraTuning(const fbs::settings::EditorCameraTuningT& values) : fbs::settings::EditorCameraTuningT(values) {}
 };
 

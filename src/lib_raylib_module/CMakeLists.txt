@@ -92,6 +92,7 @@ z13_add_plugin(
   zodiac13::core
   zodiac13::components
   zodiac13::console_input
+  zodiac13::editor_camera
   zodiac13::primitives
   zodiac13::rooms
   zodiac13::cell_light
