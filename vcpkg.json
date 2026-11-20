@@ -41,5 +41,11 @@
         "on-demand"
       ]
     }
+  ],
+  "overrides": [
+    {
+      "name": "flecs",
+      "version": "4.1.6#0"
+    }
   ]
 }
