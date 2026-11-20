@@ -50,8 +50,9 @@ void SyncRaylibCamera(
   UpdateCameraFromTransform(raylib_camera.camera, transform);
 }
 
-void ApplyEditorCamera(
-    RaylibCamera& raylib_camera, const z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning) {
+void ApplyEditorCamera(RaylibCamera& raylib_camera, z13::editor::EditorCamera& editor,
+                       const z13::EditorCameraTuning& tuning, const WindowSize& window) {
+  editor.screen_pixels = window.size.cast<float>();
   if (!editor.active) {
     return;
   }
