@@ -22,7 +22,7 @@
 
 namespace z13::editor {
 
-// A room dragged across the floor with the left button; `offset_cells` is where it would land. Client only, never state.
+// A room dragged with the left button; `offset_cells` is how far the grip moved. Client only, never state.
 struct EditorDrag {
   using Singleton = void;
 
@@ -30,6 +30,9 @@ struct EditorDrag {
   Eigen::Vector2f press_pixel = Eigen::Vector2f::Zero();
   bool active {};
   std::string room;
+  // Per axis, 1 where that side follows the pointer: both for a move, one for an edge.
+  Eigen::Vector2i low_follows = Eigen::Vector2i::Ones();
+  Eigen::Vector2i high_follows = Eigen::Vector2i::Ones();
   Eigen::Vector2f grab_cells = Eigen::Vector2f::Zero();
   Eigen::Vector2i offset_cells = Eigen::Vector2i::Zero();
 };

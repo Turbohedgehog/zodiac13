@@ -26,6 +26,7 @@
 #include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
+#include <station_graph/graph_drag.h>
 #include <station_graph/graph_pick.h>
 #include <z13/components/editor/editor_camera.h>
 #include <z13/components/editor/editor_drag.h>
@@ -90,6 +91,9 @@ void OnPointer(flecs::iter& it, size_t, const z13::input::MousePos& pointer, Edi
     }
     drag.active = true;
     drag.room = room->id;
+    const graph::Grip grip = graph::GripAt(room->box, *grab);
+    drag.low_follows = grip.low;
+    drag.high_follows = grip.high;
     drag.grab_cells = *grab;
   }
   const auto editor = LoadedEditor(it.world());
@@ -113,11 +117,12 @@ void OnUp(flecs::iter& it, size_t, const z13::input::MouseButtonUpEvent& event, 
   if (!node || finished.offset_cells.isZero()) {
     return;
   }
-  const graph::RoomBox& box = editor->get().graph().nodes[*node].box;
+  const graph::RoomBox box = graph::Dragged(editor->get().graph().nodes[*node].box, {finished.low_follows, finished.high_follows},
+                                         finished.offset_cells);
   rfl::Generic::Object arguments;
   arguments["id"] = rfl::Generic(finished.room);
-  arguments["x"] = rfl::Generic(box.origin.x() + finished.offset_cells.x());
-  arguments["y"] = rfl::Generic(box.origin.y() + finished.offset_cells.y());
+  arguments["x"] = rfl::Generic(box.origin.x());
+  arguments["y"] = rfl::Generic(box.origin.y());
   arguments["z"] = rfl::Generic(box.origin.z());
   arguments["w"] = rfl::Generic(box.size.x());
   arguments["d"] = rfl::Generic(box.size.y());
