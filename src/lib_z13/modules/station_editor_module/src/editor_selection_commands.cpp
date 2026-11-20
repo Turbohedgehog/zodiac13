@@ -146,7 +146,7 @@ void PickAtPixel(flecs::world world, const EditorPickAtCommand& request, ReplyOf
     return;
   }
   const auto& view = world.get<z13::editor::EditorCamera>();
-  if (!view.active || view.screen_pixels.minCoeff() <= 0.f) {
+  if (!view.active || !(view.screen_pixels.minCoeff() > 0.f)) {
     reply.Fail(std::string(kCameraOff));
     return;
   }
