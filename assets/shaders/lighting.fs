@@ -73,6 +73,8 @@ uniform sampler2D fillShadow;
 uniform vec3 ambient;
 uniform vec3 ambientGround;
 uniform vec3 viewPos;
+// The editor's deck slice: nothing is drawn above this height (meters).
+uniform float sliceHeight = 1.0e9;
 // Station blocks: a checker of one square per grid cell, from the world position.
 uniform int checkerEnabled;
 uniform int checkerEmissive;
@@ -450,6 +452,10 @@ vec3 BumpedNormal(vec3 position, vec3 normal)
 
 void main()
 {
+    if (fragPosition.z > sliceHeight)
+    {
+        discard;
+    }
     vec3 normal = normalize(fragNormal);
     vec4 texelColor = texture(texture0, fragTexCoord);
     if (checkerEnabled == 1)

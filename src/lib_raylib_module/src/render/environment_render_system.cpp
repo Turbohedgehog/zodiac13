@@ -359,6 +359,11 @@ void RegisterSystems(flecs::world world) {
       .with<z13::input::CurrentActionListenerTag>()
       .each(ApplyEditorCamera);
 
+  world.system<const Lighting, const z13::editor::EditorCamera>("EnvironmentRenderSystem::ApplySlice")
+      .kind<Render>()
+      .tick_source<RenderGate>()
+      .each([](const Lighting& lighting, const z13::editor::EditorCamera& editor) { ApplySlice(lighting, editor); });
+
   world.system<const RaylibCamera>("EnvironmentRenderSystem::ReleaseOrphanRaylibCamera")
       .kind<Render>()
       .tick_source<RenderGate>()

@@ -20,6 +20,7 @@ z13_add_library(
   src/graph_editor.cpp
   src/graph_geometry.cpp
   src/graph_json.cpp
+  src/graph_decks.cpp
   src/graph_drag.cpp
   src/graph_pick.cpp
   src/property_schema.cpp

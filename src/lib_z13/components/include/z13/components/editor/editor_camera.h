@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -47,6 +48,8 @@ struct EditorCamera {
   Eigen::Vector2f screen_pixels = Eigen::Vector2f::Zero();
   bool pan_held {};
   bool orbit_held {};
+  // Height in cells above which the renderer draws nothing, to look into a deck from above.
+  std::optional<float> slice_cells;
   std::vector<EditorFinger> fingers;
 };
 

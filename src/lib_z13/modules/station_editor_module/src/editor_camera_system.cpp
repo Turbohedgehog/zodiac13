@@ -17,6 +17,7 @@
 #include "editor_camera_system.h"
 
 #include <algorithm>
+#include <format>
 #include <limits>
 #include <string>
 #include <vector>
@@ -27,6 +28,7 @@
 #include <lib_core/commands/command_registry.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
+#include <station_graph/graph_decks.h>
 #include <station_graph/graph_geometry.h>
 #include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
@@ -57,6 +59,14 @@ struct EditorCameraCommand {
                                "Switches the editor's orbit camera on, framing the graph, or off when it is on. "
                                "Right drag pans, middle drag orbits, the wheel zooms; two fingers pan, pinch and turn.",
                                Tags<kDebugTag, kEditorTag>>;
+};
+
+struct EditorSliceCommand {
+  using Command = z13::Command<std::string,
+                               "Cuts the view at the next deck below (step -1) or above (step 1), so the ceilings do "
+                               "not hide it from above; past the highest deck the view is whole again.",
+                               Tags<kDebugTag, kEditorTag>>;
+  int step {};
 };
 
 camera::DistanceLimits LimitsOf(const z13::EditorCameraTuning& tuning) {
@@ -93,6 +103,18 @@ void Toggle(flecs::world world, ReplyOf<EditorCameraCommand>& reply) {
     world.remove<z13::gameplay::FreeCursor>();
   }
   reply.Succeed(on ? "the orbit camera is on" : "the orbit camera is off");
+}
+
+void Slice(flecs::world world, const EditorSliceCommand& request, ReplyOf<EditorSliceCommand>& reply) {
+  auto& state = world.get_mut<EditorCamera>();
+  const auto editor = LoadedEditor(world);
+  if (!state.active || !editor) {
+    reply.Fail(state.active ? std::string(kNoGraph) : "switch the orbit camera on first (editor_camera)");
+    return;
+  }
+  const auto cuts = z13::editor::graph::DeckCuts(editor->get().graph(), editor->get().schema());
+  state.slice_cells = z13::editor::graph::SteppedCut(cuts, state.slice_cells, request.step);
+  reply.Succeed(state.slice_cells ? std::format("the view is cut at {} cells", *state.slice_cells) : "the view is whole");
 }
 
 void OnMouseDown(const z13::input::MouseButtonDownEvent& event, EditorCamera& state,
@@ -192,6 +214,11 @@ void RegisterSystems(flecs::world world) {
       [](flecs::iter& it, size_t, const EditorCameraCommand&, ReplyOf<EditorCameraCommand>& reply) {
         Toggle(it.world(), reply);
       });
+  CommandSystem<EditorSliceCommand>(
+      world, "EditorCommands::Slice", [](auto& builder) { builder.template write<EditorCamera>(); },
+      [](flecs::iter& it, size_t, const EditorSliceCommand& request, ReplyOf<EditorSliceCommand>& reply) {
+        Slice(it.world(), request, reply);
+      });
 }
 
 }  // namespace
@@ -201,6 +228,7 @@ void EditorCameraSystem::Register(flecs::world& world) {
     flecs_tools::RegisterComponent<EditorCamera>(w);
     flecs_tools::RegisterComponent<z13::EditorCameraTuning>(w);
     flecs_tools::RegisterComponent<EditorCameraCommand>(w);
+    flecs_tools::RegisterComponent<EditorSliceCommand>(w);
   });
   z13::OnInitSystems(world, [](flecs::world& w) {
     w.set(EditorCamera {.orbit = StartView()});

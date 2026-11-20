@@ -76,6 +76,7 @@ set(
   src/lib_z13/primitives/station_viewpoints_test.cpp
   src/lib_z13/networks/networks_test.cpp
   src/lib_z13/editor_camera/orbit_camera_test.cpp
+  src/lib_z13/station_graph/graph_decks_test.cpp
   src/lib_z13/station_graph/graph_diagnosis_test.cpp
   src/lib_z13/station_graph/graph_drag_test.cpp
   src/lib_z13/station_graph/graph_editor_test.cpp

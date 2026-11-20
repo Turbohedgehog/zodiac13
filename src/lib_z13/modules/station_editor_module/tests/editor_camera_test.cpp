@@ -99,6 +99,17 @@ TEST_F(EditorCameraTest, SwitchingOnFramesTheGraphAndFreesTheCursorAndOffGivesIt
   EXPECT_FALSE(test_world_.World().has<z13::gameplay::FreeCursor>());
 }
 
+TEST_F(EditorCameraTest, TheSliceStepsThroughTheDecksOnlyWhileTheCameraIsOn) {
+  EXPECT_FALSE(RunCommand(test_world_, "editor_slice", {{"step", rfl::Generic(-1)}}));
+
+  SwitchOn();
+  ASSERT_TRUE(RunCommand(test_world_, "editor_slice", {{"step", rfl::Generic(-1)}}));
+  EXPECT_TRUE(Camera(test_world_).slice_cells);
+
+  ASSERT_TRUE(RunCommand(test_world_, "editor_slice", {{"step", rfl::Generic(1)}}));
+  EXPECT_FALSE(Camera(test_world_).slice_cells);
+}
+
 TEST_F(EditorCameraTest, TheCursorStaysFreeWhileTheCameraIsOn) {
   SwitchOn();
 

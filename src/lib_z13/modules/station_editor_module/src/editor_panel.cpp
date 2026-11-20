@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <format>
 #include <string>
 #include <string_view>
@@ -40,6 +41,7 @@ constexpr std::string_view kNodeTarget = "node";
 constexpr std::string_view kEdgeTarget = "edge";
 constexpr std::string_view kNoGraphText = "No graph loaded: run editor_load <name> in the console.";
 constexpr std::string_view kTrue = "true";
+constexpr std::string_view kSliceCommand = "editor_slice";
 constexpr std::string_view kValueArgument = "value";
 
 PanelAction ActionOf(std::string command, std::map<std::string, z13::gui::PanelArgument> arguments = {}) {
@@ -54,6 +56,13 @@ PanelWidget Button(std::string label, std::string command, bool same_line) {
           .label = std::move(label),
           .same_line = same_line,
           .action = ActionOf(std::move(command))};
+}
+
+PanelWidget SliceButton(std::string label, std::int64_t step, bool same_line) {
+  PanelWidget button = Button(std::move(label), std::string(kSliceCommand), same_line);
+  button.id += step < 0 ? "_down" : "_up";
+  button.action.arguments["step"] = step;
+  return button;
 }
 
 std::string_view TargetName(EditorTarget target) {
@@ -165,6 +174,8 @@ z13::gui::Panel BuildEditorPanel(const z13::editor::EditorView& view) {
   panel.widgets.push_back(Button("Redo", "editor_redo", true));
   panel.widgets.push_back(Button("Pick aimed", "editor_pick", true));
   panel.widgets.push_back(Button(view.camera_on ? "Camera: on" : "Camera: off", "editor_camera", true));
+  panel.widgets.push_back(SliceButton("Deck down", -1, false));
+  panel.widgets.push_back(SliceButton("Deck up", 1, true));
   for (const std::string& problem : view.problems) {
     panel.widgets.push_back({.kind = PanelWidgetKind::kProblem, .id = problem, .label = problem});
   }

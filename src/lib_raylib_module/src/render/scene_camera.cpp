@@ -16,6 +16,8 @@
 
 #include "scene_camera.h"
 
+#include <string_view>
+
 #include <raymath.h>
 #include <rlgl.h>
 
@@ -27,6 +29,14 @@
 #include "../tools/math_convert.h"
 
 namespace z13::raylib {
+
+namespace {
+
+constexpr std::string_view kSliceUniform = "sliceHeight";
+// Above any station: the shader's default too, so a missing slice cuts nothing.
+constexpr float kNoSliceMeters = 1.0e9f;
+
+}  // namespace
 
 void EnsureRaylibCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& camera) {
   ::Camera3D cam{};
@@ -93,6 +103,15 @@ void BeginScene3D(const ::Camera3D& camera, const Eigen::Vector2i& size) {
 void EndScene3D() {
   rlDrawRenderBatchActive();
   rlDisableDepthTest();
+}
+
+void ApplySlice(const Lighting& lighting, const z13::editor::EditorCamera& editor) {
+  if (!lighting.res || !lighting.res->shader) {
+    return;
+  }
+  const float height = editor.active && editor.slice_cells ? *editor.slice_cells * z13::station::kCellSize : kNoSliceMeters;
+  SetShaderValue(*lighting.res->shader, GetShaderLocation(*lighting.res->shader, kSliceUniform.data()), &height,
+                 SHADER_UNIFORM_FLOAT);
 }
 
 }  // namespace z13::raylib

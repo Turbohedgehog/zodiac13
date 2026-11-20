@@ -44,6 +44,9 @@ void SyncRaylibCamera(RaylibCamera& raylib_camera, const gameplay::Camera& camer
 void ApplyEditorCamera(RaylibCamera& raylib_camera, z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning,
                        const WindowSize& window);
 
+// The lighting shader drops what lies above the editor camera's slice (none while the camera is off).
+void ApplySlice(const Lighting& lighting, const z13::editor::EditorCamera& editor);
+
 // Only the local player's camera renders; other players' Cameras arrive with snapshots.
 void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&);
 
