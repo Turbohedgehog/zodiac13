@@ -108,10 +108,10 @@ void OnMouseDown(const z13::input::MouseButtonDownEvent& event, EditorCamera& st
       state.orbit_held = true;
       break;
     case Keycode::MOUSE_WHEEL_UP:
-      state.orbit = camera::Zoomed(state.orbit, 1.f / tuning.zoom_per_notch, LimitsOf(tuning));
+      state.orbit = camera::Zoomed(state.orbit, camera::NotchFactor(tuning.zoom_per_notch, true), LimitsOf(tuning));
       break;
     case Keycode::MOUSE_WHEEL_DOWN:
-      state.orbit = camera::Zoomed(state.orbit, tuning.zoom_per_notch, LimitsOf(tuning));
+      state.orbit = camera::Zoomed(state.orbit, camera::NotchFactor(tuning.zoom_per_notch, false), LimitsOf(tuning));
       break;
     default:
       break;
