@@ -34,6 +34,7 @@
 #include <lib_core/world/lifecycle.h>
 
 #include <z13/components/gameplay/status.h>
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/player.h>
 #include <z13/components/gameplay/player_parts.h>
@@ -95,7 +96,8 @@ void ApplyMoveActionListener(
     Eigen::Matrix4f& transform,
     z13::gameplay::PlayerMotion* motion,
     const z13::gravity::Gravity* gravity,
-    const z13::PhysicsTuning& tuning) {
+    const z13::PhysicsTuning& tuning,
+    const z13::editor::EditorCamera* editor_camera) {
   auto delta_time = e.world().delta_time();
   const auto& action_values = action_listener.action_values;
 
@@ -110,9 +112,11 @@ void ApplyMoveActionListener(
   }
   auto& look = e.ensure<LookAngles>();
 
-  const auto value_of = [&action_listener](z13::input::ActionId action_id) {
+  // The editor's camera takes the keys and the mouse: the player stands still meanwhile.
+  const bool editing = editor_camera != nullptr && editor_camera->active;
+  const auto value_of = [&action_listener, editing](z13::input::ActionId action_id) {
     const std::optional<z13::input::ActionValueHolder> value = action_listener.Value(action_id);
-    return value ? value->current_value : 0.f;
+    return value && !editing ? value->current_value : 0.f;
   };
 
   z13::gameplay::CameraMoveAxes axes {
@@ -588,7 +592,7 @@ void RegisterSystems(flecs::world world) {
       .each(CalculateInputValues);
 
   world.system<z13::input::ActionListener, MoveActionIds, Eigen::Matrix4f, z13::gameplay::PlayerMotion*,
-               const z13::gravity::Gravity*, const z13::PhysicsTuning>(
+               const z13::gravity::Gravity*, const z13::PhysicsTuning, const z13::editor::EditorCamera*>(
       "gameplay_input_system::ApplyMoveActionListener")
       .kind<z13::input::ApplyActionFramePhase>()
       .read<z13::station::StationMode>()

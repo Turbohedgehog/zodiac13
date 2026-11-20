@@ -164,6 +164,7 @@ z13::gui::Panel BuildEditorPanel(const z13::editor::EditorView& view) {
   panel.widgets.push_back(Button("Undo", "editor_undo", false));
   panel.widgets.push_back(Button("Redo", "editor_redo", true));
   panel.widgets.push_back(Button("Pick aimed", "editor_pick", true));
+  panel.widgets.push_back(Button(view.camera_on ? "Camera: on" : "Camera: off", "editor_camera", true));
   for (const std::string& problem : view.problems) {
     panel.widgets.push_back({.kind = PanelWidgetKind::kProblem, .id = problem, .label = problem});
   }

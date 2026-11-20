@@ -77,6 +77,7 @@ set(
   src/lib_z13/networks/networks_test.cpp
   src/lib_z13/editor_camera/orbit_camera_test.cpp
   src/lib_z13/station_graph/graph_diagnosis_test.cpp
+  src/lib_z13/station_graph/graph_drag_test.cpp
   src/lib_z13/station_graph/graph_editor_test.cpp
   src/lib_z13/station_graph/graph_geometry_test.cpp
   src/lib_z13/station_graph/graph_json_test.cpp
@@ -142,6 +143,7 @@ set(
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_camera_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_display_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_drag_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_panel_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_selection_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/station_editor_command_test.cpp

@@ -39,8 +39,10 @@ void EnsureRaylibCamera(flecs::entity e, const RaylibData&, const gameplay::Came
 
 void SyncRaylibCamera(RaylibCamera& raylib_camera, const gameplay::Camera& camera, const Eigen::Matrix4f& transform);
 
-// While the editor's orbit camera is on, it looks from its own eye (cells to meters) with the tuned field of view.
-void ApplyEditorCamera(RaylibCamera& raylib_camera, const z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning);
+// While the editor's orbit camera is on, it looks from its own eye (cells to meters) with the tuned field of view;
+// it also learns the window's size, which turns a pixel into a ray.
+void ApplyEditorCamera(RaylibCamera& raylib_camera, z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning,
+                       const WindowSize& window);
 
 // Only the local player's camera renders; other players' Cameras arrive with snapshots.
 void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&);

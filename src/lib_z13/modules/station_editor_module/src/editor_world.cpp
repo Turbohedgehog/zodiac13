@@ -23,12 +23,29 @@
 
 namespace z13::station_editor {
 
+namespace {
+
+constexpr float kNdcSpan = 2.f;  // the screen runs from -1 to 1 along each axis
+
+}  // namespace
+
 std::expected<std::reference_wrapper<z13::editor::graph::GraphEditor>, std::string> LoadedEditor(flecs::world world) {
   auto& loaded = world.get_mut<EditorGraph>().editor;
   if (!loaded) {
     return std::unexpected(std::string(kNoGraph));
   }
   return std::ref(*loaded);
+}
+
+std::optional<z13::editor::camera::Ray> PixelRay(const z13::editor::EditorCamera& view,
+                                                 const z13::EditorCameraTuning& tuning, const Eigen::Vector2f& pixel) {
+  if (!view.active || !(view.screen_pixels.minCoeff() > 0.f)) {
+    return std::nullopt;
+  }
+  const Eigen::Vector2f ndc(kNdcSpan * pixel.x() / view.screen_pixels.x() - 1.f,
+                            1.f - kNdcSpan * pixel.y() / view.screen_pixels.y());
+  return z13::editor::camera::RayThrough(view.orbit, ndc, tuning.fov_degrees,
+                                         view.screen_pixels.x() / view.screen_pixels.y());
 }
 
 std::optional<Eigen::Matrix4f> LocalPlayerPose(flecs::world world) {

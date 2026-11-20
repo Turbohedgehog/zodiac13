@@ -84,7 +84,9 @@ void Toggle(flecs::world world, ReplyOf<EditorCameraCommand>& reply) {
   auto& state = world.get_mut<EditorCamera>();
   const auto& tuning = world.get<z13::EditorCameraTuning>();
   const bool on = !state.active;
-  state = EditorCamera {.active = on, .orbit = on ? Framing(world, state.orbit, tuning) : state.orbit};
+  state = EditorCamera {.active = on,
+                        .orbit = on ? Framing(world, state.orbit, tuning) : state.orbit,
+                        .screen_pixels = state.screen_pixels};
   if (on) {
     world.add<z13::gameplay::FreeCursor>();
   } else {
@@ -106,10 +108,10 @@ void OnMouseDown(const z13::input::MouseButtonDownEvent& event, EditorCamera& st
       state.orbit_held = true;
       break;
     case Keycode::MOUSE_WHEEL_UP:
-      state.orbit = camera::Zoomed(state.orbit, 1.f / tuning.zoom_per_notch, LimitsOf(tuning));
+      state.orbit = camera::Zoomed(state.orbit, camera::NotchFactor(tuning.zoom_per_notch, true), LimitsOf(tuning));
       break;
     case Keycode::MOUSE_WHEEL_DOWN:
-      state.orbit = camera::Zoomed(state.orbit, tuning.zoom_per_notch, LimitsOf(tuning));
+      state.orbit = camera::Zoomed(state.orbit, camera::NotchFactor(tuning.zoom_per_notch, false), LimitsOf(tuning));
       break;
     default:
       break;

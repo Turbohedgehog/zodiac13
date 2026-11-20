@@ -43,6 +43,8 @@ struct EditorCamera {
 
   bool active {};
   OrbitCamera orbit;
+  // The window's size in pixels, written by the renderer; zero before it draws.
+  Eigen::Vector2f screen_pixels = Eigen::Vector2f::Zero();
   bool pan_held {};
   bool orbit_held {};
   std::vector<EditorFinger> fingers;
