@@ -74,7 +74,6 @@ struct EditorView {
 
   bool open {};
   bool loaded {};
-  // Whether the orbit camera is on, for the window's button.
   bool camera_on {};
   // Kept while the window is closed too: the overlay highlights it.
   std::optional<EditorSelection> selected;
