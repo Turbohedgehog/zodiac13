@@ -1,5 +1,6 @@
 """The station graph pipeline of the editor (docs/station-editor-plan.md): a graph of rooms and openings, with
-properties checked against assets/station/graph/properties.json, to the blocks and walls of a blueprint.
+properties checked against the schema in
+src/lib_z13/station_graph/fbs/station_properties.fbs, to the blocks and walls of a blueprint.
 
 Prototype stage (`f/station-editor-prototype`): rooms are boxes in cells that include their own wall ring, and two
 rooms that meet share one wall cell line (their boxes overlap by exactly one cell). Each room draws its own closed loop
@@ -11,6 +12,7 @@ Usage: python station_graph.py graph.json blueprint.json
 
 import json
 import pathlib
+import re
 import sys
 
 from station_blueprint import (
@@ -18,8 +20,8 @@ from station_blueprint import (
     wall_opening, wall_segment, write_blueprint,
 )
 
-GRAPH_DIR = pathlib.Path(__file__).resolve().parent.parent.parent / "assets" / "station" / "graph"
-PROPERTIES_PATH = GRAPH_DIR / "properties.json"
+PROPERTIES_PATH = (pathlib.Path(__file__).resolve().parent.parent.parent / "src" / "lib_z13" / "station_graph" / "fbs"
+                   / "station_properties.fbs")
 GRAPH_VERSION = 1
 MIN_ROOM_CELLS = 5  # two walls, and a free cell between them to stand in
 SLAB_CELLS = 1
@@ -38,8 +40,35 @@ class GraphError(Exception):
         self.errors = list(errors)
 
 
+_ENUM = re.compile(r"enum\s+(\w+)\s*:\s*\w+\s*\{([^}]*)\}")
+_TABLE = re.compile(r"table\s+(\w+)\s*\{([^}]*)\}")
+_FIELD = re.compile(r"(\w+)\s*:\s*(\w+)\s*(?:=\s*(\w+))?\s*(?:\(([^)]*)\))?\s*;")
+_ATTRIBUTE = re.compile(r'(\w+)\s*(?::\s*("[^"]*"|-?\w+))?')
+
+
+def _spec(field, enums):
+    name, type_name, default, attributes = field
+    attrs = {key: value.strip('"') if value else "" for key, value in _ATTRIBUTE.findall(attributes or "")}
+    spec = {"title": attrs.get("title", name)}
+    if "unit" in attrs:
+        spec["unit"] = attrs["unit"]
+    if type_name == "bool":
+        spec.update(type="bool", default=(default or "false") == "true")
+    elif type_name in enums:
+        spec.update(type="enum", values=enums[type_name], default=default or enums[type_name][0])
+    else:
+        spec.update(type="int", min=int(attrs["min"]), max=int(attrs["max"]), default=int(default or 0))
+    return name, spec
+
+
 def load_properties(path=PROPERTIES_PATH):
-    return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    """{"node": {name: spec}, "edge": {...}} read from the FlatBuffers schema the game reads too: a bool, an enum or
+    an int with min and max, its default, `title` and `unit`."""
+    text = re.sub(r"//[^\n]*", "", pathlib.Path(path).read_text(encoding="utf-8"))
+    enums = {name: [value.strip() for value in body.split(",") if value.strip()] for name, body in _ENUM.findall(text)}
+    tables = {name: dict(_spec(field, enums) for field in _FIELD.findall(body)) for name, body in _TABLE.findall(text)
+              if name in ("NodeProperties", "EdgeProperties")}
+    return {"node": tables["NodeProperties"], "edge": tables["EdgeProperties"]}
 
 
 def _check_value(owner, name, spec, value, errors):

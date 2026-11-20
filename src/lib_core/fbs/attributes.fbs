@@ -19,6 +19,8 @@ attribute "min";
 attribute "max";
 attribute "cli";
 attribute "non_empty";
+attribute "title";
+attribute "unit";
 // A platform's own default (default_<platform>: "0"), applied when settings are first made
 // (lib_core/settings/schema_attributes.h); a new platform declares its attribute here.
 attribute "default_android";

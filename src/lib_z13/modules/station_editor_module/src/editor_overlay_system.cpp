@@ -59,7 +59,7 @@ struct KindColor {
   z13::Rgba color;
 };
 
-// The schema's enumerators of an edge's kind (assets/station/graph/properties.json).
+// The schema's enumerators of an edge's kind (fbs/station_properties.fbs).
 constexpr std::array kKindColors {KindColor {"Door", kDoorColor}, KindColor {"Window", kWindowColor},
                                   KindColor {"Passage", kPassageColor}};
 

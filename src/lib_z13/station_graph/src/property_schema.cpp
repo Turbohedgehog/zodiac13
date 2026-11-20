@@ -19,93 +19,155 @@
 #include <algorithm>
 #include <charconv>
 #include <format>
+#include <numeric>
 #include <optional>
+#include <ranges>
 #include <system_error>
+#include <utility>
 
-#include <rfl.hpp>
-#include <rfl/json.hpp>
+#include <flatbuffers/reflection.h>
+
+#include <lib_core/settings/schema_attributes.h>
+#include <station_properties_generated.h>
 
 namespace z13::editor::graph {
 
 namespace {
 
-constexpr std::string_view kIntType = "int";
-constexpr std::string_view kBoolType = "bool";
-constexpr std::string_view kEnumType = "enum";
+constexpr std::string_view kNodeTable = "node";
+constexpr std::string_view kEdgeTable = "edge";
+constexpr std::string_view kTitleAttribute = "title";
+constexpr std::string_view kUnitAttribute = "unit";
+constexpr std::string_view kListSeparator = ", ";
 
-// The file's shape; "default" is a keyword, so it is renamed.
-struct PropertySpecJson {
-  std::string type;
-  std::string title;
-  std::optional<std::string> unit;
-  std::optional<int> min;
-  std::optional<int> max;
-  std::optional<std::vector<std::string>> values;
-  rfl::Rename<"default", PropertyValue> default_value;
-};
+std::string JoinedValues(const std::vector<std::string>& values) {
+  return values.empty() ? std::string {}
+                        : std::accumulate(std::next(values.begin()), values.end(), values.front(),
+                                          [](std::string joined, const std::string& value) {
+                                            return std::move(joined) + std::string(kListSeparator) + value;
+                                          });
+}
 
-struct SchemaJson {
-  int version {};
-  std::map<std::string, PropertySpecJson> node;
-  std::map<std::string, PropertySpecJson> edge;
-};
+std::optional<int> IntegerAttribute(const reflection::Field& field, std::string_view key) {
+  const auto text = z13::schema::FieldAttribute(field, key);
+  if (!text) {
+    return std::nullopt;
+  }
+  int number {};
+  const auto [end, error] = std::from_chars(text->data(), text->data() + text->size(), number);
+  if (error != std::errc {} || end != text->data() + text->size()) {
+    return std::nullopt;
+  }
+  return number;
+}
 
-std::expected<PropertySpec, std::string> SpecOf(const PropertySpecJson& json) {
-  PropertySpec spec {.title = json.title,
-                     .unit = json.unit.value_or(""),
-                     .min = json.min.value_or(0),
-                     .max = json.max.value_or(0),
-                     .values = json.values.value_or(std::vector<std::string> {}),
-                     .default_value = json.default_value.value()};
-  if (json.type == kIntType) {
-    spec.kind = PropertyKind::kInt;
-  } else if (json.type == kBoolType) {
-    spec.kind = PropertyKind::kBool;
-  } else if (json.type == kEnumType) {
-    spec.kind = PropertyKind::kEnum;
+bool IsInteger(reflection::BaseType type) {
+  switch (type) {
+    case reflection::Byte:
+      [[fallthrough]];
+    case reflection::UByte:
+      [[fallthrough]];
+    case reflection::Short:
+      [[fallthrough]];
+    case reflection::UShort:
+      [[fallthrough]];
+    case reflection::Int:
+      [[fallthrough]];
+    case reflection::UInt:
+      return true;
+    default:
+      return false;
+  }
+}
+
+std::expected<PropertySpec, std::string> EnumSpecOf(const reflection::Enum& type, int64_t default_value) {
+  PropertySpec spec {.kind = PropertyKind::kEnum};
+  for (const reflection::EnumVal* entry : *type.values()) {
+    spec.values.push_back(entry->name()->str());
+    if (entry->value() == default_value) {
+      spec.default_value = entry->name()->str();
+    }
+  }
+  if (!std::holds_alternative<std::string>(spec.default_value)) {
+    return std::unexpected("the default is not one of the enum's values");
+  }
+  return spec;
+}
+
+std::expected<PropertySpec, std::string> SpecOf(const reflection::Schema& schema, const reflection::Field& field) {
+  const reflection::Type& type = *field.type();
+  PropertySpec spec;
+  if (IsInteger(type.base_type()) && type.index() >= 0) {
+    auto named = EnumSpecOf(*schema.enums()->Get(type.index()), field.default_integer());
+    if (!named) {
+      return named;
+    }
+    spec = std::move(*named);
+  } else if (type.base_type() == reflection::Bool) {
+    spec = {.kind = PropertyKind::kBool, .default_value = field.default_integer() != 0};
+  } else if (IsInteger(type.base_type())) {
+    const auto min = IntegerAttribute(field, z13::schema::kMinAttribute);
+    const auto max = IntegerAttribute(field, z13::schema::kMaxAttribute);
+    if (!min || !max || *min > *max) {
+      return std::unexpected("an int needs min and max, min not above max");
+    }
+    spec = {.kind = PropertyKind::kInt,
+            .min = *min,
+            .max = *max,
+            .default_value = static_cast<int>(field.default_integer())};
   } else {
-    return std::unexpected(std::format("unknown type '{}'", json.type));
+    return std::unexpected("only an int, a bool or an enum is a property");
   }
-  if (spec.kind == PropertyKind::kInt && (!json.min || !json.max || *json.min > *json.max)) {
-    return std::unexpected("an int needs min and max, min not above max");
-  }
-  if (spec.kind == PropertyKind::kEnum && spec.values.empty()) {
-    return std::unexpected("an enum needs values");
-  }
+  spec.title = std::string(z13::schema::FieldAttribute(field, kTitleAttribute).value_or(field.name()->string_view()));
+  spec.unit = std::string(z13::schema::FieldAttribute(field, kUnitAttribute).value_or(""));
   if (const z13::Status valid = CheckProperty(spec, spec.default_value); !valid) {
     return std::unexpected(std::format("the default: {}", valid.error()));
   }
   return spec;
 }
 
-std::expected<PropertySpecs, std::string> SpecsOf(const std::map<std::string, PropertySpecJson>& json,
+std::expected<PropertySpecs, std::string> SpecsOf(const reflection::Schema& schema, const reflection::Object& table,
                                                   std::string_view owner) {
   PropertySpecs specs;
-  for (const auto& [name, spec_json] : json) {
-    auto spec = SpecOf(spec_json);
+  for (const reflection::Field* field : *table.fields()) {
+    auto spec = SpecOf(schema, *field);
     if (!spec) {
-      return std::unexpected(std::format("{} property '{}': {}", owner, name, spec.error()));
+      return std::unexpected(std::format("{} property '{}': {}", owner, field->name()->string_view(), spec.error()));
     }
-    specs.emplace(name, std::move(*spec));
+    specs.emplace(field->name()->str(), std::move(*spec));
   }
   return specs;
 }
 
+std::expected<const reflection::Object*, std::string> TableOf(const reflection::Schema& schema, std::string_view name) {
+  const reflection::Object* root = schema.root_table();
+  const reflection::Field* field = root != nullptr ? root->fields()->LookupByKey(std::string(name).c_str()) : nullptr;
+  if (field == nullptr || field->type()->base_type() != reflection::Obj) {
+    return std::unexpected(std::format("the schema has no table '{}' in its root", name));
+  }
+  return schema.objects()->Get(field->type()->index());
+}
+
 }  // namespace
 
-std::expected<PropertySchema, std::string> ParsePropertySchema(std::string_view json) {
-  const auto parsed = rfl::json::read<SchemaJson>(std::string(json));
-  if (!parsed) {
-    return std::unexpected(std::format("property schema: {}", parsed.error().what()));
+std::expected<PropertySchema, std::string> StationPropertySchema() {
+  return PropertySchemaOf(*reflection::GetSchema(z13::fbs::station_properties::StationPropertiesBinarySchema::data()));
+}
+
+std::expected<PropertySchema, std::string> PropertySchemaOf(const reflection::Schema& schema) {
+  const auto node_table = TableOf(schema, kNodeTable);
+  if (!node_table) {
+    return std::unexpected(node_table.error());
   }
-  if (parsed->version != kGraphVersion) {
-    return std::unexpected(std::format("property schema version {}, expected {}", parsed->version, kGraphVersion));
+  const auto edge_table = TableOf(schema, kEdgeTable);
+  if (!edge_table) {
+    return std::unexpected(edge_table.error());
   }
-  auto node = SpecsOf(parsed->node, "node");
+  auto node = SpecsOf(schema, **node_table, kNodeTable);
   if (!node) {
     return std::unexpected(node.error());
   }
-  auto edge = SpecsOf(parsed->edge, "edge");
+  auto edge = SpecsOf(schema, **edge_table, kEdgeTable);
   if (!edge) {
     return std::unexpected(edge.error());
   }
@@ -160,7 +222,7 @@ z13::Status CheckProperty(const PropertySpec& spec, const PropertyValue& value) 
     case PropertyKind::kEnum: {
       const std::string* text = std::get_if<std::string>(&value);
       if (text == nullptr || std::ranges::find(spec.values, *text) == spec.values.end()) {
-        return std::unexpected(std::format("must be one of {}", rfl::json::write(spec.values)));
+        return std::unexpected(std::format("must be one of {}", JoinedValues(spec.values)));
       }
       return {};
     }
