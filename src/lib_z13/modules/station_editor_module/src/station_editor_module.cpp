@@ -23,6 +23,7 @@
 
 #include "editor_camera_system.h"
 #include "editor_commands.h"
+#include "editor_drag_system.h"
 #include "editor_graph.h"
 #include "editor_overlay_system.h"
 #include "editor_selection_commands.h"
@@ -43,6 +44,7 @@ StationEditorModule::StationEditorModule(flecs::world& world) {
     RegisterEditorSelectionSystems(w);
   });
   EditorCameraSystem::Register(world);
+  EditorDragSystem::Register(world);
   EditorOverlaySystem::Register(world);
   EditorViewSystem::Register(world);
   SceneReloadSystem::Register(world);

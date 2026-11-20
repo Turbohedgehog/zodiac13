@@ -98,6 +98,17 @@ TEST(OrbitCameraTest, AFieldOfViewWithNoTangentFramesFromTheFarthestDistance) {
   EXPECT_TRUE(std::isfinite(Framed(EastOfTheTarget(), Eigen::Vector3f::Zero(), extent, 180.f, kLimits).distance));
 }
 
+TEST(OrbitCameraTest, ARayMeetsTheFloorWhereItGoesDownToItAndNowhereElse) {
+  const Ray down {.origin = Eigen::Vector3f(1.f, 2.f, 10.f), .direction = Eigen::Vector3f(0.f, 0.f, -1.f)};
+  const Ray level {.origin = Eigen::Vector3f(1.f, 2.f, 10.f), .direction = Eigen::Vector3f::UnitX()};
+  const Ray up {.origin = Eigen::Vector3f(1.f, 2.f, 10.f), .direction = Eigen::Vector3f::UnitZ()};
+
+  ASSERT_TRUE(GroundHit(down, 4.f));
+  EXPECT_TRUE(GroundHit(down, 4.f)->isApprox(Eigen::Vector3f(1.f, 2.f, 4.f), kTolerance));
+  EXPECT_FALSE(GroundHit(level, 4.f));
+  EXPECT_FALSE(GroundHit(up, 4.f));
+}
+
 TEST(OrbitCameraTest, FramingLooksAtTheMiddleOfTheBoxFromFarEnoughToSeeIt) {
   const Eigen::Vector3f min(10.f, 20.f, 0.f);
   const Eigen::Vector3f extent(40.f, 24.f, 12.f);

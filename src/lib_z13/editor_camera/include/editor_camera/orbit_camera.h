@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <Eigen/Dense>
 
 #include <z13/components/editor/editor_camera.h>
@@ -65,6 +67,9 @@ OrbitCamera Framed(const OrbitCamera& camera, const Eigen::Vector3f& min, const 
 
 // `ndc` is the point on the screen, x to the right and y up, each from -1 to 1.
 Ray RayThrough(const OrbitCamera& camera, const Eigen::Vector2f& ndc, float fov_degrees, float aspect);
+
+// Where the ray meets the horizontal plane at height `z`; none for a ray that runs level or away from it.
+std::optional<Eigen::Vector3f> GroundHit(const Ray& ray, float z);
 
 Gesture TwoFingerGesture(const Eigen::Vector2f& first_before, const Eigen::Vector2f& second_before,
                          const Eigen::Vector2f& first_after, const Eigen::Vector2f& second_after);

@@ -50,7 +50,6 @@ constexpr std::string_view kNothingAimedAt = "nothing is aimed at";
 constexpr std::string_view kNoPlayer = "the local player is not in the world";
 constexpr std::string_view kCameraOff = "the orbit camera is off (editor_camera) or has not drawn yet";
 constexpr std::string_view kPickAtName = "editor_pick_at";
-constexpr float kNdcSpan = 2.f;  // the screen runs from -1 to 1 along each axis
 // The player's forward axis in its pose (the building module aims along the same column).
 constexpr int kForwardColumn = 0;
 
@@ -145,18 +144,13 @@ void PickAtPixel(flecs::world world, const EditorPickAtCommand& request, ReplyOf
     reply.Fail(editor.error());
     return;
   }
-  const auto& view = world.get<z13::editor::EditorCamera>();
-  if (!view.active || !(view.screen_pixels.minCoeff() > 0.f)) {
+  const auto ray = PixelRay(world.get<z13::editor::EditorCamera>(), world.get<z13::EditorCameraTuning>(),
+                            Eigen::Vector2f(static_cast<float>(request.x), static_cast<float>(request.y)));
+  if (!ray) {
     reply.Fail(std::string(kCameraOff));
     return;
   }
-  const Eigen::Vector2f pixel(static_cast<float>(request.x), static_cast<float>(request.y));
-  const Eigen::Vector2f ndc(kNdcSpan * pixel.x() / view.screen_pixels.x() - 1.f,
-                            1.f - kNdcSpan * pixel.y() / view.screen_pixels.y());
-  const auto& tuning = world.get<z13::EditorCameraTuning>();
-  const auto ray = z13::editor::camera::RayThrough(view.orbit, ndc, tuning.fov_degrees,
-                                                  view.screen_pixels.x() / view.screen_pixels.y());
-  PickAlongRay(world, editor->get(), ray.origin, ray.direction, reply);
+  PickAlongRay(world, editor->get(), ray->origin, ray->direction, reply);
 }
 
 // A left click while the camera is on picks what is under it; a miss leaves the selection as it was.

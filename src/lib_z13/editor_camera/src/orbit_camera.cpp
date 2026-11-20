@@ -30,6 +30,8 @@ constexpr float kPitchLimitDegrees = 89.f;
 constexpr float kMinFingerGapPixels = 1.f;
 // Under this the tangent of half the field of view is no usable divisor: the view is taken as unframeable.
 constexpr float kMinHalfFovTangent = 1e-3f;
+// A ray whose height changes by less than this per unit of its length is level: no usable divisor.
+constexpr float kLevelSlope = 1e-4f;
 // A fifth of the view around what is framed.
 constexpr float kFrameMargin = 1.2f;
 constexpr float kHalf = 0.5f;
@@ -130,6 +132,18 @@ Ray RayThrough(const OrbitCamera& camera, const Eigen::Vector2f& ndc, float fov_
   const float half_height = std::tan(ToRadians(fov_degrees) * kHalf);
   const Eigen::Vector3f through = forward + right * (ndc.x() * half_height * aspect) + up * (ndc.y() * half_height);
   return {.origin = eye, .direction = through.normalized()};
+}
+
+std::optional<Eigen::Vector3f> GroundHit(const Ray& ray, float z) {
+  const float rise = ray.direction.z();
+  if (!(std::abs(rise) > kLevelSlope)) {
+    return std::nullopt;
+  }
+  const float along = (z - ray.origin.z()) / rise;
+  if (!(along >= 0.f)) {
+    return std::nullopt;
+  }
+  return ray.origin + ray.direction * along;
 }
 
 Gesture TwoFingerGesture(const Eigen::Vector2f& first_before, const Eigen::Vector2f& second_before,
