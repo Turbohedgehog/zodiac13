@@ -17,6 +17,9 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <vector>
+
+#include <settings_generated.h>
 
 #include <station_graph/property_schema.h>
 #include <z13_tests/shipped_station.h>
@@ -29,6 +32,8 @@ constexpr std::string_view kKind = "kind";
 constexpr int kDefaultHeight = 14;
 constexpr int kAboveMaxHeight = 41;
 constexpr int kBelowMinHeight = 11;
+constexpr int kMinHeight = 12;
+constexpr int kMaxHeight = 40;
 
 PropertySchema Shipped() {
   const auto schema = z13::testing::ShippedPropertySchema();
@@ -87,14 +92,21 @@ TEST(PropertySchemaTest, UnknownNamesAreErrorsAndDefaultsFillTheRest) {
   EXPECT_EQ(std::get<int>(values.at(std::string(kHeight))), 20);
 }
 
-TEST(PropertySchemaTest, ASchemaWithABadDefaultOrTypeIsRefused) {
-  constexpr std::string_view kBadDefault =
-      R"({"version": 1, "node": {"n": {"type": "int", "title": "N", "min": 1, "max": 3, "default": 9}}, "edge": {}})";
-  constexpr std::string_view kBadType = R"({"version": 1, "node": {"n": {"type": "float", "title": "N", "default": 1}}, "edge": {}})";
+TEST(PropertySchemaTest, TheCaptionsUnitsAndEnumNamesComeFromTheSchema) {
+  const PropertySchema schema = Shipped();
 
-  EXPECT_FALSE(ParsePropertySchema(kBadDefault));
-  EXPECT_FALSE(ParsePropertySchema(kBadType));
-  EXPECT_FALSE(ParsePropertySchema("not json"));
+  const PropertySpec& height = schema.node.at(std::string(kHeight));
+  EXPECT_EQ(height.title, "Room height");
+  EXPECT_EQ(height.unit, "cells");
+  EXPECT_EQ(height.min, kMinHeight);
+  EXPECT_EQ(height.max, kMaxHeight);
+  EXPECT_EQ(schema.edge.at(std::string(kKind)).values, (std::vector<std::string> {"Door", "Passage", "Window"}));
+  EXPECT_EQ(std::get<std::string>(schema.edge.at(std::string(kKind)).default_value), "Door");
+  EXPECT_FALSE(std::get<bool>(schema.node.at("spawn").default_value));
+}
+
+TEST(PropertySchemaTest, ASchemaWithoutTheTablesIsRefused) {
+  EXPECT_FALSE(PropertySchemaOf(*reflection::GetSchema(z13::fbs::settings::SettingsBinarySchema::data())));
 }
 
 }  // namespace

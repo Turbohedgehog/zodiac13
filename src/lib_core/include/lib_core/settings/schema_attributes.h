@@ -30,6 +30,7 @@
 // Field attributes (fbs/attributes.fbs) read from a binary schema, so any table is checked and
 // overridden the same way:
 //   (min: 1, max: 1000)  inclusive bounds of a scalar field, checked by ValidateRanges;
+//   (title: "Room height", unit: "cells") the field's caption and unit for a window, read by FieldAttribute;
 //   (non_empty)          a string field that must hold some text, checked by ValidateRanges;
 //   (cli)                a command-line option named after the field (max_late_ticks -> --max-late-ticks);
 //   (cli: "-f,--fps")    explicit names, like argparse: one long form and an optional one-letter short form;
@@ -45,6 +46,9 @@ inline constexpr std::string_view kBoolTrueText = "true";
 inline constexpr std::string_view kBoolFalseText = "false";
 inline constexpr std::string_view kNonEmptyAttribute = "non_empty";
 inline constexpr std::string_view kPlatformDefaultPrefix = "default_";
+
+// The attribute's text, if the field has it; one written without a value reads "0".
+std::optional<std::string_view> FieldAttribute(const reflection::Field& field, std::string_view key);
 
 Status ValidateRanges(
     const reflection::Schema& schema, const reflection::Object& object, const flatbuffers::Table& table);

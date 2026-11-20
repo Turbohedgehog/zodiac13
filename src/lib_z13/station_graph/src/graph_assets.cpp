@@ -20,10 +20,6 @@
 
 namespace z13::editor::graph {
 
-std::filesystem::path PropertiesFile() {
-  return std::filesystem::path(kStationDir) / kGraphDir / kPropertiesFileName;
-}
-
 std::filesystem::path GraphFile(std::string_view name) {
   return std::filesystem::path(kStationDir) / kGraphDir / std::format("{}{}", name, kGraphExtension);
 }
