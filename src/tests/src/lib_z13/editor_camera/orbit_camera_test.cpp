@@ -16,6 +16,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <limits>
+
 #include <editor_camera/orbit_camera.h>
 #include <lib_core/utils/math.h>
 
@@ -77,6 +80,22 @@ TEST(OrbitCameraTest, ZoomingStaysBetweenTheLimits) {
   EXPECT_NEAR(Zoomed(EastOfTheTarget(), 0.5f, kLimits).distance, kDistance * 0.5f, kTolerance);
   EXPECT_FLOAT_EQ(Zoomed(EastOfTheTarget(), 1e-3f, kLimits).distance, kLimits.min);
   EXPECT_FLOAT_EQ(Zoomed(EastOfTheTarget(), 1e3f, kLimits).distance, kLimits.max);
+}
+
+TEST(OrbitCameraTest, ANotchThatDividesByZeroOrNothingLeavesTheDistanceAlone) {
+  EXPECT_FLOAT_EQ(NotchFactor(0.f, true), 1.f);
+  EXPECT_FLOAT_EQ(NotchFactor(-2.f, false), 1.f);
+  EXPECT_FLOAT_EQ(NotchFactor(2.f, true), 0.5f);
+  EXPECT_FLOAT_EQ(NotchFactor(2.f, false), 2.f);
+  EXPECT_FLOAT_EQ(Zoomed(EastOfTheTarget(), 0.f, kLimits).distance, kDistance);
+  EXPECT_FLOAT_EQ(Zoomed(EastOfTheTarget(), std::numeric_limits<float>::quiet_NaN(), kLimits).distance, kDistance);
+}
+
+TEST(OrbitCameraTest, AFieldOfViewWithNoTangentFramesFromTheFarthestDistance) {
+  const Eigen::Vector3f extent(40.f, 24.f, 12.f);
+
+  EXPECT_FLOAT_EQ(Framed(EastOfTheTarget(), Eigen::Vector3f::Zero(), extent, 0.f, kLimits).distance, kLimits.max);
+  EXPECT_TRUE(std::isfinite(Framed(EastOfTheTarget(), Eigen::Vector3f::Zero(), extent, 180.f, kLimits).distance));
 }
 
 TEST(OrbitCameraTest, FramingLooksAtTheMiddleOfTheBoxFromFarEnoughToSeeIt) {

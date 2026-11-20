@@ -104,6 +104,17 @@ TEST_F(EditorCameraTest, TheWheelZoomsAndOnlyWhileTheCameraIsOn) {
   EXPECT_NEAR(Camera(test_world_).orbit.distance, framed, framed * 1e-4f);
 }
 
+TEST_F(EditorCameraTest, AWheelNotchOfZeroZoomsNothing) {
+  SwitchOn();
+  test_world_.World().get_mut<z13::EditorCameraTuning>().zoom_per_notch = 0.f;
+  const float framed = Camera(test_world_).orbit.distance;
+
+  test_world_.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_WHEEL_UP));
+  test_world_.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_WHEEL_DOWN));
+
+  EXPECT_FLOAT_EQ(Camera(test_world_).orbit.distance, framed);
+}
+
 TEST_F(EditorCameraTest, TheRightButtonPansAndTheMiddleOneOrbits) {
   SwitchOn();
   const auto start = Camera(test_world_).orbit;

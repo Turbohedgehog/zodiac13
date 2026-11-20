@@ -50,11 +50,16 @@ OrbitCamera Orbited(const OrbitCamera& camera, const Eigen::Vector2f& drag_pixel
 // A drag grabs the ground: it moves under the pointer, along the floor whatever the pitch.
 OrbitCamera Panned(const OrbitCamera& camera, const Eigen::Vector2f& drag_pixels, float per_pixel);
 
+// A factor that is not above 0 leaves the camera where it is.
 OrbitCamera Zoomed(const OrbitCamera& camera, float factor, const DistanceLimits& limits);
+
+// The factor of one wheel notch: `per_notch` farther, its inverse nearer; 1, no zoom, when `per_notch` is not above 0.
+float NotchFactor(float per_notch, bool nearer);
 
 OrbitCamera Turned(const OrbitCamera& camera, float yaw_degrees);
 
-// Looks at the middle of the box (corner and extent, in cells) from far enough to see all of it.
+// Looks at the middle of the box (corner and extent, in cells) from far enough to see all of it; a field of view too
+// narrow to divide by gives the farthest distance.
 OrbitCamera Framed(const OrbitCamera& camera, const Eigen::Vector3f& min, const Eigen::Vector3f& extent,
                    float fov_degrees, const DistanceLimits& limits);
 
