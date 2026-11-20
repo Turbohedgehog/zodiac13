@@ -7,6 +7,7 @@ z13_add_plugin(
   ${PROJECT_NAME} modules/station_editor_module EXPORT_ALL_SYMBOLS
   PRECOMPILE "<flecs.h>" "<Eigen/Dense>"
   SOURCES
+  src/editor_camera_system.cpp
   src/editor_commands.cpp
   src/editor_overlay_system.cpp
   src/editor_panel.cpp
@@ -21,6 +22,8 @@ z13_add_plugin(
   PRIVATE
   zodiac13::core
   zodiac13::components
+  zodiac13::editor_camera
+  zodiac13::settings
   zodiac13::player
   zodiac13::station_graph
   Boost::dll

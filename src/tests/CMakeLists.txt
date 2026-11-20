@@ -75,6 +75,7 @@ set(
   src/lib_z13/primitives/placement_test.cpp
   src/lib_z13/primitives/station_viewpoints_test.cpp
   src/lib_z13/networks/networks_test.cpp
+  src/lib_z13/editor_camera/orbit_camera_test.cpp
   src/lib_z13/station_graph/graph_diagnosis_test.cpp
   src/lib_z13/station_graph/graph_editor_test.cpp
   src/lib_z13/station_graph/graph_geometry_test.cpp
@@ -139,6 +140,7 @@ set(
   ${MODULES_DIR}/conduit_render_module/tests/conduit_mesh_test.cpp
   ${MODULES_DIR}/door_render_module/tests/door_leaf_test.cpp
   ${MODULES_DIR}/mcp_module/tests/mcp_server_test.cpp
+  ${MODULES_DIR}/station_editor_module/tests/editor_camera_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_display_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_panel_test.cpp
   ${MODULES_DIR}/station_editor_module/tests/editor_selection_test.cpp
@@ -308,6 +310,7 @@ target_link_libraries(
   zodiac13::rooms
   zodiac13::networks
   zodiac13::station_graph
+  zodiac13::editor_camera
   zodiac13::power
   zodiac13::atmos
   zodiac13::touch

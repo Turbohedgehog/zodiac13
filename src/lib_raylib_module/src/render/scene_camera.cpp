@@ -20,7 +20,9 @@
 #include <rlgl.h>
 
 #include <lib_core/utils/log.h>
+#include <editor_camera/orbit_camera.h>
 #include <z13/components/input/action_listener.h>
+#include <z13/components/station/block_spec.h>
 
 #include "../tools/math_convert.h"
 
@@ -46,6 +48,19 @@ void SyncRaylibCamera(
     RaylibCamera& raylib_camera, const gameplay::Camera& camera, const Eigen::Matrix4f& transform) {
   raylib_camera.camera.fovy = camera.fov;
   UpdateCameraFromTransform(raylib_camera.camera, transform);
+}
+
+void ApplyEditorCamera(
+    RaylibCamera& raylib_camera, const z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning) {
+  if (!editor.active) {
+    return;
+  }
+  const Eigen::Vector3f eye = z13::editor::camera::EyeOf(editor.orbit) * z13::station::kCellSize;
+  const Eigen::Vector3f target = editor.orbit.target * z13::station::kCellSize;
+  raylib_camera.camera.position = {eye.x(), eye.y(), eye.z()};
+  raylib_camera.camera.target = {target.x(), target.y(), target.z()};
+  raylib_camera.camera.up = {0.f, 0.f, 1.f};
+  raylib_camera.camera.fovy = tuning.fov_degrees;
 }
 
 void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&) {

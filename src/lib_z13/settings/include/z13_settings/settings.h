@@ -91,6 +91,13 @@ struct TouchLayout : fbs::settings::TouchLayoutT {
   explicit TouchLayout(const fbs::settings::TouchLayoutT& values) : fbs::settings::TouchLayoutT(values) {}
 };
 
+struct EditorCameraTuning : fbs::settings::EditorCameraTuningT {
+  using Singleton = void;
+
+  EditorCameraTuning() : EditorCameraTuning(SchemaDefaults<fbs::settings::EditorCameraTuningT>()) {}
+  explicit EditorCameraTuning(const fbs::settings::EditorCameraTuningT& values) : fbs::settings::EditorCameraTuningT(values) {}
+};
+
 struct LanDiscoverySettings : fbs::settings::LanDiscoveryT {
   using Singleton = void;
 
@@ -156,7 +163,7 @@ Status AddSettingsOptions(Config& config);
 std::expected<Settings, std::string> ApplyCliOverrides(const Config& config, const Settings& base);
 
 // Sets the world's NetTuning, PhysicsTuning, BuildingTuning, PowerTuning, DoorTuning, AtmosTuning, ConnectTimeout, SessionTimeout, VisualSmoothing,
-// RenderTuning, TouchLayout, LanDiscoverySettings, McpServerSettings and CrewChoiceSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
+// RenderTuning, TouchLayout, EditorCameraTuning, LanDiscoverySettings, McpServerSettings and CrewChoiceSettings singletons; the core part goes through Config::SetCoreSettings before the world is created.
 void InstallSettings(flecs::world world, const Settings& settings);
 
 // The settings the world runs on, read back from its singletons (a table with no singleton keeps its defaults).

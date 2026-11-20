@@ -30,6 +30,7 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/input/action_listener.h>
 #include <z13/components/input/action_map.h>
@@ -311,14 +312,16 @@ void CancelPausedBrushDrag(z13::input::ActionListener& action_listener, const Bu
 }
 
 // The palette shows while its key is held with the brush out; the local player's input
-// alone decides, since the cursor is the local machine's.
-void SyncFreeCursor(flecs::entity e, const z13::input::ActionListener& action_listener, const BuildActionIds& ids) {
+// alone decides, since the cursor is the local machine's. The editor's camera keeps it free.
+void SyncFreeCursor(flecs::entity e, const z13::input::ActionListener& action_listener, const BuildActionIds& ids,
+                    const z13::editor::EditorCamera* editor_camera) {
   const auto value = ids.show_palette ? action_listener.Value(*ids.show_palette) : std::nullopt;
   const bool held = value && value->current_value >= kHeldActionValue && e.has<BuildingTool>();
+  const bool editing = editor_camera != nullptr && editor_camera->active;
   flecs::world world = e.world();
-  if (held && !world.has<z13::gameplay::FreeCursor>()) {
+  if ((held || editing) && !world.has<z13::gameplay::FreeCursor>()) {
     world.add<z13::gameplay::FreeCursor>();
-  } else if (!held && world.has<z13::gameplay::FreeCursor>()) {
+  } else if (!held && !editing && world.has<z13::gameplay::FreeCursor>()) {
     world.remove<z13::gameplay::FreeCursor>();
   }
 }
@@ -387,7 +390,8 @@ void RegisterSystems(flecs::world world) {
       .without<z13::flecs_tools::ReplayInProgress>()
       .each(SendPaletteChoice);
 
-  world.system<const z13::input::ActionListener, const BuildActionIds>("gameplay_input_system::SyncFreeCursor")
+  world.system<const z13::input::ActionListener, const BuildActionIds, const z13::editor::EditorCamera*>(
+           "gameplay_input_system::SyncFreeCursor")
       .kind<z13::input::CalculateActionFramePhase>()
       .with<z13::input::CurrentActionListenerTag>()
       .with<z13::station::StationMode>()

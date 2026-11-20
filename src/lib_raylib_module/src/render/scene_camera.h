@@ -21,8 +21,11 @@
 
 #include <Eigen/Dense>
 
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/gameplay/player_parts.h>
+
+#include <z13_settings/settings.h>
 
 #include <raylib_module/raylib_components.h>
 
@@ -35,6 +38,9 @@ namespace z13::raylib {
 void EnsureRaylibCamera(flecs::entity e, const RaylibData&, const gameplay::Camera& camera);
 
 void SyncRaylibCamera(RaylibCamera& raylib_camera, const gameplay::Camera& camera, const Eigen::Matrix4f& transform);
+
+// While the editor's orbit camera is on, it looks from its own eye (cells to meters) with the tuned field of view.
+void ApplyEditorCamera(RaylibCamera& raylib_camera, const z13::editor::EditorCamera& editor, const z13::EditorCameraTuning& tuning);
 
 // Only the local player's camera renders; other players' Cameras arrive with snapshots.
 void ReleaseOrphanRaylibCamera(flecs::entity e, const RaylibCamera&);

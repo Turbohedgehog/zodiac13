@@ -44,6 +44,7 @@
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/input/input_events.h>
 #include <z13/components/gameplay/net.h>
@@ -222,7 +223,7 @@ void RegisterSystems(flecs::world world) {
                z13::station::OverlayLayers*, z13::input::TouchControls*, const z13::TouchLayout*,
                const z13::net::ConnectionStatus*,
                gui::PendingTransition*, gui::ConsoleState, gui::PanelWindows, const z13::gui::GuiPanels,
-               const SdlPlatformData>("GuiSystem::Draw")
+               const z13::editor::EditorCamera*, const SdlPlatformData>("GuiSystem::Draw")
       .kind<PostRender>()
       .tick_source<RenderGate>()
       .each([](flecs::iter& it, size_t, gui::WindowStack& stack, const GuiState& state, gui::StatsOverlay& stats,
@@ -230,7 +231,7 @@ void RegisterSystems(flecs::world world) {
                z13::input::TouchControls* touch,
                const z13::TouchLayout* touch_layout, const z13::net::ConnectionStatus* connection,
                gui::PendingTransition* pending, gui::ConsoleState& console, gui::PanelWindows& panel_windows,
-               const z13::gui::GuiPanels& panels, const SdlPlatformData& platform_data) {
+               const z13::gui::GuiPanels& panels, const z13::editor::EditorCamera* editor_camera, const SdlPlatformData& platform_data) {
         flecs::world world = it.world();
         if (!state.imgui_ready) {
           return;
@@ -249,7 +250,9 @@ void RegisterSystems(flecs::world world) {
         if (!stack.windows.empty()) {
           ApplyStackRequest(world, stack, stack.windows.back()->Draw());
         } else if (world.has<gameplay::FreeCursor>()) {
-          gui::MakePaletteWindow(world)->Draw();
+          if (editor_camera == nullptr || !editor_camera->active) {
+            gui::MakePaletteWindow(world)->Draw();
+          }
         } else if (touch_layout != nullptr) {
           if (touch != nullptr) {
             gui::DrawTouchHud(*touch, *touch_layout, gui::LocalToolAction(world));
