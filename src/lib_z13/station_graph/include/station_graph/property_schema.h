@@ -23,6 +23,8 @@
 #include <string_view>
 #include <vector>
 
+#include <flatbuffers/reflection.h>
+
 #include <lib_core/utils/status.h>
 
 #include "station_graph/graph.h"
@@ -31,8 +33,8 @@ namespace z13::editor::graph {
 
 enum class PropertyKind : std::uint8_t { kInt, kBool, kEnum };
 
-// One property of a node or an edge, as assets/station/graph/properties.json describes it. The editor's window,
-// the checks and the list the assistant is given are built from these, so no property is named in code.
+// One property of a node or an edge, as fbs/station_properties.fbs declares it. The editor's window, the checks and
+// the list the assistant is given are built from these, so no property is named in code.
 struct PropertySpec {
   PropertyKind kind {};
   std::string title;
@@ -50,7 +52,12 @@ struct PropertySchema {
   PropertySpecs edge;
 };
 
-std::expected<PropertySchema, std::string> ParsePropertySchema(std::string_view json);
+// The properties as fbs/station_properties.fbs declares them: an int by its bounds, a bool, an enum by its names; the
+// captions and units are the fields' `title` and `unit` attributes.
+std::expected<PropertySchema, std::string> StationPropertySchema();
+
+// The same read from any binary schema whose root table holds the tables `node` and `edge`.
+std::expected<PropertySchema, std::string> PropertySchemaOf(const reflection::Schema& schema);
 
 // The value a command's text spells for the spec's kind ("true", "14", an enum's name), checked against the spec.
 std::expected<PropertyValue, std::string> ParsePropertyValue(const PropertySpec& spec, std::string_view text);
