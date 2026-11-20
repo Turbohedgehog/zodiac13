@@ -25,7 +25,10 @@
 #include <Eigen/Dense>
 #include <flecs.h>
 
+#include <editor_camera/orbit_camera.h>
 #include <station_graph/graph_editor.h>
+#include <z13/components/editor/editor_camera.h>
+#include <z13_settings/settings.h>
 
 namespace z13::station_editor {
 
@@ -34,5 +37,9 @@ inline constexpr std::string_view kNoGraph = "no graph loaded: call editor_load 
 std::expected<std::reference_wrapper<z13::editor::graph::GraphEditor>, std::string> LoadedEditor(flecs::world world);
 
 std::optional<Eigen::Matrix4f> LocalPlayerPose(flecs::world world);
+
+// The ray of the orbit camera through a pixel of the window; none while the camera is off or has not drawn.
+std::optional<z13::editor::camera::Ray> PixelRay(const z13::editor::EditorCamera& view,
+                                                 const z13::EditorCameraTuning& tuning, const Eigen::Vector2f& pixel);
 
 }  // namespace z13::station_editor
