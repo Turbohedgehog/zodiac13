@@ -17,6 +17,8 @@
 #include "station_graph/graph_diagnosis.h"
 
 #include <format>
+#include <algorithm>
+#include <iterator>
 #include <optional>
 
 #include "station_graph/graph_geometry.h"
@@ -36,13 +38,15 @@ bool OverlapMoreThanAWall(const RoomBox& a, const RoomBox& b) {
 
 }  // namespace
 
-std::vector<std::string> Diagnose(const Graph& graph, const PropertySchema& schema) {
-  std::vector<std::string> problems;
+std::vector<Problem> Problems(const Graph& graph, const PropertySchema& schema) {
+  std::vector<Problem> problems;
   for (std::size_t i = 0; i < graph.nodes.size(); ++i) {
     for (std::size_t j = i + 1; j < graph.nodes.size(); ++j) {
       if (OverlapMoreThanAWall(graph.nodes[i].box, graph.nodes[j].box)) {
         problems.push_back(
-            std::format("rooms '{}' and '{}' overlap by more than a shared wall", graph.nodes[i].id, graph.nodes[j].id));
+            {.message = std::format("rooms '{}' and '{}' overlap by more than a shared wall", graph.nodes[i].id,
+                                    graph.nodes[j].id),
+             .rooms = {graph.nodes[i].id, graph.nodes[j].id}});
       }
     }
   }
@@ -50,10 +54,17 @@ std::vector<std::string> Diagnose(const Graph& graph, const PropertySchema& sche
     const auto from = FindNode(graph, edge.from);
     const auto to = FindNode(graph, edge.to);
     if (from && to && !SharedWall(graph.nodes[*from], graph.nodes[*to], schema)) {
-      problems.push_back(std::format("edge '{}': rooms '{}' and '{}' share no wall", edge.id, edge.from, edge.to));
+      problems.push_back({.message = std::format("edge '{}': rooms '{}' and '{}' share no wall", edge.id, edge.from, edge.to),
+                          .rooms = {edge.from, edge.to}});
     }
   }
   return problems;
+}
+
+std::vector<std::string> Diagnose(const Graph& graph, const PropertySchema& schema) {
+  std::vector<std::string> messages;
+  std::ranges::transform(Problems(graph, schema), std::back_inserter(messages), &Problem::message);
+  return messages;
 }
 
 }  // namespace z13::editor::graph

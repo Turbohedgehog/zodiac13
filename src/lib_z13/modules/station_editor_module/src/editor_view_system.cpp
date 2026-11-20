@@ -28,6 +28,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/editor/editor_view.h>
 #include <z13/components/gui/gui_panels.h>
 
@@ -111,14 +112,17 @@ void PublishPanel(z13::gui::GuiPanels& panels, z13::gui::Panel panel) {
 }
 
 void RegisterSystems(flecs::world world) {
-  world.system<EditorView, const EditorGraph, z13::gui::GuiPanels*>("EditorViewSystem::Update")
+  world.system<EditorView, const EditorGraph, z13::gui::GuiPanels*, const z13::editor::EditorCamera*>(
+           "EditorViewSystem::Update")
       .kind(flecs::PreFrame)
-      .each([](EditorView& view, const EditorGraph& graph, z13::gui::GuiPanels* panels) {
+      .each([](EditorView& view, const EditorGraph& graph, z13::gui::GuiPanels* panels,
+               const z13::editor::EditorCamera* camera) {
         const bool was_open = view.open;
         if (was_open) {
           auto selected = std::move(view.selected);
           view = graph.editor ? ViewOf(*graph.editor, view.open) : EditorView {.open = view.open};
           view.selected = std::move(selected);
+          view.camera_on = camera != nullptr && camera->active;
         }
         if (panels == nullptr) {
           return;

@@ -69,6 +69,17 @@ TEST(GraphDiagnosisTest, AnEdgeBetweenRoomsThatShareNoWallIsReported) {
   EXPECT_NE(problems.front().find("a-far"), std::string::npos);
 }
 
+TEST(GraphDiagnosisTest, AProblemNamesTheRoomsItConcerns) {
+  const Graph graph {.nodes = {RoomAt("a", 0, 0), RoomAt("b", kRoomCells - 2, 0), RoomAt("far", kRoomCells * 5, 0)},
+                     .edges = {{.id = "a-far", .from = "a", .to = "far"}}};
+
+  const std::vector<Problem> problems = Problems(graph, Schema());
+
+  ASSERT_EQ(problems.size(), 2U);
+  EXPECT_EQ(problems[0].rooms, (std::vector<std::string> {"a", "b"}));
+  EXPECT_EQ(problems[1].rooms, (std::vector<std::string> {"a", "far"}));
+}
+
 TEST(GraphDiagnosisTest, RoomsOnDifferentLevelsDoNotCollide) {
   Node upper = RoomAt("upper", 0, 0);
   upper.box.origin.z() = kRoomCells;

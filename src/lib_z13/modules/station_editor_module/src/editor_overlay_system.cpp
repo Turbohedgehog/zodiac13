@@ -23,13 +23,16 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include <flecs.h>
 
 #include <lib_core/world/lifecycle.h>
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
+#include <station_graph/graph_drag.h>
 #include <station_graph/graph_geometry.h>
+#include <z13/components/editor/editor_drag.h>
 #include <z13/components/editor/editor_view.h>
 #include <z13/components/station/overlay_layers.h>
 
@@ -53,6 +56,8 @@ constexpr z13::Rgba kWindowColor {110, 220, 230, 255};
 constexpr z13::Rgba kPassageColor {240, 220, 70, 255};
 constexpr z13::Rgba kUnknownKindColor {220, 70, 60, 255};
 constexpr z13::Rgba kSelectedColor {255, 255, 255, 255};
+constexpr z13::Rgba kProblemColor {255, 60, 60, 255};
+constexpr z13::Rgba kDragColor {255, 160, 40, 255};
 
 struct KindColor {
   std::string_view kind;
@@ -78,13 +83,20 @@ z13::Rgba ColorOfKind(const graph::Edge& edge, const graph::PropertySchema& sche
 }
 
 void Fill(z13::station::OverlayLayer& layer, const graph::GraphEditor& editor,
-          const std::optional<z13::editor::EditorSelection>& selected) {
+          const std::optional<z13::editor::EditorSelection>& selected, const z13::editor::EditorDrag& drag) {
   const graph::Graph& graph = editor.graph();
   const graph::PropertySchema& schema = editor.schema();
   layer.boxes.clear();
+  const std::vector<graph::Problem> problems = graph::Problems(graph, schema);
+  const auto has_problem = [&problems](const std::string& room) {
+    return std::ranges::any_of(problems, [&room](const graph::Problem& problem) {
+      return std::ranges::find(problem.rooms, room) != problem.rooms.end();
+    });
+  };
   for (const graph::Node& node : graph.nodes) {
     const bool picked = selected && selected->target == EditorTarget::kRoom && selected->id == node.id;
-    layer.boxes.push_back(BoxOf(graph::CellsOfRoom(node, schema), picked ? kSelectedColor : kRoomColor));
+    const z13::Rgba& color = picked ? kSelectedColor : has_problem(node.id) ? kProblemColor : kRoomColor;
+    layer.boxes.push_back(BoxOf(graph::CellsOfRoom(node, schema), color));
   }
   for (const graph::Edge& edge : graph.edges) {
     const auto from = graph::FindNode(graph, edge.from);
@@ -95,8 +107,13 @@ void Fill(z13::station::OverlayLayer& layer, const graph::GraphEditor& editor,
       layer.boxes.push_back(BoxOf(*wall, picked ? kSelectedColor : ColorOfKind(edge, schema)));
     }
   }
+  if (const auto moved = drag.active ? graph::FindNode(graph, drag.room) : std::nullopt) {
+    graph::Node preview = graph.nodes[*moved];
+    preview.box = graph::Dragged(preview.box, {drag.low_follows, drag.high_follows}, drag.offset_cells);
+    layer.boxes.push_back(BoxOf(graph::CellsOfRoom(preview, schema), kDragColor));
+  }
   layer.label = std::format("Station graph: {} rooms, {} edges, {} problems", graph.nodes.size(), graph.edges.size(),
-                            graph::Diagnose(graph, schema).size());
+                            problems.size());
 }
 
 void RegisterSystems(flecs::world world) {
@@ -104,9 +121,11 @@ void RegisterSystems(flecs::world world) {
   if (auto* layers = world.try_get_mut<OverlayLayers>()) {
     layers->layers.push_back({.name = std::string(kLayerName)});
   }
-  world.system<OverlayLayers, const EditorGraph, const z13::editor::EditorView>("EditorOverlaySystem::Update")
+  world.system<OverlayLayers, const EditorGraph, const z13::editor::EditorView, const z13::editor::EditorDrag>(
+           "EditorOverlaySystem::Update")
       .kind(flecs::PreFrame)  // a frame phase: the editor works in the menu and on pause as well
-      .each([](flecs::iter&, size_t, OverlayLayers& layers, const EditorGraph& graph, const z13::editor::EditorView& view) {
+      .each([](flecs::iter&, size_t, OverlayLayers& layers, const EditorGraph& graph, const z13::editor::EditorView& view,
+               const z13::editor::EditorDrag& drag) {
         z13::station::OverlayLayer* layer = layers.Find(std::string(kLayerName));
         if (layer == nullptr) {
           return;
@@ -115,7 +134,7 @@ void RegisterSystems(flecs::world world) {
           *layer = {.name = layer->name};
           return;
         }
-        Fill(*layer, *graph.editor, view.selected);
+        Fill(*layer, *graph.editor, view.selected, drag);
       });
 }
 

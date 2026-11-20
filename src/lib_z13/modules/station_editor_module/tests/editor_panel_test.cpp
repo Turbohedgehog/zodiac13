@@ -76,6 +76,17 @@ TEST_F(EditorPanelTest, TheOpenWindowIsAPanelWithARowForEachRoomAndEdge) {
   EXPECT_NE(Widget(panel, "editor_pick"), nullptr);
 }
 
+TEST_F(EditorPanelTest, TheCameraButtonSaysWhetherTheOrbitCameraIsOn) {
+  const PanelWidget* button = Widget(EditorPanel(test_world_), "editor_camera");
+  ASSERT_NE(button, nullptr);
+  EXPECT_EQ(button->label, "Camera: off");
+
+  ASSERT_TRUE(RunCommand(test_world_, "editor_camera"));
+  test_world_.Tick();
+
+  EXPECT_EQ(Widget(EditorPanel(test_world_), "editor_camera")->label, "Camera: on");
+}
+
 TEST_F(EditorPanelTest, ThePickedRoomLightsItsRowAndShowsItsBoxAndPropertiesByTheirKind) {
   ASSERT_TRUE(RunCommand(test_world_, "editor_select", {{"target", Str("node")}, {"id", Str("hall")}}));
   test_world_.Tick();
