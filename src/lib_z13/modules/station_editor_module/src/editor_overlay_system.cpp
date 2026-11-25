@@ -29,6 +29,7 @@
 #include <lib_core/world/lifecycle.h>
 #include <station_graph/graph_diagnosis.h>
 #include <station_graph/graph_editor.h>
+#include <station_graph/graph_drag.h>
 #include <station_graph/graph_geometry.h>
 #include <z13/components/editor/editor_drag.h>
 #include <z13/components/editor/editor_view.h>
@@ -99,7 +100,7 @@ void Fill(z13::station::OverlayLayer& layer, const graph::GraphEditor& editor,
   }
   if (const auto moved = drag.active ? graph::FindNode(graph, drag.room) : std::nullopt) {
     graph::Node preview = graph.nodes[*moved];
-    preview.box.origin.head<2>() += drag.offset_cells;
+    preview.box = graph::Dragged(preview.box, {drag.low_follows, drag.high_follows}, drag.offset_cells);
     layer.boxes.push_back(BoxOf(graph::CellsOfRoom(preview, schema), kDragColor));
   }
   layer.label = std::format("Station graph: {} rooms, {} edges, {} problems", graph.nodes.size(), graph.edges.size(),
