@@ -24,8 +24,17 @@
 
 namespace z13::editor::graph {
 
+// One thing that keeps the graph from being built and the rooms it concerns.
+struct Problem {
+  std::string message;
+  std::vector<std::string> rooms;
+};
+
 // What keeps the graph from being built, one line each: rooms overlapping by more than a shared wall, and edges between
 // rooms that share no wall. The pipeline finds the rest (an opening too wide for its wall, a wall too low).
+std::vector<Problem> Problems(const Graph& graph, const PropertySchema& schema);
+
+// The messages of `Problems`.
 std::vector<std::string> Diagnose(const Graph& graph, const PropertySchema& schema);
 
 }  // namespace z13::editor::graph
