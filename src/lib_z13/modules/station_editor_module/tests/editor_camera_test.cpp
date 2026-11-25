@@ -19,7 +19,9 @@
 #include <string>
 
 #include <z13/components/editor/editor_camera.h>
+#include <player/gameplay_entities.h>
 #include <z13/components/gameplay/gameplay.h>
+#include <z13/components/gameplay/player.h>
 #include <z13/components/input/input_events.h>
 #include <z13_settings/settings.h>
 #include <z13_tests/shipped_station.h>
@@ -41,6 +43,7 @@ constexpr float kFingerGapPixels = 40.f;
 constexpr float kFingerSpreadPixels = 80.f;
 constexpr float kScreenWidth = 1000.f;
 constexpr float kScreenHeight = 600.f;
+constexpr int kWalkTicks = 10;
 constexpr int kCenterX = 500;
 constexpr int kCenterY = 300;
 
@@ -115,6 +118,27 @@ TEST_F(EditorCameraTest, TheWheelZoomsAndOnlyWhileTheCameraIsOn) {
   EXPECT_LT(Camera(test_world_).orbit.distance, framed);
   test_world_.EmitInput(z13::testing::MouseDown(Keycode::MOUSE_WHEEL_DOWN));
   EXPECT_NEAR(Camera(test_world_).orbit.distance, framed, framed * 1e-4f);
+}
+
+TEST_F(EditorCameraTest, ThePlayerStandsStillWhileTheCameraIsOnAndWalksAgainWhenItIsOff) {
+  const auto id = test_world_.World().get<z13::gameplay::LocalPlayer>().id;
+  const flecs::entity player = test_world_.World().lookup(z13::gameplay::PlayerEntityName(id.value()).c_str());
+  const auto walk = [&] {
+    const Eigen::Vector3f start = player.get<Eigen::Matrix4f>().block<3, 1>(0, 3);
+    test_world_.EmitInput(z13::testing::KeyDown(Keycode::KEY_W));
+    for (int i = 0; i < kWalkTicks; ++i) {
+      test_world_.Tick();
+    }
+    test_world_.EmitInput(z13::testing::KeyUp(Keycode::KEY_W));
+    test_world_.Tick();
+    return (player.get<Eigen::Matrix4f>().block<3, 1>(0, 3) - start).norm();
+  };
+
+  SwitchOn();
+  EXPECT_FLOAT_EQ(walk(), 0.f);
+
+  ASSERT_TRUE(RunCommand(test_world_, kCommand));
+  EXPECT_GT(walk(), 0.f);
 }
 
 TEST_F(EditorCameraTest, AWheelNotchOfZeroZoomsNothing) {

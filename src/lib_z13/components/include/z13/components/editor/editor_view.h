@@ -74,6 +74,7 @@ struct EditorView {
 
   bool open {};
   bool loaded {};
+  bool camera_on {};
   // Kept while the window is closed too: the overlay highlights it.
   std::optional<EditorSelection> selected;
   std::vector<EditorItemView> rooms;
