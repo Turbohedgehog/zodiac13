@@ -91,7 +91,7 @@ constexpr std::string_view kVflippedUniform = "vflipped";              // cubema
                           static_cast<float>(faces[i].height)};
     const ::Rectangle dst{static_cast<float>(i) * static_cast<float>(face_size.x()), 0.f,
                           static_cast<float>(face_size.x()), static_cast<float>(face_size.y())};
-    ImageDraw(&atlas, faces[i], src, dst, WHITE);
+    ImageDrawImagePro(&atlas, faces[i], src, dst, {0.f, 0.f}, 0.f, WHITE);
     UnloadImage(faces[i]);
   }
 
