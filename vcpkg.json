@@ -46,10 +46,6 @@
     {
       "name": "flecs",
       "version": "4.1.6#0"
-    },
-    {
-      "name": "reflectcpp",
-      "version": "0.25.0#0"
     }
   ]
 }
