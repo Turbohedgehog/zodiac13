@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <lib_core/state/component_codec.h>
+#include <lib_core/state/world_json_document.h>
 #include <lib_core/version.h>
 #include <lib_core/utils/status.h>
 
@@ -30,7 +31,6 @@
 #if defined(_MSC_VER)
 #pragma warning(push, 0)
 #endif
-#include <rfl/Generic.hpp>
 #include <rfl/json.hpp>
 #if defined(_MSC_VER)
 #pragma warning(pop)
@@ -39,28 +39,6 @@
 namespace z13::flecs_tools {
 
 namespace {
-
-// Wire twins of the snapshot types: component values are embedded JSON, not strings.
-struct ComponentJson {
-  std::string type;
-  rfl::Generic value;
-};
-
-struct EntityJson {
-  std::string name;
-  std::vector<std::string> tags;
-  std::vector<ComponentJson> components;
-  std::vector<Relationship> relationships;
-};
-
-struct DocumentJson {
-  int version {};
-  // Which build made the save; informational only, not checked on load (see
-  // WorldJsonStore's class comment). Optional so older/hand-written JSON without
-  // this field still parses.
-  std::optional<std::string> engine_version;
-  std::vector<EntityJson> entities;
-};
 
 std::expected<rfl::Generic, std::string> ParseValue(const std::string& text) {
   auto value = rfl::json::read<rfl::Generic>(text);
