@@ -46,6 +46,10 @@
     {
       "name": "flecs",
       "version": "4.1.6#0"
+    },
+    {
+      "name": "libuv",
+      "version": "1.52.1"
     }
   ]
 }
