@@ -89,14 +89,14 @@ OrbitCamera Panned(const OrbitCamera& camera, const Eigen::Vector2f& drag_pixels
 }
 
 float NotchFactor(float per_notch, bool nearer) {
-  if (!(per_notch > 0.f)) {
+  if (per_notch <= 0.f) {
     return 1.f;
   }
   return nearer ? 1.f / per_notch : per_notch;
 }
 
 OrbitCamera Zoomed(const OrbitCamera& camera, float factor, const DistanceLimits& limits) {
-  if (!(factor > 0.f)) {
+  if (std::isnan(factor) || factor <= 0.f) {
     return camera;
   }
   OrbitCamera zoomed = camera;
