@@ -24,6 +24,8 @@
 #include <flecs.h>
 
 #include <lib_core/commands/command_registry.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/utils/status.h>
 #include <editor_camera/orbit_camera.h>
 #include <lib_core/state/world_state.h>
 #include <z13/components/input/input_events.h>
@@ -161,8 +163,11 @@ void OnClick(flecs::iter& it, size_t, const z13::input::MouseButtonDownEvent& ev
   rfl::Generic::Object arguments;
   arguments["x"] = rfl::Generic(event.pos.x);
   arguments["y"] = rfl::Generic(event.pos.y);
-  SubmitCommand(it.world(), {.tags = {std::string(z13::editor::kEditorTagName)}}, kPickAtName,
-                rfl::Generic(std::move(arguments)), [](CommandResult) {});
+  const Status submitted = SubmitCommand(it.world(), {.tags = {std::string(z13::editor::kEditorTagName)}}, kPickAtName,
+                                         rfl::Generic(std::move(arguments)), [](CommandResult) {});
+  if (!submitted) {
+    log_error("{}", submitted.error());
+  }
 }
 
 }  // namespace
