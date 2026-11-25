@@ -24,6 +24,8 @@
 
 #include <editor_camera/orbit_camera.h>
 #include <lib_core/commands/command_registry.h>
+#include <lib_core/utils/log.h>
+#include <lib_core/utils/status.h>
 #include <lib_core/state/world_state.h>
 #include <lib_core/world/lifecycle.h>
 #include <station_graph/graph_pick.h>
@@ -121,8 +123,11 @@ void OnUp(flecs::iter& it, size_t, const z13::input::MouseButtonUpEvent& event, 
   arguments["z"] = rfl::Generic(box.origin.z());
   arguments["w"] = rfl::Generic(box.size.x());
   arguments["d"] = rfl::Generic(box.size.y());
-  SubmitCommand(it.world(), {.tags = {std::string(z13::editor::kEditorTagName)}}, kSetRoomName,
-                rfl::Generic(std::move(arguments)), [](CommandResult) {});
+  const Status submitted = SubmitCommand(it.world(), {.tags = {std::string(z13::editor::kEditorTagName)}}, kSetRoomName,
+                                         rfl::Generic(std::move(arguments)), [](CommandResult) {});
+  if (!submitted) {
+    log_error("{}", submitted.error());
+  }
 }
 
 void RegisterSystems(flecs::world world) {
