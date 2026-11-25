@@ -217,7 +217,9 @@ TEST_F(McpServerWorldTest, ASessionThatLeavesIsNotListeningAnyMore) {
 }
 
 TEST(McpProtocolTest, AnEventLineCarriesTheEventAndItsText) {
-  EXPECT_EQ(FormatEvent("say", "hi \"you\""), R"({"event":"say","text":"hi \"you\""})");
+  // Outside the macro: the traditional MSVC preprocessor mangles a raw string holding \" in a macro argument.
+  constexpr std::string_view kExpected = R"({"event":"say","text":"hi \"you\""})";
+  EXPECT_EQ(FormatEvent("say", "hi \"you\""), kExpected);
 }
 
 TEST_F(McpServerWorldTest, RefusesWhatItDoesNotShowAndWhatIsNotARequest) {
