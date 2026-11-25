@@ -92,7 +92,7 @@ std::expected<std::optional<LightSource>, std::string> ToLight(const fbs_station
   if (source == nullptr) {
     return std::nullopt;
   }
-  if (!source->color || source->radius_cells == 0 || !(source->intensity > 0.f)) {
+  if (!source->color || source->radius_cells == 0 || source->intensity <= 0.f) {
     return Error("a light needs a color, a radius and a positive intensity");
   }
   return LightSource {

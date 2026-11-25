@@ -91,14 +91,14 @@ OrbitCamera Panned(const OrbitCamera& camera, const Eigen::Vector2f& drag_pixels
 }
 
 float NotchFactor(float per_notch, bool nearer) {
-  if (!(per_notch > 0.f)) {
+  if (per_notch <= 0.f) {
     return 1.f;
   }
   return nearer ? 1.f / per_notch : per_notch;
 }
 
 OrbitCamera Zoomed(const OrbitCamera& camera, float factor, const DistanceLimits& limits) {
-  if (!(factor > 0.f)) {
+  if (std::isnan(factor) || factor <= 0.f) {
     return camera;
   }
   OrbitCamera zoomed = camera;
@@ -136,11 +136,11 @@ Ray RayThrough(const OrbitCamera& camera, const Eigen::Vector2f& ndc, float fov_
 
 std::optional<Eigen::Vector3f> GroundHit(const Ray& ray, float z) {
   const float rise = ray.direction.z();
-  if (!(std::abs(rise) > kLevelSlope)) {
+  if (std::abs(rise) <= kLevelSlope) {
     return std::nullopt;
   }
   const float along = (z - ray.origin.z()) / rise;
-  if (!(along >= 0.f)) {
+  if (along < 0.f) {
     return std::nullopt;
   }
   return ray.origin + ray.direction * along;
@@ -152,7 +152,7 @@ Gesture TwoFingerGesture(const Eigen::Vector2f& first_before, const Eigen::Vecto
   const Eigen::Vector2f apart_after = second_after - first_after;
   Gesture gesture;
   gesture.pan_pixels = (first_after + second_after) * kHalf - (first_before + second_before) * kHalf;
-  if (!(apart_before.norm() >= kMinFingerGapPixels) || !(apart_after.norm() >= kMinFingerGapPixels)) {
+  if (apart_before.norm() < kMinFingerGapPixels || apart_after.norm() < kMinFingerGapPixels) {
     return gesture;
   }
   gesture.zoom_factor = apart_before.norm() / apart_after.norm();
