@@ -28,11 +28,13 @@
 #include <Eigen/Dense>
 #include <SDL3/SDL.h>
 #include <flecs.h>
+#include <imgui.h>
 
 #include <lib_core/utils/flecs_utils.h>
 #include <lib_core/world/components.h>
 #include <lib_core/world/lifecycle.h>
 
+#include <z13/components/editor/editor_camera.h>
 #include <z13/components/gameplay/gameplay.h>
 #include <z13/components/input/input_events.h>
 #include <z13/components/input/input_event_emitter.h>
@@ -192,6 +194,12 @@ z13::input::TouchEvent ToTouchEvent(const SDL_TouchFingerEvent& finger, const Sd
   };
 }
 
+// A press or wheel notch over a window of the editor's GUI works the window, not the camera behind it.
+bool EditorGuiHasPointer(flecs::world world) {
+  const auto* editor = world.try_get<z13::editor::EditorCamera>();
+  return editor != nullptr && editor->active && ImGui::GetIO().WantCaptureMouse;
+}
+
 void ReadInput(flecs::world world, SdlPlatform& platform, gui::ConsoleState* console) {
   // Pump here rather than in a separate system: same-phase order isn't
   // guaranteed, and a separate PumpEvents could run after this, one tick late.
@@ -205,6 +213,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform, gui::ConsoleState* con
     // The console takes the keyboard and the pointer while it is down; releases still reach the game, so no
     // key or finger stays held.
     const bool console_down = console != nullptr && console->open;
+    const bool pointer_taken = console_down || EditorGuiHasPointer(world);
     switch (event.type) {
       case SDL_EVENT_KEY_DOWN:
         [[fallthrough]];
@@ -238,7 +247,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform, gui::ConsoleState* con
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
         [[fallthrough]];
       case SDL_EVENT_MOUSE_BUTTON_UP: {
-        if (event.button.which == SDL_TOUCH_MOUSEID || (console_down && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)) {
+        if (event.button.which == SDL_TOUCH_MOUSEID || (pointer_taken && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)) {
           break;
         }
         z13::input::MouseButtonEvent button{};
@@ -255,7 +264,7 @@ void ReadInput(flecs::world world, SdlPlatform& platform, gui::ConsoleState* con
         break;
       }
       case SDL_EVENT_MOUSE_WHEEL: {
-        if (console_down) {
+        if (pointer_taken) {
           break;
         }
         // Whole notches (SDL sums a touchpad's fractions), each a press and a release.

@@ -28,6 +28,10 @@ namespace {
 constexpr float kPitchLimitDegrees = 89.f;
 // Fingers closer than this give no steady ratio: the gesture is not a pinch.
 constexpr float kMinFingerGapPixels = 1.f;
+// Under this the tangent of half the field of view is no usable divisor: the view is taken as unframeable.
+constexpr float kMinHalfFovTangent = 1e-3f;
+// A ray whose height changes by less than this per unit of its length is level: no usable divisor.
+constexpr float kLevelSlope = 1e-4f;
 // A fifth of the view around what is framed.
 constexpr float kFrameMargin = 1.2f;
 constexpr float kHalf = 0.5f;
@@ -86,7 +90,17 @@ OrbitCamera Panned(const OrbitCamera& camera, const Eigen::Vector2f& drag_pixels
   return moved;
 }
 
+float NotchFactor(float per_notch, bool nearer) {
+  if (per_notch <= 0.f) {
+    return 1.f;
+  }
+  return nearer ? 1.f / per_notch : per_notch;
+}
+
 OrbitCamera Zoomed(const OrbitCamera& camera, float factor, const DistanceLimits& limits) {
+  if (std::isnan(factor) || factor <= 0.f) {
+    return camera;
+  }
   OrbitCamera zoomed = camera;
   zoomed.distance = std::clamp(camera.distance * factor, limits.min, limits.max);
   return zoomed;
@@ -103,7 +117,10 @@ OrbitCamera Framed(const OrbitCamera& camera, const Eigen::Vector3f& min, const 
   OrbitCamera framed = camera;
   framed.target = min + extent * kHalf;
   const float radius = extent.norm() * kHalf;
-  framed.distance = std::clamp(kFrameMargin * radius / std::tan(ToRadians(fov_degrees) * kHalf), limits.min, limits.max);
+  const float half_fov_tangent = std::tan(ToRadians(fov_degrees) * kHalf);
+  framed.distance = half_fov_tangent >= kMinHalfFovTangent
+                        ? std::clamp(kFrameMargin * radius / half_fov_tangent, limits.min, limits.max)
+                        : limits.max;
   return framed;
 }
 
@@ -115,6 +132,18 @@ Ray RayThrough(const OrbitCamera& camera, const Eigen::Vector2f& ndc, float fov_
   const float half_height = std::tan(ToRadians(fov_degrees) * kHalf);
   const Eigen::Vector3f through = forward + right * (ndc.x() * half_height * aspect) + up * (ndc.y() * half_height);
   return {.origin = eye, .direction = through.normalized()};
+}
+
+std::optional<Eigen::Vector3f> GroundHit(const Ray& ray, float z) {
+  const float rise = ray.direction.z();
+  if (std::abs(rise) <= kLevelSlope) {
+    return std::nullopt;
+  }
+  const float along = (z - ray.origin.z()) / rise;
+  if (along < 0.f) {
+    return std::nullopt;
+  }
+  return ray.origin + ray.direction * along;
 }
 
 Gesture TwoFingerGesture(const Eigen::Vector2f& first_before, const Eigen::Vector2f& second_before,

@@ -9,6 +9,7 @@ z13_add_plugin(
   SOURCES
   src/editor_camera_system.cpp
   src/editor_commands.cpp
+  src/editor_drag_system.cpp
   src/editor_overlay_system.cpp
   src/editor_panel.cpp
   src/editor_selection_commands.cpp
