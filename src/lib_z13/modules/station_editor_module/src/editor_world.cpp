@@ -39,7 +39,7 @@ std::expected<std::reference_wrapper<z13::editor::graph::GraphEditor>, std::stri
 
 std::optional<z13::editor::camera::Ray> PixelRay(const z13::editor::EditorCamera& view,
                                                  const z13::EditorCameraTuning& tuning, const Eigen::Vector2f& pixel) {
-  if (!view.active || !(view.screen_pixels.minCoeff() > 0.f)) {
+  if (!view.active || view.screen_pixels.minCoeff() <= 0.f) {
     return std::nullopt;
   }
   const Eigen::Vector2f ndc(kNdcSpan * pixel.x() / view.screen_pixels.x() - 1.f,
