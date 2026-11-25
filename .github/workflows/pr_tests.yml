@@ -78,6 +78,8 @@ jobs:
       - name: Set up MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          vsversion: 2022 # MSVC 14.52 of VS 2026 fails on rfl::view_t (C3539)
 
       - name: Compiler cache
         uses: hendrikmuhs/ccache-action@v1.2
